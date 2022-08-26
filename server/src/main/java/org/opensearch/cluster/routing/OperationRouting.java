@@ -37,6 +37,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.WeightedRoundRobinMetadata;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
 import org.opensearch.common.settings.ClusterSettings;
@@ -86,7 +87,32 @@ public class OperationRouting {
     private volatile boolean useAdaptiveReplicaSelection;
     private volatile boolean ignoreAwarenessAttr;
 
+    // reads value from cluster setting
     private volatile boolean useWeightedRoundRobin;
+    /**
+     * Reads value from cluster setting and cluster state to determine if weighted round-robin
+     * search routing is enabled
+     * This is true if useWeightedRoundRobin=true and weights are set in cluster metadata.
+     */
+    private volatile boolean isWeightedRoundRobinEnabled;
+
+    private volatile WRRWeights wrrWeights;
+
+    public WRRShardsCache getWrrShardsCache() {
+        return wrrShardsCache;
+    }
+
+    private WRRShardsCache wrrShardsCache;
+
+    public ClusterService getClusterService() {
+        return clusterService;
+    }
+
+    public void setClusterService(ClusterService clusterService) {
+        this.clusterService = clusterService;
+    }
+
+    private ClusterService clusterService;
 
     public OperationRouting(Settings settings, ClusterSettings clusterSettings) {
         // whether to ignore awareness attributes when routing requests
@@ -112,10 +138,6 @@ public class OperationRouting {
         this.ignoreAwarenessAttr = ignoreAwarenessAttributes;
     }
 
-    public boolean isUseWeightedRoundRobin() {
-        return useWeightedRoundRobin;
-    }
-
     public void setUseWeightedRoundRobin(boolean useWeightedRoundRobin) {
         this.useWeightedRoundRobin = useWeightedRoundRobin;
     }
@@ -134,6 +156,10 @@ public class OperationRouting {
 
     public boolean ignoreAwarenessAttributes() {
         return this.awarenessAttributes.isEmpty() || this.ignoreAwarenessAttr;
+    }
+
+    public WRRWeights getWrrWeights() {
+        return wrrWeights;
     }
 
     public ShardIterator indexShards(ClusterState clusterState, String index, String id, @Nullable String routing) {
@@ -159,6 +185,7 @@ public class OperationRouting {
 
     public ShardIterator getShards(ClusterState clusterState, String index, int shardId, @Nullable String preference) {
         final IndexShardRoutingTable indexShard = clusterState.getRoutingTable().shardRoutingTable(index, shardId);
+        setWeightedRoundRobinAttributes(clusterState, getClusterService());
         return preferenceActiveShardIterator(
             indexShard,
             clusterState.nodes().getLocalNodeId(),
@@ -188,23 +215,16 @@ public class OperationRouting {
     ) {
         final Set<IndexShardRoutingTable> shards = computeTargetedShards(clusterState, concreteIndices, routing);
         final Set<ShardIterator> set = new HashSet<>(shards.size());
+        setWeightedRoundRobinAttributes(clusterState, getClusterService());
         for (IndexShardRoutingTable shard : shards) {
-            ShardIterator iterator = null;
-            // TODO: Do we need similar changes in getShards call??
-            if (isWeightedRoundRobinEnabled(clusterState)) {
-                WeightedRoundRobinMetadata weightedRoundRobinMetadata = clusterState.metadata().custom(WeightedRoundRobinMetadata.TYPE);
-                iterator = shard.activeInitializingShardsWRR(weightedRoundRobinMetadata.getWrrWeight(), clusterState.nodes());
-            } else {
-                iterator = preferenceActiveShardIterator(
-                    shard,
-                    clusterState.nodes().getLocalNodeId(),
-                    clusterState.nodes(),
-                    preference,
-                    collectorService,
-                    nodeCounts
-                );
-            }
-
+            ShardIterator iterator = preferenceActiveShardIterator(
+                shard,
+                clusterState.nodes().getLocalNodeId(),
+                clusterState.nodes(),
+                preference,
+                collectorService,
+                nodeCounts
+            );
             if (iterator != null) {
                 set.add(iterator);
             }
@@ -212,12 +232,18 @@ public class OperationRouting {
         return GroupShardsIterator.sortAndCreate(new ArrayList<>(set));
     }
 
-    private boolean isWeightedRoundRobinEnabled(ClusterState clusterState) {
+    private void setWeightedRoundRobinAttributes(ClusterState clusterState, ClusterService clusterService) {
         WeightedRoundRobinMetadata weightedRoundRobinMetadata = clusterState.metadata().custom(WeightedRoundRobinMetadata.TYPE);
-        if (useWeightedRoundRobin && weightedRoundRobinMetadata != null) {
-            return true;
+        this.isWeightedRoundRobinEnabled = useWeightedRoundRobin && weightedRoundRobinMetadata != null ? true : false;
+        if (this.isWeightedRoundRobinEnabled) {
+            this.wrrWeights = weightedRoundRobinMetadata.getWrrWeight();
+            this.wrrShardsCache = getWrrShardsCache() != null ? getWrrShardsCache() : new WRRShardsCache(clusterService);
         }
-        return false;
+
+    }
+
+    private boolean isWeightedRoundRobinEnabled() {
+        return isWeightedRoundRobinEnabled;
     }
 
     public static ShardIterator getShards(ClusterState clusterState, ShardId shardId) {
@@ -337,7 +363,9 @@ public class OperationRouting {
         @Nullable ResponseCollectorService collectorService,
         @Nullable Map<String, Long> nodeCounts
     ) {
-        if (ignoreAwarenessAttributes()) {
+        if (isWeightedRoundRobinEnabled()) {
+            return indexShard.activeInitializingShardsWRR(getWrrWeights(), nodes, wrrShardsCache);
+        } else if (ignoreAwarenessAttributes()) {
             if (useAdaptiveReplicaSelection) {
                 return indexShard.activeInitializingShardsRankedIt(collectorService, nodeCounts);
             } else {

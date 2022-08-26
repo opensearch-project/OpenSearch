@@ -21,21 +21,21 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
-public class WRRWeight implements Writeable {
+public class WRRWeights implements Writeable {
     private String attributeName;
     private Map<String, Object> weights;
 
-    public WRRWeight(String attributeName, Map<String, Object> weights) {
+    public WRRWeights(String attributeName, Map<String, Object> weights) {
         this.attributeName = attributeName;
         this.weights = weights;
     }
 
-    public WRRWeight(WRRWeight wrrWeight) {
+    public WRRWeights(WRRWeights wrrWeight) {
         this.attributeName = wrrWeight.attributeName();
         this.weights = wrrWeight.weights;
     }
 
-    public WRRWeight(StreamInput in) throws IOException {
+    public WRRWeights(StreamInput in) throws IOException {
         attributeName = in.readString();
         weights = in.readMap();
     }
@@ -51,7 +51,7 @@ public class WRRWeight implements Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        WRRWeight that = (WRRWeight) o;
+        WRRWeights that = (WRRWeights) o;
 
         if (!attributeName.equals(that.attributeName)) return false;
         return weights.equals(that.weights);

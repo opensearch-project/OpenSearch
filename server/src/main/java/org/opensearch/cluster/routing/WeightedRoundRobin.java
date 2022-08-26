@@ -58,7 +58,7 @@ public class WeightedRoundRobin<T> implements Iterator<T>, Iterable<T> {
     public List<WeightedRoundRobin.Entity<T>> orderEntities() {
         int size = entities.size();
         List<WeightedRoundRobin.Entity<T>> orderedWeight = new ArrayList<>();
-        if (size <= 0) {
+        if (size == 0) {
             return null;
         }
         if (size == 1) {
