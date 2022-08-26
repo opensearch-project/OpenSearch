@@ -40,6 +40,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.BytesRef;
 
+import org.hamcrest.MatcherAssert;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -48,6 +49,7 @@ import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.action.admin.indices.shards.IndicesShardStoresResponse;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
+import org.opensearch.action.support.replication.TransportReplicationAction;
 import org.opensearch.client.Requests;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.health.ClusterHealthStatus;
@@ -108,6 +110,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 import static org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.FS;
 import static org.opensearch.common.util.CollectionUtils.iterableAsArrayList;
@@ -696,6 +699,104 @@ public class CorruptedFileIT extends OpenSearchIntegTestCase {
         );
 
         ensureGreen(TimeValue.timeValueSeconds(60));
+    }
+
+    public void testPrimaryCorruptionDuringReplicationDoesNotFailReplicaShard() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        final NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().get();
+        final List<NodeStats> dataNodeStats = nodeStats.getNodes()
+            .stream()
+            .filter(stat -> stat.getNode().isDataNode())
+            .collect(Collectors.toUnmodifiableList());
+        MatcherAssert.assertThat(dataNodeStats.size(), greaterThanOrEqualTo(2));
+
+        final NodeStats primaryNode = dataNodeStats.get(0);
+        final NodeStats replicaNode = dataNodeStats.get(1);
+        assertAcked(
+            prepareCreate("test").setSettings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "0")
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put("index.routing.allocation.include._name", primaryNode.getNode().getName())
+                    .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
+                    .put("index.allocation.max_retries", Integer.MAX_VALUE) // keep on retrying
+
+            )
+        );
+        ensureGreen();
+
+        // Add custom send behavior between primary and replica that will
+        // count down a latch to indicate that a replication operation is
+        // currently in flight, and then block on a second latch that will
+        // be released once the primary shard has been corrupted.
+        final CountDownLatch indexingInFlight = new CountDownLatch(1);
+        final CountDownLatch corruptionHasHappened = new CountDownLatch(1);
+        final MockTransportService mockTransportService = ((MockTransportService) internalCluster().getInstance(
+            TransportService.class,
+            primaryNode.getNode().getName()
+        ));
+        mockTransportService.addSendBehavior(
+            internalCluster().getInstance(TransportService.class, replicaNode.getNode().getName()),
+            (connection, requestId, action, request, options) -> {
+                if (request instanceof TransportReplicationAction.ConcreteShardRequest) {
+                    indexingInFlight.countDown();
+                    try {
+                        corruptionHasHappened.await();
+                    } catch (InterruptedException e) {
+                        logger.info("Interrupted while waiting for corruption");
+                    }
+                }
+                connection.sendRequest(requestId, action, request, options);
+            }
+        );
+
+        // Configure the modified data node as a replica
+        final Settings build = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "1")
+            .put("index.routing.allocation.include._name", primaryNode.getNode().getName() + "," + replicaNode.getNode().getName())
+            .build();
+        client().admin().indices().prepareUpdateSettings("test").setSettings(build).get();
+        client().admin().cluster().prepareReroute().get();
+        ensureGreen();
+
+        // Create a snapshot repository. This repo is used to take a snapshot after
+        // corrupting a file, which causes the node to notice the corrupt data and
+        // close the shard.
+        assertAcked(
+            client().admin()
+                .cluster()
+                .preparePutRepository("test-repo")
+                .setType("fs")
+                .setSettings(
+                    Settings.builder()
+                        .put("location", randomRepoPath().toAbsolutePath())
+                        .put("compress", randomBoolean())
+                        .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
+                )
+        );
+
+        client().prepareIndex("test").setSource("field", "value").execute();
+        indexingInFlight.await();
+
+        // Corrupt a file on the primary then take a snapshot. Snapshot should
+        // finish in the PARTIAL state since the corrupted file will cause a checksum
+        // validation failure.
+        final ShardRouting corruptedShardRouting = corruptRandomPrimaryFile();
+        logger.info("--> {} corrupted", corruptedShardRouting);
+        final CreateSnapshotResponse createSnapshotResponse = client().admin()
+            .cluster()
+            .prepareCreateSnapshot("test-repo", "test-snap")
+            .setWaitForCompletion(true)
+            .setIndices("test")
+            .get();
+        final SnapshotState snapshotState = createSnapshotResponse.getSnapshotInfo().state();
+        MatcherAssert.assertThat("Expect file corruption to cause PARTIAL snapshot state", snapshotState, equalTo(SnapshotState.PARTIAL));
+
+        // Unblock the blocked indexing thread now that corruption on the primary has been confirmed
+        corruptionHasHappened.countDown();
+
+        // Assert the cluster returns to green status because the replica will be promoted to primary
+        ensureGreen();
     }
 
     private int numShards(String... index) {
