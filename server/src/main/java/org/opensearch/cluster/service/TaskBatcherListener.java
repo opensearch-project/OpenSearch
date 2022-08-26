@@ -10,6 +10,9 @@ package org.opensearch.cluster.service;
 
 import java.util.List;
 
+/**
+ * Listener class for callback on various events of TaskBatcher.
+ */
 public interface TaskBatcherListener {
     /**
      * Callback called before submitting tasks.
