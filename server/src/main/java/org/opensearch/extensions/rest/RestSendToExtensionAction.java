@@ -36,6 +36,7 @@ import static java.util.Collections.unmodifiableList;
  */
 public class RestSendToExtensionAction extends BaseRestHandler {
 
+    private static final String SEND_TO_EXTENSION_ACTION = "send_to_extension_action";
     private static final Logger logger = LogManager.getLogger(RestSendToExtensionAction.class);
 
     private final List<Route> routes;
@@ -77,7 +78,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "send_to_extension_action";
+        return SEND_TO_EXTENSION_ACTION;
     }
 
     @Override
@@ -129,7 +130,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
                     restExecuteOnExtensionResponseHandler
                 );
             } catch (Exception e) {
-                logger.info("Failed to send Register REST Actions request to OpenSearch", e);
+                logger.info("Failed to send REST Actions to extension " + discoveryExtension.getName(), e);
             }
         }
     }
