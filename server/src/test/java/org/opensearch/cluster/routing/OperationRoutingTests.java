@@ -766,10 +766,13 @@ public class OperationRoutingTests extends OpenSearchTestCase {
         final int numIndices = 2;
         final int numShards = 3;
         final int numReplicas = 2;
+        // setting up indices
         final String[] indexNames = new String[numIndices];
         for (int i = 0; i < numIndices; i++) {
             indexNames[i] = "test" + i;
         }
+
+        // setting up domain nodes and attributes
         DiscoveryNode[] allNodes = setUpNodesWRR();
         ClusterState state = ClusterStateCreationUtils.state(allNodes[0], allNodes[6], allNodes);
 
@@ -789,12 +792,10 @@ public class OperationRoutingTests extends OpenSearchTestCase {
         discoveryNodeMap.put("b", nodesZoneB);
         discoveryNodeMap.put("c", nodesZoneC);
 
+        // Updating cluster state with node, index and shard details
         state = updateStatetoTestWRR(indexNames, numShards, numReplicas, state, discoveryNodeMap);
 
-        Settings setting = Settings.builder()
-            .put("cluster.routing.allocation.awareness.attributes", "zone")
-            .put("cluster.routing.use_weighted_round_robin", "true")
-            .build();
+        Settings setting = Settings.builder().put("cluster.routing.allocation.awareness.attributes", "zone").build();
 
         TestThreadPool threadPool = new TestThreadPool("testThatOnlyNodesSupport");
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
@@ -809,6 +810,7 @@ public class OperationRoutingTests extends OpenSearchTestCase {
         ResponseCollectorService collector = new ResponseCollectorService(clusterService);
         Map<String, Long> outstandingRequests = new HashMap<>();
 
+        // Setting up weights for weighted round-robin in cluster state
         Map<String, Object> weights = Map.of("a", "1", "b", "1", "c", "0");
         WRRWeights wrrWeight = new WRRWeights("zone", weights);
         WeightedRoundRobinMetadata wrrMetadata = new WeightedRoundRobinMetadata(wrrWeight);
@@ -816,6 +818,7 @@ public class OperationRoutingTests extends OpenSearchTestCase {
         metadataBuilder.putCustom(WeightedRoundRobinMetadata.TYPE, wrrMetadata);
         state = ClusterState.builder(state).metadata(metadataBuilder).build();
 
+        // search shards call
         GroupShardsIterator<ShardIterator> groupIterator = opRouting.searchShards(
             state,
             indexNames,
@@ -832,27 +835,29 @@ public class OperationRoutingTests extends OpenSearchTestCase {
                 selectedNodes.add(shardRouting.currentNodeId());
             }
         }
+        // tests no nodes are assigned to nodes in zone c
         for (String nodeID : selectedNodes) {
             // No shards are assigned to nodes in zone c since its weight is 0
             assertFalse(nodeID.contains("c"));
         }
 
         selectedNodes = new HashSet<>();
-        setting = Settings.builder()
-            .put("cluster.routing.allocation.awareness.attributes", "zone")
-            .put("cluster.routing.use_weighted_round_robin", "true")
-            .build();
+        setting = Settings.builder().put("cluster.routing.allocation.awareness.attributes", "zone").build();
 
+        // Updating weighted round robin weights in cluster state
         weights = Map.of("a", "1", "b", "0", "c", "1");
         wrrWeight = new WRRWeights("zone", weights);
         wrrMetadata = new WeightedRoundRobinMetadata(wrrWeight);
         metadataBuilder = Metadata.builder(state.metadata());
         metadataBuilder.putCustom(WeightedRoundRobinMetadata.TYPE, wrrMetadata);
+
+        // building cluster state with new weights
         state = ClusterState.builder(state).metadata(metadataBuilder).build();
 
         opRouting = new OperationRouting(setting, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
         opRouting.setClusterService(clusterService);
 
+        // search shards call
         groupIterator = opRouting.searchShards(state, indexNames, null, null, collector, outstandingRequests);
 
         for (ShardIterator it : groupIterator) {
@@ -861,6 +866,7 @@ public class OperationRoutingTests extends OpenSearchTestCase {
                 selectedNodes.add(shardRouting.currentNodeId());
             }
         }
+        // tests that no shards are assigned to zone with weight zero
         for (String nodeID : selectedNodes) {
             // No shards are assigned to nodes in zone b since its weight is 0
             assertFalse(nodeID.contains("b"));
@@ -873,10 +879,13 @@ public class OperationRoutingTests extends OpenSearchTestCase {
         final int numIndices = 2;
         final int numShards = 3;
         final int numReplicas = 2;
+        // setting up indices
         final String[] indexNames = new String[numIndices];
         for (int i = 0; i < numIndices; i++) {
             indexNames[i] = "test" + i;
         }
+
+        // setting up domain nodes and attributes
         DiscoveryNode[] allNodes = setUpNodesWRR();
         ClusterState state = ClusterStateCreationUtils.state(allNodes[0], allNodes[6], allNodes);
 
@@ -896,12 +905,10 @@ public class OperationRoutingTests extends OpenSearchTestCase {
         discoveryNodeMap.put("b", nodesZoneB);
         discoveryNodeMap.put("c", nodesZoneC);
 
+        // Updating cluster state with node, index and shard details
         state = updateStatetoTestWRR(indexNames, numShards, numReplicas, state, discoveryNodeMap);
 
-        Settings setting = Settings.builder()
-            .put("cluster.routing.allocation.awareness.attributes", "zone")
-            .put("cluster.routing.use_weighted_round_robin", "true")
-            .build();
+        Settings setting = Settings.builder().put("cluster.routing.allocation.awareness.attributes", "zone").build();
 
         TestThreadPool threadPool = new TestThreadPool("testThatOnlyNodesSupport");
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
@@ -916,6 +923,7 @@ public class OperationRoutingTests extends OpenSearchTestCase {
         ResponseCollectorService collector = new ResponseCollectorService(clusterService);
         Map<String, Long> outstandingRequests = new HashMap<>();
 
+        // Setting up weights for weighted round-robin in cluster state
         Map<String, Object> weights = Map.of("a", "1", "b", "1", "c", "0");
         WRRWeights wrrWeight = new WRRWeights("zone", weights);
         WeightedRoundRobinMetadata wrrMetadata = new WeightedRoundRobinMetadata(wrrWeight);
@@ -923,6 +931,7 @@ public class OperationRoutingTests extends OpenSearchTestCase {
         metadataBuilder.putCustom(WeightedRoundRobinMetadata.TYPE, wrrMetadata);
         state = ClusterState.builder(state).metadata(metadataBuilder).build();
 
+        // search shards call
         GroupShardsIterator<ShardIterator> groupIterator = opRouting.searchShards(
             state,
             indexNames,
@@ -932,30 +941,44 @@ public class OperationRoutingTests extends OpenSearchTestCase {
             outstandingRequests
         );
 
+        // shard wrr ordering details are not present in cache, the details are calculated and put in cache
+        assertEquals(6, opRouting.getWrrShardsCache().getCache().stats().getMisses());
         assertEquals(6, opRouting.getWrrShardsCache().getCache().count());
 
-        // Calling operation routing without any cluster state change
+        // Calling operation routing again without any cluster state change to test that wrr shard routing details are
+        // fetched from cache
         groupIterator = opRouting.searchShards(state, indexNames, null, null, collector, outstandingRequests);
 
+        // details are fetched from cache
         assertEquals(12, opRouting.getWrrShardsCache().getCache().stats().getHits());
+        // cache count stays same
         assertEquals(6, opRouting.getWrrShardsCache().getCache().count());
+        // cache misses stay same
+        assertEquals(6, opRouting.getWrrShardsCache().getCache().stats().getMisses());
 
-        // Calling Operation Routing after a change in cluster metadata
+        // Updating cluster state to test wrr shard routing details are calculated again
         weights = Map.of("a", "1", "b", "0", "c", "1");
         wrrWeight = new WRRWeights("zone", weights);
         wrrMetadata = new WeightedRoundRobinMetadata(wrrWeight);
         metadataBuilder = Metadata.builder(state.metadata());
         metadataBuilder.putCustom(WeightedRoundRobinMetadata.TYPE, wrrMetadata);
+        // building new cluster state
         ClusterState state2 = ClusterState.builder(state).metadata(metadataBuilder).build();
 
         ClusterChangedEvent event = new ClusterChangedEvent("test", state2, state);
-
         opRouting.getWrrShardsCache().clusterChanged(event);
 
+        // cache is invalidated after cluster state change, cache count is zero
+        assertEquals(0, opRouting.getWrrShardsCache().getCache().count());
+
+        // search shards call
         groupIterator = opRouting.searchShards(state2, indexNames, null, null, collector, outstandingRequests);
 
+        // cache hit remain same
         assertEquals(12, opRouting.getWrrShardsCache().getCache().stats().getHits());
+        // cache miss increases by 6
         assertEquals(12, opRouting.getWrrShardsCache().getCache().stats().getMisses());
+
         assertEquals(6, opRouting.getWrrShardsCache().getCache().count());
 
         IOUtils.close(clusterService);

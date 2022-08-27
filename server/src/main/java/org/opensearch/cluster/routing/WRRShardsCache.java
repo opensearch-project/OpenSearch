@@ -18,17 +18,23 @@ import org.opensearch.common.cache.CacheBuilder;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.index.shard.ShardId;
 
-import java.util.ArrayList;
+import java.util.List;
 
+/**
+ * The WRR shards cache allows caching shard ordering returned by Weighted round-robin scheduling policy ,helping with
+ * improving similar requests.
+ *
+ * @opensearch.internal
+ */
 public class WRRShardsCache implements Releasable, ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(WRRShardsCache.class);
 
-    private final Cache<Key, ArrayList<ShardRouting>> cache;
+    private final Cache<Key, List<ShardRouting>> cache;
 
     public WRRShardsCache(ClusterService clusterService) {
 
         final long sizeInBytes = 2000000;
-        CacheBuilder<Key, ArrayList<ShardRouting>> cacheBuilder = CacheBuilder.<Key, ArrayList<ShardRouting>>builder()
+        CacheBuilder<Key, List<ShardRouting>> cacheBuilder = CacheBuilder.<Key, List<ShardRouting>>builder()
             .removalListener(notification -> logger.info("Object" + " {} removed from cache", notification.getKey().shardId))
             .setMaximumWeight(sizeInBytes);
         cache = cacheBuilder.build();
@@ -41,10 +47,15 @@ public class WRRShardsCache implements Releasable, ClusterStateListener {
         cache.invalidateAll();
     }
 
-    public Cache<Key, ArrayList<ShardRouting>> getCache() {
+    public Cache<Key, List<ShardRouting>> getCache() {
         return cache;
     }
 
+    /**
+     * Listens to cluster state change event and invalidate cache on such events
+     *
+     * @param event cluster state change event
+     */
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         logger.info("Invalidating WRRShardsCache on ClusterChangedEvent");

@@ -70,12 +70,6 @@ public class OperationRouting {
         Setting.Property.NodeScope
     );
 
-    public static final Setting<Boolean> USE_WEIGHTED_ROUND_ROBIN = Setting.boolSetting(
-        "cluster.routing.use_weighted_round_robin",
-        true,
-        Setting.Property.Dynamic,
-        Setting.Property.NodeScope
-    );
     public static final String IGNORE_AWARENESS_ATTRIBUTES = "cluster.search.ignore_awareness_attributes";
     public static final Setting<Boolean> IGNORE_AWARENESS_ATTRIBUTES_SETTING = Setting.boolSetting(
         IGNORE_AWARENESS_ATTRIBUTES,
@@ -123,10 +117,8 @@ public class OperationRouting {
             this::setAwarenessAttributes
         );
         this.useAdaptiveReplicaSelection = USE_ADAPTIVE_REPLICA_SELECTION_SETTING.get(settings);
-        this.useWeightedRoundRobin = USE_WEIGHTED_ROUND_ROBIN.get(settings);
         clusterSettings.addSettingsUpdateConsumer(USE_ADAPTIVE_REPLICA_SELECTION_SETTING, this::setUseAdaptiveReplicaSelection);
         clusterSettings.addSettingsUpdateConsumer(IGNORE_AWARENESS_ATTRIBUTES_SETTING, this::setIgnoreAwarenessAttributes);
-        clusterSettings.addSettingsUpdateConsumer(USE_WEIGHTED_ROUND_ROBIN, this::setUseWeightedRoundRobin);
 
     }
 
@@ -136,10 +128,6 @@ public class OperationRouting {
 
     void setIgnoreAwarenessAttributes(boolean ignoreAwarenessAttributes) {
         this.ignoreAwarenessAttr = ignoreAwarenessAttributes;
-    }
-
-    public void setUseWeightedRoundRobin(boolean useWeightedRoundRobin) {
-        this.useWeightedRoundRobin = useWeightedRoundRobin;
     }
 
     public boolean isIgnoreAwarenessAttr() {
@@ -234,12 +222,11 @@ public class OperationRouting {
 
     private void setWeightedRoundRobinAttributes(ClusterState clusterState, ClusterService clusterService) {
         WeightedRoundRobinMetadata weightedRoundRobinMetadata = clusterState.metadata().custom(WeightedRoundRobinMetadata.TYPE);
-        this.isWeightedRoundRobinEnabled = useWeightedRoundRobin && weightedRoundRobinMetadata != null ? true : false;
+        this.isWeightedRoundRobinEnabled = weightedRoundRobinMetadata != null ? true : false;
         if (this.isWeightedRoundRobinEnabled) {
             this.wrrWeights = weightedRoundRobinMetadata.getWrrWeight();
             this.wrrShardsCache = getWrrShardsCache() != null ? getWrrShardsCache() : new WRRShardsCache(clusterService);
         }
-
     }
 
     private boolean isWeightedRoundRobinEnabled() {
@@ -364,7 +351,7 @@ public class OperationRouting {
         @Nullable Map<String, Long> nodeCounts
     ) {
         if (isWeightedRoundRobinEnabled()) {
-            return indexShard.activeInitializingShardsWRR(getWrrWeights(), nodes, wrrShardsCache);
+            return indexShard.activeInitializingShardsWRR(getWrrWeights(), nodes, wrrShardsCache, collectorService, nodeCounts);
         } else if (ignoreAwarenessAttributes()) {
             if (useAdaptiveReplicaSelection) {
                 return indexShard.activeInitializingShardsRankedIt(collectorService, nodeCounts);

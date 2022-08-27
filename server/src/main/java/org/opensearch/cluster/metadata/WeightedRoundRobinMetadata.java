@@ -66,8 +66,8 @@ public class WeightedRoundRobinMetadata extends AbstractNamedDiffable<Metadata.C
 
     @Override
     public Version getMinimalSupportedVersion() {
-        // TODO: Check if this needs to be changed
-        return Version.CURRENT.minimumCompatibilityVersion();
+        return Version.V_2_3_0;
+
     }
 
     @Override

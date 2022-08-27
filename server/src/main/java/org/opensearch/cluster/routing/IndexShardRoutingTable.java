@@ -43,6 +43,7 @@ import org.opensearch.common.util.set.Sets;
 import org.opensearch.index.Index;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.node.ResponseCollectorService;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -292,16 +293,24 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     }
 
     /**
-     * *
+     * Returns an iterator over active and initializing shards, shards are ordered by weighted round-robin scheduling
+     * policy with adaptive replica selection. The output from weighted round-robin is ordered using adaptive replica
+     * selection to select eligible nodes for better performance.
      * @param wrrWeight Weighted round-robin weight entity
      * @param nodes discovered nodes in the cluster
-     * @return an interator over active and initializing shards, ordered by weighted round-robin
+     * @return an iterator over active and initializing shards, ordered by weighted round-robin
      * scheduling policy. Making sure that initializing shards are the last to iterate through.
      */
-    public ShardIterator activeInitializingShardsWRR(WRRWeights wrrWeight, DiscoveryNodes nodes, WRRShardsCache cache) {
+    public ShardIterator activeInitializingShardsWRR(
+        WRRWeights wrrWeight,
+        DiscoveryNodes nodes,
+        WRRShardsCache cache,
+        @Nullable ResponseCollectorService collector,
+        @Nullable Map<String, Long> nodeSearchCounts
+    ) {
         final int seed = shuffler.nextSeed();
-        ArrayList<ShardRouting> ordered = new ArrayList<>(activeShards.size() + allInitializingShards.size());
-        ArrayList<ShardRouting> orderedActiveShards;
+        List<ShardRouting> ordered = new ArrayList<>(activeShards.size() + allInitializingShards.size());
+        List<ShardRouting> orderedActiveShards;
         if (cache.getCache().get(new WRRShardsCache.Key(shardId)) != null) {
             orderedActiveShards = cache.getCache().get(new WRRShardsCache.Key(shardId));
         } else {
@@ -309,9 +318,24 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
             cache.getCache().put(new WRRShardsCache.Key(shardId), orderedActiveShards);
         }
 
-        ordered.addAll(shuffler.shuffle(orderedActiveShards, seed));
+        // In case the shardRouting list returned by weighted round-robin is empty, we fail open and consider all
+        // activeShards
+        orderedActiveShards = orderedActiveShards == null || orderedActiveShards.isEmpty() ? activeShards : orderedActiveShards;
+
+        // output from weighted round-robin is ordered using adaptive replica selection
+        orderedActiveShards = rankShardsAndUpdateStats(shuffler.shuffle(orderedActiveShards, seed), collector, nodeSearchCounts);
+
+        ordered.addAll(orderedActiveShards);
+
         if (!allInitializingShards.isEmpty()) {
-            ArrayList<ShardRouting> orderedInitializingShards = getShardsWRR(allInitializingShards, wrrWeight, nodes);
+            List<ShardRouting> orderedInitializingShards = getShardsWRR(allInitializingShards, wrrWeight, nodes);
+            // In case the shardRouting list returned by weighted round-robin is empty, we fail open and consider all
+            // initializing shards
+            orderedInitializingShards = orderedInitializingShards == null || orderedInitializingShards.isEmpty()
+                ? allInitializingShards
+                : orderedInitializingShards;
+            // output from weighted round-robin is ordered using adaptive replica selection
+            orderedInitializingShards = rankShardsAndUpdateStats(orderedInitializingShards, collector, nodeSearchCounts);
             ordered.addAll(orderedInitializingShards);
         }
         return new PlainShardIterator(shardId, ordered);
@@ -324,11 +348,11 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
      * @param nodes discovered nodes in the cluster
      * @return list of shards ordered using weighted round-robin scheduling.
      */
-    private ArrayList<ShardRouting> getShardsWRR(List<ShardRouting> shards, WRRWeights wrrWeight, DiscoveryNodes nodes) {
+    private List<ShardRouting> getShardsWRR(List<ShardRouting> shards, WRRWeights wrrWeight, DiscoveryNodes nodes) {
         List<WeightedRoundRobin.Entity<ShardRouting>> weightedShards = calculateShardWeight(shards, wrrWeight, nodes);
         WeightedRoundRobin<ShardRouting> wrr = new WeightedRoundRobin<>(weightedShards);
         List<WeightedRoundRobin.Entity<ShardRouting>> wrrOrderedActiveShards = wrr.orderEntities();
-        ArrayList<ShardRouting> orderedActiveShards = new ArrayList<>(activeShards.size());
+        List<ShardRouting> orderedActiveShards = new ArrayList<>(activeShards.size());
         for (WeightedRoundRobin.Entity<ShardRouting> shardRouting : wrrOrderedActiveShards) {
             orderedActiveShards.add(shardRouting.getTarget());
         }
@@ -336,10 +360,10 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     }
 
     /**
-     * *
+     *
      * @param shards associate weights to shards
      * @param wrrWeight weights to be used for association
-     * @param nodes
+     * @param nodes discovered nodes in the cluster
      * @return list of entity containing shard routing and associated weight.
      */
     private List<WeightedRoundRobin.Entity<ShardRouting>> calculateShardWeight(
@@ -352,7 +376,9 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
             shard.currentNodeId();
             DiscoveryNode node = nodes.get(shard.currentNodeId());
             String attVal = node.getAttributes().get(wrrWeight.attributeName());
-            weightedShards.add(new WeightedRoundRobin.Entity<>(Double.parseDouble(wrrWeight.weights().get(attVal).toString()), shard));
+            // If weight for a zone is not defined, considering it as 1 by default
+            Double weight = Double.parseDouble(wrrWeight.weights().getOrDefault(attVal, 1).toString());
+            weightedShards.add(new WeightedRoundRobin.Entity<>(weight, shard));
         }
         return weightedShards;
     }

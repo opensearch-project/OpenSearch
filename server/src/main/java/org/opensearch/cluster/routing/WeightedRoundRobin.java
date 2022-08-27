@@ -9,45 +9,15 @@
 package org.opensearch.cluster.routing;
 
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 
-public class WeightedRoundRobin<T> implements Iterator<T>, Iterable<T> {
+public class WeightedRoundRobin<T> {
 
     private List<WeightedRoundRobin.Entity<T>> entities;
     private int turn;
-    private int lastSelectedEntity;
-    private double currentWeight = 0;
 
     public WeightedRoundRobin(List<WeightedRoundRobin.Entity<T>> entities) {
         this.entities = entities;
-        this.turn = 0;
-        this.lastSelectedEntity = -1;
-    }
-
-    /* (non-Javadoc)
-     * @see java.util.Iterator#hasNext()
-     */
-    @Override
-    public boolean hasNext() {
-        return entities.size() > 0;
-    }
-
-    /* (non-Javadoc)
-     * @see java.util.Iterator#next()
-     */
-    @Override
-    public T next() {
-        Entity<T> entity = entities.get(turn++);
-        return entity.getTarget();
-    }
-
-    /* (non-Javadoc)
-     * @see java.lang.Iterable#iterator()
-     */
-    @Override
-    public Iterator<T> iterator() {
-        return this;
     }
 
     /**
@@ -56,7 +26,9 @@ public class WeightedRoundRobin<T> implements Iterator<T>, Iterable<T> {
      * http://kb.linuxvirtualserver.org/wiki/Weighted_Round-Robin_Scheduling
      */
     public List<WeightedRoundRobin.Entity<T>> orderEntities() {
+        int lastSelectedEntity = -1;
         int size = entities.size();
+        double currentWeight = 0;
         List<WeightedRoundRobin.Entity<T>> orderedWeight = new ArrayList<>();
         if (size == 0) {
             return null;
@@ -97,8 +69,8 @@ public class WeightedRoundRobin<T> implements Iterator<T>, Iterable<T> {
      * Return greatest common divisor for two integers
      * https://en.wikipedia.org/wiki/Greatest_common_divisor#Using_Euclid.27s_algorithm
      *
-     * @param a
-     * @param b
+     * @param a first number
+     * @param b second number
      * @return greatest common divisor
      */
     private double gcd(double a, double b) {
