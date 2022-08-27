@@ -267,7 +267,9 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
                 )
             )
         );
-        assertEquals(expectedExtensionsList, extensionsOrchestrator.extensionsList);
+        assertEquals(expectedExtensionsList.size(), extensionsOrchestrator.extensionIdMap.values().size());
+        assertTrue(expectedExtensionsList.containsAll(extensionsOrchestrator.extensionIdMap.values()));
+        assertTrue(extensionsOrchestrator.extensionIdMap.values().containsAll(expectedExtensionsList));
     }
 
     public void testNonAccessibleDirectory() throws Exception {
