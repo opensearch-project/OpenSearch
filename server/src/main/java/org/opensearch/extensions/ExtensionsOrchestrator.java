@@ -207,36 +207,40 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
                 throw new IOException("Could not read from extensions.yml", e);
             }
             for (Extension extension : extensions) {
-                try {
-                    DiscoveryExtension discoveryExtension = new DiscoveryExtension(
-                        extension.getName(),
-                        extension.getUniqueId(),
-                        // placeholder for ephemeral id, will change with POC discovery
-                        extension.getUniqueId(),
-                        extension.getHostName(),
-                        extension.getHostAddress(),
-                        new TransportAddress(InetAddress.getByName(extension.getHostAddress()), Integer.parseInt(extension.getPort())),
-                        new HashMap<String, String>(),
-                        Version.fromString(extension.getOpensearchVersion()),
-                        new PluginInfo(
+                if (extensionIdMap.containsKey(extension.getUniqueId())) {
+                    logger.info("Duplicate uniqueId " + extension.getUniqueId() + ". Did not load extension: " + extension);
+                } else {
+                    try {
+                        DiscoveryExtension discoveryExtension = new DiscoveryExtension(
                             extension.getName(),
-                            extension.getDescription(),
-                            extension.getVersion(),
+                            extension.getUniqueId(),
+                            // placeholder for ephemeral id, will change with POC discovery
+                            extension.getUniqueId(),
+                            extension.getHostName(),
+                            extension.getHostAddress(),
+                            new TransportAddress(InetAddress.getByName(extension.getHostAddress()), Integer.parseInt(extension.getPort())),
+                            new HashMap<String, String>(),
                             Version.fromString(extension.getOpensearchVersion()),
-                            extension.getJavaVersion(),
-                            extension.getClassName(),
-                            new ArrayList<String>(),
-                            Boolean.parseBoolean(extension.hasNativeController())
-                        )
-                    );
-                    extensionsList.add(discoveryExtension);
-                    extensionIdMap.put(extension.getUniqueId(), discoveryExtension);
-                    logger.info("Loaded extension: " + extension + " with id " + extension.getUniqueId());
-                } catch (IllegalArgumentException e) {
-                    logger.error(e.toString());
+                            new PluginInfo(
+                                extension.getName(),
+                                extension.getDescription(),
+                                extension.getVersion(),
+                                Version.fromString(extension.getOpensearchVersion()),
+                                extension.getJavaVersion(),
+                                extension.getClassName(),
+                                new ArrayList<String>(),
+                                Boolean.parseBoolean(extension.hasNativeController())
+                            )
+                        );
+                        extensionsList.add(discoveryExtension);
+                        extensionIdMap.put(extension.getUniqueId(), discoveryExtension);
+                        logger.info("Loaded extension: " + extension + " with id " + extension.getUniqueId());
+                    } catch (IllegalArgumentException e) {
+                        logger.error(e.toString());
+                    }
                 }
             }
-            if (!extensionsList.isEmpty()) {
+            if (!extensionIdMap.isEmpty()) {
                 logger.info("Loaded all extensions");
             }
         } else {
@@ -245,12 +249,12 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     }
 
     public void extensionsInitialize() {
-        for (DiscoveryNode extensionNode : extensionsList) {
-            extensionInitialize(extensionNode);
+        for (DiscoveryExtension extension : extensionsList) {
+            extensionInitialize(extension);
         }
     }
 
-    private void extensionInitialize(DiscoveryNode extensionNode) {
+    private void extensionInitialize(DiscoveryExtension extension) {
         final CountDownLatch inProgressLatch = new CountDownLatch(1);
         final TransportResponseHandler<InitializeExtensionsResponse> extensionResponseHandler = new TransportResponseHandler<
             InitializeExtensionsResponse>() {
@@ -285,11 +289,11 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         };
         try {
             logger.info("Sending extension request type: " + REQUEST_EXTENSION_ACTION_NAME);
-            transportService.connectToNode(extensionNode, true);
+            transportService.connectToNode(extension, true);
             transportService.sendRequest(
-                extensionNode,
+                extension,
                 REQUEST_EXTENSION_ACTION_NAME,
-                new InitializeExtensionsRequest(transportService.getLocalNode(), new ArrayList<DiscoveryExtension>(extensionsList)),
+                new InitializeExtensionsRequest(transportService.getLocalNode(), extension),
                 extensionResponseHandler
             );
             inProgressLatch.await(100, TimeUnit.SECONDS);
