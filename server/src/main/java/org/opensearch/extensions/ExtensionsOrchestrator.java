@@ -254,13 +254,13 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
      * Iterate through all extensions and initialize them.  Initialized extensions will be added to the {@link #extensionsInitializedList}, and the {@link #namedWriteableRegistry} will be initialized.
      */
     public void extensionsInitialize() {
-        for (DiscoveryNode extensionNode : extensionIdMap.values()) {
-            extensionInitialize(extensionNode);
+        for (DiscoveryExtension extension : extensionIdMap.values()) {
+            extensionInitialize(extension);
         }
         this.namedWriteableRegistry = new ExtensionNamedWriteableRegistry(extensionsInitializedList, transportService);
     }
 
-    private void extensionInitialize(DiscoveryNode extensionNode) {
+    private void extensionInitialize(DiscoveryExtension extension) {
         final CountDownLatch inProgressLatch = new CountDownLatch(1);
         final TransportResponseHandler<InitializeExtensionsResponse> extensionResponseHandler = new TransportResponseHandler<
             InitializeExtensionsResponse>() {
@@ -295,14 +295,11 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         };
         try {
             logger.info("Sending extension request type: " + REQUEST_EXTENSION_ACTION_NAME);
-            transportService.connectToNode(extensionNode, true);
+            transportService.connectToNode(extension, true);
             transportService.sendRequest(
-                extensionNode,
+                extension,
                 REQUEST_EXTENSION_ACTION_NAME,
-                new InitializeExtensionsRequest(
-                    transportService.getLocalNode(),
-                    new ArrayList<DiscoveryExtension>(extensionIdMap.values())
-                ),
+                new InitializeExtensionsRequest(transportService.getLocalNode(), extension),
                 extensionResponseHandler
             );
             inProgressLatch.await(100, TimeUnit.SECONDS);

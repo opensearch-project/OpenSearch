@@ -35,6 +35,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -230,6 +231,43 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         assertEquals(expectedExtensionsList.size(), extensionsOrchestrator.extensionIdMap.values().size());
         assertTrue(expectedExtensionsList.containsAll(extensionsOrchestrator.extensionIdMap.values()));
         assertTrue(extensionsOrchestrator.extensionIdMap.values().containsAll(expectedExtensionsList));
+    }
+
+    public void testNonUniqueExtensionsDiscovery() throws Exception {
+        Path extensionDir = createTempDir();
+
+        List<String> nonUniqueYmlLines = extensionsYmlLines.stream()
+            .map(s -> s.replace("uniqueid2", "uniqueid1"))
+            .collect(Collectors.toList());
+        Files.write(extensionDir.resolve("extensions.yml"), nonUniqueYmlLines, StandardCharsets.UTF_8);
+
+        ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
+
+        List<DiscoveryExtension> expectedExtensionsList = new ArrayList<DiscoveryExtension>();
+
+        expectedExtensionsList.add(
+            new DiscoveryExtension(
+                "firstExtension",
+                "uniqueid1",
+                "uniqueid1",
+                "myIndependentPluginHost1",
+                "127.0.0.0",
+                new TransportAddress(InetAddress.getByName("127.0.0.0"), 9300),
+                new HashMap<String, String>(),
+                Version.fromString("3.0.0"),
+                new PluginInfo(
+                    "firstExtension",
+                    "Fake description 1",
+                    "0.0.7",
+                    Version.fromString("3.0.0"),
+                    "14",
+                    "fakeClass1",
+                    new ArrayList<String>(),
+                    false
+                )
+            )
+        );
+        assertEquals(expectedExtensionsList, extensionsOrchestrator.extensionsList);
     }
 
     public void testNonAccessibleDirectory() throws Exception {

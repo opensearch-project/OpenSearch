@@ -47,7 +47,7 @@ import org.opensearch.common.time.DateMathParser;
 import org.opensearch.common.time.DateUtils;
 import org.opensearch.geometry.utils.Geohash;
 import org.opensearch.index.mapper.DateFieldMapper;
-import org.opensearch.search.aggregations.bucket.geogrid.GeoTileUtils;
+import org.opensearch.search.aggregations.bucket.GeoTileUtils;
 
 import java.io.IOException;
 import java.math.BigInteger;
