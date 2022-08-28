@@ -132,8 +132,6 @@ import org.opensearch.action.ingest.PutPipelineRequestBuilder;
 import org.opensearch.action.ingest.SimulatePipelineRequest;
 import org.opensearch.action.ingest.SimulatePipelineRequestBuilder;
 import org.opensearch.action.ingest.SimulatePipelineResponse;
-import org.opensearch.action.search.DeletePitRequest;
-import org.opensearch.action.search.DeletePitResponse;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.XContentType;
@@ -793,14 +791,4 @@ public interface ClusterAdminClient extends OpenSearchClient {
      * Delete specified dangling indices.
      */
     ActionFuture<AcknowledgedResponse> deleteDanglingIndex(DeleteDanglingIndexRequest request);
-
-    /**
-     * Delete point in time searches present in cluster
-     */
-    void deletePits(DeletePitRequest request, ActionListener<DeletePitResponse> listener);
-
-    /**
-     * Delete point in time searches present in cluster
-     */
-    ActionFuture<DeletePitResponse> deletePits(DeletePitRequest request);
 }

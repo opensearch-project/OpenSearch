@@ -77,4 +77,9 @@ public class GetAllPitNodesResponse extends BaseNodesResponse<GetAllPitNodeRespo
     public List<ListPitInfo> getPitInfos() {
         return Collections.unmodifiableList(new ArrayList<>(pitInfos));
     }
+
+    public void clearAndSetPitInfos(List<ListPitInfo> listPitInfos) {
+        pitInfos.clear();
+        pitInfos.addAll(listPitInfos);
+    }
 }
