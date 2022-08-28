@@ -28,6 +28,8 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.unmodifiableList;
 
@@ -95,43 +97,59 @@ public class RestSendToExtensionAction extends BaseRestHandler {
         }
         String message = "Forwarding the request " + method + " " + uri + " to " + discoveryExtension;
         logger.info(message);
-        try {
-            // Notify user the request was acted on.
-            return channel -> channel.sendResponse(new BytesRestResponse(RestStatus.ACCEPTED, message));
-        } finally {
-            final TransportResponseHandler<RestExecuteOnExtensionResponse> restExecuteOnExtensionResponseHandler =
-                new TransportResponseHandler<RestExecuteOnExtensionResponse>() {
+        // Hack to pass a final class in to fetch the response string
+        final StringBuilder responseBuilder = new StringBuilder();
+        final CountDownLatch inProgressLatch = new CountDownLatch(1);
+        final TransportResponseHandler<RestExecuteOnExtensionResponse> restExecuteOnExtensionResponseHandler = new TransportResponseHandler<
+            RestExecuteOnExtensionResponse>() {
 
-                    @Override
-                    public RestExecuteOnExtensionResponse read(StreamInput in) throws IOException {
-                        return new RestExecuteOnExtensionResponse(in);
-                    }
-
-                    @Override
-                    public void handleResponse(RestExecuteOnExtensionResponse response) {
-                        logger.info("Received response from extension: {}", response.getResponse());
-                    }
-
-                    @Override
-                    public void handleException(TransportException exp) {
-                        logger.debug(new ParameterizedMessage("Extension initialization failed"), exp);
-                    }
-
-                    @Override
-                    public String executor() {
-                        return ThreadPool.Names.GENERIC;
-                    }
-                };
-            try {
-                transportService.sendRequest(
-                    discoveryExtension,
-                    ExtensionsOrchestrator.REQUEST_REST_EXECUTE_ON_EXTENSION_ACTION,
-                    new RestExecuteOnExtensionRequest(method, uri),
-                    restExecuteOnExtensionResponseHandler
-                );
-            } catch (Exception e) {
-                logger.info("Failed to send REST Actions to extension " + discoveryExtension.getName(), e);
+            @Override
+            public RestExecuteOnExtensionResponse read(StreamInput in) throws IOException {
+                return new RestExecuteOnExtensionResponse(in);
             }
+
+            @Override
+            public void handleResponse(RestExecuteOnExtensionResponse response) {
+                responseBuilder.append(response.getResponse());
+                logger.info("Received response from extension: {}", response.getResponse());
+                inProgressLatch.countDown();
+            }
+
+            @Override
+            public void handleException(TransportException exp) {
+                responseBuilder.append("FAILED: ").append(exp);
+                logger.debug(new ParameterizedMessage("REST request failed"), exp);
+                inProgressLatch.countDown();
+            }
+
+            @Override
+            public String executor() {
+                return ThreadPool.Names.GENERIC;
+            }
+        };
+        try {
+            transportService.sendRequest(
+                discoveryExtension,
+                ExtensionsOrchestrator.REQUEST_REST_EXECUTE_ON_EXTENSION_ACTION,
+                new RestExecuteOnExtensionRequest(method, uri),
+                restExecuteOnExtensionResponseHandler
+            );
+            try {
+                inProgressLatch.await(5, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                return channel -> channel.sendResponse(
+                    new BytesRestResponse(RestStatus.REQUEST_TIMEOUT, "No response from extension to request.")
+                );
+            }
+        } catch (Exception e) {
+            logger.info("Failed to send REST Actions to extension " + discoveryExtension.getName(), e);
         }
+        String response = responseBuilder.toString();
+        if (response.isBlank() || response.startsWith("FAILED")) {
+            return channel -> channel.sendResponse(
+                new BytesRestResponse(RestStatus.INTERNAL_SERVER_ERROR, response.isBlank() ? "Request Failed" : response)
+            );
+        }
+        return channel -> channel.sendResponse(new BytesRestResponse(RestStatus.OK, response));
     }
 }
