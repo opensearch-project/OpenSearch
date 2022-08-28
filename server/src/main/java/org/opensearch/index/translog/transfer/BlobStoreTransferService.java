@@ -36,7 +36,11 @@ public class BlobStoreTransferService implements TransferService {
     }
 
     @Override
-    public void uploadFile(final FileSnapshot fileSnapshot, Iterable<String> remoteTransferPath, ActionListener<FileSnapshot> listener) {
+    public void uploadFileAsync(
+        final FileSnapshot fileSnapshot,
+        Iterable<String> remoteTransferPath,
+        ActionListener<FileSnapshot> listener
+    ) {
         assert remoteTransferPath instanceof BlobPath;
         BlobPath blobPath = (BlobPath) remoteTransferPath;
         threadPool.executor(ThreadPool.Names.TRANSLOG_TRANSFER).execute(ActionRunnable.wrap(listener, l -> {
@@ -54,6 +58,22 @@ public class BlobStoreTransferService implements TransferService {
                 l.onFailure(new FileTransferException(fileSnapshot, e));
             }
         }));
+    }
 
+    @Override
+    public void uploadFile(final FileSnapshot fileSnapshot, Iterable<String> remoteTransferPath) {
+        assert remoteTransferPath instanceof BlobPath;
+        BlobPath blobPath = (BlobPath) remoteTransferPath;
+        try {
+            blobStore.blobContainer(blobPath)
+                .writeBlobAtomic(
+                    fileSnapshot.getName(),
+                    new ByteArrayInputStream(fileSnapshot.getContent()),
+                    fileSnapshot.getContentLength(),
+                    true
+                );
+        } catch (Exception ex) {
+            logger.warn(() -> new ParameterizedMessage("Failed to upload some blobs"), ex);
+        }
     }
 }

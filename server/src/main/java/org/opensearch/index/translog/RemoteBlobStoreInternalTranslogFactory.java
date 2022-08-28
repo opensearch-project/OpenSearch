@@ -10,7 +10,6 @@ package org.opensearch.index.translog;
 
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.blobstore.BlobPath;
-import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.RepositoryMissingException;
@@ -57,7 +56,7 @@ public class RemoteBlobStoreInternalTranslogFactory implements TranslogFactory {
         blobPath = blobPath.add(config.getShardId().getIndexName())
             .add(String.valueOf(config.getShardId().getId()))
             .add(String.valueOf(primaryTermSupplier.getAsLong()));
-        BlobStore blobStore = ((BlobStoreRepository) repository).blobStore();
+        BlobStoreRepository blobStoreRepository = ((BlobStoreRepository) repository);
         return new RemoteFsTranslog(
             config,
             translogUUID,
@@ -65,7 +64,7 @@ public class RemoteBlobStoreInternalTranslogFactory implements TranslogFactory {
             globalCheckpointSupplier,
             primaryTermSupplier,
             persistedSequenceNumberConsumer,
-            blobStore,
+            blobStoreRepository,
             threadPool
         );
     }

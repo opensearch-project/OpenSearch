@@ -11,8 +11,12 @@ package org.opensearch.index.translog.transfer;
 import org.opensearch.action.ActionListener;
 import org.opensearch.index.translog.FileSnapshot;
 
+import java.io.IOException;
+
 public interface TransferService {
 
-    void uploadFile(final FileSnapshot fileSnapshot, Iterable<String> remotePath, ActionListener<FileSnapshot> listener);
+    void uploadFileAsync(final FileSnapshot fileSnapshot, Iterable<String> remotePath, ActionListener<FileSnapshot> listener);
+
+    void uploadFile(final FileSnapshot fileSnapshot, Iterable<String> remotePath) throws IOException;
 
 }

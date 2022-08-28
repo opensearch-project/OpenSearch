@@ -8,9 +8,6 @@
 
 package org.opensearch.index.translog;
 
-import org.opensearch.common.UUIDs;
-import org.opensearch.common.blobstore.BlobPath;
-import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.concurrent.ReleasableLock;
@@ -21,6 +18,7 @@ import org.opensearch.index.translog.transfer.TransferSnapshot;
 import org.opensearch.index.translog.transfer.TransferSnapshotProvider;
 import org.opensearch.index.translog.transfer.TranslogTransferManager;
 import org.opensearch.index.translog.transfer.listener.TranslogTransferListener;
+import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -31,12 +29,12 @@ import java.util.Collections;
 import java.util.concurrent.Callable;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
-import java.util.stream.Stream;
 
 public class RemoteFsTranslog extends Translog {
 
-    private final BlobStore blobStore;
+    private final BlobStoreRepository blobStoreRepository;
     private final TranslogTransferManager translogTransferManager;
+    private final static String METADATA_DIR = "metadata";
 
     public RemoteFsTranslog(
         TranslogConfig config,
@@ -45,18 +43,16 @@ public class RemoteFsTranslog extends Translog {
         LongSupplier globalCheckpointSupplier,
         LongSupplier primaryTermSupplier,
         LongConsumer persistedSequenceNumberConsumer,
-        BlobStore blobStore,
+        BlobStoreRepository blobStoreRepository,
         ThreadPool threadPool
     ) throws IOException {
         super(config, translogUUID, deletionPolicy, globalCheckpointSupplier, primaryTermSupplier, persistedSequenceNumberConsumer);
-        this.blobStore = blobStore;
+        this.blobStoreRepository = blobStoreRepository;
         FileTransferTracker fileTransferTracker = new FileTransferTracker(shardId);
         this.translogTransferManager = new TranslogTransferManager(
-            new BlobStoreTransferService(blobStore, threadPool),
-            new BlobPath().add(UUIDs.base64UUID())
-                .add(shardId.getIndex().getUUID())
-                .add(String.valueOf(shardId.id()))
-                .add(String.valueOf(primaryTermSupplier.getAsLong())),
+            new BlobStoreTransferService(blobStoreRepository.blobStore(), threadPool),
+            blobStoreRepository.basePath().add(shardId.getIndex().getUUID()).add(String.valueOf(shardId.id())),
+            blobStoreRepository.basePath().add(shardId.getIndex().getUUID()).add(String.valueOf(shardId.id())).add(METADATA_DIR),
             fileTransferTracker,
             fileTransferTracker::exclusionFilter
         );
@@ -70,8 +66,12 @@ public class RemoteFsTranslog extends Translog {
             boolean success = false;
             current = null;
             try {
-                current = createWriter(checkpoint.generation + 1, getMinFileGeneration(),
-                    checkpoint.globalCheckpoint, persistedSequenceNumberConsumer);
+                current = createWriter(
+                    checkpoint.generation + 1,
+                    getMinFileGeneration(),
+                    checkpoint.globalCheckpoint,
+                    persistedSequenceNumberConsumer
+                );
                 success = true;
             } finally {
                 // we have to close all the recovered ones otherwise we leak file handles here
@@ -171,15 +171,13 @@ public class RemoteFsTranslog extends Translog {
             assert location.generation <= current.getGeneration();
             if (location.generation == current.getGeneration()) {
                 ensureOpen();
-                execute = () -> {
-                    prepareUpload(location.generation);
-                    return upload();
-                };
+                execute = () -> prepareAndUpload(primaryTermSupplier.getAsLong(), location.generation);
             }
         } catch (final Exception ex) {
             closeOnTragicEvent(ex);
             throw ex;
-        } try {
+        }
+        try {
             return execute.call();
         } catch (Exception ex) {
             closeOnTragicEvent(ex);
@@ -194,11 +192,10 @@ public class RemoteFsTranslog extends Translog {
         if (current.totalOperations() == 0 && primaryTermSupplier.getAsLong() == current.getPrimaryTerm()) {
             return;
         }
-        prepareUpload(null);
-        upload();
+        prepareAndUpload(primaryTermSupplier.getAsLong(), null);
     }
 
-    private void prepareUpload(Long generation) throws IOException {
+    private boolean prepareAndUpload(Long primaryTerm, Long generation) throws IOException {
         try (Releasable ignored = writeLock.acquire()) {
             if (generation == null || generation == current.getGeneration()) {
                 try {
@@ -217,10 +214,11 @@ public class RemoteFsTranslog extends Translog {
                 }
             }
         }
+        return upload(primaryTerm, generation);
     }
 
-    private boolean upload() throws IOException {
-        TransferSnapshotProvider transferSnapshotProvider = new TransferSnapshotProvider(this.location, readers);
+    private boolean upload(Long primaryTerm, Long generation) throws IOException {
+        TransferSnapshotProvider transferSnapshotProvider = new TransferSnapshotProvider(primaryTerm, generation, this.location, readers);
         Releasable transferReleasable = Releasables.wrap(deletionPolicy.acquireTranslogGen(getMinFileGeneration()));
         return translogTransferManager.uploadTranslog(transferSnapshotProvider.get(), new TranslogTransferListener() {
             @Override
@@ -250,9 +248,8 @@ public class RemoteFsTranslog extends Translog {
     public void sync() throws IOException {
 
         try {
-            if(syncToDisk()) {
-                prepareUpload(null);
-                upload();
+            if (syncToDisk()) {
+                prepareAndUpload(primaryTermSupplier.getAsLong(), null);
             }
         } catch (final Exception e) {
             tragedy.setTragicException(e);
@@ -267,8 +264,7 @@ public class RemoteFsTranslog extends Translog {
             : "Translog.close method is called from inside Translog, but not via closeOnTragicEvent method";
         if (closed.compareAndSet(false, true)) {
             try (ReleasableLock lock = writeLock.acquire()) {
-                prepareUpload(null);
-                upload();
+                prepareAndUpload(primaryTermSupplier.getAsLong(), null);
             } finally {
                 logger.debug("translog closed");
             }

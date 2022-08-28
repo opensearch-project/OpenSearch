@@ -14,18 +14,29 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.LatchedActionListener;
+import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.index.translog.FileSnapshot;
+import org.opensearch.index.translog.RemoteTranslogMetadata;
 import org.opensearch.index.translog.transfer.listener.FileTransferListener;
 import org.opensearch.index.translog.transfer.listener.TranslogTransferListener;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.UnaryOperator;
+import java.util.stream.Collectors;
+import java.util.zip.CRC32;
+import java.util.zip.CheckedInputStream;
+
+import static org.opensearch.index.translog.FileSnapshot.TranslogFileSnapshot;
 
 /**
  * The class responsible for orchestrating the transfer via a {@link TransferService}
@@ -33,7 +44,8 @@ import java.util.function.UnaryOperator;
 public class TranslogTransferManager {
 
     private final TransferService transferService;
-    private final Iterable<String> remoteTransferPath;
+    private final BlobPath remoteBaseTransferPath;
+    private final BlobPath remoteTransferMetadataPath;
     private final FileTransferListener fileTransferListener;
     private final UnaryOperator<Set<FileSnapshot>> exclusionFilter;
     private static final long TRANSFER_TIMEOUT = 10;
@@ -42,12 +54,14 @@ public class TranslogTransferManager {
 
     public TranslogTransferManager(
         TransferService transferService,
-        Iterable<String> remoteTransferPath,
+        BlobPath remoteBaseTransferPath,
+        BlobPath remoteTransferMetadataPath,
         FileTransferListener fileTransferListener,
         UnaryOperator<Set<FileSnapshot>> exclusionFilter
     ) {
         this.transferService = transferService;
-        this.remoteTransferPath = remoteTransferPath;
+        this.remoteBaseTransferPath = remoteBaseTransferPath;
+        this.remoteTransferMetadataPath = remoteTransferMetadataPath;
         this.fileTransferListener = fileTransferListener;
         this.exclusionFilter = exclusionFilter;
     }
@@ -73,7 +87,13 @@ public class TranslogTransferManager {
                 }),
                 latch
             );
-            toUpload.forEach(fileSnapshot -> transferService.uploadFile(fileSnapshot, remoteTransferPath, latchedActionListener));
+            toUpload.forEach(
+                fileSnapshot -> transferService.uploadFileAsync(
+                    fileSnapshot,
+                    remoteBaseTransferPath.add(String.valueOf(fileSnapshot.getPrimaryTerm())),
+                    latchedActionListener
+                )
+            );
             try {
                 if (latch.await(TRANSFER_TIMEOUT, TimeUnit.SECONDS) == false) {
                     exceptionList.add(new TimeoutException("Timed out waiting for transfer to complete"));
@@ -84,6 +104,7 @@ public class TranslogTransferManager {
                 Thread.currentThread().interrupt();
             }
             if (exceptionList.isEmpty()) {
+                transferService.uploadFile(prepareMetadata(translogCheckpointTransferSnapshot), remoteTransferMetadataPath);
                 translogTransferListener.onUploadComplete(translogCheckpointTransferSnapshot);
             } else {
                 translogTransferListener.onUploadFailed(translogCheckpointTransferSnapshot, ExceptionsHelper.multiple(exceptionList));
@@ -94,5 +115,40 @@ public class TranslogTransferManager {
             translogTransferListener.onUploadFailed(translogCheckpointTransferSnapshot, ex);
             return false;
         }
+    }
+
+    private FileSnapshot prepareMetadata(TransferSnapshot transferSnapshot) throws IOException {
+        RemoteTranslogMetadata remoteTranslogMetadata = new RemoteTranslogMetadata(
+            transferSnapshot.getPrimaryTerm(),
+            transferSnapshot.getGeneration(),
+            transferSnapshot.getMinGeneration()
+        );
+        assert transferSnapshot.getTranslogFileSnapshots() instanceof TranslogFileSnapshot;
+        Map<String, String> generationPrimaryTermMap = transferSnapshot.getTranslogFileSnapshots().stream().map(s -> {
+            assert s instanceof TranslogFileSnapshot;
+            return (TranslogFileSnapshot) s;
+        })
+            .collect(
+                Collectors.toMap(
+                    snapshot -> Long.toString(snapshot.getGeneration(), Character.MAX_RADIX),
+                    snapshot -> Long.toString(snapshot.getPrimaryTerm(), Character.MAX_RADIX)
+                )
+            );
+        remoteTranslogMetadata.setGenerationToPrimaryTermMapper(new HashMap<>(generationPrimaryTermMap));
+        FileSnapshot fileSnapshot;
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            remoteTranslogMetadata.writeTo(output);
+            try (
+                CheckedInputStream stream = new CheckedInputStream(
+                    new ByteArrayInputStream(output.bytes().streamInput().readByteArray()),
+                    new CRC32()
+                )
+            ) {
+                byte[] content = stream.readAllBytes();
+                long checksum = stream.getChecksum().getValue();
+                fileSnapshot = new FileSnapshot(remoteTranslogMetadata.getMetadataFileName(), checksum, content);
+            }
+        }
+        return fileSnapshot;
     }
 }

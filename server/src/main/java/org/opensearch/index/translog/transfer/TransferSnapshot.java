@@ -19,4 +19,10 @@ public interface TransferSnapshot {
     Set<FileSnapshot> getTranslogFileSnapshots();
 
     int getTransferSize();
+
+    long getPrimaryTerm();
+
+    long getGeneration();
+
+    long getMinGeneration();
 }

@@ -515,11 +515,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
             Store remoteStore = null;
             if (this.indexSettings.isRemoteStoreEnabled()) {
-                Directory remoteDirectory = remoteDirectoryFactory.newDirectory(
-                    "clusterUUID",
-                    this.indexSettings,
-                    path
-                );
+                Directory remoteDirectory = remoteDirectoryFactory.newDirectory("clusterUUID", this.indexSettings, path);
                 remoteStore = new Store(shardId, this.indexSettings, remoteDirectory, lock, Store.OnClose.EMPTY);
             }
 
@@ -554,8 +550,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 retentionLeaseSyncer,
                 circuitBreakerService,
                 // TODO Replace with remote translog factory in the follow up PR
-                this.indexSettings.isRemoteTranslogStoreEnabled() ?
-                    new RemoteBlobStoreInternalTranslogFactory(repositoriesServiceSupplier, clusterService, threadPool)
+                this.indexSettings.isRemoteTranslogStoreEnabled()
+                    ? new RemoteBlobStoreInternalTranslogFactory(repositoriesServiceSupplier, clusterService, threadPool)
                     : new InternalTranslogFactory(),
                 this.indexSettings.isSegRepEnabled() ? checkpointPublisher : null,
                 remoteStore

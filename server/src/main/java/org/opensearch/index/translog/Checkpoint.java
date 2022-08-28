@@ -59,7 +59,7 @@ import java.nio.file.Path;
  *
  * @opensearch.internal
  */
-final class Checkpoint {
+final public class Checkpoint {
 
     final long offset;
     final int numOps;
@@ -260,6 +260,10 @@ final class Checkpoint {
                 + indexOutput.getFilePointer();
         }
         return byteOutputStream.toByteArray();
+    }
+
+    public long getMinTranslogGeneration() {
+        return minTranslogGeneration;
     }
 
     @Override
