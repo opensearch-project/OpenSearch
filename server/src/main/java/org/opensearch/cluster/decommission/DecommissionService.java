@@ -280,14 +280,14 @@ public class DecommissionService {
 
     private void initiateGracefulDecommission() {
         // maybe create a supplier for status update listener?
-        ActionListener<ClusterStateUpdateResponse> listener = new ActionListener<>() {
+        ActionListener<Void> listener = new ActionListener<>() {
             @Override
-            public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {
+            public void onResponse(Void unused) {
                 logger.info(
                     "updated decommission status to [{}], weighing away awareness attribute for graceful shutdown",
                     DecommissionStatus.DECOMMISSION_IN_PROGRESS
                 );
-                failDecommissionedNodes(clusterService.state());
+                failDecommissionedNodes(clusterService.getClusterApplierService().state());
             }
 
             @Override
@@ -311,10 +311,13 @@ public class DecommissionService {
             : "unexpected status encountered while decommissioning nodes";
         DecommissionAttribute decommissionAttribute = decommissionAttributeMetadata.decommissionAttribute();
 
-        ActionListener<ClusterStateUpdateResponse> statusUpdateListener = new ActionListener<>() {
+        ActionListener<Void> statusUpdateListener = new ActionListener<>() {
             @Override
-            public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {
-                logger.info("successfully updated decommission status");
+            public void onResponse(Void unused) {
+                logger.info(
+                    "updated decommission status to [{}], decommissioning completed.",
+                    DecommissionStatus.DECOMMISSION_SUCCESSFUL
+                );
             }
 
             @Override
@@ -323,30 +326,31 @@ public class DecommissionService {
             }
         };
 
-        ActionListener<ClusterStateUpdateResponse> nodesRemovalListener = new ActionListener<>() {
-            @Override
-            public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {
-                DecommissionStatus updateStatusTo = clusterStateUpdateResponse.isAcknowledged() ?
-                    DecommissionStatus.DECOMMISSION_SUCCESSFUL : DecommissionStatus.DECOMMISSION_FAILED;
-                decommissionController.updateMetadataWithDecommissionStatus(updateStatusTo, statusUpdateListener);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                logger.error("error while waiting for decommissioned nodes to be removed", e);
-            }
-        };
-
         // execute nodes decommissioning and wait for it to complete
         decommissionController.handleNodesDecommissionRequest(
             nodesWithDecommissionAttribute(state, decommissionAttribute),
             "nodes-decommissioned",
             TimeValue.timeValueSeconds(30L),
-            nodesRemovalListener
+            new ActionListener<Void>() {
+                @Override
+                public void onResponse(Void unused) {
+                    decommissionController.updateMetadataWithDecommissionStatus(
+                        DecommissionStatus.DECOMMISSION_SUCCESSFUL,
+                        statusUpdateListener
+                    );
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    decommissionController.updateMetadataWithDecommissionStatus(
+                        DecommissionStatus.DECOMMISSION_FAILED,
+                        statusUpdateListener
+                    );
+                }
+            }
         );
         clearVotingConfigAfterSuccessfulDecommission();
     }
-
 
 
     private Set<DiscoveryNode> nodesWithDecommissionAttribute(ClusterState clusterState, DecommissionAttribute decommissionAttribute) {

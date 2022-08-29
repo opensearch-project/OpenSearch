@@ -8,9 +8,11 @@
 
 package org.opensearch.cluster.decommission;
 
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsActionTests;
@@ -19,11 +21,14 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
+import org.opensearch.cluster.metadata.DecommissionAttributeMetadata;
+import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.test.OpenSearchTestCase;
@@ -37,15 +42,21 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.opensearch.cluster.ClusterState.builder;
 import static org.opensearch.cluster.OpenSearchAllocationTestCase.createAllocationService;
@@ -58,7 +69,6 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
     private ClusterService clusterService;
     private AllocationService allocationService;
     private DecommissionController decommissionController;
-    private ClusterStateObserver clusterStateObserver;
 
     @Override
     public void setUp() throws Exception {
@@ -66,6 +76,10 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
         threadPool = new TestThreadPool("test", Settings.EMPTY);
         clusterService = createClusterService(threadPool);
         allocationService = createAllocationService();
+    }
+
+    @Before
+    public void setDefaultClusterState() {
         ClusterState clusterState = ClusterState.builder(new ClusterName("test")).build();
         logger.info("--> adding five nodes on same zone_1");
         clusterState = addNodes(clusterState, "zone_1", "node1", "node2", "node3", "node4", "node5");
@@ -75,14 +89,21 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
         clusterState = addNodes(clusterState, "zone_3", "node11", "node12", "node13", "node14", "node15");
         clusterState = setLocalNodeAsClusterManagerNode(clusterState, "node1");
         final ClusterState.Builder builder = builder(clusterState);
-        setState(clusterService, builder);
+        setState(
+            clusterService,
+            builder
+        );
         decommissionController = new DecommissionController(clusterService, allocationService, threadPool);
-        clusterStateObserver = new ClusterStateObserver(clusterService, null, logger, threadPool.getThreadContext());
     }
 
-    public void testRemoveNodesForDecommissionRequest() throws InterruptedException{
-        final CountDownLatch countDownLatch = new CountDownLatch(1);
+    @After
+    public void shutdownThreadPoolAndClusterService() {
+        clusterService.stop();
+        threadPool.shutdown();
+    }
 
+    public void testNodesRemovedForDecommissionRequestSuccessfulResponse() throws InterruptedException {
+        final CountDownLatch countDownLatch = new CountDownLatch(1);
         Set<DiscoveryNode> nodesToBeRemoved = new HashSet<>();
         nodesToBeRemoved.add(clusterService.state().nodes().get("node11"));
         nodesToBeRemoved.add(clusterService.state().nodes().get("node12"));
@@ -90,40 +111,100 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
         nodesToBeRemoved.add(clusterService.state().nodes().get("node14"));
         nodesToBeRemoved.add(clusterService.state().nodes().get("node15"));
 
-        ActionListener<ClusterStateUpdateResponse> actionListener = new ActionListener<ClusterStateUpdateResponse>() {
-            @Override
-            public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {
-                countDownLatch.countDown();
-                logger.info("test");
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-            }
-        };
         decommissionController.handleNodesDecommissionRequest(
             nodesToBeRemoved,
             "unit-test",
-            TimeValue.timeValueSeconds(29L),
-            actionListener
+            TimeValue.timeValueSeconds(30L),
+            new ActionListener<Void>() {
+                @Override
+                public void onResponse(Void unused) {
+                    countDownLatch.countDown();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    fail("there shouldn't have been any failure");
+                }
+            }
         );
-        clusterStateObserver.waitForNextChange(new UpdateClusterStateForDecommission(countDownLatch, nodesToBeRemoved));
 
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
-        ClusterState state = clusterService.getClusterApplierService().state();
-        assertEquals(clusterService.getClusterApplierService().state().nodes().getDataNodes().size(), 10);
+        // test all 5 nodes removed and cluster has 10 nodes
+        Set<DiscoveryNode> nodes = StreamSupport.stream(
+            clusterService.getClusterApplierService().state().nodes().spliterator(), false
+        ).collect(Collectors.toSet());
+        assertEquals(nodes.size(), 10);
+        // test no nodes part of zone-3
+        for (DiscoveryNode node : nodes) {
+            assertNotEquals(node.getAttributes().get("zone"), "zone-1");
+        }
+    }
+
+    public void testTimesOut() throws InterruptedException {
+        final CountDownLatch countDownLatch = new CountDownLatch(1);
+        Set<DiscoveryNode> nodesToBeRemoved = new HashSet<>();
+        nodesToBeRemoved.add(clusterService.state().nodes().get("node11"));
+        nodesToBeRemoved.add(clusterService.state().nodes().get("node12"));
+        nodesToBeRemoved.add(clusterService.state().nodes().get("node13"));
+        nodesToBeRemoved.add(clusterService.state().nodes().get("node14"));
+        nodesToBeRemoved.add(clusterService.state().nodes().get("node15"));
+        decommissionController.handleNodesDecommissionRequest(
+            nodesToBeRemoved,
+            "unit-test",
+            TimeValue.timeValueMillis(2),
+            new ActionListener<Void>() {
+                @Override
+                public void onResponse(Void unused) {
+                    fail("response shouldn't have been called");
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    assertThat(e, instanceOf(OpenSearchTimeoutException.class));
+                    assertThat(e.getMessage(), startsWith("timed out waiting for removal of decommissioned nodes"));
+                    countDownLatch.countDown();
+                }
+            }
+        );
+        assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
+    }
+
+    public void testSuccessfulDecommissionStatusMetadataUpdate() throws InterruptedException {
+        final CountDownLatch countDownLatch = new CountDownLatch(1);
+        DecommissionAttributeMetadata oldMetadata = new DecommissionAttributeMetadata(
+            new DecommissionAttribute("zone", "zone-1"),
+            DecommissionStatus.DECOMMISSION_IN_PROGRESS
+        );
+        ClusterState state = clusterService.state();
+        Metadata metadata = state.metadata();
+        Metadata.Builder mdBuilder = Metadata.builder(metadata);
+        mdBuilder.putCustom(DecommissionAttributeMetadata.TYPE, oldMetadata);
+        state = ClusterState.builder(state).metadata(mdBuilder).build();
+        setState(clusterService, state);
+
+        decommissionController.updateMetadataWithDecommissionStatus(
+            DecommissionStatus.DECOMMISSION_SUCCESSFUL,
+            new ActionListener<Void>() {
+                @Override
+                public void onResponse(Void unused) {
+                    countDownLatch.countDown();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    fail("decommission status update failed");
+                }
+            }
+        );
+        assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
+        ClusterState newState = clusterService.getClusterApplierService().state();
+        DecommissionAttributeMetadata decommissionAttributeMetadata = newState.metadata().custom(DecommissionAttributeMetadata.TYPE);
+        assertEquals(decommissionAttributeMetadata.status(), DecommissionStatus.DECOMMISSION_SUCCESSFUL);
     }
 
     private ClusterState addNodes(ClusterState clusterState, String zone, String... nodeIds) {
         DiscoveryNodes.Builder nodeBuilder = DiscoveryNodes.builder(clusterState.nodes());
         org.opensearch.common.collect.List.of(nodeIds).forEach(nodeId -> nodeBuilder.add(newNode(nodeId, singletonMap("zone", zone))));
-        clusterState = ClusterState.builder(clusterState).nodes(nodeBuilder).build();
-        return clusterState;
-    }
-
-    private ClusterState addClusterManagerNode(ClusterState clusterState, String zone, String nodeId) {
-        DiscoveryNodes.Builder nodeBuilder = DiscoveryNodes.builder(clusterState.nodes());
-        nodeBuilder.add(newClusterManagerNode(nodeId, singletonMap("zone", zone)));
         clusterState = ClusterState.builder(clusterState).nodes(nodeBuilder).build();
         return clusterState;
     }
@@ -137,64 +218,10 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
     }
 
     private static DiscoveryNode newNode(String nodeId, Map<String, String> attributes) {
-        return new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), attributes, DATA_ROLE, Version.CURRENT);
+        return new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), attributes, CLUSTER_MANAGER_DATA_ROLE, Version.CURRENT);
     }
 
-    private static DiscoveryNode newClusterManagerNode(String nodeId, Map<String, String> attributes) {
-        return new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), attributes, CLUSTER_MANAGER_ROLE, Version.CURRENT);
-    }
-
-    final private static Set<DiscoveryNodeRole> CLUSTER_MANAGER_ROLE = Collections.unmodifiableSet(
-        new HashSet<>(Arrays.asList(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE))
+    final private static Set<DiscoveryNodeRole> CLUSTER_MANAGER_DATA_ROLE = Collections.unmodifiableSet(
+        new HashSet<>(Arrays.asList(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, DiscoveryNodeRole.DATA_ROLE))
     );
-
-    final private static Set<DiscoveryNodeRole> DATA_ROLE = Collections.unmodifiableSet(
-        new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE))
-    );
-
-    private class UpdateClusterStateForDecommission implements ClusterStateObserver.Listener {
-
-        final CountDownLatch doneLatch;
-        final Set<DiscoveryNode> discoveryNodes;
-
-        UpdateClusterStateForDecommission(CountDownLatch latch, Set<DiscoveryNode> discoveryNodes) {
-            this.doneLatch = latch;
-            this.discoveryNodes = discoveryNodes;
-        }
-
-        @Override
-        public void onNewClusterState(ClusterState state) {
-            clusterService.getClusterManagerService().submitStateUpdateTask("decommission", new ClusterStateUpdateTask() {
-                @Override
-                public ClusterState execute(ClusterState currentState) throws Exception {
-                    assertThat(currentState, sameInstance(state));
-                    final DiscoveryNodes.Builder remainingNodesBuilder = DiscoveryNodes.builder(currentState.nodes());
-                    for (DiscoveryNode nodeToBeRemoved : discoveryNodes) {
-                        remainingNodesBuilder.remove(nodeToBeRemoved);
-                    }
-                    return ClusterState.builder(currentState).nodes(remainingNodesBuilder).build();
-                }
-
-                @Override
-                public void onFailure(String source, Exception e) {
-                    throw new AssertionError("unexpected failure", e);
-                }
-
-                @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                    doneLatch.countDown();
-                }
-            });
-        }
-
-        @Override
-        public void onClusterServiceClose() {
-            throw new AssertionError("unexpected close");
-        }
-
-        @Override
-        public void onTimeout(TimeValue timeout) {
-            throw new AssertionError("unexpected timeout");
-        }
-    }
 }
