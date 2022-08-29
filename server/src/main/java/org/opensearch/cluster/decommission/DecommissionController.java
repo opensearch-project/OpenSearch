@@ -10,13 +10,17 @@ package org.opensearch.cluster.decommission;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.ClusterStateTaskConfig;
 import org.opensearch.cluster.ClusterStateTaskListener;
+import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
 import org.opensearch.cluster.coordination.NodeRemovalClusterStateTaskExecutor;
+import org.opensearch.cluster.metadata.DecommissionAttributeMetadata;
+import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterService;
@@ -36,15 +40,15 @@ import java.util.function.Predicate;
  * @opensearch.internal
  */
 
-public class DecommissionHelper {
+public class DecommissionController {
 
-    private static final Logger logger = LogManager.getLogger(DecommissionHelper.class);
+    private static final Logger logger = LogManager.getLogger(DecommissionController.class);
 
     private final NodeRemovalClusterStateTaskExecutor nodeRemovalExecutor;
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
 
-    DecommissionHelper(
+    DecommissionController(
         ClusterService clusterService,
         AllocationService allocationService,
         ThreadPool threadPool
@@ -109,5 +113,46 @@ public class DecommissionHelper {
                 nodesRemovedListener.onResponse(new ClusterStateUpdateResponse(false));
             }
         }, allDecommissionedNodesRemovedPredicate);
+    }
+
+    public void updateMetadataWithDecommissionStatus(
+        DecommissionStatus decommissionStatus,
+        ActionListener<ClusterStateUpdateResponse> listener
+    ) {
+        clusterService.submitStateUpdateTask(decommissionStatus.status(), new ClusterStateUpdateTask(Priority.URGENT) {
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                Metadata metadata = currentState.metadata();
+                DecommissionAttributeMetadata decommissionAttributeMetadata = metadata.custom(DecommissionAttributeMetadata.TYPE);
+                assert decommissionAttributeMetadata != null && decommissionAttributeMetadata.decommissionAttribute() != null
+                    : "failed to update status for decommission. metadata doesn't exist or invalid";
+                assert assertIncrementalStatusOrFailed(decommissionAttributeMetadata.status(), decommissionStatus);
+                Metadata.Builder mdBuilder = Metadata.builder(metadata);
+                DecommissionAttributeMetadata newMetadata = decommissionAttributeMetadata.withUpdatedStatus(decommissionStatus);
+                mdBuilder.putCustom(DecommissionAttributeMetadata.TYPE, newMetadata);
+                return ClusterState.builder(currentState).metadata(mdBuilder).build();
+            }
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                logger.error(() -> new ParameterizedMessage("failed to mark status as [{}]", decommissionStatus.status()), e);
+            }
+
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                listener.onResponse(new ClusterStateUpdateResponse(true));
+            }
+
+        });
+    }
+
+    private static boolean assertIncrementalStatusOrFailed(DecommissionStatus oldStatus, DecommissionStatus newStatus) {
+        if (oldStatus == null || newStatus.equals(DecommissionStatus.DECOMMISSION_FAILED)) return true;
+        else if (newStatus.equals(DecommissionStatus.DECOMMISSION_SUCCESSFUL)) {
+            return oldStatus.equals(DecommissionStatus.DECOMMISSION_IN_PROGRESS);
+        } else if (newStatus.equals(DecommissionStatus.DECOMMISSION_IN_PROGRESS)) {
+            return oldStatus.equals(DecommissionStatus.DECOMMISSION_INIT);
+        }
+        return true;
     }
 }

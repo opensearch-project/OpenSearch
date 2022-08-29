@@ -19,7 +19,6 @@ import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclus
 import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsRequest;
 import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsResponse;
 import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
@@ -71,7 +70,7 @@ public class DecommissionService {
     private final ClusterService clusterService;
     private final TransportService transportService;
     private final ThreadPool threadPool;
-    private final DecommissionHelper decommissionHelper;
+    private final DecommissionController decommissionController;
     private volatile List<String> awarenessAttributes;
 
     @Inject
@@ -86,7 +85,7 @@ public class DecommissionService {
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.threadPool = threadPool;
-        this.decommissionHelper = new DecommissionHelper(
+        this.decommissionController = new DecommissionController(
             clusterService,
             allocationService,
             threadPool
@@ -302,7 +301,7 @@ public class DecommissionService {
                 );
             }
         };
-        updateMetadataWithDecommissionStatus(DecommissionStatus.DECOMMISSION_IN_PROGRESS, listener);
+        decommissionController.updateMetadataWithDecommissionStatus(DecommissionStatus.DECOMMISSION_IN_PROGRESS, listener);
         // TODO - code for graceful decommission
     }
 
@@ -329,7 +328,7 @@ public class DecommissionService {
             public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {
                 DecommissionStatus updateStatusTo = clusterStateUpdateResponse.isAcknowledged() ?
                     DecommissionStatus.DECOMMISSION_SUCCESSFUL : DecommissionStatus.DECOMMISSION_FAILED;
-                updateMetadataWithDecommissionStatus(updateStatusTo, statusUpdateListener);
+                decommissionController.updateMetadataWithDecommissionStatus(updateStatusTo, statusUpdateListener);
             }
 
             @Override
@@ -339,7 +338,7 @@ public class DecommissionService {
         };
 
         // execute nodes decommissioning and wait for it to complete
-        decommissionHelper.handleNodesDecommissionRequest(
+        decommissionController.handleNodesDecommissionRequest(
             nodesWithDecommissionAttribute(state, decommissionAttribute),
             "nodes-decommissioned",
             TimeValue.timeValueSeconds(30L),
@@ -348,36 +347,7 @@ public class DecommissionService {
         clearVotingConfigAfterSuccessfulDecommission();
     }
 
-    private void updateMetadataWithDecommissionStatus(
-        DecommissionStatus decommissionStatus,
-        ActionListener<ClusterStateUpdateResponse> listener
-    ) {
-        clusterService.submitStateUpdateTask(decommissionStatus.status(), new ClusterStateUpdateTask(Priority.URGENT) {
-            @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
-                Metadata metadata = currentState.metadata();
-                DecommissionAttributeMetadata decommissionAttributeMetadata = metadata.custom(DecommissionAttributeMetadata.TYPE);
-                assert decommissionAttributeMetadata != null && decommissionAttributeMetadata.decommissionAttribute() != null
-                    : "failed to update status for decommission. metadata doesn't exist or invalid";
-                assert assertIncrementalStatusOrFailed(decommissionAttributeMetadata.status(), decommissionStatus);
-                Metadata.Builder mdBuilder = Metadata.builder(metadata);
-                DecommissionAttributeMetadata newMetadata = decommissionAttributeMetadata.withUpdatedStatus(decommissionStatus);
-                mdBuilder.putCustom(DecommissionAttributeMetadata.TYPE, newMetadata);
-                return ClusterState.builder(currentState).metadata(mdBuilder).build();
-            }
 
-            @Override
-            public void onFailure(String source, Exception e) {
-                logger.error(() -> new ParameterizedMessage("failed to mark status as [{}]", decommissionStatus.status()), e);
-            }
-
-            @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                listener.onResponse(new ClusterStateUpdateResponse(true));
-            }
-
-        });
-    }
 
     private Set<DiscoveryNode> nodesWithDecommissionAttribute(ClusterState clusterState, DecommissionAttribute decommissionAttribute) {
         Set<DiscoveryNode> nodesWithDecommissionAttribute = new HashSet<>();
@@ -393,16 +363,6 @@ public class DecommissionService {
             }
         }
         return nodesWithDecommissionAttribute;
-    }
-
-    private static boolean assertIncrementalStatusOrFailed(DecommissionStatus oldStatus, DecommissionStatus newStatus) {
-        if (oldStatus == null || newStatus.equals(DecommissionStatus.DECOMMISSION_FAILED)) return true;
-        else if (newStatus.equals(DecommissionStatus.DECOMMISSION_SUCCESSFUL)) {
-            return oldStatus.equals(DecommissionStatus.DECOMMISSION_IN_PROGRESS);
-        } else if (newStatus.equals(DecommissionStatus.DECOMMISSION_IN_PROGRESS)) {
-            return oldStatus.equals(DecommissionStatus.DECOMMISSION_INIT);
-        }
-        return true;
     }
 
     private static boolean nodeHasDecommissionedAttribute(DiscoveryNode discoveryNode, DecommissionAttribute decommissionAttribute) {
