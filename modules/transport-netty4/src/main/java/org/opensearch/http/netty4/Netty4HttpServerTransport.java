@@ -364,7 +364,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             ch.pipeline().addLast("byte_buf_sizer", byteBufSizer);
             ch.pipeline().addLast("read_timeout", new ReadTimeoutHandler(transport.readTimeoutMillis, TimeUnit.MILLISECONDS));
 
-            configureDefaultPipeline(ch);
+            configurePipeline(ch);
             transport.serverAcceptedChannel(nettyHttpChannel);
         }
 
@@ -374,7 +374,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             super.exceptionCaught(ctx, cause);
         }
 
-        protected void configureDefaultPipeline(Channel ch) {
+        protected void configurePipeline(Channel ch) {
             final UpgradeCodecFactory upgradeCodecFactory = new UpgradeCodecFactory() {
                 @Override
                 public UpgradeCodec newUpgradeCodec(CharSequence protocol) {
