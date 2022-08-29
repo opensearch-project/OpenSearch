@@ -40,7 +40,7 @@ public class RestClusterPutWRRWeightsAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "put_wrrweights_action";
+        return "put_wrr_weights_action";
     }
 
     @Override
@@ -50,7 +50,7 @@ public class RestClusterPutWRRWeightsAction extends BaseRestHandler {
     }
 
     public static ClusterPutWRRWeightsRequest createRequest(RestRequest request) throws IOException {
-        ClusterPutWRRWeightsRequest putWRRWeightsRequest = Requests.putWRRWEightsRequest();
+        ClusterPutWRRWeightsRequest putWRRWeightsRequest = Requests.putWRRWeightsRequest();
         String attributeName = null;
         if (request.hasParam("attribute")) {
             attributeName = request.param("attribute");

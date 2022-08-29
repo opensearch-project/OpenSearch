@@ -42,9 +42,8 @@ public class WeightedRoundRobinRoutingMetadata extends AbstractNamedDiffable<Met
         return wrrWeight;
     }
 
-    public WeightedRoundRobinRoutingMetadata setWrrWeight(WRRWeights wrrWeight) {
+    public void  setWrrWeight(WRRWeights wrrWeight) {
         this.wrrWeight = wrrWeight;
-        return this;
     }
 
     public WeightedRoundRobinRoutingMetadata(StreamInput in) throws IOException {
@@ -89,19 +88,23 @@ public class WeightedRoundRobinRoutingMetadata extends AbstractNamedDiffable<Met
         XContentParser.Token token;
         // move to the first alias
         parser.nextToken();
-        String awarenessField = null;
+        String awarenessKeyword = null;
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
-                awarenessField = parser.currentName();
+                // parses awareness object
+                awarenessKeyword = parser.currentName();
+                // awareness object contains object with awareness attribute name and its details
                 if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
-                    throw new OpenSearchParseException("failed to parse wrr metadata  [{}], expected object", awarenessField);
+                    throw new OpenSearchParseException("failed to parse wrr metadata  [{}], expected object", awarenessKeyword);
                 }
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     attributeName = parser.currentName();
+                    // awareness attribute object contain wrr weight details
                     if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
                         throw new OpenSearchParseException("failed to parse wrr metadata  [{}], expected object", attributeName);
                     }
+                    // parse weights, corresponding attribute key and puts it in a map
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             attrKey = parser.currentName();

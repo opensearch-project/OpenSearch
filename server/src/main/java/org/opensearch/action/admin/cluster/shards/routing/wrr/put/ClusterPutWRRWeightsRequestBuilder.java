@@ -10,7 +10,7 @@ package org.opensearch.action.admin.cluster.shards.routing.wrr.put;
 
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
-import org.opensearch.cluster.routing.WRRWeight;
+import org.opensearch.cluster.routing.WRRWeights;
 
 /**
  * Request builder to update weights for weighted round-robin shard routing policy.
@@ -25,7 +25,7 @@ public class ClusterPutWRRWeightsRequestBuilder extends ClusterManagerNodeOperat
         super(client, action, new ClusterPutWRRWeightsRequest());
     }
 
-    public ClusterPutWRRWeightsRequestBuilder setWRRWeights(WRRWeight wrrWeight) {
+    public ClusterPutWRRWeightsRequestBuilder setWRRWeights(WRRWeights wrrWeight) {
         request.wrrWeight(wrrWeight);
         return this;
     }

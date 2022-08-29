@@ -8,11 +8,13 @@
 
 package org.opensearch.action.admin.cluster.shards.routing.wrr.put;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchGenerationException;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
-import org.opensearch.cluster.routing.WRRWeight;
+import org.opensearch.cluster.routing.WRRWeights;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -36,15 +38,16 @@ import static org.opensearch.action.ValidateActions.addValidationError;
  * @opensearch.internal
  */
 public class ClusterPutWRRWeightsRequest extends ClusterManagerNodeRequest<ClusterPutWRRWeightsRequest> {
+    private static final Logger logger = LogManager.getLogger(ClusterPutWRRWeightsRequest.class);
 
-    private WRRWeight wrrWeight;
+    private WRRWeights wrrWeight;
     private String attributeName;
 
-    public WRRWeight wrrWeight() {
+    public WRRWeights wrrWeight() {
         return wrrWeight;
     }
 
-    public ClusterPutWRRWeightsRequest wrrWeight(WRRWeight wrrWeight) {
+    public ClusterPutWRRWeightsRequest wrrWeight(WRRWeights wrrWeight) {
         this.wrrWeight = wrrWeight;
         return this;
     }
@@ -55,27 +58,27 @@ public class ClusterPutWRRWeightsRequest extends ClusterManagerNodeRequest<Clust
 
     public ClusterPutWRRWeightsRequest(StreamInput in) throws IOException {
         super(in);
-        wrrWeight = new WRRWeight(in);
+        wrrWeight = new WRRWeights(in);
     }
 
     public ClusterPutWRRWeightsRequest() {
 
     }
 
-    public ClusterPutWRRWeightsRequest setWRRWeight(Map<String, String> source) {
+    public void setWRRWeight(Map<String, String> source) {
         try {
             if (source.isEmpty()) {
                 throw new OpenSearchParseException(("Empty request body"));
             }
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.map(source);
-            return setWRRWeight(BytesReference.bytes(builder), builder.contentType());
+            setWRRWeight(BytesReference.bytes(builder), builder.contentType());
         } catch (IOException e) {
             throw new OpenSearchGenerationException("Failed to generate [" + source + "]", e);
         }
     }
 
-    public ClusterPutWRRWeightsRequest setWRRWeight(BytesReference source, XContentType contentType) {
+    public void setWRRWeight(BytesReference source, XContentType contentType) {
         try (
             XContentParser parser = XContentHelper.createParser(
                 NamedXContentRegistry.EMPTY,
@@ -100,25 +103,37 @@ public class ClusterPutWRRWeightsRequest extends ClusterManagerNodeRequest<Clust
                     throw new OpenSearchParseException("failed to parse wrr request attribute [{}], unknown type", attrWeight);
                 }
             }
-            this.wrrWeight = new WRRWeight(this.attributeName, weights);
-            return this;
+            this.wrrWeight = new WRRWeights(this.attributeName, weights);
         } catch (IOException e) {
-            e.printStackTrace();
+            logger.error("error while parsing put wrr weights request object", e);
         }
-        return this;
     }
 
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (wrrWeight == null) {
+            validationException = addValidationError("WRRWeights object is null", validationException);
+        }
+        if (wrrWeight.attributeName() == null || wrrWeight.attributeName().isEmpty()) {
+            validationException = addValidationError("Attribute name is missing", validationException);
+        }
+        if (wrrWeight.weights() == null || wrrWeight.weights().isEmpty()) {
             validationException = addValidationError("Weights are missing", validationException);
         }
         int countValueWithZeroWeights = 0;
-        for (Object value : wrrWeight.weights().values()) {
-            if (value.toString().equals("0")) {
-                countValueWithZeroWeights++;
+        int weight;
+        try {
+            for (Object value : wrrWeight.weights().values()) {
+                if (value == null) {
+                    validationException = addValidationError(("Weight is null"), validationException);
+                } else {
+                    weight = Integer.parseInt(value.toString());
+                    countValueWithZeroWeights = (weight == 0) ? countValueWithZeroWeights + 1 : countValueWithZeroWeights;
+                }
             }
+        } catch (NumberFormatException e) {
+            validationException = addValidationError(("Weight is non-integer"), validationException);
         }
         if (countValueWithZeroWeights > 1) {
             validationException = addValidationError(("More than one value has weight set as 0 "), validationException);
@@ -128,7 +143,6 @@ public class ClusterPutWRRWeightsRequest extends ClusterManagerNodeRequest<Clust
     }
 
     /**
-     *
      * @param source weights definition from request body
      * @return this request
      */

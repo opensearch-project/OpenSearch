@@ -81,12 +81,9 @@ public class OperationRouting {
     private volatile boolean useAdaptiveReplicaSelection;
     private volatile boolean ignoreAwarenessAttr;
 
-    // reads value from cluster setting
-    private volatile boolean useWeightedRoundRobin;
     /**
-     * Reads value from cluster setting and cluster state to determine if weighted round-robin
+     * Reads value from cluster state to determine if weighted round-robin
      * search routing is enabled
-     * This is true if useWeightedRoundRobin=true and weights are set in cluster metadata.
      */
     private volatile boolean isWeightedRoundRobinEnabled;
 

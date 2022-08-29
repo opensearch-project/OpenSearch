@@ -57,7 +57,7 @@ public class WRRShardRoutingService extends AbstractLifecycleComponent implement
                     logger.info("put wrr weights [{}]", request.wrrWeight());
                     wrrWeights = new WeightedRoundRobinMetadata(request.wrrWeight());
                 } else {
-                    WeightedRoundRobinMetadata changedMetadata = new WeightedRoundRobinMetadata(new WRRWeight(null, null));
+                    WeightedRoundRobinMetadata changedMetadata = new WeightedRoundRobinMetadata(new WRRWeights(null, null));
                     if (!checkIfSameWeightsInMetadata(newWRRWeightsMetadata, wrrWeights)) {
                         changedMetadata.setWrrWeight(newWRRWeightsMetadata.getWrrWeight());
                     } else {

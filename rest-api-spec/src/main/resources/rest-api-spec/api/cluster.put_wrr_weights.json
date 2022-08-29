@@ -1,10 +1,10 @@
 {
-  "cluster.put_decommission_awareness": {
+  "cluster.put_wrr_weights": {
     "documentation": {
-      "url": "TBA",
+      "url": "http://TBA",
       "description": "TBA"
     },
-    "stability": "experimental",
+    "stability": "stable",
     "url": {
       "paths": [
         {
