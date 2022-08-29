@@ -59,6 +59,10 @@ import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.UUIDs;
+import org.opensearch.common.blobstore.BlobContainer;
+import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.blobstore.fs.FsBlobContainer;
+import org.opensearch.common.blobstore.fs.FsBlobStore;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lucene.uid.Versions;
@@ -88,6 +92,8 @@ import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
+import org.opensearch.index.store.RemoteDirectory;
+import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.translog.InternalTranslogFactory;
@@ -123,6 +129,7 @@ import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -532,7 +539,10 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 ShardId shardId = shardPath.getShardId();
                 NodeEnvironment.NodePath remoteNodePath = new NodeEnvironment.NodePath(createTempDir());
                 ShardPath remoteShardPath = new ShardPath(false, remoteNodePath.resolve(shardId), remoteNodePath.resolve(shardId), shardId);
-                storeProvider = is -> createStore(is, remoteShardPath);
+                RemoteDirectory dataDirectory = newRemoteDirectory(remoteShardPath.resolveIndex());
+                RemoteDirectory metadataDirectory = newRemoteDirectory(remoteShardPath.resolveIndex());
+                RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = new RemoteSegmentStoreDirectory(dataDirectory, metadataDirectory);
+                storeProvider = is -> createStore(shardId, is, remoteSegmentStoreDirectory);
                 remoteStore = storeProvider.apply(indexSettings);
             }
             indexShard = new IndexShard(
@@ -568,6 +578,13 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             }
         }
         return indexShard;
+    }
+
+    private RemoteDirectory newRemoteDirectory(Path f) throws IOException {
+        FsBlobStore fsBlobStore = new FsBlobStore(1024, f, false);
+        BlobPath blobPath = new BlobPath();
+        BlobContainer fsBlobContainer = new FsBlobContainer(fsBlobStore, blobPath, f);
+        return new RemoteDirectory(fsBlobContainer);
     }
 
     /**
