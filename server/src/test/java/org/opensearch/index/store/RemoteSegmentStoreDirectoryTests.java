@@ -318,20 +318,39 @@ public class RemoteSegmentStoreDirectoryTests extends OpenSearchTestCase {
     }
 
     public void testContainsFile() throws IOException {
-        populateMetadata();
-        remoteSegmentStoreDirectory.init();
-
-        // This is not the correct way to add files but the other way is to open up access to fields in UploadedSegmentMetadata
-        Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegmentMetadataMap = remoteSegmentStoreDirectory
-            .getSegmentsUploadedToRemoteStore();
-        uploadedSegmentMetadataMap.put(
-            "_100.si",
-            new RemoteSegmentStoreDirectory.UploadedSegmentMetadata("_100.si", "_100.si__uuid1", "1234")
+        List<String> metadataFiles = List.of("metadata__1__5__abc");
+        when(remoteMetadataDirectory.listFilesByPrefix(RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX)).thenReturn(
+            metadataFiles
         );
 
-        assertTrue(remoteSegmentStoreDirectory.containsFile("_100.si", "1234"));
-        assertFalse(remoteSegmentStoreDirectory.containsFile("_100.si", "2345"));
-        assertFalse(remoteSegmentStoreDirectory.containsFile("_200.si", "1234"));
+        Map<String, String> metadata = new HashMap<>();
+        metadata.put("_0.cfe", "_0.cfe::_0.cfe__" + UUIDs.base64UUID() + "::1234");
+        metadata.put("_0.cfs", "_0.cfs::_0.cfs__" + UUIDs.base64UUID() + "::2345");
+
+        Map<String, Map<String, String>> metadataFilenameContentMapping = Map.of("metadata__1__5__abc", metadata);
+
+        IndexInput indexInput1 = mock(IndexInput.class);
+        when(indexInput1.readMapOfStrings()).thenReturn(metadataFilenameContentMapping.get("metadata__1__5__abc"));
+        when(remoteMetadataDirectory.openInput("metadata__1__5__abc", IOContext.DEFAULT)).thenReturn(indexInput1);
+
+        remoteSegmentStoreDirectory.init();
+
+        Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegmentMetadataMap = remoteSegmentStoreDirectory
+            .getSegmentsUploadedToRemoteStore();
+
+        assertThrows(
+            UnsupportedOperationException.class,
+            () -> uploadedSegmentMetadataMap.put(
+                "_100.si",
+                new RemoteSegmentStoreDirectory.UploadedSegmentMetadata("_100.si", "_100.si__uuid1", "1234")
+            )
+        );
+
+        assertTrue(remoteSegmentStoreDirectory.containsFile("_0.cfe", "1234"));
+        assertTrue(remoteSegmentStoreDirectory.containsFile("_0.cfs", "2345"));
+        assertFalse(remoteSegmentStoreDirectory.containsFile("_0.cfe", "1234000"));
+        assertFalse(remoteSegmentStoreDirectory.containsFile("_0.cfs", "2345000"));
+        assertFalse(remoteSegmentStoreDirectory.containsFile("_0.si", "23"));
     }
 
     public void testUploadMetadataEmpty() throws IOException {

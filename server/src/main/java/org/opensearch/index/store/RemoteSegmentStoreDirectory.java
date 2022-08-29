@@ -372,7 +372,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
 
     // Visible for testing
     public Map<String, UploadedSegmentMetadata> getSegmentsUploadedToRemoteStore() {
-        return this.segmentsUploadedToRemoteStore;
+        return Collections.unmodifiableMap(this.segmentsUploadedToRemoteStore);
     }
 
     /**
