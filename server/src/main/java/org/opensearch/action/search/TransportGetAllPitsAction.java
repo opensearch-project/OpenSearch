@@ -15,6 +15,9 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
 
+/**
+ * Transport action to get all active PIT contexts across the cluster
+ */
 public class TransportGetAllPitsAction extends HandledTransportAction<GetAllPitNodesRequest, GetAllPitNodesResponse> {
     private final PitService pitService;
 
