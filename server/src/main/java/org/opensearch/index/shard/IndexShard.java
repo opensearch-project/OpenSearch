@@ -3310,6 +3310,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return (remoteStore != null && shardRouting.primary());
     }
 
+    public boolean isRemoteTxlogEnabledOnPrimary() {
+        return indexSettings != null
+            && indexSettings.isSegRepEnabled()
+            && indexSettings.isRemoteStoreEnabled()
+            && indexSettings.isRemoteTranslogStoreEnabled();
+    }
+
     /**
      * Acquire a primary operation permit whenever the shard is ready for indexing. If a permit is directly available, the provided
      * ActionListener will be called on the calling thread. During relocation hand-off, permit acquisition can be delayed. The provided

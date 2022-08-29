@@ -47,7 +47,6 @@ import org.opensearch.action.StepListener;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.ThreadedActionListener;
 import org.opensearch.action.support.replication.ReplicationResponse;
-import org.opensearch.action.support.replication.TransportWriteAction;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.CheckedRunnable;
@@ -318,7 +317,7 @@ public class RecoverySourceHandler {
             assert startingSeqNo >= 0 : "startingSeqNo must be non negative. got: " + startingSeqNo;
 
             boolean isRecoveringReplicaWithRemoteTxLogEnabledIndex = request.isPrimaryRelocation() == false
-                && TransportWriteAction.IS_REMOTE_TXLOG_ENABLED.apply(shard);
+                && shard.isRemoteTxlogEnabledOnPrimary();
 
             if (isRecoveringReplicaWithRemoteTxLogEnabledIndex) {
                 sendFileStep.whenComplete(r -> {

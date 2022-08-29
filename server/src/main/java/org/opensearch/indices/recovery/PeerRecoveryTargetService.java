@@ -42,7 +42,6 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
-import org.opensearch.action.support.replication.TransportWriteAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -240,7 +239,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     logger.trace("{} preparing shard for peer recovery", recoveryTarget.shardId());
                     indexShard.prepareForIndexRecovery();
                     boolean isRecoveringReplicaWithRemoteTxLogEnabledIndex = recoveryTarget.state().getPrimary() == false
-                        && TransportWriteAction.IS_REMOTE_TXLOG_ENABLED.apply(indexShard);
+                        && indexShard.isRemoteTxlogEnabledOnPrimary();
                     final long startingSeqNo = isRecoveringReplicaWithRemoteTxLogEnabledIndex
                         ? indexShard.fetchStartSeqNoFromLastCommit()
                         : indexShard.recoverLocallyUpToGlobalCheckpoint();
