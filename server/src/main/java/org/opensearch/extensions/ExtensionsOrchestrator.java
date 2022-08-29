@@ -71,6 +71,8 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     public static final String REQUEST_EXTENSION_REGISTER_REST_ACTIONS = "internal:discovery/registerrestactions";
     public static final String REQUEST_OPENSEARCH_NAMED_WRITEABLE_REGISTRY = "internal:discovery/namedwriteableregistry";
     public static final String REQUEST_OPENSEARCH_PARSE_NAMED_WRITEABLE = "internal:discovery/parsenamedwriteable";
+    public static final String REQUEST_OPENSEARCH_NAMED_XCONTENT_REGISTRY = "internal:discovery/namedxcontentregistry";
+    public static final String REQUEST_OPENSEARCH_PARSE_NAMED_XCONTENT = "internal:discovery/parsenamedxcontent";
 
     private static final Logger logger = LogManager.getLogger(ExtensionsOrchestrator.class);
 
@@ -95,7 +97,8 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
      * @opensearch.internal
      */
     public static enum OpenSearchRequestType {
-        REQUEST_OPENSEARCH_NAMED_WRITEABLE_REGISTRY
+        REQUEST_OPENSEARCH_NAMED_WRITEABLE_REGISTRY,
+        REQUEST_OPENSEARCH_NAMED_XCONTENT_REGISTRY
     }
 
     private final Path extensionsPath;
@@ -106,6 +109,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     TransportService transportService;
     ClusterService clusterService;
     ExtensionNamedWriteableRegistry namedWriteableRegistry;
+    ExtensionNamedXContentRegistry namedXContentRegistry;
 
     /**
      * Instantiate a new ExtensionsOrchestrator object to handle requests and responses from extensions.
@@ -123,6 +127,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         this.extensionIdMap = new HashMap<String, DiscoveryExtension>();
         this.extensionRestActionsMap = new HashMap<String, List<String>>();
         this.clusterService = null;
+        this.namedWriteableRegistry = null;
         this.namedWriteableRegistry = null;
 
         /*
@@ -148,6 +153,10 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
 
     public void setNamedWriteableRegistry() {
         this.namedWriteableRegistry = new ExtensionNamedWriteableRegistry(extensionsInitializedList, transportService);
+    }
+
+    public void setNamedXContentRegistry() {
+        this.namedXContentRegistry = new ExtensionNamedXContentRegistry(extensionsInitializedList, transportService);
     }
 
     private void registerRequestHandler() {
