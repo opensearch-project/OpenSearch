@@ -127,8 +127,11 @@ public class DecommissionService {
         final ActionListener<ClusterStateUpdateResponse> listener,
         ClusterState state
     ) {
+        // validates if the correct awareness attributes and forced awareness attribute set to the cluster before initiating decommission action
         validateAwarenessAttribute(decommissionAttribute, awarenessAttributes, forcedAwarenessAttributes);
+
         DecommissionAttributeMetadata decommissionAttributeMetadata = state.metadata().custom(DecommissionAttributeMetadata.TYPE);
+        // validates that there's no inflight decommissioning or already executed decommission in place
         ensureNoAwarenessAttributeDecommissioned(decommissionAttributeMetadata, decommissionAttribute);
 
         logger.info("initiating awareness attribute [{}] decommissioning", decommissionAttribute.toString());
@@ -168,6 +171,7 @@ public class DecommissionService {
             && excludedNodesName.containsAll(clusterManagerNodesNameToBeDecommissioned))) {
             return;
         }
+        // send a transport request to exclude to-be-decommissioned cluster manager eligible nodes from voting config
         decommissionController.excludeDecommissionedNodesFromVotingConfig(
             clusterManagerNodesNameToBeDecommissioned,
             new ActionListener<Void>() {
