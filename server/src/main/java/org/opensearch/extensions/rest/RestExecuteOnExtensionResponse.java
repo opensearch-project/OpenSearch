@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.extensions;
+package org.opensearch.extensions.rest;
 
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -15,18 +15,18 @@ import org.opensearch.transport.TransportResponse;
 import java.io.IOException;
 
 /**
- * Response to register REST Actions request.
+ * Response to execute REST Actions on the extension node.
  *
  * @opensearch.internal
  */
-public class RegisterRestActionsResponse extends TransportResponse {
+public class RestExecuteOnExtensionResponse extends TransportResponse {
     private String response;
 
-    public RegisterRestActionsResponse(String response) {
+    public RestExecuteOnExtensionResponse(String response) {
         this.response = response;
     }
 
-    public RegisterRestActionsResponse(StreamInput in) throws IOException {
+    public RestExecuteOnExtensionResponse(StreamInput in) throws IOException {
         response = in.readString();
     }
 
