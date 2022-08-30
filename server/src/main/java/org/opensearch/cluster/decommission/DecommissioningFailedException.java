@@ -20,20 +20,20 @@ import java.io.IOException;
  * @opensearch.internal
  */
 
-public class DecommissionFailedException extends OpenSearchException {
+public class DecommissioningFailedException extends OpenSearchException {
 
     private final DecommissionAttribute decommissionAttribute;
 
-    public DecommissionFailedException(DecommissionAttribute decommissionAttribute, String msg) {
+    public DecommissioningFailedException(DecommissionAttribute decommissionAttribute, String msg) {
         this(decommissionAttribute, msg, null);
     }
 
-    public DecommissionFailedException(DecommissionAttribute decommissionAttribute, String msg, Throwable cause) {
+    public DecommissioningFailedException(DecommissionAttribute decommissionAttribute, String msg, Throwable cause) {
         super("[" + (decommissionAttribute == null ? "_na" : decommissionAttribute.toString()) + "] " + msg, cause);
         this.decommissionAttribute = decommissionAttribute;
     }
 
-    public DecommissionFailedException(StreamInput in) throws IOException {
+    public DecommissioningFailedException(StreamInput in) throws IOException {
         super(in);
         decommissionAttribute = new DecommissionAttribute(in);
     }

@@ -16,25 +16,19 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
-import org.opensearch.cluster.coordination.CoordinationMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.allocation.AllocationService;
-import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.inject.Inject;
-import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.TransportException;
-import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -229,7 +223,7 @@ public class DecommissionService {
 
                 @Override
                 public void onFailure(String source, Exception e) {
-                    if (e instanceof DecommissionFailedException) {
+                    if (e instanceof DecommissioningFailedException) {
                         logger.error(() -> new ParameterizedMessage("failed to decommission attribute [{}]", decommissionAttribute.toString()), e);
                         listener.onFailure(e);
                     } else if (e instanceof NotClusterManagerException) {
@@ -391,7 +385,7 @@ public class DecommissionService {
         }
 
         if (msg != null) {
-            throw new DecommissionFailedException(decommissionAttribute, msg);
+            throw new DecommissioningFailedException(decommissionAttribute, msg);
         }
     }
 
@@ -402,7 +396,7 @@ public class DecommissionService {
         // If the previous decommission request failed, we will allow the request to pass this check
         if (decommissionAttributeMetadata != null
             && !decommissionAttributeMetadata.status().equals(DecommissionStatus.DECOMMISSION_FAILED)) {
-            throw new DecommissionFailedException(
+            throw new DecommissioningFailedException(
                 decommissionAttribute,
                 "one awareness attribute already decommissioned, recommission before triggering another decommission"
             );
