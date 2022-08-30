@@ -54,13 +54,10 @@ public class DecommissionAttributeMetadataSerializationTests extends AbstractDif
         if (randomBoolean()) {
             attributeName = randomAlphaOfLength(6);
         }
-        if(randomBoolean()) {
+        if (randomBoolean()) {
             attributeValue = randomAlphaOfLength(6);
         }
-        return new DecommissionAttributeMetadata(
-            new DecommissionAttribute(attributeName, attributeValue),
-            decommissionStatus
-        );
+        return new DecommissionAttributeMetadata(new DecommissionAttribute(attributeName, attributeValue), decommissionStatus);
     }
 
     @Override

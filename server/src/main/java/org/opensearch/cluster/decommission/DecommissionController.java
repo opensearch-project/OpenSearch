@@ -24,7 +24,6 @@ import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.ClusterStateTaskConfig;
 import org.opensearch.cluster.ClusterStateTaskListener;
 import org.opensearch.cluster.ClusterStateUpdateTask;
-import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
 import org.opensearch.cluster.coordination.NodeRemovalClusterStateTaskExecutor;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -34,7 +33,6 @@ import org.opensearch.common.Priority;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
@@ -42,7 +40,6 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -78,7 +75,7 @@ public class DecommissionController {
         transportService.sendRequest(
             transportService.getLocalNode(),
             AddVotingConfigExclusionsAction.NAME,
-            new AddVotingConfigExclusionsRequest(nodes.stream().toArray(String[] :: new)),
+            new AddVotingConfigExclusionsRequest(nodes.stream().toArray(String[]::new)),
             new TransportResponseHandler<AddVotingConfigExclusionsResponse>() {
                 @Override
                 public void handleResponse(AddVotingConfigExclusionsResponse response) {
@@ -166,12 +163,7 @@ public class DecommissionController {
             return true;
         };
 
-        final ClusterStateObserver observer = new ClusterStateObserver(
-            clusterService,
-            timeout,
-            logger,
-            threadPool.getThreadContext()
-        );
+        final ClusterStateObserver observer = new ClusterStateObserver(clusterService, timeout, logger, threadPool.getThreadContext());
 
         observer.waitForNextChange(new ClusterStateObserver.Listener() {
             @Override
@@ -198,10 +190,7 @@ public class DecommissionController {
         }, allDecommissionedNodesRemovedPredicate);
     }
 
-    public void updateMetadataWithDecommissionStatus(
-        DecommissionStatus decommissionStatus,
-        ActionListener<Void> listener
-    ) {
+    public void updateMetadataWithDecommissionStatus(DecommissionStatus decommissionStatus, ActionListener<Void> listener) {
         clusterService.submitStateUpdateTask(decommissionStatus.status(), new ClusterStateUpdateTask(Priority.URGENT) {
             @Override
             public ClusterState execute(ClusterState currentState) {
@@ -222,7 +211,8 @@ public class DecommissionController {
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                DecommissionAttributeMetadata decommissionAttributeMetadata = newState.metadata().custom(DecommissionAttributeMetadata.TYPE);
+                DecommissionAttributeMetadata decommissionAttributeMetadata = newState.metadata()
+                    .custom(DecommissionAttributeMetadata.TYPE);
                 assert decommissionAttributeMetadata.status().equals(decommissionStatus);
                 listener.onResponse(null);
             }

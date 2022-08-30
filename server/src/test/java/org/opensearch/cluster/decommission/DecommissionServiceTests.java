@@ -76,10 +76,7 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
         clusterState = setLocalNodeAsClusterManagerNode(clusterState, "node1");
         clusterState = setThreeNodesInVotingConfig(clusterState);
         final ClusterState.Builder builder = builder(clusterState);
-        setState(
-            clusterService,
-            builder
-        );
+        setState(clusterService, builder);
         final MockTransport transport = new MockTransport();
         transportService = transport.createTransportService(
             Settings.EMPTY,
@@ -118,10 +115,10 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
     public void testDecommissioningNotInitiatedForInvalidAttributeName() {
         DecommissionAttribute decommissionAttribute = new DecommissionAttribute("rack", "rack-a");
         ActionListener<ClusterStateUpdateResponse> listener = mock(ActionListener.class);
-        DecommissioningFailedException e = expectThrows(DecommissioningFailedException.class, () -> {
-           decommissionService.initiateAttributeDecommissioning(
-               decommissionAttribute, listener, clusterService.state());
-        });
+        DecommissioningFailedException e = expectThrows(
+            DecommissioningFailedException.class,
+            () -> { decommissionService.initiateAttributeDecommissioning(decommissionAttribute, listener, clusterService.state()); }
+        );
         assertThat(e.getMessage(), Matchers.endsWith("invalid awareness attribute requested for decommissioning"));
     }
 
@@ -129,13 +126,15 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
     public void testDecommissioningNotInitiatedForInvalidAttributeValue() {
         DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "random");
         ActionListener<ClusterStateUpdateResponse> listener = mock(ActionListener.class);
-        DecommissioningFailedException e = expectThrows(DecommissioningFailedException.class, () -> {
-            decommissionService.initiateAttributeDecommissioning(
-                decommissionAttribute, listener, clusterService.state());
-        });
+        DecommissioningFailedException e = expectThrows(
+            DecommissioningFailedException.class,
+            () -> { decommissionService.initiateAttributeDecommissioning(decommissionAttribute, listener, clusterService.state()); }
+        );
         assertThat(
             e.getMessage(),
-            Matchers.endsWith("invalid awareness attribute value requested for decommissioning. Set forced awareness values before to decommission")
+            Matchers.endsWith(
+                "invalid awareness attribute value requested for decommissioning. Set forced awareness values before to decommission"
+            )
         );
     }
 
@@ -149,14 +148,20 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
         setState(
             clusterService,
             builder.metadata(
-                Metadata.builder(
-                    clusterService.state().metadata()).putCustom(DecommissionAttributeMetadata.TYPE, oldMetadata).build()
-            ));
+                Metadata.builder(clusterService.state().metadata()).putCustom(DecommissionAttributeMetadata.TYPE, oldMetadata).build()
+            )
+        );
         ActionListener<ClusterStateUpdateResponse> listener = mock(ActionListener.class);
-        DecommissioningFailedException e = expectThrows(DecommissioningFailedException.class, () -> {
-            decommissionService.initiateAttributeDecommissioning(
-                new DecommissionAttribute("zone", "zone_2"), listener, clusterService.state());
-        });
+        DecommissioningFailedException e = expectThrows(
+            DecommissioningFailedException.class,
+            () -> {
+                decommissionService.initiateAttributeDecommissioning(
+                    new DecommissionAttribute("zone", "zone_2"),
+                    listener,
+                    clusterService.state()
+                );
+            }
+        );
         assertThat(
             e.getMessage(),
             Matchers.endsWith("one awareness attribute already decommissioned, recommission before triggering another decommission")
@@ -180,15 +185,18 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
 
     private ClusterState setThreeNodesInVotingConfig(ClusterState clusterState) {
         final CoordinationMetadata.VotingConfiguration votingConfiguration = CoordinationMetadata.VotingConfiguration.of(
-            clusterState.nodes().get("node1"), clusterState.nodes().get("node6"), clusterState.nodes().get("node11")
+            clusterState.nodes().get("node1"),
+            clusterState.nodes().get("node6"),
+            clusterState.nodes().get("node11")
         );
 
-        Metadata.Builder builder = Metadata.builder().coordinationMetadata(
-            CoordinationMetadata.builder()
-                .lastAcceptedConfiguration(votingConfiguration)
-                .lastCommittedConfiguration(votingConfiguration)
-                .build()
-        );
+        Metadata.Builder builder = Metadata.builder()
+            .coordinationMetadata(
+                CoordinationMetadata.builder()
+                    .lastAcceptedConfiguration(votingConfiguration)
+                    .lastCommittedConfiguration(votingConfiguration)
+                    .build()
+            );
         clusterState = ClusterState.builder(clusterState).metadata(builder).build();
         return clusterState;
     }

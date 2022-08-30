@@ -248,10 +248,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         Metadata metadata = metaBuilder.build();
 
         DiscoveryNode discoveryNode = newDiscoveryNode(Collections.singletonMap("zone", "zone-1"));
-        expectThrows(
-            NodeDecommissionedException.class,
-            () -> JoinTaskExecutor.ensureNodeCommissioned(discoveryNode, metadata)
-        );
+        expectThrows(NodeDecommissionedException.class, () -> JoinTaskExecutor.ensureNodeCommissioned(discoveryNode, metadata));
     }
 
     public void testJoinClusterWithDifferentDecommission() {
