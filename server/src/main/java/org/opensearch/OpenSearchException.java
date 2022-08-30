@@ -1611,7 +1611,7 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
             162,
             V_3_0_0
         ),
-        DECOMMISSION_FAILED_EXCEPTION(
+        DECOMMISSIONING_FAILED_EXCEPTION(
             org.opensearch.cluster.decommission.DecommissioningFailedException.class,
             org.opensearch.cluster.decommission.DecommissioningFailedException::new,
             163,
