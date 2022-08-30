@@ -13,6 +13,12 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.action.ActionListener;
+import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
+import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
+import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsResponse;
+import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
+import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsRequest;
+import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.ClusterStateTaskConfig;
@@ -26,17 +32,24 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
+import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.Transport;
+import org.opensearch.transport.TransportException;
+import org.opensearch.transport.TransportResponseHandler;
+import org.opensearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 
 /**
- * Helper executor class to remove list of nodes from the cluster
+ * Helper controller class to remove list of nodes from the cluster and update status
  *
  * @opensearch.internal
  */
@@ -47,16 +60,81 @@ public class DecommissionController {
 
     private final NodeRemovalClusterStateTaskExecutor nodeRemovalExecutor;
     private final ClusterService clusterService;
+    private final TransportService transportService;
     private final ThreadPool threadPool;
 
     DecommissionController(
         ClusterService clusterService,
+        TransportService transportService,
         AllocationService allocationService,
         ThreadPool threadPool
     ) {
         this.clusterService = clusterService;
+        this.transportService = transportService;
         this.nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService, logger);
         this.threadPool = threadPool;
+    }
+
+    public void excludeDecommissionedNodesFromVotingConfig(Set<String> nodes, ActionListener<Void> listener) {
+        transportService.sendRequest(
+            transportService.getLocalNode(),
+            AddVotingConfigExclusionsAction.NAME,
+            new AddVotingConfigExclusionsRequest(nodes.stream().toArray(String[] :: new)),
+            new TransportResponseHandler<AddVotingConfigExclusionsResponse>() {
+                @Override
+                public void handleResponse(AddVotingConfigExclusionsResponse response) {
+                    listener.onResponse(null);
+                }
+
+                @Override
+                public void handleException(TransportException exp) {
+                    listener.onFailure(exp);
+                }
+
+                @Override
+                public String executor() {
+                    return ThreadPool.Names.SAME;
+                }
+
+                @Override
+                public AddVotingConfigExclusionsResponse read(StreamInput in) throws IOException {
+                    return new AddVotingConfigExclusionsResponse(in);
+                }
+            }
+        );
+    }
+
+    public void clearVotingConfigExclusion(ActionListener<Void> listener) {
+        final ClearVotingConfigExclusionsRequest clearVotingConfigExclusionsRequest = new ClearVotingConfigExclusionsRequest();
+        clearVotingConfigExclusionsRequest.setWaitForRemoval(true);
+        transportService.sendRequest(
+            transportService.getLocalNode(),
+            ClearVotingConfigExclusionsAction.NAME,
+            clearVotingConfigExclusionsRequest,
+            new TransportResponseHandler<ClearVotingConfigExclusionsResponse>() {
+                @Override
+                public void handleResponse(ClearVotingConfigExclusionsResponse response) {
+                    logger.info("successfully cleared voting config after decommissioning");
+                    listener.onResponse(null);
+                }
+
+                @Override
+                public void handleException(TransportException exp) {
+                    logger.debug(new ParameterizedMessage("failure in clearing voting config exclusion after decommissioning"), exp);
+                    listener.onFailure(exp);
+                }
+
+                @Override
+                public String executor() {
+                    return ThreadPool.Names.SAME;
+                }
+
+                @Override
+                public ClearVotingConfigExclusionsResponse read(StreamInput in) throws IOException {
+                    return new ClearVotingConfigExclusionsResponse(in);
+                }
+            }
+        );
     }
 
     public void handleNodesDecommissionRequest(

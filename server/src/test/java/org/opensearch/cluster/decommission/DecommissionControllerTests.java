@@ -15,13 +15,19 @@ import org.junit.BeforeClass;
 import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
+import org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsActionTests;
+import org.opensearch.action.admin.cluster.configuration.TransportClearVotingConfigExclusionsAction;
+import org.opensearch.action.support.ActionFilters;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
+import org.opensearch.cluster.coordination.CoordinationMetadata;
 import org.opensearch.cluster.metadata.DecommissionAttributeMetadata;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
@@ -29,15 +35,21 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.collect.ImmutableOpenMap;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.transport.MockTransport;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TransportService;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -49,6 +61,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
@@ -58,6 +71,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction.MAXIMUM_VOTING_CONFIG_EXCLUSIONS_SETTING;
 import static org.opensearch.cluster.ClusterState.builder;
 import static org.opensearch.cluster.OpenSearchAllocationTestCase.createAllocationService;
 import static org.opensearch.test.ClusterServiceUtils.createClusterService;
@@ -67,8 +81,10 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
 
     private ThreadPool threadPool;
     private ClusterService clusterService;
+    private TransportService transportService;
     private AllocationService allocationService;
     private DecommissionController decommissionController;
+    private ClusterSettings clusterSettings;
 
     @Override
     public void setUp() throws Exception {
@@ -79,7 +95,7 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
     }
 
     @Before
-    public void setDefaultClusterState() {
+    public void setTransportServiceAndDefaultClusterState() {
         ClusterState clusterState = ClusterState.builder(new ClusterName("test")).build();
         logger.info("--> adding five nodes on same zone_1");
         clusterState = addNodes(clusterState, "zone_1", "node1", "node2", "node3", "node4", "node5");
@@ -88,12 +104,47 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
         logger.info("--> adding five nodes on same zone_3");
         clusterState = addNodes(clusterState, "zone_3", "node11", "node12", "node13", "node14", "node15");
         clusterState = setLocalNodeAsClusterManagerNode(clusterState, "node1");
+        clusterState = setThreeNodesInVotingConfig(clusterState);
         final ClusterState.Builder builder = builder(clusterState);
         setState(
             clusterService,
             builder
         );
-        decommissionController = new DecommissionController(clusterService, allocationService, threadPool);
+        final MockTransport transport = new MockTransport();
+        transportService = transport.createTransportService(
+            Settings.EMPTY,
+            threadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            boundTransportAddress -> clusterService.state().nodes().get("node1"),
+            null,
+            emptySet()
+        );
+
+        final Settings.Builder nodeSettingsBuilder = Settings.builder();
+        final Settings nodeSettings = nodeSettingsBuilder.build();
+        clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        new TransportAddVotingConfigExclusionsAction(
+            nodeSettings,
+            clusterSettings,
+            transportService,
+            clusterService,
+            threadPool,
+            new ActionFilters(emptySet()),
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY))
+        ); // registers action
+
+        new TransportClearVotingConfigExclusionsAction(
+            transportService,
+            clusterService,
+            threadPool,
+            new ActionFilters(emptySet()),
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY))
+        ); // registers action
+
+        transportService.start();
+        transportService.acceptIncomingRequests();
+        decommissionController = new DecommissionController(clusterService, transportService, allocationService, threadPool);
     }
 
     @After
@@ -101,6 +152,48 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
         clusterService.stop();
         threadPool.shutdown();
     }
+
+    public void testAddNodesToVotingConfigExclusion() throws InterruptedException {
+        final CountDownLatch countDownLatch = new CountDownLatch(1);
+        Set<String> nodesToRemoveFromVotingConfig = Collections.singleton(randomFrom("node1", "node6", "node11"));
+        decommissionController.excludeDecommissionedNodesFromVotingConfig(
+            nodesToRemoveFromVotingConfig,
+            new ActionListener<Void>() {
+                @Override
+                public void onResponse(Void unused) {
+                    countDownLatch.countDown();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    fail("unexpected failure occurred while removing node from voting config " +  e);
+                }
+            }
+        );
+        assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
+        clusterService.getClusterApplierService().state().getVotingConfigExclusions().forEach(vce -> {
+            assertTrue(nodesToRemoveFromVotingConfig.contains(vce.getNodeName()));
+            assertEquals(nodesToRemoveFromVotingConfig.size(), 1);
+        });
+    }
+
+    public void testClearVotingConfigExclusions() throws InterruptedException {
+        final CountDownLatch countDownLatch = new CountDownLatch(1);
+        decommissionController.clearVotingConfigExclusion(new ActionListener<Void>() {
+            @Override
+            public void onResponse(Void unused) {
+                countDownLatch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail("unexpected failure occurred while clearing voting config exclusion" +  e);
+            }
+        });
+        assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
+        assertThat(clusterService.getClusterApplierService().state().getVotingConfigExclusions(), empty());
+    }
+
 
     public void testNodesRemovedForDecommissionRequestSuccessfulResponse() throws InterruptedException {
         final CountDownLatch countDownLatch = new CountDownLatch(1);
@@ -214,6 +307,21 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
         nodeBuilder.localNodeId(nodeId);
         nodeBuilder.clusterManagerNodeId(nodeId);
         clusterState = ClusterState.builder(clusterState).nodes(nodeBuilder).build();
+        return clusterState;
+    }
+
+    private ClusterState setThreeNodesInVotingConfig(ClusterState clusterState) {
+        final CoordinationMetadata.VotingConfiguration votingConfiguration = CoordinationMetadata.VotingConfiguration.of(
+          clusterState.nodes().get("node1"), clusterState.nodes().get("node6"), clusterState.nodes().get("node11")
+        );
+
+        Metadata.Builder builder = Metadata.builder().coordinationMetadata(
+            CoordinationMetadata.builder()
+                .lastAcceptedConfiguration(votingConfiguration)
+                .lastCommittedConfiguration(votingConfiguration)
+                .build()
+        );
+        clusterState = ClusterState.builder(clusterState).metadata(builder).build();
         return clusterState;
     }
 
