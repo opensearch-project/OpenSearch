@@ -4,6 +4,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ## [Unreleased]
 ### Added
 - Github workflow for changelog verification ([#4085](https://github.com/opensearch-project/OpenSearch/pull/4085))
+- Add support for s390x architecture ([#4001](https://github.com/opensearch-project/OpenSearch/pull/4001))
 
 ### Changed
 - Dependency updates (httpcore, mockito, slf4j, httpasyncclient, commons-codec) ([#4308](https://github.com/opensearch-project/OpenSearch/pull/4308))
