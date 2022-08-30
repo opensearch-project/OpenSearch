@@ -14,15 +14,15 @@ import org.opensearch.common.io.stream.StreamInput;
 import java.io.IOException;
 
 /**
- * Exception raised from master node due to task throttling.
+ * Exception raised from cluster manager node due to task throttling.
  */
-public class MasterTaskThrottlingException extends OpenSearchException {
+public class ClusterManagerThrottlingException extends OpenSearchException {
 
-    public MasterTaskThrottlingException(String msg, Object... args) {
+    public ClusterManagerThrottlingException(String msg, Object... args) {
         super(msg, args);
     }
 
-    public MasterTaskThrottlingException(StreamInput in) throws IOException {
+    public ClusterManagerThrottlingException(StreamInput in) throws IOException {
         super(in);
     }
 }

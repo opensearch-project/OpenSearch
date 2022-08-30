@@ -11,6 +11,6 @@ package org.opensearch.cluster.service;
 /**
  * Listener interface for master task throttling
  */
-public interface MasterTaskThrottlerListener {
-    void onThrottle(String type, final int permits);
+public interface ClusterManagerTaskThrottlerListener {
+    void onThrottle(String type, final int counts);
 }

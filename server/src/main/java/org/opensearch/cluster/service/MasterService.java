@@ -128,18 +128,8 @@ public class MasterService extends AbstractLifecycleComponent {
 
     private volatile PrioritizedOpenSearchThreadPoolExecutor threadPoolExecutor;
     private volatile Batcher taskBatcher;
-    /**
-     * Throttler which performs throttling based on pending task count per task type.
-     * It acquire permits before task goes into queue and release the permit when task is removed from the queue.
-     *
-     * It acquire permits at one place, while submitting the tasks.
-     * It releases from three places.
-     * 1. If submit task is failed due to some exception (Since we already acquire permit and submit is failing so we need to release it).
-     * 2. Release before execution ( Task is removed from queue and went into execution).
-     * 3. Task is timed out in queue(Task is timed out in queue, so master will throw exception to data nodes. Releasing as task is removed from queue)
-     */
-    protected final MasterTaskThrottler masterTaskThrottler;
-    private final MasterThrottlingStats throttlingStats;
+    protected final ClusterManagerTaskThrottler clusterManagerTaskThrottler;
+    private final ClusterManagerThrottlingStats throttlingStats;
 
     public MasterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
         this.nodeName = Objects.requireNonNull(Node.NODE_NAME_SETTING.get(settings));
@@ -150,8 +140,8 @@ public class MasterService extends AbstractLifecycleComponent {
             this::setSlowTaskLoggingThreshold
         );
 
-        this.throttlingStats = new MasterThrottlingStats();
-        this.masterTaskThrottler = new MasterTaskThrottler(clusterSettings, this::getMinNodeVersion, throttlingStats);
+        this.throttlingStats = new ClusterManagerThrottlingStats();
+        this.clusterManagerTaskThrottler = new ClusterManagerTaskThrottler(clusterSettings, this::getMinNodeVersion, throttlingStats);
         this.threadPool = threadPool;
     }
 
@@ -172,7 +162,7 @@ public class MasterService extends AbstractLifecycleComponent {
         Objects.requireNonNull(clusterStatePublisher, "please set a cluster state publisher before starting");
         Objects.requireNonNull(clusterStateSupplier, "please set a cluster state supplier before starting");
         threadPoolExecutor = createThreadPoolExecutor();
-        taskBatcher = new Batcher(logger, threadPoolExecutor, masterTaskThrottler);
+        taskBatcher = new Batcher(logger, threadPoolExecutor, clusterManagerTaskThrottler);
     }
 
     protected PrioritizedOpenSearchThreadPoolExecutor createThreadPoolExecutor() {
