@@ -12,18 +12,25 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentInfos;
 import org.hamcrest.MatcherAssert;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.search.Queries;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.ParsedDocument;
+import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.TestTranslog;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.test.IndexSettingsModule;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
@@ -31,6 +38,8 @@ import java.util.stream.Collectors;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.opensearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
+import static org.opensearch.index.seqno.SequenceNumbers.LOCAL_CHECKPOINT_KEY;
+import static org.opensearch.index.seqno.SequenceNumbers.MAX_SEQ_NO;
 
 public class NRTReplicationEngineTests extends EngineTestCase {
 
@@ -111,8 +120,9 @@ public class NRTReplicationEngineTests extends EngineTestCase {
 
             engine.refresh("test");
 
-            nrtEngine.updateSegments(engine.getLatestSegmentInfos(), engine.getProcessedLocalCheckpoint());
-            assertMatchingSegmentsAndCheckpoints(nrtEngine);
+            final SegmentInfos latestPrimaryInfos = engine.getLatestSegmentInfos();
+            nrtEngine.updateSegments(latestPrimaryInfos, engine.getProcessedLocalCheckpoint());
+            assertMatchingSegmentsAndCheckpoints(nrtEngine, latestPrimaryInfos);
 
             // assert a doc from the operations exists.
             final ParsedDocument parsedDoc = createParsedDoc(operations.stream().findFirst().get().id(), null);
@@ -143,8 +153,9 @@ public class NRTReplicationEngineTests extends EngineTestCase {
                 );
             }
 
-            nrtEngine.updateSegments(engine.getLastCommittedSegmentInfos(), engine.getProcessedLocalCheckpoint());
-            assertMatchingSegmentsAndCheckpoints(nrtEngine);
+            final SegmentInfos primaryInfos = engine.getLastCommittedSegmentInfos();
+            nrtEngine.updateSegments(primaryInfos, engine.getProcessedLocalCheckpoint());
+            assertMatchingSegmentsAndCheckpoints(nrtEngine, primaryInfos);
 
             assertEquals(
                 assertAndGetInternalTranslogManager(nrtEngine.translogManager()).getTranslog().getGeneration().translogFileGeneration,
@@ -205,14 +216,57 @@ public class NRTReplicationEngineTests extends EngineTestCase {
         }
     }
 
-    private void assertMatchingSegmentsAndCheckpoints(NRTReplicationEngine nrtEngine) throws IOException {
+    public void testCommitSegmentInfos() throws Exception {
+        // This test asserts that NRTReplication#commitSegmentInfos creates a new commit point with the latest checkpoints
+        // stored in user data.
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
+            "index",
+            Settings.builder().put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).build()
+        );
+        try (
+            final Store nrtEngineStore = createStore(indexSettings, newDirectory());
+            final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore)
+        ) {
+            List<Engine.Operation> operations = generateHistoryOnReplica(between(1, 500), randomBoolean(), randomBoolean(), randomBoolean())
+                .stream()
+                .filter(op -> op.operationType().equals(Engine.Operation.TYPE.INDEX))
+                .collect(Collectors.toList());
+            for (Engine.Operation op : operations) {
+                applyOperation(nrtEngine, op);
+            }
+
+            final SegmentInfos previousInfos = nrtEngine.getLatestSegmentInfos();
+            LocalCheckpointTracker localCheckpointTracker = nrtEngine.getLocalCheckpointTracker();
+            final long maxSeqNo = localCheckpointTracker.getMaxSeqNo();
+            final long processedCheckpoint = localCheckpointTracker.getProcessedCheckpoint();
+            nrtEngine.commitSegmentInfos();
+
+            // ensure getLatestSegmentInfos returns an updated infos ref with correct userdata.
+            final SegmentInfos latestSegmentInfos = nrtEngine.getLatestSegmentInfos();
+            assertEquals(previousInfos.getGeneration(), latestSegmentInfos.getLastGeneration());
+            Map<String, String> userData = latestSegmentInfos.getUserData();
+            assertEquals(processedCheckpoint, localCheckpointTracker.getProcessedCheckpoint());
+            assertEquals(maxSeqNo, Long.parseLong(userData.get(MAX_SEQ_NO)));
+            assertEquals(processedCheckpoint, Long.parseLong(userData.get(LOCAL_CHECKPOINT_KEY)));
+
+            // read infos from store and assert userdata
+            final String lastCommitSegmentsFileName = SegmentInfos.getLastCommitSegmentsFileName(nrtEngineStore.directory());
+            final SegmentInfos committedInfos = SegmentInfos.readCommit(nrtEngineStore.directory(), lastCommitSegmentsFileName);
+            userData = committedInfos.getUserData();
+            assertEquals(processedCheckpoint, Long.parseLong(userData.get(LOCAL_CHECKPOINT_KEY)));
+            assertEquals(maxSeqNo, Long.parseLong(userData.get(MAX_SEQ_NO)));
+        }
+    }
+
+    private void assertMatchingSegmentsAndCheckpoints(NRTReplicationEngine nrtEngine, SegmentInfos expectedSegmentInfos)
+        throws IOException {
         assertEquals(engine.getPersistedLocalCheckpoint(), nrtEngine.getPersistedLocalCheckpoint());
         assertEquals(engine.getProcessedLocalCheckpoint(), nrtEngine.getProcessedLocalCheckpoint());
         assertEquals(engine.getLocalCheckpointTracker().getMaxSeqNo(), nrtEngine.getLocalCheckpointTracker().getMaxSeqNo());
-        assertEquals(engine.getLatestSegmentInfos().files(true), nrtEngine.getLatestSegmentInfos().files(true));
-        assertEquals(engine.getLatestSegmentInfos().getUserData(), nrtEngine.getLatestSegmentInfos().getUserData());
-        assertEquals(engine.getLatestSegmentInfos().getVersion(), nrtEngine.getLatestSegmentInfos().getVersion());
-        assertEquals(engine.segments(true), nrtEngine.segments(true));
+        assertEquals(expectedSegmentInfos.files(true), nrtEngine.getLatestSegmentInfos().files(true));
+        assertEquals(expectedSegmentInfos.getUserData(), nrtEngine.getLatestSegmentInfos().getUserData());
+        assertEquals(expectedSegmentInfos.getVersion(), nrtEngine.getLatestSegmentInfos().getVersion());
     }
 
     private void assertSearcherHits(Engine engine, int hits) {
