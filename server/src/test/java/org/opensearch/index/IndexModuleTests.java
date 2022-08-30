@@ -89,7 +89,7 @@ import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.similarity.NonNegativeScoresSimilarity;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.index.store.FsDirectoryFactory;
-import org.opensearch.index.store.RemoteDirectoryFactory;
+import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.indices.IndicesQueryCache;
 import org.opensearch.indices.analysis.AnalysisModule;
@@ -234,7 +234,7 @@ public class IndexModuleTests extends OpenSearchTestCase {
             writableRegistry(),
             () -> false,
             null,
-            new RemoteDirectoryFactory(() -> repositoriesService)
+            new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService)
         );
     }
 
