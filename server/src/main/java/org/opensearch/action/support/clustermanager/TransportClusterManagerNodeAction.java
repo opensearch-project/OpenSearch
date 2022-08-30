@@ -39,9 +39,9 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionListenerResponseHandler;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.action.ActionRunnable;
+import org.opensearch.action.bulk.BackoffPolicy;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
-import org.opensearch.action.support.RetryPolicy;
 import org.opensearch.action.support.RetryableAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
@@ -166,7 +166,7 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
                 TimeValue.timeValueMillis(BASE_DELAY_MILLIS),
                 request.clusterManagerNodeTimeout,
                 listener,
-                RetryPolicy.exponentialEqualJitterBackoff(BASE_DELAY_MILLIS, MAX_DELAY_MILLIS),
+                BackoffPolicy.exponentialEqualJitterBackoff(BASE_DELAY_MILLIS, MAX_DELAY_MILLIS),
                 ThreadPool.Names.SAME
             );
             this.task = task;

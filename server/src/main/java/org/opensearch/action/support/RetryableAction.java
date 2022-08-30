@@ -36,6 +36,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
+import org.opensearch.action.bulk.BackoffPolicy;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.threadpool.Scheduler;
@@ -64,7 +65,7 @@ public abstract class RetryableAction<Response> {
     private final long startMillis;
     private final ActionListener<Response> finalListener;
     private final String executor;
-    private final RetryPolicy retryPolicy;
+    private final BackoffPolicy backoffPolicy;
 
     private volatile Scheduler.ScheduledCancellable retryTask;
 
@@ -81,7 +82,7 @@ public abstract class RetryableAction<Response> {
             initialDelay,
             timeoutValue,
             listener,
-            RetryPolicy.exponentialBackoff(initialDelay.getMillis()),
+            BackoffPolicy.exponentialRandomBackoff(initialDelay.getMillis()),
             ThreadPool.Names.SAME
         );
     }
@@ -92,7 +93,7 @@ public abstract class RetryableAction<Response> {
         TimeValue initialDelay,
         TimeValue timeoutValue,
         ActionListener<Response> listener,
-        RetryPolicy retryPolicy,
+        BackoffPolicy backoffPolicy,
         String executor
     ) {
         this.logger = logger;
@@ -105,11 +106,11 @@ public abstract class RetryableAction<Response> {
         this.startMillis = threadPool.relativeTimeInMillis();
         this.finalListener = listener;
         this.executor = executor;
-        this.retryPolicy = retryPolicy;
+        this.backoffPolicy = backoffPolicy;
     }
 
     public void run() {
-        final RetryingListener retryingListener = new RetryingListener(retryPolicy.iterator(), null);
+        final RetryingListener retryingListener = new RetryingListener(backoffPolicy.iterator(), null);
         final Runnable runnable = createRunnable(retryingListener);
         threadPool.executor(executor).execute(runnable);
     }
