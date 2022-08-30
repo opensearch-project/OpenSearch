@@ -13,9 +13,7 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -51,7 +49,7 @@ public class RegisterTransportActionsRequest extends TransportRequest {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeVInt(this.transportActions.size());
-        for (Map.Entry<String, Class> action: transportActions.entrySet()) {
+        for (Map.Entry<String, Class> action : transportActions.entrySet()) {
             out.writeString(action.getKey());
             out.writeString(action.getValue().getName());
         }
@@ -75,4 +73,3 @@ public class RegisterTransportActionsRequest extends TransportRequest {
         return Objects.hash(transportActions);
     }
 }
-

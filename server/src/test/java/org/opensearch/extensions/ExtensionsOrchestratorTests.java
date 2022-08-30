@@ -431,7 +431,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         );
 
         extensionsOrchestrator.setTransportService(mockTransportService);
-        verify(mockTransportService, times(4)).registerRequestHandler(anyString(), anyString(), anyBoolean(), anyBoolean(), any(), any());
+        verify(mockTransportService, times(5)).registerRequestHandler(anyString(), anyString(), anyBoolean(), anyBoolean(), any(), any());
 
     }
 
