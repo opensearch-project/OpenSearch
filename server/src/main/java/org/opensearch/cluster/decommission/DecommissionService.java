@@ -128,10 +128,13 @@ public class DecommissionService {
         ClusterState state
     ) {
         validateAwarenessAttribute(decommissionAttribute, awarenessAttributes, forcedAwarenessAttributes);
+        DecommissionAttributeMetadata decommissionAttributeMetadata = state.metadata().custom(DecommissionAttributeMetadata.TYPE);
+        ensureNoAwarenessAttributeDecommissioned(decommissionAttributeMetadata, decommissionAttribute);
+
         logger.info("initiating awareness attribute [{}] decommissioning", decommissionAttribute.toString());
 
         // remove all decommissioned cluster manager eligible nodes from voting config
-        // The method ensures that we don't exclude nodes multiple times
+        // The method ensures that we don't exclude same nodes multiple times
         excludeDecommissionedClusterManagerNodesFromVotingConfig(decommissionAttribute);
 
         // explicitly throwing NotClusterManagerException as we can certainly say the local cluster manager node will
@@ -190,10 +193,10 @@ public class DecommissionService {
     /**
      * Registers new decommissioned attribute metadata in the cluster state with {@link DecommissionStatus#DECOMMISSION_INIT}
      * <p>
-     * This method can be only called on the cluster-manager node. It tries to create a new decommissioned attribute on the master
+     * This method can be only called on the cluster-manager node. It tries to create a new decommissioned attribute on the cluster manager
      * and if it was successful it adds new decommissioned attribute to cluster metadata.
      * <p>
-     * This method ensures that request is performed only on eligible cluster manager node
+     * This method would only be executed on eligible cluster manager node
      *
      * @param decommissionAttribute register decommission attribute in the metadata request
      * @param listener              register decommission listener
@@ -365,18 +368,27 @@ public class DecommissionService {
     private static void validateAwarenessAttribute(
         final DecommissionAttribute decommissionAttribute,
         List<String> awarenessAttributes,
-        Map<String, List<String>> forcedAwarenessAttributes) {
-        if (awarenessAttributes == null || forcedAwarenessAttributes == null) {
-            throw new DecommissionFailedException(decommissionAttribute, "awareness attribute and forced awareness attribute not set to the cluster.");
+        Map<String, List<String>> forcedAwarenessAttributes
+    ) {
+        String msg = null;
+        if (awarenessAttributes == null) {
+            msg =  "awareness attribute not set to the cluster.";
         }
-        if (!awarenessAttributes.contains(decommissionAttribute.attributeName())) {
-            throw new DecommissionFailedException(decommissionAttribute, "invalid awareness attribute requested for decommissioning");
+        else if (forcedAwarenessAttributes == null) {
+            msg = "forced awareness attribute not set to the cluster.";
         }
-        if (!forcedAwarenessAttributes.get(decommissionAttribute.attributeName()).contains(decommissionAttribute.attributeValue()) ) {
-            throw new DecommissionFailedException(
-                decommissionAttribute,
-                "invalid awareness attribute value requested for decommissioning. Set forced awareness values before to decommission"
-            );
+        else if (!awarenessAttributes.contains(decommissionAttribute.attributeName())) {
+            msg = "invalid awareness attribute requested for decommissioning";
+        }
+        else if (!forcedAwarenessAttributes.containsKey(decommissionAttribute.attributeName())) {
+            msg = "forced awareness attribute [" + forcedAwarenessAttributes.toString() + "] doesn't have the decommissioning attribute";
+        }
+        else if (!forcedAwarenessAttributes.get(decommissionAttribute.attributeName()).contains(decommissionAttribute.attributeValue()) ) {
+            msg = "invalid awareness attribute value requested for decommissioning. Set forced awareness values before to decommission";
+        }
+
+        if (msg != null) {
+            throw new DecommissionFailedException(decommissionAttribute, msg);
         }
     }
 

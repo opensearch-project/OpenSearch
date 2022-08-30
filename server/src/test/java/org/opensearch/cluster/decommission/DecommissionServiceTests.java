@@ -19,6 +19,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
 import org.opensearch.cluster.coordination.CoordinationMetadata;
+import org.opensearch.cluster.metadata.DecommissionAttributeMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
@@ -143,6 +144,30 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
         assertThat(
             e.getMessage(),
             Matchers.endsWith("invalid awareness attribute value requested for decommissioning. Set forced awareness values before to decommission")
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testDecommissioningNotInitiatedWhenAlreadyDecommissioned() {
+        DecommissionAttributeMetadata oldMetadata = new DecommissionAttributeMetadata(
+            new DecommissionAttribute("zone", "zone_1"),
+            DecommissionStatus.DECOMMISSION_IN_PROGRESS
+        );
+        final ClusterState.Builder builder = builder(clusterService.state());
+        setState(
+            clusterService,
+            builder.metadata(
+                Metadata.builder(
+                    clusterService.state().metadata()).putCustom(DecommissionAttributeMetadata.TYPE, oldMetadata).build()
+            ));
+        ActionListener<PutDecommissionResponse> listener = mock(ActionListener.class);
+        DecommissionFailedException e = expectThrows(DecommissionFailedException.class, () -> {
+            decommissionService.initiateAttributeDecommissioning(
+                new DecommissionAttribute("zone", "zone_2"), listener, clusterService.state());
+        });
+        assertThat(
+            e.getMessage(),
+            Matchers.endsWith("one awareness attribute already decommissioned, recommission before triggering another decommission")
         );
     }
 
