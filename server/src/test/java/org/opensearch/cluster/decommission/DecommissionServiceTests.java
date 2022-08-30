@@ -19,7 +19,6 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
 import org.opensearch.cluster.coordination.CoordinationMetadata;
-import org.opensearch.cluster.metadata.DecommissionAttributeMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
@@ -160,7 +159,7 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
                 Metadata.builder(
                     clusterService.state().metadata()).putCustom(DecommissionAttributeMetadata.TYPE, oldMetadata).build()
             ));
-        ActionListener<PutDecommissionResponse> listener = mock(ActionListener.class);
+        ActionListener<ClusterStateUpdateResponse> listener = mock(ActionListener.class);
         DecommissionFailedException e = expectThrows(DecommissionFailedException.class, () -> {
             decommissionService.initiateAttributeDecommissioning(
                 new DecommissionAttribute("zone", "zone_2"), listener, clusterService.state());

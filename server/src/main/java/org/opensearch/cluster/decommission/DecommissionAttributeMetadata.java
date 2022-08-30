@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.cluster.metadata;
+package org.opensearch.cluster.decommission;
 
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
@@ -14,6 +14,7 @@ import org.opensearch.cluster.AbstractNamedDiffable;
 import org.opensearch.cluster.NamedDiff;
 import org.opensearch.cluster.decommission.DecommissionAttribute;
 import org.opensearch.cluster.decommission.DecommissionStatus;
+import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.Metadata.Custom;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
@@ -162,7 +163,7 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
                                 );
                             }
                             decommissionAttribute = new DecommissionAttribute(fieldName, value);
-                            token = parser.nextToken();
+                            parser.nextToken();
                         } else {
                             throw new OpenSearchParseException("failed to parse attribute type [{}], unexpected type", attributeType);
                         }

@@ -9,6 +9,7 @@
 package org.opensearch.cluster.metadata;
 
 import org.opensearch.cluster.decommission.DecommissionAttribute;
+import org.opensearch.cluster.decommission.DecommissionAttributeMetadata;
 import org.opensearch.cluster.decommission.DecommissionStatus;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.test.AbstractNamedWriteableTestCase;
