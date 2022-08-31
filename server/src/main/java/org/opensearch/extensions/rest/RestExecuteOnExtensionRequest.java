@@ -59,7 +59,7 @@ public class RestExecuteOnExtensionRequest extends TransportRequest {
         super.writeTo(out);
         out.writeString(method.name());
         out.writeString(uri);
-        out.writeBytes(UuidUtils.asBytes(principalUUID));
+        out.writeByteArray(UuidUtils.asBytes(principalUUID));
     }
 
     public Method getMethod() {
@@ -76,7 +76,7 @@ public class RestExecuteOnExtensionRequest extends TransportRequest {
 
     @Override
     public String toString() {
-        return "RestExecuteOnExtensionRequest{method=" + method + ", uri=" + uri + ", principal = " + principalUUID + "}";
+        return "RestExecuteOnExtensionRequest{method=" + method + ", uri=" + uri + ", principal = " + principalUUID.toString() + "}";
     }
 
     @Override
