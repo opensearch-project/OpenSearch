@@ -11,6 +11,9 @@
 
 package org.opensearch.identity;
 
+import org.opensearch.common.io.stream.StreamOutput;
+
+import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -26,15 +29,17 @@ public class Identity implements Principal {
     public static final AnonymousIdentity ANONYMOUS_IDENTITY = new AnonymousIdentity();
 
     private UUID id;
-    private String userName;
+    private String username;
     private List<String> schemas;
-    private Map<String, String> metaData;
+    private Map<String, String> metadata;
 
-    public Identity(UUID id, String userName, List<String> schemas, Map<String, String> metaData) {
+    private static final String NAME = "identity";
+
+    public Identity(UUID id, String username, List<String> schemas, Map<String, String> metadata) {
         this.id = id;
-        this.userName = userName;
+        this.username = username;
         this.schemas = schemas;
-        this.metaData = metaData;
+        this.metadata = metadata;
     }
 
     @Override
@@ -48,24 +53,39 @@ public class Identity implements Principal {
     }
 
     @Override
-    public String getUserName() {
-        return userName;
+    public String getUsername() {
+        return username;
     }
 
     @Override
-    public Map<String, String> getMetaData() {
-        return metaData;
+    public Map<String, String> getMetadata() {
+        return metadata;
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
+    }
+
+    /**
+     * TODO: Figure out what goes here if NamedWritable is in-fact required
+     * @param out
+     * @throws IOException
+     */
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+
     }
 
     protected final static class AnonymousIdentity extends Identity {
         // TODO: Determine risk of collision when generating random UUID
-        private final static UUID ID = new UUID(0L, 0L);
-        private final static String userName = "Anonymous Panda";
+        private final static UUID ID = new UUID(0x817a6e, 0x817a6e);
+        private final static String username = "Anonymous Panda";
         private final static List<String> schemas = Collections.emptyList();
-        private final static Map<String, String> metaData = Collections.emptyMap();
+        private final static Map<String, String> metadata = Collections.emptyMap();
 
         protected AnonymousIdentity() {
-            super(ID, userName, schemas, metaData);
+            super(ID, username, schemas, metadata);
         }
     }
 

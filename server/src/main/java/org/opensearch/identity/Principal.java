@@ -34,9 +34,9 @@ public interface Principal extends Serializable, NamedWriteable {
     List<String> getSchemas();
 
     /* A non-unique human readable identifier */
-    String getUserName();
+    String getUsername();
 
     /* Contains metadata relevant to entity*/
-    Map<String, String> getMetaData();
+    Map<String, String> getMetadata();
 
 }

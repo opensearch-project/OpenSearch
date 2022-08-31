@@ -36,7 +36,7 @@ public class IdentityTests {
 
     public void testGetPrincipalData() {
         assertThat(principal1.getId(), equalTo(uuid1));
-        assertThat(principal1.getUserName(), equalTo(user1));
+        assertThat(principal1.getUsername(), equalTo(user1));
         assertThat(principal1.getSchemas(), equalTo(emptyList));
         assertThat(principal1.getSchemas(), equalTo(emptyMap));
     }
@@ -52,7 +52,7 @@ public class IdentityTests {
     }
 
     public void testAnonymousGetId() {
-        assertThat(Identity.ANONYMOUS_IDENTITY.getId(), equalTo(new UUID(0L, 0L)));
+        assertThat(Identity.ANONYMOUS_IDENTITY.getId(), equalTo(new UUID(0x817a6e, 0x817a6e)));
     }
 
 }
