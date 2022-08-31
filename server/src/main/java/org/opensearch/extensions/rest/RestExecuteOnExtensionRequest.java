@@ -70,11 +70,13 @@ public class RestExecuteOnExtensionRequest extends TransportRequest {
         return uri;
     }
 
-    public UUID getPrincipalUUID() { return principalUUID; }
+    public UUID getPrincipalUUID() {
+        return principalUUID;
+    }
 
     @Override
     public String toString() {
-        return "RestExecuteOnExtensionRequest{method=" + method + ", uri=" + uri + ", principal = "+ principalUUID +"}";
+        return "RestExecuteOnExtensionRequest{method=" + method + ", uri=" + uri + ", principal = " + principalUUID + "}";
     }
 
     @Override
@@ -82,8 +84,7 @@ public class RestExecuteOnExtensionRequest extends TransportRequest {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
         RestExecuteOnExtensionRequest that = (RestExecuteOnExtensionRequest) obj;
-        return Objects.equals(method, that.method) && Objects.equals(uri, that.uri)
-            && Objects.equals(principalUUID, that.principalUUID);
+        return Objects.equals(method, that.method) && Objects.equals(uri, that.uri) && Objects.equals(principalUUID, that.principalUUID);
     }
 
     @Override

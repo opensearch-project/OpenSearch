@@ -21,7 +21,7 @@ import java.util.UUID;
 public class UuidUtils {
     /**
      * Convert a byte array to original UUID for stream-input read
-     * @param bytes
+     * @param bytes input bytes to convert to UUID
      * @return uuid
      */
     public static UUID asUuid(byte[] bytes) {
@@ -33,8 +33,8 @@ public class UuidUtils {
 
     /**
      * Convert uuid to byte array for stream-output write
-     * @param uuid
-     * @return
+     * @param uuid to be converted to byte array
+     * @return byte array
      */
     public static byte[] asBytes(UUID uuid) {
         ByteBuffer bb = ByteBuffer.wrap(new byte[16]);

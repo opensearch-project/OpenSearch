@@ -69,8 +69,6 @@ public class Identity implements Principal {
 
     /**
      * TODO: Figure out what goes here if NamedWritable is in-fact required
-     * @param out
-     * @throws IOException
      */
     @Override
     public void writeTo(StreamOutput out) throws IOException {

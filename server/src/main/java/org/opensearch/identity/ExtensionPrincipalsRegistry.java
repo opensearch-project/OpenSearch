@@ -36,23 +36,22 @@ public class ExtensionPrincipalsRegistry {
         return this.extensionRequestPrincipals;
     }
 
-    public void addPrincipal(Principal principal){
+    public void addPrincipal(Principal principal) {
         UUID key = UUID.randomUUID();
-        while(extensionRequestPrincipals.containsKey(key))
+        while (extensionRequestPrincipals.containsKey(key))
             key = UUID.randomUUID();
         this.extensionRequestPrincipals.put(key, principal);
         logger.info("Successfully stored principal=" + principal);
     }
 
-    public Principal getPrincipalById(UUID uuid){
-        if(this.extensionRequestPrincipals.containsKey(uuid))
-            return this.extensionRequestPrincipals.get(uuid);
+    public Principal getPrincipalById(UUID uuid) {
+        if (this.extensionRequestPrincipals.containsKey(uuid)) return this.extensionRequestPrincipals.get(uuid);
         return null;
     }
 
-    public boolean removePrincipalFromStore(UUID uuid){
+    public boolean removePrincipalFromStore(UUID uuid) {
         Principal deletedPrincipal = (Principal) this.extensionRequestPrincipals.remove(uuid);
-        if (deletedPrincipal == null){
+        if (deletedPrincipal == null) {
             logger.info("Unsuccessful: Invalid key uuid= " + uuid);
             return false;
         }
