@@ -39,10 +39,14 @@ public class RegisterTransportActionsRequest extends TransportRequest {
                 Class transportAction = Class.forName(in.readString());
                 actions.put(actionName, transportAction);
             } catch (ClassNotFoundException e) {
-                throw new IllegalArgumentException("Could read transport action");
+                throw new IllegalArgumentException("Could not read transport action");
             }
         }
         this.transportActions = actions;
+    }
+
+    public Map<String, Class> getTransportActions() {
+        return transportActions;
     }
 
     @Override
