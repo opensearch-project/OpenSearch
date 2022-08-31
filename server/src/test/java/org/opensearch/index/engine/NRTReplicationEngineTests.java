@@ -112,10 +112,14 @@ public class NRTReplicationEngineTests extends EngineTestCase {
             final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore)
         ) {
             // add docs to the primary engine.
-            List<Engine.Operation> operations = generateHistoryOnReplica(between(1, 500), randomBoolean(), randomBoolean(), randomBoolean())
-                .stream()
-                .filter(op -> op.operationType().equals(Engine.Operation.TYPE.INDEX))
-                .collect(Collectors.toList());
+            List<Engine.Operation> operations = generateHistoryOnReplica(
+                between(1, 500),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                Engine.Operation.TYPE.INDEX
+            );
+
             for (Engine.Operation op : operations) {
                 applyOperation(engine, op);
                 applyOperation(nrtEngine, op);
