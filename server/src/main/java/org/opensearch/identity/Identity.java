@@ -75,6 +75,9 @@ public class Identity implements Principal {
 
     }
 
+    /**
+     * Anonymous identity is assumed when there is no user in the request
+     */
     protected final static class AnonymousIdentity extends Identity {
         // TODO: Determine risk of collision when generating random UUID
         private final static UUID ID = new UUID(0x817a6e, 0x817a6e);
