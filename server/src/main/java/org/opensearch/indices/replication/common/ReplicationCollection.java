@@ -50,6 +50,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentMap;
+import java.util.stream.Stream;
 
 /**
  * This class holds a collection of all on going replication events on the current node (i.e., the node is the target node
@@ -243,7 +244,9 @@ public class ReplicationCollection<T extends ReplicationTarget> {
      * @return Optional ReplicationTarget for input shardId
      */
     public Optional<T> getOngoingReplicationTarget(ShardId shardId) {
-        return onGoingTargetEvents.values().stream().filter(t -> t.indexShard.shardId().equals(shardId)).findFirst();
+        final Stream<T> replicationTargets = onGoingTargetEvents.values().stream().filter(t -> t.indexShard.shardId().equals(shardId));
+        assert replicationTargets.count() == 1 : "More than one on-going replication targets";
+        return replicationTargets.findAny();
     }
 
     /**
