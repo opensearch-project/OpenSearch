@@ -11,6 +11,8 @@
 
 package org.opensearch.identity;
 
+import org.opensearch.test.OpenSearchTestCase;
+
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -20,7 +22,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.hamcrest.core.IsNot.not;
 
-public class IdentityTests {
+public class IdentityTests extends OpenSearchTestCase {
 
     final UUID uuid1 = UUID.randomUUID();
     final UUID uuid2 = UUID.randomUUID();
