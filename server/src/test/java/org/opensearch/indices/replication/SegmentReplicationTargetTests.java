@@ -51,7 +51,6 @@ import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.Random;
 import java.util.Arrays;
 
@@ -135,7 +134,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 ReplicationCheckpoint checkpoint,
                 ActionListener<CheckpointInfoResponse> listener
             ) {
-                listener.onResponse(new CheckpointInfoResponse(checkpoint, SI_SNAPSHOT, buffer.toArrayCopy(), Set.of(PENDING_DELETE_FILE)));
+                listener.onResponse(new CheckpointInfoResponse(checkpoint, SI_SNAPSHOT.asMap(), buffer.toArrayCopy()));
             }
 
             @Override
@@ -146,9 +145,8 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 Store store,
                 ActionListener<GetSegmentFilesResponse> listener
             ) {
-                assertEquals(filesToFetch.size(), 2);
+                assertEquals(1, filesToFetch.size());
                 assert (filesToFetch.contains(SEGMENTS_FILE));
-                assert (filesToFetch.contains(PENDING_DELETE_FILE));
                 listener.onResponse(new GetSegmentFilesResponse(filesToFetch));
             }
         };
@@ -230,7 +228,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 ReplicationCheckpoint checkpoint,
                 ActionListener<CheckpointInfoResponse> listener
             ) {
-                listener.onResponse(new CheckpointInfoResponse(checkpoint, SI_SNAPSHOT, buffer.toArrayCopy(), Set.of(PENDING_DELETE_FILE)));
+                listener.onResponse(new CheckpointInfoResponse(checkpoint, SI_SNAPSHOT.asMap(), buffer.toArrayCopy()));
             }
 
             @Override
@@ -273,7 +271,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 ReplicationCheckpoint checkpoint,
                 ActionListener<CheckpointInfoResponse> listener
             ) {
-                listener.onResponse(new CheckpointInfoResponse(checkpoint, SI_SNAPSHOT, buffer.toArrayCopy(), Set.of(PENDING_DELETE_FILE)));
+                listener.onResponse(new CheckpointInfoResponse(checkpoint, SI_SNAPSHOT.asMap(), buffer.toArrayCopy()));
             }
 
             @Override
@@ -318,7 +316,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 ReplicationCheckpoint checkpoint,
                 ActionListener<CheckpointInfoResponse> listener
             ) {
-                listener.onResponse(new CheckpointInfoResponse(checkpoint, SI_SNAPSHOT, buffer.toArrayCopy(), Set.of(PENDING_DELETE_FILE)));
+                listener.onResponse(new CheckpointInfoResponse(checkpoint, SI_SNAPSHOT.asMap(), buffer.toArrayCopy()));
             }
 
             @Override
@@ -362,7 +360,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 ReplicationCheckpoint checkpoint,
                 ActionListener<CheckpointInfoResponse> listener
             ) {
-                listener.onResponse(new CheckpointInfoResponse(checkpoint, SI_SNAPSHOT, buffer.toArrayCopy(), Set.of(PENDING_DELETE_FILE)));
+                listener.onResponse(new CheckpointInfoResponse(checkpoint, SI_SNAPSHOT.asMap(), buffer.toArrayCopy()));
             }
 
             @Override
@@ -413,9 +411,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 ReplicationCheckpoint checkpoint,
                 ActionListener<CheckpointInfoResponse> listener
             ) {
-                listener.onResponse(
-                    new CheckpointInfoResponse(checkpoint, storeMetadataSnapshots.get(1), buffer.toArrayCopy(), Set.of(PENDING_DELETE_FILE))
-                );
+                listener.onResponse(new CheckpointInfoResponse(checkpoint, storeMetadataSnapshots.get(1).asMap(), buffer.toArrayCopy()));
             }
 
             @Override

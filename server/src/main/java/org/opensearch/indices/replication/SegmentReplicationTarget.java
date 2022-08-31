@@ -37,12 +37,8 @@ import org.opensearch.indices.replication.common.ReplicationTarget;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
+import java.util.Collections;
 
 /**
  * Represents the target of a replication event.
@@ -178,7 +174,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         throws IOException {
         cancellableThreads.checkForCancel();
         state.setStage(SegmentReplicationState.Stage.FILE_DIFF);
-        final Store.MetadataSnapshot snapshot = checkpointInfo.getSnapshot();
+        final Store.MetadataSnapshot snapshot = new Store.MetadataSnapshot(checkpointInfo.getSnapshot(), Collections.emptyMap(), 0L);
         Store.MetadataSnapshot localMetadata = getMetadataSnapshot();
         final Store.RecoveryDiff diff = snapshot.segmentReplicationDiff(localMetadata);
         logger.trace("Replication diff {}", diff);
@@ -195,24 +191,14 @@ public class SegmentReplicationTarget extends ReplicationTarget {
                 )
             );
         }
-        final List<StoreFileMetadata> filesToFetch = new ArrayList<StoreFileMetadata>(diff.missing);
 
-        Set<String> storeFiles = new HashSet<>(Arrays.asList(store.directory().listAll()));
-        final Set<StoreFileMetadata> pendingDeleteFiles = checkpointInfo.getPendingDeleteFiles()
-            .stream()
-            .filter(f -> storeFiles.contains(f.name()) == false)
-            .collect(Collectors.toSet());
-
-        filesToFetch.addAll(pendingDeleteFiles);
-        logger.trace("Files to fetch {}", filesToFetch);
-
-        for (StoreFileMetadata file : filesToFetch) {
+        for (StoreFileMetadata file : diff.missing) {
             state.getIndex().addFileDetail(file.name(), file.length(), false);
         }
         // always send a req even if not fetching files so the primary can clear the copyState for this shard.
         state.setStage(SegmentReplicationState.Stage.GET_FILES);
         cancellableThreads.checkForCancel();
-        source.getSegmentFiles(getId(), checkpointInfo.getCheckpoint(), filesToFetch, store, getFilesListener);
+        source.getSegmentFiles(getId(), checkpointInfo.getCheckpoint(), diff.missing, store, getFilesListener);
     }
 
     private void finalizeReplication(CheckpointInfoResponse checkpointInfoResponse, ActionListener<Void> listener) {
@@ -231,7 +217,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
                     responseCheckpoint.getSegmentsGen()
                 );
                 indexShard.finalizeReplication(infos, responseCheckpoint.getSeqNo());
-                store.cleanupAndPreserveLatestCommitPoint("finalize - clean with in memory infos", store.getMetadata(infos));
+                store.cleanupAndPreserveLatestCommitPoint("finalize - clean with in memory infos", infos);
             } catch (CorruptIndexException | IndexFormatTooNewException | IndexFormatTooOldException ex) {
                 // this is a fatal exception at this stage.
                 // this means we transferred files from the remote that have not be checksummed and they are

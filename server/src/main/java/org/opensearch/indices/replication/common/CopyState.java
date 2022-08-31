@@ -8,6 +8,8 @@
 
 package org.opensearch.indices.replication.common;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.ByteBuffersDataOutput;
@@ -15,14 +17,12 @@ import org.apache.lucene.store.ByteBuffersIndexOutput;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.util.concurrent.AbstractRefCounted;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.Map;
 
 /**
  * An Opensearch-specific version of Lucene's CopyState class that
@@ -37,11 +37,11 @@ public class CopyState extends AbstractRefCounted {
     private final ReplicationCheckpoint requestedReplicationCheckpoint;
     /** Actual ReplicationCheckpoint returned by the shard */
     private final ReplicationCheckpoint replicationCheckpoint;
-    private final Store.MetadataSnapshot metadataSnapshot;
-    private final HashSet<StoreFileMetadata> pendingDeleteFiles;
+    private final Map<String, StoreFileMetadata> metadataMap;
     private final byte[] infosBytes;
     private GatedCloseable<IndexCommit> commitRef;
     private final IndexShard shard;
+    public static final Logger logger = LogManager.getLogger(CopyState.class);
 
     public CopyState(ReplicationCheckpoint requestedReplicationCheckpoint, IndexShard shard) throws IOException {
         super("CopyState-" + shard.shardId());
@@ -49,7 +49,7 @@ public class CopyState extends AbstractRefCounted {
         this.shard = shard;
         this.segmentInfosRef = shard.getSegmentInfosSnapshot();
         SegmentInfos segmentInfos = this.segmentInfosRef.get();
-        this.metadataSnapshot = shard.store().getMetadata(segmentInfos);
+        this.metadataMap = shard.store().getSegmentMetadataMap(segmentInfos);
         this.replicationCheckpoint = new ReplicationCheckpoint(
             shard.shardId(),
             shard.getOperationPrimaryTerm(),
@@ -57,18 +57,7 @@ public class CopyState extends AbstractRefCounted {
             shard.getProcessedLocalCheckpoint(),
             segmentInfos.getVersion()
         );
-
-        // Send files that are merged away in the latest SegmentInfos but not in the latest on disk Segments_N.
-        // This ensures that the store on replicas is in sync with the store on primaries.
         this.commitRef = shard.acquireLastIndexCommit(false);
-        Store.MetadataSnapshot metadata = shard.store().getMetadata(this.commitRef.get());
-        final Store.RecoveryDiff diff = metadata.recoveryDiff(this.metadataSnapshot);
-        this.pendingDeleteFiles = new HashSet<>(diff.missing);
-        if (this.pendingDeleteFiles.isEmpty()) {
-            // If there are no additional files we can release the last commit immediately.
-            this.commitRef.close();
-            this.commitRef = null;
-        }
 
         ByteBuffersDataOutput buffer = new ByteBuffersDataOutput();
         // resource description and name are not used, but resource description cannot be null
@@ -95,16 +84,12 @@ public class CopyState extends AbstractRefCounted {
         return replicationCheckpoint;
     }
 
-    public Store.MetadataSnapshot getMetadataSnapshot() {
-        return metadataSnapshot;
+    public Map<String, StoreFileMetadata> getMetadataMap() {
+        return metadataMap;
     }
 
     public byte[] getInfosBytes() {
         return infosBytes;
-    }
-
-    public Set<StoreFileMetadata> getPendingDeleteFiles() {
-        return pendingDeleteFiles;
     }
 
     public IndexShard getShard() {
