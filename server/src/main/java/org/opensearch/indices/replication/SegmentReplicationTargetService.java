@@ -57,7 +57,6 @@ public class SegmentReplicationTargetService implements IndexEventListener {
 
     private final Map<ShardId, ReplicationCheckpoint> latestReceivedCheckpoint = ConcurrentCollections.newConcurrentMap();
 
-
     // Empty Implementation, only required while Segment Replication is under feature flag.
     public static final SegmentReplicationTargetService NO_OP = new SegmentReplicationTargetService() {
         @Override
@@ -153,12 +152,17 @@ public class SegmentReplicationTargetService implements IndexEventListener {
         } else {
             latestReceivedCheckpoint.put(replicaShard.shardId(), receivedCheckpoint);
         }
-        Optional<SegmentReplicationTarget> ongoingReplicationTarget = onGoingReplications.getOngoingReplicationTarget(replicaShard.shardId());
+        Optional<SegmentReplicationTarget> ongoingReplicationTarget = onGoingReplications.getOngoingReplicationTarget(
+            replicaShard.shardId()
+        );
         if (ongoingReplicationTarget.isPresent()) {
             final SegmentReplicationTarget target = ongoingReplicationTarget.get();
             if (target.getCheckpoint().getPrimaryTerm() < receivedCheckpoint.getPrimaryTerm()) {
-                logger.info("Cancelling ongoing replication from old primary with primary term {}", target.getCheckpoint().getPrimaryTerm());
-                target.cancel("Stuck target after new primary");
+                logger.info(
+                    "Cancelling ongoing replication from old primary with primary term {}",
+                    target.getCheckpoint().getPrimaryTerm()
+                );
+                target.cancel("Cancelling stuck target after new primary");
             } else {
                 logger.trace(
                     () -> new ParameterizedMessage(
@@ -169,7 +173,6 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                 return;
             }
         }
-
         final Thread thread = Thread.currentThread();
         if (replicaShard.shouldProcessCheckpoint(receivedCheckpoint)) {
             startReplication(receivedCheckpoint, replicaShard, new SegmentReplicationListener() {

@@ -231,7 +231,7 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         // wait for the new checkpoint to arrive, before the listener completes.
         latch.await(5, TimeUnit.SECONDS);
         doNothing().when(targetSpy).startReplication(any());
-        verify(targetSpy, times(1)).cancel(any());
+        verify(targetSpy, times(1)).cancel("Cancelling stuck target after new primary");
         verify(serviceSpy, times(1)).startReplication(eq(newPrimaryCheckpoint), eq(replicaShard), any());
         closeShards(replicaShard);
     }
