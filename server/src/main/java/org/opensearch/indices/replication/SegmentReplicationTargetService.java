@@ -18,6 +18,7 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.CancellableThreads;
+import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
@@ -34,8 +35,8 @@ import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportRequestHandler;
 import org.opensearch.transport.TransportService;
 
-import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -54,7 +55,8 @@ public class SegmentReplicationTargetService implements IndexEventListener {
 
     private final SegmentReplicationSourceFactory sourceFactory;
 
-    private final Map<ShardId, ReplicationCheckpoint> latestReceivedCheckpoint = new HashMap<>();
+    private final Map<ShardId, ReplicationCheckpoint> latestReceivedCheckpoint = ConcurrentCollections.newConcurrentMap();
+
 
     // Empty Implementation, only required while Segment Replication is under feature flag.
     public static final SegmentReplicationTargetService NO_OP = new SegmentReplicationTargetService() {
@@ -151,15 +153,23 @@ public class SegmentReplicationTargetService implements IndexEventListener {
         } else {
             latestReceivedCheckpoint.put(replicaShard.shardId(), receivedCheckpoint);
         }
-        if (onGoingReplications.isShardReplicating(replicaShard.shardId())) {
-            logger.trace(
-                () -> new ParameterizedMessage(
-                    "Ignoring new replication checkpoint - shard is currently replicating to checkpoint {}",
-                    replicaShard.getLatestReplicationCheckpoint()
-                )
-            );
-            return;
+        Optional<SegmentReplicationTarget> ongoingReplicationTarget = onGoingReplications.getOngoingReplicationTarget(replicaShard.shardId());
+        if (ongoingReplicationTarget.isPresent()) {
+            final SegmentReplicationTarget target = ongoingReplicationTarget.get();
+            if (target.getCheckpoint().getPrimaryTerm() < receivedCheckpoint.getPrimaryTerm()) {
+                logger.info("Cancelling ongoing replication from old primary with primary term {}", target.getCheckpoint().getPrimaryTerm());
+                target.cancel("Stuck target after new primary");
+            } else {
+                logger.trace(
+                    () -> new ParameterizedMessage(
+                        "Ignoring new replication checkpoint - shard is currently replicating to checkpoint {}",
+                        replicaShard.getLatestReplicationCheckpoint()
+                    )
+                );
+                return;
+            }
         }
+
         final Thread thread = Thread.currentThread();
         if (replicaShard.shouldProcessCheckpoint(receivedCheckpoint)) {
             startReplication(receivedCheckpoint, replicaShard, new SegmentReplicationListener() {

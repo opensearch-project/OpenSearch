@@ -48,6 +48,7 @@ import org.opensearch.threadpool.ThreadPool;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentMap;
 
 /**
@@ -236,13 +237,13 @@ public class ReplicationCollection<T extends ReplicationTarget> {
     }
 
     /**
-     * check if a shard is currently replicating
+     * Get target for shard
      *
-     * @param shardId      shardId for which to check if replicating
-     * @return true if shard is currently replicating
+     * @param shardId      shardId
+     * @return Optional ReplicationTarget for input shardId
      */
-    public boolean isShardReplicating(ShardId shardId) {
-        return onGoingTargetEvents.values().stream().anyMatch(t -> t.indexShard.shardId().equals(shardId));
+    public Optional<T> getOngoingReplicationTarget(ShardId shardId) {
+        return onGoingTargetEvents.values().stream().filter(t -> t.indexShard.shardId().equals(shardId)).findFirst();
     }
 
     /**
