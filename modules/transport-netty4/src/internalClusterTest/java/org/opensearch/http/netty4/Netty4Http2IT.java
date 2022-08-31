@@ -6,30 +6,6 @@
  * compatible open source license.
  */
 
-/*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-
-/*
- * Modifications Copyright OpenSearch Contributors. See
- * GitHub history for details.
- */
-
 package org.opensearch.http.netty4;
 
 import io.netty.handler.codec.http.FullHttpResponse;
@@ -42,45 +18,45 @@ import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 
 import java.util.Collection;
 import java.util.Locale;
+import java.util.stream.IntStream;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.is;
 
 @ClusterScope(scope = Scope.TEST, supportsDedicatedMasters = false, numDataNodes = 1)
-public class Netty4PipeliningIT extends OpenSearchNetty4IntegTestCase {
+public class Netty4Http2IT extends OpenSearchNetty4IntegTestCase {
 
     @Override
     protected boolean addMockHttpTransport() {
         return false; // enable http
     }
 
-    public void testThatNettyHttpServerSupportsPipelining() throws Exception {
+    public void testThatNettyHttpServerSupportsHttp2() throws Exception {
         String[] requests = new String[] { "/", "/_nodes/stats", "/", "/_cluster/state", "/" };
 
         HttpServerTransport httpServerTransport = internalCluster().getInstance(HttpServerTransport.class);
         TransportAddress[] boundAddresses = httpServerTransport.boundAddress().boundAddresses();
         TransportAddress transportAddress = randomFrom(boundAddresses);
 
-        try (Netty4HttpClient nettyHttpClient = Netty4HttpClient.http()) {
+        try (Netty4HttpClient nettyHttpClient = Netty4HttpClient.http2()) {
             Collection<FullHttpResponse> responses = nettyHttpClient.get(transportAddress.address(), requests);
             try {
                 assertThat(responses, hasSize(5));
 
                 Collection<String> opaqueIds = Netty4HttpClient.returnOpaqueIds(responses);
-                assertOpaqueIdsInOrder(opaqueIds);
+                assertOpaqueIdsInAnyOrder(opaqueIds);
             } finally {
                 responses.forEach(ReferenceCounted::release);
             }
         }
     }
 
-    private void assertOpaqueIdsInOrder(Collection<String> opaqueIds) {
-        // check if opaque ids are monotonically increasing
+    private void assertOpaqueIdsInAnyOrder(Collection<String> opaqueIds) {
+        // check if opaque ids are present in any order, since for HTTP/2 we use streaming (no head of line blocking)
+        // and responses may come back at any order
         int i = 0;
-        String msg = String.format(Locale.ROOT, "Expected list of opaque ids to be monotonically increasing, got [%s]", opaqueIds);
-        for (String opaqueId : opaqueIds) {
-            assertThat(msg, opaqueId, is(String.valueOf(i++)));
-        }
+        String msg = String.format(Locale.ROOT, "Expected list of opaque ids to be in any order, got [%s]", opaqueIds);
+        assertThat(msg, opaqueIds, containsInAnyOrder(IntStream.range(0, 5).mapToObj(Integer::toString).toArray()));
     }
 
 }
