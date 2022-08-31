@@ -50,7 +50,7 @@ if not "%OPENSEARCH_JAVA_HOME%" == "" (
   set JAVA_TYPE=JAVA_HOME
 ) else (
   set JAVA="%OPENSEARCH_HOME%\jdk\bin\java.exe"
-  set JAVA_HOME="%OPENSEARCH_HOME%\jdk"
+  set "JAVA_HOME=%OPENSEARCH_HOME%\jdk"
   set JAVA_TYPE=bundled jdk
 )
 
