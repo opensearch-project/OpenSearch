@@ -727,6 +727,7 @@ public class Node implements Closeable {
             modules.add(actionModule);
 
             final RestController restController = actionModule.getRestController();
+
             final NetworkModule networkModule = new NetworkModule(
                 settings,
                 pluginsService.filterPlugins(NetworkPlugin.class),
@@ -774,8 +775,7 @@ public class Node implements Closeable {
              * TODO: Understand the dependencies from plugins to initialize TransportService.
              *  This seems like a chicken and egg problem.
              */
-            this.extensionsOrchestrator.setTransportService(transportService);
-            this.extensionsOrchestrator.setClusterService(clusterService);
+            this.extensionsOrchestrator.initializeServicesAndRestHandler(restController, transportService, clusterService);
             final GatewayMetaState gatewayMetaState = new GatewayMetaState();
             final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
             final SearchTransportService searchTransportService = new SearchTransportService(
@@ -1165,7 +1165,6 @@ public class Node implements Closeable {
             : "clusterService has a different local node than the factory provided";
         transportService.acceptIncomingRequests();
         extensionsOrchestrator.extensionsInitialize();
-        extensionsOrchestrator.setNamedWriteableRegistry();
         discovery.startInitialJoin();
         final TimeValue initialStateTimeout = DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.get(settings());
         configureNodeAndClusterIdStateListener(clusterService);
