@@ -101,7 +101,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
         logger.info(message);
         // Initialize response. Values will be changed in the handler.
         final RestExecuteOnExtensionResponse restExecuteOnExtensionResponse = new RestExecuteOnExtensionResponse(
-            RestStatus.ACCEPTED,
+            RestStatus.INTERNAL_SERVER_ERROR,
             BytesRestResponse.TEXT_CONTENT_TYPE,
             message.getBytes(StandardCharsets.UTF_8),
             emptyMap()
@@ -128,7 +128,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
             @Override
             public void handleException(TransportException exp) {
                 logger.debug("REST request failed", exp);
-                restExecuteOnExtensionResponse.setStatus(RestStatus.INTERNAL_SERVER_ERROR);
+                // Status is already defaulted to 500 (INTERNAL_SERVER_ERROR)
                 byte[] responseBytes = ("Request failed: " + exp.getMessage()).getBytes(StandardCharsets.UTF_8);
                 restExecuteOnExtensionResponse.setContent(responseBytes);
                 inProgressLatch.countDown();
