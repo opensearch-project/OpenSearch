@@ -76,7 +76,6 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
             initialCheckpoint.getSeqNo(),
             initialCheckpoint.getSegmentInfosVersion() + 1
         );
-
         newPrimaryCheckpoint = new ReplicationCheckpoint(
             initialCheckpoint.getShardId(),
             initialCheckpoint.getPrimaryTerm() + 1,

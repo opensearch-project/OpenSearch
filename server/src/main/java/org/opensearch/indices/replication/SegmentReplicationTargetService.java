@@ -36,7 +36,6 @@ import org.opensearch.transport.TransportRequestHandler;
 import org.opensearch.transport.TransportService;
 
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -152,17 +151,14 @@ public class SegmentReplicationTargetService implements IndexEventListener {
         } else {
             latestReceivedCheckpoint.put(replicaShard.shardId(), receivedCheckpoint);
         }
-        Optional<SegmentReplicationTarget> ongoingReplicationTarget = onGoingReplications.getOngoingReplicationTarget(
-            replicaShard.shardId()
-        );
-        if (ongoingReplicationTarget.isPresent()) {
-            final SegmentReplicationTarget target = ongoingReplicationTarget.get();
-            if (target.getCheckpoint().getPrimaryTerm() < receivedCheckpoint.getPrimaryTerm()) {
+        SegmentReplicationTarget ongoingReplicationTarget = onGoingReplications.getOngoingReplicationTarget(replicaShard.shardId());
+        if (ongoingReplicationTarget != null) {
+            if (ongoingReplicationTarget.getCheckpoint().getPrimaryTerm() < receivedCheckpoint.getPrimaryTerm()) {
                 logger.trace(
                     "Cancelling ongoing replication from old primary with primary term {}",
-                    target.getCheckpoint().getPrimaryTerm()
+                    ongoingReplicationTarget.getCheckpoint().getPrimaryTerm()
                 );
-                onGoingReplications.cancel(target.getId(), "Cancelling stuck target after new primary");
+                onGoingReplications.cancel(ongoingReplicationTarget.getId(), "Cancelling stuck target after new primary");
             } else {
                 logger.trace(
                     () -> new ParameterizedMessage(
