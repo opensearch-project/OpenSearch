@@ -34,12 +34,12 @@ public class RestClusterGetWRRWeightsAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "get_wrrweights_action";
+        return "get_wrr_weights_action";
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        ClusterGetWRRWeightsRequest getWRRWeightsRequest = Requests.getWRRWEightsRequest();
+        ClusterGetWRRWeightsRequest getWRRWeightsRequest = Requests.getWRRWeightsRequest();
         getWRRWeightsRequest.local(request.paramAsBoolean("local", getWRRWeightsRequest.local()));
         if (request.hasParam("attribute")) {
             getWRRWeightsRequest.setAwarenessAttribute(request.param("attribute"));

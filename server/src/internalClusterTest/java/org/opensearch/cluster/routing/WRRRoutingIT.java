@@ -12,6 +12,7 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.admin.cluster.shards.routing.wrr.get.ClusterGetWRRWeightsResponse;
 import org.opensearch.action.admin.cluster.shards.routing.wrr.put.ClusterPutWRRWeightsResponse;
 
+import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.Map;
@@ -47,4 +48,28 @@ public class WRRRoutingIT extends OpenSearchIntegTestCase {
         ClusterGetWRRWeightsResponse response1 = client().admin().cluster().prepareGetWRRWeights().get();
         assertEquals(response1.weights(), wrrWeight);
     }
+
+
+    public void testGetWRRWeights_LocalRequest() {
+
+        Map<String, Object> weights = Map.of("a", "1", "b", "1", "c", "1");
+        WRRWeight wrrWeight = new WRRWeight("zone", weights);
+        ClusterPutWRRWeightsResponse response = client().admin().cluster().prepareWRRWeights().setWRRWeights(wrrWeight).get();
+        ClusterGetWRRWeightsResponse response1 =
+            client().admin().cluster().prepareGetWRRWeights().setRequestLocal(true).get();
+        assertEquals(1, response1.getLocalNodeWeight());
+    }
+
+    public void testGetWRRWeights_LocalRequestNode() {
+
+        Map<String, Object> weights = Map.of("a", "1", "b", "1", "c", "1");
+        WRRWeight wrrWeight = new WRRWeight("zone", weights);
+        ClusterStateRequest stateRequest = ClusterStateRequest();
+        ClusterPutWRRWeightsResponse response = client().get();
+        ClusterGetWRRWeightsResponse response1 =
+            client().admin().cluster().prepareGetWRRWeights().setRequestLocal(true).get();
+        assertEquals(1, response1.getLocalNodeWeight());
+    }
+
+
 }

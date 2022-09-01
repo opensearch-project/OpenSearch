@@ -32,6 +32,10 @@ public class ClusterGetWRRWeightsResponse extends ActionResponse implements ToXC
     private WRRWeight wrrWeight;
     private Object localNodeWeight;
 
+    public Object getLocalNodeWeight() {
+        return localNodeWeight;
+    }
+
     ClusterGetWRRWeightsResponse() {
         this.wrrWeight = null;
     }
@@ -39,7 +43,6 @@ public class ClusterGetWRRWeightsResponse extends ActionResponse implements ToXC
     ClusterGetWRRWeightsResponse(Object localNodeWeight, WRRWeight wrrWeight) {
         this.localNodeWeight = localNodeWeight;
         this.wrrWeight = wrrWeight;
-
     }
 
     ClusterGetWRRWeightsResponse(WRRWeight wrrWeights) {
@@ -90,9 +93,7 @@ public class ClusterGetWRRWeightsResponse extends ActionResponse implements ToXC
         } else {
             builder.field("msg", "Weights are not set");
         }
-
         builder.endObject();
-
         return builder;
     }
 

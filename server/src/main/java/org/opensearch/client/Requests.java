@@ -565,7 +565,7 @@ public class Requests {
      *
      * @return get weight request
      */
-    public static ClusterGetWRRWeightsRequest getWRRWEightsRequest() {
+    public static ClusterGetWRRWeightsRequest getWRRWeightsRequest() {
         return new ClusterGetWRRWeightsRequest();
     }
 }

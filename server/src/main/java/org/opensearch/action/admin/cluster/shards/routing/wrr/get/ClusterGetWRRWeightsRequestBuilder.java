@@ -33,4 +33,11 @@ public class ClusterGetWRRWeightsRequestBuilder extends ClusterManagerNodeReadOp
         return this;
     }
 
+    public ClusterGetWRRWeightsRequestBuilder setRequestLocal(boolean local) {
+        request.local(local);
+        return this;
+
+    }
+
+
 }
