@@ -10,7 +10,10 @@ package org.opensearch.cluster.routing;
 
 import java.util.ArrayList;
 import java.util.List;
-
+/**
+ * Weighted Round Robin Scheduling policy
+ *
+ */
 public class WeightedRoundRobin<T> {
 
     private List<WeightedRoundRobin.Entity<T>> entities;

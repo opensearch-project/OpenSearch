@@ -35,6 +35,7 @@ import java.util.Map;
 public class WeightedRoundRobinRoutingMetadata extends AbstractNamedDiffable<Metadata.Custom> implements Metadata.Custom {
     private static final Logger logger = LogManager.getLogger(WeightedRoundRobinRoutingMetadata.class);
     public static final String TYPE = "wrr_shard_routing";
+    public static final String AWARENESS = "awareness";
     private WRRWeights wrrWeight;
 
     public WRRWeights getWrrWeight() {
@@ -140,7 +141,7 @@ public class WeightedRoundRobinRoutingMetadata extends AbstractNamedDiffable<Met
     }
 
     public static void toXContent(WRRWeights wrrWeight, XContentBuilder builder) throws IOException {
-        builder.startObject("awareness");
+        builder.startObject(AWARENESS);
         builder.startObject(wrrWeight.attributeName());
         for (Map.Entry<String, Object> entry : wrrWeight.weights().entrySet()) {
             builder.field(entry.getKey(), entry.getValue());
