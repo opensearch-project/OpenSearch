@@ -71,6 +71,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     public static final String REQUEST_EXTENSION_LOCAL_NODE = "internal:discovery/localnode";
     public static final String REQUEST_EXTENSION_CLUSTER_SETTINGS = "internal:discovery/clustersettings";
     public static final String REQUEST_EXTENSION_REGISTER_REST_ACTIONS = "internal:discovery/registerrestactions";
+    public static final String REQUEST_EXTENSION_REGISTER_TRANSPORT_ACTIONS = "internal:discovery/registertransportactions";
     public static final String REQUEST_OPENSEARCH_NAMED_WRITEABLE_REGISTRY = "internal:discovery/namedwriteableregistry";
     public static final String REQUEST_OPENSEARCH_PARSE_NAMED_WRITEABLE = "internal:discovery/parsenamedwriteable";
     public static final String REQUEST_REST_EXECUTE_ON_EXTENSION_ACTION = "internal:extensions/restexecuteonextensiontaction";
@@ -185,6 +186,14 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             false,
             ExtensionRequest::new,
             ((request, channel, task) -> channel.sendResponse(handleExtensionRequest(request)))
+        );
+        transportService.registerRequestHandler(
+            REQUEST_EXTENSION_REGISTER_TRANSPORT_ACTIONS,
+            ThreadPool.Names.GENERIC,
+            false,
+            false,
+            RegisterTransportActionsRequest::new,
+            ((request, channel, task) -> channel.sendResponse(handleRegisterTransportActionsRequest(request)))
         );
     }
 
@@ -306,6 +315,22 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         } catch (Exception e) {
             logger.error(e.toString());
         }
+    }
+
+    /**
+     * Handles a {@link RegisterTransportActionsRequest}.
+     *
+     * @param transportActionsRequest  The request to handle.
+     * @return  A {@link ExtensionBooleanResponse} indicating success.
+     * @throws Exception if the request is not handled properly.
+     */
+    TransportResponse handleRegisterTransportActionsRequest(RegisterTransportActionsRequest transportActionsRequest) throws Exception {
+        /*
+         * TODO: https://github.com/opensearch-project/opensearch-sdk-java/issues/107
+         * Register these new Transport Actions with ActionModule
+         * and add support for NodeClient to recognise these actions when making transport calls.
+         */
+        return new ExtensionBooleanResponse(true);
     }
 
     /**
