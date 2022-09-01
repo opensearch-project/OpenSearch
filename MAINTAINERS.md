@@ -23,6 +23,7 @@
 | Ryan Bogan | [ryanbogan](https://github.com/ryanbogan) | Amazon |
 | Sarat Vemulapalli | [saratvemulapalli](https://github.com/saratvemulapalli) | Amazon |
 | Shweta Thareja |[shwetathareja](https://github.com/shwetathareja) | Amazon |
+| Suraj Singh |[dreamer-89](https://github.com/dreamer-89) | Amazon |
 | Tianli Feng | [tlfeng](https://github.com/tlfeng) | Amazon |
 | Vacha Shah | [VachaShah](https://github.com/VachaShah) | Amazon |
 | Xue Zhou | [xuezhou25](https://github.com/xuezhou25) | Amazon |

@@ -48,6 +48,11 @@ public class DeletePitRequest extends ActionRequest implements ToXContentObject 
         this.pitIds.addAll(pitIds);
     }
 
+    public void clearAndSetPitIds(List<String> pitIds) {
+        this.pitIds.clear();
+        this.pitIds.addAll(pitIds);
+    }
+
     public DeletePitRequest() {}
 
     public List<String> getPitIds() {

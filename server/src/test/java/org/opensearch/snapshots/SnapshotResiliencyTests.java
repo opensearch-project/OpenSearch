@@ -172,7 +172,7 @@ import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.index.seqno.GlobalCheckpointSyncAction;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.shard.PrimaryReplicaSyncer;
-import org.opensearch.index.store.RemoteDirectoryFactory;
+import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.ShardLimitValidator;
@@ -185,6 +185,7 @@ import org.opensearch.indices.recovery.PeerRecoverySourceService;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.replication.SegmentReplicationSourceFactory;
+import org.opensearch.indices.replication.SegmentReplicationSourceService;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.ingest.IngestService;
@@ -1826,7 +1827,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     emptyMap(),
                     null,
                     emptyMap(),
-                    new RemoteDirectoryFactory(() -> repositoriesService)
+                    new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService)
                 );
                 final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
                 snapshotShardsService = new SnapshotShardsService(
@@ -1857,6 +1858,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         transportService,
                         new SegmentReplicationSourceFactory(transportService, recoverySettings, clusterService)
                     ),
+                    SegmentReplicationSourceService.NO_OP,
                     shardStateAction,
                     new NodeMappingRefreshAction(transportService, metadataMappingService),
                     repositoriesService,

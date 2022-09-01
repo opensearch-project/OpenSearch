@@ -56,6 +56,12 @@ IF ERRORLEVEL 1 (
 	EXIT /B %ERRORLEVEL%
 )
 
+if "%SERVICE_LOG_DIR%" == "" set SERVICE_LOG_DIR=%OPENSEARCH_HOME%\logs
+rem The logs directory must exist for the service to start.
+if not exist "%SERVICE_LOG_DIR%" (
+	mkdir "%SERVICE_LOG_DIR%"
+)
+
 SET KEYSTORE_PASSWORD=
 IF "%checkpassword%"=="Y" (
   CALL "%~dp0opensearch-keystore.bat" has-passwd --silent
