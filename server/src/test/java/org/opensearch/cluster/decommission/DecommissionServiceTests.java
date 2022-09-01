@@ -32,7 +32,6 @@ import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
@@ -67,14 +66,25 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
     @Before
     public void setUpService() {
         ClusterState clusterState = ClusterState.builder(new ClusterName("test")).build();
-        logger.info("--> adding five nodes on same zone_1");
-        clusterState = addNodes(clusterState, "zone_1", "node1", "node2", "node3", "node4", "node5");
-        logger.info("--> adding five nodes on same zone_2");
-        clusterState = addNodes(clusterState, "zone_2", "node6", "node7", "node8", "node9", "node10");
-        logger.info("--> adding five nodes on same zone_3");
-        clusterState = addNodes(clusterState, "zone_3", "node11", "node12", "node13", "node14", "node15");
+        logger.info("--> adding cluster manager node on zone_1");
+        clusterState = addClusterManagerNodes(clusterState, "zone_1", "node1");
+        logger.info("--> adding cluster manager node on zone_2");
+        clusterState = addClusterManagerNodes(clusterState, "zone_2", "node6");
+        logger.info("--> adding cluster manager node on zone_3");
+        clusterState = addClusterManagerNodes(clusterState, "zone_3", "node11");
+        logger.info("--> adding four data nodes on zone_1");
+        clusterState = addDataNodes(clusterState, "zone_1", "node2", "node3", "node4", "node5");
+        logger.info("--> adding four data nodes on zone_2");
+        clusterState = addDataNodes(clusterState, "zone_2", "node7", "node8", "node9", "node10");
+        logger.info("--> adding four data nodes on zone_3");
+        clusterState = addDataNodes(clusterState, "zone_3", "node12", "node13", "node14", "node15");
         clusterState = setLocalNodeAsClusterManagerNode(clusterState, "node1");
-        clusterState = setThreeNodesInVotingConfig(clusterState);
+        clusterState = setNodesInVotingConfig(
+            clusterState,
+            clusterState.nodes().get("node1"),
+            clusterState.nodes().get("node6"),
+            clusterState.nodes().get("node11")
+        );
         final ClusterState.Builder builder = builder(clusterState);
         setState(clusterService, builder);
         final MockTransport transport = new MockTransport();
@@ -168,9 +178,37 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
         );
     }
 
-    private ClusterState addNodes(ClusterState clusterState, String zone, String... nodeIds) {
+    @SuppressWarnings("unchecked")
+    public void testDecommissioningNotInitiatedWhenNotEnoughClusterManagerNodes() {
+        ClusterState state = clusterService.state();
+        // shrink voting config
+        state = setNodesInVotingConfig(state, state.nodes().get("node1"), state.nodes().get("node11"));
+        setState(clusterService, state);
+        ActionListener<ClusterStateUpdateResponse> listener = mock(ActionListener.class);
+        DecommissioningFailedException e = expectThrows(
+            DecommissioningFailedException.class,
+            () -> {
+                decommissionService.initiateAttributeDecommissioning(
+                    new DecommissionAttribute("zone", "zone_3"),
+                    listener,
+                    clusterService.state()
+                );
+            }
+        );
+        assertThat(e.getMessage(), Matchers.endsWith("cannot proceed with decommission request. Cluster might go into quorum loss"));
+    }
+
+    private ClusterState addDataNodes(ClusterState clusterState, String zone, String... nodeIds) {
         DiscoveryNodes.Builder nodeBuilder = DiscoveryNodes.builder(clusterState.nodes());
-        org.opensearch.common.collect.List.of(nodeIds).forEach(nodeId -> nodeBuilder.add(newNode(nodeId, singletonMap("zone", zone))));
+        org.opensearch.common.collect.List.of(nodeIds).forEach(nodeId -> nodeBuilder.add(newDataNode(nodeId, singletonMap("zone", zone))));
+        clusterState = ClusterState.builder(clusterState).nodes(nodeBuilder).build();
+        return clusterState;
+    }
+
+    private ClusterState addClusterManagerNodes(ClusterState clusterState, String zone, String... nodeIds) {
+        DiscoveryNodes.Builder nodeBuilder = DiscoveryNodes.builder(clusterState.nodes());
+        org.opensearch.common.collect.List.of(nodeIds)
+            .forEach(nodeId -> nodeBuilder.add(newClusterManagerNode(nodeId, singletonMap("zone", zone))));
         clusterState = ClusterState.builder(clusterState).nodes(nodeBuilder).build();
         return clusterState;
     }
@@ -183,12 +221,8 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
         return clusterState;
     }
 
-    private ClusterState setThreeNodesInVotingConfig(ClusterState clusterState) {
-        final CoordinationMetadata.VotingConfiguration votingConfiguration = CoordinationMetadata.VotingConfiguration.of(
-            clusterState.nodes().get("node1"),
-            clusterState.nodes().get("node6"),
-            clusterState.nodes().get("node11")
-        );
+    private ClusterState setNodesInVotingConfig(ClusterState clusterState, DiscoveryNode... nodes) {
+        final CoordinationMetadata.VotingConfiguration votingConfiguration = CoordinationMetadata.VotingConfiguration.of(nodes);
 
         Metadata.Builder builder = Metadata.builder()
             .coordinationMetadata(
@@ -201,11 +235,25 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
         return clusterState;
     }
 
-    private static DiscoveryNode newNode(String nodeId, Map<String, String> attributes) {
-        return new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), attributes, CLUSTER_MANAGER_DATA_ROLE, Version.CURRENT);
+    private static DiscoveryNode newDataNode(String nodeId, Map<String, String> attributes) {
+        return new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), attributes, DATA_ROLE, Version.CURRENT);
     }
 
-    final private static Set<DiscoveryNodeRole> CLUSTER_MANAGER_DATA_ROLE = Collections.unmodifiableSet(
-        new HashSet<>(Arrays.asList(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, DiscoveryNodeRole.DATA_ROLE))
+    private static DiscoveryNode newClusterManagerNode(String nodeId, Map<String, String> attributes) {
+        return new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), attributes, CLUSTER_MANAGER_ROLE, Version.CURRENT);
+    }
+
+    final private static Set<DiscoveryNodeRole> CLUSTER_MANAGER_ROLE = Collections.unmodifiableSet(
+        new HashSet<>(Collections.singletonList(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE))
     );
+
+    final private static Set<DiscoveryNodeRole> DATA_ROLE = Collections.unmodifiableSet(
+        new HashSet<>(Collections.singletonList(DiscoveryNodeRole.DATA_ROLE))
+    );
+
+    private ClusterState removeNodes(ClusterState clusterState, String... nodeIds) {
+        DiscoveryNodes.Builder nodeBuilder = DiscoveryNodes.builder(clusterState.getNodes());
+        org.opensearch.common.collect.List.of(nodeIds).forEach(nodeBuilder::remove);
+        return allocationService.disassociateDeadNodes(ClusterState.builder(clusterState).nodes(nodeBuilder).build(), false, "test");
+    }
 }
