@@ -32,8 +32,8 @@ import java.util.Map;
  *
  * @opensearch.internal
  */
-public class WeightedRoundRobinMetadata extends AbstractNamedDiffable<Metadata.Custom> implements Metadata.Custom {
-    private static final Logger logger = LogManager.getLogger(WeightedRoundRobinMetadata.class);
+public class WeightedRoundRobinRoutingMetadata extends AbstractNamedDiffable<Metadata.Custom> implements Metadata.Custom {
+    private static final Logger logger = LogManager.getLogger(WeightedRoundRobinRoutingMetadata.class);
     public static final String TYPE = "wrr_shard_routing";
     private WRRWeights wrrWeight;
 
@@ -41,16 +41,16 @@ public class WeightedRoundRobinMetadata extends AbstractNamedDiffable<Metadata.C
         return wrrWeight;
     }
 
-    public WeightedRoundRobinMetadata setWrrWeight(WRRWeights wrrWeight) {
+    public WeightedRoundRobinRoutingMetadata setWrrWeight(WRRWeights wrrWeight) {
         this.wrrWeight = wrrWeight;
         return this;
     }
 
-    public WeightedRoundRobinMetadata(StreamInput in) throws IOException {
+    public WeightedRoundRobinRoutingMetadata(StreamInput in) throws IOException {
         this.wrrWeight = new WRRWeights(in);
     }
 
-    public WeightedRoundRobinMetadata(WRRWeights wrrWeight) {
+    public WeightedRoundRobinRoutingMetadata(WRRWeights wrrWeight) {
         this.wrrWeight = wrrWeight;
     }
 
@@ -79,7 +79,7 @@ public class WeightedRoundRobinMetadata extends AbstractNamedDiffable<Metadata.C
         return readDiffFrom(Metadata.Custom.class, TYPE, in);
     }
 
-    public static WeightedRoundRobinMetadata fromXContent(XContentParser parser) throws IOException {
+    public static WeightedRoundRobinRoutingMetadata fromXContent(XContentParser parser) throws IOException {
         String attrKey = null;
         Object attrValue;
         String attributeName = null;
@@ -117,14 +117,14 @@ public class WeightedRoundRobinMetadata extends AbstractNamedDiffable<Metadata.C
             }
         }
         wrrWeight = new WRRWeights(attributeName, weights);
-        return new WeightedRoundRobinMetadata(wrrWeight);
+        return new WeightedRoundRobinRoutingMetadata(wrrWeight);
     }
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        WeightedRoundRobinMetadata that = (WeightedRoundRobinMetadata) o;
+        WeightedRoundRobinRoutingMetadata that = (WeightedRoundRobinRoutingMetadata) o;
         return wrrWeight.equals(that.wrrWeight);
     }
 

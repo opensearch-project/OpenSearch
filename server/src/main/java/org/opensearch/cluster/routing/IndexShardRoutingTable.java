@@ -294,20 +294,13 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
 
     /**
      * Returns an iterator over active and initializing shards, shards are ordered by weighted round-robin scheduling
-     * policy with adaptive replica selection. The output from weighted round-robin is ordered using adaptive replica
-     * selection to select eligible nodes for better performance.
+     * policy.
      * @param wrrWeight Weighted round-robin weight entity
      * @param nodes discovered nodes in the cluster
      * @return an iterator over active and initializing shards, ordered by weighted round-robin
      * scheduling policy. Making sure that initializing shards are the last to iterate through.
      */
-    public ShardIterator activeInitializingShardsWRR(
-        WRRWeights wrrWeight,
-        DiscoveryNodes nodes,
-        WRRShardsCache cache,
-        @Nullable ResponseCollectorService collector,
-        @Nullable Map<String, Long> nodeSearchCounts
-    ) {
+    public ShardIterator activeInitializingShardsWRR(WRRWeights wrrWeight, DiscoveryNodes nodes, WRRShardsCache cache) {
         final int seed = shuffler.nextSeed();
         List<ShardRouting> ordered = new ArrayList<>(activeShards.size() + allInitializingShards.size());
         List<ShardRouting> orderedActiveShards;
@@ -317,25 +310,10 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
             orderedActiveShards = getShardsWRR(activeShards, wrrWeight, nodes);
             cache.getCache().put(new WRRShardsCache.Key(shardId), orderedActiveShards);
         }
-
-        // In case the shardRouting list returned by weighted round-robin is empty, we fail open and consider all
-        // activeShards
-        orderedActiveShards = orderedActiveShards == null || orderedActiveShards.isEmpty() ? activeShards : orderedActiveShards;
-
-        // output from weighted round-robin is ordered using adaptive replica selection
-        orderedActiveShards = rankShardsAndUpdateStats(shuffler.shuffle(orderedActiveShards, seed), collector, nodeSearchCounts);
-
         ordered.addAll(orderedActiveShards);
 
         if (!allInitializingShards.isEmpty()) {
             List<ShardRouting> orderedInitializingShards = getShardsWRR(allInitializingShards, wrrWeight, nodes);
-            // In case the shardRouting list returned by weighted round-robin is empty, we fail open and consider all
-            // initializing shards
-            orderedInitializingShards = orderedInitializingShards == null || orderedInitializingShards.isEmpty()
-                ? allInitializingShards
-                : orderedInitializingShards;
-            // output from weighted round-robin is ordered using adaptive replica selection
-            orderedInitializingShards = rankShardsAndUpdateStats(orderedInitializingShards, collector, nodeSearchCounts);
             ordered.addAll(orderedInitializingShards);
         }
         return new PlainShardIterator(shardId, ordered);
@@ -373,11 +351,13 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     ) {
         List<WeightedRoundRobin.Entity<ShardRouting>> weightedShards = new ArrayList<>();
         for (ShardRouting shard : shards) {
-            shard.currentNodeId();
             DiscoveryNode node = nodes.get(shard.currentNodeId());
             String attVal = node.getAttributes().get(wrrWeight.attributeName());
-            // If weight for a zone is not defined, considering it as 1 by default
-            Double weight = Double.parseDouble(wrrWeight.weights().getOrDefault(attVal, 1).toString());
+            // If weight for a zone is not defined, not considering shards from that zone
+            if (wrrWeight.weights().get(attVal) == null) {
+                continue;
+            }
+            Double weight = Double.parseDouble(wrrWeight.weights().get(attVal).toString());
             weightedShards.add(new WeightedRoundRobin.Entity<>(weight, shard));
         }
         return weightedShards;

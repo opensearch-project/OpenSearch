@@ -34,7 +34,7 @@ package org.opensearch.cluster.routing;
 
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.cluster.metadata.WeightedRoundRobinMetadata;
+import org.opensearch.cluster.metadata.WeightedRoundRobinRoutingMetadata;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.opensearch.cluster.service.ClusterService;
@@ -221,10 +221,11 @@ public class OperationRouting {
     }
 
     private void setWeightedRoundRobinAttributes(ClusterState clusterState, ClusterService clusterService) {
-        WeightedRoundRobinMetadata weightedRoundRobinMetadata = clusterState.metadata().custom(WeightedRoundRobinMetadata.TYPE);
-        this.isWeightedRoundRobinEnabled = weightedRoundRobinMetadata != null ? true : false;
+        WeightedRoundRobinRoutingMetadata weightedRoundRobinRoutingMetadata = clusterState.metadata()
+            .custom(WeightedRoundRobinRoutingMetadata.TYPE);
+        this.isWeightedRoundRobinEnabled = weightedRoundRobinRoutingMetadata != null ? true : false;
         if (this.isWeightedRoundRobinEnabled) {
-            this.wrrWeights = weightedRoundRobinMetadata.getWrrWeight();
+            this.wrrWeights = weightedRoundRobinRoutingMetadata.getWrrWeight();
             this.wrrShardsCache = getWrrShardsCache() != null ? getWrrShardsCache() : new WRRShardsCache(clusterService);
         }
     }
@@ -351,7 +352,7 @@ public class OperationRouting {
         @Nullable Map<String, Long> nodeCounts
     ) {
         if (isWeightedRoundRobinEnabled()) {
-            return indexShard.activeInitializingShardsWRR(getWrrWeights(), nodes, wrrShardsCache, collectorService, nodeCounts);
+            return indexShard.activeInitializingShardsWRR(getWrrWeights(), nodes, wrrShardsCache);
         } else if (ignoreAwarenessAttributes()) {
             if (useAdaptiveReplicaSelection) {
                 return indexShard.activeInitializingShardsRankedIt(collectorService, nodeCounts);

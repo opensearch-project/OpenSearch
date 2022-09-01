@@ -14,7 +14,6 @@ import java.util.List;
 public class WeightedRoundRobin<T> {
 
     private List<WeightedRoundRobin.Entity<T>> entities;
-    private int turn;
 
     public WeightedRoundRobin(List<WeightedRoundRobin.Entity<T>> entities) {
         this.entities = entities;
