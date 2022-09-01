@@ -265,8 +265,6 @@ public class DecommissionService {
 
     private void initiateGracefulDecommission() {
 
-
-
         decommissionController.updateMetadataWithDecommissionStatus(
                 DecommissionStatus.DECOMMISSION_IN_PROGRESS,
                 new ActionListener<Void>() {
@@ -300,9 +298,13 @@ public class DecommissionService {
                 : "unexpected status encountered while decommissioning nodes";
         DecommissionAttribute decommissionAttribute = decommissionAttributeMetadata.decommissionAttribute();
 
+        // Awareness values refers to all zones in the cluster
+        List<String> awarenessValues = forcedAwarenessAttributes.get(decommissionAttribute.attributeName());
+
         // execute nodes decommissioning
         decommissionController.handleNodesDecommissionRequest(
                 nodesWithDecommissionAttribute(state, decommissionAttribute, false),
+                awarenessValues,
                 "nodes-decommissioned",
                 TimeValue.timeValueSeconds(30L), // TODO - read timeout from request while integrating with API
                 new ActionListener<Void>() {

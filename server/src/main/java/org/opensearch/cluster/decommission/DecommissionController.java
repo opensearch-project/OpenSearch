@@ -25,6 +25,7 @@ import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.admin.cluster.shards.routing.wrr.put.ClusterPutWRRWeightsAction;
 import org.opensearch.action.admin.cluster.shards.routing.wrr.put.ClusterPutWRRWeightsRequest;
+import org.opensearch.action.admin.cluster.shards.routing.wrr.put.ClusterPutWRRWeightsResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.ClusterStateTaskConfig;
@@ -33,7 +34,6 @@ import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.coordination.NodeRemovalClusterStateTaskExecutor;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.cluster.routing.WRRWeights;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
@@ -46,6 +46,7 @@ import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -145,35 +146,51 @@ public class DecommissionController {
 
     public void handleNodesDecommissionRequest(
             Set<DiscoveryNode> nodesToBeDecommissioned,
+            List<String> zones,
             String reason,
             TimeValue timeout,
             ActionListener<Void> nodesRemovedListener
     ) {
-        setWeightForDecommissionedZone();
+        setWeightForDecommissionedZone(zones);
         checkHttpStatsForDecommissionedNodes(nodesToBeDecommissioned, reason, timeout, nodesRemovedListener);
     }
 
-    private void setWeightForDecommissionedZone() {
+    private void setWeightForDecommissionedZone(List<String> zones) {
+        ClusterState clusterState = clusterService.getClusterApplierService().state();
 
-        final ClusterPutWRRWeightsRequest clusterWeightRequest = new ClusterPutWRRWeightsRequest(nodes);
+        DecommissionAttributeMetadata decommissionAttributeMetadata = clusterState.metadata().custom(DecommissionAttributeMetadata.TYPE);
+        assert decommissionAttributeMetadata.status().equals(DecommissionStatus.DECOMMISSION_INIT)
+                : "unexpected status encountered while decommissioning nodes";
+        DecommissionAttribute decommissionAttribute = decommissionAttributeMetadata.decommissionAttribute();
+
+        Map<String, String> weights = new HashMap<>();
+        zones.forEach(zone -> {
+            if (zone.equalsIgnoreCase(decommissionAttribute.attributeValue())) {
+                weights.put(zone, "0");
+            } else {
+                weights.put(zone, "1");
+            }
+        });
+
+        // WRR API will validate invalid weights
+        final ClusterPutWRRWeightsRequest clusterWeightRequest = new ClusterPutWRRWeightsRequest();
         clusterWeightRequest.attributeName("zone");
-        WRRWeights wrrWeights = new WRRWeights("zone", Map.of())
-        nodesStatsRequest.clear();
-        nodesStatsRequest.addMetric(NodesStatsRequest.Metric.HTTP.metricName());
+        clusterWeightRequest.setWRRWeight(weights);
 
         transportService.sendRequest(
                 transportService.getLocalNode(),
                 ClusterPutWRRWeightsAction.NAME,
-                nodesStatsRequest,
-                new TransportResponseHandler<NodesStatsResponse>() {
+                clusterWeightRequest,
+                new TransportResponseHandler<ClusterPutWRRWeightsResponse>() {
                     @Override
-                    public void handleResponse(NodesStatsResponse response) {
-                        listener.onResponse(response);
+                    public void handleResponse(ClusterPutWRRWeightsResponse response) {
+                        logger.info("Weights were set successfully set.");
                     }
 
                     @Override
                     public void handleException(TransportException exp) {
-                        listener.onFailure(exp);
+                        logger.info("Exception occurred while setting weights.Exception Messages - ",
+                                exp.unwrapCause().getMessage());
                     }
 
                     @Override
@@ -182,11 +199,10 @@ public class DecommissionController {
                     }
 
                     @Override
-                    public NodesStatsResponse read(StreamInput in) throws IOException {
-                        return new NodesStatsResponse(in);
+                    public ClusterPutWRRWeightsResponse read(StreamInput in) throws IOException {
+                        return new ClusterPutWRRWeightsResponse(in);
                     }
                 });
-    }
     }
 
     void updateClusterStatusForDecommissioning(
