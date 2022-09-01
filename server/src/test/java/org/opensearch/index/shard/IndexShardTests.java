@@ -2689,8 +2689,9 @@ public class IndexShardTests extends IndexShardTestCase {
             storeDirectory.deleteFile(file);
         }
 
+        assertEquals(0, storeDirectory.listAll().length);
+
         Directory remoteDirectory = ((FilterDirectory) ((FilterDirectory) target.remoteStore().directory()).getDelegate()).getDelegate();
-        ((BaseDirectoryWrapper) remoteDirectory).setCheckIndexOnClose(false);
 
         // extra0 file is added as a part of https://lucene.apache.org/core/7_2_1/test-framework/org/apache/lucene/mockfile/ExtrasFS.html
         // Safe to remove without impacting the test
