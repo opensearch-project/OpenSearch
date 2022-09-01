@@ -29,6 +29,9 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 
+/**
+ * * Service responsible for updating cluster state metadata with wrr weights
+ */
 public class WRRShardRoutingService extends AbstractLifecycleComponent implements ClusterStateApplier {
     private static final Logger logger = LogManager.getLogger(WRRShardRoutingService.class);
 
