@@ -31,34 +31,21 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
         terminate(threadPool);
     }
 
-    public void testAddRecommissionAttributeToClusterWithWrongRecommission() {
+    public void testClearDecommissionAttribute() {
         final ClusterSettings settings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         DecommissionService service = new DecommissionService(new ClusterService(Settings.EMPTY, settings, threadPool));
         DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "zone-2");
-        DecommissionAttributeMetadata decommissionAttributeMetadata = new DecommissionAttributeMetadata(decommissionAttribute, DecommissionStatus.DECOMMISSION_SUCCESSFUL);
-        final DecommissionAttribute recommissionAttribute = new DecommissionAttribute("zone", "zone-3");
-        ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
-                .metadata(Metadata.builder()
-                .putCustom(DecommissionAttributeMetadata.TYPE, decommissionAttributeMetadata).build())
-                .build();
-
-        DecommissionFailedException e = expectThrows(DecommissionFailedException.class, () -> service.addRecommissionAttributeToCluster(clusterState, recommissionAttribute));
-        MatcherAssert.assertThat(e.getMessage(), containsString("Recommission only allowed for decommissioned zone"));
-    }
-
-    public void testAddRecommissionAttributeToCluster() {
-        final ClusterSettings settings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        DecommissionService service = new DecommissionService(new ClusterService(Settings.EMPTY, settings, threadPool));
-        DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "zone-2");
-        DecommissionAttributeMetadata decommissionAttributeMetadata = new DecommissionAttributeMetadata(decommissionAttribute, DecommissionStatus.DECOMMISSION_SUCCESSFUL);
-        final DecommissionAttribute recommissionAttribute = new DecommissionAttribute("zone", "zone-2");
+        DecommissionAttributeMetadata decommissionAttributeMetadata =
+                new DecommissionAttributeMetadata(decommissionAttribute, DecommissionStatus.DECOMMISSION_SUCCESSFUL);
         ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
                 .metadata(Metadata.builder()
                         .putCustom(DecommissionAttributeMetadata.TYPE, decommissionAttributeMetadata).build())
                 .build();
 
-        final ClusterState newClusterState = service.addRecommissionAttributeToCluster(clusterState, recommissionAttribute);
+        final ClusterState newClusterState = service.deleteDecommissionAttribute(clusterState);
         DecommissionAttributeMetadata metadata = newClusterState.metadata().custom(DecommissionAttributeMetadata.TYPE);
-        MatcherAssert.assertThat(metadata.status(), is(DecommissionStatus.RECOMMISSION_IN_PROGRESS));
+
+        // Decommission Attribute should be removed.
+        assertNull(metadata);
     }
 }

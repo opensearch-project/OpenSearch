@@ -12,39 +12,14 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.ActionListener;
-import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
-import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
-import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsResponse;
-import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
-import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsRequest;
-import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsResponse;
 import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.ClusterStateUpdateTask;
-import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
 import org.opensearch.cluster.metadata.DecommissionAttributeMetadata;
 import org.opensearch.cluster.metadata.Metadata;
-import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.cluster.routing.allocation.AllocationService;
-import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.inject.Inject;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.settings.ClusterSettings;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.TimeValue;
-import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.TransportException;
-import org.opensearch.transport.TransportResponseHandler;
-import org.opensearch.transport.TransportService;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.function.Predicate;
 
 /**
  * Service responsible for entire lifecycle of decommissioning and recommissioning an awareness attribute.
@@ -67,29 +42,24 @@ public class DecommissionService {
     private static final Logger logger = LogManager.getLogger(DecommissionService.class);
 
     private final ClusterService clusterService;
-    private volatile List<String> awarenessAttributes;
 
     @Inject
     public DecommissionService(ClusterService clusterService) {
         this.clusterService = clusterService;
     }
 
-    public void registerRecommissionAttribute(
-            final DecommissionAttribute recommissionAttribute,
-            final ActionListener<ClusterStateUpdateResponse> listener) {
+    public void clearDecommissionStatus(final ActionListener<ClusterStateUpdateResponse> listener) {
         clusterService.submitStateUpdateTask(
-                "delete_decommission [" + recommissionAttribute + "]",
+                "delete_decommission",
                 new ClusterStateUpdateTask(Priority.URGENT) {
                     @Override
                     public ClusterState execute(ClusterState currentState) {
-                        return addRecommissionAttributeToCluster(currentState, recommissionAttribute);
+                        return deleteDecommissionAttribute(currentState);
                     }
 
                     @Override
                     public void onFailure(String source, Exception e) {
-                        logger.error(() -> new ParameterizedMessage(
-                                "failed to mark status as DECOMMISSION_FAILED for decommission attribute [{}]",
-                                recommissionAttribute.toString()), e);
+                        logger.error(() -> new ParameterizedMessage("Failed to clear decommission attribute."), e);
                         listener.onFailure(e);
                     }
 
@@ -103,28 +73,11 @@ public class DecommissionService {
         );
     }
 
-    ClusterState addRecommissionAttributeToCluster(final ClusterState currentState, final DecommissionAttribute recommissionAttribute) {
-        logger.info("Delete decommission request for attribute [{}] received", recommissionAttribute.toString());
+    ClusterState deleteDecommissionAttribute(final ClusterState currentState) {
+        logger.info("Delete decommission request received");
         Metadata metadata = currentState.metadata();
         Metadata.Builder mdBuilder = Metadata.builder(metadata);
-        DecommissionAttributeMetadata decommissionAttributeMetadata = metadata.custom(DecommissionAttributeMetadata.TYPE);
-
-        if (!isValidRecommission(decommissionAttributeMetadata, recommissionAttribute)) {
-            throw new DecommissionFailedException(recommissionAttribute, "Recommission only allowed for decommissioned zone");
-        }
-
-        decommissionAttributeMetadata = new DecommissionAttributeMetadata(recommissionAttribute, DecommissionStatus.RECOMMISSION_IN_PROGRESS);
-        mdBuilder.putCustom(DecommissionAttributeMetadata.TYPE, decommissionAttributeMetadata);
+        mdBuilder.removeCustom(DecommissionAttributeMetadata.TYPE);
         return ClusterState.builder(currentState).metadata(mdBuilder).build();
-    }
-
-    public boolean isValidRecommission(DecommissionAttributeMetadata decommissionAttributeMetadata, DecommissionAttribute recommissionAttribute) {
-        if (decommissionAttributeMetadata != null
-                && (decommissionAttributeMetadata.status().equals(DecommissionStatus.DECOMMISSION_SUCCESSFUL)
-                || decommissionAttributeMetadata.status().equals(DecommissionStatus.DECOMMISSION_IN_PROGRESS))
-                && decommissionAttributeMetadata.decommissionAttribute().attributeValue().equals(recommissionAttribute.attributeValue())) {
-            return true;
-        }
-        return false;
     }
 }
