@@ -32,19 +32,13 @@ public class TransportDeleteDecommissionAction extends TransportClusterManagerNo
 
     private static final Logger logger = LogManager.getLogger(TransportDeleteDecommissionAction.class);
 
-    // private final DecommissionService decommissionService;
-
-    private final TransportClearVotingConfigExclusionsAction clearExclusionsAction;
-
     @Inject
     public TransportDeleteDecommissionAction(
         TransportService transportService,
         ClusterService clusterService,
-        // DecommissionService decommissionService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        TransportClearVotingConfigExclusionsAction clearExclusionsAction
+        IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
             DeleteDecommissionAction.NAME,
@@ -55,9 +49,6 @@ public class TransportDeleteDecommissionAction extends TransportClusterManagerNo
             DeleteDecommissionRequest::new,
             indexNameExpressionResolver
         );
-        // TODO: Enable when service changes are merged.
-        // this.decommissionService = decommissionService;
-        this.clearExclusionsAction = clearExclusionsAction;
     }
 
     @Override
@@ -83,13 +74,6 @@ public class TransportDeleteDecommissionAction extends TransportClusterManagerNo
     ) {
         // TODO: Enable when service class change is merged
         logger.info("Received delete decommission Request");
-        // decommissionService.registerRecommissionAttribute(
-        // request.getDecommissionAttribute(),
-        // ActionListener.delegateFailure(
-        // listener,
-        // (delegatedListener, response) -> delegatedListener.onResponse(new DeleteDecommissionResponse(response.isAcknowledged()))
-        // )
-        // );
         listener.onResponse(new DeleteDecommissionResponse(true));
     }
 }

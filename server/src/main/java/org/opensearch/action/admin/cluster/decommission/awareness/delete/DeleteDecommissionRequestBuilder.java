@@ -21,23 +21,4 @@ public class DeleteDecommissionRequestBuilder extends ClusterManagerNodeOperatio
     public DeleteDecommissionRequestBuilder(OpenSearchClient client, DeleteDecommissionAction action) {
         super(client, action, new DeleteDecommissionRequest());
     }
-
-    /**
-     *
-     * @param timeout timeout value
-     * @return current object
-     */
-    public DeleteDecommissionRequestBuilder setTimeout(TimeValue timeout) {
-        request.setTimeout(timeout);
-        return this;
-    }
-
-    /**
-     * @param decommissionAttribute decommission attribute
-     * @return current object
-     */
-    public DeleteDecommissionRequestBuilder setDecommissionedAttribute(DecommissionAttribute decommissionAttribute) {
-        request.setDecommissionAttribute(decommissionAttribute);
-        return this;
-    }
 }

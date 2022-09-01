@@ -13,8 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionRequest;
 import org.opensearch.client.Requests;
 import org.opensearch.client.node.NodeClient;
-import org.opensearch.cluster.decommission.DecommissionAttribute;
-import org.opensearch.common.unit.TimeValue;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
@@ -26,13 +24,10 @@ import static java.util.Collections.singletonList;
 import static org.opensearch.rest.RestRequest.Method.DELETE;
 
 public class RestDeleteDecommissionAction extends BaseRestHandler {
-    private static final Logger logger = LogManager.getLogger(RestDeleteDecommissionAction.class);
-
-    private static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(300L);
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(DELETE, "/_cluster/decommission/awareness/{awareness_attribute_name}/{awareness_attribute_value}"));
+        return singletonList(new Route(DELETE, "/_cluster/decommission/awareness"));
     }
 
     @Override
@@ -47,20 +42,6 @@ public class RestDeleteDecommissionAction extends BaseRestHandler {
     }
 
     DeleteDecommissionRequest createRequest(RestRequest request) {
-        String attributeName = null;
-        String attributeValue = null;
-        DeleteDecommissionRequest deleteDecommissionRequest = Requests.deleteDecommissionRequest();
-        if (request.hasParam("awareness_attribute_name")) {
-            attributeName = request.param("awareness_attribute_name");
-        }
-
-        if (request.hasParam("awareness_attribute_value")) {
-            attributeValue = request.param("awareness_attribute_value");
-        }
-        deleteDecommissionRequest.setDecommissionAttribute(new DecommissionAttribute(attributeName, attributeValue));
-        deleteDecommissionRequest.setTimeout(
-            TimeValue.parseTimeValue(request.param("timeout"), DEFAULT_TIMEOUT, getClass().getSimpleName() + ".timeout")
-        );
-        return deleteDecommissionRequest;
+        return Requests.deleteDecommissionRequest();
     }
 }
