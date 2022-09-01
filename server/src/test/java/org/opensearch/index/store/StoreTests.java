@@ -124,10 +124,10 @@ public class StoreTests extends OpenSearchTestCase {
         Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT).build()
     );
 
-    IndexSettings SEGMENT_REPLICATION_INDEX_SETTINGS = new IndexSettings(INDEX_SETTINGS.getIndexMetadata(), Settings.builder()
-        .put(INDEX_SETTINGS.getSettings())
-        .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-        .build());
+    IndexSettings SEGMENT_REPLICATION_INDEX_SETTINGS = new IndexSettings(
+        INDEX_SETTINGS.getIndexMetadata(),
+        Settings.builder().put(INDEX_SETTINGS.getSettings()).put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).build()
+    );
 
     private static final Version MIN_SUPPORTED_LUCENE_VERSION = org.opensearch.Version.CURRENT
         .minimumIndexCompatibilityVersion().luceneVersion;
@@ -1160,7 +1160,12 @@ public class StoreTests extends OpenSearchTestCase {
 
     public void testCleanupAndPreserveLatestCommitPoint() throws IOException {
         final ShardId shardId = new ShardId("index", "_na_", 1);
-        Store store = new Store(shardId, SEGMENT_REPLICATION_INDEX_SETTINGS, StoreTests.newDirectory(random()), new DummyShardLock(shardId));
+        Store store = new Store(
+            shardId,
+            SEGMENT_REPLICATION_INDEX_SETTINGS,
+            StoreTests.newDirectory(random()),
+            new DummyShardLock(shardId)
+        );
         commitRandomDocs(store);
 
         Store.MetadataSnapshot commitMetadata = store.getMetadata();
@@ -1178,7 +1183,12 @@ public class StoreTests extends OpenSearchTestCase {
 
     public void testGetSegmentMetadataMap() throws IOException {
         final ShardId shardId = new ShardId("index", "_na_", 1);
-        Store store = new Store(shardId, SEGMENT_REPLICATION_INDEX_SETTINGS, new NIOFSDirectory(createTempDir()), new DummyShardLock(shardId));
+        Store store = new Store(
+            shardId,
+            SEGMENT_REPLICATION_INDEX_SETTINGS,
+            new NIOFSDirectory(createTempDir()),
+            new DummyShardLock(shardId)
+        );
         store.createEmpty(Version.LATEST);
         final Map<String, StoreFileMetadata> metadataSnapshot = store.getSegmentMetadataMap(store.readLastCommittedSegmentsInfo());
         // no docs indexed only _N file exists.
