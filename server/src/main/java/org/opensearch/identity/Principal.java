@@ -14,12 +14,10 @@ package org.opensearch.identity;
 import org.opensearch.common.io.stream.NamedWriteable;
 
 import java.io.Serializable;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
 
 /**
  * A principal identifier (user or a group) for extensions requests
+ * It is a minimal user representation per SCIM: https://www.simplecloud.info/
  * The implementation should be serializable/deserializable
 */
 
@@ -28,15 +26,8 @@ import java.util.UUID;
 public interface Principal extends Serializable, NamedWriteable {
     // TODO: Determine how to handle blank or null users/groups (if there is such possibility)
     /* A unique identifier for each entity */
-    UUID getId();
-
-    /* Contains principal type definition */
-    List<String> getSchemas();
+    String getPrincipalIdentifier();
 
     /* A non-unique human readable identifier */
     String getUsername();
-
-    /* Contains metadata relevant to entity*/
-    Map<String, String> getMetadata();
-
 }

@@ -38,7 +38,6 @@ import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
-import org.opensearch.identity.ExtensionPrincipalsRegistry;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.extensions.ExtensionsOrchestrator;
 //import org.opensearch.index.store.RemoteDirectoryFactory;
@@ -216,7 +215,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -346,12 +344,6 @@ public class Node implements Closeable {
     private final LocalNodeFactory localNodeFactory;
     private final NodeService nodeService;
 
-    /**
-     * The in-memory store for all the users that has made/will make a request to the extension
-     * TODO: analyze whether this object is accessible between multiple nodes (most probably not)
-     * (Based on the implementation of this class, each node will have its own object)
-     */
-    private final ExtensionPrincipalsRegistry extensionPrincipalsRegistry;
     final NamedWriteableRegistry namedWriteableRegistry;
     private final AtomicReference<RunnableTaskExecutionListener> runnableTaskListener;
 
@@ -381,11 +373,6 @@ public class Node implements Closeable {
                 // Enabling shard indexing backpressure node-attribute
                 .put(NODE_ATTRIBUTES.getKey() + SHARD_INDEXING_PRESSURE_ENABLED_ATTRIBUTE_KEY, "true")
                 .build();
-
-            /**
-             * TODO: Will HashMap suffice or need to pass ConcurrentHashMap
-             */
-            this.extensionPrincipalsRegistry = new ExtensionPrincipalsRegistry(new HashMap<>());
 
             final JvmInfo jvmInfo = JvmInfo.jvmInfo();
             logger.info(
@@ -673,8 +660,7 @@ public class Node implements Closeable {
                 indexStoreFactories,
                 searchModule.getValuesSourceRegistry(),
                 recoveryStateFactories,
-                remoteDirectoryFactory,
-                extensionPrincipalsRegistry // TODO: do we need this here
+                remoteDirectoryFactory
             );
 
             final AliasValidator aliasValidator = new AliasValidator();

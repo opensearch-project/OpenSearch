@@ -14,10 +14,6 @@ package org.opensearch.identity;
 import org.opensearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
 
 /**
  * A serializable implementation of principal for requests to extensions
@@ -28,38 +24,24 @@ public class Identity implements Principal {
     // For requests from unknown identity
     public static final AnonymousIdentity ANONYMOUS_IDENTITY = new AnonymousIdentity();
 
-    private UUID id;
+    private String principalIdentifier;
     private String username;
-    private List<String> schemas;
-    private Map<String, String> metadata;
 
     private static final String NAME = "identity";
 
-    public Identity(UUID id, String username, List<String> schemas, Map<String, String> metadata) {
-        this.id = id;
+    public Identity(String id, String username) {
+        this.principalIdentifier = id;
         this.username = username;
-        this.schemas = schemas;
-        this.metadata = metadata;
     }
 
     @Override
-    public UUID getId() {
-        return id;
-    }
-
-    @Override
-    public List<String> getSchemas() {
-        return schemas;
+    public String getPrincipalIdentifier() {
+        return principalIdentifier;
     }
 
     @Override
     public String getUsername() {
         return username;
-    }
-
-    @Override
-    public Map<String, String> getMetadata() {
-        return metadata;
     }
 
     @Override
@@ -79,14 +61,12 @@ public class Identity implements Principal {
      * Anonymous identity is assumed when there is no user in the request
      */
     protected final static class AnonymousIdentity extends Identity {
-        // TODO: Determine risk of collision when generating random UUID
-        private final static UUID ID = new UUID(0x817a6e, 0x817a6e);
         private final static String username = "Anonymous Panda";
-        private final static List<String> schemas = Collections.emptyList();
-        private final static Map<String, String> metadata = Collections.emptyMap();
+        // TODO: generate identifier, should not be null
+        private final static String ID = "";
 
         protected AnonymousIdentity() {
-            super(ID, username, schemas, metadata);
+            super(ID, username);
         }
     }
 

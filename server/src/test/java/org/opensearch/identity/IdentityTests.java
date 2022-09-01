@@ -13,34 +13,24 @@ package org.opensearch.identity;
 
 import org.opensearch.test.OpenSearchTestCase;
 
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
-
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.hamcrest.core.IsNot.not;
 
 public class IdentityTests extends OpenSearchTestCase {
 
-    final UUID uuid1 = UUID.randomUUID();
-    final UUID uuid2 = UUID.randomUUID();
-
     final String user1 = "user1";
     final String user2 = "user2";
 
-    final List<String> emptyList = Collections.emptyList();
-    final Map<String, String> emptyMap = Collections.emptyMap();
+    final String id1 = "id1";
+    final String id2 = "id2";
 
-    final Principal principal1 = new Identity(uuid1, user1, emptyList, emptyMap);
-    final Principal principal2 = new Identity(uuid2, user2, emptyList, emptyMap);
+    final Principal principal1 = new Identity(id1, user1);
+    final Principal principal2 = new Identity(id2, user2);
 
     public void testGetPrincipalData() {
-        assertThat(principal1.getId(), equalTo(uuid1));
+        assertThat(principal1.getPrincipalIdentifier(), equalTo(id1));
         assertThat(principal1.getUsername(), equalTo(user1));
-        assertThat(principal1.getSchemas(), equalTo(emptyList));
-        assertThat(principal1.getSchemas(), equalTo(emptyMap));
     }
 
     public void testAnonymousVsKnownIdentity() {
@@ -54,7 +44,6 @@ public class IdentityTests extends OpenSearchTestCase {
     }
 
     public void testAnonymousGetId() {
-        assertThat(Identity.ANONYMOUS_IDENTITY.getId(), equalTo(new UUID(0x817a6e, 0x817a6e)));
+        assertThat(Identity.ANONYMOUS_IDENTITY.getPrincipalIdentifier(), equalTo(""));
     }
-
 }

@@ -10,10 +10,13 @@ package org.opensearch.extensions.rest;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.extensions.DiscoveryExtension;
 import org.opensearch.extensions.ExtensionsOrchestrator;
+import org.opensearch.identity.ExtensionIdentifierUtils;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestRequest;
@@ -27,6 +30,7 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -97,10 +101,26 @@ public class RestSendToExtensionAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         Method method = request.getHttpRequest().method();
         String uri = request.getHttpRequest().uri();
+
+        // TODO: should be replaced with MyShiro calls (fetch user/identity from shiro)
+        // String userName = getCurrentSubject();
+
+        // assuming admin user for now until shiro realm is implemented
+        String userName = "admin";
+
+        String principalIdentifier = getIdentifierFromUsername(userName);
+
         if (uri.startsWith(uriPrefix)) {
             uri = uri.substring(uriPrefix.length());
         }
-        String message = "Forwarding the request " + method + " " + uri + " to " + discoveryExtension;
+        String message = "Forwarding the request "
+            + method
+            + " "
+            + uri
+            + " with owner "
+            + principalIdentifier
+            + " to "
+            + discoveryExtension;
         logger.info(message);
         // Initialize response. Values will be changed in the handler.
         final RestExecuteOnExtensionResponse restExecuteOnExtensionResponse = new RestExecuteOnExtensionResponse(
@@ -158,7 +178,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
                 ExtensionsOrchestrator.REQUEST_REST_EXECUTE_ON_EXTENSION_ACTION,
                 // HERE BE DRAGONS - DO NOT INCLUDE HEADERS
                 // SEE https://github.com/opensearch-project/OpenSearch/issues/4429
-                new RestExecuteOnExtensionRequest(method, uri),
+                new RestExecuteOnExtensionRequest(method, uri, principalIdentifier),
                 restExecuteOnExtensionResponseHandler
             );
             try {
@@ -171,7 +191,6 @@ public class RestSendToExtensionAction extends BaseRestHandler {
         } catch (Exception e) {
             logger.info("Failed to send REST Actions to extension " + discoveryExtension.getName(), e);
         }
-
         BytesRestResponse restResponse = new BytesRestResponse(
             restExecuteOnExtensionResponse.getStatus(),
             restExecuteOnExtensionResponse.getContentType(),
@@ -184,5 +203,14 @@ public class RestSendToExtensionAction extends BaseRestHandler {
         }
 
         return channel -> channel.sendResponse(restResponse);
+    }
+
+    /**
+     * Extracts Identifier information based on the username passed in the request header
+     * @param username username of the request owner
+     * @return identifier of the principal
+     */
+    private static String getIdentifierFromUsername(String username) {
+        return ExtensionIdentifierUtils.toIdentifier(username);
     }
 }

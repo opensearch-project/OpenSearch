@@ -10,14 +10,13 @@ package org.opensearch.extensions.rest;
 
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.identity.UuidUtils;
+import org.opensearch.identity.ExtensionIdentifierUtils;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestRequest.Method;
 import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.UUID;
 
 /**
  * Request to execute REST actions on extension node
@@ -30,14 +29,14 @@ public class RestExecuteOnExtensionRequest extends TransportRequest {
     private String uri;
 
     // UUID of request owner
-    private UUID principalUUID;
+    private String principalIdentifier;
 
     // TODO: Principal UUID should be fed here
 
-    public RestExecuteOnExtensionRequest(Method method, String uri, UUID principalUUID) {
+    public RestExecuteOnExtensionRequest(Method method, String uri, String principalIdentfier) {
         this.method = method;
         this.uri = uri;
-        this.principalUUID = principalUUID;
+        this.principalIdentifier = principalIdentfier;
     }
 
     public RestExecuteOnExtensionRequest(StreamInput in) throws IOException {
@@ -51,7 +50,7 @@ public class RestExecuteOnExtensionRequest extends TransportRequest {
 
         // TODO: check whether this is correct implementation
         // TODO: is this a better solution then `UUID.fromString(in.readString());` ??
-        principalUUID = UuidUtils.asUuid(in.readByteArray());
+        principalIdentifier = ExtensionIdentifierUtils.toIdentifier(in.readString());
     }
 
     @Override
@@ -59,7 +58,7 @@ public class RestExecuteOnExtensionRequest extends TransportRequest {
         super.writeTo(out);
         out.writeString(method.name());
         out.writeString(uri);
-        out.writeByteArray(UuidUtils.asBytes(principalUUID));
+        out.writeString(ExtensionIdentifierUtils.toUsername(principalIdentifier));
     }
 
     public Method getMethod() {
@@ -70,13 +69,13 @@ public class RestExecuteOnExtensionRequest extends TransportRequest {
         return uri;
     }
 
-    public UUID getPrincipalUUID() {
-        return principalUUID;
+    public String getPrincipalIdentifier() {
+        return principalIdentifier;
     }
 
     @Override
     public String toString() {
-        return "RestExecuteOnExtensionRequest{method=" + method + ", uri=" + uri + ", principal = " + principalUUID.toString() + "}";
+        return "RestExecuteOnExtensionRequest{method=" + method + ", uri=" + uri + ", principal = " + principalIdentifier + "}";
     }
 
     @Override
@@ -84,11 +83,13 @@ public class RestExecuteOnExtensionRequest extends TransportRequest {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
         RestExecuteOnExtensionRequest that = (RestExecuteOnExtensionRequest) obj;
-        return Objects.equals(method, that.method) && Objects.equals(uri, that.uri) && Objects.equals(principalUUID, that.principalUUID);
+        return Objects.equals(method, that.method)
+            && Objects.equals(uri, that.uri)
+            && Objects.equals(principalIdentifier, that.principalIdentifier);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(method, uri, principalUUID);
+        return Objects.hash(method, uri, principalIdentifier);
     }
 }
