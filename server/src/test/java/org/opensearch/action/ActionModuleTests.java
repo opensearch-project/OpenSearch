@@ -136,6 +136,7 @@ public class ActionModuleTests extends OpenSearchTestCase {
             null,
             null,
             usageService,
+            null,
             null
         );
         actionModule.initRestHandlers(null);
@@ -192,6 +193,7 @@ public class ActionModuleTests extends OpenSearchTestCase {
                 null,
                 null,
                 usageService,
+                null,
                 null
             );
             Exception e = expectThrows(IllegalArgumentException.class, () -> actionModule.initRestHandlers(null));
@@ -241,6 +243,7 @@ public class ActionModuleTests extends OpenSearchTestCase {
                 null,
                 null,
                 usageService,
+                null,
                 null
             );
             actionModule.initRestHandlers(null);

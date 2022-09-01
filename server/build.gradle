@@ -112,7 +112,7 @@ dependencies {
   api "org.apache.lucene:lucene-suggest:${versions.lucene}"
 
   api 'org.apache.shiro:shiro-core:1.9.1'
-  api 'org.slf4j:slf4j-api:1.7.36'
+  api 'org.slf4j:slf4j-api:1.6.2'
   api 'commons-beanutils:commons-beanutils:1.9.4'
   api 'commons-collections:commons-collections:3.2.2'
   api 'commons-logging:commons-logging:1.2'

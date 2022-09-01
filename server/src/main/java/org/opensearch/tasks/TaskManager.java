@@ -58,6 +58,7 @@ import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.ConcurrentMapLong;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.identity.AuthenticationManager;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TcpChannel;
 
@@ -97,6 +98,7 @@ public class TaskManager implements ClusterStateApplier {
      */
     private final List<String> taskHeaders;
     private final ThreadPool threadPool;
+    private final AuthenticationManager authenticationManager;
 
     private final ConcurrentMapLong<Task> tasks = ConcurrentCollections.newConcurrentMapLongWithAggressiveConcurrency();
 
@@ -117,8 +119,13 @@ public class TaskManager implements ClusterStateApplier {
     private final SetOnce<TaskCancellationService> cancellationService = new SetOnce<>();
 
     public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
+        this(settings, threadPool, taskHeaders, null);
+    }
+
+    public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders, AuthenticationManager authenticationManager) {
         this.threadPool = threadPool;
         this.taskHeaders = new ArrayList<>(taskHeaders);
+        this.authenticationManager = authenticationManager;
         this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
     }
 
@@ -657,6 +664,13 @@ public class TaskManager implements ClusterStateApplier {
             }, e -> { assert false : new AssertionError("must not be here", e); }));
         }
         return () -> tracker.removeTask(task);
+    }
+
+    /**
+     * Gets the current identity manager
+     */
+    public AuthenticationManager getAuthenticationManager() {
+        return this.authenticationManager;
     }
 
     // for testing

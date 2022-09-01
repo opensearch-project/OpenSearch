@@ -42,7 +42,7 @@ import org.opensearch.client.support.AbstractClient;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.identity.MyShiroModule;
+import org.opensearch.identity.AuthenticationManager;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskListener;
 import org.opensearch.threadpool.ThreadPool;
@@ -66,9 +66,15 @@ public class NodeClient extends AbstractClient {
     private Supplier<String> localNodeId;
     private RemoteClusterService remoteClusterService;
     private NamedWriteableRegistry namedWriteableRegistry;
+    private final AuthenticationManager authenticationManager;
 
     public NodeClient(Settings settings, ThreadPool threadPool) {
+        this(settings, threadPool, null);
+    }
+
+    public NodeClient(Settings settings, ThreadPool threadPool, AuthenticationManager authenticationManager) {
         super(settings, threadPool);
+        this.authenticationManager = authenticationManager;
     }
 
     public void initialize(
@@ -112,7 +118,7 @@ public class NodeClient extends AbstractClient {
            More advanced look will need to be done to ensure that client usage is traceable and only running under expected permissions
            aka cluster monitoring should be defined to allow use of the above APIs and no others to prevent escalation of privileges
         */
-        return MyShiroModule.getSubjectOrInternal().execute(() -> transportAction(action).execute(request, listener));
+        return this.authenticationManager.executeWith(() -> transportAction(action).execute(request, listener));
     }
 
     /**
@@ -124,7 +130,7 @@ public class NodeClient extends AbstractClient {
         Request request,
         TaskListener<Response> listener
     ) {
-        return MyShiroModule.getSubjectOrInternal().execute(() -> transportAction(action).execute(request, listener));
+        return this.authenticationManager.executeWith(() -> transportAction(action).execute(request, listener));
     }
 
     /**
@@ -159,5 +165,12 @@ public class NodeClient extends AbstractClient {
 
     public NamedWriteableRegistry getNamedWriteableRegistry() {
         return namedWriteableRegistry;
+    }
+
+    /**
+     * Gets the current identity manager
+     */
+    public AuthenticationManager getAuthenticationManager() {
+        return authenticationManager;
     }
 }

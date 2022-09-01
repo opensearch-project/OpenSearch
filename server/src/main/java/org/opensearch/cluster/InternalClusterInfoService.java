@@ -45,7 +45,7 @@ import org.opensearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.client.Client;
+import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.ShardRouting;
@@ -59,6 +59,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
+import org.opensearch.identity.AuthenticationSession;
 import org.opensearch.index.store.StoreStats;
 import org.opensearch.monitor.fs.FsInfo;
 import org.opensearch.threadpool.ThreadPool;
@@ -116,10 +117,10 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     private volatile boolean enabled;
     private volatile TimeValue fetchTimeout;
     private final ThreadPool threadPool;
-    private final Client client;
+    private final NodeClient client;
     private final List<Consumer<ClusterInfo>> listeners = new CopyOnWriteArrayList<>();
 
-    public InternalClusterInfoService(Settings settings, ClusterService clusterService, ThreadPool threadPool, Client client) {
+    public InternalClusterInfoService(Settings settings, ClusterService clusterService, ThreadPool threadPool, NodeClient client) {
         this.leastAvailableSpaceUsages = ImmutableOpenMap.of();
         this.mostAvailableSpaceUsages = ImmutableOpenMap.of();
         this.indicesStatsSummary = IndicesStatsSummary.EMPTY;
@@ -251,105 +252,108 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
      */
     public final ClusterInfo refresh() {
         logger.trace("refreshing cluster info");
-        final CountDownLatch nodeLatch = updateNodeStats(new ActionListener<NodesStatsResponse>() {
-            @Override
-            public void onResponse(NodesStatsResponse nodesStatsResponse) {
-                ImmutableOpenMap.Builder<String, DiskUsage> leastAvailableUsagesBuilder = ImmutableOpenMap.builder();
-                ImmutableOpenMap.Builder<String, DiskUsage> mostAvailableUsagesBuilder = ImmutableOpenMap.builder();
-                fillDiskUsagePerNode(
-                    logger,
-                    adjustNodesStats(nodesStatsResponse.getNodes()),
-                    leastAvailableUsagesBuilder,
-                    mostAvailableUsagesBuilder
-                );
-                leastAvailableSpaceUsages = leastAvailableUsagesBuilder.build();
-                mostAvailableSpaceUsages = mostAvailableUsagesBuilder.build();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                if (e instanceof ReceiveTimeoutTransportException) {
-                    logger.error("NodeStatsAction timed out for ClusterInfoUpdateJob", e);
-                } else {
-                    if (e instanceof ClusterBlockException) {
-                        if (logger.isTraceEnabled()) {
-                            logger.trace("Failed to execute NodeStatsAction for ClusterInfoUpdateJob", e);
-                        }
-                    } else {
-                        logger.warn("Failed to execute NodeStatsAction for ClusterInfoUpdateJob", e);
-                    }
-                    // we empty the usages list, to be safe - we don't know what's going on.
-                    leastAvailableSpaceUsages = ImmutableOpenMap.of();
-                    mostAvailableSpaceUsages = ImmutableOpenMap.of();
+        try (final AuthenticationSession session = client.getAuthenticationManager().dangerousAuthenticateAs("refreshNodeStats")) {
+            final CountDownLatch nodeLatch = updateNodeStats(new ActionListener<NodesStatsResponse>() {
+                @Override
+                public void onResponse(NodesStatsResponse nodesStatsResponse) {
+                    ImmutableOpenMap.Builder<String, DiskUsage> leastAvailableUsagesBuilder = ImmutableOpenMap.builder();
+                    ImmutableOpenMap.Builder<String, DiskUsage> mostAvailableUsagesBuilder = ImmutableOpenMap.builder();
+                    fillDiskUsagePerNode(
+                        logger,
+                        adjustNodesStats(nodesStatsResponse.getNodes()),
+                        leastAvailableUsagesBuilder,
+                        mostAvailableUsagesBuilder
+                    );
+                    leastAvailableSpaceUsages = leastAvailableUsagesBuilder.build();
+                    mostAvailableSpaceUsages = mostAvailableUsagesBuilder.build();
                 }
-            }
-        });
 
-        final CountDownLatch indicesLatch = updateIndicesStats(new ActionListener<IndicesStatsResponse>() {
-            @Override
-            public void onResponse(IndicesStatsResponse indicesStatsResponse) {
-                final ShardStats[] stats = indicesStatsResponse.getShards();
-                final ImmutableOpenMap.Builder<String, Long> shardSizeByIdentifierBuilder = ImmutableOpenMap.builder();
-                final ImmutableOpenMap.Builder<ShardRouting, String> dataPathByShardRoutingBuilder = ImmutableOpenMap.builder();
-                final Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace.Builder> reservedSpaceBuilders = new HashMap<>();
-                buildShardLevelInfo(logger, stats, shardSizeByIdentifierBuilder, dataPathByShardRoutingBuilder, reservedSpaceBuilders);
-
-                final ImmutableOpenMap.Builder<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> rsrvdSpace = ImmutableOpenMap.builder();
-                reservedSpaceBuilders.forEach((nodeAndPath, builder) -> rsrvdSpace.put(nodeAndPath, builder.build()));
-
-                indicesStatsSummary = new IndicesStatsSummary(
-                    shardSizeByIdentifierBuilder.build(),
-                    dataPathByShardRoutingBuilder.build(),
-                    rsrvdSpace.build()
-                );
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                if (e instanceof ReceiveTimeoutTransportException) {
-                    logger.error("IndicesStatsAction timed out for ClusterInfoUpdateJob", e);
-                } else {
-                    if (e instanceof ClusterBlockException) {
-                        if (logger.isTraceEnabled()) {
-                            logger.trace("Failed to execute IndicesStatsAction for ClusterInfoUpdateJob", e);
-                        }
+                @Override
+                public void onFailure(Exception e) {
+                    if (e instanceof ReceiveTimeoutTransportException) {
+                        logger.error("NodeStatsAction timed out for ClusterInfoUpdateJob", e);
                     } else {
-                        logger.warn("Failed to execute IndicesStatsAction for ClusterInfoUpdateJob", e);
+                        if (e instanceof ClusterBlockException) {
+                            if (logger.isTraceEnabled()) {
+                                logger.trace("Failed to execute NodeStatsAction for ClusterInfoUpdateJob", e);
+                            }
+                        } else {
+                            logger.warn("Failed to execute NodeStatsAction for ClusterInfoUpdateJob", e);
+                        }
+                        // we empty the usages list, to be safe - we don't know what's going on.
+                        leastAvailableSpaceUsages = ImmutableOpenMap.of();
+                        mostAvailableSpaceUsages = ImmutableOpenMap.of();
                     }
-                    // we empty the usages list, to be safe - we don't know what's going on.
-                    indicesStatsSummary = IndicesStatsSummary.EMPTY;
                 }
-            }
-        });
+            });
 
-        try {
-            if (nodeLatch.await(fetchTimeout.getMillis(), TimeUnit.MILLISECONDS) == false) {
-                logger.warn("Failed to update node information for ClusterInfoUpdateJob within {} timeout", fetchTimeout);
-            }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt(); // restore interrupt status
-        }
+            final CountDownLatch indicesLatch = updateIndicesStats(new ActionListener<IndicesStatsResponse>() {
+                @Override
+                public void onResponse(IndicesStatsResponse indicesStatsResponse) {
+                    final ShardStats[] stats = indicesStatsResponse.getShards();
+                    final ImmutableOpenMap.Builder<String, Long> shardSizeByIdentifierBuilder = ImmutableOpenMap.builder();
+                    final ImmutableOpenMap.Builder<ShardRouting, String> dataPathByShardRoutingBuilder = ImmutableOpenMap.builder();
+                    final Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace.Builder> reservedSpaceBuilders = new HashMap<>();
+                    buildShardLevelInfo(logger, stats, shardSizeByIdentifierBuilder, dataPathByShardRoutingBuilder, reservedSpaceBuilders);
 
-        try {
-            if (indicesLatch.await(fetchTimeout.getMillis(), TimeUnit.MILLISECONDS) == false) {
-                logger.warn("Failed to update shard information for ClusterInfoUpdateJob within {} timeout", fetchTimeout);
-            }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt(); // restore interrupt status
-        }
-        ClusterInfo clusterInfo = getClusterInfo();
-        boolean anyListeners = false;
-        for (final Consumer<ClusterInfo> listener : listeners) {
-            anyListeners = true;
+                    final ImmutableOpenMap.Builder<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> rsrvdSpace = ImmutableOpenMap
+                        .builder();
+                    reservedSpaceBuilders.forEach((nodeAndPath, builder) -> rsrvdSpace.put(nodeAndPath, builder.build()));
+
+                    indicesStatsSummary = new IndicesStatsSummary(
+                        shardSizeByIdentifierBuilder.build(),
+                        dataPathByShardRoutingBuilder.build(),
+                        rsrvdSpace.build()
+                    );
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    if (e instanceof ReceiveTimeoutTransportException) {
+                        logger.error("IndicesStatsAction timed out for ClusterInfoUpdateJob", e);
+                    } else {
+                        if (e instanceof ClusterBlockException) {
+                            if (logger.isTraceEnabled()) {
+                                logger.trace("Failed to execute IndicesStatsAction for ClusterInfoUpdateJob", e);
+                            }
+                        } else {
+                            logger.warn("Failed to execute IndicesStatsAction for ClusterInfoUpdateJob", e);
+                        }
+                        // we empty the usages list, to be safe - we don't know what's going on.
+                        indicesStatsSummary = IndicesStatsSummary.EMPTY;
+                    }
+                }
+            });
+
             try {
-                logger.trace("notifying [{}] of new cluster info", listener);
-                listener.accept(clusterInfo);
-            } catch (Exception e) {
-                logger.info(new ParameterizedMessage("failed to notify [{}] of new cluster info", listener), e);
+                if (nodeLatch.await(fetchTimeout.getMillis(), TimeUnit.MILLISECONDS) == false) {
+                    logger.warn("Failed to update node information for ClusterInfoUpdateJob within {} timeout", fetchTimeout);
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt(); // restore interrupt status
             }
+
+            try {
+                if (indicesLatch.await(fetchTimeout.getMillis(), TimeUnit.MILLISECONDS) == false) {
+                    logger.warn("Failed to update shard information for ClusterInfoUpdateJob within {} timeout", fetchTimeout);
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt(); // restore interrupt status
+            }
+            ClusterInfo clusterInfo = getClusterInfo();
+            boolean anyListeners = false;
+            for (final Consumer<ClusterInfo> listener : listeners) {
+                anyListeners = true;
+                try {
+                    logger.trace("notifying [{}] of new cluster info", listener);
+                    listener.accept(clusterInfo);
+                } catch (Exception e) {
+                    logger.info(new ParameterizedMessage("failed to notify [{}] of new cluster info", listener), e);
+                }
+            }
+            assert anyListeners : "expected to notify at least one listener";
+            return clusterInfo;
         }
-        assert anyListeners : "expected to notify at least one listener";
-        return clusterInfo;
     }
 
     @Override

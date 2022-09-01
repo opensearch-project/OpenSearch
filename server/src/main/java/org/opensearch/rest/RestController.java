@@ -50,7 +50,7 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.internal.io.Streams;
 import org.opensearch.http.HttpServerTransport;
-import org.opensearch.identity.MyShiroModule;
+import org.opensearch.identity.AuthenticationManager;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.usage.UsageService;
 
@@ -110,6 +110,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
     private final CircuitBreakerService circuitBreakerService;
 
+    private final AuthenticationManager authenticationManager;
+
     /** Rest headers that are copied to internal requests made during a rest request. */
     private final Set<RestHeaderDefinition> headersToCopy;
     private final UsageService usageService;
@@ -119,7 +121,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
         UnaryOperator<RestHandler> handlerWrapper,
         NodeClient client,
         CircuitBreakerService circuitBreakerService,
-        UsageService usageService
+        UsageService usageService,
+        AuthenticationManager authenticationManager
     ) {
         this.headersToCopy = headersToCopy;
         this.usageService = usageService;
@@ -129,6 +132,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         this.handlerWrapper = handlerWrapper;
         this.client = client;
         this.circuitBreakerService = circuitBreakerService;
+        this.authenticationManager = authenticationManager;
         registerHandlerNoWrap(
             RestRequest.Method.GET,
             "/favicon.ico",
@@ -404,16 +408,18 @@ public class RestController implements HttpServerTransport.Dispatcher {
                         .stream()
                         .findFirst();
 
-                    try {
-                        MyShiroModule.authenticateViaAuthorizationHeader(authHeader);
-                    } catch (final Exception e) {
-                        final BytesRestResponse bytesRestResponse = BytesRestResponse.createSimpleErrorResponse(
-                            channel,
-                            RestStatus.UNAUTHORIZED,
-                            e.getMessage()
-                        );
-                        channel.sendResponse(bytesRestResponse);
-                        return;
+                    if (authHeader.isPresent()) {
+                        try {
+                            authenticationManager.authenticateWithHeader(authHeader.get());
+                        } catch (final Exception e) {
+                            final BytesRestResponse bytesRestResponse = BytesRestResponse.createSimpleErrorResponse(
+                                channel,
+                                RestStatus.UNAUTHORIZED,
+                                e.getMessage()
+                            );
+                            channel.sendResponse(bytesRestResponse);
+                            return;
+                        }
                     }
 
                     dispatchRequest(request, channel, handler);
