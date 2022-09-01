@@ -189,7 +189,7 @@ class SegmentReplicationSourceHandler {
     }
 
     /**
-     * Cancels the recovery and interrupts all eligible threads.
+     * Cancels the replication and interrupts all eligible threads.
      */
     public void cancel(String reason) {
         writer.cancel();
