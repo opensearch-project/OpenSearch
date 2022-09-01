@@ -162,7 +162,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                     "Cancelling ongoing replication from old primary with primary term {}",
                     target.getCheckpoint().getPrimaryTerm()
                 );
-                onGoingReplications.cancelForShard(replicaShard.shardId(), "Cancelling stuck target after new primary");
+                onGoingReplications.cancel(target.getId(), "Cancelling stuck target after new primary");
             } else {
                 logger.trace(
                     () -> new ParameterizedMessage(
