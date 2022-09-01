@@ -120,7 +120,7 @@ thirdPartyAudit {
     'com.aayushatharva.brotli4j.Brotli4jLoader',
     'com.aayushatharva.brotli4j.decoder.DecoderJNI$Status',
     'com.aayushatharva.brotli4j.decoder.DecoderJNI$Wrapper',
-    'com.aayushatharva.brotli4j.encoder.Encoder',
+    'com.aayushatharva.brotli4j.encoder.Encoders',
     'com.aayushatharva.brotli4j.encoder.Encoder$Mode',
     'com.aayushatharva.brotli4j.encoder.Encoder$Parameters',
     // classes are missing
@@ -138,6 +138,14 @@ thirdPartyAudit {
     // from Log4j (deliberate, Netty will fallback to Log4j 2)
     'org.apache.log4j.Level',
     'org.apache.log4j.Logger',
+
+    // from io.netty.handler.ssl.OpenSslEngine (netty)
+    'org.bouncycastle.openssl.PEMEncryptedKeyPair',
+    'org.bouncycastle.openssl.PEMParser',
+    'org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter',
+    'org.bouncycastle.openssl.jcajce.JceOpenSSLPKCS8DecryptorProviderBuilder',
+    'org.bouncycastle.openssl.jcajce.JcePEMDecryptorProviderBuilder',
+    'org.bouncycastle.pkcs.PKCS8EncryptedPrivateKeyInfo',
 
     // from io.netty.handler.ssl.OpenSslEngine (netty)
     'io.netty.internal.tcnative.Buffer',
@@ -199,8 +207,11 @@ thirdPartyAudit {
     'net.jpountz.lz4.LZ4FastDecompressor',
     'net.jpountz.xxhash.XXHash32',
     'net.jpountz.xxhash.XXHashFactory',
+    'io.netty.channel.unix.FileDescriptor',
+    'io.netty.channel.unix.UnixChannel',
     'io.netty.internal.tcnative.AsyncSSLPrivateKeyMethod',
     'io.netty.internal.tcnative.AsyncTask',
+    'io.netty.internal.tcnative.CertificateCompressionAlgo',
     'io.netty.internal.tcnative.CertificateCallback',
     'io.netty.internal.tcnative.CertificateVerifier',
     'io.netty.internal.tcnative.ResultCallback',
@@ -227,7 +238,8 @@ thirdPartyAudit {
     'io.netty.util.internal.PlatformDependent0$1',
     'io.netty.util.internal.PlatformDependent0$2',
     'io.netty.util.internal.PlatformDependent0$3',
-    'io.netty.util.internal.PlatformDependent0$5',
+    'io.netty.util.internal.PlatformDependent0$4',
+    'io.netty.util.internal.PlatformDependent0$6',
     'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueConsumerNodeRef',
     'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueProducerNodeRef',
     'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueColdProducerFields',
