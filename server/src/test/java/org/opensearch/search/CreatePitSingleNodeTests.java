@@ -14,6 +14,10 @@ import org.opensearch.action.search.CreatePitAction;
 import org.opensearch.action.search.CreatePitController;
 import org.opensearch.action.search.CreatePitRequest;
 import org.opensearch.action.search.CreatePitResponse;
+import org.opensearch.action.search.DeletePitAction;
+import org.opensearch.action.search.DeletePitInfo;
+import org.opensearch.action.search.DeletePitRequest;
+import org.opensearch.action.search.DeletePitResponse;
 import org.opensearch.action.search.PitTestsUtil;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchResponse;
@@ -33,6 +37,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.blankOrNullString;
+import static org.hamcrest.Matchers.not;
 import static org.opensearch.action.search.PitTestsUtil.assertSegments;
 import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -280,6 +286,52 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
         validatePitStats("index", maxPitContexts, 0, 0);
         service.doClose();
         validatePitStats("index", 0, maxPitContexts, 0);
+    }
+
+    public void testCreatePitMoreThanMaxOpenPitContexts() throws Exception {
+        createIndex("index");
+        client().prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+
+        CreatePitRequest request = new CreatePitRequest(TimeValue.timeValueDays(1), true);
+        request.setIndices(new String[] { "index" });
+        SearchService service = getInstanceFromNode(SearchService.class);
+
+        try {
+            for (int i = 0; i < 1000; i++) {
+                client().execute(CreatePitAction.INSTANCE, request).get();
+            }
+        } catch (Exception ex) {
+            assertTrue(
+                ex.getMessage()
+                    .contains(
+                        "Trying to create too many Point In Time contexts. "
+                            + "Must be less than or equal to: ["
+                            + SearchService.MAX_OPEN_PIT_CONTEXT.get(Settings.EMPTY)
+                            + "]. "
+                            + "This limit can be set by changing the [search.max_open_pit_context] setting."
+                    )
+            );
+        }
+        final int maxPitContexts = SearchService.MAX_OPEN_PIT_CONTEXT.get(Settings.EMPTY);
+        validatePitStats("index", maxPitContexts, 0, 0);
+        // deleteall
+        DeletePitRequest deletePITRequest = new DeletePitRequest("_all");
+
+        /**
+         * When we invoke delete again, returns success after clearing the remaining readers. Asserting reader context
+         * not found exceptions don't result in failures ( as deletion in one node is successful )
+         */
+        ActionFuture<DeletePitResponse> execute = client().execute(DeletePitAction.INSTANCE, deletePITRequest);
+        DeletePitResponse deletePITResponse = execute.get();
+        for (DeletePitInfo deletePitInfo : deletePITResponse.getDeletePitResults()) {
+            assertThat(deletePitInfo.getPitId(), not(blankOrNullString()));
+            assertTrue(deletePitInfo.isSuccessful());
+        }
+        validatePitStats("index", 0, maxPitContexts, 0);
+        client().execute(CreatePitAction.INSTANCE, request).get();
+        validatePitStats("index", 1, maxPitContexts, 0);
+        service.doClose();
+        validatePitStats("index", 0, maxPitContexts + 1, 0);
     }
 
     public void testOpenPitContextsConcurrently() throws Exception {

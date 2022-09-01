@@ -15,6 +15,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.StepListener;
 import org.opensearch.action.support.GroupedActionListener;
+import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Strings;
@@ -47,12 +48,19 @@ public class PitService {
     private final ClusterService clusterService;
     private final SearchTransportService searchTransportService;
     private final TransportService transportService;
+    private final NodeClient nodeClient;
 
     @Inject
-    public PitService(ClusterService clusterService, SearchTransportService searchTransportService, TransportService transportService) {
+    public PitService(
+        ClusterService clusterService,
+        SearchTransportService searchTransportService,
+        TransportService transportService,
+        NodeClient nodeClient
+    ) {
         this.clusterService = clusterService;
         this.searchTransportService = searchTransportService;
         this.transportService = transportService;
+        this.nodeClient = nodeClient;
     }
 
     /**
@@ -145,6 +153,17 @@ public class PitService {
     }
 
     /**
+     * This method returns indices associated for each pit
+     */
+    public Map<String, String[]> getIndicesForPits(List<String> pitIds) {
+        Map<String, String[]> pitToIndicesMap = new HashMap<>();
+        for (String pitId : pitIds) {
+            pitToIndicesMap.put(pitId, SearchContextId.decode(nodeClient.getNamedWriteableRegistry(), pitId).getActualIndices());
+        }
+        return pitToIndicesMap;
+    }
+
+    /**
      * Get all active point in time contexts
      */
     public void getAllPits(ActionListener<GetAllPitNodesResponse> getAllPitsListener) {
@@ -156,7 +175,7 @@ public class PitService {
         DiscoveryNode[] disNodesArr = nodes.toArray(new DiscoveryNode[nodes.size()]);
         transportService.sendRequest(
             transportService.getLocalNode(),
-            GetAllPitsAction.NAME,
+            NodesGetAllPitsAction.NAME,
             new GetAllPitNodesRequest(disNodesArr),
             new TransportResponseHandler<GetAllPitNodesResponse>() {
 

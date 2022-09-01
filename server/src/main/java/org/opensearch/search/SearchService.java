@@ -881,6 +881,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         shard.awaitShardSearchActive(ignored -> {
             Engine.SearcherSupplier searcherSupplier = null;
             ReaderContext readerContext = null;
+            Releasable decreasePitContexts = openPitContexts::decrementAndGet;
             try {
                 if (openPitContexts.incrementAndGet() > maxOpenPitContext) {
                     throw new OpenSearchRejectedExecutionException(
@@ -902,15 +903,16 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 searchOperationListener.onNewPitContext(finalReaderContext);
 
                 readerContext.addOnClose(() -> {
-                    openPitContexts.decrementAndGet();
                     searchOperationListener.onFreeReaderContext(finalReaderContext);
                     searchOperationListener.onFreePitContext(finalReaderContext);
                 });
+                readerContext.addOnClose(decreasePitContexts);
                 // add the newly created pit reader context to active readers
                 putReaderContext(readerContext);
                 readerContext = null;
                 listener.onResponse(finalReaderContext.id());
             } catch (Exception exc) {
+                Releasables.closeWhileHandlingException(decreasePitContexts);
                 Releasables.closeWhileHandlingException(searcherSupplier, readerContext);
                 listener.onFailure(exc);
             }
