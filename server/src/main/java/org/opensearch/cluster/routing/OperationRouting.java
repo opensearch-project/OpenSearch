@@ -223,7 +223,7 @@ public class OperationRouting {
     private void setWeightedRoundRobinAttributes(ClusterState clusterState, ClusterService clusterService) {
         WeightedRoundRobinRoutingMetadata weightedRoundRobinRoutingMetadata = clusterState.metadata()
             .custom(WeightedRoundRobinRoutingMetadata.TYPE);
-        this.isWeightedRoundRobinEnabled = weightedRoundRobinRoutingMetadata != null ? true : false;
+        this.isWeightedRoundRobinEnabled = weightedRoundRobinRoutingMetadata != null;
         if (this.isWeightedRoundRobinEnabled) {
             this.wrrWeights = weightedRoundRobinRoutingMetadata.getWrrWeight();
             this.wrrShardsCache = getWrrShardsCache() != null ? getWrrShardsCache() : new WRRShardsCache(clusterService);

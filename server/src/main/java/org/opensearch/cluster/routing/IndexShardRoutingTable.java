@@ -310,7 +310,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
             orderedActiveShards = getShardsWRR(activeShards, wrrWeight, nodes);
             cache.getCache().put(new WRRShardsCache.Key(shardId), orderedActiveShards);
         }
-        ordered.addAll(orderedActiveShards);
+        ordered.addAll(shuffler.shuffle(orderedActiveShards, seed));
 
         if (!allInitializingShards.isEmpty()) {
             List<ShardRouting> orderedInitializingShards = getShardsWRR(allInitializingShards, wrrWeight, nodes);
