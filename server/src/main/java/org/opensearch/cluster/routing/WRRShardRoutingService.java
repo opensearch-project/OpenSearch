@@ -19,7 +19,7 @@ import org.opensearch.cluster.ClusterStateApplier;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
 import org.opensearch.cluster.metadata.Metadata;
-import org.opensearch.cluster.metadata.WeightedRoundRobinMetadata;
+import org.opensearch.cluster.metadata.WeightedRoundRobinRoutingMetadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.component.AbstractLifecycleComponent;
@@ -46,32 +46,34 @@ public class WRRShardRoutingService extends AbstractLifecycleComponent implement
         final ClusterPutWRRWeightsRequest request,
         final ActionListener<ClusterStateUpdateResponse> listener
     ) {
-        final WeightedRoundRobinMetadata newWRRWeightsMetadata = new WeightedRoundRobinMetadata(request.wrrWeight());
+        final WeightedRoundRobinRoutingMetadata newWRRWeightsMetadata = new WeightedRoundRobinRoutingMetadata(request.wrrWeight());
         clusterService.submitStateUpdateTask("update_wrr_weights", new ClusterStateUpdateTask(Priority.URGENT) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 Metadata metadata = currentState.metadata();
                 Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
-                WeightedRoundRobinMetadata wrrWeights = metadata.custom(WeightedRoundRobinMetadata.TYPE);
+                WeightedRoundRobinRoutingMetadata wrrWeights = metadata.custom(WeightedRoundRobinRoutingMetadata.TYPE);
                 if (wrrWeights == null) {
                     logger.info("put wrr weights [{}]", request.wrrWeight());
-                    wrrWeights = new WeightedRoundRobinMetadata(request.wrrWeight());
+                    wrrWeights = new WeightedRoundRobinRoutingMetadata(request.wrrWeight());
                 } else {
-                    WeightedRoundRobinMetadata changedMetadata = new WeightedRoundRobinMetadata(new WRRWeights(null, null));
+                    WeightedRoundRobinRoutingMetadata changedMetadata = new WeightedRoundRobinRoutingMetadata(new WRRWeights(null, null));
                     if (!checkIfSameWeightsInMetadata(newWRRWeightsMetadata, wrrWeights)) {
+                        logger.info("updated wrr weights [{}] in metadata", request.wrrWeight());
                         changedMetadata.setWrrWeight(newWRRWeightsMetadata.getWrrWeight());
                     } else {
                         return currentState;
                     }
-                    wrrWeights = new WeightedRoundRobinMetadata(changedMetadata.getWrrWeight());
+                    wrrWeights = new WeightedRoundRobinRoutingMetadata(changedMetadata.getWrrWeight());
                 }
-                mdBuilder.putCustom(WeightedRoundRobinMetadata.TYPE, wrrWeights);
+                mdBuilder.putCustom(WeightedRoundRobinRoutingMetadata.TYPE, wrrWeights);
+                logger.info("building cluster state with wrr weights [{}]", request.wrrWeight());
                 return ClusterState.builder(currentState).metadata(mdBuilder).build();
             }
 
             @Override
             public void onFailure(String source, Exception e) {
-                logger.warn(() -> new ParameterizedMessage("failed to update cluster state for wrr attributes [{}]", e));
+                logger.warn(() -> new ParameterizedMessage("failed to update cluster state for wrr weights [{}]", e));
                 listener.onFailure(e);
             }
 
@@ -84,8 +86,8 @@ public class WRRShardRoutingService extends AbstractLifecycleComponent implement
     }
 
     private boolean checkIfSameWeightsInMetadata(
-        WeightedRoundRobinMetadata newWRRWeightsMetadata,
-        WeightedRoundRobinMetadata oldWRRWeightsMetadata
+        WeightedRoundRobinRoutingMetadata newWRRWeightsMetadata,
+        WeightedRoundRobinRoutingMetadata oldWRRWeightsMetadata
     ) {
         if (newWRRWeightsMetadata.getWrrWeight().equals(oldWRRWeightsMetadata.getWrrWeight())) {
             return true;
@@ -94,9 +96,7 @@ public class WRRShardRoutingService extends AbstractLifecycleComponent implement
     }
 
     @Override
-    public void applyClusterState(ClusterChangedEvent event) {
-        logger.info("Applying new cluster state with empty function called");
-    }
+    public void applyClusterState(ClusterChangedEvent event) {}
 
     @Override
     protected void doStart() {}

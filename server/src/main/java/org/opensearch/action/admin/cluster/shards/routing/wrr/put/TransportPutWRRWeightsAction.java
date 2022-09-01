@@ -79,8 +79,7 @@ public class TransportPutWRRWeightsAction extends TransportClusterManagerNodeAct
 
     @Override
     protected String executor() {
-        // TODO: Check threadpool to use??
-        return ThreadPool.Names.MANAGEMENT;
+        return ThreadPool.Names.SAME;
     }
 
     @Override

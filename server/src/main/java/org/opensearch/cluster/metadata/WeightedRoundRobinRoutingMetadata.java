@@ -42,7 +42,7 @@ public class WeightedRoundRobinRoutingMetadata extends AbstractNamedDiffable<Met
         return wrrWeight;
     }
 
-    public void  setWrrWeight(WRRWeights wrrWeight) {
+    public void setWrrWeight(WRRWeights wrrWeight) {
         this.wrrWeight = wrrWeight;
     }
 
