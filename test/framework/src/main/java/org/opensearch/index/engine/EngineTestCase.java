@@ -1071,13 +1071,28 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
         boolean allowDuplicate,
         boolean includeNestedDocs
     ) throws Exception {
+        return generateHistoryOnReplica(
+            numOps,
+            allowGapInSeqNo,
+            allowDuplicate,
+            includeNestedDocs,
+            randomFrom(Engine.Operation.TYPE.values())
+        );
+    }
+
+    public List<Engine.Operation> generateHistoryOnReplica(
+        int numOps,
+        boolean allowGapInSeqNo,
+        boolean allowDuplicate,
+        boolean includeNestedDocs,
+        Engine.Operation.TYPE opType
+    ) throws Exception {
         long seqNo = 0;
         final int maxIdValue = randomInt(numOps * 2);
         final List<Engine.Operation> operations = new ArrayList<>(numOps);
         CheckedBiFunction<String, Integer, ParsedDocument, IOException> nestedParsedDocFactory = nestedParsedDocFactory();
         for (int i = 0; i < numOps; i++) {
             final String id = Integer.toString(randomInt(maxIdValue));
-            final Engine.Operation.TYPE opType = randomFrom(Engine.Operation.TYPE.values());
             final boolean isNestedDoc = includeNestedDocs && opType == Engine.Operation.TYPE.INDEX && randomBoolean();
             final int nestedValues = between(0, 3);
             final long startTime = threadPool.relativeTimeInNanos();
