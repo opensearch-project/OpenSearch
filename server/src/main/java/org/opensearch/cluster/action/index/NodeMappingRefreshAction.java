@@ -34,18 +34,24 @@ package org.opensearch.cluster.action.index;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.action.ActionListener;
 import org.opensearch.action.IndicesRequest;
+import org.opensearch.action.bulk.BackoffPolicy;
 import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.action.support.RetryableAction;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MetadataMappingService;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.service.MasterTaskThrottlingException;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.EmptyTransportResponseHandler;
 import org.opensearch.transport.TransportChannel;
+import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestHandler;
 import org.opensearch.transport.TransportResponse;
@@ -66,11 +72,17 @@ public class NodeMappingRefreshAction {
 
     private final TransportService transportService;
     private final MetadataMappingService metadataMappingService;
+    private final ThreadPool threadPool;
 
     @Inject
-    public NodeMappingRefreshAction(TransportService transportService, MetadataMappingService metadataMappingService) {
+    public NodeMappingRefreshAction(
+        TransportService transportService,
+        MetadataMappingService metadataMappingService,
+        ThreadPool threadPool
+    ) {
         this.transportService = transportService;
         this.metadataMappingService = metadataMappingService;
+        this.threadPool = threadPool;
         transportService.registerRequestHandler(
             ACTION_NAME,
             ThreadPool.Names.SAME,
@@ -80,11 +92,70 @@ public class NodeMappingRefreshAction {
     }
 
     public void nodeMappingRefresh(final DiscoveryNode clusterManagerNode, final NodeMappingRefreshRequest request) {
+        new NodeMappingRefreshClusterManagerAction(clusterManagerNode, request).run();
+    }
+
+    private void sendNodeMappingRefreshToClusterManager(
+        final DiscoveryNode clusterManagerNode,
+        final NodeMappingRefreshRequest request,
+        ActionListener listener
+    ) {
         if (clusterManagerNode == null) {
             logger.warn("can't send mapping refresh for [{}], no cluster-manager known.", request.index());
             return;
         }
-        transportService.sendRequest(clusterManagerNode, ACTION_NAME, request, EmptyTransportResponseHandler.INSTANCE_SAME);
+        transportService.sendRequest(clusterManagerNode, ACTION_NAME, request, new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
+            @Override
+            public void handleException(TransportException exp) {
+                listener.onFailure(exp);
+            }
+        });
+    }
+
+    /**
+     * RetryableAction for performing retires for cluster manager throttling.
+     */
+    private class NodeMappingRefreshClusterManagerAction extends RetryableAction {
+
+        private final DiscoveryNode clusterManagerNode;
+        private final NodeMappingRefreshRequest request;
+        private static final int BASE_DELAY_MILLIS = 10;
+        private static final int MAX_DELAY_MILLIS = 10;
+
+        private NodeMappingRefreshClusterManagerAction(DiscoveryNode clusterManagerNode, NodeMappingRefreshRequest request) {
+            super(
+                logger,
+                threadPool,
+                TimeValue.timeValueMillis(BASE_DELAY_MILLIS),
+                TimeValue.timeValueMillis(Integer.MAX_VALUE), // Shard tasks are internal and don't have timeout
+                new ActionListener() {
+                    @Override
+                    public void onResponse(Object o) {}
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.warn("Mapping refresh for [{}] failed due to [{}]", request.index, e.getMessage());
+                    }
+                },
+                BackoffPolicy.exponentialEqualJitterBackoff(BASE_DELAY_MILLIS, MAX_DELAY_MILLIS),
+                ThreadPool.Names.SAME
+            );
+            this.clusterManagerNode = clusterManagerNode;
+            this.request = request;
+        }
+
+        @Override
+        public void tryAction(ActionListener listener) {
+            sendNodeMappingRefreshToClusterManager(clusterManagerNode, request, listener);
+        }
+
+        @Override
+        public boolean shouldRetry(Exception e) {
+            if (e instanceof TransportException) {
+                return ((TransportException) e).unwrapCause() instanceof MasterTaskThrottlingException;
+            }
+            return e instanceof MasterTaskThrottlingException;
+        }
     }
 
     /**

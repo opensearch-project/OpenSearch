@@ -1846,7 +1846,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     threadPool,
                     new PeerRecoveryTargetService(threadPool, transportService, recoverySettings, clusterService),
                     shardStateAction,
-                    new NodeMappingRefreshAction(transportService, metadataMappingService),
+                    new NodeMappingRefreshAction(transportService, metadataMappingService, threadPool),
                     repositoriesService,
                     mock(SearchService.class),
                     new PeerRecoverySourceService(transportService, indicesService, recoverySettings),
