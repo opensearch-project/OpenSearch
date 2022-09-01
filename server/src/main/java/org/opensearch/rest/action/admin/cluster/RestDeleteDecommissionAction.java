@@ -8,8 +8,6 @@
 
 package org.opensearch.rest.action.admin.cluster;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionRequest;
 import org.opensearch.client.Requests;
 import org.opensearch.client.node.NodeClient;
@@ -37,11 +35,7 @@ public class RestDeleteDecommissionAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        DeleteDecommissionRequest deleteDecommissionRequest = createRequest(request);
+        DeleteDecommissionRequest deleteDecommissionRequest = Requests.deleteDecommissionRequest();
         return channel -> client.admin().cluster().deleteDecommission(deleteDecommissionRequest, new RestToXContentListener<>(channel));
-    }
-
-    DeleteDecommissionRequest createRequest(RestRequest request) {
-        return Requests.deleteDecommissionRequest();
     }
 }

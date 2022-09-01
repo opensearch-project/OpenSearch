@@ -10,7 +10,6 @@ package org.opensearch.rest.action.admin.cluster;
 
 import org.junit.Before;
 import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionRequest;
-import org.opensearch.common.unit.TimeValue;
 import org.opensearch.rest.RestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.test.rest.FakeRestRequest;
@@ -34,41 +33,18 @@ public class RestDeleteDecommissionActionTests extends RestActionTestCase {
         List<RestHandler.Route> routes = action.routes();
         RestHandler.Route route = routes.get(0);
         assertEquals(route.getMethod(), RestRequest.Method.DELETE);
-        assertEquals("/_cluster/decommission/awareness/{awareness_attribute_name}/{awareness_attribute_value}", route.getPath());
+        assertEquals("/_cluster/decommission/awareness", route.getPath());
     }
 
     public void testCreateRequest() {
-        Map<String, String> params = new HashMap<>();
-        params.put("awareness_attribute_name", "zone");
-        params.put("awareness_attribute_value", "zone-1");
-        params.put("timeout", "10s");
-
-        RestRequest deprecatedRequest = buildRestRequest(params);
-
+        RestRequest deprecatedRequest = buildRestRequest();
         DeleteDecommissionRequest request = action.createRequest(deprecatedRequest);
-        assertEquals(request.getDecommissionAttribute().attributeName(), "zone");
-        assertEquals(request.getDecommissionAttribute().attributeValue(), "zone-1");
-        assertEquals(request.getTimeout(), TimeValue.timeValueSeconds(10L));
+        assertNotNull(request);
     }
 
-    public void testCreateRequestWithDefaultTimeout() {
-        Map<String, String> params = new HashMap<>();
-        params.put("awareness_attribute_name", "zone");
-        params.put("awareness_attribute_value", "zone-1");
-
-        RestRequest deprecatedRequest = buildRestRequest(params);
-
-        DeleteDecommissionRequest request = action.createRequest(deprecatedRequest);
-        assertEquals(request.getDecommissionAttribute().attributeName(), "zone");
-        assertEquals(request.getDecommissionAttribute().attributeValue(), "zone-1");
-        assertEquals(request.getTimeout(), TimeValue.timeValueSeconds(300L));
-    }
-
-    private FakeRestRequest buildRestRequest(Map<String, String> params) {
+    private FakeRestRequest buildRestRequest() {
         return new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.DELETE)
-            .withPath("/_cluster/decommission/awareness/{awareness_attribute_name}/{awareness_attribute_value}")
-            .withParams(params)
+            .withPath("/_cluster/decommission/awareness")
             .build();
     }
-
 }
