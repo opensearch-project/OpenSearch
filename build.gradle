@@ -264,6 +264,8 @@ tasks.register("branchConsistency") {
 allprojects {
   // configure compiler options
   tasks.withType(JavaCompile).configureEach { JavaCompile compile ->
+    options.fork = true
+
     configure(options.forkOptions) {
       memoryMaximumSize = project.property('options.forkOptions.memoryMaximumSize')
     }
