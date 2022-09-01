@@ -14,6 +14,11 @@ import org.opensearch.client.OpenSearchClient;
 import org.opensearch.cluster.decommission.DecommissionAttribute;
 import org.opensearch.common.unit.TimeValue;
 
+/**
+ * Register decommission request builder
+ *
+ * @opensearch.internal
+ */
 public class PutDecommissionRequestBuilder extends ClusterManagerNodeOperationRequestBuilder<
     PutDecommissionRequest,
     PutDecommissionResponse,

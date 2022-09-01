@@ -25,6 +25,11 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 
+/**
+ * Transport action for registering decommission
+ *
+ * @opensearch.internal
+ */
 public class TransportPutDecommissionAction extends TransportClusterManagerNodeAction<PutDecommissionRequest, PutDecommissionResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportPutDecommissionAction.class);

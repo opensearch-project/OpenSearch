@@ -11,6 +11,11 @@ package org.opensearch.action.admin.cluster.decommission.awareness.get;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 
+/**
+ * Get decommission request builder
+ *
+ * @opensearch.internal
+ */
 public class GetDecommissionRequestBuilder extends ClusterManagerNodeReadOperationRequestBuilder<
     GetDecommissionRequest,
     GetDecommissionResponse,

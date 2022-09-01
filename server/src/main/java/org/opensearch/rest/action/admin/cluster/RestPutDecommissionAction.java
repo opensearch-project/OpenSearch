@@ -23,6 +23,11 @@ import java.util.List;
 import static java.util.Collections.singletonList;
 import static org.opensearch.rest.RestRequest.Method.PUT;
 
+/**
+ * Registers decommission action
+ *
+ * @opensearch.api
+ */
 public class RestPutDecommissionAction extends BaseRestHandler {
 
     private static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(300L);

@@ -19,6 +19,13 @@ import java.io.IOException;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
 
+/**
+ * Register decommission request.
+ * <p>
+ * Registers a decommission request with decommission attribute and timeout
+ *
+ * @opensearch.internal
+ */
 public class PutDecommissionRequest extends ClusterManagerNodeRequest<PutDecommissionRequest> {
 
     private DecommissionAttribute decommissionAttribute;

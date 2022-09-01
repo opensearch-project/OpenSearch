@@ -10,6 +10,11 @@ package org.opensearch.action.admin.cluster.decommission.awareness.put;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Register decommission action
+ *
+ * @opensearch.internal
+ */
 public final class PutDecommissionAction extends ActionType<PutDecommissionResponse> {
     public static final PutDecommissionAction INSTANCE = new PutDecommissionAction();
     public static final String NAME = "cluster:admin/decommission/awareness/put";

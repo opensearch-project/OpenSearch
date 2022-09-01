@@ -41,6 +41,7 @@ public class RestPutDecommissionActionTests extends RestActionTestCase {
         assertEquals(request.getDecommissionAttribute().attributeName(), "zone");
         assertEquals(request.getDecommissionAttribute().attributeValue(), "zone-1");
         assertEquals(request.getTimeout(), TimeValue.timeValueSeconds(10L));
+        assertEquals(deprecatedRequest.getHttpRequest().method(), RestRequest.Method.PUT);
     }
 
     public void testCreateRequestWithDefaultTimeout() throws IOException {
@@ -54,10 +55,11 @@ public class RestPutDecommissionActionTests extends RestActionTestCase {
         assertEquals(request.getDecommissionAttribute().attributeName(), "zone");
         assertEquals(request.getDecommissionAttribute().attributeValue(), "zone-1");
         assertEquals(request.getTimeout(), TimeValue.timeValueSeconds(300L));
+        assertEquals(deprecatedRequest.getHttpRequest().method(), RestRequest.Method.PUT);
     }
 
     private FakeRestRequest buildRestRequest(Map<String, String> params) {
-        return new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
+        return new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.PUT)
             .withPath("/_cluster/decommission/awareness/{awareness_attribute_name}/{awareness_attribute_value}")
             .withParams(params)
             .build();

@@ -15,6 +15,11 @@ import org.opensearch.common.xcontent.ToXContentObject;
 
 import java.io.IOException;
 
+/**
+ * Response for decommission request
+ *
+ * @opensearch.internal
+ */
 public class PutDecommissionResponse extends AcknowledgedResponse implements ToXContentObject {
 
     public PutDecommissionResponse(StreamInput in) throws IOException {

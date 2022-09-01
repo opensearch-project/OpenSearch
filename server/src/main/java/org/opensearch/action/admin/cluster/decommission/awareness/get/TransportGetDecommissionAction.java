@@ -26,6 +26,11 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 
+/**
+ * Transport action for getting decommission status
+ *
+ * @opensearch.internal
+ */
 public class TransportGetDecommissionAction extends TransportClusterManagerNodeReadAction<GetDecommissionRequest, GetDecommissionResponse> {
 
     @Inject

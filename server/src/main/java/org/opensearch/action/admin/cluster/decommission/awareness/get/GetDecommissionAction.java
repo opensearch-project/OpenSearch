@@ -10,6 +10,11 @@ package org.opensearch.action.admin.cluster.decommission.awareness.get;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Get decommission action
+ *
+ * @opensearch.internal
+ */
 public class GetDecommissionAction extends ActionType<GetDecommissionResponse> {
 
     public static final GetDecommissionAction INSTANCE = new GetDecommissionAction();

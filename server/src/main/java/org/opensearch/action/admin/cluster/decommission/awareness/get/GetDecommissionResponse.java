@@ -23,6 +23,11 @@ import java.util.Objects;
 
 import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
+/**
+ * Response for decommission status
+ *
+ * @opensearch.internal
+ */
 public class GetDecommissionResponse extends ActionResponse implements ToXContentObject {
 
     private final DecommissionAttribute decommissionedAttribute;
