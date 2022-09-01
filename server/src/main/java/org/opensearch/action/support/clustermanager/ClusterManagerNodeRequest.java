@@ -58,21 +58,17 @@ public abstract class ClusterManagerNodeRequest<Request extends ClusterManagerNo
     @Deprecated
     protected TimeValue masterNodeTimeout = clusterManagerNodeTimeout;
 
-    protected boolean remoteRequest;
-
     protected ClusterManagerNodeRequest() {}
 
     protected ClusterManagerNodeRequest(StreamInput in) throws IOException {
         super(in);
         clusterManagerNodeTimeout = in.readTimeValue();
-        remoteRequest = in.readOptionalBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeTimeValue(clusterManagerNodeTimeout);
-        out.writeOptionalBoolean(remoteRequest);
     }
 
     /**
@@ -114,11 +110,6 @@ public abstract class ClusterManagerNodeRequest<Request extends ClusterManagerNo
         return clusterManagerNodeTimeout(timeout);
     }
 
-    public final Request setRemoteRequest(boolean remoteRequest) {
-        this.remoteRequest = remoteRequest;
-        return (Request) this;
-    }
-
     public final TimeValue clusterManagerNodeTimeout() {
         return this.clusterManagerNodeTimeout;
     }
@@ -127,9 +118,5 @@ public abstract class ClusterManagerNodeRequest<Request extends ClusterManagerNo
     @Deprecated
     public final TimeValue masterNodeTimeout() {
         return clusterManagerNodeTimeout();
-    }
-
-    public final boolean isRemoteRequest() {
-        return this.remoteRequest;
     }
 }

@@ -155,7 +155,6 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
         private ClusterStateObserver observer;
         private final long startTime;
         private final Task task;
-        private boolean localRequest;
         private static final int BASE_DELAY_MILLIS = 10;
         private static final int MAX_DELAY_MILLIS = 5000;
 
@@ -172,7 +171,6 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
             this.task = task;
             this.request = request;
             this.startTime = threadPool.relativeTimeInMillis();
-            localRequest = !request.remoteRequest;
         }
 
         @Override
@@ -185,7 +183,10 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
 
         @Override
         public boolean shouldRetry(Exception e) {
-            if (localRequest) {
+            // If remote address is null, i.e request is generated from same node and we would want to perform retry for it
+            // If remote address is not null, i.e request is generated from remote node and received on this master node on transport layer
+            // in that case we would want throttling retry to perform on remote node only not on this master node.
+            if (request.remoteAddress() == null) {
                 if (e instanceof TransportException) {
                     return ((TransportException) e).unwrapCause() instanceof MasterTaskThrottlingException;
                 }
@@ -242,7 +243,6 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
                     } else {
                         DiscoveryNode clusterManagerNode = nodes.getMasterNode();
                         final String actionName = getClusterManagerActionName(clusterManagerNode);
-                        request.setRemoteRequest(true);
                         transportService.sendRequest(
                             clusterManagerNode,
                             actionName,
