@@ -425,6 +425,7 @@ public class DecommissionService {
         final int requiredNodes = nodesInVotingConfig.size() / 2 + 1;
         final Set<String> realNodeIds = new HashSet<>(nodesInVotingConfig);
         realNodeIds.removeIf(ClusterBootstrapService::isBootstrapPlaceholder);
+        clusterManagerNodesToBeDecommissioned.removeIf(b -> !nodesInVotingConfig.contains(b.getId()));
         if (realNodeIds.size() - clusterManagerNodesToBeDecommissioned.size() < requiredNodes) {
             throw new DecommissioningFailedException(
                 decommissionAttribute,
