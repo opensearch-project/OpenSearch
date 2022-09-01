@@ -9,7 +9,6 @@
 package org.opensearch.extensions;
 
 import org.junit.Before;
-import org.junit.Test;
 import org.opensearch.common.collect.Map;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
@@ -25,10 +24,7 @@ public class RegisterTransportActionsRequestTests extends OpenSearchTestCase {
         this.originalRequest = new RegisterTransportActionsRequest(Map.of("testAction", Map.class));
     }
 
-    @Test
     public void testRegisterTransportActionsRequest() throws IOException {
-        System.out.println("HelloWorld");
-
         BytesStreamOutput output = new BytesStreamOutput();
         originalRequest.writeTo(output);
         StreamInput input = output.bytes().streamInput();
@@ -40,7 +36,6 @@ public class RegisterTransportActionsRequestTests extends OpenSearchTestCase {
         assertTrue(originalRequest.equals(parsedRequest));
     }
 
-    @Test
     public void testToString() {
         assertEquals(originalRequest.toString(), "TransportActionsRequest{actions={testAction=class org.opensearch.common.collect.Map}}");
     }
