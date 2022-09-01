@@ -317,7 +317,7 @@ public class RecoverySourceHandler {
             assert startingSeqNo >= 0 : "startingSeqNo must be non negative. got: " + startingSeqNo;
 
             boolean isRecoveringReplicaWithRemoteTxLogEnabledIndex = request.isPrimaryRelocation() == false
-                && shard.isRemoteTxlogEnabledOnPrimary();
+                && shard.isRemoteTranslogEnabledOnPrimary();
 
             if (isRecoveringReplicaWithRemoteTxLogEnabledIndex) {
                 sendFileStep.whenComplete(r -> {

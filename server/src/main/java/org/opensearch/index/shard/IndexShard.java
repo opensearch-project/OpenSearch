@@ -3310,11 +3310,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return (remoteStore != null && shardRouting.primary());
     }
 
-    public boolean isRemoteTxlogEnabledOnPrimary() {
-        return indexSettings != null
-            && indexSettings.isSegRepEnabled()
-            && indexSettings.isRemoteStoreEnabled()
-            && indexSettings.isRemoteTranslogStoreEnabled();
+    public boolean isRemoteTranslogEnabledOnPrimary() {
+        return indexSettings() != null && indexSettings().isRemoteTranslogStoreEnabled();
     }
 
     /**

@@ -239,7 +239,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     logger.trace("{} preparing shard for peer recovery", recoveryTarget.shardId());
                     indexShard.prepareForIndexRecovery();
                     boolean isRecoveringReplicaWithRemoteTxLogEnabledIndex = recoveryTarget.state().getPrimary() == false
-                        && indexShard.isRemoteTxlogEnabledOnPrimary();
+                        && indexShard.isRemoteTranslogEnabledOnPrimary();
                     final long startingSeqNo = isRecoveringReplicaWithRemoteTxLogEnabledIndex
                         ? indexShard.fetchStartSeqNoFromLastCommit()
                         : indexShard.recoverLocallyUpToGlobalCheckpoint();
