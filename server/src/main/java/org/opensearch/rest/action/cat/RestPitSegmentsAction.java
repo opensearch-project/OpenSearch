@@ -18,7 +18,6 @@ import org.opensearch.action.admin.indices.segments.PitSegmentsRequest;
 import org.opensearch.action.admin.indices.segments.ShardSegments;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.node.DiscoveryNodes;
-import org.opensearch.common.Strings;
 import org.opensearch.common.Table;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.index.engine.Segment;
@@ -29,6 +28,7 @@ import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestActionListener;
 import org.opensearch.rest.action.RestResponseListener;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -45,7 +45,7 @@ public class RestPitSegmentsAction extends AbstractCatAction {
 
     @Override
     public List<RestHandler.Route> routes() {
-        return unmodifiableList(asList(new Route(GET, "/_cat/pit_segments"), new Route(GET, "/_cat/pit_segments/{pit_id}")));
+        return unmodifiableList(asList(new Route(GET, "/_cat/pit_segments/_all"), new Route(GET, "/_cat/pit_segments")));
     }
 
     @Override
@@ -60,7 +60,6 @@ public class RestPitSegmentsAction extends AbstractCatAction {
 
     @Override
     protected BaseRestHandler.RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
-        final String[] pitIds = Strings.splitStringByCommaToArray(request.param("pit_id"));
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.local(false);
         clusterStateRequest.clusterManagerNodeTimeout(
@@ -70,8 +69,23 @@ public class RestPitSegmentsAction extends AbstractCatAction {
         clusterStateRequest.clear().nodes(true).routingTable(true).indices("*");
         return channel -> client.admin().cluster().state(clusterStateRequest, new RestActionListener<>(channel) {
             @Override
-            public void processResponse(final ClusterStateResponse clusterStateResponse) {
-                final PitSegmentsRequest pitSegmentsRequest = new PitSegmentsRequest(pitIds);
+            public void processResponse(final ClusterStateResponse clusterStateResponse) throws IOException {
+                String allPitIdsQualifier = "_all";
+                final PitSegmentsRequest pitSegmentsRequest;
+                if (request.path().contains(allPitIdsQualifier)) {
+                    pitSegmentsRequest = new PitSegmentsRequest(allPitIdsQualifier);
+                } else {
+                    pitSegmentsRequest = new PitSegmentsRequest();
+                    request.withContentOrSourceParamParserOrNull((xContentParser -> {
+                        if (xContentParser != null) {
+                            try {
+                                pitSegmentsRequest.fromXContent(xContentParser);
+                            } catch (IOException e) {
+                                throw new IllegalArgumentException("Failed to parse request body", e);
+                            }
+                        }
+                    }));
+                }
                 client.execute(PitSegmentsAction.INSTANCE, pitSegmentsRequest, new RestResponseListener<>(channel) {
                     @Override
                     public RestResponse buildResponse(final IndicesSegmentResponse indicesSegmentResponse) throws Exception {

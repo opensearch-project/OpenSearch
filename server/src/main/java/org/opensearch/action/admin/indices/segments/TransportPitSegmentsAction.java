@@ -95,7 +95,11 @@ public class TransportPitSegmentsAction extends TransportBroadcastByNodeAction<P
     @Override
     protected void doExecute(Task task, PitSegmentsRequest request, ActionListener<IndicesSegmentResponse> listener) {
         List<String> pitIds = request.getPitIds();
-        if (pitIds.size() == 1 && "_all".equals(pitIds.get(0))) {
+        // when security plugin intercepts the request, if PITs are not present in the cluster the PIT IDs in request will be empty
+        // and in this case return empty response
+        if (pitIds.isEmpty()) {
+            listener.onResponse(new IndicesSegmentResponse(new ShardSegments[] {}, 0, 0, 0, new ArrayList<>()));
+        } else if (pitIds.size() == 1 && "_all".equals(pitIds.get(0))) {
             pitService.getAllPits(ActionListener.wrap(response -> {
                 request.clearAndSetPitIds(response.getPitInfos().stream().map(ListPitInfo::getPitId).collect(Collectors.toList()));
                 super.doExecute(task, request, listener);
