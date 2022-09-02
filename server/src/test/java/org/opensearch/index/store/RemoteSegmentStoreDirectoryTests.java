@@ -15,6 +15,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.junit.Before;
+import org.opensearch.common.UUIDs;
 import org.opensearch.common.collect.Set;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -129,26 +130,52 @@ public class RemoteSegmentStoreDirectoryTests extends OpenSearchTestCase {
 
     private Map<String, String> getDummyMetadata(String prefix, int commitGeneration) {
         Map<String, String> metadata = new HashMap<>();
-        metadata.put(prefix + ".cfe", prefix + ".cfe::" + prefix + ".cfe__qrt::" + randomIntBetween(1000, 5000));
-        metadata.put(prefix + ".cfs", prefix + ".cfs::" + prefix + ".cfs__zxd::" + randomIntBetween(1000, 5000));
-        metadata.put(prefix + ".si", prefix + ".si::" + prefix + ".si__yui::" + randomIntBetween(1000, 5000));
+
+        metadata.put(prefix + ".cfe", prefix + ".cfe::" + prefix + ".cfe__" + UUIDs.base64UUID() + "::" + randomIntBetween(1000, 5000));
+        metadata.put(prefix + ".cfs", prefix + ".cfs::" + prefix + ".cfs__" + UUIDs.base64UUID() + "::" + randomIntBetween(1000, 5000));
+        metadata.put(prefix + ".si", prefix + ".si::" + prefix + ".si__" + UUIDs.base64UUID() + "::" + randomIntBetween(1000, 5000));
         metadata.put(
             "segments_" + commitGeneration,
-            "segments_" + commitGeneration + "::segments_" + commitGeneration + "__exv::" + randomIntBetween(1000, 5000)
+            "segments_"
+                + commitGeneration
+                + "::segments_"
+                + commitGeneration
+                + "__"
+                + UUIDs.base64UUID()
+                + "::"
+                + randomIntBetween(1000, 5000)
         );
         return metadata;
     }
 
-    private void populateMetadata() throws IOException {
+    private Map<String, Map<String, String>> populateMetadata() throws IOException {
         List<String> metadataFiles = List.of("metadata__1__5__abc", "metadata__1__6__pqr", "metadata__2__1__zxv");
         when(remoteMetadataDirectory.listFilesByPrefix(RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX)).thenReturn(
             metadataFiles
         );
 
-        IndexInput indexInput = mock(IndexInput.class);
-        Map<String, String> dummyMetadata = getDummyMetadata("_0", 1);
-        when(indexInput.readMapOfStrings()).thenReturn(dummyMetadata);
-        when(remoteMetadataDirectory.openInput("metadata__2__1__zxv", IOContext.DEFAULT)).thenReturn(indexInput);
+        Map<String, Map<String, String>> metadataFilenameContentMapping = Map.of(
+            "metadata__1__5__abc",
+            getDummyMetadata("_0", 1),
+            "metadata__1__6__pqr",
+            getDummyMetadata("_0", 1),
+            "metadata__2__1__zxv",
+            getDummyMetadata("_0", 1)
+        );
+
+        IndexInput indexInput1 = mock(IndexInput.class);
+        when(indexInput1.readMapOfStrings()).thenReturn(metadataFilenameContentMapping.get("metadata__1__5__abc"));
+        when(remoteMetadataDirectory.openInput("metadata__1__5__abc", IOContext.DEFAULT)).thenReturn(indexInput1);
+
+        IndexInput indexInput2 = mock(IndexInput.class);
+        when(indexInput2.readMapOfStrings()).thenReturn(metadataFilenameContentMapping.get("metadata__1__6__pqr"));
+        when(remoteMetadataDirectory.openInput("metadata__1__6__pqr", IOContext.DEFAULT)).thenReturn(indexInput2);
+
+        IndexInput indexInput3 = mock(IndexInput.class);
+        when(indexInput3.readMapOfStrings()).thenReturn(metadataFilenameContentMapping.get("metadata__2__1__zxv"));
+        when(remoteMetadataDirectory.openInput("metadata__2__1__zxv", IOContext.DEFAULT)).thenReturn(indexInput3);
+
+        return metadataFilenameContentMapping;
     }
 
     public void testInit() throws IOException {
@@ -291,20 +318,39 @@ public class RemoteSegmentStoreDirectoryTests extends OpenSearchTestCase {
     }
 
     public void testContainsFile() throws IOException {
-        populateMetadata();
-        remoteSegmentStoreDirectory.init();
-
-        // This is not the correct way to add files but the other way is to open up access to fields in UploadedSegmentMetadata
-        Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegmentMetadataMap = remoteSegmentStoreDirectory
-            .getSegmentsUploadedToRemoteStore();
-        uploadedSegmentMetadataMap.put(
-            "_100.si",
-            new RemoteSegmentStoreDirectory.UploadedSegmentMetadata("_100.si", "_100.si__uuid1", "1234")
+        List<String> metadataFiles = List.of("metadata__1__5__abc");
+        when(remoteMetadataDirectory.listFilesByPrefix(RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX)).thenReturn(
+            metadataFiles
         );
 
-        assertTrue(remoteSegmentStoreDirectory.containsFile("_100.si", "1234"));
-        assertFalse(remoteSegmentStoreDirectory.containsFile("_100.si", "2345"));
-        assertFalse(remoteSegmentStoreDirectory.containsFile("_200.si", "1234"));
+        Map<String, String> metadata = new HashMap<>();
+        metadata.put("_0.cfe", "_0.cfe::_0.cfe__" + UUIDs.base64UUID() + "::1234");
+        metadata.put("_0.cfs", "_0.cfs::_0.cfs__" + UUIDs.base64UUID() + "::2345");
+
+        Map<String, Map<String, String>> metadataFilenameContentMapping = Map.of("metadata__1__5__abc", metadata);
+
+        IndexInput indexInput1 = mock(IndexInput.class);
+        when(indexInput1.readMapOfStrings()).thenReturn(metadataFilenameContentMapping.get("metadata__1__5__abc"));
+        when(remoteMetadataDirectory.openInput("metadata__1__5__abc", IOContext.DEFAULT)).thenReturn(indexInput1);
+
+        remoteSegmentStoreDirectory.init();
+
+        Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegmentMetadataMap = remoteSegmentStoreDirectory
+            .getSegmentsUploadedToRemoteStore();
+
+        assertThrows(
+            UnsupportedOperationException.class,
+            () -> uploadedSegmentMetadataMap.put(
+                "_100.si",
+                new RemoteSegmentStoreDirectory.UploadedSegmentMetadata("_100.si", "_100.si__uuid1", "1234")
+            )
+        );
+
+        assertTrue(remoteSegmentStoreDirectory.containsFile("_0.cfe", "1234"));
+        assertTrue(remoteSegmentStoreDirectory.containsFile("_0.cfs", "2345"));
+        assertFalse(remoteSegmentStoreDirectory.containsFile("_0.cfe", "1234000"));
+        assertFalse(remoteSegmentStoreDirectory.containsFile("_0.cfs", "2345000"));
+        assertFalse(remoteSegmentStoreDirectory.containsFile("_0.si", "23"));
     }
 
     public void testUploadMetadataEmpty() throws IOException {
@@ -335,5 +381,85 @@ public class RemoteSegmentStoreDirectoryTests extends OpenSearchTestCase {
         );
         String metadataString = remoteSegmentStoreDirectory.getSegmentsUploadedToRemoteStore().get("_0.si").toString();
         verify(indexOutput).writeMapOfStrings(Map.of("_0.si", metadataString));
+    }
+
+    public void testDeleteStaleCommitsException() throws IOException {
+        when(remoteMetadataDirectory.listFilesByPrefix(RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX)).thenThrow(
+            new IOException("Error reading")
+        );
+
+        assertThrows(IOException.class, () -> remoteSegmentStoreDirectory.deleteStaleSegments(5));
+    }
+
+    public void testDeleteStaleCommitsWithinThreshold() throws IOException {
+        populateMetadata();
+
+        // popluateMetadata() adds stub to return 3 metadata files
+        // We are passing lastNMetadataFilesToKeep=5 here so that none of the metadata files will be deleted
+        remoteSegmentStoreDirectory.deleteStaleSegments(5);
+
+        verify(remoteMetadataDirectory, times(0)).openInput(any(String.class), eq(IOContext.DEFAULT));
+    }
+
+    public void testDeleteStaleCommitsActualDelete() throws IOException {
+        Map<String, Map<String, String>> metadataFilenameContentMapping = populateMetadata();
+        remoteSegmentStoreDirectory.init();
+
+        // popluateMetadata() adds stub to return 3 metadata files
+        // We are passing lastNMetadataFilesToKeep=2 here so that oldest 1 metadata file will be deleted
+        remoteSegmentStoreDirectory.deleteStaleSegments(2);
+
+        for (String metadata : metadataFilenameContentMapping.get("metadata__1__5__abc").values()) {
+            String uploadedFilename = metadata.split(RemoteSegmentStoreDirectory.UploadedSegmentMetadata.SEPARATOR)[1];
+            verify(remoteDataDirectory).deleteFile(uploadedFilename);
+        }
+        ;
+        verify(remoteMetadataDirectory).deleteFile("metadata__1__5__abc");
+    }
+
+    public void testDeleteStaleCommitsActualDeleteIOException() throws IOException {
+        Map<String, Map<String, String>> metadataFilenameContentMapping = populateMetadata();
+        remoteSegmentStoreDirectory.init();
+
+        String segmentFileWithException = metadataFilenameContentMapping.get("metadata__1__5__abc")
+            .values()
+            .stream()
+            .findAny()
+            .get()
+            .split(RemoteSegmentStoreDirectory.UploadedSegmentMetadata.SEPARATOR)[1];
+        doThrow(new IOException("Error")).when(remoteDataDirectory).deleteFile(segmentFileWithException);
+        // popluateMetadata() adds stub to return 3 metadata files
+        // We are passing lastNMetadataFilesToKeep=2 here so that oldest 1 metadata file will be deleted
+        remoteSegmentStoreDirectory.deleteStaleSegments(2);
+
+        for (String metadata : metadataFilenameContentMapping.get("metadata__1__5__abc").values()) {
+            String uploadedFilename = metadata.split(RemoteSegmentStoreDirectory.UploadedSegmentMetadata.SEPARATOR)[1];
+            verify(remoteDataDirectory).deleteFile(uploadedFilename);
+        }
+        ;
+        verify(remoteMetadataDirectory, times(0)).deleteFile("metadata__1__5__abc");
+    }
+
+    public void testDeleteStaleCommitsActualDeleteNoSuchFileException() throws IOException {
+        Map<String, Map<String, String>> metadataFilenameContentMapping = populateMetadata();
+        remoteSegmentStoreDirectory.init();
+
+        String segmentFileWithException = metadataFilenameContentMapping.get("metadata__1__5__abc")
+            .values()
+            .stream()
+            .findAny()
+            .get()
+            .split(RemoteSegmentStoreDirectory.UploadedSegmentMetadata.SEPARATOR)[1];
+        doThrow(new NoSuchFileException(segmentFileWithException)).when(remoteDataDirectory).deleteFile(segmentFileWithException);
+        // popluateMetadata() adds stub to return 3 metadata files
+        // We are passing lastNMetadataFilesToKeep=2 here so that oldest 1 metadata file will be deleted
+        remoteSegmentStoreDirectory.deleteStaleSegments(2);
+
+        for (String metadata : metadataFilenameContentMapping.get("metadata__1__5__abc").values()) {
+            String uploadedFilename = metadata.split(RemoteSegmentStoreDirectory.UploadedSegmentMetadata.SEPARATOR)[1];
+            verify(remoteDataDirectory).deleteFile(uploadedFilename);
+        }
+        ;
+        verify(remoteMetadataDirectory).deleteFile("metadata__1__5__abc");
     }
 }
