@@ -49,6 +49,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ConcurrentMap;
+import java.util.stream.Collectors;
 
 /**
  * This class holds a collection of all on going replication events on the current node (i.e., the node is the target node
@@ -236,13 +237,18 @@ public class ReplicationCollection<T extends ReplicationTarget> {
     }
 
     /**
-     * check if a shard is currently replicating
+     * Get target for shard
      *
-     * @param shardId      shardId for which to check if replicating
-     * @return true if shard is currently replicating
+     * @param shardId      shardId
+     * @return ReplicationTarget for input shardId
      */
-    public boolean isShardReplicating(ShardId shardId) {
-        return onGoingTargetEvents.values().stream().anyMatch(t -> t.indexShard.shardId().equals(shardId));
+    public T getOngoingReplicationTarget(ShardId shardId) {
+        final List<T> replicationTargetList = onGoingTargetEvents.values()
+            .stream()
+            .filter(t -> t.indexShard.shardId().equals(shardId))
+            .collect(Collectors.toList());
+        assert replicationTargetList.size() <= 1 : "More than one on-going replication targets";
+        return replicationTargetList.size() > 0 ? replicationTargetList.get(0) : null;
     }
 
     /**
