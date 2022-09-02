@@ -1377,11 +1377,11 @@ public class RestHighLevelClient implements Closeable {
      */
     public final GetAllPitNodesResponse getAllPits(RequestOptions options) throws IOException {
         return performRequestAndParseEntity(
-                new MainRequest(),
-                (request) -> RequestConverters.getAllPits(),
-                options,
-                GetAllPitNodesResponse::fromXContent,
-                emptySet()
+            new MainRequest(),
+            (request) -> RequestConverters.getAllPits(),
+            options,
+            GetAllPitNodesResponse::fromXContent,
+            emptySet()
         );
     }
 
@@ -1394,12 +1394,12 @@ public class RestHighLevelClient implements Closeable {
      */
     public final Cancellable getAllPitsAsync(RequestOptions options, ActionListener<GetAllPitNodesResponse> listener) {
         return performRequestAsyncAndParseEntity(
-                new MainRequest(),
-                (request) -> RequestConverters.getAllPits(),
-                options,
-                GetAllPitNodesResponse::fromXContent,
-                listener,
-                emptySet()
+            new MainRequest(),
+            (request) -> RequestConverters.getAllPits(),
+            options,
+            GetAllPitNodesResponse::fromXContent,
+            listener,
+            emptySet()
         );
     }
 
