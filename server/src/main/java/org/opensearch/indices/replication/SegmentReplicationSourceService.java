@@ -15,6 +15,7 @@ import org.opensearch.action.support.ChannelActionListener;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterStateListener;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.component.AbstractLifecycleComponent;
@@ -42,7 +43,25 @@ import java.util.concurrent.atomic.AtomicLong;
  *
  * @opensearch.internal
  */
-public final class SegmentReplicationSourceService extends AbstractLifecycleComponent implements ClusterStateListener, IndexEventListener {
+public class SegmentReplicationSourceService extends AbstractLifecycleComponent implements ClusterStateListener, IndexEventListener {
+
+    // Empty Implementation, only required while Segment Replication is under feature flag.
+    public static final SegmentReplicationSourceService NO_OP = new SegmentReplicationSourceService() {
+        @Override
+        public void clusterChanged(ClusterChangedEvent event) {
+            // NoOp;
+        }
+
+        @Override
+        public void beforeIndexShardClosed(ShardId shardId, IndexShard indexShard, Settings indexSettings) {
+            // NoOp;
+        }
+
+        @Override
+        public void shardRoutingChanged(IndexShard indexShard, @Nullable ShardRouting oldRouting, ShardRouting newRouting) {
+            // NoOp;
+        }
+    };
 
     private static final Logger logger = LogManager.getLogger(SegmentReplicationSourceService.class);
     private final RecoverySettings recoverySettings;
@@ -61,6 +80,14 @@ public final class SegmentReplicationSourceService extends AbstractLifecycleComp
     }
 
     private final OngoingSegmentReplications ongoingSegmentReplications;
+
+    // Used only for empty implementation.
+    private SegmentReplicationSourceService() {
+        recoverySettings = null;
+        ongoingSegmentReplications = null;
+        transportService = null;
+        indicesService = null;
+    }
 
     public SegmentReplicationSourceService(
         IndicesService indicesService,
@@ -163,10 +190,25 @@ public final class SegmentReplicationSourceService extends AbstractLifecycleComp
 
     }
 
+    /**
+     *
+     * Cancels any replications on this node to a replica shard that is about to be closed.
+     */
     @Override
     public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
         if (indexShard != null) {
             ongoingSegmentReplications.cancel(indexShard, "shard is closed");
         }
     }
+
+    /**
+     * Cancels any replications on this node to a replica that has been promoted as primary.
+     */
+    @Override
+    public void shardRoutingChanged(IndexShard indexShard, @Nullable ShardRouting oldRouting, ShardRouting newRouting) {
+        if (indexShard != null && oldRouting.primary() == false && newRouting.primary()) {
+            ongoingSegmentReplications.cancel(indexShard.routingEntry().allocationId().getId(), "Relocating primary shard.");
+        }
+    }
+
 }

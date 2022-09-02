@@ -39,12 +39,12 @@ import org.apache.lucene.util.SetOnce;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.index.IndexingPressureService;
-import org.opensearch.index.store.RemoteDirectoryFactory;
 import org.opensearch.indices.replication.SegmentReplicationSourceFactory;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.indices.replication.SegmentReplicationSourceService;
 import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.threadpool.RunnableTaskExecutionListener;
+import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.watcher.ResourceWatcherService;
 import org.opensearch.Assertions;
 import org.opensearch.Build;
@@ -629,7 +629,9 @@ public class Node implements Closeable {
             rerouteServiceReference.set(rerouteService);
             clusterService.setRerouteService(rerouteService);
 
-            final RemoteDirectoryFactory remoteDirectoryFactory = new RemoteDirectoryFactory(repositoriesServiceReference::get);
+            final IndexStorePlugin.RemoteDirectoryFactory remoteDirectoryFactory = new RemoteSegmentStoreDirectoryFactory(
+                repositoriesServiceReference::get
+            );
 
             final IndicesService indicesService = new IndicesService(
                 settings,
@@ -967,6 +969,7 @@ public class Node implements Closeable {
                             .toInstance(new SegmentReplicationSourceService(indicesService, transportService, recoverySettings));
                     } else {
                         b.bind(SegmentReplicationTargetService.class).toInstance(SegmentReplicationTargetService.NO_OP);
+                        b.bind(SegmentReplicationSourceService.class).toInstance(SegmentReplicationSourceService.NO_OP);
                     }
                 }
                 b.bind(HttpServerTransport.class).toInstance(httpServerTransport);
@@ -1110,6 +1113,9 @@ public class Node implements Closeable {
         assert transportService.getLocalNode().equals(localNodeFactory.getNode())
             : "transportService has a different local node than the factory provided";
         injector.getInstance(PeerRecoverySourceService.class).start();
+        if (FeatureFlags.isEnabled(REPLICATION_TYPE)) {
+            injector.getInstance(SegmentReplicationSourceService.class).start();
+        }
 
         // Load (and maybe upgrade) the metadata stored on disk
         final GatewayMetaState gatewayMetaState = injector.getInstance(GatewayMetaState.class);
@@ -1285,6 +1291,9 @@ public class Node implements Closeable {
         // close filter/fielddata caches after indices
         toClose.add(injector.getInstance(IndicesStore.class));
         toClose.add(injector.getInstance(PeerRecoverySourceService.class));
+        if (FeatureFlags.isEnabled(REPLICATION_TYPE)) {
+            toClose.add(injector.getInstance(SegmentReplicationSourceService.class));
+        }
         toClose.add(() -> stopWatch.stop().start("cluster"));
         toClose.add(injector.getInstance(ClusterService.class));
         toClose.add(() -> stopWatch.stop().start("node_connections_service"));
