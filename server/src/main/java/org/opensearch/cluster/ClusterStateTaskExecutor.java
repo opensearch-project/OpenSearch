@@ -88,6 +88,12 @@ public interface ClusterStateTaskExecutor<T> {
         return String.join(", ", tasks.stream().map(t -> (CharSequence) t.toString()).filter(t -> t.length() > 0)::iterator);
     }
 
+    public static final String DEFAULT_CLUSTER_MANAGER_THROTTLING_KEY = "";
+
+    default String getClusterManagerThrottlingKey() {
+        return DEFAULT_CLUSTER_MANAGER_THROTTLING_KEY;
+    }
+
     /**
      * Represents the result of a batched execution of cluster state update tasks
      * @param <T> the type of the cluster state update task

@@ -692,6 +692,266 @@ public class MasterServiceTests extends OpenSearchTestCase {
         }
     }
 
+    public void testThrottlingForTaskSubmission() throws InterruptedException {
+        int throttlingLimit = randomIntBetween(1, 10);
+        int taskId = 1;
+        final CyclicBarrier barrier = new CyclicBarrier(2);
+        final CountDownLatch latch = new CountDownLatch(1);
+        final String taskName = "test";
+
+        class Task {
+            private final int id;
+
+            Task(int id) {
+                this.id = id;
+            }
+        }
+
+        class TaskExecutor implements ClusterStateTaskExecutor<Task> {
+            private AtomicInteger published = new AtomicInteger();
+
+            @Override
+            public ClusterTasksResult<Task> execute(ClusterState currentState, List<Task> tasks) throws Exception {
+                latch.countDown();
+                barrier.await();
+                return ClusterTasksResult.<Task>builder().successes(tasks).build(currentState);
+            }
+
+            @Override
+            public String getClusterManagerThrottlingKey() {
+                return taskName;
+            }
+
+            @Override
+            public void clusterStatePublished(ClusterChangedEvent clusterChangedEvent) {
+                published.incrementAndGet();
+            }
+        }
+
+        MasterService masterService = createClusterManagerService(true);
+        masterService.clusterManagerTaskThrottler.updateLimit(taskName, throttlingLimit);
+
+        final ClusterStateTaskListener listener = new ClusterStateTaskListener() {
+            @Override
+            public void onFailure(String source, Exception e) {}
+
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {}
+        };
+
+        TaskExecutor executor = new TaskExecutor();
+        // submit one task which will be execution, post that will submit throttlingLimit tasks.
+        try {
+            masterService.submitStateUpdateTask(
+                taskName,
+                new Task(taskId++),
+                ClusterStateTaskConfig.build(randomFrom(Priority.values())),
+                executor,
+                listener
+            );
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
+        // wait till task enter in execution.
+        latch.await();
+
+        for (int i = 0; i < throttlingLimit; i++) {
+            try {
+                masterService.submitStateUpdateTask(
+                    taskName,
+                    new Task(taskId++),
+                    ClusterStateTaskConfig.build(randomFrom(Priority.values())),
+                    executor,
+                    listener
+                );
+            } catch (Exception e) {
+                throw new AssertionError(e);
+            }
+        }
+
+        // we have one task in execution and tasks in queue so next task should throttled.
+        final AtomicReference<ClusterManagerThrottlingException> assertionRef = new AtomicReference<>();
+        try {
+            masterService.submitStateUpdateTask(
+                taskName,
+                new Task(taskId++),
+                ClusterStateTaskConfig.build(randomFrom(Priority.values())),
+                executor,
+                listener
+            );
+        } catch (ClusterManagerThrottlingException e) {
+            assertionRef.set(e);
+        }
+        assertNotNull(assertionRef.get());
+        masterService.close();
+    }
+
+    public void testThrottlingForMultipleTaskTypes() throws InterruptedException {
+        int throttlingLimitForTask1 = randomIntBetween(1, 5);
+        int throttlingLimitForTask2 = randomIntBetween(1, 5);
+        int throttlingLimitForTask3 = randomIntBetween(1, 5);
+        int numberOfTask1 = randomIntBetween(throttlingLimitForTask1, 10);
+        int numberOfTask2 = randomIntBetween(throttlingLimitForTask2, 10);
+        int numberOfTask3 = randomIntBetween(throttlingLimitForTask3, 10);
+        class Task {}
+        class Task1 extends Task {}
+        class Task2 extends Task {}
+        class Task3 extends Task {}
+
+        class Task1Executor implements ClusterStateTaskExecutor<Task> {
+            @Override
+            public ClusterTasksResult<Task> execute(ClusterState currentState, List<Task> tasks) throws Exception {
+                Thread.sleep(randomInt(1000));
+                return ClusterTasksResult.<Task>builder().successes(tasks).build(currentState);
+            }
+
+            @Override
+            public void clusterStatePublished(ClusterChangedEvent clusterChangedEvent) {}
+
+            @Override
+            public String getClusterManagerThrottlingKey() {
+                return "Task1";
+            }
+        }
+
+        class Task2Executor implements ClusterStateTaskExecutor<Task> {
+            @Override
+            public ClusterTasksResult<Task> execute(ClusterState currentState, List<Task> tasks) throws Exception {
+                Thread.sleep(randomInt(1000));
+                return ClusterTasksResult.<Task>builder().successes(tasks).build(currentState);
+            }
+
+            @Override
+            public void clusterStatePublished(ClusterChangedEvent clusterChangedEvent) {}
+
+            @Override
+            public String getClusterManagerThrottlingKey() {
+                return "Task2";
+            }
+        }
+
+        class Task3Executor implements ClusterStateTaskExecutor<Task> {
+            @Override
+            public ClusterTasksResult<Task> execute(ClusterState currentState, List<Task> tasks) throws Exception {
+                Thread.sleep(randomInt(1000));
+                return ClusterTasksResult.<Task>builder().successes(tasks).build(currentState);
+            }
+
+            @Override
+            public void clusterStatePublished(ClusterChangedEvent clusterChangedEvent) {}
+
+            @Override
+            public String getClusterManagerThrottlingKey() {
+                return "Task3";
+            }
+        }
+
+        MasterService masterService = createClusterManagerService(true);
+        // configuring limits for Task1 and Task3. All task submission of Task2 should pass.
+        masterService.clusterManagerTaskThrottler.updateLimit("Task1", throttlingLimitForTask1);
+        masterService.clusterManagerTaskThrottler.updateLimit("Task3", throttlingLimitForTask3);
+        final CountDownLatch latch = new CountDownLatch(numberOfTask1 + numberOfTask2 + numberOfTask3);
+        AtomicInteger throttledTask1 = new AtomicInteger();
+        AtomicInteger throttledTask2 = new AtomicInteger();
+        AtomicInteger throttledTask3 = new AtomicInteger();
+        AtomicInteger succeededTask1 = new AtomicInteger();
+        AtomicInteger succeededTask2 = new AtomicInteger();
+        AtomicInteger timedOutTask3 = new AtomicInteger();
+
+        final ClusterStateTaskListener listener = new ClusterStateTaskListener() {
+            @Override
+            public void onFailure(String source, Exception e) {
+                // Task3's timeout should have called this.
+                assertEquals("Task3", source);
+                timedOutTask3.incrementAndGet();
+                latch.countDown();
+            }
+
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                if (source.equals("Task1")) {
+                    succeededTask1.incrementAndGet();
+                } else if (source.equals("Task2")) {
+                    succeededTask2.incrementAndGet();
+                }
+                latch.countDown();
+            }
+        };
+        Task1Executor executor1 = new Task1Executor();
+        Task2Executor executor2 = new Task2Executor();
+        Task3Executor executor3 = new Task3Executor();
+        List<Thread> threads = new ArrayList<Thread>();
+        for (int i = 0; i < numberOfTask1; i++) {
+            threads.add(new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        masterService.submitStateUpdateTask(
+                            "Task1",
+                            new Task1(),
+                            ClusterStateTaskConfig.build(randomFrom(Priority.values())),
+                            executor1,
+                            listener
+                        );
+                    } catch (ClusterManagerThrottlingException e) {
+                        // Exception should be RejactedExecutionException.
+                        throttledTask1.incrementAndGet();
+                        latch.countDown();
+                    }
+                }
+            }));
+        }
+        for (int i = 0; i < numberOfTask2; i++) {
+            threads.add(new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        masterService.submitStateUpdateTask(
+                            "Task2",
+                            new Task2(),
+                            ClusterStateTaskConfig.build(randomFrom(Priority.values())),
+                            executor2,
+                            listener
+                        );
+                    } catch (ClusterManagerThrottlingException e) {
+                        throttledTask2.incrementAndGet();
+                        latch.countDown();
+                    }
+                }
+            }));
+        }
+        for (int i = 0; i < numberOfTask3; i++) {
+            threads.add(new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        masterService.submitStateUpdateTask(
+                            "Task3",
+                            new Task3(),
+                            ClusterStateTaskConfig.build(randomFrom(Priority.values()), new TimeValue(0)),
+                            executor3,
+                            listener
+                        );
+                    } catch (ClusterManagerThrottlingException e) {
+                        throttledTask3.incrementAndGet();
+                        latch.countDown();
+                    }
+                }
+            }));
+        }
+        for (Thread thread : threads) {
+            thread.start();
+        }
+
+        // await for latch to clear
+        latch.await();
+        assertEquals(numberOfTask1, throttledTask1.get() + succeededTask1.get());
+        assertEquals(numberOfTask2, succeededTask2.get());
+        assertEquals(0, throttledTask2.get());
+        assertEquals(numberOfTask3, throttledTask3.get() + timedOutTask3.get());
+        masterService.close();
+    }
+
     public void testBlockingCallInClusterStateTaskListenerFails() throws InterruptedException {
         assumeTrue("assertions must be enabled for this test to work", BaseFuture.class.desiredAssertionStatus());
         final CountDownLatch latch = new CountDownLatch(1);
