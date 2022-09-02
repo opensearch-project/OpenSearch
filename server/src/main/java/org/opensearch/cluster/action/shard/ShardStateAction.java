@@ -38,8 +38,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchException;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionListener;
-import org.opensearch.action.bulk.BackoffPolicy;
-import org.opensearch.action.support.RetryableAction;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
@@ -57,7 +55,6 @@ import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.routing.allocation.FailedShard;
 import org.opensearch.cluster.routing.allocation.StaleShard;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.cluster.service.MasterTaskThrottlingException;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
 import org.opensearch.common.inject.Inject;
@@ -184,15 +181,6 @@ public class ShardStateAction {
         final TransportRequest request,
         final ActionListener<Void> listener
     ) {
-        new ShardStateClusterManagerAction(currentState, actionName, request, listener).run();
-    }
-
-    private void sendShardActionToClusterManager(
-        final String actionName,
-        final ClusterState currentState,
-        final TransportRequest request,
-        final ActionListener<Void> listener
-    ) {
         ClusterStateObserver observer = new ClusterStateObserver(currentState, clusterService, null, logger, threadPool.getThreadContext());
         DiscoveryNode clusterManagerNode = currentState.nodes().getMasterNode();
         Predicate<ClusterState> changePredicate = MasterNodeChangePredicate.build(currentState);
@@ -231,52 +219,6 @@ public class ShardStateAction {
                     }
                 }
             });
-        }
-    }
-
-    /**
-     * RetryableAction for performing retires for cluster manager throttling.
-     */
-    private class ShardStateClusterManagerAction extends RetryableAction {
-        private final String actionName;
-        private final ActionListener listener;
-        private final ClusterState currentState;
-        private final TransportRequest request;
-        private static final int BASE_DELAY_MILLIS = 10;
-        private static final int MAX_DELAY_MILLIS = 5000;
-
-        private ShardStateClusterManagerAction(
-            ClusterState currentState,
-            String actionName,
-            TransportRequest request,
-            ActionListener listener
-        ) {
-            super(
-                logger,
-                threadPool,
-                TimeValue.timeValueMillis(BASE_DELAY_MILLIS),
-                TimeValue.timeValueMillis(Integer.MAX_VALUE), // Shard tasks are internal and don't have timeout
-                listener,
-                BackoffPolicy.exponentialEqualJitterBackoff(BASE_DELAY_MILLIS, MAX_DELAY_MILLIS),
-                ThreadPool.Names.SAME
-            );
-            this.actionName = actionName;
-            this.listener = listener;
-            this.currentState = currentState;
-            this.request = request;
-        }
-
-        @Override
-        public void tryAction(ActionListener listener) {
-            sendShardActionToClusterManager(actionName, currentState, request, listener);
-        }
-
-        @Override
-        public boolean shouldRetry(Exception e) {
-            if (e instanceof TransportException) {
-                return ((TransportException) e).unwrapCause() instanceof MasterTaskThrottlingException;
-            }
-            return e instanceof MasterTaskThrottlingException;
         }
     }
 
