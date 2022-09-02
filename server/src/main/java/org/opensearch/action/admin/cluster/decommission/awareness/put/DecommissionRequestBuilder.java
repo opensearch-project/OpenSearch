@@ -20,15 +20,11 @@ import org.opensearch.common.unit.TimeValue;
  * @opensearch.internal
  */
 public class DecommissionRequestBuilder extends ClusterManagerNodeOperationRequestBuilder<
-        DecommissionRequest,
+    DecommissionRequest,
     DecommissionResponse,
     DecommissionRequestBuilder> {
 
-    public DecommissionRequestBuilder(
-        OpenSearchClient client,
-        ActionType<DecommissionResponse> action,
-        DecommissionRequest request
-    ) {
+    public DecommissionRequestBuilder(OpenSearchClient client, ActionType<DecommissionResponse> action, DecommissionRequest request) {
         super(client, action, request);
     }
 

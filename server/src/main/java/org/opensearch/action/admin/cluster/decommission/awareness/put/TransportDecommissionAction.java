@@ -72,11 +72,8 @@ public class TransportDecommissionAction extends TransportClusterManagerNodeActi
     }
 
     @Override
-    protected void clusterManagerOperation(
-        DecommissionRequest request,
-        ClusterState state,
-        ActionListener<DecommissionResponse> listener
-    ) throws Exception {
+    protected void clusterManagerOperation(DecommissionRequest request, ClusterState state, ActionListener<DecommissionResponse> listener)
+        throws Exception {
         logger.info("initiating awareness attribute [{}] decommissioning", request.getDecommissionAttribute().toString());
         listener.onResponse(new DecommissionResponse(true)); // TODO - remove after integration
         // TODO - uncomment when integrating with the service
