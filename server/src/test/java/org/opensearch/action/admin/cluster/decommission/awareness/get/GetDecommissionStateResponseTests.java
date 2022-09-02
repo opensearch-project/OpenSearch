@@ -15,19 +15,19 @@ import org.opensearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 
-public class GetDecommissionResponseTests extends AbstractXContentTestCase<GetDecommissionResponse> {
+public class GetDecommissionStateResponseTests extends AbstractXContentTestCase<GetDecommissionStateResponse> {
     @Override
-    protected GetDecommissionResponse createTestInstance() {
+    protected GetDecommissionStateResponse createTestInstance() {
         DecommissionStatus status = DecommissionStatus.fromValue((byte) randomIntBetween(0, 5));
         String attributeName = randomAlphaOfLength(10);
         String attributeValue = randomAlphaOfLength(10);
         DecommissionAttribute decommissionAttribute = new DecommissionAttribute(attributeName, attributeValue);
-        return new GetDecommissionResponse(decommissionAttribute, status);
+        return new GetDecommissionStateResponse(decommissionAttribute, status);
     }
 
     @Override
-    protected GetDecommissionResponse doParseInstance(XContentParser parser) throws IOException {
-        return GetDecommissionResponse.fromXContent(parser);
+    protected GetDecommissionStateResponse doParseInstance(XContentParser parser) throws IOException {
+        return GetDecommissionStateResponse.fromXContent(parser);
     }
 
     @Override

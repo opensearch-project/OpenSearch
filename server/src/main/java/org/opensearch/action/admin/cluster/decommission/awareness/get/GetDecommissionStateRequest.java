@@ -20,11 +20,11 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public class GetDecommissionRequest extends ClusterManagerNodeReadRequest<GetDecommissionRequest> {
+public class GetDecommissionStateRequest extends ClusterManagerNodeReadRequest<GetDecommissionStateRequest> {
 
-    public GetDecommissionRequest() {}
+    public GetDecommissionStateRequest() {}
 
-    public GetDecommissionRequest(StreamInput in) throws IOException {
+    public GetDecommissionStateRequest(StreamInput in) throws IOException {
         super(in);
     }
 

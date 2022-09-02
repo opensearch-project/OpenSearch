@@ -8,7 +8,7 @@
 
 package org.opensearch.rest.action.admin.cluster;
 
-import org.opensearch.action.admin.cluster.decommission.awareness.get.GetDecommissionRequest;
+import org.opensearch.action.admin.cluster.decommission.awareness.get.GetDecommissionStateRequest;
 import org.opensearch.client.Requests;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.rest.BaseRestHandler;
@@ -26,7 +26,7 @@ import static org.opensearch.rest.RestRequest.Method.GET;
  *
  * @opensearch.api
  */
-public class RestGetDecommissionAction extends BaseRestHandler {
+public class RestGetDecommissionStateAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
@@ -40,10 +40,10 @@ public class RestGetDecommissionAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        GetDecommissionRequest getDecommissionRequest = Requests.getDecommissionRequest();
-        getDecommissionRequest.clusterManagerNodeTimeout(
-            request.paramAsTime("cluster_manager_timeout", getDecommissionRequest.clusterManagerNodeTimeout())
+        GetDecommissionStateRequest getDecommissionStateRequest = Requests.getDecommissionStateRequest();
+        getDecommissionStateRequest.clusterManagerNodeTimeout(
+            request.paramAsTime("cluster_manager_timeout", getDecommissionStateRequest.clusterManagerNodeTimeout())
         );
-        return channel -> client.admin().cluster().getDecommission(getDecommissionRequest, new RestToXContentListener<>(channel));
+        return channel -> client.admin().cluster().getDecommission(getDecommissionStateRequest, new RestToXContentListener<>(channel));
     }
 }

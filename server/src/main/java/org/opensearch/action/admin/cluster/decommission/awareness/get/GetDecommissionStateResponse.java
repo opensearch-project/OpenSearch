@@ -28,17 +28,17 @@ import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedT
  *
  * @opensearch.internal
  */
-public class GetDecommissionResponse extends ActionResponse implements ToXContentObject {
+public class GetDecommissionStateResponse extends ActionResponse implements ToXContentObject {
 
     private final DecommissionAttribute decommissionedAttribute;
     private final DecommissionStatus status;
 
-    GetDecommissionResponse(DecommissionAttribute decommissionedAttribute, DecommissionStatus status) {
+    GetDecommissionStateResponse(DecommissionAttribute decommissionedAttribute, DecommissionStatus status) {
         this.decommissionedAttribute = decommissionedAttribute;
         this.status = status;
     }
 
-    GetDecommissionResponse(StreamInput in) throws IOException {
+    GetDecommissionStateResponse(StreamInput in) throws IOException {
         this.decommissionedAttribute = new DecommissionAttribute(in);
         this.status = DecommissionStatus.fromValue(in.readByte());
     }
@@ -72,7 +72,7 @@ public class GetDecommissionResponse extends ActionResponse implements ToXConten
         return builder;
     }
 
-    public static GetDecommissionResponse fromXContent(XContentParser parser) throws IOException {
+    public static GetDecommissionStateResponse fromXContent(XContentParser parser) throws IOException {
         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
         String attributeType = "awareness";
         XContentParser.Token token;
@@ -125,14 +125,14 @@ public class GetDecommissionResponse extends ActionResponse implements ToXConten
                 }
             }
         }
-        return new GetDecommissionResponse(decommissionAttribute, status);
+        return new GetDecommissionStateResponse(decommissionAttribute, status);
     }
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        GetDecommissionResponse that = (GetDecommissionResponse) o;
+        GetDecommissionStateResponse that = (GetDecommissionStateResponse) o;
         return decommissionedAttribute.equals(that.decommissionedAttribute) && status == that.status;
     }
 

@@ -31,10 +31,10 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public class TransportGetDecommissionAction extends TransportClusterManagerNodeReadAction<GetDecommissionRequest, GetDecommissionResponse> {
+public class TransportGetDecommissionStateAction extends TransportClusterManagerNodeReadAction<GetDecommissionStateRequest, GetDecommissionStateResponse> {
 
     @Inject
-    public TransportGetDecommissionAction(
+    public TransportGetDecommissionStateAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
@@ -42,12 +42,12 @@ public class TransportGetDecommissionAction extends TransportClusterManagerNodeR
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
-            GetDecommissionAction.NAME,
+            GetDecommissionStateAction.NAME,
             transportService,
             clusterService,
             threadPool,
             actionFilters,
-            GetDecommissionRequest::new,
+            GetDecommissionStateRequest::new,
             indexNameExpressionResolver
         );
     }
@@ -58,34 +58,34 @@ public class TransportGetDecommissionAction extends TransportClusterManagerNodeR
     }
 
     @Override
-    protected GetDecommissionResponse read(StreamInput in) throws IOException {
-        return new GetDecommissionResponse(in);
+    protected GetDecommissionStateResponse read(StreamInput in) throws IOException {
+        return new GetDecommissionStateResponse(in);
     }
 
     @Override
     protected void clusterManagerOperation(
-        GetDecommissionRequest request,
+        GetDecommissionStateRequest request,
         ClusterState state,
-        ActionListener<GetDecommissionResponse> listener
+        ActionListener<GetDecommissionStateResponse> listener
     ) throws Exception {
         Metadata metadata = state.metadata();
         // DecommissionAttributeMetadata decommissionedAttributes = metadata.custom(DecommissionAttributeMetadata.TYPE);
         // TODO - update once service layer changes are merged
         // <<<<<<< HEAD
-        listener.onResponse(new GetDecommissionResponse(new DecommissionAttribute("zone", "zone-1"), DecommissionStatus.DECOMMISSIONED));
+        listener.onResponse(new GetDecommissionStateResponse(new DecommissionAttribute("zone", "zone-1"), DecommissionStatus.DECOMMISSIONED));
         // =======
         // if (decommissionedAttributes!=null) {
-        // listener.onResponse(new GetDecommissionResponse(decommissionedAttributes.decommissionAttribute(),
+        // listener.onResponse(new GetDecommissionStateResponse(decommissionedAttributes.decommissionAttribute(),
         // decommissionedAttributes.status()));
         // }
         // else {
-        // listener.onResponse(new GetDecommissionResponse());
+        // listener.onResponse(new GetDecommissionStateResponse());
         // }
         // >>>>>>> 1025b6e3e3e (Fix GET without PUT)
     }
 
     @Override
-    protected ClusterBlockException checkBlock(GetDecommissionRequest request, ClusterState state) {
+    protected ClusterBlockException checkBlock(GetDecommissionStateRequest request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 }

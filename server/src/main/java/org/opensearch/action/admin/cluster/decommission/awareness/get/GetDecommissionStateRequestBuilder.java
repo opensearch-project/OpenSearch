@@ -16,15 +16,15 @@ import org.opensearch.client.OpenSearchClient;
  *
  * @opensearch.internal
  */
-public class GetDecommissionRequestBuilder extends ClusterManagerNodeReadOperationRequestBuilder<
-    GetDecommissionRequest,
-    GetDecommissionResponse,
-    GetDecommissionRequestBuilder> {
+public class GetDecommissionStateRequestBuilder extends ClusterManagerNodeReadOperationRequestBuilder<
+    GetDecommissionStateRequest,
+    GetDecommissionStateResponse,
+    GetDecommissionStateRequestBuilder> {
 
     /**
      * Creates new get decommissioned attributes request builder
      */
-    public GetDecommissionRequestBuilder(OpenSearchClient client, GetDecommissionAction action) {
-        super(client, action, new GetDecommissionRequest());
+    public GetDecommissionStateRequestBuilder(OpenSearchClient client, GetDecommissionStateAction action) {
+        super(client, action, new GetDecommissionStateRequest());
     }
 }

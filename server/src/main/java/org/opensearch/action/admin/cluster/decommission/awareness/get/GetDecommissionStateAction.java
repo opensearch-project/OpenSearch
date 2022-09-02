@@ -15,12 +15,12 @@ import org.opensearch.action.ActionType;
  *
  * @opensearch.internal
  */
-public class GetDecommissionAction extends ActionType<GetDecommissionResponse> {
+public class GetDecommissionStateAction extends ActionType<GetDecommissionStateResponse> {
 
-    public static final GetDecommissionAction INSTANCE = new GetDecommissionAction();
+    public static final GetDecommissionStateAction INSTANCE = new GetDecommissionStateAction();
     public static final String NAME = "cluster:admin/decommission/awareness/get";
 
-    private GetDecommissionAction() {
-        super(NAME, GetDecommissionResponse::new);
+    private GetDecommissionStateAction() {
+        super(NAME, GetDecommissionStateResponse::new);
     }
 }
