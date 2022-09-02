@@ -30,7 +30,7 @@ import java.util.stream.Collectors;
 /**
  * Tests point in time API with rest high level client
  */
-public class Pit1IT extends OpenSearchRestHighLevelClientTestCase {
+public class PitIT extends OpenSearchRestHighLevelClientTestCase {
 
     @Before
     public void indexDocuments() throws IOException {
@@ -124,7 +124,7 @@ public class Pit1IT extends OpenSearchRestHighLevelClientTestCase {
         highLevelClient().getAllPitsAsync(RequestOptions.DEFAULT, getPitsListener);
         highLevelClient().deleteAllPitsAsync(RequestOptions.DEFAULT, deletePitListener);
         // validate no pits case
-        //highLevelClient().getAllPitsAsync(RequestOptions.DEFAULT, getPitsListener);
+        highLevelClient().getAllPitsAsync(RequestOptions.DEFAULT, getPitsListener);
         highLevelClient().deleteAllPitsAsync(RequestOptions.DEFAULT, deletePitListener);
     }
 }

@@ -499,7 +499,7 @@ final class RequestConverters {
     }
 
     static Request getAllPits() {
-        return new Request(HttpGet.METHOD_NAME, "/_search/point_in_time/all");
+        return new Request(HttpGet.METHOD_NAME, "/_search/point_in_time/_all");
     }
 
     static Request multiSearch(MultiSearchRequest multiSearchRequest) throws IOException {

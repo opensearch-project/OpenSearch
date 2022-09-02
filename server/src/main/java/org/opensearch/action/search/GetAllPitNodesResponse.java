@@ -65,7 +65,7 @@ public class GetAllPitNodesResponse extends BaseNodesResponse<GetAllPitNodeRespo
         pitInfos.addAll(listPitInfos);
     }
 
-    public <E> GetAllPitNodesResponse(
+    public GetAllPitNodesResponse(
         List<ListPitInfo> listPitInfos,
         ClusterName clusterName,
         List<GetAllPitNodeResponse> getAllPitNodeResponse,

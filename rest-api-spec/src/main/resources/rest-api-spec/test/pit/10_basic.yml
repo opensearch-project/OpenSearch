@@ -80,6 +80,12 @@
   - length: {hits.hits:      1    }
 
   - do:
+      get_all_pits: {}
+
+  - match: {pits.0.pit_id: $pit_id}
+  - match: {pits.0.keep_alive: 82800000 }
+
+  - do:
       delete_pit:
         body:
           "pit_id": [$pit_id]
@@ -118,6 +124,12 @@
 
   - set: {pit_id: pit_id}
   - match:   { _shards.failed: 0}
+
+  - do:
+      get_all_pits: {}
+
+  - match: {pits.0.pit_id: $pit_id}
+  - match: {pits.0.keep_alive: 82800000 }
 
   - do:
       delete_all_pits: {}

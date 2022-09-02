@@ -9,10 +9,8 @@
 
 package org.opensearch.rest.action.search;
 
-import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
 import org.opensearch.action.search.GetAllPitNodesRequest;
 import org.opensearch.action.search.GetAllPitNodesResponse;
-import org.opensearch.action.search.GetAllPitsAction;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.rest.BaseRestHandler;
@@ -40,45 +38,36 @@ public class RestGetAllPitsAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
-        clusterStateRequest.local(false);
-        boolean includeAll = request.paramAsBoolean("include_all", false);
-        clusterStateRequest.clusterManagerNodeTimeout(
-            request.paramAsTime("cluster_manager_timeout", clusterStateRequest.clusterManagerNodeTimeout())
-        );
-        clusterStateRequest.clear().nodes(true).routingTable(true).indices("*");
         GetAllPitNodesRequest getAllPITNodesRequest = new GetAllPitNodesRequest();
-        return channel -> client.execute(
-            GetAllPitsAction.INSTANCE,
-            getAllPITNodesRequest,
-            new RestResponseListener<GetAllPitNodesResponse>(channel) {
-                @Override
-                public RestResponse buildResponse(final GetAllPitNodesResponse getAllPITNodesResponse) throws Exception {
-                    try (XContentBuilder builder = channel.newBuilder()) {
-                        builder.startObject();
-                        if (getAllPITNodesResponse.hasFailures()) {
-                            builder.startArray("failures");
-                            for (int idx = 0; idx < getAllPITNodesResponse.failures().size(); idx++) {
-                                builder.field(
-                                    getAllPITNodesResponse.failures().get(idx).nodeId(),
-                                    getAllPITNodesResponse.failures().get(idx).getDetailedMessage()
-                                );
-                            }
-                            builder.endArray();
+        return channel -> client.getAllPits(getAllPITNodesRequest, new RestResponseListener<GetAllPitNodesResponse>(channel) {
+            @Override
+            public RestResponse buildResponse(final GetAllPitNodesResponse getAllPITNodesResponse) throws Exception {
+                try (XContentBuilder builder = channel.newBuilder()) {
+                    builder.startObject();
+                    if (getAllPITNodesResponse.hasFailures()) {
+                        builder.startArray("failures");
+                        for (int idx = 0; idx < getAllPITNodesResponse.failures().size(); idx++) {
+                            builder.field(
+                                getAllPITNodesResponse.failures().get(idx).nodeId(),
+                                getAllPITNodesResponse.failures().get(idx).getDetailedMessage()
+                            );
                         }
-                        builder.field("pits", getAllPITNodesResponse.getPitInfos());
-                        builder.endObject();
-                        if (getAllPITNodesResponse.getPitInfos().isEmpty()) return new BytesRestResponse(RestStatus.NOT_FOUND, builder);
-                        return new BytesRestResponse(RestStatus.OK, builder);
+                        builder.endArray();
                     }
+                    builder.field("pits", getAllPITNodesResponse.getPitInfos());
+                    builder.endObject();
+                    if (getAllPITNodesResponse.getPitInfos().isEmpty()) {
+                        return new BytesRestResponse(RestStatus.NOT_FOUND, builder);
+                    }
+                    return new BytesRestResponse(RestStatus.OK, builder);
                 }
             }
-        );
+        });
     }
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(Collections.singletonList(new Route(GET, "/_search/point_in_time/all")));
+        return unmodifiableList(Collections.singletonList(new Route(GET, "/_search/point_in_time/_all")));
     }
 
 }

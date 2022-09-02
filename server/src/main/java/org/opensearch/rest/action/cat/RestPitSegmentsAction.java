@@ -20,6 +20,7 @@ import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.Strings;
 import org.opensearch.common.Table;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.index.engine.Segment;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestHandler;
@@ -28,8 +29,6 @@ import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestActionListener;
 import org.opensearch.rest.action.RestResponseListener;
 
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -41,6 +40,9 @@ import static org.opensearch.rest.RestRequest.Method.GET;
  * Rest action for pit segments
  */
 public class RestPitSegmentsAction extends AbstractCatAction {
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestPitSegmentsAction.class);
+
     @Override
     public List<RestHandler.Route> routes() {
         return unmodifiableList(asList(new Route(GET, "/_cat/pit_segments"), new Route(GET, "/_cat/pit_segments/{pit_id}")));
@@ -61,14 +63,15 @@ public class RestPitSegmentsAction extends AbstractCatAction {
         final String[] pitIds = Strings.splitStringByCommaToArray(request.param("pit_id"));
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.local(false);
-        clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
+        clusterStateRequest.clusterManagerNodeTimeout(
+            request.paramAsTime("cluster_manager_timeout", clusterStateRequest.clusterManagerNodeTimeout())
+        );
+        parseDeprecatedMasterTimeoutParameter(clusterStateRequest, request, deprecationLogger, getName());
         clusterStateRequest.clear().nodes(true).routingTable(true).indices("*");
-
         return channel -> client.admin().cluster().state(clusterStateRequest, new RestActionListener<>(channel) {
             @Override
             public void processResponse(final ClusterStateResponse clusterStateResponse) {
-                final PitSegmentsRequest pitSegmentsRequest = new PitSegmentsRequest();
-                pitSegmentsRequest.clearAndSetPitIds(new ArrayList<>(Arrays.asList(pitIds)));
+                final PitSegmentsRequest pitSegmentsRequest = new PitSegmentsRequest(pitIds);
                 client.execute(PitSegmentsAction.INSTANCE, pitSegmentsRequest, new RestResponseListener<>(channel) {
                     @Override
                     public RestResponse buildResponse(final IndicesSegmentResponse indicesSegmentResponse) throws Exception {
