@@ -11,6 +11,7 @@
 
 package org.opensearch.identity;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 
 /**
@@ -24,7 +25,7 @@ public class ExtensionIdentifierUtils {
      * @return uuid
      */
     public static String toIdentifier(String username) {
-        return Base64.getEncoder().encodeToString(username.getBytes());
+        return Base64.getEncoder().encodeToString(username.getBytes(StandardCharsets.UTF_8));
     }
 
     /**
@@ -33,6 +34,6 @@ public class ExtensionIdentifierUtils {
      * @return String
      */
     public static String toUsername(String id) {
-        return new String(Base64.getDecoder().decode(id));
+        return new String(Base64.getDecoder().decode(id), StandardCharsets.UTF_8);
     }
 }
