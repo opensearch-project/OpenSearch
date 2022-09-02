@@ -19,15 +19,15 @@ import org.opensearch.common.unit.TimeValue;
  *
  * @opensearch.internal
  */
-public class PutDecommissionRequestBuilder extends ClusterManagerNodeOperationRequestBuilder<
-    PutDecommissionRequest,
-    PutDecommissionResponse,
-    PutDecommissionRequestBuilder> {
+public class DecommissionRequestBuilder extends ClusterManagerNodeOperationRequestBuilder<
+        DecommissionRequest,
+    DecommissionResponse,
+    DecommissionRequestBuilder> {
 
-    public PutDecommissionRequestBuilder(
+    public DecommissionRequestBuilder(
         OpenSearchClient client,
-        ActionType<PutDecommissionResponse> action,
-        PutDecommissionRequest request
+        ActionType<DecommissionResponse> action,
+        DecommissionRequest request
     ) {
         super(client, action, request);
     }
@@ -36,7 +36,7 @@ public class PutDecommissionRequestBuilder extends ClusterManagerNodeOperationRe
      * @param decommissionAttribute decommission attribute
      * @return current object
      */
-    public PutDecommissionRequestBuilder setDecommissionedAttribute(DecommissionAttribute decommissionAttribute) {
+    public DecommissionRequestBuilder setDecommissionedAttribute(DecommissionAttribute decommissionAttribute) {
         request.setDecommissionAttribute(decommissionAttribute);
         return this;
     }
@@ -45,7 +45,7 @@ public class PutDecommissionRequestBuilder extends ClusterManagerNodeOperationRe
      * @param timeout time out for the request
      * @return current object
      */
-    public PutDecommissionRequestBuilder setTimeout(TimeValue timeout) {
+    public DecommissionRequestBuilder setTimeout(TimeValue timeout) {
         request.setTimeout(timeout);
         return this;
     }

@@ -42,8 +42,8 @@ import org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfi
 import org.opensearch.action.admin.cluster.configuration.TransportClearVotingConfigExclusionsAction;
 import org.opensearch.action.admin.cluster.decommission.awareness.get.GetDecommissionAction;
 import org.opensearch.action.admin.cluster.decommission.awareness.get.TransportGetDecommissionAction;
-import org.opensearch.action.admin.cluster.decommission.awareness.put.PutDecommissionAction;
-import org.opensearch.action.admin.cluster.decommission.awareness.put.TransportPutDecommissionAction;
+import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionAction;
+import org.opensearch.action.admin.cluster.decommission.awareness.put.TransportDecommissionAction;
 import org.opensearch.action.admin.cluster.health.ClusterHealthAction;
 import org.opensearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.opensearch.action.admin.cluster.node.hotthreads.NodesHotThreadsAction;
@@ -322,7 +322,7 @@ import org.opensearch.rest.action.admin.cluster.RestNodesInfoAction;
 import org.opensearch.rest.action.admin.cluster.RestNodesStatsAction;
 import org.opensearch.rest.action.admin.cluster.RestNodesUsageAction;
 import org.opensearch.rest.action.admin.cluster.RestPendingClusterTasksAction;
-import org.opensearch.rest.action.admin.cluster.RestPutDecommissionAction;
+import org.opensearch.rest.action.admin.cluster.RestDecommissionAction;
 import org.opensearch.rest.action.admin.cluster.RestPutRepositoryAction;
 import org.opensearch.rest.action.admin.cluster.RestPutStoredScriptAction;
 import org.opensearch.rest.action.admin.cluster.RestReloadSecureSettingsAction;
@@ -690,7 +690,7 @@ public class ActionModule extends AbstractModule {
         actions.register(RestoreRemoteStoreAction.INSTANCE, TransportRestoreRemoteStoreAction.class);
 
         // Decommission actions
-        actions.register(PutDecommissionAction.INSTANCE, TransportPutDecommissionAction.class);
+        actions.register(DecommissionAction.INSTANCE, TransportDecommissionAction.class);
         actions.register(GetDecommissionAction.INSTANCE, TransportGetDecommissionAction.class);
 
         return unmodifiableMap(actions.getRegistry());
@@ -883,7 +883,7 @@ public class ActionModule extends AbstractModule {
             }
         }
         registerHandler.accept(new RestCatAction(catActions));
-        registerHandler.accept(new RestPutDecommissionAction());
+        registerHandler.accept(new RestDecommissionAction());
         registerHandler.accept(new RestGetDecommissionAction());
 
         // Remote Store APIs

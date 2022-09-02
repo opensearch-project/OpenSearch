@@ -9,7 +9,7 @@
 package org.opensearch.rest.action.admin.cluster;
 
 import org.junit.Before;
-import org.opensearch.action.admin.cluster.decommission.awareness.put.PutDecommissionRequest;
+import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionRequest;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.test.rest.FakeRestRequest;
@@ -19,13 +19,13 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-public class RestPutDecommissionActionTests extends RestActionTestCase {
+public class RestDecommissionActionTests extends RestActionTestCase {
 
-    private RestPutDecommissionAction action;
+    private RestDecommissionAction action;
 
     @Before
     public void setupAction() {
-        action = new RestPutDecommissionAction();
+        action = new RestDecommissionAction();
         controller().registerHandler(action);
     }
 
@@ -37,7 +37,7 @@ public class RestPutDecommissionActionTests extends RestActionTestCase {
 
         RestRequest deprecatedRequest = buildRestRequest(params);
 
-        PutDecommissionRequest request = action.createRequest(deprecatedRequest);
+        DecommissionRequest request = action.createRequest(deprecatedRequest);
         assertEquals(request.getDecommissionAttribute().attributeName(), "zone");
         assertEquals(request.getDecommissionAttribute().attributeValue(), "zone-1");
         assertEquals(request.getTimeout(), TimeValue.timeValueSeconds(10L));
@@ -51,7 +51,7 @@ public class RestPutDecommissionActionTests extends RestActionTestCase {
 
         RestRequest deprecatedRequest = buildRestRequest(params);
 
-        PutDecommissionRequest request = action.createRequest(deprecatedRequest);
+        DecommissionRequest request = action.createRequest(deprecatedRequest);
         assertEquals(request.getDecommissionAttribute().attributeName(), "zone");
         assertEquals(request.getDecommissionAttribute().attributeValue(), "zone-1");
         assertEquals(request.getTimeout(), TimeValue.timeValueSeconds(300L));

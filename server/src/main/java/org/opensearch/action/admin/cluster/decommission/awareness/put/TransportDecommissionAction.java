@@ -30,12 +30,12 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public class TransportPutDecommissionAction extends TransportClusterManagerNodeAction<PutDecommissionRequest, PutDecommissionResponse> {
+public class TransportDecommissionAction extends TransportClusterManagerNodeAction<DecommissionRequest, DecommissionResponse> {
 
-    private static final Logger logger = LogManager.getLogger(TransportPutDecommissionAction.class);
+    private static final Logger logger = LogManager.getLogger(TransportDecommissionAction.class);
 
     @Inject
-    public TransportPutDecommissionAction(
+    public TransportDecommissionAction(
         TransportService transportService,
         ClusterService clusterService,
         // DecommissionService decommissionService,
@@ -44,12 +44,12 @@ public class TransportPutDecommissionAction extends TransportClusterManagerNodeA
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
-            PutDecommissionAction.NAME,
+            DecommissionAction.NAME,
             transportService,
             clusterService,
             threadPool,
             actionFilters,
-            PutDecommissionRequest::new,
+            DecommissionRequest::new,
             indexNameExpressionResolver
         );
         // TODO - uncomment when integrating with the service
@@ -62,23 +62,23 @@ public class TransportPutDecommissionAction extends TransportClusterManagerNodeA
     }
 
     @Override
-    protected PutDecommissionResponse read(StreamInput in) throws IOException {
-        return new PutDecommissionResponse(in);
+    protected DecommissionResponse read(StreamInput in) throws IOException {
+        return new DecommissionResponse(in);
     }
 
     @Override
-    protected ClusterBlockException checkBlock(PutDecommissionRequest request, ClusterState state) {
+    protected ClusterBlockException checkBlock(DecommissionRequest request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
     @Override
     protected void clusterManagerOperation(
-        PutDecommissionRequest request,
+        DecommissionRequest request,
         ClusterState state,
-        ActionListener<PutDecommissionResponse> listener
+        ActionListener<DecommissionResponse> listener
     ) throws Exception {
         logger.info("initiating awareness attribute [{}] decommissioning", request.getDecommissionAttribute().toString());
-        listener.onResponse(new PutDecommissionResponse(true)); // TODO - remove after integration
+        listener.onResponse(new DecommissionResponse(true)); // TODO - remove after integration
         // TODO - uncomment when integrating with the service
         // decommissionService.initiateAttributeDecommissioning(
         // request.getDecommissionAttribute(),

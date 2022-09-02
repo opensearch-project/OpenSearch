@@ -8,7 +8,7 @@
 
 package org.opensearch.rest.action.admin.cluster;
 
-import org.opensearch.action.admin.cluster.decommission.awareness.put.PutDecommissionRequest;
+import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionRequest;
 import org.opensearch.client.Requests;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.decommission.DecommissionAttribute;
@@ -28,7 +28,7 @@ import static org.opensearch.rest.RestRequest.Method.PUT;
  *
  * @opensearch.api
  */
-public class RestPutDecommissionAction extends BaseRestHandler {
+public class RestDecommissionAction extends BaseRestHandler {
 
     private static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(300L);
 
@@ -44,14 +44,14 @@ public class RestPutDecommissionAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        PutDecommissionRequest putDecommissionRequest = createRequest(request);
-        return channel -> client.admin().cluster().putDecommission(putDecommissionRequest, new RestToXContentListener<>(channel));
+        DecommissionRequest decommissionRequest = createRequest(request);
+        return channel -> client.admin().cluster().decommission(decommissionRequest, new RestToXContentListener<>(channel));
     }
 
-    PutDecommissionRequest createRequest(RestRequest request) throws IOException {
+    DecommissionRequest createRequest(RestRequest request) throws IOException {
         String attributeName = null;
         String attributeValue = null;
-        PutDecommissionRequest putDecommissionRequest = Requests.putDecommissionRequest();
+        DecommissionRequest decommissionRequest = Requests.decommissionRequest();
         if (request.hasParam("awareness_attribute_name")) {
             attributeName = request.param("awareness_attribute_name");
         }
@@ -59,7 +59,7 @@ public class RestPutDecommissionAction extends BaseRestHandler {
         if (request.hasParam("awareness_attribute_value")) {
             attributeValue = request.param("awareness_attribute_value");
         }
-        return putDecommissionRequest.setDecommissionAttribute(new DecommissionAttribute(attributeName, attributeValue))
+        return decommissionRequest.setDecommissionAttribute(new DecommissionAttribute(attributeName, attributeValue))
             .setTimeout(TimeValue.parseTimeValue(request.param("timeout"), DEFAULT_TIMEOUT, getClass().getSimpleName() + ".timeout"));
     }
 }

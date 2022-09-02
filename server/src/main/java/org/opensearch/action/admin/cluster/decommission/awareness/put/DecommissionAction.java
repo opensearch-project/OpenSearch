@@ -15,11 +15,11 @@ import org.opensearch.action.ActionType;
  *
  * @opensearch.internal
  */
-public final class PutDecommissionAction extends ActionType<PutDecommissionResponse> {
-    public static final PutDecommissionAction INSTANCE = new PutDecommissionAction();
+public final class DecommissionAction extends ActionType<DecommissionResponse> {
+    public static final DecommissionAction INSTANCE = new DecommissionAction();
     public static final String NAME = "cluster:admin/decommission/awareness/put";
 
-    private PutDecommissionAction() {
-        super(NAME, PutDecommissionResponse::new);
+    private DecommissionAction() {
+        super(NAME, DecommissionResponse::new);
     }
 }

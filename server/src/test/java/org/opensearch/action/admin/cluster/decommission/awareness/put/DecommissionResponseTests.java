@@ -12,10 +12,10 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
-public class PutDecommissionResponseTests extends OpenSearchTestCase {
+public class DecommissionResponseTests extends OpenSearchTestCase {
     public void testSerialization() throws IOException {
-        final PutDecommissionResponse originalRequest = new PutDecommissionResponse(true);
-        copyWriteable(originalRequest, writableRegistry(), PutDecommissionResponse::new);
+        final DecommissionResponse originalRequest = new DecommissionResponse(true);
+        copyWriteable(originalRequest, writableRegistry(), DecommissionResponse::new);
         // there are no fields so we're just checking that this doesn't throw anything
     }
 }

@@ -26,19 +26,19 @@ import static org.opensearch.action.ValidateActions.addValidationError;
  *
  * @opensearch.internal
  */
-public class PutDecommissionRequest extends ClusterManagerNodeRequest<PutDecommissionRequest> {
+public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionRequest> {
 
     private DecommissionAttribute decommissionAttribute;
     private TimeValue timeout;
 
-    public PutDecommissionRequest() {}
+    public DecommissionRequest() {}
 
-    public PutDecommissionRequest(DecommissionAttribute decommissionAttribute, TimeValue timeout) {
+    public DecommissionRequest(DecommissionAttribute decommissionAttribute, TimeValue timeout) {
         this.decommissionAttribute = decommissionAttribute;
         this.timeout = timeout;
     }
 
-    public PutDecommissionRequest(StreamInput in) throws IOException {
+    public DecommissionRequest(StreamInput in) throws IOException {
         super(in);
         decommissionAttribute = new DecommissionAttribute(in);
         timeout = in.readTimeValue();
@@ -57,7 +57,7 @@ public class PutDecommissionRequest extends ClusterManagerNodeRequest<PutDecommi
      * @param decommissionAttribute attribute key-value that needs to be decommissioned
      * @return this request
      */
-    public PutDecommissionRequest setDecommissionAttribute(DecommissionAttribute decommissionAttribute) {
+    public DecommissionRequest setDecommissionAttribute(DecommissionAttribute decommissionAttribute) {
         this.decommissionAttribute = decommissionAttribute;
         return this;
     }
@@ -68,7 +68,7 @@ public class PutDecommissionRequest extends ClusterManagerNodeRequest<PutDecommi
      * @param timeout time out for the request
      * @return this request
      */
-    public PutDecommissionRequest setTimeout(TimeValue timeout) {
+    public DecommissionRequest setTimeout(TimeValue timeout) {
         this.timeout = timeout;
         return this;
     }
@@ -98,6 +98,6 @@ public class PutDecommissionRequest extends ClusterManagerNodeRequest<PutDecommi
 
     @Override
     public String toString() {
-        return "PutDecommissionRequest{" + "decommissionAttribute=" + decommissionAttribute + ", timeout=" + timeout + '}';
+        return "DecommissionRequest{" + "decommissionAttribute=" + decommissionAttribute + ", timeout=" + timeout + '}';
     }
 }

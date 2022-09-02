@@ -20,13 +20,13 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public class PutDecommissionResponse extends AcknowledgedResponse implements ToXContentObject {
+public class DecommissionResponse extends AcknowledgedResponse implements ToXContentObject {
 
-    public PutDecommissionResponse(StreamInput in) throws IOException {
+    public DecommissionResponse(StreamInput in) throws IOException {
         super(in);
     }
 
-    public PutDecommissionResponse(boolean acknowledged) {
+    public DecommissionResponse(boolean acknowledged) {
         super(acknowledged);
     }
 
