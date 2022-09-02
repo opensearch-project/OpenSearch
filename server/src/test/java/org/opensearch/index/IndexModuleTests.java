@@ -54,6 +54,7 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.CheckedFunction;
+import org.opensearch.common.UUIDs;
 import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
@@ -88,6 +89,7 @@ import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.similarity.NonNegativeScoresSimilarity;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.index.store.FsDirectoryFactory;
+import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.indices.IndicesQueryCache;
 import org.opensearch.indices.analysis.AnalysisModule;
@@ -98,6 +100,7 @@ import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.plugins.IndexStorePlugin;
+import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.internal.ReaderContext;
 import org.opensearch.test.ClusterServiceUtils;
@@ -107,6 +110,8 @@ import org.opensearch.test.engine.MockEngineFactory;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.hamcrest.Matchers;
+import org.opensearch.transport.Transport;
+import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -151,6 +156,7 @@ public class IndexModuleTests extends OpenSearchTestCase {
     private BigArrays bigArrays;
     private ScriptService scriptService;
     private ClusterService clusterService;
+    private RepositoriesService repositoriesService;
 
     @Override
     public void setUp() throws Exception {
@@ -183,6 +189,24 @@ public class IndexModuleTests extends OpenSearchTestCase {
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
         nodeEnvironment = new NodeEnvironment(settings, environment);
         mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
+        TransportService transportService = new TransportService(
+            settings,
+            mock(Transport.class),
+            threadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            boundAddress -> DiscoveryNode.createLocal(settings, boundAddress.publishAddress(), UUIDs.randomBase64UUID()),
+            null,
+            Collections.emptySet()
+        );
+        repositoriesService = new RepositoriesService(
+            settings,
+            clusterService,
+            transportService,
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            threadPool
+        );
+
     }
 
     @Override
@@ -209,7 +233,8 @@ public class IndexModuleTests extends OpenSearchTestCase {
             new IndicesFieldDataCache(settings, listener),
             writableRegistry(),
             () -> false,
-            null
+            null,
+            new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService)
         );
     }
 

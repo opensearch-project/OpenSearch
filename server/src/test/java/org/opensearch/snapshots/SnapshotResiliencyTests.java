@@ -172,6 +172,7 @@ import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.index.seqno.GlobalCheckpointSyncAction;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.shard.PrimaryReplicaSyncer;
+import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.ShardLimitValidator;
@@ -1824,7 +1825,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     Collections.emptyList(),
                     emptyMap(),
                     null,
-                    emptyMap()
+                    emptyMap(),
+                    new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService)
                 );
                 final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
                 snapshotShardsService = new SnapshotShardsService(

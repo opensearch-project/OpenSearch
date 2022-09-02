@@ -67,6 +67,22 @@ public interface IndexStorePlugin {
     }
 
     /**
+     * An interface that describes how to create a new remote directory instance per shard.
+     */
+    @FunctionalInterface
+    interface RemoteDirectoryFactory {
+        /**
+         * Creates a new remote directory per shard. This method is called once per shard on shard creation.
+         * @param repositoryName repository name
+         * @param indexSettings the shards index settings
+         * @param shardPath the path the shard is using
+         * @return a new RemoteDirectory instance
+         * @throws IOException if an IOException occurs while opening the directory
+         */
+        Directory newDirectory(String repositoryName, IndexSettings indexSettings, ShardPath shardPath) throws IOException;
+    }
+
+    /**
      * The {@link DirectoryFactory} mappings for this plugin. When an index is created the store type setting
      * {@link org.opensearch.index.IndexModule#INDEX_STORE_TYPE_SETTING} on the index will be examined and either use the default or a
      * built-in type, or looked up among all the directory factories from {@link IndexStorePlugin} plugins.

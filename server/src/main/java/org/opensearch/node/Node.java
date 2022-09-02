@@ -44,6 +44,7 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.indices.replication.SegmentReplicationSourceFactory;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.indices.replication.SegmentReplicationSourceService;
+import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.watcher.ResourceWatcherService;
 import org.opensearch.Assertions;
 import org.opensearch.Build;
@@ -628,6 +629,10 @@ public class Node implements Closeable {
             rerouteServiceReference.set(rerouteService);
             clusterService.setRerouteService(rerouteService);
 
+            final IndexStorePlugin.RemoteDirectoryFactory remoteDirectoryFactory = new RemoteSegmentStoreDirectoryFactory(
+                repositoriesServiceReference::get
+            );
+
             final IndicesService indicesService = new IndicesService(
                 settings,
                 pluginsService,
@@ -648,7 +653,8 @@ public class Node implements Closeable {
                 engineFactoryProviders,
                 indexStoreFactories,
                 searchModule.getValuesSourceRegistry(),
-                recoveryStateFactories
+                recoveryStateFactories,
+                remoteDirectoryFactory
             );
 
             final AliasValidator aliasValidator = new AliasValidator();

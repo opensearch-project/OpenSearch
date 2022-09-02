@@ -198,9 +198,9 @@ public final class IndexModule {
      * Construct the index module for the index with the specified index settings. The index module contains extension points for plugins
      * via {@link org.opensearch.plugins.PluginsService#onIndexModule(IndexModule)}.
      *
-     * @param indexSettings       the index settings
-     * @param analysisRegistry    the analysis registry
-     * @param engineFactory       the engine factory
+     * @param indexSettings      the index settings
+     * @param analysisRegistry   the analysis registry
+     * @param engineFactory      the engine factory
      * @param directoryFactories the available store types
      */
     public IndexModule(
@@ -485,7 +485,8 @@ public final class IndexModule {
         IndicesFieldDataCache indicesFieldDataCache,
         NamedWriteableRegistry namedWriteableRegistry,
         BooleanSupplier idFieldDataEnabled,
-        ValuesSourceRegistry valuesSourceRegistry
+        ValuesSourceRegistry valuesSourceRegistry,
+        IndexStorePlugin.RemoteDirectoryFactory remoteDirectoryFactory
     ) throws IOException {
         final IndexEventListener eventListener = freeze();
         Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> readerWrapperFactory = indexReaderWrapper
@@ -528,6 +529,7 @@ public final class IndexModule {
                 client,
                 queryCache,
                 directoryFactory,
+                remoteDirectoryFactory,
                 eventListener,
                 readerWrapperFactory,
                 mapperRegistry,
