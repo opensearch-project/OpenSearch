@@ -8,8 +8,8 @@
 
 package org.opensearch.action.admin.cluster.shards.routing.wrr.put;
 
-import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
+import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
@@ -27,6 +27,8 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.List;
+
+import static org.opensearch.action.ValidateActions.addValidationError;
 
 /**
  * Transport action for updating weights for weighted round-robin search routing policy
@@ -107,10 +109,14 @@ public class TransportPutWRRWeightsAction extends TransportClusterManagerNodeAct
 
     private void verifyAwarenessAttribute(String attributeName) {
         // Currently, only zone is supported
-        if (!getAwarenessAttributes().contains(attributeName) || !attributeName.equalsIgnoreCase("zone")) throw new OpenSearchException(
-            "invalid awareness attribute {} requested for updating wrr weights",
-            attributeName
-        );
+        if (!getAwarenessAttributes().contains(attributeName) || !attributeName.equalsIgnoreCase("zone")) {
+            ActionRequestValidationException validationException = null;
+            validationException = addValidationError(
+                "invalid awareness attribute " + attributeName + " requested for " + "updating wrr weights",
+                validationException
+            );
+            throw validationException;
+        }
     }
 
     @Override
