@@ -657,7 +657,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
             protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener)
                 throws Exception {
                 if (exception.getAndSet(false)) {
-                    throw new Exception("Different excetion");
+                    throw new Exception("Different exception");
                 } else {
                     // If called second time due to retry, throw exception
                     retried.set(true);
@@ -669,27 +669,5 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
 
         assertFalse(retried.get());
         assertFalse(exception.get());
-    }
-
-    public void testShouldRetry() {
-        AtomicBoolean exception = new AtomicBoolean(true);
-        AtomicBoolean retried = new AtomicBoolean(false);
-        CyclicBarrier barrier = new CyclicBarrier(2);
-        TransportClusterManagerNodeAction action = new Action("internal:testAction", transportService, clusterService, threadPool) {
-            @Override
-            protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) {
-                if (exception.getAndSet(false)) {
-                    throw new MasterTaskThrottlingException("Throttling Exception : Limit exceeded for test");
-                } else {
-                    try {
-                        retried.set(true);
-                        barrier.await();
-                    } catch (Exception e) {
-                        throw new AssertionError();
-                    }
-                }
-            }
-        };
-
     }
 }

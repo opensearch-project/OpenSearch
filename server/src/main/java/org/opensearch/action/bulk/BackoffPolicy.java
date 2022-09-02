@@ -121,13 +121,13 @@ public abstract class BackoffPolicy implements Iterable<TimeValue> {
 
     /**
      *  It provides exponential backoff between retries until it reaches Integer.MAX_VALUE.
-     *  It will make random distribution of delay.
+     *  It uses full jitter scheme for random distribution.
      *
      * @param baseDelay BaseDelay for exponential Backoff
-     * @return A backoff policy with exponential backoff with equal jitter which can't return delay more than given max delay
+     * @return A backoff policy with exponential backoff with full jitter.
      */
-    public static BackoffPolicy exponentialRandomBackoff(long baseDelay) {
-        return new ExponentialRandomBackoff(baseDelay);
+    public static BackoffPolicy exponentialFullJitterBackoff(long baseDelay) {
+        return new ExponentialFullJitterBackoff(baseDelay);
     }
 
     /**
@@ -281,26 +281,26 @@ public abstract class BackoffPolicy implements Iterable<TimeValue> {
         }
     }
 
-    private static class ExponentialRandomBackoff extends BackoffPolicy {
+    private static class ExponentialFullJitterBackoff extends BackoffPolicy {
         private final long baseDelay;
 
-        private ExponentialRandomBackoff(long baseDelay) {
+        private ExponentialFullJitterBackoff(long baseDelay) {
             this.baseDelay = baseDelay;
         }
 
         @Override
         public Iterator<TimeValue> iterator() {
-            return new ExponentialRandomBackoffIterator(baseDelay);
+            return new ExponentialFullJitterBackoffIterator(baseDelay);
         }
     }
 
-    private static class ExponentialRandomBackoffIterator implements Iterator<TimeValue> {
+    private static class ExponentialFullJitterBackoffIterator implements Iterator<TimeValue> {
         /**
          * Current delay in exponential backoff
          */
         private long currentDelay;
 
-        private ExponentialRandomBackoffIterator(long baseDelay) {
+        private ExponentialFullJitterBackoffIterator(long baseDelay) {
             this.currentDelay = baseDelay;
         }
 

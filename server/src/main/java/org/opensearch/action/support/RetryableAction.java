@@ -82,7 +82,7 @@ public abstract class RetryableAction<Response> {
             initialDelay,
             timeoutValue,
             listener,
-            BackoffPolicy.exponentialRandomBackoff(initialDelay.getMillis()),
+            BackoffPolicy.exponentialFullJitterBackoff(initialDelay.getMillis()),
             ThreadPool.Names.SAME
         );
     }
