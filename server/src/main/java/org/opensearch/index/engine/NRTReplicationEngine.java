@@ -54,6 +54,8 @@ public class NRTReplicationEngine extends Engine {
     private final LocalCheckpointTracker localCheckpointTracker;
     private final WriteOnlyTranslogManager translogManager;
 
+    private static final int SI_COUNTER_INCREMENT = 10;
+
     public NRTReplicationEngine(EngineConfig engineConfig) {
         super(engineConfig);
         store.incRef();
@@ -142,6 +144,13 @@ public class NRTReplicationEngine extends Engine {
     public void commitSegmentInfos() throws IOException {
         // TODO: This method should wait for replication events to finalize.
         final SegmentInfos latestSegmentInfos = getLatestSegmentInfos();
+        /*
+         This is a workaround solution which decreases the chances of conflict on replica nodes when same file is copied
+         from two different primaries during failover. Increasing counter helps in avoiding this conflict as counter is
+         used to generate new segment file names. The ideal solution is to identify the counter from previous primary.
+         */
+        latestSegmentInfos.counter = latestSegmentInfos.counter + SI_COUNTER_INCREMENT;
+        latestSegmentInfos.changed();
         store.commitSegmentInfos(latestSegmentInfos, localCheckpointTracker.getMaxSeqNo(), localCheckpointTracker.getProcessedCheckpoint());
         translogManager.syncTranslog();
     }
