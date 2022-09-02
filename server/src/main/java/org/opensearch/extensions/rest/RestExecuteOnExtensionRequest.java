@@ -48,8 +48,6 @@ public class RestExecuteOnExtensionRequest extends TransportRequest {
         }
         uri = in.readString();
 
-        // TODO: check whether this is correct implementation
-        // TODO: is this a better solution then `UUID.fromString(in.readString());` ??
         principalIdentifier = ExtensionIdentifierUtils.toIdentifier(in.readString());
     }
 

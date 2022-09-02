@@ -8,6 +8,7 @@
 
 package org.opensearch.extensions.rest;
 
+import org.opensearch.identity.ExtensionIdentifierUtils;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamInput;
@@ -25,10 +26,13 @@ public class RestExecuteOnExtensionTests extends OpenSearchTestCase {
     public void testRestExecuteOnExtensionRequest() throws Exception {
         Method expectedMethod = Method.GET;
         String expectedUri = "/test/uri";
-        RestExecuteOnExtensionRequest request = new RestExecuteOnExtensionRequest(expectedMethod, expectedUri);
+        String username = "admin";
+        String expectedPrincipalIdentifier = ExtensionIdentifierUtils.toIdentifier(username);
+        RestExecuteOnExtensionRequest request = new RestExecuteOnExtensionRequest(expectedMethod, expectedUri, expectedPrincipalIdentifier);
 
         assertEquals(expectedMethod, request.getMethod());
         assertEquals(expectedUri, request.getUri());
+        assertEquals(expectedPrincipalIdentifier, request.getPrincipalIdentifier());
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             request.writeTo(out);
@@ -38,6 +42,7 @@ public class RestExecuteOnExtensionTests extends OpenSearchTestCase {
 
                 assertEquals(expectedMethod, request.getMethod());
                 assertEquals(expectedUri, request.getUri());
+                assertEquals(expectedPrincipalIdentifier, request.getPrincipalIdentifier());
             }
         }
     }
