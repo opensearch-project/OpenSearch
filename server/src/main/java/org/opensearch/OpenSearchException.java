@@ -34,6 +34,7 @@ package org.opensearch;
 
 import org.opensearch.action.support.replication.ReplicationOperation;
 import org.opensearch.cluster.action.shard.ShardStateAction;
+import org.opensearch.cluster.service.ClusterManagerThrottlingException;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.ParseField;
@@ -1626,8 +1627,8 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
          * TODO: Change the version number of check as per version in which this change will be merged.
          */
         MASTER_TASK_THROTTLED_EXCEPTION(
-            org.opensearch.cluster.service.MasterTaskThrottlingException.class,
-            org.opensearch.cluster.service.MasterTaskThrottlingException::new,
+            ClusterManagerThrottlingException.class,
+            ClusterManagerThrottlingException::new,
             165,
             Version.V_3_0_0
         );
