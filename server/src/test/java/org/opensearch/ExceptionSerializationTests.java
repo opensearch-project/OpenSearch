@@ -44,16 +44,17 @@ import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.action.support.replication.ReplicationOperation;
 import org.opensearch.client.AbstractClientHeadersTestCase;
+import org.opensearch.cluster.NotMasterException;
 import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.coordination.CoordinationStateRejectedException;
-import org.opensearch.cluster.coordination.NoMasterBlockService;
+import org.opensearch.cluster.coordination.NoClusterManagerBlockService;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.IllegalShardRoutingStateException;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.TestShardRouting;
-import org.opensearch.cluster.service.MasterTaskThrottlingException;
+import org.opensearch.cluster.service.ClusterManagerThrottlingException;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
@@ -70,6 +71,7 @@ import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.util.CancellableThreadsTests;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.XContentLocation;
+import org.opensearch.discovery.MasterNotDiscoveredException;
 import org.opensearch.env.ShardLockObtainFailedException;
 import org.opensearch.index.Index;
 import org.opensearch.index.engine.RecoveryEngineException;
@@ -79,6 +81,7 @@ import org.opensearch.index.seqno.RetentionLeaseInvalidRetainingSeqNoException;
 import org.opensearch.index.seqno.RetentionLeaseNotFoundException;
 import org.opensearch.index.shard.IllegalIndexShardStateException;
 import org.opensearch.index.shard.IndexShardState;
+import org.opensearch.index.shard.PrimaryShardClosedException;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.shard.ShardNotInPrimaryModeException;
 import org.opensearch.indices.IndexTemplateMissingException;
@@ -236,6 +239,9 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
         Files.walkFileTree(testStartPath, visitor);
         assertTrue(notRegistered.remove(TestException.class));
         assertTrue(notRegistered.remove(UnknownHeaderException.class));
+        // Remove the deprecated exception classes from the unregistered list.
+        assertTrue(notRegistered.remove(NotMasterException.class));
+        assertTrue(notRegistered.remove(MasterNotDiscoveredException.class));
         assertTrue("Classes subclassing OpenSearchException must be registered \n" + notRegistered.toString(), notRegistered.isEmpty());
         assertTrue(registered.removeAll(OpenSearchException.getRegisteredKeys())); // check
         assertEquals(registered.toString(), 0, registered.size());
@@ -512,9 +518,11 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
     }
 
     public void testClusterBlockException() throws IOException {
-        ClusterBlockException ex = serialize(new ClusterBlockException(singleton(NoMasterBlockService.NO_MASTER_BLOCK_WRITES)));
+        ClusterBlockException ex = serialize(
+            new ClusterBlockException(singleton(NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_WRITES))
+        );
         assertEquals("blocked by: [SERVICE_UNAVAILABLE/2/no cluster-manager];", ex.getMessage());
-        assertTrue(ex.blocks().contains(NoMasterBlockService.NO_MASTER_BLOCK_WRITES));
+        assertTrue(ex.blocks().contains(NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_WRITES));
         assertEquals(1, ex.blocks().size());
     }
 
@@ -696,7 +704,7 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
         ids.put(0, org.opensearch.index.snapshots.IndexShardSnapshotFailedException.class);
         ids.put(1, org.opensearch.search.dfs.DfsPhaseExecutionException.class);
         ids.put(2, org.opensearch.common.util.CancellableThreads.ExecutionCancelledException.class);
-        ids.put(3, org.opensearch.discovery.MasterNotDiscoveredException.class);
+        ids.put(3, org.opensearch.discovery.ClusterManagerNotDiscoveredException.class);
         ids.put(4, org.opensearch.OpenSearchSecurityException.class);
         ids.put(5, org.opensearch.index.snapshots.IndexShardRestoreException.class);
         ids.put(6, org.opensearch.indices.IndexClosedException.class);
@@ -834,7 +842,7 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
         ids.put(141, org.opensearch.index.query.QueryShardException.class);
         ids.put(142, ShardStateAction.NoLongerPrimaryShardException.class);
         ids.put(143, org.opensearch.script.ScriptException.class);
-        ids.put(144, org.opensearch.cluster.NotMasterException.class);
+        ids.put(144, org.opensearch.cluster.NotClusterManagerException.class);
         ids.put(145, org.opensearch.OpenSearchStatusException.class);
         ids.put(146, org.opensearch.tasks.TaskCancelledException.class);
         ids.put(147, org.opensearch.env.ShardLockObtainFailedException.class);
@@ -852,7 +860,8 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
         ids.put(159, NodeHealthCheckFailureException.class);
         ids.put(160, NoSeedNodeLeftException.class);
         ids.put(161, ReplicationFailedException.class);
-        ids.put(162, MasterTaskThrottlingException.class);
+        ids.put(162, PrimaryShardClosedException.class);
+        ids.put(163, ClusterManagerThrottlingException.class);
 
         Map<Class<? extends OpenSearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends OpenSearchException>> entry : ids.entrySet()) {

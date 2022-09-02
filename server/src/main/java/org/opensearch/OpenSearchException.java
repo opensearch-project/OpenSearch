@@ -34,6 +34,7 @@ package org.opensearch;
 
 import org.opensearch.action.support.replication.ReplicationOperation;
 import org.opensearch.cluster.action.shard.ShardStateAction;
+import org.opensearch.cluster.service.ClusterManagerThrottlingException;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.ParseField;
@@ -68,6 +69,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.opensearch.Version.V_2_1_0;
+import static org.opensearch.Version.V_3_0_0;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VALUE;
 import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.opensearch.common.xcontent.XContentParserUtils.ensureFieldName;
@@ -789,8 +791,8 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
             UNKNOWN_VERSION_ADDED
         ),
         CLUSTER_MANAGER_NOT_DISCOVERED_EXCEPTION(
-            org.opensearch.discovery.MasterNotDiscoveredException.class,
-            org.opensearch.discovery.MasterNotDiscoveredException::new,
+            org.opensearch.discovery.ClusterManagerNotDiscoveredException.class,
+            org.opensearch.discovery.ClusterManagerNotDiscoveredException::new,
             3,
             UNKNOWN_VERSION_ADDED
         ),
@@ -1500,8 +1502,8 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
             UNKNOWN_VERSION_ADDED
         ),
         NOT_CLUSTER_MANAGER_EXCEPTION(
-            org.opensearch.cluster.NotMasterException.class,
-            org.opensearch.cluster.NotMasterException::new,
+            org.opensearch.cluster.NotClusterManagerException.class,
+            org.opensearch.cluster.NotClusterManagerException::new,
             144,
             UNKNOWN_VERSION_ADDED
         ),
@@ -1602,13 +1604,19 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
             161,
             V_2_1_0
         ),
+        PRIMARY_SHARD_CLOSED_EXCEPTION(
+            org.opensearch.index.shard.PrimaryShardClosedException.class,
+            org.opensearch.index.shard.PrimaryShardClosedException::new,
+            162,
+            V_3_0_0
+        ),
         /**
          * TODO: Change the version number of check as per version in which this change will be merged.
          */
         MASTER_TASK_THROTTLED_EXCEPTION(
-            org.opensearch.cluster.service.MasterTaskThrottlingException.class,
-            org.opensearch.cluster.service.MasterTaskThrottlingException::new,
-            162,
+            ClusterManagerThrottlingException.class,
+            ClusterManagerThrottlingException::new,
+            163,
             Version.V_3_0_0
         );
 

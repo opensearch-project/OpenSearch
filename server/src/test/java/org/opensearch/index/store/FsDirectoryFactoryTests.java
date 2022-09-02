@@ -70,20 +70,52 @@ public class FsDirectoryFactoryTests extends OpenSearchTestCase {
         try (Directory directory = newDirectory(build)) {
             assertTrue(FsDirectoryFactory.isHybridFs(directory));
             FsDirectoryFactory.HybridDirectory hybridDirectory = (FsDirectoryFactory.HybridDirectory) directory;
-            assertTrue(hybridDirectory.useDelegate("foo.dvd"));
+            // test default hybrid mmap extensions
             assertTrue(hybridDirectory.useDelegate("foo.nvd"));
+            assertTrue(hybridDirectory.useDelegate("foo.dvd"));
             assertTrue(hybridDirectory.useDelegate("foo.tim"));
             assertTrue(hybridDirectory.useDelegate("foo.tip"));
-            assertTrue(hybridDirectory.useDelegate("foo.cfs"));
             assertTrue(hybridDirectory.useDelegate("foo.dim"));
             assertTrue(hybridDirectory.useDelegate("foo.kdd"));
             assertTrue(hybridDirectory.useDelegate("foo.kdi"));
-            assertFalse(hybridDirectory.useDelegate("foo.bar"));
+            assertTrue(hybridDirectory.useDelegate("foo.cfs"));
+            assertTrue(hybridDirectory.useDelegate("foo.doc"));
+            assertFalse(hybridDirectory.useDelegate("foo.pos"));
+            assertFalse(hybridDirectory.useDelegate("foo.pay"));
             MMapDirectory delegate = hybridDirectory.getDelegate();
             assertThat(delegate, Matchers.instanceOf(FsDirectoryFactory.PreLoadMMapDirectory.class));
             FsDirectoryFactory.PreLoadMMapDirectory preLoadMMapDirectory = (FsDirectoryFactory.PreLoadMMapDirectory) delegate;
             assertTrue(preLoadMMapDirectory.useDelegate("foo.dvd"));
             assertTrue(preLoadMMapDirectory.useDelegate("foo.bar"));
+            assertFalse(preLoadMMapDirectory.useDelegate("foo.cfs"));
+        }
+        build = Settings.builder()
+            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.HYBRIDFS.name().toLowerCase(Locale.ROOT))
+            .putList(IndexModule.INDEX_STORE_PRE_LOAD_SETTING.getKey(), "nvd", "dvd", "cfs")
+            .putList(IndexModule.INDEX_STORE_HYBRID_MMAP_EXTENSIONS.getKey(), "nvd", "dvd", "tim", "pos", "pay")
+            .build();
+        try (Directory directory = newDirectory(build)) {
+            assertTrue(FsDirectoryFactory.isHybridFs(directory));
+            FsDirectoryFactory.HybridDirectory hybridDirectory = (FsDirectoryFactory.HybridDirectory) directory;
+            // test custom hybrid mmap extensions
+            assertTrue(hybridDirectory.useDelegate("foo.nvd"));
+            assertTrue(hybridDirectory.useDelegate("foo.dvd"));
+            assertTrue(hybridDirectory.useDelegate("foo.tim"));
+            assertFalse(hybridDirectory.useDelegate("foo.tip"));
+            assertFalse(hybridDirectory.useDelegate("foo.dim"));
+            assertFalse(hybridDirectory.useDelegate("foo.kdd"));
+            assertFalse(hybridDirectory.useDelegate("foo.kdi"));
+            assertFalse(hybridDirectory.useDelegate("foo.cfs"));
+            assertFalse(hybridDirectory.useDelegate("foo.doc"));
+            assertTrue(hybridDirectory.useDelegate("foo.pos"));
+            assertTrue(hybridDirectory.useDelegate("foo.pay"));
+            MMapDirectory delegate = hybridDirectory.getDelegate();
+            assertThat(delegate, Matchers.instanceOf(FsDirectoryFactory.PreLoadMMapDirectory.class));
+            FsDirectoryFactory.PreLoadMMapDirectory preLoadMMapDirectory = (FsDirectoryFactory.PreLoadMMapDirectory) delegate;
+            assertTrue(preLoadMMapDirectory.useDelegate("foo.dvd"));
+            assertFalse(preLoadMMapDirectory.useDelegate("foo.bar"));
+            assertTrue(preLoadMMapDirectory.useDelegate("foo.cfs"));
+            assertTrue(preLoadMMapDirectory.useDelegate("foo.nvd"));
         }
     }
 

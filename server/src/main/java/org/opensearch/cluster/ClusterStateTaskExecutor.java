@@ -52,8 +52,18 @@ public interface ClusterStateTaskExecutor<T> {
     /**
      * indicates whether this executor should only run if the current node is cluster-manager
      */
-    default boolean runOnlyOnMaster() {
+    default boolean runOnlyOnClusterManager() {
         return true;
+    }
+
+    /**
+     * indicates whether this executor should only run if the current node is cluster-manager
+     *
+     * @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #runOnlyOnClusterManager()}
+     */
+    @Deprecated
+    default boolean runOnlyOnMaster() {
+        return runOnlyOnClusterManager();
     }
 
     /**
@@ -76,6 +86,12 @@ public interface ClusterStateTaskExecutor<T> {
      */
     default String describeTasks(List<T> tasks) {
         return String.join(", ", tasks.stream().map(t -> (CharSequence) t.toString()).filter(t -> t.length() > 0)::iterator);
+    }
+
+    public static final String DEFAULT_CLUSTER_MANAGER_THROTTLING_KEY = "";
+
+    default String getClusterManagerThrottlingKey() {
+        return DEFAULT_CLUSTER_MANAGER_THROTTLING_KEY;
     }
 
     /**

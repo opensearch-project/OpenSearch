@@ -474,6 +474,9 @@ public class MockRepository extends FsRepository {
                 if (blockOnDeleteIndexN && blobNames.stream().anyMatch(name -> name.startsWith(BlobStoreRepository.INDEX_FILE_PREFIX))) {
                     blockExecutionAndMaybeWait("index-{N}");
                 }
+                if (setThrowExceptionWhileDelete) {
+                    throw new IOException("Random exception");
+                }
                 super.deleteBlobsIgnoringIfNotExists(blobNames);
             }
 

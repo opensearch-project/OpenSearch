@@ -96,7 +96,7 @@ public class NodeRepurposeCommand extends OpenSearchNodeCommand {
         throws IOException {
         assert DiscoveryNode.isDataNode(env.settings()) == false;
 
-        if (DiscoveryNode.isMasterNode(env.settings()) == false) {
+        if (DiscoveryNode.isClusterManagerNode(env.settings()) == false) {
             processNoClusterManagerNoDataNode(terminal, dataPaths, env);
         } else {
             processClusterManagerNoDataNode(terminal, dataPaths, env);

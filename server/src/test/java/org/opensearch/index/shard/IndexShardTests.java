@@ -2660,7 +2660,7 @@ public class IndexShardTests extends IndexShardTestCase {
     public void testRestoreShardFromRemoteStore() throws IOException {
         IndexShard target = newStartedShard(
             true,
-            Settings.builder().put(IndexMetadata.SETTING_REMOTE_STORE, true).build(),
+            Settings.builder().put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true).build(),
             new InternalEngineFactory()
         );
 
@@ -2689,8 +2689,9 @@ public class IndexShardTests extends IndexShardTestCase {
             storeDirectory.deleteFile(file);
         }
 
+        assertEquals(0, storeDirectory.listAll().length);
+
         Directory remoteDirectory = ((FilterDirectory) ((FilterDirectory) target.remoteStore().directory()).getDelegate()).getDelegate();
-        ((BaseDirectoryWrapper) remoteDirectory).setCheckIndexOnClose(false);
 
         // extra0 file is added as a part of https://lucene.apache.org/core/7_2_1/test-framework/org/apache/lucene/mockfile/ExtrasFS.html
         // Safe to remove without impacting the test
@@ -3522,7 +3523,7 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     /**
-     * creates a new initializing shard. The shard will will be put in its proper path under the
+     * creates a new initializing shard. The shard will be put in its proper path under the
      * current node id the shard is assigned to.
      * @param checkpointPublisher               Segment Replication Checkpoint Publisher to publish checkpoint
      */

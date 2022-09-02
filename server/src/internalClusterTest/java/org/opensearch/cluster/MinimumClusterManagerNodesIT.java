@@ -39,7 +39,7 @@ import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclus
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.coordination.FailedToCommitClusterStateException;
-import org.opensearch.cluster.coordination.NoMasterBlockService;
+import org.opensearch.cluster.coordination.NoClusterManagerBlockService;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
@@ -93,7 +93,7 @@ public class MinimumClusterManagerNodesIT extends OpenSearchIntegTestCase {
 
         logger.info("--> should be blocked, no cluster-manager...");
         ClusterState state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-        assertThat(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID), equalTo(true));
+        assertThat(state.blocks().hasGlobalBlockWithId(NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_ID), equalTo(true));
         assertThat(state.nodes().getSize(), equalTo(1)); // verify that we still see the local node in the cluster state
 
         logger.info("--> start second node, cluster should be formed");
@@ -109,9 +109,9 @@ public class MinimumClusterManagerNodesIT extends OpenSearchIntegTestCase {
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-        assertThat(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID), equalTo(false));
+        assertThat(state.blocks().hasGlobalBlockWithId(NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_ID), equalTo(false));
         state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-        assertThat(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID), equalTo(false));
+        assertThat(state.blocks().hasGlobalBlockWithId(NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_ID), equalTo(false));
 
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.nodes().getSize(), equalTo(2));
@@ -151,7 +151,7 @@ public class MinimumClusterManagerNodesIT extends OpenSearchIntegTestCase {
             );
         }
 
-        String clusterManagerNode = internalCluster().getMasterName();
+        String clusterManagerNode = internalCluster().getClusterManagerName();
         String otherNode = node1Name.equals(clusterManagerNode) ? node2Name : node1Name;
         logger.info("--> add voting config exclusion for non-cluster-manager node, to be sure it's not elected");
         client().execute(AddVotingConfigExclusionsAction.INSTANCE, new AddVotingConfigExclusionsRequest(otherNode)).get();
@@ -161,14 +161,14 @@ public class MinimumClusterManagerNodesIT extends OpenSearchIntegTestCase {
 
         assertBusy(() -> {
             ClusterState clusterState = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-            assertTrue(clusterState.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
+            assertTrue(clusterState.blocks().hasGlobalBlockWithId(NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_ID));
         });
 
         state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-        assertThat(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID), equalTo(true));
+        assertThat(state.blocks().hasGlobalBlockWithId(NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_ID), equalTo(true));
         // verify that both nodes are still in the cluster state but there is no cluster-manager
         assertThat(state.nodes().getSize(), equalTo(2));
-        assertThat(state.nodes().getMasterNode(), equalTo(null));
+        assertThat(state.nodes().getClusterManagerNode(), equalTo(null));
 
         logger.info("--> starting the previous cluster-manager node again...");
         node2Name = internalCluster().startNode(Settings.builder().put(settings).put(clusterManagerDataPathSettings).build());
@@ -184,9 +184,9 @@ public class MinimumClusterManagerNodesIT extends OpenSearchIntegTestCase {
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-        assertThat(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID), equalTo(false));
+        assertThat(state.blocks().hasGlobalBlockWithId(NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_ID), equalTo(false));
         state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-        assertThat(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID), equalTo(false));
+        assertThat(state.blocks().hasGlobalBlockWithId(NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_ID), equalTo(false));
 
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.nodes().getSize(), equalTo(2));
@@ -204,7 +204,7 @@ public class MinimumClusterManagerNodesIT extends OpenSearchIntegTestCase {
         clearRequest.setWaitForRemoval(false);
         client().execute(ClearVotingConfigExclusionsAction.INSTANCE, clearRequest).get();
 
-        clusterManagerNode = internalCluster().getMasterName();
+        clusterManagerNode = internalCluster().getClusterManagerName();
         otherNode = node1Name.equals(clusterManagerNode) ? node2Name : node1Name;
         logger.info("--> add voting config exclusion for cluster-manager node, to be sure it's not elected");
         client().execute(AddVotingConfigExclusionsAction.INSTANCE, new AddVotingConfigExclusionsRequest(clusterManagerNode)).get();
@@ -214,7 +214,7 @@ public class MinimumClusterManagerNodesIT extends OpenSearchIntegTestCase {
 
         assertBusy(() -> {
             ClusterState state1 = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-            assertThat(state1.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID), equalTo(true));
+            assertThat(state1.blocks().hasGlobalBlockWithId(NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_ID), equalTo(true));
         });
 
         logger.info("--> starting the previous cluster-manager node again...");
@@ -232,9 +232,9 @@ public class MinimumClusterManagerNodesIT extends OpenSearchIntegTestCase {
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-        assertThat(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID), equalTo(false));
+        assertThat(state.blocks().hasGlobalBlockWithId(NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_ID), equalTo(false));
         state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-        assertThat(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID), equalTo(false));
+        assertThat(state.blocks().hasGlobalBlockWithId(NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_ID), equalTo(false));
 
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.nodes().getSize(), equalTo(2));
@@ -262,7 +262,7 @@ public class MinimumClusterManagerNodesIT extends OpenSearchIntegTestCase {
         assertBusy(() -> {
             for (Client client : clients()) {
                 ClusterState state1 = client.admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-                assertThat(state1.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID), equalTo(true));
+                assertThat(state1.blocks().hasGlobalBlockWithId(NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_ID), equalTo(true));
             }
         });
 
@@ -310,18 +310,21 @@ public class MinimumClusterManagerNodesIT extends OpenSearchIntegTestCase {
         }
 
         List<String> nonClusterManagerNodes = new ArrayList<>(
-            Sets.difference(Sets.newHashSet(internalCluster().getNodeNames()), Collections.singleton(internalCluster().getMasterName()))
+            Sets.difference(
+                Sets.newHashSet(internalCluster().getNodeNames()),
+                Collections.singleton(internalCluster().getClusterManagerName())
+            )
         );
         Settings nonClusterManagerDataPathSettings1 = internalCluster().dataPathSettings(nonClusterManagerNodes.get(0));
         Settings nonClusterManagerDataPathSettings2 = internalCluster().dataPathSettings(nonClusterManagerNodes.get(1));
-        internalCluster().stopRandomNonMasterNode();
-        internalCluster().stopRandomNonMasterNode();
+        internalCluster().stopRandomNonClusterManagerNode();
+        internalCluster().stopRandomNonClusterManagerNode();
 
         logger.info("--> verify that there is no cluster-manager anymore on remaining node");
         // spin here to wait till the state is set
         assertBusy(() -> {
             ClusterState st = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-            assertThat(st.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID), equalTo(true));
+            assertThat(st.blocks().hasGlobalBlockWithId(NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_ID), equalTo(true));
         });
 
         logger.info("--> start back the 2 nodes ");
@@ -347,7 +350,7 @@ public class MinimumClusterManagerNodesIT extends OpenSearchIntegTestCase {
         internalCluster().startNodes(3, settings);
         ensureStableCluster(3);
 
-        final String clusterManager = internalCluster().getMasterName();
+        final String clusterManager = internalCluster().getClusterManagerName();
         Set<String> otherNodes = new HashSet<>(Arrays.asList(internalCluster().getNodeNames()));
         otherNodes.remove(clusterManager);
         NetworkDisruption partition = isolateClusterManagerDisruption(NetworkDisruption.DISCONNECT);
@@ -387,7 +390,7 @@ public class MinimumClusterManagerNodesIT extends OpenSearchIntegTestCase {
         assertThat(failure.get(), instanceOf(FailedToCommitClusterStateException.class));
 
         logger.debug("--> check that there is no cluster-manager in minor partition");
-        assertBusy(() -> assertThat(clusterManagerClusterService.state().nodes().getMasterNode(), nullValue()));
+        assertBusy(() -> assertThat(clusterManagerClusterService.state().nodes().getClusterManagerNode(), nullValue()));
 
         // let major partition to elect new cluster-manager, to ensure that old cluster-manager is not elected once partition is restored,
         // otherwise persistent setting (which is a part of accepted state on old cluster-manager) will be propagated to other nodes
@@ -401,7 +404,7 @@ public class MinimumClusterManagerNodesIT extends OpenSearchIntegTestCase {
                 .actionGet()
                 .getState()
                 .nodes()
-                .getMasterNode();
+                .getClusterManagerNode();
             assertThat(clusterManagerNode, notNullValue());
             assertThat(clusterManagerNode.getName(), not(equalTo(clusterManager)));
         });

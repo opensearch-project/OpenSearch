@@ -39,7 +39,7 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.replication.ClusterStateCreationUtils;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
-import org.opensearch.cluster.NotMasterException;
+import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.action.shard.ShardStateAction.FailedShardEntry;
 import org.opensearch.cluster.action.shard.ShardStateAction.StartedShardEntry;
 import org.opensearch.cluster.coordination.FailedToCommitClusterStateException;
@@ -197,7 +197,7 @@ public class ShardStateActionTests extends OpenSearchTestCase {
         assertEquals(shardEntry.shardId, shardRouting.shardId());
         assertEquals(shardEntry.allocationId, shardRouting.allocationId().getId());
         // sent to the cluster-manager
-        assertEquals(clusterService.state().nodes().getMasterNode().getId(), capturedRequests[0].node.getId());
+        assertEquals(clusterService.state().nodes().getClusterManagerNode().getId(), capturedRequests[0].node.getId());
 
         transport.handleResponse(capturedRequests[0].requestId, TransportResponse.Empty.INSTANCE);
 
@@ -211,7 +211,7 @@ public class ShardStateActionTests extends OpenSearchTestCase {
         setState(clusterService, ClusterStateCreationUtils.stateWithActivePrimary(index, true, randomInt(5)));
 
         DiscoveryNodes.Builder noClusterManagerBuilder = DiscoveryNodes.builder(clusterService.state().nodes());
-        noClusterManagerBuilder.masterNodeId(null);
+        noClusterManagerBuilder.clusterManagerNodeId(null);
         setState(clusterService, ClusterState.builder(clusterService.state()).nodes(noClusterManagerBuilder));
 
         CountDownLatch latch = new CountDownLatch(1);
@@ -256,7 +256,7 @@ public class ShardStateActionTests extends OpenSearchTestCase {
             if (randomBoolean()) {
                 transport.handleRemoteError(
                     requestId,
-                    randomFrom(new NotMasterException("simulated"), new FailedToCommitClusterStateException("simulated"))
+                    randomFrom(new NotClusterManagerException("simulated"), new FailedToCommitClusterStateException("simulated"))
                 );
             } else {
                 if (randomBoolean()) {
@@ -504,7 +504,9 @@ public class ShardStateActionTests extends OpenSearchTestCase {
     ) {
         shardStateAction.setOnBeforeWaitForNewClusterManagerAndRetry(() -> {
             DiscoveryNodes.Builder clusterManagerBuilder = DiscoveryNodes.builder(clusterService.state().nodes());
-            clusterManagerBuilder.masterNodeId(clusterService.state().nodes().getMasterNodes().iterator().next().value.getId());
+            clusterManagerBuilder.clusterManagerNodeId(
+                clusterService.state().nodes().getClusterManagerNodes().iterator().next().value.getId()
+            );
             setState(clusterService, ClusterState.builder(clusterService.state()).nodes(clusterManagerBuilder));
         });
 

@@ -14,7 +14,14 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.io.IOException;
 import java.io.InputStream;
 
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyInt;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.doThrow;
 
 public class RemoteIndexInputTests extends OpenSearchTestCase {
 
@@ -37,6 +44,7 @@ public class RemoteIndexInputTests extends OpenSearchTestCase {
         when(inputStream.read()).thenReturn(10);
 
         assertEquals(10, remoteIndexInput.readByte());
+        assertEquals(1, remoteIndexInput.getFilePointer());
 
         verify(inputStream).read(any());
     }
@@ -45,13 +53,19 @@ public class RemoteIndexInputTests extends OpenSearchTestCase {
         when(inputStream.read(any())).thenThrow(new IOException("Error reading"));
 
         assertThrows(IOException.class, () -> remoteIndexInput.readByte());
+        assertEquals(0, remoteIndexInput.getFilePointer());
     }
 
     public void testReadBytes() throws IOException {
-        byte[] buffer = new byte[10];
-        remoteIndexInput.readBytes(buffer, 10, 20);
+        byte[] buffer = new byte[20];
+        when(inputStream.read(eq(buffer), anyInt(), anyInt())).thenReturn(10).thenReturn(3).thenReturn(6).thenReturn(-1);
+        remoteIndexInput.readBytes(buffer, 0, 20);
 
-        verify(inputStream).read(buffer, 10, 20);
+        verify(inputStream).read(buffer, 0, 20);
+        verify(inputStream).read(buffer, 10, 10);
+        verify(inputStream).read(buffer, 13, 7);
+        verify(inputStream).read(buffer, 19, 1);
+        assertEquals(19, remoteIndexInput.getFilePointer());
     }
 
     public void testReadBytesMultipleIterations() throws IOException {
@@ -88,20 +102,14 @@ public class RemoteIndexInputTests extends OpenSearchTestCase {
         assertEquals(FILESIZE, remoteIndexInput.length());
     }
 
-    public void testSeek() throws IOException {
-        remoteIndexInput.seek(10);
-
-        verify(inputStream).skip(10);
+    public void testSeek() {
+        assertThrows(UnsupportedOperationException.class, () -> remoteIndexInput.seek(100L));
     }
 
-    public void testSeekIOException() throws IOException {
-        when(inputStream.skip(10)).thenThrow(new IOException("Error reading"));
-
-        assertThrows(IOException.class, () -> remoteIndexInput.seek(10));
-    }
-
-    public void testGetFilePointer() {
-        assertThrows(UnsupportedOperationException.class, () -> remoteIndexInput.getFilePointer());
+    public void testGetFilePointer() throws IOException {
+        when(inputStream.read(any(), eq(0), eq(8))).thenReturn(8);
+        remoteIndexInput.readBytes(new byte[8], 0, 8);
+        assertEquals(8, remoteIndexInput.getFilePointer());
     }
 
     public void testSlice() {

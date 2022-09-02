@@ -449,7 +449,12 @@ final class StoreRecovery {
         }
         indexShard.preRecovery();
         indexShard.prepareForIndexRecovery();
-        final Directory remoteDirectory = remoteStore.directory();
+        assert remoteStore.directory() instanceof FilterDirectory : "Store.directory is not an instance of FilterDirectory";
+        FilterDirectory remoteStoreDirectory = (FilterDirectory) remoteStore.directory();
+        assert remoteStoreDirectory.getDelegate() instanceof FilterDirectory
+            : "Store.directory is not enclosing an instance of FilterDirectory";
+        FilterDirectory byteSizeCachingStoreDirectory = (FilterDirectory) remoteStoreDirectory.getDelegate();
+        final Directory remoteDirectory = byteSizeCachingStoreDirectory.getDelegate();
         final Store store = indexShard.store();
         final Directory storeDirectory = store.directory();
         store.incRef();

@@ -42,7 +42,7 @@ import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.ThreadedActionListener;
 import org.opensearch.action.support.replication.ClusterStateCreationUtils;
 import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.NotMasterException;
+import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.block.ClusterBlock;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
@@ -59,7 +59,7 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.discovery.MasterNotDiscoveredException;
+import org.opensearch.discovery.ClusterManagerNotDiscoveredException;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.tasks.Task;
@@ -233,7 +233,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
         }
 
         @Override
-        protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
+        protected void clusterManagerOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
             listener.onResponse(new Response()); // default implementation, overridden in specific tests
         }
 
@@ -244,6 +244,43 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
     }
 
     public void testLocalOperationWithoutBlocks() throws ExecutionException, InterruptedException {
+        final boolean clusterManagerOperationFailure = randomBoolean();
+
+        Request request = new Request();
+        PlainActionFuture<Response> listener = new PlainActionFuture<>();
+
+        final Exception exception = new Exception();
+        final Response response = new Response();
+
+        setState(clusterService, ClusterStateCreationUtils.state(localNode, localNode, allNodes));
+
+        new Action("internal:testAction", transportService, clusterService, threadPool) {
+            @Override
+            protected void clusterManagerOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) {
+                if (clusterManagerOperationFailure) {
+                    listener.onFailure(exception);
+                } else {
+                    listener.onResponse(response);
+                }
+            }
+        }.execute(request, listener);
+        assertTrue(listener.isDone());
+
+        if (clusterManagerOperationFailure) {
+            try {
+                listener.get();
+                fail("Expected exception but returned proper result");
+            } catch (ExecutionException ex) {
+                assertThat(ex.getCause(), equalTo(exception));
+            }
+        } else {
+            assertThat(listener.get(), equalTo(response));
+        }
+    }
+
+    /* The test is copied from testLocalOperationWithoutBlocks()
+    to validate the backwards compatibility for the deprecated method masterOperation(with task parameter). */
+    public void testDeprecatedMasterOperationWithTaskParameterCanBeCalled() throws ExecutionException, InterruptedException {
         final boolean clusterManagerOperationFailure = randomBoolean();
 
         Request request = new Request();
@@ -318,7 +355,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
                 listener.get();
                 fail("Expected exception but returned proper result");
             } catch (ExecutionException ex) {
-                assertThat(ex.getCause(), instanceOf(MasterNotDiscoveredException.class));
+                assertThat(ex.getCause(), instanceOf(ClusterManagerNotDiscoveredException.class));
                 assertThat(ex.getCause().getCause(), instanceOf(ClusterBlockException.class));
             }
         } else {
@@ -386,7 +423,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
         new Action("internal:testAction", transportService, clusterService, threadPool).execute(request, listener);
         assertTrue(listener.isDone());
-        assertListenerThrows("MasterNotDiscoveredException should be thrown", listener, MasterNotDiscoveredException.class);
+        assertListenerThrows("ClusterManagerNotDiscoveredException should be thrown", listener, ClusterManagerNotDiscoveredException.class);
     }
 
     public void testClusterManagerBecomesAvailable() throws ExecutionException, InterruptedException {
@@ -409,7 +446,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
 
         assertThat(transport.capturedRequests().length, equalTo(1));
         CapturingTransport.CapturedRequest capturedRequest = transport.capturedRequests()[0];
-        assertTrue(capturedRequest.node.isMasterNode());
+        assertTrue(capturedRequest.node.isClusterManagerNode());
         assertThat(capturedRequest.request, equalTo(request));
         assertThat(capturedRequest.action, equalTo("internal:testAction"));
 
@@ -436,7 +473,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
         CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
         assertThat(capturedRequests.length, equalTo(1));
         CapturingTransport.CapturedRequest capturedRequest = capturedRequests[0];
-        assertTrue(capturedRequest.node.isMasterNode());
+        assertTrue(capturedRequest.node.isClusterManagerNode());
         assertThat(capturedRequest.request, equalTo(request));
         assertThat(capturedRequest.action, equalTo("internal:testAction"));
 
@@ -451,14 +488,14 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
             if (randomBoolean()) {
                 // simulate cluster-manager node removal
                 final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(clusterService.state().nodes());
-                nodesBuilder.masterNodeId(null);
+                nodesBuilder.clusterManagerNodeId(null);
                 setState(clusterService, ClusterState.builder(clusterService.state()).nodes(nodesBuilder));
             }
             if (randomBoolean()) {
                 // reset the same state to increment a version simulating a join of an existing node
                 // simulating use being disconnected
                 final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(clusterService.state().nodes());
-                nodesBuilder.masterNodeId(clusterManagerNode.getId());
+                nodesBuilder.clusterManagerNodeId(clusterManagerNode.getId());
                 setState(clusterService, ClusterState.builder(clusterService.state()).nodes(nodesBuilder));
             } else {
                 // simulate cluster-manager restart followed by a state recovery - this will reset the cluster state version
@@ -470,7 +507,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
                     clusterManagerNode.getVersion()
                 );
                 nodesBuilder.add(clusterManagerNode);
-                nodesBuilder.masterNodeId(clusterManagerNode.getId());
+                nodesBuilder.clusterManagerNodeId(clusterManagerNode.getId());
                 final ClusterState.Builder builder = ClusterState.builder(clusterService.state()).nodes(nodesBuilder);
                 setState(clusterService, builder.version(0));
             }
@@ -478,7 +515,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
             capturedRequests = transport.getCapturedRequestsAndClear();
             assertThat(capturedRequests.length, equalTo(1));
             capturedRequest = capturedRequests[0];
-            assertTrue(capturedRequest.node.isMasterNode());
+            assertTrue(capturedRequest.node.isClusterManagerNode());
             assertThat(capturedRequest.request, equalTo(request));
             assertThat(capturedRequest.action, equalTo("internal:testAction"));
         } else if (failsWithConnectTransportException) {
@@ -515,20 +552,21 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
 
         new Action("internal:testAction", transportService, clusterService, threadPool) {
             @Override
-            protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
+            protected void clusterManagerOperation(Request request, ClusterState state, ActionListener<Response> listener)
+                throws Exception {
                 // The other node has become cluster-manager, simulate failures of this node while publishing cluster state through
                 // ZenDiscovery
                 setState(clusterService, ClusterStateCreationUtils.state(localNode, remoteNode, allNodes));
                 Exception failure = randomBoolean()
                     ? new FailedToCommitClusterStateException("Fake error")
-                    : new NotMasterException("Fake error");
+                    : new NotClusterManagerException("Fake error");
                 listener.onFailure(failure);
             }
         }.execute(request, listener);
 
         assertThat(transport.capturedRequests().length, equalTo(1));
         CapturingTransport.CapturedRequest capturedRequest = transport.capturedRequests()[0];
-        assertTrue(capturedRequest.node.isMasterNode());
+        assertTrue(capturedRequest.node.isClusterManagerNode());
         assertThat(capturedRequest.request, equalTo(request));
         assertThat(capturedRequest.action, equalTo("internal:testAction"));
 
@@ -563,7 +601,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
 
         assertThat(transport.capturedRequests().length, equalTo(1));
         CapturingTransport.CapturedRequest capturedRequest = transport.capturedRequests()[0];
-        assertTrue(capturedRequest.node.isMasterNode());
+        assertTrue(capturedRequest.node.isClusterManagerNode());
         assertThat(capturedRequest.request, equalTo(request));
         assertThat(capturedRequest.action, equalTo("internal:testAction"));
 

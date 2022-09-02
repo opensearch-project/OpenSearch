@@ -48,8 +48,6 @@ import org.opensearch.search.aggregations.bucket.adjacency.InternalAdjacencyMatr
 import org.opensearch.search.aggregations.bucket.composite.InternalCompositeTests;
 import org.opensearch.search.aggregations.bucket.filter.InternalFilterTests;
 import org.opensearch.search.aggregations.bucket.filter.InternalFiltersTests;
-import org.opensearch.search.aggregations.bucket.geogrid.GeoHashGridTests;
-import org.opensearch.search.aggregations.bucket.geogrid.GeoTileGridTests;
 import org.opensearch.search.aggregations.bucket.global.InternalGlobalTests;
 import org.opensearch.search.aggregations.bucket.histogram.InternalAutoDateHistogramTests;
 import org.opensearch.search.aggregations.bucket.histogram.InternalDateHistogramTests;
@@ -80,7 +78,6 @@ import org.opensearch.search.aggregations.metrics.InternalStatsTests;
 import org.opensearch.search.aggregations.metrics.InternalSumTests;
 import org.opensearch.search.aggregations.metrics.InternalAvgTests;
 import org.opensearch.search.aggregations.metrics.InternalCardinalityTests;
-import org.opensearch.search.aggregations.metrics.InternalGeoBoundsTests;
 import org.opensearch.search.aggregations.metrics.InternalGeoCentroidTests;
 import org.opensearch.search.aggregations.metrics.InternalHDRPercentilesRanksTests;
 import org.opensearch.search.aggregations.metrics.InternalHDRPercentilesTests;
@@ -142,7 +139,6 @@ public class AggregationsTests extends OpenSearchTestCase {
         aggsTests.add(new InternalStatsBucketTests());
         aggsTests.add(new InternalExtendedStatsTests());
         aggsTests.add(new InternalExtendedStatsBucketTests());
-        aggsTests.add(new InternalGeoBoundsTests());
         aggsTests.add(new InternalGeoCentroidTests());
         aggsTests.add(new InternalHistogramTests());
         aggsTests.add(new InternalDateHistogramTests());
@@ -159,8 +155,6 @@ public class AggregationsTests extends OpenSearchTestCase {
         aggsTests.add(new InternalGlobalTests());
         aggsTests.add(new InternalFilterTests());
         aggsTests.add(new InternalSamplerTests());
-        aggsTests.add(new GeoHashGridTests());
-        aggsTests.add(new GeoTileGridTests());
         aggsTests.add(new InternalRangeTests());
         aggsTests.add(new InternalDateRangeTests());
         aggsTests.add(new InternalGeoDistanceTests());

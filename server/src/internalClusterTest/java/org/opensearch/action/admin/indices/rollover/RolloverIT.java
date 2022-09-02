@@ -61,6 +61,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.opensearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -172,6 +173,7 @@ public class RolloverIT extends OpenSearchIntegTestCase {
     }
 
     public void testRolloverWithIndexSettings() throws Exception {
+
         Alias testAlias = new Alias("test_alias");
         boolean explicitWriteIndex = randomBoolean();
         if (explicitWriteIndex) {
@@ -208,6 +210,47 @@ public class RolloverIT extends OpenSearchIntegTestCase {
         } else {
             assertFalse(oldIndex.getAliases().containsKey("test_alias"));
         }
+    }
+
+    public void testRolloverWithIndexSettingsBalancedReplica() throws Exception {
+        Alias testAlias = new Alias("test_alias");
+        boolean explicitWriteIndex = randomBoolean();
+        if (explicitWriteIndex) {
+            testAlias.writeIndex(true);
+        }
+        assertAcked(prepareCreate("test_index-2").addAlias(testAlias).get());
+        manageReplicaBalanceSetting(true);
+        index("test_index-2", "type1", "1", "field", "value");
+        flush("test_index-2");
+        final Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .build();
+
+        final IllegalArgumentException restoreError = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin().indices().prepareRolloverIndex("test_alias").settings(settings).alias(new Alias("extra_alias")).get()
+        );
+
+        assertThat(
+            restoreError.getMessage(),
+            containsString("expected total copies needs to be a multiple of total awareness attributes [2]")
+        );
+
+        final Settings balancedReplicaSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .build();
+
+        client().admin()
+            .indices()
+            .prepareRolloverIndex("test_alias")
+            .settings(balancedReplicaSettings)
+            .alias(new Alias("extra_alias"))
+            .waitForActiveShards(0)
+            .get();
+
+        manageReplicaBalanceSetting(false);
     }
 
     public void testRolloverWithIndexSettingsWithoutPrefix() throws Exception {

@@ -44,7 +44,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.LocalClusterUpdateTask;
-import org.opensearch.cluster.NotMasterException;
+import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
@@ -118,14 +118,17 @@ public class TransportClusterHealthAction extends TransportClusterManagerNodeRea
     }
 
     @Override
-    protected final void masterOperation(ClusterHealthRequest request, ClusterState state, ActionListener<ClusterHealthResponse> listener)
-        throws Exception {
+    protected final void clusterManagerOperation(
+        ClusterHealthRequest request,
+        ClusterState state,
+        ActionListener<ClusterHealthResponse> listener
+    ) throws Exception {
         logger.warn("attempt to execute a cluster health operation without a task");
         throw new UnsupportedOperationException("task parameter is required for this operation");
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final Task task,
         final ClusterHealthRequest request,
         final ClusterState unusedState,
@@ -221,13 +224,14 @@ public class TransportClusterHealthAction extends TransportClusterManagerNodeRea
                     }
 
                     @Override
-                    public void onNoLongerMaster(String source) {
+                    public void onNoLongerClusterManager(String source) {
                         logger.trace(
                             "stopped being cluster-manager while waiting for events with priority [{}]. retrying.",
                             request.waitForEvents()
                         );
-                        // TransportMasterNodeAction implements the retry logic, which is triggered by passing a NotMasterException
-                        listener.onFailure(new NotMasterException("no longer cluster-manager. source: [" + source + "]"));
+                        // TransportClusterManagerNodeAction implements the retry logic,
+                        // which is triggered by passing a NotClusterManagerException
+                        listener.onFailure(new NotClusterManagerException("no longer cluster-manager. source: [" + source + "]"));
                     }
 
                     @Override
@@ -315,9 +319,9 @@ public class TransportClusterHealthAction extends TransportClusterManagerNodeRea
         ClusterHealthResponse response = clusterHealth(
             request,
             clusterState,
-            clusterService.getMasterService().numberOfPendingTasks(),
+            clusterService.getClusterManagerService().numberOfPendingTasks(),
             allocationService.getNumberOfInFlightFetches(),
-            clusterService.getMasterService().getMaxTaskWaitTime()
+            clusterService.getClusterManagerService().getMaxTaskWaitTime()
         );
         return prepareResponse(request, response, clusterState, indexNameExpressionResolver) == waitCount;
     }
@@ -337,9 +341,9 @@ public class TransportClusterHealthAction extends TransportClusterManagerNodeRea
         ClusterHealthResponse response = clusterHealth(
             request,
             clusterState,
-            clusterService.getMasterService().numberOfPendingTasks(),
+            clusterService.getClusterManagerService().numberOfPendingTasks(),
             allocationService.getNumberOfInFlightFetches(),
-            clusterService.getMasterService().getMaxTaskWaitTime()
+            clusterService.getClusterManagerService().getMaxTaskWaitTime()
         );
         int readyCounter = prepareResponse(request, response, clusterState, indexNameExpressionResolver);
         boolean valid = (readyCounter == waitFor);

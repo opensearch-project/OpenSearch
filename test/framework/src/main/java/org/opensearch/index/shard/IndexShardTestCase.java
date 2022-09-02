@@ -33,9 +33,15 @@ package org.opensearch.index.shard;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
+import org.junit.Assert;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
+import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.PlainActionFuture;
@@ -53,6 +59,10 @@ import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.UUIDs;
+import org.opensearch.common.blobstore.BlobContainer;
+import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.blobstore.fs.FsBlobContainer;
+import org.opensearch.common.blobstore.fs.FsBlobStore;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lucene.uid.Versions;
@@ -81,7 +91,11 @@ import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
+import org.opensearch.index.store.RemoteDirectory;
+import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.Store;
+import org.opensearch.index.store.StoreFileMetadata;
+import org.opensearch.index.translog.InternalTranslogFactory;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
@@ -94,7 +108,17 @@ import org.opensearch.indices.recovery.RecoverySourceHandler;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
 import org.opensearch.indices.recovery.StartRecoveryRequest;
+import org.opensearch.indices.replication.CheckpointInfoResponse;
+import org.opensearch.indices.replication.GetSegmentFilesResponse;
+import org.opensearch.indices.replication.SegmentReplicationSource;
+import org.opensearch.indices.replication.SegmentReplicationSourceFactory;
+import org.opensearch.indices.replication.SegmentReplicationState;
+import org.opensearch.indices.replication.SegmentReplicationTarget;
+import org.opensearch.indices.replication.SegmentReplicationTargetService;
+import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
+import org.opensearch.indices.replication.common.CopyState;
+import org.opensearch.indices.replication.common.ReplicationCollection;
 import org.opensearch.indices.replication.common.ReplicationListener;
 import org.opensearch.indices.replication.common.ReplicationState;
 import org.opensearch.repositories.IndexId;
@@ -105,13 +129,17 @@ import org.opensearch.test.DummyShardLock;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -122,6 +150,9 @@ import java.util.stream.Collectors;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import static org.opensearch.cluster.routing.TestShardRouting.newShardRouting;
 
 /**
@@ -514,7 +545,10 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 ShardId shardId = shardPath.getShardId();
                 NodeEnvironment.NodePath remoteNodePath = new NodeEnvironment.NodePath(createTempDir());
                 ShardPath remoteShardPath = new ShardPath(false, remoteNodePath.resolve(shardId), remoteNodePath.resolve(shardId), shardId);
-                storeProvider = is -> createStore(is, remoteShardPath);
+                RemoteDirectory dataDirectory = newRemoteDirectory(remoteShardPath.resolveIndex());
+                RemoteDirectory metadataDirectory = newRemoteDirectory(remoteShardPath.resolveIndex());
+                RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = new RemoteSegmentStoreDirectory(dataDirectory, metadataDirectory);
+                storeProvider = is -> createStore(shardId, is, remoteSegmentStoreDirectory);
                 remoteStore = storeProvider.apply(indexSettings);
             }
             indexShard = new IndexShard(
@@ -538,6 +572,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 globalCheckpointSyncer,
                 retentionLeaseSyncer,
                 breakerService,
+                new InternalTranslogFactory(),
                 checkpointPublisher,
                 remoteStore
             );
@@ -549,6 +584,13 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             }
         }
         return indexShard;
+    }
+
+    private RemoteDirectory newRemoteDirectory(Path f) throws IOException {
+        FsBlobStore fsBlobStore = new FsBlobStore(1024, f, false);
+        BlobPath blobPath = new BlobPath();
+        BlobContainer fsBlobContainer = new FsBlobContainer(fsBlobStore, blobPath, f);
+        return new RemoteDirectory(fsBlobContainer);
     }
 
     /**
@@ -1132,5 +1174,140 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 }
             }
         };
+    }
+
+    /**
+     * Segment Replication specific test method - Creates a {@link SegmentReplicationTargetService} to perform replications that has
+     * been configured to return the given primaryShard's current segments.
+     *
+     * @param primaryShard {@link IndexShard} - The primary shard to replicate from.
+     */
+    public final SegmentReplicationTargetService prepareForReplication(IndexShard primaryShard) {
+        final SegmentReplicationSourceFactory sourceFactory = mock(SegmentReplicationSourceFactory.class);
+        final SegmentReplicationTargetService targetService = new SegmentReplicationTargetService(
+            threadPool,
+            new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
+            mock(TransportService.class),
+            sourceFactory
+        );
+        final SegmentReplicationSource replicationSource = new SegmentReplicationSource() {
+            @Override
+            public void getCheckpointMetadata(
+                long replicationId,
+                ReplicationCheckpoint checkpoint,
+                ActionListener<CheckpointInfoResponse> listener
+            ) {
+                try {
+                    final CopyState copyState = new CopyState(ReplicationCheckpoint.empty(primaryShard.shardId), primaryShard);
+                    listener.onResponse(
+                        new CheckpointInfoResponse(
+                            copyState.getCheckpoint(),
+                            copyState.getMetadataSnapshot(),
+                            copyState.getInfosBytes(),
+                            copyState.getPendingDeleteFiles()
+                        )
+                    );
+                } catch (IOException e) {
+                    logger.error("Unexpected error computing CopyState", e);
+                    Assert.fail("Failed to compute copyState");
+                }
+            }
+
+            @Override
+            public void getSegmentFiles(
+                long replicationId,
+                ReplicationCheckpoint checkpoint,
+                List<StoreFileMetadata> filesToFetch,
+                Store store,
+                ActionListener<GetSegmentFilesResponse> listener
+            ) {
+                try (
+                    final ReplicationCollection.ReplicationRef<SegmentReplicationTarget> replicationRef = targetService.get(replicationId)
+                ) {
+                    writeFileChunks(replicationRef.get(), primaryShard, filesToFetch.toArray(new StoreFileMetadata[] {}));
+                } catch (IOException e) {
+                    listener.onFailure(e);
+                }
+                listener.onResponse(new GetSegmentFilesResponse(filesToFetch));
+            }
+        };
+        when(sourceFactory.get(any())).thenReturn(replicationSource);
+        return targetService;
+    }
+
+    /**
+     * Segment Replication specific test method - Replicate segments to a list of replicas from a given primary.
+     * This test will use a real {@link SegmentReplicationTarget} for each replica with a mock {@link SegmentReplicationSource} that
+     * writes all segments directly to the target.
+     * @param primaryShard - {@link IndexShard} The current primary shard.
+     * @param replicaShards - Replicas that will be updated.
+     * @return {@link List} List of target components orchestrating replication.
+     */
+    public final List<SegmentReplicationTarget> replicateSegments(IndexShard primaryShard, List<IndexShard> replicaShards)
+        throws IOException, InterruptedException {
+        final SegmentReplicationTargetService targetService = prepareForReplication(primaryShard);
+        return replicateSegments(targetService, primaryShard, replicaShards);
+    }
+
+    public final List<SegmentReplicationTarget> replicateSegments(
+        SegmentReplicationTargetService targetService,
+        IndexShard primaryShard,
+        List<IndexShard> replicaShards
+    ) throws IOException, InterruptedException {
+        final CountDownLatch countDownLatch = new CountDownLatch(replicaShards.size());
+        Store.MetadataSnapshot primaryMetadata;
+        try (final GatedCloseable<SegmentInfos> segmentInfosSnapshot = primaryShard.getSegmentInfosSnapshot()) {
+            final SegmentInfos primarySegmentInfos = segmentInfosSnapshot.get();
+            primaryMetadata = primaryShard.store().getMetadata(primarySegmentInfos);
+        }
+        List<SegmentReplicationTarget> ids = new ArrayList<>();
+        for (IndexShard replica : replicaShards) {
+            final SegmentReplicationTarget target = targetService.startReplication(
+                ReplicationCheckpoint.empty(replica.shardId),
+                replica,
+                new SegmentReplicationTargetService.SegmentReplicationListener() {
+                    @Override
+                    public void onReplicationDone(SegmentReplicationState state) {
+                        try (final GatedCloseable<SegmentInfos> snapshot = replica.getSegmentInfosSnapshot()) {
+                            final SegmentInfos replicaInfos = snapshot.get();
+                            final Store.MetadataSnapshot replicaMetadata = replica.store().getMetadata(replicaInfos);
+                            final Store.RecoveryDiff recoveryDiff = primaryMetadata.recoveryDiff(replicaMetadata);
+                            assertTrue(recoveryDiff.missing.isEmpty());
+                            assertTrue(recoveryDiff.different.isEmpty());
+                            assertEquals(recoveryDiff.identical.size(), primaryMetadata.size());
+                            assertEquals(primaryMetadata.getCommitUserData(), replicaMetadata.getCommitUserData());
+                        } catch (Exception e) {
+                            throw ExceptionsHelper.convertToRuntime(e);
+                        } finally {
+                            countDownLatch.countDown();
+                        }
+                    }
+
+                    @Override
+                    public void onReplicationFailure(SegmentReplicationState state, OpenSearchException e, boolean sendShardFailure) {
+                        logger.error("Unexpected replication failure in test", e);
+                        Assert.fail("test replication should not fail: " + e);
+                    }
+                }
+            );
+            ids.add(target);
+            countDownLatch.await(1, TimeUnit.SECONDS);
+        }
+        return ids;
+    }
+
+    private void writeFileChunks(SegmentReplicationTarget target, IndexShard primary, StoreFileMetadata[] files) throws IOException {
+        for (StoreFileMetadata md : files) {
+            try (IndexInput in = primary.store().directory().openInput(md.name(), IOContext.READONCE)) {
+                int pos = 0;
+                while (pos < md.length()) {
+                    int length = between(1, Math.toIntExact(md.length() - pos));
+                    byte[] buffer = new byte[length];
+                    in.readBytes(buffer, 0, length);
+                    target.writeFileChunk(md, pos, new BytesArray(buffer), pos + length == md.length(), 0, mock(ActionListener.class));
+                    pos += length;
+                }
+            }
+        }
     }
 }
