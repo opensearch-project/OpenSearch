@@ -10,12 +10,10 @@ package org.opensearch.action.admin.cluster.shards.routing.wrr.get;
 
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadRequest;
-import org.opensearch.cluster.routing.WRRWeight;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
-import java.util.List;
 
 /**
  * Request to get weights for weighted round-robin search routing policy.
@@ -33,25 +31,22 @@ public class ClusterGetWRRWeightsRequest extends ClusterManagerNodeReadRequest<C
         this.awarenessAttribute = awarenessAttribute;
     }
 
-    public ClusterGetWRRWeightsRequest() {
-    }
+    public ClusterGetWRRWeightsRequest() {}
 
     public ClusterGetWRRWeightsRequest(StreamInput in) throws IOException {
         super(in);
+        awarenessAttribute = in.readString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+
         super.writeTo(out);
+        out.writeString(awarenessAttribute);
     }
 
     @Override
     public ActionRequestValidationException validate() {
         return null;
     }
-
-    public ClusterGetWRRWeightsRequest weights(List<WRRWeight> weights) {
-        return this;
-    }
-
 }

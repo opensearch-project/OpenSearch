@@ -1,7 +1,7 @@
 {
   "cluster.get_wrr_weights": {
     "documentation": {
-      "url": "TBA",
+      "url": "http://TBA",
       "description": "TBA"
     },
     "stability": "experimental",

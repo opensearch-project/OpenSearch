@@ -10,9 +10,6 @@ package org.opensearch.action.admin.cluster.shards.routing.wrr.get;
 
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
-import org.opensearch.cluster.routing.WRRWeight;
-
-import java.util.List;
 
 /**
  * Request builder to get weights for weighted round-robin search routing policy.
@@ -28,16 +25,13 @@ public class ClusterGetWRRWeightsRequestBuilder extends ClusterManagerNodeReadOp
         super(client, action, new ClusterGetWRRWeightsRequest());
     }
 
-    public ClusterGetWRRWeightsRequestBuilder setWeights(List<WRRWeight> weights) {
-        request.weights(weights);
-        return this;
-    }
-
     public ClusterGetWRRWeightsRequestBuilder setRequestLocal(boolean local) {
         request.local(local);
         return this;
-
     }
 
-
+    public ClusterGetWRRWeightsRequestBuilder setAwarenessAttribute(String attribute) {
+        request.setAwarenessAttribute(attribute);
+        return this;
+    }
 }

@@ -17,6 +17,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Plugin ZIP publication groupId value is configurable ([#4156](https://github.com/opensearch-project/OpenSearch/pull/4156))
 - Weighted round-robin scheduling policy for shard coordination traffic ([#4241](https://github.com/opensearch-project/OpenSearch/pull/4241))
 - PUT api to update weights for weighted round-robin scheduling ([#4272](https://github.com/opensearch-project/OpenSearch/pull/4272))
+- GET api to fetch weights for weighted round-robin scheduling ([#4275](https://github.com/opensearch-project/OpenSearch/pull/4275))
 
 ### Deprecated
 

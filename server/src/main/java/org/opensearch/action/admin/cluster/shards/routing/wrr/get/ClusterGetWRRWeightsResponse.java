@@ -8,10 +8,10 @@
 
 package org.opensearch.action.admin.cluster.shards.routing.wrr.get;
 
+import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.ActionResponse;
 
-import org.opensearch.cluster.metadata.WeightedRoundRobinMetadata;
-import org.opensearch.cluster.routing.WRRWeight;
+import org.opensearch.cluster.routing.WRRWeights;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.xcontent.ToXContentObject;
@@ -19,7 +19,9 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
@@ -29,8 +31,9 @@ import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedT
  * @opensearch.internal
  */
 public class ClusterGetWRRWeightsResponse extends ActionResponse implements ToXContentObject {
-    private WRRWeight wrrWeight;
+    private WRRWeights wrrWeight;
     private Object localNodeWeight;
+    private static final String NODE_WEIGHT = "node_weight";
 
     public Object getLocalNodeWeight() {
         return localNodeWeight;
@@ -40,23 +43,14 @@ public class ClusterGetWRRWeightsResponse extends ActionResponse implements ToXC
         this.wrrWeight = null;
     }
 
-    ClusterGetWRRWeightsResponse(Object localNodeWeight, WRRWeight wrrWeight) {
+    public ClusterGetWRRWeightsResponse(Object localNodeWeight, WRRWeights wrrWeight) {
         this.localNodeWeight = localNodeWeight;
         this.wrrWeight = wrrWeight;
     }
 
-    ClusterGetWRRWeightsResponse(WRRWeight wrrWeights) {
-        this.wrrWeight = wrrWeights;
-    }
-
-    ClusterGetWRRWeightsResponse(WeightedRoundRobinMetadata metadata) {
-
-        this.wrrWeight = metadata.getWrrWeight();
-    }
-
     ClusterGetWRRWeightsResponse(StreamInput in) throws IOException {
         if (in.available() != 0) {
-            this.wrrWeight = new WRRWeight(in);
+            this.wrrWeight = new WRRWeights(in);
 
         }
     }
@@ -66,7 +60,7 @@ public class ClusterGetWRRWeightsResponse extends ActionResponse implements ToXC
      *
      * @return list or weights
      */
-    public WRRWeight weights() {
+    public WRRWeights weights() {
         return this.wrrWeight;
     }
 
@@ -74,7 +68,6 @@ public class ClusterGetWRRWeightsResponse extends ActionResponse implements ToXC
     public void writeTo(StreamOutput out) throws IOException {
         if (wrrWeight != null) {
             wrrWeight.writeTo(out);
-
         }
     }
 
@@ -86,12 +79,8 @@ public class ClusterGetWRRWeightsResponse extends ActionResponse implements ToXC
                 builder.field(entry.getKey(), entry.getValue());
             }
             if (localNodeWeight != null) {
-                builder.field("node_weight", localNodeWeight.toString());
+                builder.field(NODE_WEIGHT, localNodeWeight.toString());
             }
-        } else if (localNodeWeight != null) {
-            builder.field("node_weight", localNodeWeight.toString());
-        } else {
-            builder.field("msg", "Weights are not set");
         }
         builder.endObject();
         return builder;
@@ -99,6 +88,40 @@ public class ClusterGetWRRWeightsResponse extends ActionResponse implements ToXC
 
     public static ClusterGetWRRWeightsResponse fromXContent(XContentParser parser) throws IOException {
         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
-        return new ClusterGetWRRWeightsResponse(WeightedRoundRobinMetadata.fromXContent(parser));
+        XContentParser.Token token;
+        String attrKey = null, attrValue = null;
+        Object localNodeWeight = null;
+        Map<String, Object> weights = new HashMap<>();
+
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                attrKey = parser.currentName();
+            } else if (token == XContentParser.Token.VALUE_STRING) {
+                attrValue = parser.text();
+                if (attrKey != null && attrKey.equals(NODE_WEIGHT)) {
+                    localNodeWeight = attrValue;
+                } else if (attrKey != null) {
+                    weights.put(attrKey, attrValue);
+                }
+            } else {
+                throw new OpenSearchParseException("failed to parse wrr response");
+            }
+
+        }
+        WRRWeights wrrWeights = new WRRWeights("", weights);
+        return new ClusterGetWRRWeightsResponse(localNodeWeight, wrrWeights);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ClusterGetWRRWeightsResponse that = (ClusterGetWRRWeightsResponse) o;
+        return wrrWeight.equals(that.wrrWeight) && localNodeWeight.equals(that.localNodeWeight);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(wrrWeight, localNodeWeight);
     }
 }
