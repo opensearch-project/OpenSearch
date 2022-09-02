@@ -11,12 +11,6 @@ jobs:
       - uses: actions/checkout@v3
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          ref: ${{ github.event.pull_request.head.ref }}
-
-      - uses: dangoslen/dependabot-changelog-helper@v1
-
-      - uses: stefanzweifel/git-auto-commit-action@v4
-        with:
-          commit_message: "Update changelog"
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - uses: dangoslen/changelog-enforcer@v3

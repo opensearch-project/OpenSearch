@@ -24,9 +24,13 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 /**
@@ -132,8 +136,9 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
     /**
      * Metadata of a segment that is uploaded to remote segment store.
      */
-    static class UploadedSegmentMetadata {
-        private static final String SEPARATOR = "::";
+    public static class UploadedSegmentMetadata {
+        // Visible for testing
+        static final String SEPARATOR = "::";
         private final String originalFilename;
         private final String uploadedFilename;
         private final String checksum;
@@ -366,7 +371,69 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
     }
 
     // Visible for testing
-    Map<String, UploadedSegmentMetadata> getSegmentsUploadedToRemoteStore() {
-        return this.segmentsUploadedToRemoteStore;
+    public Map<String, UploadedSegmentMetadata> getSegmentsUploadedToRemoteStore() {
+        return Collections.unmodifiableMap(this.segmentsUploadedToRemoteStore);
+    }
+
+    /**
+     * Delete stale segment and metadata files
+     * One metadata file is kept per commit (refresh updates the same file). To read segments uploaded to remote store,
+     * we just need to read the latest metadata file. All the stale metadata files can be safely deleted.
+     * @param lastNMetadataFilesToKeep number of metadata files to keep
+     * @throws IOException in case of I/O error while reading from / writing to remote segment store
+     */
+    public void deleteStaleSegments(int lastNMetadataFilesToKeep) throws IOException {
+        Collection<String> metadataFiles = remoteMetadataDirectory.listFilesByPrefix(MetadataFilenameUtils.METADATA_PREFIX);
+        List<String> sortedMetadataFileList = metadataFiles.stream().sorted(METADATA_FILENAME_COMPARATOR).collect(Collectors.toList());
+        if (sortedMetadataFileList.size() <= lastNMetadataFilesToKeep) {
+            logger.info(
+                "Number of commits in remote segment store={}, lastNMetadataFilesToKeep={}",
+                sortedMetadataFileList.size(),
+                lastNMetadataFilesToKeep
+            );
+            return;
+        }
+        List<String> latestNMetadataFiles = sortedMetadataFileList.subList(
+            sortedMetadataFileList.size() - lastNMetadataFilesToKeep,
+            sortedMetadataFileList.size()
+        );
+        Map<String, UploadedSegmentMetadata> activeSegmentFilesMetadataMap = new HashMap<>();
+        Set<String> activeSegmentRemoteFilenames = new HashSet<>();
+        for (String metadataFile : latestNMetadataFiles) {
+            Map<String, UploadedSegmentMetadata> segmentMetadataMap = readMetadataFile(metadataFile);
+            activeSegmentFilesMetadataMap.putAll(segmentMetadataMap);
+            activeSegmentRemoteFilenames.addAll(
+                segmentMetadataMap.values().stream().map(metadata -> metadata.uploadedFilename).collect(Collectors.toSet())
+            );
+        }
+        for (String metadataFile : sortedMetadataFileList.subList(0, sortedMetadataFileList.size() - lastNMetadataFilesToKeep)) {
+            Map<String, UploadedSegmentMetadata> staleSegmentFilesMetadataMap = readMetadataFile(metadataFile);
+            Set<String> staleSegmentRemoteFilenames = staleSegmentFilesMetadataMap.values()
+                .stream()
+                .map(metadata -> metadata.uploadedFilename)
+                .collect(Collectors.toSet());
+            AtomicBoolean deletionSuccessful = new AtomicBoolean(true);
+            staleSegmentRemoteFilenames.stream().filter(file -> !activeSegmentRemoteFilenames.contains(file)).forEach(file -> {
+                try {
+                    remoteDataDirectory.deleteFile(file);
+                    if (!activeSegmentFilesMetadataMap.containsKey(getLocalSegmentFilename(file))) {
+                        segmentsUploadedToRemoteStore.remove(getLocalSegmentFilename(file));
+                    }
+                } catch (NoSuchFileException e) {
+                    logger.info("Segment file {} corresponding to metadata file {} does not exist in remote", file, metadataFile);
+                } catch (IOException e) {
+                    deletionSuccessful.set(false);
+                    logger.info(
+                        "Exception while deleting segment file {} corresponding to metadata file {}. Deletion will be re-tried",
+                        file,
+                        metadataFile
+                    );
+                }
+            });
+            if (deletionSuccessful.get()) {
+                logger.info("Deleting stale metadata file {} from remote segment store", metadataFile);
+                remoteMetadataDirectory.deleteFile(metadataFile);
+            }
+        }
     }
 }
