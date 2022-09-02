@@ -52,8 +52,8 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.service.ClusterManagerThrottlingException;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.cluster.service.MasterTaskThrottlingException;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
@@ -623,7 +623,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
             @Override
             protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) {
                 if (exception.getAndSet(false)) {
-                    throw new MasterTaskThrottlingException("Throttling Exception : Limit exceeded for test");
+                    throw new ClusterManagerThrottlingException("Throttling Exception : Limit exceeded for test");
                 } else {
                     try {
                         retried.set(true);
@@ -663,7 +663,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
         assertThat(capturedRequest.action, equalTo("internal:testAction"));
         transport.handleRemoteError(
             capturedRequest.requestId,
-            new MasterTaskThrottlingException("Throttling Exception : Limit exceeded for test")
+            new ClusterManagerThrottlingException("Throttling Exception : Limit exceeded for test")
         );
 
         assertFalse(listener.isDone());

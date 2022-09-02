@@ -52,8 +52,8 @@ import org.opensearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.service.ClusterManagerThrottlingException;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.cluster.service.MasterTaskThrottlingException;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.unit.TimeValue;
@@ -210,9 +210,9 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
             // in that case we would want throttling retry to perform on remote node only not on this master node.
             if (request.remoteAddress() == null) {
                 if (e instanceof TransportException) {
-                    return ((TransportException) e).unwrapCause() instanceof MasterTaskThrottlingException;
+                    return ((TransportException) e).unwrapCause() instanceof ClusterManagerThrottlingException;
                 }
-                return e instanceof MasterTaskThrottlingException;
+                return e instanceof ClusterManagerThrottlingException;
             }
             return false;
         }
