@@ -10,7 +10,6 @@ package org.opensearch.extensions.rest;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.extensions.DiscoveryExtension;
@@ -26,11 +25,14 @@ import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map.Entry;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableList;
 
 /**
@@ -97,8 +99,13 @@ public class RestSendToExtensionAction extends BaseRestHandler {
         }
         String message = "Forwarding the request " + method + " " + uri + " to " + discoveryExtension;
         logger.info(message);
-        // Hack to pass a final class in to fetch the response string
-        final StringBuilder responseBuilder = new StringBuilder();
+        // Initialize response. Values will be changed in the handler.
+        final RestExecuteOnExtensionResponse restExecuteOnExtensionResponse = new RestExecuteOnExtensionResponse(
+            RestStatus.INTERNAL_SERVER_ERROR,
+            BytesRestResponse.TEXT_CONTENT_TYPE,
+            message.getBytes(StandardCharsets.UTF_8),
+            emptyMap()
+        );
         final CountDownLatch inProgressLatch = new CountDownLatch(1);
         final TransportResponseHandler<RestExecuteOnExtensionResponse> restExecuteOnExtensionResponseHandler = new TransportResponseHandler<
             RestExecuteOnExtensionResponse>() {
@@ -110,15 +117,20 @@ public class RestSendToExtensionAction extends BaseRestHandler {
 
             @Override
             public void handleResponse(RestExecuteOnExtensionResponse response) {
-                responseBuilder.append(response.getResponse());
-                logger.info("Received response from extension: {}", response.getResponse());
+                logger.info("Received response from extension: {}", response.getStatus());
+                restExecuteOnExtensionResponse.setStatus(response.getStatus());
+                restExecuteOnExtensionResponse.setContentType(response.getContentType());
+                restExecuteOnExtensionResponse.setContent(response.getContent());
+                restExecuteOnExtensionResponse.setHeaders(response.getHeaders());
                 inProgressLatch.countDown();
             }
 
             @Override
             public void handleException(TransportException exp) {
-                responseBuilder.append("FAILED: ").append(exp);
-                logger.debug(new ParameterizedMessage("REST request failed"), exp);
+                logger.debug("REST request failed", exp);
+                // Status is already defaulted to 500 (INTERNAL_SERVER_ERROR)
+                byte[] responseBytes = ("Request failed: " + exp.getMessage()).getBytes(StandardCharsets.UTF_8);
+                restExecuteOnExtensionResponse.setContent(responseBytes);
                 inProgressLatch.countDown();
             }
 
@@ -144,12 +156,18 @@ public class RestSendToExtensionAction extends BaseRestHandler {
         } catch (Exception e) {
             logger.info("Failed to send REST Actions to extension " + discoveryExtension.getName(), e);
         }
-        String response = responseBuilder.toString();
-        if (response.isBlank() || response.startsWith("FAILED")) {
-            return channel -> channel.sendResponse(
-                new BytesRestResponse(RestStatus.INTERNAL_SERVER_ERROR, response.isBlank() ? "Request Failed" : response)
-            );
+
+        BytesRestResponse restResponse = new BytesRestResponse(
+            restExecuteOnExtensionResponse.getStatus(),
+            restExecuteOnExtensionResponse.getContentType(),
+            restExecuteOnExtensionResponse.getContent()
+        );
+        for (Entry<String, List<String>> headerEntry : restExecuteOnExtensionResponse.getHeaders().entrySet()) {
+            for (String value : headerEntry.getValue()) {
+                restResponse.addHeader(headerEntry.getKey(), value);
+            }
         }
-        return channel -> channel.sendResponse(new BytesRestResponse(RestStatus.OK, response));
+
+        return channel -> channel.sendResponse(restResponse);
     }
 }
