@@ -272,8 +272,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "zone-1");
         DecommissionStatus decommissionStatus = randomFrom(
             DecommissionStatus.DECOMMISSION_INIT,
-            DecommissionStatus.DECOMMISSION_FAILED,
-            DecommissionStatus.RECOMMISSION_IN_PROGRESS
+            DecommissionStatus.DECOMMISSION_FAILED
         );
         DecommissionAttributeMetadata decommissionAttributeMetadata = new DecommissionAttributeMetadata(
             decommissionAttribute,

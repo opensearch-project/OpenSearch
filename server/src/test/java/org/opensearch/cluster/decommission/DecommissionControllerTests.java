@@ -176,7 +176,7 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
         nodesToBeRemoved.add(clusterService.state().nodes().get("node14"));
         nodesToBeRemoved.add(clusterService.state().nodes().get("node15"));
 
-        decommissionController.handleNodesDecommissionRequest(
+        decommissionController.removeDecommissionedNodes(
             nodesToBeRemoved,
             "unit-test",
             TimeValue.timeValueSeconds(30L),
@@ -212,7 +212,7 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
         nodesToBeRemoved.add(clusterService.state().nodes().get("node13"));
         nodesToBeRemoved.add(clusterService.state().nodes().get("node14"));
         nodesToBeRemoved.add(clusterService.state().nodes().get("node15"));
-        decommissionController.handleNodesDecommissionRequest(
+        decommissionController.removeDecommissionedNodes(
             nodesToBeRemoved,
             "unit-test",
             TimeValue.timeValueMillis(2),

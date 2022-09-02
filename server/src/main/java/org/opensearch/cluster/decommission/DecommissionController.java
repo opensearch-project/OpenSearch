@@ -102,7 +102,6 @@ public class DecommissionController {
 
     public void clearVotingConfigExclusion(ActionListener<Void> listener) {
         final ClearVotingConfigExclusionsRequest clearVotingConfigExclusionsRequest = new ClearVotingConfigExclusionsRequest();
-        clearVotingConfigExclusionsRequest.setWaitForRemoval(true);
         transportService.sendRequest(
             transportService.getLocalNode(),
             ClearVotingConfigExclusionsAction.NAME,
@@ -133,7 +132,7 @@ public class DecommissionController {
         );
     }
 
-    public void handleNodesDecommissionRequest(
+    public void removeDecommissionedNodes(
         Set<DiscoveryNode> nodesToBeDecommissioned,
         String reason,
         TimeValue timeout,

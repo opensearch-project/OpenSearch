@@ -27,15 +27,7 @@ public enum DecommissionStatus {
     /**
      * Decommission request failed
      */
-    DECOMMISSION_FAILED("decommission_failed"),
-    /**
-     * Recommission request received, recommissioning process has started
-     */
-    RECOMMISSION_IN_PROGRESS("recommission_in_progress"),
-    /**
-     * Recommission request failed. No nodes should fail to join the cluster with decommission exception
-     */
-    RECOMMISSION_FAILED("recommission_failed");
+    DECOMMISSION_FAILED("decommission_failed");
 
     private final String status;
 
@@ -70,10 +62,6 @@ public enum DecommissionStatus {
             return DECOMMISSION_SUCCESSFUL;
         } else if (status.equals(DECOMMISSION_FAILED.status())) {
             return DECOMMISSION_FAILED;
-        } else if (status.equals(RECOMMISSION_IN_PROGRESS.status())) {
-            return RECOMMISSION_IN_PROGRESS;
-        } else if (status.equals(RECOMMISSION_FAILED.status())) {
-            return RECOMMISSION_FAILED;
         }
         throw new IllegalStateException("Decommission status [" + status + "] not recognized.");
     }

@@ -302,7 +302,7 @@ public class DecommissionService {
         DecommissionAttribute decommissionAttribute = decommissionAttributeMetadata.decommissionAttribute();
 
         // execute nodes decommissioning
-        decommissionController.handleNodesDecommissionRequest(
+        decommissionController.removeDecommissionedNodes(
             nodesWithDecommissionAttribute(state, decommissionAttribute, false),
             "nodes-decommissioned",
             TimeValue.timeValueSeconds(30L), // TODO - read timeout from request while integrating with API
