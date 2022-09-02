@@ -113,7 +113,7 @@ public class TransportGetWRRWeightsAction extends TransportClusterManagerNodeRea
             WRRWeights wrrWeights = weightedRoundRobinMetadata.getWrrWeight();
             if (request.local()) {
                 DiscoveryNode localNode = state.getNodes().getLocalNode();
-                if (localNode.getAttributes().containsKey(request.getAwarenessAttribute())) {
+                if (localNode.getAttributes().get(request.getAwarenessAttribute())!=null) {
                     String attrVal = localNode.getAttributes().get(request.getAwarenessAttribute());
                     if (wrrWeights.weights().containsKey(attrVal)) {
                         weight = wrrWeights.weights().get(attrVal).toString();
