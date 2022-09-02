@@ -56,6 +56,10 @@ public class SegmentReplicationTarget extends ReplicationTarget {
     private final SegmentReplicationState state;
     protected final MultiFileWriter multiFileWriter;
 
+    public ReplicationCheckpoint getCheckpoint() {
+        return this.checkpoint;
+    }
+
     public SegmentReplicationTarget(
         ReplicationCheckpoint checkpoint,
         IndexShard indexShard,
