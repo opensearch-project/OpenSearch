@@ -108,7 +108,7 @@ public class TransportGetWRRWeightsAction extends TransportClusterManagerNodeRea
         Metadata metadata = state.metadata();
         WeightedRoundRobinRoutingMetadata weightedRoundRobinMetadata = metadata.custom(WeightedRoundRobinRoutingMetadata.TYPE);
         ClusterGetWRRWeightsResponse clusterGetWRRWeightsResponse = new ClusterGetWRRWeightsResponse();
-        Object weight = null;
+        String weight = null;
         if (weightedRoundRobinMetadata != null && weightedRoundRobinMetadata.getWrrWeight() != null) {
             WRRWeights wrrWeights = weightedRoundRobinMetadata.getWrrWeight();
             if (request.local()) {
@@ -116,7 +116,7 @@ public class TransportGetWRRWeightsAction extends TransportClusterManagerNodeRea
                 if (localNode.getAttributes().containsKey(request.getAwarenessAttribute())) {
                     String attrVal = localNode.getAttributes().get(request.getAwarenessAttribute());
                     if (wrrWeights.weights().containsKey(attrVal)) {
-                        weight = wrrWeights.weights().get(attrVal);
+                        weight = wrrWeights.weights().get(attrVal).toString();
                     }
                 }
             }

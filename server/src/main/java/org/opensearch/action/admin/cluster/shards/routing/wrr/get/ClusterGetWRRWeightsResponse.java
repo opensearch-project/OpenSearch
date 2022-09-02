@@ -32,7 +32,7 @@ import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedT
  */
 public class ClusterGetWRRWeightsResponse extends ActionResponse implements ToXContentObject {
     private WRRWeights wrrWeight;
-    private Object localNodeWeight;
+    private String localNodeWeight;
     private static final String NODE_WEIGHT = "node_weight";
 
     public Object getLocalNodeWeight() {
@@ -43,7 +43,7 @@ public class ClusterGetWRRWeightsResponse extends ActionResponse implements ToXC
         this.wrrWeight = null;
     }
 
-    public ClusterGetWRRWeightsResponse(Object localNodeWeight, WRRWeights wrrWeight) {
+    public ClusterGetWRRWeightsResponse(String localNodeWeight, WRRWeights wrrWeight) {
         this.localNodeWeight = localNodeWeight;
         this.wrrWeight = wrrWeight;
     }
@@ -90,7 +90,7 @@ public class ClusterGetWRRWeightsResponse extends ActionResponse implements ToXC
         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
         XContentParser.Token token;
         String attrKey = null, attrValue = null;
-        Object localNodeWeight = null;
+        String localNodeWeight = null;
         Map<String, Object> weights = new HashMap<>();
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
