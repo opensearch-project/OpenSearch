@@ -31,7 +31,7 @@ public interface TaskBatcherListener {
      * Callback called before processing any tasks.
      * @param tasks list of tasks which will be executed.
      */
-    void onBeginProcess(List<? extends TaskBatcher.BatchedTask> tasks);
+    void onBeginProcessing(List<? extends TaskBatcher.BatchedTask> tasks);
 
     /**
      * Callback called when tasks are timed out.

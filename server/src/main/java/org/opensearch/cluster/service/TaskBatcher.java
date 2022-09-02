@@ -186,7 +186,7 @@ public abstract class TaskBatcher {
                     return tasks.isEmpty() ? entry.getKey() : entry.getKey() + "[" + tasks + "]";
                 }).reduce((s1, s2) -> s1 + ", " + s2).orElse("");
 
-                taskBatcherListener.onBeginProcess(toExecute);
+                taskBatcherListener.onBeginProcessing(toExecute);
                 run(updateTask.batchingKey, toExecute, tasksSummary);
             }
         }

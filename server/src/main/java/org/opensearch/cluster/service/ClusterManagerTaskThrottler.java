@@ -147,7 +147,7 @@ public class ClusterManagerTaskThrottler implements TaskBatcherListener {
      * @param tasks list of tasks which will be executed.
      */
     @Override
-    public void onBeginProcess(List<? extends TaskBatcher.BatchedTask> tasks) {
+    public void onBeginProcessing(List<? extends TaskBatcher.BatchedTask> tasks) {
         reduceTaskCount(tasks);
     }
 

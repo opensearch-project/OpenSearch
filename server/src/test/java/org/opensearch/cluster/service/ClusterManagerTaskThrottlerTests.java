@@ -236,7 +236,7 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
         assertEquals(3L, throttlingStats.getThrottlingCount(taskKey));
 
         // remove one task
-        throttler.onBeginProcess(getMockUpdateTaskList(taskKey, 1));
+        throttler.onBeginProcessing(getMockUpdateTaskList(taskKey, 1));
 
         // add 3 tasks should pass now.
         // taskCount in Queue: 2 Threshold: 5

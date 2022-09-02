@@ -357,7 +357,7 @@ public class TaskBatcherTests extends TaskExecutorTests {
             }
 
             @Override
-            public void onBeginProcess(List<? extends TaskBatcher.BatchedTask> tasks) {
+            public void onBeginProcessing(List<? extends TaskBatcher.BatchedTask> tasks) {
                 // No Op
             }
 
