@@ -148,7 +148,7 @@ public abstract class TaskBatcher {
                     }
                 }
             }
-            taskBatcherListener.onProcessed(toRemove);
+            taskBatcherListener.onTimeout(toRemove);
             onTimeout(toRemove, timeout);
         }
     }
@@ -186,7 +186,7 @@ public abstract class TaskBatcher {
                     return tasks.isEmpty() ? entry.getKey() : entry.getKey() + "[" + tasks + "]";
                 }).reduce((s1, s2) -> s1 + ", " + s2).orElse("");
 
-                taskBatcherListener.onProcessed(toExecute);
+                taskBatcherListener.onBeginProcess(toExecute);
                 run(updateTask.batchingKey, toExecute, tasksSummary);
             }
         }

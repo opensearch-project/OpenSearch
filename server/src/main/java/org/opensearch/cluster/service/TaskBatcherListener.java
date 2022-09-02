@@ -28,9 +28,14 @@ public interface TaskBatcherListener {
     void onSubmitFailure(List<? extends TaskBatcher.BatchedTask> tasks);
 
     /**
-     * Callback called whenever task is marked as processed
+     * Callback called before processing any tasks.
      * @param tasks list of tasks which will be executed.
      */
-    void onProcessed(List<? extends TaskBatcher.BatchedTask> tasks);
+    void onBeginProcess(List<? extends TaskBatcher.BatchedTask> tasks);
 
+    /**
+     * Callback called when tasks are timed out.
+     * @param tasks list of tasks which will be executed.
+     */
+    void onTimeout(List<? extends TaskBatcher.BatchedTask> tasks);
 }

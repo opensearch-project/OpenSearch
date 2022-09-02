@@ -141,8 +141,18 @@ public class ClusterManagerTaskThrottler implements TaskBatcherListener {
         reduceTaskCount(tasks);
     }
 
+    /**
+     * Tasks will be removed from the queue before processing, so here we will reduce the count of tasks.
+     *
+     * @param tasks list of tasks which will be executed.
+     */
     @Override
-    public void onProcessed(List<? extends TaskBatcher.BatchedTask> tasks) {
+    public void onBeginProcess(List<? extends TaskBatcher.BatchedTask> tasks) {
+        reduceTaskCount(tasks);
+    }
+
+    @Override
+    public void onTimeout(List<? extends TaskBatcher.BatchedTask> tasks) {
         reduceTaskCount(tasks);
     }
 
