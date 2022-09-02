@@ -37,7 +37,6 @@ import java.util.stream.Collectors;
  * @opensearch.internal
  */
 class OngoingSegmentReplications {
-
     private final RecoverySettings recoverySettings;
     private final IndicesService indicesService;
     private final Map<ReplicationCheckpoint, CopyState> copyStateMap;
@@ -162,13 +161,26 @@ class OngoingSegmentReplications {
     }
 
     /**
+     * Cancel all Replication events for the given allocation ID, intended to be called when a primary is shutting down.
+     *
+     * @param allocationId  {@link String} - Allocation ID.
+     * @param reason {@link String} - Reason for the cancel
+     */
+    synchronized void cancel(String allocationId, String reason) {
+        final SegmentReplicationSourceHandler handler = allocationIdToHandlers.remove(allocationId);
+        if (handler != null) {
+            handler.cancel(reason);
+            removeCopyState(handler.getCopyState());
+        }
+    }
+
+    /**
      * Cancel any ongoing replications for a given {@link DiscoveryNode}
      *
      * @param node {@link DiscoveryNode} node for which to cancel replication events.
      */
     void cancelReplication(DiscoveryNode node) {
         cancelHandlers(handler -> handler.getTargetNode().equals(node), "Node left");
-
     }
 
     /**
@@ -243,11 +255,7 @@ class OngoingSegmentReplications {
             .map(SegmentReplicationSourceHandler::getAllocationId)
             .collect(Collectors.toList());
         for (String allocationId : allocationIds) {
-            final SegmentReplicationSourceHandler handler = allocationIdToHandlers.remove(allocationId);
-            if (handler != null) {
-                handler.cancel(reason);
-                removeCopyState(handler.getCopyState());
-            }
+            cancel(allocationId, reason);
         }
     }
 }

@@ -17,6 +17,7 @@ import org.apache.lucene.store.BufferedChecksumIndexInput;
 import org.apache.lucene.store.ByteBuffersDataInput;
 import org.apache.lucene.store.ByteBuffersIndexInput;
 import org.apache.lucene.store.ChecksumIndexInput;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.StepListener;
@@ -103,7 +104,15 @@ public class SegmentReplicationTarget extends ReplicationTarget {
 
     @Override
     public void notifyListener(OpenSearchException e, boolean sendShardFailure) {
-        listener.onFailure(state(), e, sendShardFailure);
+        // Cancellations still are passed to our SegmentReplicationListner as failures, if we have failed because of cancellation
+        // update the stage.
+        final Throwable cancelledException = ExceptionsHelper.unwrap(e, CancellableThreads.ExecutionCancelledException.class);
+        if (cancelledException != null) {
+            state.setStage(SegmentReplicationState.Stage.CANCELLED);
+            listener.onFailure(state(), (CancellableThreads.ExecutionCancelledException) cancelledException, sendShardFailure);
+        } else {
+            listener.onFailure(state(), e, sendShardFailure);
+        }
     }
 
     @Override
@@ -134,6 +143,14 @@ public class SegmentReplicationTarget extends ReplicationTarget {
      * @param listener {@link ActionListener} listener.
      */
     public void startReplication(ActionListener<Void> listener) {
+        cancellableThreads.setOnCancel((reason, beforeCancelEx) -> {
+            // This method only executes when cancellation is triggered by this node and caught by a call to checkForCancel,
+            // SegmentReplicationSource does not share CancellableThreads.
+            final CancellableThreads.ExecutionCancelledException executionCancelledException =
+                new CancellableThreads.ExecutionCancelledException("replication was canceled reason [" + reason + "]");
+            notifyListener(executionCancelledException, false);
+            throw executionCancelledException;
+        });
         state.setStage(SegmentReplicationState.Stage.REPLICATING);
         final StepListener<CheckpointInfoResponse> checkpointInfoListener = new StepListener<>();
         final StepListener<GetSegmentFilesResponse> getFilesListener = new StepListener<>();
@@ -141,6 +158,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
 
         logger.trace("[shardId {}] Replica starting replication [id {}]", shardId().getId(), getId());
         // Get list of files to copy from this checkpoint.
+        cancellableThreads.checkForCancel();
         state.setStage(SegmentReplicationState.Stage.GET_CHECKPOINT_INFO);
         source.getCheckpointMetadata(getId(), checkpoint, checkpointInfoListener);
 
@@ -154,6 +172,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
 
     private void getFiles(CheckpointInfoResponse checkpointInfo, StepListener<GetSegmentFilesResponse> getFilesListener)
         throws IOException {
+        cancellableThreads.checkForCancel();
         state.setStage(SegmentReplicationState.Stage.FILE_DIFF);
         final Store.MetadataSnapshot snapshot = checkpointInfo.getSnapshot();
         Store.MetadataSnapshot localMetadata = getMetadataSnapshot();
@@ -188,12 +207,14 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         }
         // always send a req even if not fetching files so the primary can clear the copyState for this shard.
         state.setStage(SegmentReplicationState.Stage.GET_FILES);
+        cancellableThreads.checkForCancel();
         source.getSegmentFiles(getId(), checkpointInfo.getCheckpoint(), filesToFetch, store, getFilesListener);
     }
 
     private void finalizeReplication(CheckpointInfoResponse checkpointInfoResponse, ActionListener<Void> listener) {
-        state.setStage(SegmentReplicationState.Stage.FINALIZE_REPLICATION);
         ActionListener.completeWith(listener, () -> {
+            cancellableThreads.checkForCancel();
+            state.setStage(SegmentReplicationState.Stage.FINALIZE_REPLICATION);
             multiFileWriter.renameAllTempFiles();
             final Store store = store();
             store.incRef();
@@ -260,5 +281,11 @@ public class SegmentReplicationTarget extends ReplicationTarget {
             return Store.MetadataSnapshot.EMPTY;
         }
         return store.getMetadata(indexShard.getSegmentInfosSnapshot().get());
+    }
+
+    @Override
+    protected void onCancel(String reason) {
+        cancellableThreads.cancel(reason);
+        source.cancel();
     }
 }

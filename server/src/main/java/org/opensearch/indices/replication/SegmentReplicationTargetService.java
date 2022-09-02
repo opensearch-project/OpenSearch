@@ -11,10 +11,13 @@ package org.opensearch.indices.replication;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
+import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
@@ -64,6 +67,11 @@ public class SegmentReplicationTargetService implements IndexEventListener {
         public synchronized void onNewCheckpoint(ReplicationCheckpoint receivedCheckpoint, IndexShard replicaShard) {
             // noOp;
         }
+
+        @Override
+        public void shardRoutingChanged(IndexShard indexShard, @Nullable ShardRouting oldRouting, ShardRouting newRouting) {
+            // noOp;
+        }
     };
 
     // Used only for empty implementation.
@@ -72,6 +80,10 @@ public class SegmentReplicationTargetService implements IndexEventListener {
         recoverySettings = null;
         onGoingReplications = null;
         sourceFactory = null;
+    }
+
+    public ReplicationRef<SegmentReplicationTarget> get(long replicationId) {
+        return onGoingReplications.get(replicationId);
     }
 
     /**
@@ -102,6 +114,9 @@ public class SegmentReplicationTargetService implements IndexEventListener {
         );
     }
 
+    /**
+     * Cancel any replications on this node for a replica that is about to be closed.
+     */
     @Override
     public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
         if (indexShard != null) {
@@ -110,10 +125,21 @@ public class SegmentReplicationTargetService implements IndexEventListener {
     }
 
     /**
+     * Cancel any replications on this node for a replica that has just been promoted as the new primary.
+     */
+    @Override
+    public void shardRoutingChanged(IndexShard indexShard, @Nullable ShardRouting oldRouting, ShardRouting newRouting) {
+        if (oldRouting != null && oldRouting.primary() == false && newRouting.primary()) {
+            onGoingReplications.cancelForShard(indexShard.shardId(), "shard has been promoted to primary");
+        }
+    }
+
+    /**
      * Invoked when a new checkpoint is received from a primary shard.
      * It checks if a new checkpoint should be processed or not and starts replication if needed.
-     * @param receivedCheckpoint       received checkpoint that is checked for processing
-     * @param replicaShard      replica shard on which checkpoint is received
+     *
+     * @param receivedCheckpoint received checkpoint that is checked for processing
+     * @param replicaShard       replica shard on which checkpoint is received
      */
     public synchronized void onNewCheckpoint(final ReplicationCheckpoint receivedCheckpoint, final IndexShard replicaShard) {
         logger.trace(() -> new ParameterizedMessage("Replica received new replication checkpoint from primary [{}]", receivedCheckpoint));
@@ -180,12 +206,19 @@ public class SegmentReplicationTargetService implements IndexEventListener {
         }
     }
 
-    public void startReplication(
+    public SegmentReplicationTarget startReplication(
         final ReplicationCheckpoint checkpoint,
         final IndexShard indexShard,
         final SegmentReplicationListener listener
     ) {
-        startReplication(new SegmentReplicationTarget(checkpoint, indexShard, sourceFactory.get(indexShard), listener));
+        final SegmentReplicationTarget target = new SegmentReplicationTarget(
+            checkpoint,
+            indexShard,
+            sourceFactory.get(indexShard),
+            listener
+        );
+        startReplication(target);
+        return target;
     }
 
     // pkg-private for integration tests
@@ -248,7 +281,17 @@ public class SegmentReplicationTargetService implements IndexEventListener {
 
                 @Override
                 public void onFailure(Exception e) {
-                    onGoingReplications.fail(replicationId, new OpenSearchException("Segment Replication failed", e), true);
+                    Throwable cause = ExceptionsHelper.unwrapCause(e);
+                    if (cause instanceof CancellableThreads.ExecutionCancelledException) {
+                        if (onGoingReplications.getTarget(replicationId) != null) {
+                            // if the target still exists in our collection, the primary initiated the cancellation, fail the replication
+                            // but do not fail the shard. Cancellations initiated by this node from Index events will be removed with
+                            // onGoingReplications.cancel and not appear in the collection when this listener resolves.
+                            onGoingReplications.fail(replicationId, (CancellableThreads.ExecutionCancelledException) cause, false);
+                        }
+                    } else {
+                        onGoingReplications.fail(replicationId, new OpenSearchException("Segment Replication failed", e), true);
+                    }
                 }
             });
         }
