@@ -13,10 +13,4 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           ref: ${{ github.event.pull_request.head.sha }}
 
-      - uses: dangoslen/dependabot-changelog-helper@v1
-
-      - uses: stefanzweifel/git-auto-commit-action@v4
-        with:
-          commit_message: "Update changelog"
-
       - uses: dangoslen/changelog-enforcer@v3
