@@ -337,7 +337,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     /**
-     * Fetch a map of StoreFileMetadata for segments, ignoring commit points.
+     * Segment Replication method - Fetch a map of StoreFileMetadata for segments, ignoring Segment_N files.
      * @param segmentInfos {@link SegmentInfos} from which to compute metadata.
      * @return {@link Map} map file name to {@link StoreFileMetadata}.
      */

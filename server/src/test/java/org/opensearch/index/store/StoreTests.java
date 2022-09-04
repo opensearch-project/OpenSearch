@@ -50,6 +50,7 @@ import org.apache.lucene.index.NoDeletionPolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SnapshotDeletionPolicy;
+import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.ChecksumIndexInput;
@@ -1170,13 +1171,27 @@ public class StoreTests extends OpenSearchTestCase {
 
         Store.MetadataSnapshot commitMetadata = store.getMetadata();
 
+        // index more docs but only IW.flush, this will create additional files we'll clean up.
+        final IndexWriter writer = indexRandomDocs(store);
+        writer.flush();
+        writer.close();
+
+        final List<String> additionalSegments = new ArrayList<>();
+        for (String file : store.directory().listAll()) {
+            if (commitMetadata.contains(file) == false)  {
+                additionalSegments.add(file);
+            }
+        }
+        assertFalse(additionalSegments.isEmpty());
+
+        // clean up everything not in the latest commit point.
         store.cleanupAndPreserveLatestCommitPoint("test", store.readLastCommittedSegmentsInfo());
 
         // we want to ensure commitMetadata files are preserved after calling cleanup
         for (String existingFile : store.directory().listAll()) {
-            assert (commitMetadata.contains(existingFile) == true);
+            assertTrue(commitMetadata.contains(existingFile));
+            assertFalse(additionalSegments.contains(existingFile));
         }
-
         deleteContent(store.directory());
         IOUtils.close(store);
     }
@@ -1194,7 +1209,7 @@ public class StoreTests extends OpenSearchTestCase {
         // no docs indexed only _N file exists.
         assertTrue(metadataSnapshot.isEmpty());
 
-        // commit some docs to create segments.
+        // commit some docs to create a commit point.
         commitRandomDocs(store);
 
         final Map<String, StoreFileMetadata> snapshotAfterCommit = store.getSegmentMetadataMap(store.readLastCommittedSegmentsInfo());
@@ -1204,9 +1219,16 @@ public class StoreTests extends OpenSearchTestCase {
     }
 
     private void commitRandomDocs(Store store) throws IOException {
+        IndexWriter writer = indexRandomDocs(store);
+        writer.commit();
+        writer.close();
+    }
+
+    private IndexWriter indexRandomDocs(Store store) throws IOException {
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig(random(), new MockAnalyzer(random())).setCodec(
             TestUtil.getDefaultCodec()
         );
+        indexWriterConfig.setCommitOnClose(false);
         indexWriterConfig.setIndexDeletionPolicy(NoDeletionPolicy.INSTANCE);
         IndexWriter writer = new IndexWriter(store.directory(), indexWriterConfig);
         int docs = 1 + random().nextInt(100);
@@ -1222,7 +1244,6 @@ public class StoreTests extends OpenSearchTestCase {
         );
         doc.add(new SortedDocValuesField("dv", new BytesRef(TestUtil.randomRealisticUnicodeString(random()))));
         writer.addDocument(doc);
-        writer.commit();
-        writer.close();
+        return writer;
     }
 }
