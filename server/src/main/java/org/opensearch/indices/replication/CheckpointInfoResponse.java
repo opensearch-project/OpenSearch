@@ -27,29 +27,29 @@ import java.util.Map;
 public class CheckpointInfoResponse extends TransportResponse {
 
     private final ReplicationCheckpoint checkpoint;
-    private final Map<String, StoreFileMetadata> snapshot;
+    private final Map<String, StoreFileMetadata> metadataMap;
     private final byte[] infosBytes;
 
     public CheckpointInfoResponse(
         final ReplicationCheckpoint checkpoint,
-        final Map<String, StoreFileMetadata> snapshot,
+        final Map<String, StoreFileMetadata> metadataMap,
         final byte[] infosBytes
     ) {
         this.checkpoint = checkpoint;
-        this.snapshot = snapshot;
+        this.metadataMap = metadataMap;
         this.infosBytes = infosBytes;
     }
 
     public CheckpointInfoResponse(StreamInput in) throws IOException {
         this.checkpoint = new ReplicationCheckpoint(in);
-        this.snapshot = in.readMap(StreamInput::readString, StoreFileMetadata::new);
+        this.metadataMap = in.readMap(StreamInput::readString, StoreFileMetadata::new);
         this.infosBytes = in.readByteArray();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         checkpoint.writeTo(out);
-        out.writeMap(snapshot, StreamOutput::writeString, (valueOut, fc) -> fc.writeTo(valueOut));
+        out.writeMap(metadataMap, StreamOutput::writeString, (valueOut, fc) -> fc.writeTo(valueOut));
         out.writeByteArray(infosBytes);
     }
 
@@ -57,8 +57,8 @@ public class CheckpointInfoResponse extends TransportResponse {
         return checkpoint;
     }
 
-    public Map<String, StoreFileMetadata> getSnapshot() {
-        return snapshot;
+    public Map<String, StoreFileMetadata> getMetadataMap() {
+        return metadataMap;
     }
 
     public byte[] getInfosBytes() {

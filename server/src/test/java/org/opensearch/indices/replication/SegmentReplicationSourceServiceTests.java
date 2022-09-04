@@ -121,7 +121,7 @@ public class SegmentReplicationSourceServiceTests extends OpenSearchTestCase {
             public void onResponse(CheckpointInfoResponse response) {
                 assertEquals(testCheckpoint, response.getCheckpoint());
                 assertNotNull(response.getInfosBytes());
-                assertEquals(1, response.getSnapshot().size());
+                assertEquals(1, response.getMetadataMap().size());
             }
 
             @Override

@@ -174,7 +174,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         throws IOException {
         cancellableThreads.checkForCancel();
         state.setStage(SegmentReplicationState.Stage.FILE_DIFF);
-        final Store.MetadataSnapshot snapshot = new Store.MetadataSnapshot(checkpointInfo.getSnapshot(), Collections.emptyMap(), 0L);
+        final Store.MetadataSnapshot snapshot = new Store.MetadataSnapshot(checkpointInfo.getMetadataMap(), Collections.emptyMap(), 0L);
         Store.MetadataSnapshot localMetadata = getMetadataSnapshot();
         final Store.RecoveryDiff diff = snapshot.segmentReplicationDiff(localMetadata);
         logger.trace("Replication diff {}", diff);
