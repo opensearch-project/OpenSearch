@@ -135,11 +135,7 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
             try {
                 final CopyState copyState = ongoingSegmentReplications.prepareForReplication(request, segmentSegmentFileChunkWriter);
                 channel.sendResponse(
-                    new CheckpointInfoResponse(
-                        copyState.getCheckpoint(),
-                        copyState.getMetadataMap(),
-                        copyState.getInfosBytes()
-                    )
+                    new CheckpointInfoResponse(copyState.getCheckpoint(), copyState.getMetadataMap(), copyState.getInfosBytes())
                 );
                 timer.stop();
                 logger.trace(
@@ -153,9 +149,18 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
                 );
             } catch (IOException e) {
                 timer.stop();
-                logger.error(new ParameterizedMessage(
-                    "[replication id {}] Source node failed to compute checkpoint info for target node [{}], timing: {}", request.getReplicationId(), request.getTargetNode().getId(), timer.time()), e);
-                channel.sendResponse(new CancellableThreads.ExecutionCancelledException("Primary failed to compute CopyState. Replication can be retried"));
+                logger.error(
+                    new ParameterizedMessage(
+                        "[replication id {}] Source node failed to compute checkpoint info for target node [{}], timing: {}",
+                        request.getReplicationId(),
+                        request.getTargetNode().getId(),
+                        timer.time()
+                    ),
+                    e
+                );
+                channel.sendResponse(
+                    new CancellableThreads.ExecutionCancelledException("Primary failed to compute CopyState. Replication can be retried")
+                );
             }
         }
     }

@@ -346,7 +346,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         return loadMetadata(segmentInfos, directory, logger, true).fileMetadata;
     }
 
-
     /**
      * Segment Replication method
      * Returns a diff between the Maps of StoreFileMetadata that can be used for getting list of files to copy over to a replica for segment replication. The returned diff will hold a list of files that are:

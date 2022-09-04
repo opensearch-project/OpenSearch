@@ -50,7 +50,6 @@ import org.apache.lucene.index.NoDeletionPolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SnapshotDeletionPolicy;
-import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.ChecksumIndexInput;
@@ -105,7 +104,6 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableMap;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -1180,7 +1178,7 @@ public class StoreTests extends OpenSearchTestCase {
 
         final List<String> additionalSegments = new ArrayList<>();
         for (String file : store.directory().listAll()) {
-            if (commitMetadata.contains(file) == false)  {
+            if (commitMetadata.contains(file) == false) {
                 additionalSegments.add(file);
             }
         }
