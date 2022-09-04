@@ -346,6 +346,42 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         return loadMetadata(segmentInfos, directory, logger, true).fileMetadata;
     }
 
+
+    /**
+     * Segment Replication method
+     * Returns a diff between the Maps of StoreFileMetadata that can be used for getting list of files to copy over to a replica for segment replication. The returned diff will hold a list of files that are:
+     * <ul>
+     * <li>identical: they exist in both maps and they can be considered the same ie. they don't need to be recovered</li>
+     * <li>different: they exist in both maps but their they are not identical</li>
+     * <li>missing: files that exist in the source but not in the target</li>
+     * </ul>
+     */
+    public static RecoveryDiff segmentReplicationDiff(Map<String, StoreFileMetadata> source, Map<String, StoreFileMetadata> target) {
+        final List<StoreFileMetadata> identical = new ArrayList<>();
+        final List<StoreFileMetadata> different = new ArrayList<>();
+        final List<StoreFileMetadata> missing = new ArrayList<>();
+        for (StoreFileMetadata value : source.values()) {
+            if (value.name().startsWith(IndexFileNames.SEGMENTS)) {
+                continue;
+            }
+            if (target.containsKey(value.name()) == false) {
+                missing.add(value);
+            } else {
+                final StoreFileMetadata fileMetadata = target.get(value.name());
+                if (fileMetadata.isSame(value)) {
+                    identical.add(value);
+                } else {
+                    different.add(value);
+                }
+            }
+        }
+        return new RecoveryDiff(
+            Collections.unmodifiableList(identical),
+            Collections.unmodifiableList(different),
+            Collections.unmodifiableList(missing)
+        );
+    }
+
     /**
      * Renames all the given files from the key of the map to the
      * value of the map. All successfully renamed files are removed from the map in-place.
@@ -840,17 +876,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             userData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
             latestSegmentInfos.setUserData(userData, true);
             latestSegmentInfos.commit(directory());
-
-            // similar to TrimUnsafeCommits, create a commit with an appending IW, this will delete old commits and ensure all files
-            // associated with the SegmentInfos.commit are fsynced.
-            final List<IndexCommit> existingCommits = DirectoryReader.listCommits(directory);
-            assert existingCommits.isEmpty() == false : "Expected at least one commit but none found";
-            final IndexCommit lastIndexCommit = existingCommits.get(existingCommits.size() - 1);
-            assert latestSegmentInfos.getSegmentsFileName().equals(lastIndexCommit.getSegmentsFileName());
-            try (IndexWriter writer = newAppendingIndexWriter(directory, lastIndexCommit)) {
-                writer.setLiveCommitData(lastIndexCommit.getUserData().entrySet());
-                writer.commit();
-            }
+            directory.sync(latestSegmentInfos.files(true));
+            directory.syncMetaData();
+            cleanupAndPreserveLatestCommitPoint("After commit", latestSegmentInfos);
         } finally {
             metadataLock.writeLock().unlock();
         }
@@ -1170,7 +1198,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
          * Helper method used to group store files according to segment and commit.
          *
          * @see MetadataSnapshot#recoveryDiff(MetadataSnapshot)
-         * @see MetadataSnapshot#segmentReplicationDiff(MetadataSnapshot)
          */
         private Iterable<List<StoreFileMetadata>> getGroupedFilesIterable() {
             final Map<String, List<StoreFileMetadata>> perSegment = new HashMap<>();
@@ -1260,51 +1287,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 + "] metadata size: ["
                 + this.metadata.size()
                 + "]";
-            return recoveryDiff;
-        }
-
-        /**
-         * Segment Replication method
-         * Returns a diff between the two snapshots that can be used for getting list of files to copy over to a replica for segment replication. The given snapshot is treated as the
-         * target and this snapshot as the source. The returned diff will hold a list of files that are:
-         * <ul>
-         * <li>identical: they exist in both snapshots and they can be considered the same ie. they don't need to be recovered</li>
-         * <li>different: they exist in both snapshots but their they are not identical</li>
-         * <li>missing: files that exist in the source but not in the target</li>
-         * </ul>
-         */
-        public RecoveryDiff segmentReplicationDiff(MetadataSnapshot recoveryTargetSnapshot) {
-            final List<StoreFileMetadata> identical = new ArrayList<>();
-            final List<StoreFileMetadata> different = new ArrayList<>();
-            final List<StoreFileMetadata> missing = new ArrayList<>();
-            final ArrayList<StoreFileMetadata> identicalFiles = new ArrayList<>();
-            for (List<StoreFileMetadata> segmentFiles : getGroupedFilesIterable()) {
-                identicalFiles.clear();
-                boolean consistent = true;
-                for (StoreFileMetadata meta : segmentFiles) {
-                    StoreFileMetadata storeFileMetadata = recoveryTargetSnapshot.get(meta.name());
-                    if (storeFileMetadata == null) {
-                        // Do not consider missing files as inconsistent in SegRep as replicas may lag while primary updates
-                        // documents and generate new files specific to a segment
-                        missing.add(meta);
-                    } else if (storeFileMetadata.isSame(meta) == false) {
-                        consistent = false;
-                        different.add(meta);
-                    } else {
-                        identicalFiles.add(meta);
-                    }
-                }
-                if (consistent) {
-                    identical.addAll(identicalFiles);
-                } else {
-                    different.addAll(identicalFiles);
-                }
-            }
-            RecoveryDiff recoveryDiff = new RecoveryDiff(
-                Collections.unmodifiableList(identical),
-                Collections.unmodifiableList(different),
-                Collections.unmodifiableList(missing)
-            );
             return recoveryDiff;
         }
 

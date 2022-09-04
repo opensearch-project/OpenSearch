@@ -23,6 +23,7 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.StepListener;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.index.shard.IndexShard;
@@ -39,6 +40,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Map;
 
 /**
  * Represents the target of a replication event.
@@ -174,10 +176,8 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         throws IOException {
         cancellableThreads.checkForCancel();
         state.setStage(SegmentReplicationState.Stage.FILE_DIFF);
-        final Store.MetadataSnapshot snapshot = new Store.MetadataSnapshot(checkpointInfo.getMetadataMap(), Collections.emptyMap(), 0L);
-        Store.MetadataSnapshot localMetadata = getMetadataSnapshot();
-        final Store.RecoveryDiff diff = snapshot.segmentReplicationDiff(localMetadata);
-        logger.trace("Replication diff {}", diff);
+        final Store.RecoveryDiff diff = Store.segmentReplicationDiff(checkpointInfo.getMetadataMap(), getMetadataMap());
+        logger.info("Replication diff {}", diff);
         /*
          * Segments are immutable. So if the replica has any segments with the same name that differ from the one in the incoming
          * snapshot from source that means the local copy of the segment has been corrupted/changed in some way and we throw an
@@ -266,11 +266,13 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         );
     }
 
-    Store.MetadataSnapshot getMetadataSnapshot() throws IOException {
+    Map<String, StoreFileMetadata> getMetadataMap() throws IOException {
         if (indexShard.getSegmentInfosSnapshot() == null) {
-            return Store.MetadataSnapshot.EMPTY;
+            return Collections.emptyMap();
         }
-        return store.getMetadata(indexShard.getSegmentInfosSnapshot().get());
+        try (final GatedCloseable<SegmentInfos> snapshot = indexShard.getSegmentInfosSnapshot()) {
+            return store.getSegmentMetadataMap(snapshot.get());
+        }
     }
 
     @Override

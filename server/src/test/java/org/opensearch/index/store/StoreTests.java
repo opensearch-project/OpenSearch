@@ -96,6 +96,7 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -104,6 +105,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableMap;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -1216,6 +1218,43 @@ public class StoreTests extends OpenSearchTestCase {
         assertFalse(snapshotAfterCommit.isEmpty());
         assertFalse(snapshotAfterCommit.keySet().stream().anyMatch((name) -> name.startsWith(IndexFileNames.SEGMENTS)));
         store.close();
+    }
+
+    public void testSegmentReplicationDiff() {
+        final String segmentName = "_0.si";
+        final StoreFileMetadata SEGMENT_FILE = new StoreFileMetadata(segmentName, 1L, "0", Version.LATEST);
+        // source has file target is missing.
+        Store.RecoveryDiff diff = Store.segmentReplicationDiff(Map.of(segmentName, SEGMENT_FILE), Collections.emptyMap());
+        assertEquals(List.of(SEGMENT_FILE), diff.missing);
+        assertTrue(diff.different.isEmpty());
+        assertTrue(diff.identical.isEmpty());
+
+        // target has file not on source.
+        diff = Store.segmentReplicationDiff(Collections.emptyMap(), Map.of(segmentName, SEGMENT_FILE));
+        assertTrue(diff.missing.isEmpty());
+        assertTrue(diff.different.isEmpty());
+        assertTrue(diff.identical.isEmpty());
+
+        // source and target have identical file.
+        diff = Store.segmentReplicationDiff(Map.of(segmentName, SEGMENT_FILE), Map.of(segmentName, SEGMENT_FILE));
+        assertTrue(diff.missing.isEmpty());
+        assertTrue(diff.different.isEmpty());
+        assertEquals(List.of(SEGMENT_FILE), diff.identical);
+
+        // source has diff copy of same file as target.
+        StoreFileMetadata SOURCE_DIFF_FILE = new StoreFileMetadata(segmentName, 1L, "abc", Version.LATEST);
+        diff = Store.segmentReplicationDiff(Map.of(segmentName, SOURCE_DIFF_FILE), Map.of(segmentName, SEGMENT_FILE));
+        assertTrue(diff.missing.isEmpty());
+        assertEquals(List.of(SOURCE_DIFF_FILE), diff.different);
+        assertTrue(diff.identical.isEmpty());
+
+        // ignore _N files if included in source map.
+        final String segmentsFile = IndexFileNames.SEGMENTS.concat("_2");
+        StoreFileMetadata SEGMENTS_FILE = new StoreFileMetadata(segmentsFile, 1L, "abc", Version.LATEST);
+        diff = Store.segmentReplicationDiff(Map.of(segmentsFile, SEGMENTS_FILE), Collections.emptyMap());
+        assertTrue(diff.missing.isEmpty());
+        assertTrue(diff.different.isEmpty());
+        assertTrue(diff.identical.isEmpty());
     }
 
     private void commitRandomDocs(Store store) throws IOException {
