@@ -20,7 +20,6 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.component.AbstractLifecycleComponent;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
@@ -132,36 +131,20 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
                 new AtomicLong(0),
                 (throttleTime) -> {}
             );
-            try {
-                final CopyState copyState = ongoingSegmentReplications.prepareForReplication(request, segmentSegmentFileChunkWriter);
-                channel.sendResponse(
-                    new CheckpointInfoResponse(copyState.getCheckpoint(), copyState.getMetadataMap(), copyState.getInfosBytes())
-                );
-                timer.stop();
-                logger.trace(
-                    new ParameterizedMessage(
-                        "[replication id {}] Source node sent checkpoint info [{}] to target node [{}], timing: {}",
-                        request.getReplicationId(),
-                        copyState.getCheckpoint(),
-                        request.getTargetNode().getId(),
-                        timer.time()
-                    )
-                );
-            } catch (IOException e) {
-                timer.stop();
-                logger.error(
-                    new ParameterizedMessage(
-                        "[replication id {}] Source node failed to compute checkpoint info for target node [{}], timing: {}",
-                        request.getReplicationId(),
-                        request.getTargetNode().getId(),
-                        timer.time()
-                    ),
-                    e
-                );
-                channel.sendResponse(
-                    new CancellableThreads.ExecutionCancelledException("Primary failed to compute CopyState. Replication can be retried")
-                );
-            }
+            final CopyState copyState = ongoingSegmentReplications.prepareForReplication(request, segmentSegmentFileChunkWriter);
+            channel.sendResponse(
+                new CheckpointInfoResponse(copyState.getCheckpoint(), copyState.getMetadataMap(), copyState.getInfosBytes())
+            );
+            timer.stop();
+            logger.trace(
+                new ParameterizedMessage(
+                    "[replication id {}] Source node sent checkpoint info [{}] to target node [{}], timing: {}",
+                    request.getReplicationId(),
+                    copyState.getCheckpoint(),
+                    request.getTargetNode().getId(),
+                    timer.time()
+                )
+            );
         }
     }
 
