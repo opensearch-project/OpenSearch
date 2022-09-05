@@ -310,6 +310,19 @@ public class RestNodesAction extends AbstractCatAction {
         );
         table.addCell("search.scroll_total", "alias:scto,searchScrollTotal;default:false;text-align:right;desc:completed scroll contexts");
 
+        table.addCell(
+            "search.point_in_time_current",
+            "alias:scc,searchPointInTimeCurrent;default:false;text-align:right;desc:open point in time contexts"
+        );
+        table.addCell(
+            "search.point_in_time_time",
+            "alias:scti,searchPointInTimeTime;default:false;text-align:right;desc:time point in time contexts held open"
+        );
+        table.addCell(
+            "search.point_in_time_total",
+            "alias:scto,searchPointInTimeTotal;default:false;text-align:right;desc:completed point in time contexts"
+        );
+
         table.addCell("segments.count", "alias:sc,segmentsCount;default:false;text-align:right;desc:number of segments");
         table.addCell("segments.memory", "alias:sm,segmentsMemory;default:false;text-align:right;desc:memory used by segments");
         table.addCell(
@@ -519,6 +532,9 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(searchStats == null ? null : searchStats.getTotal().getScrollCurrent());
             table.addCell(searchStats == null ? null : searchStats.getTotal().getScrollTime());
             table.addCell(searchStats == null ? null : searchStats.getTotal().getScrollCount());
+            table.addCell(searchStats == null ? null : searchStats.getTotal().getPitCurrent());
+            table.addCell(searchStats == null ? null : searchStats.getTotal().getPitTime());
+            table.addCell(searchStats == null ? null : searchStats.getTotal().getPitCount());
 
             SegmentsStats segmentsStats = indicesStats == null ? null : indicesStats.getSegments();
             table.addCell(segmentsStats == null ? null : segmentsStats.getCount());
