@@ -853,7 +853,12 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         }
         replica.prepareForIndexRecovery();
         final RecoveryTarget recoveryTarget = targetSupplier.apply(replica, pNode);
-        final long startingSeqNo = recoveryTarget.indexShard().recoverLocallyUpToGlobalCheckpoint();
+        IndexShard indexShard = recoveryTarget.indexShard();
+        boolean isRecoveringReplicaWithRemoteTxLogEnabledIndex = recoveryTarget.state().getPrimary() == false
+            && indexShard.isRemoteTranslogEnabledOnPrimary();
+        final long startingSeqNo = isRecoveringReplicaWithRemoteTxLogEnabledIndex
+            ? indexShard.fetchStartSeqNoFromLastCommit()
+            : indexShard.recoverLocallyUpToGlobalCheckpoint();
         final StartRecoveryRequest request = PeerRecoveryTargetService.getStartRecoveryRequest(
             logger,
             rNode,

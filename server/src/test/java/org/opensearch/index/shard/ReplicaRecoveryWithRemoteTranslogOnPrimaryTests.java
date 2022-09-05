@@ -9,15 +9,21 @@
 package org.opensearch.index.shard;
 
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.routing.RecoverySource;
+import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.engine.DocIdSeqNoAndSource;
 import org.opensearch.index.engine.NRTReplicationEngine;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.replication.OpenSearchIndexLevelReplicationTestCase;
 import org.opensearch.index.translog.WriteOnlyTranslogManager;
+import org.opensearch.indices.recovery.RecoveryTarget;
 import org.opensearch.indices.replication.common.ReplicationType;
 
 import java.util.List;
+
+import static org.opensearch.cluster.routing.TestShardRouting.newShardRouting;
 
 public class ReplicaRecoveryWithRemoteTranslogOnPrimaryTests extends OpenSearchIndexLevelReplicationTestCase {
 
@@ -87,6 +93,66 @@ public class ReplicaRecoveryWithRemoteTranslogOnPrimaryTests extends OpenSearchI
             assertEquals(0, replicaTranslogManager.getTranslog().totalOperations());
 
             // Adding this for close to succeed
+            shards.flush();
+            replicateSegments(primary, shards.getReplicas());
+            shards.assertAllEqual(numDocs + moreDocs);
+        }
+    }
+
+    public void testStartSequenceForReplicaRecovery() throws Exception {
+        try (ReplicationGroup shards = createGroup(0, settings, new NRTReplicationEngineFactory())) {
+
+            shards.startPrimary();
+            final IndexShard primary = shards.getPrimary();
+            int numDocs = shards.indexDocs(randomIntBetween(10, 100));
+            shards.flush();
+
+            final IndexShard replica = shards.addReplica();
+            shards.startAll();
+
+            allowShardFailures();
+            replica.failShard("test", null);
+
+            final ShardRouting replicaRouting = replica.routingEntry();
+            final IndexMetadata newIndexMetadata = IndexMetadata.builder(replica.indexSettings().getIndexMetadata())
+                .primaryTerm(replicaRouting.shardId().id(), replica.getOperationPrimaryTerm() + 1)
+                .build();
+            closeShards(replica);
+            shards.removeReplica(replica);
+
+            int moreDocs = shards.indexDocs(randomIntBetween(20, 100));
+            shards.flush();
+
+            IndexShard newReplicaShard = newShard(
+                newShardRouting(
+                    replicaRouting.shardId(),
+                    replicaRouting.currentNodeId(),
+                    false,
+                    ShardRoutingState.INITIALIZING,
+                    RecoverySource.PeerRecoverySource.INSTANCE
+                ),
+                replica.shardPath(),
+                newIndexMetadata,
+                null,
+                null,
+                replica.getEngineFactory(),
+                replica.getEngineConfigFactory(),
+                replica.getGlobalCheckpointSyncer(),
+                replica.getRetentionLeaseSyncer(),
+                EMPTY_EVENT_LISTENER,
+                null
+            );
+            shards.addReplica(newReplicaShard);
+            shards.recoverReplica(newReplicaShard, (r, sourceNode) -> new RecoveryTarget(r, sourceNode, recoveryListener) {
+                @Override
+                public IndexShard indexShard() {
+                    IndexShard idxShard = super.indexShard();
+                    // verify the starting sequence number while recovering a failed shard which has a valid last commit
+                    assertEquals(numDocs - 1, idxShard.fetchStartSeqNoFromLastCommit());
+                    return idxShard;
+                }
+            });
+
             shards.flush();
             replicateSegments(primary, shards.getReplicas());
             shards.assertAllEqual(numDocs + moreDocs);
