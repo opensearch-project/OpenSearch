@@ -18,7 +18,6 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.IndexFormatTooNewException;
-import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.ByteBuffersIndexOutput;
 import org.apache.lucene.store.Directory;
@@ -70,26 +69,13 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
     private ReplicationCheckpoint repCheckpoint;
     private ByteBuffersDataOutput buffer;
 
-    private static final StoreFileMetadata SEGMENTS_FILE = new StoreFileMetadata(IndexFileNames.SEGMENTS, 1L, "0", Version.LATEST);
-    private static final StoreFileMetadata SEGMENTS_FILE_DIFF = new StoreFileMetadata(
-        IndexFileNames.SEGMENTS,
-        5L,
-        "different",
-        Version.LATEST
-    );
-    private static final StoreFileMetadata PENDING_DELETE_FILE = new StoreFileMetadata("pendingDelete.del", 1L, "1", Version.LATEST);
+    private static final String SEGMENT_NAME = "_0.si";
+    private static final StoreFileMetadata SEGMENT_FILE = new StoreFileMetadata(SEGMENT_NAME, 1L, "0", Version.LATEST);
+    private static final StoreFileMetadata SEGMENT_FILE_DIFF = new StoreFileMetadata(SEGMENT_NAME, 5L, "different", Version.LATEST);
 
-    private static final Store.MetadataSnapshot SI_SNAPSHOT = new Store.MetadataSnapshot(
-        Map.of(SEGMENTS_FILE.name(), SEGMENTS_FILE),
-        null,
-        0
-    );
+    private static final Map<String, StoreFileMetadata> SI_SNAPSHOT = Map.of(SEGMENT_FILE.name(), SEGMENT_FILE);
 
-    private static final Store.MetadataSnapshot SI_SNAPSHOT_DIFFERENT = new Store.MetadataSnapshot(
-        Map.of(SEGMENTS_FILE_DIFF.name(), SEGMENTS_FILE_DIFF),
-        null,
-        0
-    );
+    private static final Map<String, StoreFileMetadata> SI_SNAPSHOT_DIFFERENT = Map.of(SEGMENT_FILE_DIFF.name(), SEGMENT_FILE_DIFF);
 
     private static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings(
         "index",
@@ -134,7 +120,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 ReplicationCheckpoint checkpoint,
                 ActionListener<CheckpointInfoResponse> listener
             ) {
-                listener.onResponse(new CheckpointInfoResponse(checkpoint, SI_SNAPSHOT.asMap(), buffer.toArrayCopy()));
+                listener.onResponse(new CheckpointInfoResponse(checkpoint, SI_SNAPSHOT, buffer.toArrayCopy()));
             }
 
             @Override
@@ -146,7 +132,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 ActionListener<GetSegmentFilesResponse> listener
             ) {
                 assertEquals(1, filesToFetch.size());
-                assert (filesToFetch.contains(SEGMENTS_FILE));
+                assert (filesToFetch.contains(SEGMENT_FILE));
                 listener.onResponse(new GetSegmentFilesResponse(filesToFetch));
             }
         };
@@ -228,7 +214,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 ReplicationCheckpoint checkpoint,
                 ActionListener<CheckpointInfoResponse> listener
             ) {
-                listener.onResponse(new CheckpointInfoResponse(checkpoint, SI_SNAPSHOT.asMap(), buffer.toArrayCopy()));
+                listener.onResponse(new CheckpointInfoResponse(checkpoint, SI_SNAPSHOT, buffer.toArrayCopy()));
             }
 
             @Override
@@ -271,7 +257,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 ReplicationCheckpoint checkpoint,
                 ActionListener<CheckpointInfoResponse> listener
             ) {
-                listener.onResponse(new CheckpointInfoResponse(checkpoint, SI_SNAPSHOT.asMap(), buffer.toArrayCopy()));
+                listener.onResponse(new CheckpointInfoResponse(checkpoint, SI_SNAPSHOT, buffer.toArrayCopy()));
             }
 
             @Override
@@ -316,7 +302,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 ReplicationCheckpoint checkpoint,
                 ActionListener<CheckpointInfoResponse> listener
             ) {
-                listener.onResponse(new CheckpointInfoResponse(checkpoint, SI_SNAPSHOT.asMap(), buffer.toArrayCopy()));
+                listener.onResponse(new CheckpointInfoResponse(checkpoint, SI_SNAPSHOT, buffer.toArrayCopy()));
             }
 
             @Override
@@ -360,7 +346,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 ReplicationCheckpoint checkpoint,
                 ActionListener<CheckpointInfoResponse> listener
             ) {
-                listener.onResponse(new CheckpointInfoResponse(checkpoint, SI_SNAPSHOT.asMap(), buffer.toArrayCopy()));
+                listener.onResponse(new CheckpointInfoResponse(checkpoint, SI_SNAPSHOT, buffer.toArrayCopy()));
             }
 
             @Override
@@ -378,7 +364,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
             SegmentReplicationTargetService.SegmentReplicationListener.class
         );
         segrepTarget = spy(new SegmentReplicationTarget(repCheckpoint, indexShard, segrepSource, segRepListener));
-        when(segrepTarget.getMetadataMap()).thenReturn(SI_SNAPSHOT_DIFFERENT.asMap());
+        when(segrepTarget.getMetadataMap()).thenReturn(SI_SNAPSHOT_DIFFERENT);
         segrepTarget.startReplication(new ActionListener<Void>() {
             @Override
             public void onResponse(Void replicationResponse) {
