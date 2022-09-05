@@ -8,6 +8,7 @@
 
 package org.opensearch.index.shard;
 
+import org.junit.Assert;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.ShardRouting;
@@ -17,10 +18,12 @@ import org.opensearch.index.engine.DocIdSeqNoAndSource;
 import org.opensearch.index.engine.NRTReplicationEngine;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.replication.OpenSearchIndexLevelReplicationTestCase;
+import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.translog.WriteOnlyTranslogManager;
 import org.opensearch.indices.recovery.RecoveryTarget;
 import org.opensearch.indices.replication.common.ReplicationType;
 
+import java.io.IOException;
 import java.util.List;
 
 import static org.opensearch.cluster.routing.TestShardRouting.newShardRouting;
@@ -148,7 +151,15 @@ public class ReplicaRecoveryWithRemoteTranslogOnPrimaryTests extends OpenSearchI
                 public IndexShard indexShard() {
                     IndexShard idxShard = super.indexShard();
                     // verify the starting sequence number while recovering a failed shard which has a valid last commit
-                    assertEquals(numDocs - 1, idxShard.fetchStartSeqNoFromLastCommit());
+                    long startingSeqNo = -1;
+                    try {
+                        startingSeqNo = Long.parseLong(
+                            idxShard.store().readLastCommittedSegmentsInfo().getUserData().get(SequenceNumbers.MAX_SEQ_NO)
+                        );
+                    } catch (IOException e) {
+                        Assert.fail();
+                    }
+                    assertEquals(numDocs - 1, startingSeqNo);
                     return idxShard;
                 }
             });
