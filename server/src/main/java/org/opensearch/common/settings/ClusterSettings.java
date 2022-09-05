@@ -34,6 +34,7 @@ package org.opensearch.common.settings;
 import org.apache.logging.log4j.LogManager;
 import org.opensearch.action.main.TransportMainAction;
 import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
+import org.opensearch.action.search.CreatePitController;
 import org.opensearch.cluster.routing.allocation.decider.NodeLoadAwareAllocationDecider;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
@@ -472,6 +473,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 MultiBucketConsumerService.MAX_BUCKET_SETTING,
                 SearchService.LOW_LEVEL_CANCELLATION_SETTING,
                 SearchService.MAX_OPEN_SCROLL_CONTEXT,
+                SearchService.MAX_OPEN_PIT_CONTEXT,
+                SearchService.MAX_PIT_KEEPALIVE_SETTING,
+                CreatePitController.PIT_INIT_KEEP_ALIVE,
                 Node.WRITE_PORTS_FILE_SETTING,
                 Node.NODE_NAME_SETTING,
                 Node.NODE_ATTRIBUTES,

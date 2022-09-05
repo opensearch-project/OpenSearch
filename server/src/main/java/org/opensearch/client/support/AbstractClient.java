@@ -327,6 +327,9 @@ import org.opensearch.action.search.ClearScrollAction;
 import org.opensearch.action.search.ClearScrollRequest;
 import org.opensearch.action.search.ClearScrollRequestBuilder;
 import org.opensearch.action.search.ClearScrollResponse;
+import org.opensearch.action.search.CreatePitAction;
+import org.opensearch.action.search.CreatePitRequest;
+import org.opensearch.action.search.CreatePitResponse;
 import org.opensearch.action.search.MultiSearchAction;
 import org.opensearch.action.search.MultiSearchRequest;
 import org.opensearch.action.search.MultiSearchRequestBuilder;
@@ -575,6 +578,11 @@ public abstract class AbstractClient implements Client {
     @Override
     public SearchScrollRequestBuilder prepareSearchScroll(String scrollId) {
         return new SearchScrollRequestBuilder(this, SearchScrollAction.INSTANCE, scrollId);
+    }
+
+    @Override
+    public void createPit(final CreatePitRequest createPITRequest, final ActionListener<CreatePitResponse> listener) {
+        execute(CreatePitAction.INSTANCE, createPITRequest, listener);
     }
 
     @Override
