@@ -56,7 +56,9 @@ public class RestGetAllPitsAction extends BaseRestHandler {
                     }
                     builder.field("pits", getAllPITNodesResponse.getPitInfos());
                     builder.endObject();
-                    if (getAllPITNodesResponse.getPitInfos().isEmpty()) {
+                    if (getAllPITNodesResponse.hasFailures()) {
+                        return new BytesRestResponse(RestStatus.INTERNAL_SERVER_ERROR, builder);
+                    } else if (getAllPITNodesResponse.getPitInfos().isEmpty()) {
                         return new BytesRestResponse(RestStatus.NOT_FOUND, builder);
                     }
                     return new BytesRestResponse(RestStatus.OK, builder);

@@ -61,15 +61,14 @@ public class ListPitInfo implements ToXContentFragment, Writeable {
         args -> new ListPitInfo((String) args[0], (long) args[1], (long) args[2])
     );
 
-    static {
-        PARSER.declareString(constructorArg(), new ParseField("pit_id"));
-        PARSER.declareLong(constructorArg(), new ParseField("creation_time"));
-        PARSER.declareLong(constructorArg(), new ParseField("keep_alive"));
-    }
-
     private static final ParseField CREATION_TIME = new ParseField("creation_time");
     private static final ParseField PIT_ID = new ParseField("pit_id");
     private static final ParseField KEEP_ALIVE = new ParseField("keep_alive");
+    static {
+        PARSER.declareString(constructorArg(), new ParseField(PIT_ID.getPreferredName()));
+        PARSER.declareLong(constructorArg(), new ParseField(CREATION_TIME.getPreferredName()));
+        PARSER.declareLong(constructorArg(), new ParseField(KEEP_ALIVE.getPreferredName()));
+    }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
