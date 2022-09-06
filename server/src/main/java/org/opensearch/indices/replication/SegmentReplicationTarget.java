@@ -160,9 +160,9 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         final StepListener<GetSegmentFilesResponse> getFilesListener = new StepListener<>();
         final StepListener<Void> finalizeListener = new StepListener<>();
 
+        cancellableThreads.checkForCancel();
         logger.trace("[shardId {}] Replica starting replication [id {}]", shardId().getId(), getId());
         // Get list of files to copy from this checkpoint.
-        cancellableThreads.checkForCancel();
         state.setStage(SegmentReplicationState.Stage.GET_CHECKPOINT_INFO);
         source.getCheckpointMetadata(getId(), checkpoint, checkpointInfoListener);
 
