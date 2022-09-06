@@ -133,6 +133,7 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -1198,12 +1199,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 try {
                     final CopyState copyState = new CopyState(ReplicationCheckpoint.empty(primaryShard.shardId), primaryShard);
                     listener.onResponse(
-                        new CheckpointInfoResponse(
-                            copyState.getCheckpoint(),
-                            copyState.getMetadataSnapshot(),
-                            copyState.getInfosBytes(),
-                            copyState.getPendingDeleteFiles()
-                        )
+                        new CheckpointInfoResponse(copyState.getCheckpoint(), copyState.getMetadataMap(), copyState.getInfosBytes())
                     );
                 } catch (IOException e) {
                     logger.error("Unexpected error computing CopyState", e);
