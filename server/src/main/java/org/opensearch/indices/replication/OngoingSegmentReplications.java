@@ -126,7 +126,7 @@ class OngoingSegmentReplications {
 
     /**
      * Prepare for a Replication event. This method constructs a {@link CopyState} holding files to be sent off of the current
-     * nodes's store.  This state is intended to be sent back to Replicas before copy is initiated so the replica can perform a diff against its
+     * node's store.  This state is intended to be sent back to Replicas before copy is initiated so the replica can perform a diff against its
      * local store.  It will then build a handler to orchestrate the segment copy that will be stored locally and started on a subsequent request from replicas
      * with the list of required files.
      *

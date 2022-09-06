@@ -34,6 +34,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
 
 public class SegmentReplicationSourceHandlerTests extends IndexShardTestCase {
 
@@ -245,6 +247,7 @@ public class SegmentReplicationSourceHandlerTests extends IndexShardTestCase {
             }
         });
         latch.await(2, TimeUnit.SECONDS);
+        verify(chunkWriter, times(1)).cancel();
         assertEquals("listener should have resolved with failure", 0, latch.getCount());
     }
 }
