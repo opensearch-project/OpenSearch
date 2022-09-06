@@ -18,6 +18,9 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ### Dependencies
 - Bumps `com.diffplug.spotless` from 6.9.1 to 6.10.0
 - Bumps `xmlbeans` from 5.1.0 to 5.1.1
+- Bumps azure-core-http-netty from 1.12.0 to 1.12.4([#4160](https://github.com/opensearch-project/OpenSearch/pull/4160))
+- Bumps azure-core from 1.27.0 to 1.31.0([#4160](https://github.com/opensearch-project/OpenSearch/pull/4160))
+- Bumps azure-storage-common from 12.16.0 to 12.18.0([#4160](https://github.com/opensearch-project/OpenSearch/pull/4160))
 
 ### Changed
 - Dependency updates (httpcore, mockito, slf4j, httpasyncclient, commons-codec) ([#4308](https://github.com/opensearch-project/OpenSearch/pull/4308))
