@@ -658,16 +658,16 @@ public class StoreTests extends OpenSearchTestCase {
         Store.RecoveryDiff newCommitDiff = newCommitMetadata.recoveryDiff(metadata);
         if (delFile != null) {
             assertThat(newCommitDiff.identical.size(), equalTo(newCommitMetadata.size() - 5)); // segments_N, del file, cfs, cfe, si for the
-                                                                                               // new segment
+            // new segment
             assertThat(newCommitDiff.different.size(), equalTo(1)); // the del file must be different
             assertThat(newCommitDiff.different.get(0).name(), endsWith(".liv"));
             assertThat(newCommitDiff.missing.size(), equalTo(4)); // segments_N,cfs, cfe, si for the new segment
         } else {
             assertThat(newCommitDiff.identical.size(), equalTo(newCommitMetadata.size() - 4)); // segments_N, cfs, cfe, si for the new
-                                                                                               // segment
+            // segment
             assertThat(newCommitDiff.different.size(), equalTo(0));
             assertThat(newCommitDiff.missing.size(), equalTo(4)); // an entire segment must be missing (single doc segment got dropped) plus
-                                                                  // the commit is different
+            // the commit is different
         }
 
         deleteContent(store.directory());
