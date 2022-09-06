@@ -117,7 +117,7 @@ public class DecommissionService {
         // action
         validateAwarenessAttribute(decommissionAttribute, awarenessAttributes, forcedAwarenessAttributes);
 
-        Set<DiscoveryNode> clusterManagerNodesToBeDecommissioned = nodesWithDecommissionAttribute(state, decommissionAttribute, true);
+        Set<DiscoveryNode> clusterManagerNodesToBeDecommissioned = filterNodesWithDecommissionAttribute(state, decommissionAttribute, true);
         ensureNoQuorumLossDueToDecommissioning(
             decommissionAttribute,
             clusterManagerNodesToBeDecommissioned,
@@ -254,7 +254,7 @@ public class DecommissionService {
                     assert decommissionAttribute.equals(decommissionAttributeMetadata.decommissionAttribute());
                     assert DecommissionStatus.DECOMMISSION_INIT.equals(decommissionAttributeMetadata.status());
                     listener.onResponse(new ClusterStateUpdateResponse(true));
-                    initiateGracefulDecommission();
+                    weighAwayForGracefulDecommission();
                 }
             }
         );
@@ -278,7 +278,7 @@ public class DecommissionService {
         listener.onFailure(e);
     }
 
-    private void initiateGracefulDecommission() {
+    private void weighAwayForGracefulDecommission() {
         decommissionController.updateMetadataWithDecommissionStatus(
             DecommissionStatus.DECOMMISSION_IN_PROGRESS,
             new ActionListener<Void>() {
@@ -314,7 +314,7 @@ public class DecommissionService {
 
         // execute nodes decommissioning
         decommissionController.removeDecommissionedNodes(
-            nodesWithDecommissionAttribute(state, decommissionAttribute, false),
+            filterNodesWithDecommissionAttribute(state, decommissionAttribute, false),
             "nodes-decommissioned",
             TimeValue.timeValueSeconds(30L), // TODO - read timeout from request while integrating with API
             new ActionListener<Void>() {
@@ -367,23 +367,19 @@ public class DecommissionService {
         });
     }
 
-    public Set<DiscoveryNode> nodesWithDecommissionAttribute(
+    private Set<DiscoveryNode> filterNodesWithDecommissionAttribute(
         ClusterState clusterState,
         DecommissionAttribute decommissionAttribute,
         boolean onlyClusterManagerNodes
     ) {
         Set<DiscoveryNode> nodesWithDecommissionAttribute = new HashSet<>();
-        final Predicate<DiscoveryNode> shouldDecommissionNodePredicate = discoveryNode -> nodeHasDecommissionedAttribute(
-            discoveryNode,
-            decommissionAttribute
-        );
         Iterator<DiscoveryNode> nodesIter = onlyClusterManagerNodes
             ? clusterState.nodes().getClusterManagerNodes().valuesIt()
             : clusterState.nodes().getNodes().valuesIt();
 
         while (nodesIter.hasNext()) {
             final DiscoveryNode node = nodesIter.next();
-            if (shouldDecommissionNodePredicate.test(node)) {
+            if (nodeHasDecommissionedAttribute(node, decommissionAttribute)) {
                 nodesWithDecommissionAttribute.add(node);
             }
         }
