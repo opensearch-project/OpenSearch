@@ -62,7 +62,7 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
             .put("node.name", SegmentReplicationTargetServiceTests.class.getSimpleName())
             .build();
         final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        primaryShard = newStartedShard(true);
+        primaryShard = newStartedShard(true, settings);
         replicaShard = newShard(false, settings, new NRTReplicationEngineFactory());
         recoverReplica(replicaShard, primaryShard, true);
         checkpoint = new ReplicationCheckpoint(replicaShard.shardId(), 0L, 0L, 0L, 0L);

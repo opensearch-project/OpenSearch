@@ -489,12 +489,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         try {
             final CopyState copyState = new CopyState(ReplicationCheckpoint.empty(primary.shardId), primary);
             listener.onResponse(
-                new CheckpointInfoResponse(
-                    copyState.getCheckpoint(),
-                    copyState.getMetadataSnapshot(),
-                    copyState.getInfosBytes(),
-                    copyState.getPendingDeleteFiles()
-                )
+                new CheckpointInfoResponse(copyState.getCheckpoint(), copyState.getMetadataMap(), copyState.getInfosBytes())
             );
         } catch (IOException e) {
             logger.error("Unexpected error computing CopyState", e);

@@ -9,7 +9,6 @@
 package org.opensearch.indices.replication;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
-import org.apache.lucene.index.SegmentInfos;
 import org.junit.BeforeClass;
 import org.opensearch.action.admin.indices.segments.IndexShardSegments;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentResponse;
@@ -586,10 +585,53 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
                 ClusterState state = client(internalCluster().getMasterName()).admin().cluster().prepareState().get().getState();
                 final DiscoveryNode replicaNode = state.nodes().resolveNode(replicaShardRouting.currentNodeId());
                 IndexShard indexShard = getIndexShard(replicaNode.getName());
-                final String lastCommitSegmentsFileName = SegmentInfos.getLastCommitSegmentsFileName(indexShard.store().directory());
                 // calls to readCommit will fail if a valid commit point and all its segments are not in the store.
-                SegmentInfos.readCommit(indexShard.store().directory(), lastCommitSegmentsFileName);
+                indexShard.store().readLastCommittedSegmentsInfo();
             }
+        }
+    }
+
+    public void testDropPrimaryDuringReplication() throws Exception {
+        final Settings settings = Settings.builder()
+            .put(indexSettings())
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 6)
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .build();
+        final String clusterManagerNode = internalCluster().startClusterManagerOnlyNode();
+        final String primaryNode = internalCluster().startDataOnlyNode(Settings.EMPTY);
+        createIndex(INDEX_NAME, settings);
+        internalCluster().startDataOnlyNodes(6);
+        ensureGreen(INDEX_NAME);
+
+        int initialDocCount = scaledRandomIntBetween(100, 200);
+        try (
+            BackgroundIndexer indexer = new BackgroundIndexer(
+                INDEX_NAME,
+                "_doc",
+                client(),
+                -1,
+                RandomizedTest.scaledRandomIntBetween(2, 5),
+                false,
+                random()
+            )
+        ) {
+            indexer.start(initialDocCount);
+            waitForDocs(initialDocCount, indexer);
+            refresh(INDEX_NAME);
+            // don't wait for replication to complete, stop the primary immediately.
+            internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNode));
+            ensureYellow(INDEX_NAME);
+
+            // start another replica.
+            internalCluster().startDataOnlyNode();
+            ensureGreen(INDEX_NAME);
+
+            // index another doc and refresh - without this the new replica won't catch up.
+            client().prepareIndex(INDEX_NAME).setId("1").setSource("foo", "bar").get();
+
+            flushAndRefresh(INDEX_NAME);
+            waitForReplicaUpdate();
+            assertSegmentStats(6);
         }
     }
 
@@ -611,10 +653,12 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
                 final List<ShardSegments> replicaShardSegments = segmentListMap.get(false);
                 // if we don't have any segments yet, proceed.
                 final ShardSegments primaryShardSegments = primaryShardSegmentsList.stream().findFirst().get();
+                logger.debug("Primary Segments: {}", primaryShardSegments.getSegments());
                 if (primaryShardSegments.getSegments().isEmpty() == false) {
                     final Map<String, Segment> latestPrimarySegments = getLatestSegments(primaryShardSegments);
                     final Long latestPrimaryGen = latestPrimarySegments.values().stream().findFirst().map(Segment::getGeneration).get();
                     for (ShardSegments shardSegments : replicaShardSegments) {
+                        logger.debug("Replica {} Segments: {}", shardSegments.getShardRouting(), shardSegments.getSegments());
                         final boolean isReplicaCaughtUpToPrimary = shardSegments.getSegments()
                             .stream()
                             .anyMatch(segment -> segment.getGeneration() == latestPrimaryGen);
