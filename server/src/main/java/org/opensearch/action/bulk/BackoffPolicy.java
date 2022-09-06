@@ -120,6 +120,17 @@ public abstract class BackoffPolicy implements Iterable<TimeValue> {
     }
 
     /**
+     *  It provides exponential backoff between retries until it reaches Integer.MAX_VALUE.
+     *  It uses full jitter scheme for random distribution.
+     *
+     * @param baseDelay BaseDelay for exponential Backoff
+     * @return A backoff policy with exponential backoff with full jitter.
+     */
+    public static BackoffPolicy exponentialFullJitterBackoff(long baseDelay) {
+        return new ExponentialFullJitterBackoff(baseDelay);
+    }
+
+    /**
      * Wraps the backoff policy in one that calls a method every time a new backoff is taken from the policy.
      */
     public static BackoffPolicy wrap(BackoffPolicy delegate, Runnable onBackoff) {
@@ -267,6 +278,48 @@ public abstract class BackoffPolicy implements Iterable<TimeValue> {
             int exponentialDelay = (int) Math.min((1L << retries) * baseDelay, maxDelayForRetry);
             retriesAttempted++;
             return TimeValue.timeValueMillis((exponentialDelay / 2) + Randomness.get().nextInt(exponentialDelay / 2 + 1));
+        }
+    }
+
+    private static class ExponentialFullJitterBackoff extends BackoffPolicy {
+        private final long baseDelay;
+
+        private ExponentialFullJitterBackoff(long baseDelay) {
+            this.baseDelay = baseDelay;
+        }
+
+        @Override
+        public Iterator<TimeValue> iterator() {
+            return new ExponentialFullJitterBackoffIterator(baseDelay);
+        }
+    }
+
+    private static class ExponentialFullJitterBackoffIterator implements Iterator<TimeValue> {
+        /**
+         * Current delay in exponential backoff
+         */
+        private long currentDelay;
+
+        private ExponentialFullJitterBackoffIterator(long baseDelay) {
+            this.currentDelay = baseDelay;
+        }
+
+        /**
+         * There is not any limit for this BackOff.
+         * This Iterator will always return back off delay.
+         *
+         * @return true
+         */
+        @Override
+        public boolean hasNext() {
+            return true;
+        }
+
+        @Override
+        public TimeValue next() {
+            TimeValue delayToReturn = TimeValue.timeValueMillis(Randomness.get().nextInt(Math.toIntExact(currentDelay)) + 1);
+            currentDelay = Math.min(2 * currentDelay, Integer.MAX_VALUE);
+            return delayToReturn;
         }
     }
 
