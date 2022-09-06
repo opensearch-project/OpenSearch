@@ -21,7 +21,7 @@ public enum ReplicationType {
 
     public static ReplicationType parseString(String replicationType) {
         try {
-            return ReplicationType.valueOf(replicationType);
+            return ReplicationType.valueOf(replicationType.toUpperCase());
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("Could not parse ReplicationStrategy for [" + replicationType + "]");
         } catch (NullPointerException npe) {
