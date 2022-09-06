@@ -19,6 +19,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.CancellableThreads;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.index.store.StoreFileMetadata;
@@ -74,7 +75,7 @@ public class SegmentReplicationSourceHandlerTests extends IndexShardTestCase {
             1
         );
 
-        final List<StoreFileMetadata> expectedFiles = List.copyOf(copyState.getMetadataSnapshot().asMap().values());
+        final List<StoreFileMetadata> expectedFiles = List.copyOf(copyState.getMetadataMap().values());
 
         final GetSegmentFilesRequest getSegmentFilesRequest = new GetSegmentFilesRequest(
             1L,
@@ -135,6 +136,9 @@ public class SegmentReplicationSourceHandlerTests extends IndexShardTestCase {
     }
 
     public void testSendFileFails() throws IOException {
+        // index some docs on the primary so a segment is created.
+        indexDoc(primary, "1", "{\"foo\" : \"baz\"}", XContentType.JSON, "foobar");
+        primary.refresh("Test");
         chunkWriter = (fileMetadata, position, content, lastChunk, totalTranslogOps, listener) -> listener.onFailure(
             new OpenSearchException("Test")
         );
@@ -151,7 +155,7 @@ public class SegmentReplicationSourceHandlerTests extends IndexShardTestCase {
             1
         );
 
-        final List<StoreFileMetadata> expectedFiles = List.copyOf(copyState.getMetadataSnapshot().asMap().values());
+        final List<StoreFileMetadata> expectedFiles = List.copyOf(copyState.getMetadataMap().values());
 
         final GetSegmentFilesRequest getSegmentFilesRequest = new GetSegmentFilesRequest(
             1L,
