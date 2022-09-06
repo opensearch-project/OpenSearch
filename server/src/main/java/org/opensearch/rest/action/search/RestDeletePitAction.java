@@ -66,16 +66,6 @@ public class RestDeletePitAction extends BaseRestHandler {
                 }
             }));
         }
-        /**
-         * Delete all active PIT reader contexts leveraging list all PITs
-         *
-         * For Cross cluster PITs :
-         * - mixed cluster PITs ( PIT comprising local and remote ) will be fully deleted. Since there will atleast be
-         * one reader context with PIT ID present in local cluster, 'Get all PITs' will retrieve the PIT ID with which
-         * we can completely delete the PIT contexts in both local and remote cluster.
-         * - fully remote PITs will not be deleted as 'Get all PITs' operates on local cluster only and no PIT info can
-         * be retrieved when it's fully remote.
-         */
         if (request.path().contains(allPitIdsQualifier)) {
             final List<DiscoveryNode> nodes = new ArrayList<>();
             for (DiscoveryNode node : nodesInCluster.get()) {
@@ -89,6 +79,16 @@ public class RestDeletePitAction extends BaseRestHandler {
         }
     }
 
+    /**
+     * Delete all active PIT reader contexts leveraging list all PITs
+     *
+     * For Cross cluster PITs :
+     * - mixed cluster PITs ( PIT comprising local and remote ) will be fully deleted. Since there will atleast be
+     * one reader context with PIT ID present in local cluster, 'Get all PITs' will retrieve the PIT ID with which
+     * we can completely delete the PIT contexts in both local and remote cluster.
+     * - fully remote PITs will not be deleted as 'Get all PITs' operates on local cluster only and no PIT info can
+     * be retrieved when it's fully remote.
+     */
     private RestChannelConsumer deleteAllPits(
         NodeClient client,
         GetAllPitNodesRequest getAllPitNodesRequest,

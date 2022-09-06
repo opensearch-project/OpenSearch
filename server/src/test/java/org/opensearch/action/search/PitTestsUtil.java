@@ -30,6 +30,7 @@ import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.ShardSearchContextId;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -110,7 +111,7 @@ public class PitTestsUtil {
         DiscoveryNode[] disNodesArr = new DiscoveryNode[nodes.size()];
         nodes.toArray(disNodesArr);
         GetAllPitNodesRequest getAllPITNodesRequest = new GetAllPitNodesRequest(disNodesArr);
-        ActionFuture<GetAllPitNodesResponse> execute1 = client.execute(GetAllPitsAction.INSTANCE, getAllPITNodesRequest);
+        ActionFuture<GetAllPitNodesResponse> execute1 = client.execute(NodesGetAllPitsAction.INSTANCE, getAllPITNodesRequest);
         GetAllPitNodesResponse getPitResponse = execute1.get();
         assertTrue(getPitResponse.getPitInfos().get(0).getPitId().contains(id));
         Assert.assertEquals(getPitResponse.getPitInfos().get(0).getCreationTime(), creationTime);
@@ -129,13 +130,17 @@ public class PitTestsUtil {
         DiscoveryNode[] disNodesArr = new DiscoveryNode[nodes.size()];
         nodes.toArray(disNodesArr);
         GetAllPitNodesRequest getAllPITNodesRequest = new GetAllPitNodesRequest(disNodesArr);
-        ActionFuture<GetAllPitNodesResponse> execute1 = client.execute(GetAllPitsAction.INSTANCE, getAllPITNodesRequest);
+        ActionFuture<GetAllPitNodesResponse> execute1 = client.execute(NodesGetAllPitsAction.INSTANCE, getAllPITNodesRequest);
         GetAllPitNodesResponse getPitResponse = execute1.get();
         Assert.assertEquals(0, getPitResponse.getPitInfos().size());
     }
 
-    public static void assertSegments(boolean isEmpty, String index, long expectedShardSize, Client client) {
-        PitSegmentsRequest pitSegmentsRequest = new PitSegmentsRequest("_all");
+    public static void assertSegments(boolean isEmpty, String index, long expectedShardSize, Client client, String pitId) {
+        PitSegmentsRequest pitSegmentsRequest;
+        pitSegmentsRequest = new PitSegmentsRequest();
+        List<String> pitIds = new ArrayList<>();
+        pitIds.add(pitId);
+        pitSegmentsRequest.clearAndSetPitIds(pitIds);
         IndicesSegmentResponse indicesSegmentResponse = client.execute(PitSegmentsAction.INSTANCE, pitSegmentsRequest).actionGet();
         assertTrue(indicesSegmentResponse.getShardFailures() == null || indicesSegmentResponse.getShardFailures().length == 0);
         assertEquals(indicesSegmentResponse.getIndices().isEmpty(), isEmpty);
@@ -146,7 +151,7 @@ public class PitTestsUtil {
         }
     }
 
-    public static void assertSegments(boolean isEmpty, Client client) {
-        assertSegments(isEmpty, "index", 2, client);
+    public static void assertSegments(boolean isEmpty, Client client, String pitId) {
+        assertSegments(isEmpty, "index", 2, client, pitId);
     }
 }

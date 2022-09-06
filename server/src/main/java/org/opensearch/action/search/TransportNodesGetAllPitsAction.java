@@ -90,6 +90,10 @@ public class TransportNodesGetAllPitsAction extends TransportNodesAction<
         return nodeResponse;
     }
 
+    /**
+     * Call list all pits of 'indices:data:read' type so that PITs get filtered in security plugin based
+     * user indices permission
+     */
     @Override
     protected void doExecute(Task task, GetAllPitNodesRequest request, ActionListener<GetAllPitNodesResponse> listener) {
         super.doExecute(

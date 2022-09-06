@@ -176,7 +176,7 @@ public class PitService {
             DiscoveryNode node = cursor.value;
             nodes.add(node);
         }
-        logger.debug("Number of active PTIs in cluster: " + getAllPitNodesResponse.getPitInfos().size());
+        logger.debug("Number of active PITs in cluster: " + getAllPitNodesResponse.getPitInfos().size());
         DiscoveryNode[] disNodesArr = nodes.toArray(new DiscoveryNode[nodes.size()]);
         GetAllPitNodesRequest getAllPitNodesRequest = new GetAllPitNodesRequest(disNodesArr);
         getAllPitNodesRequest.setGetAllPitNodesResponse(getAllPitNodesResponse);

@@ -106,7 +106,9 @@ public class RestPitSegmentsAction extends AbstractCatAction {
                             channel.sendResponse(RestTable.buildResponse(tab, channel));
                             return;
                         }
-                        pitSegmentsRequest.clearAndSetPitIds(getAllPitNodesResponse.getPitInfos().stream().map(r -> r.getPitId()).collect(Collectors.toList()));
+                        pitSegmentsRequest.clearAndSetPitIds(
+                            getAllPitNodesResponse.getPitInfos().stream().map(r -> r.getPitId()).collect(Collectors.toList())
+                        );
                         client.execute(PitSegmentsAction.INSTANCE, pitSegmentsRequest, new RestResponseListener<>(channel) {
                             @Override
                             public RestResponse buildResponse(final IndicesSegmentResponse indicesSegmentResponse) throws Exception {
