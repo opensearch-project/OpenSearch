@@ -124,7 +124,9 @@ public class PitIT extends OpenSearchRestHighLevelClientTestCase {
         highLevelClient().getAllPitsAsync(RequestOptions.DEFAULT, getPitsListener);
         highLevelClient().deleteAllPitsAsync(RequestOptions.DEFAULT, deletePitListener);
         // validate no pits case
-        highLevelClient().getAllPitsAsync(RequestOptions.DEFAULT, getPitsListener);
+        getAllPitResponse = highLevelClient().getAllPits(RequestOptions.DEFAULT);
+        assertTrue(getAllPitResponse.getPitInfos().size() == 0);
+        // highLevelClient().getAllPitsAsync(RequestOptions.DEFAULT, getPitsListener);
         highLevelClient().deleteAllPitsAsync(RequestOptions.DEFAULT, deletePitListener);
     }
 }

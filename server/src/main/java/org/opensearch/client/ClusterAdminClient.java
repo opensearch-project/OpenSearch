@@ -132,6 +132,8 @@ import org.opensearch.action.ingest.PutPipelineRequestBuilder;
 import org.opensearch.action.ingest.SimulatePipelineRequest;
 import org.opensearch.action.ingest.SimulatePipelineRequestBuilder;
 import org.opensearch.action.ingest.SimulatePipelineResponse;
+import org.opensearch.action.search.GetAllPitNodesRequest;
+import org.opensearch.action.search.GetAllPitNodesResponse;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.XContentType;
@@ -339,6 +341,8 @@ public interface ClusterAdminClient extends OpenSearchClient {
      * for the node ids provided. Note: Use {@code *} to fetch samples for all nodes
      */
     NodesHotThreadsRequestBuilder prepareNodesHotThreads(String... nodesIds);
+
+    void listAllPits(GetAllPitNodesRequest request, ActionListener<GetAllPitNodesResponse> listener);
 
     /**
      * List tasks

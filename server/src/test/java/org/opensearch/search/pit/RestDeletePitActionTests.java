@@ -9,11 +9,15 @@
 package org.opensearch.search.pit;
 
 import org.apache.lucene.util.SetOnce;
+import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.search.DeletePitRequest;
 import org.opensearch.action.search.DeletePitResponse;
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.bytes.BytesArray;
+import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.search.RestDeletePitAction;
@@ -23,6 +27,7 @@ import org.opensearch.test.rest.FakeRestChannel;
 import org.opensearch.test.rest.FakeRestRequest;
 
 import java.util.Collections;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -32,7 +37,18 @@ import static org.hamcrest.Matchers.hasSize;
  */
 public class RestDeletePitActionTests extends OpenSearchTestCase {
     public void testParseDeletePitRequestWithInvalidJsonThrowsException() throws Exception {
-        RestDeletePitAction action = new RestDeletePitAction();
+        RestDeletePitAction action = new RestDeletePitAction(new Supplier<DiscoveryNodes>() {
+            @Override
+            public DiscoveryNodes get() {
+                DiscoveryNode node0 = new DiscoveryNode(
+                    "node0",
+                    new TransportAddress(TransportAddress.META_ADDRESS, 9000),
+                    Version.CURRENT
+                );
+                DiscoveryNodes nodes = new DiscoveryNodes.Builder().add(node0).clusterManagerNodeId(node0.getId()).build();
+                return nodes;
+            }
+        });
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(
             new BytesArray("{invalid_json}"),
             XContentType.JSON
@@ -51,7 +67,18 @@ public class RestDeletePitActionTests extends OpenSearchTestCase {
                 assertThat(request.getPitIds().get(0), equalTo("BODY"));
             }
         }) {
-            RestDeletePitAction action = new RestDeletePitAction();
+            RestDeletePitAction action = new RestDeletePitAction(new Supplier<DiscoveryNodes>() {
+                @Override
+                public DiscoveryNodes get() {
+                    DiscoveryNode node0 = new DiscoveryNode(
+                        "node0",
+                        new TransportAddress(TransportAddress.META_ADDRESS, 9000),
+                        Version.CURRENT
+                    );
+                    DiscoveryNodes nodes = new DiscoveryNodes.Builder().add(node0).clusterManagerNodeId(node0.getId()).build();
+                    return nodes;
+                }
+            });
             RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(
                 new BytesArray("{\"pit_id\": [\"BODY\"]}"),
                 XContentType.JSON
@@ -73,7 +100,18 @@ public class RestDeletePitActionTests extends OpenSearchTestCase {
                 assertThat(request.getPitIds().get(0), equalTo("_all"));
             }
         }) {
-            RestDeletePitAction action = new RestDeletePitAction();
+            RestDeletePitAction action = new RestDeletePitAction(new Supplier<DiscoveryNodes>() {
+                @Override
+                public DiscoveryNodes get() {
+                    DiscoveryNode node0 = new DiscoveryNode(
+                        "node0",
+                        new TransportAddress(TransportAddress.META_ADDRESS, 9000),
+                        Version.CURRENT
+                    );
+                    DiscoveryNodes nodes = new DiscoveryNodes.Builder().add(node0).clusterManagerNodeId(node0.getId()).build();
+                    return nodes;
+                }
+            });
             RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_all").build();
             FakeRestChannel channel = new FakeRestChannel(request, false, 0);
             action.handleRequest(request, channel, nodeClient);
@@ -92,7 +130,18 @@ public class RestDeletePitActionTests extends OpenSearchTestCase {
                 assertThat(request.getPitIds().get(0), equalTo("_all"));
             }
         }) {
-            RestDeletePitAction action = new RestDeletePitAction();
+            RestDeletePitAction action = new RestDeletePitAction(new Supplier<DiscoveryNodes>() {
+                @Override
+                public DiscoveryNodes get() {
+                    DiscoveryNode node0 = new DiscoveryNode(
+                        "node0",
+                        new TransportAddress(TransportAddress.META_ADDRESS, 9000),
+                        Version.CURRENT
+                    );
+                    DiscoveryNodes nodes = new DiscoveryNodes.Builder().add(node0).clusterManagerNodeId(node0.getId()).build();
+                    return nodes;
+                }
+            });
             RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(
                 new BytesArray("{\"pit_id\": [\"BODY\"]}"),
                 XContentType.JSON
@@ -118,7 +167,18 @@ public class RestDeletePitActionTests extends OpenSearchTestCase {
                 assertThat(request.getPitIds().get(1), equalTo("QUERY_STRING_1"));
             }
         }) {
-            RestDeletePitAction action = new RestDeletePitAction();
+            RestDeletePitAction action = new RestDeletePitAction(new Supplier<DiscoveryNodes>() {
+                @Override
+                public DiscoveryNodes get() {
+                    DiscoveryNode node0 = new DiscoveryNode(
+                        "node0",
+                        new TransportAddress(TransportAddress.META_ADDRESS, 9000),
+                        Version.CURRENT
+                    );
+                    DiscoveryNodes nodes = new DiscoveryNodes.Builder().add(node0).clusterManagerNodeId(node0.getId()).build();
+                    return nodes;
+                }
+            });
             RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(
                 Collections.singletonMap("pit_id", "QUERY_STRING,QUERY_STRING_1")
             ).build();

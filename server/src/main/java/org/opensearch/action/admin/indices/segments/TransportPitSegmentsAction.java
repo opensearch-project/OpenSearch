@@ -8,7 +8,6 @@
 package org.opensearch.action.admin.indices.segments;
 
 import org.opensearch.action.ActionListener;
-import org.opensearch.action.search.ListPitInfo;
 import org.opensearch.action.search.PitService;
 import org.opensearch.action.search.SearchContextId;
 import org.opensearch.action.search.SearchContextIdForNode;
@@ -46,7 +45,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import static org.opensearch.action.search.SearchContextId.decode;
 
@@ -99,11 +97,6 @@ public class TransportPitSegmentsAction extends TransportBroadcastByNodeAction<P
         // and in this case return empty response
         if (pitIds.isEmpty()) {
             listener.onResponse(new IndicesSegmentResponse(new ShardSegments[] {}, 0, 0, 0, new ArrayList<>()));
-        } else if (pitIds.size() == 1 && "_all".equals(pitIds.get(0))) {
-            pitService.getAllPits(ActionListener.wrap(response -> {
-                request.clearAndSetPitIds(response.getPitInfos().stream().map(ListPitInfo::getPitId).collect(Collectors.toList()));
-                super.doExecute(task, request, listener);
-            }, listener::onFailure));
         } else {
             super.doExecute(task, request, listener);
         }

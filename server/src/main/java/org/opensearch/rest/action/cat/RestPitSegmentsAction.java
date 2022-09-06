@@ -8,15 +8,16 @@
 
 package org.opensearch.rest.action.cat;
 
-import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
-import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.action.admin.indices.segments.IndexSegments;
 import org.opensearch.action.admin.indices.segments.IndexShardSegments;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.opensearch.action.admin.indices.segments.PitSegmentsAction;
 import org.opensearch.action.admin.indices.segments.PitSegmentsRequest;
 import org.opensearch.action.admin.indices.segments.ShardSegments;
+import org.opensearch.action.search.GetAllPitNodesRequest;
+import org.opensearch.action.search.GetAllPitNodesResponse;
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.Table;
 import org.opensearch.common.logging.DeprecationLogger;
@@ -29,8 +30,12 @@ import org.opensearch.rest.action.RestActionListener;
 import org.opensearch.rest.action.RestResponseListener;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
@@ -42,6 +47,13 @@ import static org.opensearch.rest.RestRequest.Method.GET;
 public class RestPitSegmentsAction extends AbstractCatAction {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestPitSegmentsAction.class);
+
+    private final Supplier<DiscoveryNodes> nodesInCluster;
+
+    public RestPitSegmentsAction(Supplier<DiscoveryNodes> nodesInCluster) {
+        super();
+        this.nodesInCluster = nodesInCluster;
+    }
 
     @Override
     public List<RestHandler.Route> routes() {
@@ -60,42 +72,61 @@ public class RestPitSegmentsAction extends AbstractCatAction {
 
     @Override
     protected BaseRestHandler.RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
-        final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
-        clusterStateRequest.local(false);
-        clusterStateRequest.clusterManagerNodeTimeout(
-            request.paramAsTime("cluster_manager_timeout", clusterStateRequest.clusterManagerNodeTimeout())
-        );
-        parseDeprecatedMasterTimeoutParameter(clusterStateRequest, request, deprecationLogger, getName());
-        clusterStateRequest.clear().nodes(true).routingTable(true).indices("*");
-        return channel -> client.admin().cluster().state(clusterStateRequest, new RestActionListener<>(channel) {
-            @Override
-            public void processResponse(final ClusterStateResponse clusterStateResponse) throws IOException {
-                String allPitIdsQualifier = "_all";
-                final PitSegmentsRequest pitSegmentsRequest;
-                if (request.path().contains(allPitIdsQualifier)) {
-                    pitSegmentsRequest = new PitSegmentsRequest(allPitIdsQualifier);
-                } else {
-                    pitSegmentsRequest = new PitSegmentsRequest();
-                    request.withContentOrSourceParamParserOrNull((xContentParser -> {
-                        if (xContentParser != null) {
-                            try {
-                                pitSegmentsRequest.fromXContent(xContentParser);
-                            } catch (IOException e) {
-                                throw new IllegalArgumentException("Failed to parse request body", e);
-                            }
-                        }
-                    }));
-                }
-                client.execute(PitSegmentsAction.INSTANCE, pitSegmentsRequest, new RestResponseListener<>(channel) {
+        String allPitIdsQualifier = "_all";
+        final PitSegmentsRequest pitSegmentsRequest;
+        if (request.path().contains(allPitIdsQualifier)) {
+            pitSegmentsRequest = new PitSegmentsRequest(allPitIdsQualifier);
+        } else {
+            pitSegmentsRequest = new PitSegmentsRequest();
+            try {
+                request.withContentOrSourceParamParserOrNull((xContentParser -> {
+                    if (xContentParser != null) {
+                        pitSegmentsRequest.fromXContent(xContentParser);
+                    }
+                }));
+            } catch (IOException e) {
+                throw new IllegalArgumentException("Failed to parse request body", e);
+            }
+        }
+        if (request.path().contains(allPitIdsQualifier)) {
+            final List<DiscoveryNode> nodes = new ArrayList<>();
+            for (DiscoveryNode node : nodesInCluster.get()) {
+                nodes.add(node);
+            }
+            DiscoveryNode[] disNodesArr = nodes.toArray(new DiscoveryNode[nodes.size()]);
+            GetAllPitNodesRequest getAllPitNodesRequest = new GetAllPitNodesRequest(disNodesArr);
+            return channel -> client.admin()
+                .cluster()
+                .listAllPits(getAllPitNodesRequest, new RestActionListener<GetAllPitNodesResponse>(channel) {
                     @Override
-                    public RestResponse buildResponse(final IndicesSegmentResponse indicesSegmentResponse) throws Exception {
-                        final Map<String, IndexSegments> indicesSegments = indicesSegmentResponse.getIndices();
-                        Table tab = buildTable(request, clusterStateResponse, indicesSegments);
-                        return RestTable.buildResponse(tab, channel);
+                    protected void processResponse(GetAllPitNodesResponse getAllPitNodesResponse) throws Exception {
+                        if (getAllPitNodesResponse.getPitInfos().size() == 0) {
+                            final Map<String, IndexSegments> indicesSegments = new HashMap<>();
+                            Table tab = buildTable(request, indicesSegments);
+                            channel.sendResponse(RestTable.buildResponse(tab, channel));
+                            return;
+                        }
+                        pitSegmentsRequest.clearAndSetPitIds(getAllPitNodesResponse.getPitInfos().stream().map(r -> r.getPitId()).collect(Collectors.toList()));
+                        client.execute(PitSegmentsAction.INSTANCE, pitSegmentsRequest, new RestResponseListener<>(channel) {
+                            @Override
+                            public RestResponse buildResponse(final IndicesSegmentResponse indicesSegmentResponse) throws Exception {
+                                final Map<String, IndexSegments> indicesSegments = indicesSegmentResponse.getIndices();
+                                Table tab = buildTable(request, indicesSegments);
+                                return RestTable.buildResponse(tab, channel);
+                            }
+                        });
                     }
                 });
-            }
-        });
+        } else {
+            return channel -> client.execute(PitSegmentsAction.INSTANCE, pitSegmentsRequest, new RestResponseListener<>(channel) {
+                @Override
+                public RestResponse buildResponse(final IndicesSegmentResponse indicesSegmentResponse) throws Exception {
+                    final Map<String, IndexSegments> indicesSegments = indicesSegmentResponse.getIndices();
+                    Table tab = buildTable(request, indicesSegments);
+                    return RestTable.buildResponse(tab, channel);
+                }
+            });
+        }
     }
 
     @Override
@@ -127,10 +158,10 @@ public class RestPitSegmentsAction extends AbstractCatAction {
         return table;
     }
 
-    private Table buildTable(final RestRequest request, ClusterStateResponse state, Map<String, IndexSegments> indicesSegments) {
+    private Table buildTable(final RestRequest request, Map<String, IndexSegments> indicesSegments) {
         Table table = getTableWithHeader(request);
 
-        DiscoveryNodes nodes = state.getState().nodes();
+        DiscoveryNodes nodes = this.nodesInCluster.get();
         table.startRow();
         table.addCell("index", "default:true;alias:i,idx;desc:index name");
         table.addCell("shard", "default:true;alias:s,sh;desc:shard name");

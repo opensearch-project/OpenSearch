@@ -31,8 +31,6 @@ public class TransportGetAllPitsAction extends HandledTransportAction<GetAllPitN
         // If security plugin intercepts the request, it'll replace all PIT IDs with permitted PIT IDs
         if (request.getGetAllPitNodesResponse() != null) {
             listener.onResponse(request.getGetAllPitNodesResponse());
-        } else {
-            pitService.getAllPits(listener);
         }
     }
 }

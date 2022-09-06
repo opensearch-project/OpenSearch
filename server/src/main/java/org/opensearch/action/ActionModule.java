@@ -859,9 +859,9 @@ public class ActionModule extends AbstractModule {
 
         // Point in time API
         registerHandler.accept(new RestCreatePitAction());
-        registerHandler.accept(new RestDeletePitAction());
-        registerHandler.accept(new RestGetAllPitsAction());
-        registerHandler.accept(new RestPitSegmentsAction());
+        registerHandler.accept(new RestDeletePitAction(nodesInCluster));
+        registerHandler.accept(new RestGetAllPitsAction(nodesInCluster));
+        registerHandler.accept(new RestPitSegmentsAction(nodesInCluster));
 
         for (ActionPlugin plugin : actionPlugins) {
             for (RestHandler handler : plugin.getRestHandlers(

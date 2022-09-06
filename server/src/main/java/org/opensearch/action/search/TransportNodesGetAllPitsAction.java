@@ -8,6 +8,7 @@
 
 package org.opensearch.action.search;
 
+import org.opensearch.action.ActionListener;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.nodes.TransportNodesAction;
@@ -15,6 +16,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.search.SearchService;
+import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -31,13 +33,16 @@ public class TransportNodesGetAllPitsAction extends TransportNodesAction<
     GetAllPitNodeResponse> {
     private final SearchService searchService;
 
+    private final PitService pitService;
+
     @Inject
     public TransportNodesGetAllPitsAction(
         ThreadPool threadPool,
         ClusterService clusterService,
         TransportService transportService,
         ActionFilters actionFilters,
-        SearchService searchService
+        SearchService searchService,
+        PitService pitService
     ) {
         super(
             NodesGetAllPitsAction.NAME,
@@ -51,15 +56,16 @@ public class TransportNodesGetAllPitsAction extends TransportNodesAction<
             GetAllPitNodeResponse.class
         );
         this.searchService = searchService;
+        this.pitService = pitService;
     }
 
     @Override
     protected GetAllPitNodesResponse newResponse(
         GetAllPitNodesRequest request,
-        List<GetAllPitNodeResponse> getAllPitNodeRespons,
+        List<GetAllPitNodeResponse> getAllPitNodeResponses,
         List<FailedNodeException> failures
     ) {
-        return new GetAllPitNodesResponse(clusterService.getClusterName(), getAllPitNodeRespons, failures);
+        return new GetAllPitNodesResponse(clusterService.getClusterName(), getAllPitNodeResponses, failures);
     }
 
     @Override
@@ -82,5 +88,14 @@ public class TransportNodesGetAllPitsAction extends TransportNodesAction<
             searchService.getAllPITReaderContexts()
         );
         return nodeResponse;
+    }
+
+    @Override
+    protected void doExecute(Task task, GetAllPitNodesRequest request, ActionListener<GetAllPitNodesResponse> listener) {
+        super.doExecute(
+            task,
+            request,
+            ActionListener.wrap(response -> { pitService.getAllPits(response, listener); }, e -> { listener.onFailure(e); })
+        );
     }
 }

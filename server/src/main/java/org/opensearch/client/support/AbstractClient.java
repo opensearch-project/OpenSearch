@@ -337,11 +337,11 @@ import org.opensearch.action.search.DeletePitRequest;
 import org.opensearch.action.search.DeletePitResponse;
 import org.opensearch.action.search.GetAllPitNodesRequest;
 import org.opensearch.action.search.GetAllPitNodesResponse;
-import org.opensearch.action.search.GetAllPitsAction;
 import org.opensearch.action.search.MultiSearchAction;
 import org.opensearch.action.search.MultiSearchRequest;
 import org.opensearch.action.search.MultiSearchRequestBuilder;
 import org.opensearch.action.search.MultiSearchResponse;
+import org.opensearch.action.search.NodesGetAllPitsAction;
 import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchRequestBuilder;
@@ -596,11 +596,6 @@ public abstract class AbstractClient implements Client {
     @Override
     public void deletePits(final DeletePitRequest deletePITRequest, final ActionListener<DeletePitResponse> listener) {
         execute(DeletePitAction.INSTANCE, deletePITRequest, listener);
-    }
-
-    @Override
-    public void getAllPits(final GetAllPitNodesRequest getAllPitNodesRequest, final ActionListener<GetAllPitNodesResponse> listener) {
-        execute(GetAllPitsAction.INSTANCE, getAllPitNodesRequest, listener);
     }
 
     @Override
@@ -895,6 +890,11 @@ public abstract class AbstractClient implements Client {
         @Override
         public NodesHotThreadsRequestBuilder prepareNodesHotThreads(String... nodesIds) {
             return new NodesHotThreadsRequestBuilder(this, NodesHotThreadsAction.INSTANCE).setNodesIds(nodesIds);
+        }
+
+        @Override
+        public void listAllPits(GetAllPitNodesRequest request, ActionListener<GetAllPitNodesResponse> listener) {
+            execute(NodesGetAllPitsAction.INSTANCE, request, listener);
         }
 
         @Override
