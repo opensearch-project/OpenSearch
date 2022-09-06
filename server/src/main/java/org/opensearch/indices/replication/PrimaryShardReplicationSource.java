@@ -89,7 +89,9 @@ public class PrimaryShardReplicationSource implements SegmentReplicationSource {
             sizeOfSegmentFiles += filesToFetch.get(i).length();
         }
         // Making sure files size is in correct format to perform time calculation.
-        sizeOfSegmentFiles = Math.abs(sizeOfSegmentFiles);
+        if(sizeOfSegmentFiles<0){
+            sizeOfSegmentFiles *=-1;
+        }
         // Maximum size of files to fetch (segment files), that can be processed in 1 minute for a m5.xlarge machine.
         long baseSegmentFilesSize = 300000000;
 
