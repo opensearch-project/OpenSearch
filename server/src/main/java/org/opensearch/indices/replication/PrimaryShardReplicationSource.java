@@ -13,11 +13,13 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RetryableTransportClient;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
+import org.opensearch.transport.TransportRequestOptions;
 import org.opensearch.transport.TransportService;
 
 import java.util.List;
@@ -78,6 +80,22 @@ public class PrimaryShardReplicationSource implements SegmentReplicationSource {
     ) {
         final Writeable.Reader<GetSegmentFilesResponse> reader = GetSegmentFilesResponse::new;
         final ActionListener<GetSegmentFilesResponse> responseListener = ActionListener.map(listener, r -> r);
+        // Few of the below assumptions and calculations are added for experimental release of segment replication feature in 2.3
+        // version.These will be changed in next release.
+
+        // Storing the size of files to fetch in bytes.
+        long sizeOfSegmentFiles = 0;
+        for (int i = 0; i < filesToFetch.size(); i++) {
+            sizeOfSegmentFiles += filesToFetch.get(i).length();
+        }
+        // Making sure files size is in correct format to perform time calculation.
+        sizeOfSegmentFiles = Math.abs(sizeOfSegmentFiles);
+        // Maximum size of files to fetch (segment files), that can be processed in 1 minute for a m5.xlarge machine.
+        long baseSegmentFilesSize = 300000000;
+
+        long timeToGetSegmentFiles = 1;
+        // Formula for calculating time needed to process a replication event's files to fetch process
+        timeToGetSegmentFiles += sizeOfSegmentFiles / baseSegmentFilesSize;
         final GetSegmentFilesRequest request = new GetSegmentFilesRequest(
             replicationId,
             targetAllocationId,
@@ -85,7 +103,10 @@ public class PrimaryShardReplicationSource implements SegmentReplicationSource {
             filesToFetch,
             checkpoint
         );
-        transportClient.executeRetryableAction(GET_SEGMENT_FILES, request, responseListener, reader);
+        final TransportRequestOptions options = TransportRequestOptions.builder()
+            .withTimeout(TimeValue.timeValueMinutes(timeToGetSegmentFiles))
+            .build();
+        transportClient.executeRetryableAction(GET_SEGMENT_FILES, request, options, responseListener, reader);
     }
 
     @Override
