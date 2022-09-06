@@ -36,7 +36,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING;
@@ -269,8 +268,8 @@ public class DecommissionService {
 
             @Override
             public void onFailure(Exception e) {
-                logger.debug(new ParameterizedMessage(
-                        "failure in clearing voting config exclusion after failing to execute decommission request"),
+                logger.debug(
+                    new ParameterizedMessage("failure in clearing voting config exclusion after failing to execute decommission request"),
                     e
                 );
             }
@@ -358,8 +357,8 @@ public class DecommissionService {
 
             @Override
             public void onFailure(Exception e) {
-                logger.debug(new ParameterizedMessage(
-                    "failure in clearing voting config exclusion after processing decommission request"),
+                logger.debug(
+                    new ParameterizedMessage("failure in clearing voting config exclusion after processing decommission request"),
                     e
                 );
                 decommissionController.updateMetadataWithDecommissionStatus(DecommissionStatus.DECOMMISSION_FAILED, statusUpdateListener);
@@ -418,7 +417,7 @@ public class DecommissionService {
         DecommissionAttribute decommissionAttribute
     ) {
         String msg = null;
-        if (decommissionAttributeMetadata!=null) {
+        if (decommissionAttributeMetadata != null) {
             if (decommissionAttributeMetadata.status().equals(DecommissionStatus.DECOMMISSION_SUCCESSFUL)) {
                 // one awareness attribute is already decommissioned. We will reject the new request
                 msg = "one awareness attribute already successfully decommissioned. Recommission before triggering another decommission";
@@ -426,8 +425,8 @@ public class DecommissionService {
                 // here we are sure that the previous decommission request failed, we can let this request pass this check
                 return;
             } else {
-                // it means the decommission has been initiated or is inflight. In that case, if the same attribute is requested for decommissioning,
-                // which can happen during retries, we will pass this check, if not, we will throw exception
+                // it means the decommission has been initiated or is inflight. In that case, if the same attribute is requested for
+                // decommissioning, which can happen during retries, we will pass this check, if not, we will throw exception
                 if (!decommissionAttributeMetadata.decommissionAttribute().equals(decommissionAttribute)) {
                     msg = "another request for decommission is in flight, will not process this request";
                 }
@@ -449,10 +448,8 @@ public class DecommissionService {
             votingConfiguration.getNodeIds()
                 .stream()
                 .filter(n -> clusterManagerNodesIdToBeDecommissioned.contains(n) == false)
-                .collect(Collectors.toList()
-                )
-            )
-        ) {
+                .collect(Collectors.toList())
+        )) {
             throw new DecommissioningFailedException(
                 decommissionAttribute,
                 "cannot proceed with decommission request as cluster might go into quorum loss"

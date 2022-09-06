@@ -166,20 +166,13 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
                 );
             }
         );
-        assertThat(
-            e.getMessage(),
-            Matchers.endsWith("another request for decommission is in flight, will not process this request")
-        );
+        assertThat(e.getMessage(), Matchers.endsWith("another request for decommission is in flight, will not process this request"));
     }
 
     @SuppressWarnings("unchecked")
     public void testDecommissioningInitiatedWhenEnoughClusterManagerNodes() {
         ActionListener<ClusterStateUpdateResponse> listener = mock(ActionListener.class);
-        decommissionService.initiateAttributeDecommissioning(
-            new DecommissionAttribute("zone", "zone_3"),
-            listener,
-            clusterService.state()
-        );
+        decommissionService.initiateAttributeDecommissioning(new DecommissionAttribute("zone", "zone_3"), listener, clusterService.state());
     }
 
     @SuppressWarnings("unchecked")
