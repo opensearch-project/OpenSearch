@@ -16,7 +16,6 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
-import org.opensearch.cluster.coordination.ClusterBootstrapService;
 import org.opensearch.cluster.coordination.CoordinationMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -227,13 +226,7 @@ public class DecommissionService {
 
                 @Override
                 public void onFailure(String source, Exception e) {
-                    if (e instanceof DecommissioningFailedException) {
-                        logger.error(
-                            () -> new ParameterizedMessage("failed to decommission attribute [{}]", decommissionAttribute.toString()),
-                            e
-                        );
-                        listener.onFailure(e);
-                    } else if (e instanceof NotClusterManagerException) {
+                    if (e instanceof NotClusterManagerException) {
                         logger.debug(
                             () -> new ParameterizedMessage(
                                 "cluster-manager updated while executing request for decommission attribute [{}]",
@@ -250,7 +243,7 @@ public class DecommissionService {
                             ),
                             e
                         );
-                        listener.onFailure(e);
+                        failAndClearVotingConfigExclusion(listener, e);
                     }
                 }
 
@@ -265,6 +258,24 @@ public class DecommissionService {
                 }
             }
         );
+    }
+
+    private void failAndClearVotingConfigExclusion(final ActionListener<ClusterStateUpdateResponse> listener, Exception e) {
+        decommissionController.clearVotingConfigExclusion(new ActionListener<Void>() {
+            @Override
+            public void onResponse(Void unused) {
+                logger.info("successfully cleared voting config exclusion after failing to execute decommission request");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.debug(new ParameterizedMessage(
+                        "failure in clearing voting config exclusion after failing to execute decommission request"),
+                    e
+                );
+            }
+        });
+        listener.onFailure(e);
     }
 
     private void initiateGracefulDecommission() {
@@ -338,6 +349,7 @@ public class DecommissionService {
         decommissionController.clearVotingConfigExclusion(new ActionListener<Void>() {
             @Override
             public void onResponse(Void unused) {
+                logger.info("successfully cleared voting config exclusion after failing to execute decommission request");
                 DecommissionStatus updateStatusWith = decommissionSuccessful
                     ? DecommissionStatus.DECOMMISSION_SUCCESSFUL
                     : DecommissionStatus.DECOMMISSION_FAILED;
@@ -346,6 +358,10 @@ public class DecommissionService {
 
             @Override
             public void onFailure(Exception e) {
+                logger.debug(new ParameterizedMessage(
+                    "failure in clearing voting config exclusion after processing decommission request"),
+                    e
+                );
                 decommissionController.updateMetadataWithDecommissionStatus(DecommissionStatus.DECOMMISSION_FAILED, statusUpdateListener);
             }
         });

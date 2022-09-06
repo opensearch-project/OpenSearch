@@ -109,13 +109,11 @@ public class DecommissionController {
             new TransportResponseHandler<ClearVotingConfigExclusionsResponse>() {
                 @Override
                 public void handleResponse(ClearVotingConfigExclusionsResponse response) {
-                    logger.info("successfully cleared voting config after decommissioning");
                     listener.onResponse(null);
                 }
 
                 @Override
                 public void handleException(TransportException exp) {
-                    logger.debug(new ParameterizedMessage("failure in clearing voting config exclusion after decommissioning"), exp);
                     listener.onFailure(exp);
                 }
 
@@ -196,7 +194,7 @@ public class DecommissionController {
                 Metadata metadata = currentState.metadata();
                 DecommissionAttributeMetadata decommissionAttributeMetadata = metadata.custom(DecommissionAttributeMetadata.TYPE);
                 assert decommissionAttributeMetadata != null && decommissionAttributeMetadata.decommissionAttribute() != null;
-                assert assertIncrementalStatusOrFailed(decommissionAttributeMetadata.status(), decommissionStatus);
+                assert assertStatusTransitionOrFailed(decommissionAttributeMetadata.status(), decommissionStatus);
                 Metadata.Builder mdBuilder = Metadata.builder(metadata);
                 DecommissionAttributeMetadata newMetadata = decommissionAttributeMetadata.withUpdatedStatus(decommissionStatus);
                 mdBuilder.putCustom(DecommissionAttributeMetadata.TYPE, newMetadata);
@@ -218,13 +216,20 @@ public class DecommissionController {
         });
     }
 
-    private static boolean assertIncrementalStatusOrFailed(DecommissionStatus oldStatus, DecommissionStatus newStatus) {
-        if (newStatus.equals(DecommissionStatus.DECOMMISSION_FAILED)) return true;
-        else if (newStatus.equals(DecommissionStatus.DECOMMISSION_SUCCESSFUL)) {
-            return oldStatus.equals(DecommissionStatus.DECOMMISSION_IN_PROGRESS);
-        } else if (newStatus.equals(DecommissionStatus.DECOMMISSION_IN_PROGRESS)) {
-            return oldStatus.equals(DecommissionStatus.DECOMMISSION_INIT);
+    private static boolean assertStatusTransitionOrFailed(DecommissionStatus oldStatus, DecommissionStatus newStatus) {
+        switch (newStatus) {
+            case DECOMMISSION_INIT:
+                // if the new status is INIT, then the old status cannot be anything but FAILED
+                return oldStatus.equals(DecommissionStatus.DECOMMISSION_FAILED);
+            case DECOMMISSION_IN_PROGRESS:
+                // if the new status is IN_PROGRESS, the old status has to be INIT
+                return oldStatus.equals(DecommissionStatus.DECOMMISSION_INIT);
+            case DECOMMISSION_SUCCESSFUL:
+                // if the new status is SUCCESSFUL, the old status has to be IN_PROGRESS
+                return oldStatus.equals(DecommissionStatus.DECOMMISSION_IN_PROGRESS);
+            default:
+                // if the new status is FAILED, we don't need to assert for previous state
+                return true;
         }
-        return true;
     }
 }
