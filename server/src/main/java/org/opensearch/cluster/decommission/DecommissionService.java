@@ -431,16 +431,19 @@ public class DecommissionService {
         Set<DiscoveryNode> clusterManagerNodesToBeDecommissioned,
         CoordinationMetadata.VotingConfiguration votingConfiguration
     ) {
-        final Set<String> nodesInVotingConfig = votingConfiguration.getNodeIds();
-        assert nodesInVotingConfig.isEmpty() == false;
-        final int requiredNodes = nodesInVotingConfig.size() / 2 + 1;
-        final Set<String> realNodeIds = new HashSet<>(nodesInVotingConfig);
-        realNodeIds.removeIf(ClusterBootstrapService::isBootstrapPlaceholder);
-        clusterManagerNodesToBeDecommissioned.removeIf(b -> !nodesInVotingConfig.contains(b.getId()));
-        if (realNodeIds.size() - clusterManagerNodesToBeDecommissioned.size() < requiredNodes) {
+        Set<String> clusterManagerNodesIdToBeDecommissioned = new HashSet<>();
+        clusterManagerNodesToBeDecommissioned.forEach(node -> clusterManagerNodesIdToBeDecommissioned.add(node.getId()));
+        if (!votingConfiguration.hasQuorum(
+            votingConfiguration.getNodeIds()
+                .stream()
+                .filter(n -> clusterManagerNodesIdToBeDecommissioned.contains(n) == false)
+                .collect(Collectors.toList()
+                )
+            )
+        ) {
             throw new DecommissioningFailedException(
                 decommissionAttribute,
-                "cannot proceed with decommission request. Cluster might go into quorum loss"
+                "cannot proceed with decommission request as cluster might go into quorum loss"
             );
         }
     }

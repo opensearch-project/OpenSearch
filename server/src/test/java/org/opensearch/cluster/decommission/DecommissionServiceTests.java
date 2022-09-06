@@ -54,17 +54,11 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
     private DecommissionService decommissionService;
     private ClusterSettings clusterSettings;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        super.setUp();
+    @Before
+    public void setUpService() {
         threadPool = new TestThreadPool("test", Settings.EMPTY);
         clusterService = createClusterService(threadPool);
         allocationService = createAllocationService();
-    }
-
-    @Before
-    public void setUpService() {
         ClusterState clusterState = ClusterState.builder(new ClusterName("test")).build();
         logger.info("--> adding cluster manager node on zone_1");
         clusterState = addClusterManagerNodes(clusterState, "zone_1", "node1");
@@ -174,7 +168,17 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
         );
         assertThat(
             e.getMessage(),
-            Matchers.endsWith("one awareness attribute already decommissioned, recommission before triggering another decommission")
+            Matchers.endsWith("another request for decommission is in flight, will not process this request")
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testDecommissioningInitiatedWhenEnoughClusterManagerNodes() {
+        ActionListener<ClusterStateUpdateResponse> listener = mock(ActionListener.class);
+        decommissionService.initiateAttributeDecommissioning(
+            new DecommissionAttribute("zone", "zone_3"),
+            listener,
+            clusterService.state()
         );
     }
 
@@ -195,7 +199,7 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
                 );
             }
         );
-        assertThat(e.getMessage(), Matchers.endsWith("cannot proceed with decommission request. Cluster might go into quorum loss"));
+        assertThat(e.getMessage(), Matchers.endsWith("cannot proceed with decommission request as cluster might go into quorum loss"));
     }
 
     private ClusterState addDataNodes(ClusterState clusterState, String zone, String... nodeIds) {
