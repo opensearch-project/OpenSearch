@@ -65,9 +65,9 @@ public class ListPitInfo implements ToXContentFragment, Writeable {
     private static final ParseField PIT_ID = new ParseField("pit_id");
     private static final ParseField KEEP_ALIVE = new ParseField("keep_alive");
     static {
-        PARSER.declareString(constructorArg(), new ParseField(PIT_ID.getPreferredName()));
-        PARSER.declareLong(constructorArg(), new ParseField(CREATION_TIME.getPreferredName()));
-        PARSER.declareLong(constructorArg(), new ParseField(KEEP_ALIVE.getPreferredName()));
+        PARSER.declareString(constructorArg(), PIT_ID);
+        PARSER.declareLong(constructorArg(), CREATION_TIME);
+        PARSER.declareLong(constructorArg(), KEEP_ALIVE);
     }
 
     @Override

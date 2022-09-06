@@ -201,6 +201,26 @@ public class CreatePitController {
                 if (node == null) {
                     node = this.clusterService.state().getNodes().get(entry.getValue().getNode());
                 }
+                if (node == null) {
+                    logger.error(
+                        () -> new ParameterizedMessage(
+                            "Create pit update phase for PIT ID [{}] failed " + "because node [{}] not found",
+                            searchResponse.pointInTimeId(),
+                            entry.getValue().getNode()
+                        )
+                    );
+                    groupedActionListener.onFailure(
+                        new OpenSearchException(
+                            "Create pit update phase for PIT ID ["
+                                + searchResponse.pointInTimeId()
+                                + "] failed because node["
+                                + node
+                                + "] "
+                                + "not found"
+                        )
+                    );
+                    return;
+                }
                 try {
                     final Transport.Connection connection = searchTransportService.getConnection(entry.getValue().getClusterAlias(), node);
                     searchTransportService.updatePitContext(

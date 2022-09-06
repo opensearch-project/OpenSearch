@@ -90,36 +90,6 @@ public class RestDeletePitActionTests extends OpenSearchTestCase {
         }
     }
 
-    public void testDeleteAllPit() throws Exception {
-        SetOnce<Boolean> pitCalled = new SetOnce<>();
-        try (NodeClient nodeClient = new NoOpNodeClient(this.getTestName()) {
-            @Override
-            public void deletePits(DeletePitRequest request, ActionListener<DeletePitResponse> listener) {
-                pitCalled.set(true);
-                assertThat(request.getPitIds(), hasSize(1));
-                assertThat(request.getPitIds().get(0), equalTo("_all"));
-            }
-        }) {
-            RestDeletePitAction action = new RestDeletePitAction(new Supplier<DiscoveryNodes>() {
-                @Override
-                public DiscoveryNodes get() {
-                    DiscoveryNode node0 = new DiscoveryNode(
-                        "node0",
-                        new TransportAddress(TransportAddress.META_ADDRESS, 9000),
-                        Version.CURRENT
-                    );
-                    DiscoveryNodes nodes = new DiscoveryNodes.Builder().add(node0).clusterManagerNodeId(node0.getId()).build();
-                    return nodes;
-                }
-            });
-            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_all").build();
-            FakeRestChannel channel = new FakeRestChannel(request, false, 0);
-            action.handleRequest(request, channel, nodeClient);
-
-            assertThat(pitCalled.get(), equalTo(true));
-        }
-    }
-
     public void testDeleteAllPitWithBody() {
         SetOnce<Boolean> pitCalled = new SetOnce<>();
         try (NodeClient nodeClient = new NoOpNodeClient(this.getTestName()) {
