@@ -42,7 +42,6 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.OpenSearchTestCase;
@@ -59,7 +58,6 @@ import java.util.function.Function;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.core.StringContains.containsString;
 import static org.hamcrest.object.HasToString.hasToString;
-import static org.opensearch.common.settings.IndexScopedSettings.FEATURE_FLAGGED_INDEX_SETTINGS;
 
 public class IndexSettingsTests extends OpenSearchTestCase {
 
@@ -784,7 +782,7 @@ public class IndexSettingsTests extends OpenSearchTestCase {
 
     public void testUpdateRemoteStoreFails() {
         Set<Setting<?>> remoteStoreSettingSet = new HashSet<>();
-        remoteStoreSettingSet.add(FEATURE_FLAGGED_INDEX_SETTINGS.get(FeatureFlags.REMOTE_STORE));
+        remoteStoreSettingSet.add(IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING);
         IndexScopedSettings settings = new IndexScopedSettings(Settings.EMPTY, remoteStoreSettingSet);
         IllegalArgumentException error = expectThrows(
             IllegalArgumentException.class,
@@ -817,5 +815,72 @@ public class IndexSettingsTests extends OpenSearchTestCase {
             () -> IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.get(indexSettings)
         );
         assertEquals("To enable index.remote_store.enabled, index.replication.type should be set to SEGMENT", iae.getMessage());
+    }
+
+    public void testRemoteRepositoryDefaultSetting() {
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build()
+        );
+        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertNull(settings.getRemoteStoreRepository());
+    }
+
+    public void testRemoteRepositoryExplicitSetting() {
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+                .put(IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY, "repo1")
+                .build()
+        );
+        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertEquals("repo1", settings.getRemoteStoreRepository());
+    }
+
+    public void testUpdateRemoteRepositoryFails() {
+        Set<Setting<?>> remoteStoreSettingSet = new HashSet<>();
+        remoteStoreSettingSet.add(IndexMetadata.INDEX_REMOTE_STORE_REPOSITORY_SETTING);
+        IndexScopedSettings settings = new IndexScopedSettings(Settings.EMPTY, remoteStoreSettingSet);
+        IllegalArgumentException error = expectThrows(
+            IllegalArgumentException.class,
+            () -> settings.updateSettings(
+                Settings.builder().put("index.remote_store.repository", randomUnicodeOfLength(10)).build(),
+                Settings.builder(),
+                Settings.builder(),
+                "index"
+            )
+        );
+        assertEquals(error.getMessage(), "final index setting [index.remote_store.repository], not updateable");
+    }
+
+    public void testSetRemoteRepositoryFailsWhenRemoteStoreIsNotEnabled() {
+        Settings indexSettings = Settings.builder()
+            .put("index.replication.type", ReplicationType.SEGMENT)
+            .put("index.remote_store.enabled", false)
+            .put("index.remote_store.repository", "repo1")
+            .build();
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> IndexMetadata.INDEX_REMOTE_STORE_REPOSITORY_SETTING.get(indexSettings)
+        );
+        assertEquals(
+            "Settings index.remote_store.repository can ont be set/enabled when index.remote_store.enabled is set to true",
+            iae.getMessage()
+        );
+    }
+
+    public void testSetRemoteRepositoryFailsWhenEmptyString() {
+        Settings indexSettings = Settings.builder()
+            .put("index.replication.type", ReplicationType.SEGMENT)
+            .put("index.remote_store.enabled", false)
+            .put("index.remote_store.repository", "")
+            .build();
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> IndexMetadata.INDEX_REMOTE_STORE_REPOSITORY_SETTING.get(indexSettings)
+        );
+        assertEquals("Setting index.remote_store.repository should be provided with non-empty repository ID", iae.getMessage());
     }
 }
