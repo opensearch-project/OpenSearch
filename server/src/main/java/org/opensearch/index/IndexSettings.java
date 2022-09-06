@@ -560,6 +560,7 @@ public final class IndexSettings {
     private final ReplicationType replicationType;
     private final boolean isRemoteStoreEnabled;
     private final boolean isRemoteTranslogStoreEnabled;
+    private final String remoteStoreRepository;
     // volatile fields are updated via #updateIndexMetadata(IndexMetadata) under lock
     private volatile Settings settings;
     private volatile IndexMetadata indexMetadata;
@@ -721,6 +722,7 @@ public final class IndexSettings {
         replicationType = ReplicationType.parseString(settings.get(IndexMetadata.SETTING_REPLICATION_TYPE));
         isRemoteStoreEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false);
         isRemoteTranslogStoreEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, false);
+        remoteStoreRepository = settings.get(IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY);
         this.searchThrottled = INDEX_SEARCH_THROTTLED.get(settings);
         this.queryStringLenient = QUERY_STRING_LENIENT_SETTING.get(settings);
         this.queryStringAnalyzeWildcard = QUERY_STRING_ANALYZE_WILDCARD.get(nodeSettings);
@@ -977,6 +979,13 @@ public final class IndexSettings {
      */
     public boolean isRemoteTranslogStoreEnabled() {
         return isRemoteTranslogStoreEnabled;
+    }
+
+    /**
+     * Returns if remote store is enabled for this index.
+     */
+    public String getRemoteStoreRepository() {
+        return remoteStoreRepository;
     }
 
     /**

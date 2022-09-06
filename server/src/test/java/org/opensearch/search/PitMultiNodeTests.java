@@ -51,6 +51,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.opensearch.action.search.PitTestsUtil.assertSegments;
 import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
@@ -85,6 +86,7 @@ public class PitMultiNodeTests extends OpenSearchIntegTestCase {
         assertEquals(2, searchResponse.getTotalShards());
         validatePitStats("index", 2, 2);
         PitTestsUtil.assertUsingGetAllPits(client(), pitResponse.getId(), pitResponse.getCreationTime());
+        assertSegments(false, client());
     }
 
     public void testCreatePitWhileNodeDropWithAllowPartialCreationFalse() throws Exception {
@@ -112,6 +114,7 @@ public class PitMultiNodeTests extends OpenSearchIntegTestCase {
                 ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, request);
                 CreatePitResponse pitResponse = execute.get();
                 PitTestsUtil.assertUsingGetAllPits(client(), pitResponse.getId(), pitResponse.getCreationTime());
+                assertSegments(false, "index", 1, client());
                 assertEquals(1, pitResponse.getSuccessfulShards());
                 assertEquals(2, pitResponse.getTotalShards());
                 SearchResponse searchResponse = client().prepareSearch("index")

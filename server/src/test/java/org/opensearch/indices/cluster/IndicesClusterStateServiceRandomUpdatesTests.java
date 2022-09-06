@@ -66,6 +66,7 @@ import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.shard.PrimaryReplicaSyncer;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
+import org.opensearch.indices.replication.SegmentReplicationSourceService;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.repositories.RepositoriesService;
@@ -572,6 +573,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             threadPool,
             SegmentReplicationCheckpointPublisher.EMPTY,
             SegmentReplicationTargetService.NO_OP,
+            SegmentReplicationSourceService.NO_OP,
             recoveryTargetService,
             shardStateAction,
             null,

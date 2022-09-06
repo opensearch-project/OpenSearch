@@ -10,19 +10,21 @@ package org.opensearch.gradle.pluginzip;
 
 import org.gradle.testkit.runner.BuildResult;
 import org.gradle.testkit.runner.GradleRunner;
-import org.gradle.testfixtures.ProjectBuilder;
-import org.gradle.api.Project;
+import org.gradle.testkit.runner.UnexpectedBuildFailure;
 import org.opensearch.gradle.test.GradleUnitTestCase;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-import java.io.IOException;
-import org.gradle.api.publish.maven.tasks.PublishToMavenRepository;
 import java.io.File;
+import java.io.FileReader;
 import java.io.FileWriter;
+import java.io.IOException;
 import java.io.Writer;
+import java.net.URISyntaxException;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 
 import static org.gradle.testkit.runner.TaskOutcome.SUCCESS;
@@ -30,14 +32,16 @@ import static org.gradle.testkit.runner.TaskOutcome.SUCCESS;
 import org.apache.maven.model.Model;
 import org.apache.maven.model.io.xpp3.MavenXpp3Reader;
 import org.codehaus.plexus.util.xml.pull.XmlPullParserException;
-import java.io.FileReader;
-import org.gradle.api.tasks.bundling.Zip;
 
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.List;
-import java.util.ArrayList;
 
 public class PublishTests extends GradleUnitTestCase {
     private TemporaryFolder projectDir;
+    private static final String TEMPLATE_RESOURCE_FOLDER = "pluginzip";
+    private final String PROJECT_NAME = "sample-plugin";
+    private final String ZIP_PUBLISH_TASK = "publishPluginZipPublicationToZipStagingRepository";
 
     @Before
     public void setUp() throws IOException {
@@ -51,160 +55,225 @@ public class PublishTests extends GradleUnitTestCase {
     }
 
     @Test
-    public void testZipPublish() throws IOException, XmlPullParserException {
-        String zipPublishTask = "publishPluginZipPublicationToZipStagingRepository";
-        prepareProjectForPublishTask(zipPublishTask);
-
-        // Generate the build.gradle file
-        String buildFileContent = "apply plugin: 'maven-publish' \n"
-            + "apply plugin: 'java' \n"
-            + "publishing {\n"
-            + "  repositories {\n"
-            + "       maven {\n"
-            + "          url = 'local-staging-repo/'\n"
-            + "          name = 'zipStaging'\n"
-            + "        }\n"
-            + "  }\n"
-            + "   publications {\n"
-            + "         pluginZip(MavenPublication) {\n"
-            + "             groupId = 'org.opensearch.plugin' \n"
-            + "             artifactId = 'sample-plugin' \n"
-            + "             version = '2.0.0.0' \n"
-            + "             artifact('sample-plugin.zip') \n"
-            + "         }\n"
-            + "   }\n"
-            + "}";
-        writeString(projectDir.newFile("build.gradle"), buildFileContent);
-        // Execute the task publishPluginZipPublicationToZipStagingRepository
-        List<String> allArguments = new ArrayList<String>();
-        allArguments.add("build");
-        allArguments.add(zipPublishTask);
-        GradleRunner runner = GradleRunner.create();
-        runner.forwardOutput();
-        runner.withPluginClasspath();
-        runner.withArguments(allArguments);
-        runner.withProjectDir(projectDir.getRoot());
-        BuildResult result = runner.build();
-        // Check if task publishMavenzipPublicationToZipstagingRepository has ran well
-        assertEquals(SUCCESS, result.task(":" + zipPublishTask).getOutcome());
-        // check if the zip has been published to local staging repo
-        assertTrue(
-            new File(projectDir.getRoot(), "local-staging-repo/org/opensearch/plugin/sample-plugin/2.0.0.0/sample-plugin-2.0.0.0.zip")
-                .exists()
-        );
-        assertEquals(SUCCESS, result.task(":" + "build").getOutcome());
-        // Parse the maven file and validate the groupID to org.opensearch.plugin
-        MavenXpp3Reader reader = new MavenXpp3Reader();
-        Model model = reader.read(
-            new FileReader(
-                new File(projectDir.getRoot(), "local-staging-repo/org/opensearch/plugin/sample-plugin/2.0.0.0/sample-plugin-2.0.0.0.pom")
-            )
-        );
-        assertEquals(model.getGroupId(), "org.opensearch.plugin");
+    public void missingGroupValue() throws IOException, URISyntaxException, XmlPullParserException {
+        GradleRunner runner = prepareGradleRunnerFromTemplate("missingGroupValue.gradle");
+        Exception e = assertThrows(UnexpectedBuildFailure.class, runner::build);
+        assertTrue(e.getMessage().contains("Invalid publication 'pluginZip': groupId cannot be empty."));
     }
 
+    /**
+     * This would be the most common use case where user declares Maven publication entity with basic info
+     * and the resulting POM file will use groupId and version values from the Gradle project object.
+     */
     @Test
-    public void testZipPublishWithPom() throws IOException, XmlPullParserException {
-        String zipPublishTask = "publishPluginZipPublicationToZipStagingRepository";
-        Project project = prepareProjectForPublishTask(zipPublishTask);
-
-        // Generate the build.gradle file
-        String buildFileContent = "apply plugin: 'maven-publish' \n"
-            + "apply plugin: 'java' \n"
-            + "publishing {\n"
-            + "  repositories {\n"
-            + "       maven {\n"
-            + "          url = 'local-staging-repo/'\n"
-            + "          name = 'zipStaging'\n"
-            + "        }\n"
-            + "  }\n"
-            + "   publications {\n"
-            + "         pluginZip(MavenPublication) {\n"
-            + "             groupId = 'org.opensearch.plugin' \n"
-            + "             artifactId = 'sample-plugin' \n"
-            + "             version = '2.0.0.0' \n"
-            + "             artifact('sample-plugin.zip') \n"
-            + "             pom {\n"
-            + "                name = 'sample-plugin'\n"
-            + "                description = 'sample-description'\n"
-            + "                licenses {\n"
-            + "                    license {\n"
-            + "                        name = \"The Apache License, Version 2.0\"\n"
-            + "                        url = \"http://www.apache.org/licenses/LICENSE-2.0.txt\"\n"
-            + "                    }\n"
-            + "                }\n"
-            + "                developers {\n"
-            + "                    developer {\n"
-            + "                        name = 'opensearch'\n"
-            + "                        url = 'https://github.com/opensearch-project/OpenSearch'\n"
-            + "                    }\n"
-            + "                }\n"
-            + "                url = 'https://github.com/opensearch-project/OpenSearch'\n"
-            + "                scm {\n"
-            + "                    url = 'https://github.com/opensearch-project/OpenSearch'\n"
-            + "                }\n"
-            + "            }"
-            + "         }\n"
-            + "   }\n"
-            + "}";
-        writeString(projectDir.newFile("build.gradle"), buildFileContent);
-        // Execute the task publishPluginZipPublicationToZipStagingRepository
-        List<String> allArguments = new ArrayList<String>();
-        allArguments.add("build");
-        allArguments.add(zipPublishTask);
-        GradleRunner runner = GradleRunner.create();
-        runner.forwardOutput();
-        runner.withPluginClasspath();
-        runner.withArguments(allArguments);
-        runner.withProjectDir(projectDir.getRoot());
+    public void groupAndVersionValue() throws IOException, URISyntaxException, XmlPullParserException {
+        GradleRunner runner = prepareGradleRunnerFromTemplate("groupAndVersionValue.gradle");
         BuildResult result = runner.build();
-        // Check if task publishMavenzipPublicationToZipstagingRepository has ran well
-        assertEquals(SUCCESS, result.task(":" + zipPublishTask).getOutcome());
-        // check if the zip has been published to local staging repo
-        assertTrue(
-            new File(projectDir.getRoot(), "local-staging-repo/org/opensearch/plugin/sample-plugin/2.0.0.0/sample-plugin-2.0.0.0.zip")
-                .exists()
-        );
+
+        /** Check if build and {@value ZIP_PUBLISH_TASK} tasks have run well */
         assertEquals(SUCCESS, result.task(":" + "build").getOutcome());
-        // Parse the maven file and validate the groupID to org.opensearch.plugin
+        assertEquals(SUCCESS, result.task(":" + ZIP_PUBLISH_TASK).getOutcome());
+
+        // check if both the zip and pom files have been published to local staging repo
+        assertTrue(
+            new File(
+                projectDir.getRoot(),
+                String.join(
+                    File.separator,
+                    "build",
+                    "local-staging-repo",
+                    "org",
+                    "custom",
+                    "group",
+                    PROJECT_NAME,
+                    "2.0.0.0",
+                    PROJECT_NAME + "-2.0.0.0.pom"
+                )
+            ).exists()
+        );
+        assertTrue(
+            new File(
+                projectDir.getRoot(),
+                String.join(
+                    File.separator,
+                    "build",
+                    "local-staging-repo",
+                    "org",
+                    "custom",
+                    "group",
+                    PROJECT_NAME,
+                    "2.0.0.0",
+                    PROJECT_NAME + "-2.0.0.0.zip"
+                )
+            ).exists()
+        );
+
+        // Parse the maven file and validate the groupID
         MavenXpp3Reader reader = new MavenXpp3Reader();
         Model model = reader.read(
             new FileReader(
-                new File(projectDir.getRoot(), "local-staging-repo/org/opensearch/plugin/sample-plugin/2.0.0.0/sample-plugin-2.0.0.0.pom")
+                new File(
+                    projectDir.getRoot(),
+                    String.join(
+                        File.separator,
+                        "build",
+                        "local-staging-repo",
+                        "org",
+                        "custom",
+                        "group",
+                        PROJECT_NAME,
+                        "2.0.0.0",
+                        PROJECT_NAME + "-2.0.0.0.pom"
+                    )
+                )
             )
         );
-        assertEquals(model.getGroupId(), "org.opensearch.plugin");
-        assertEquals(model.getUrl(), "https://github.com/opensearch-project/OpenSearch");
+        assertEquals(model.getVersion(), "2.0.0.0");
+        assertEquals(model.getGroupId(), "org.custom.group");
+        assertEquals(model.getUrl(), "https://github.com/doe/sample-plugin");
     }
 
-    protected Project prepareProjectForPublishTask(String zipPublishTask) throws IOException {
-        Project project = ProjectBuilder.builder().build();
+    /**
+     * In this case the Publication entity is completely missing but still the POM file is generated using the default
+     * values including the groupId and version values obtained from the Gradle project object.
+     */
+    @Test
+    public void missingPOMEntity() throws IOException, URISyntaxException, XmlPullParserException {
+        GradleRunner runner = prepareGradleRunnerFromTemplate("missingPOMEntity.gradle");
+        BuildResult result = runner.build();
 
-        // Apply the opensearch.pluginzip plugin
-        project.getPluginManager().apply("opensearch.pluginzip");
-        // Check if the plugin has been applied to the project
-        assertTrue(project.getPluginManager().hasPlugin("opensearch.pluginzip"));
-        // Check if the project has the task from class PublishToMavenRepository after plugin apply
-        assertNotNull(project.getTasks().withType(PublishToMavenRepository.class));
-        // Create a mock bundlePlugin task
-        Zip task = project.getTasks().create("bundlePlugin", Zip.class);
-        Publish.configMaven(project);
-        // Check if the main task publishPluginZipPublicationToZipStagingRepository exists after plugin apply
-        assertTrue(project.getTasks().getNames().contains(zipPublishTask));
-        assertNotNull("Task to generate: ", project.getTasks().getByName(zipPublishTask));
-        // Run Gradle functional tests, but calling a build.gradle file, that resembles the plugin publish behavior
+        /** Check if build and {@value ZIP_PUBLISH_TASK} tasks have run well */
+        assertEquals(SUCCESS, result.task(":" + "build").getOutcome());
+        assertEquals(SUCCESS, result.task(":" + ZIP_PUBLISH_TASK).getOutcome());
 
-        // Create a sample plugin zip file
-        File sampleZip = new File(projectDir.getRoot(), "sample-plugin.zip");
-        Files.createFile(sampleZip.toPath());
-        writeString(projectDir.newFile("settings.gradle"), "");
+        // Parse the maven file and validate it
+        MavenXpp3Reader reader = new MavenXpp3Reader();
+        Model model = reader.read(
+            new FileReader(
+                new File(
+                    projectDir.getRoot(),
+                    String.join(
+                        File.separator,
+                        "build",
+                        "local-staging-repo",
+                        "org",
+                        "custom",
+                        "group",
+                        PROJECT_NAME,
+                        "2.0.0.0",
+                        PROJECT_NAME + "-2.0.0.0.pom"
+                    )
+                )
+            )
+        );
 
-        return project;
+        assertEquals(model.getArtifactId(), PROJECT_NAME);
+        assertEquals(model.getGroupId(), "org.custom.group");
+        assertEquals(model.getVersion(), "2.0.0.0");
+        assertEquals(model.getPackaging(), "zip");
+
+        assertNull(model.getName());
+        assertNull(model.getDescription());
+
+        assertEquals(0, model.getDevelopers().size());
+        assertEquals(0, model.getContributors().size());
+        assertEquals(0, model.getLicenses().size());
+    }
+
+    /**
+     * In some cases we need the POM groupId value to be different from the Gradle "project.group" value hence we
+     * allow for groupId customization (it will override whatever the Gradle "project.group" value is).
+     */
+    @Test
+    public void customizedGroupValue() throws IOException, URISyntaxException, XmlPullParserException {
+        GradleRunner runner = prepareGradleRunnerFromTemplate("customizedGroupValue.gradle");
+        BuildResult result = runner.build();
+
+        /** Check if build and {@value ZIP_PUBLISH_TASK} tasks have run well */
+        assertEquals(SUCCESS, result.task(":" + "build").getOutcome());
+        assertEquals(SUCCESS, result.task(":" + ZIP_PUBLISH_TASK).getOutcome());
+
+        // Parse the maven file and validate the groupID
+        MavenXpp3Reader reader = new MavenXpp3Reader();
+        Model model = reader.read(
+            new FileReader(
+                new File(
+                    projectDir.getRoot(),
+                    String.join(
+                        File.separator,
+                        "build",
+                        "local-staging-repo",
+                        "I",
+                        "am",
+                        "customized",
+                        PROJECT_NAME,
+                        "2.0.0.0",
+                        PROJECT_NAME + "-2.0.0.0.pom"
+                    )
+                )
+            )
+        );
+
+        assertEquals(model.getGroupId(), "I.am.customized");
+    }
+
+    /**
+     * If the customized groupId value is invalid (from the Maven POM perspective) then we need to be sure it is
+     * caught and reported properly.
+     */
+    @Test
+    public void customizedInvalidGroupValue() throws IOException, URISyntaxException {
+        GradleRunner runner = prepareGradleRunnerFromTemplate("customizedInvalidGroupValue.gradle");
+        Exception e = assertThrows(UnexpectedBuildFailure.class, runner::build);
+        assertTrue(
+            e.getMessage().contains("Invalid publication 'pluginZip': groupId ( ) is not a valid Maven identifier ([A-Za-z0-9_\\-.]+).")
+        );
+    }
+
+    private GradleRunner prepareGradleRunnerFromTemplate(String templateName) throws IOException, URISyntaxException {
+        useTemplateFile(projectDir.newFile("build.gradle"), templateName);
+        prepareGradleFilesAndSources();
+
+        GradleRunner runner = GradleRunner.create()
+            .forwardOutput()
+            .withPluginClasspath()
+            .withArguments("build", ZIP_PUBLISH_TASK)
+            .withProjectDir(projectDir.getRoot());
+
+        return runner;
+    }
+
+    private void prepareGradleFilesAndSources() throws IOException {
+        // A dummy "source" file that is processed with bundlePlugin and put into a ZIP artifact file
+        File bundleFile = new File(projectDir.getRoot(), PROJECT_NAME + "-source.txt");
+        Path zipFile = Files.createFile(bundleFile.toPath());
+        // Setting a project name via settings.gradle file
+        writeString(projectDir.newFile("settings.gradle"), "rootProject.name = '" + PROJECT_NAME + "'");
     }
 
     private void writeString(File file, String string) throws IOException {
         try (Writer writer = new FileWriter(file)) {
             writer.write(string);
+        }
+    }
+
+    /**
+     * Write the content of the "template" file into the target file.
+     * The template file must be located in the {@value TEMPLATE_RESOURCE_FOLDER} folder.
+     * @param targetFile A target file
+     * @param templateFile A name of the template file located under {@value TEMPLATE_RESOURCE_FOLDER} folder
+     */
+    private void useTemplateFile(File targetFile, String templateFile) throws IOException, URISyntaxException {
+
+        URL resource = getClass().getClassLoader().getResource(String.join(File.separator, TEMPLATE_RESOURCE_FOLDER, templateFile));
+        Path resPath = Paths.get(resource.toURI()).toAbsolutePath();
+        List<String> lines = Files.readAllLines(resPath, StandardCharsets.UTF_8);
+
+        try (Writer writer = new FileWriter(targetFile)) {
+            for (String line : lines) {
+                writer.write(line);
+                writer.write(System.lineSeparator());
+            }
         }
     }
 

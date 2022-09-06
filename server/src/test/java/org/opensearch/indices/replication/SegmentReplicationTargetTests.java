@@ -18,7 +18,6 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.IndexFormatTooNewException;
-import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.ByteBuffersIndexOutput;
 import org.apache.lucene.store.Directory;
@@ -28,6 +27,7 @@ import org.apache.lucene.util.Version;
 import org.junit.Assert;
 import org.mockito.Mockito;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
@@ -50,7 +50,6 @@ import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.Random;
 import java.util.Arrays;
 
@@ -70,33 +69,20 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
     private ReplicationCheckpoint repCheckpoint;
     private ByteBuffersDataOutput buffer;
 
-    private static final StoreFileMetadata SEGMENTS_FILE = new StoreFileMetadata(IndexFileNames.SEGMENTS, 1L, "0", Version.LATEST);
-    private static final StoreFileMetadata SEGMENTS_FILE_DIFF = new StoreFileMetadata(
-        IndexFileNames.SEGMENTS,
-        5L,
-        "different",
-        Version.LATEST
-    );
-    private static final StoreFileMetadata PENDING_DELETE_FILE = new StoreFileMetadata("pendingDelete.del", 1L, "1", Version.LATEST);
+    private static final String SEGMENT_NAME = "_0.si";
+    private static final StoreFileMetadata SEGMENT_FILE = new StoreFileMetadata(SEGMENT_NAME, 1L, "0", Version.LATEST);
+    private static final StoreFileMetadata SEGMENT_FILE_DIFF = new StoreFileMetadata(SEGMENT_NAME, 5L, "different", Version.LATEST);
 
-    private static final Store.MetadataSnapshot SI_SNAPSHOT = new Store.MetadataSnapshot(
-        Map.of(SEGMENTS_FILE.name(), SEGMENTS_FILE),
-        null,
-        0
-    );
+    private static final Map<String, StoreFileMetadata> SI_SNAPSHOT = Map.of(SEGMENT_FILE.name(), SEGMENT_FILE);
 
-    private static final Store.MetadataSnapshot SI_SNAPSHOT_DIFFERENT = new Store.MetadataSnapshot(
-        Map.of(SEGMENTS_FILE_DIFF.name(), SEGMENTS_FILE_DIFF),
-        null,
-        0
-    );
+    private static final Map<String, StoreFileMetadata> SI_SNAPSHOT_DIFFERENT = Map.of(SEGMENT_FILE_DIFF.name(), SEGMENT_FILE_DIFF);
 
     private static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings(
         "index",
         Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT).build()
     );
 
-    SegmentInfos testSegmentInfos;
+    private SegmentInfos testSegmentInfos;
 
     @Override
     public void setUp() throws Exception {
@@ -134,7 +120,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 ReplicationCheckpoint checkpoint,
                 ActionListener<CheckpointInfoResponse> listener
             ) {
-                listener.onResponse(new CheckpointInfoResponse(checkpoint, SI_SNAPSHOT, buffer.toArrayCopy(), Set.of(PENDING_DELETE_FILE)));
+                listener.onResponse(new CheckpointInfoResponse(checkpoint, SI_SNAPSHOT, buffer.toArrayCopy()));
             }
 
             @Override
@@ -145,9 +131,8 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 Store store,
                 ActionListener<GetSegmentFilesResponse> listener
             ) {
-                assertEquals(filesToFetch.size(), 2);
-                assert (filesToFetch.contains(SEGMENTS_FILE));
-                assert (filesToFetch.contains(PENDING_DELETE_FILE));
+                assertEquals(1, filesToFetch.size());
+                assert (filesToFetch.contains(SEGMENT_FILE));
                 listener.onResponse(new GetSegmentFilesResponse(filesToFetch));
             }
         };
@@ -162,6 +147,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
             public void onResponse(Void replicationResponse) {
                 try {
                     verify(spyIndexShard, times(1)).finalizeReplication(any(), anyLong());
+                    segrepTarget.markAsDone();
                 } catch (IOException ex) {
                     Assert.fail();
                 }
@@ -169,7 +155,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
 
             @Override
             public void onFailure(Exception e) {
-                logger.error("Unexpected test error", e);
+                logger.error("Unexpected onFailure", e);
                 Assert.fail();
             }
         });
@@ -213,6 +199,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
             @Override
             public void onFailure(Exception e) {
                 assertEquals(exception, e.getCause().getCause());
+                segrepTarget.fail(new OpenSearchException(e), false);
             }
         });
     }
@@ -227,7 +214,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 ReplicationCheckpoint checkpoint,
                 ActionListener<CheckpointInfoResponse> listener
             ) {
-                listener.onResponse(new CheckpointInfoResponse(checkpoint, SI_SNAPSHOT, buffer.toArrayCopy(), Set.of(PENDING_DELETE_FILE)));
+                listener.onResponse(new CheckpointInfoResponse(checkpoint, SI_SNAPSHOT, buffer.toArrayCopy()));
             }
 
             @Override
@@ -255,6 +242,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
             @Override
             public void onFailure(Exception e) {
                 assertEquals(exception, e.getCause().getCause());
+                segrepTarget.fail(new OpenSearchException(e), false);
             }
         });
     }
@@ -269,7 +257,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 ReplicationCheckpoint checkpoint,
                 ActionListener<CheckpointInfoResponse> listener
             ) {
-                listener.onResponse(new CheckpointInfoResponse(checkpoint, SI_SNAPSHOT, buffer.toArrayCopy(), Set.of(PENDING_DELETE_FILE)));
+                listener.onResponse(new CheckpointInfoResponse(checkpoint, SI_SNAPSHOT, buffer.toArrayCopy()));
             }
 
             @Override
@@ -299,6 +287,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
             @Override
             public void onFailure(Exception e) {
                 assertEquals(exception, e.getCause());
+                segrepTarget.fail(new OpenSearchException(e), false);
             }
         });
     }
@@ -313,7 +302,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 ReplicationCheckpoint checkpoint,
                 ActionListener<CheckpointInfoResponse> listener
             ) {
-                listener.onResponse(new CheckpointInfoResponse(checkpoint, SI_SNAPSHOT, buffer.toArrayCopy(), Set.of(PENDING_DELETE_FILE)));
+                listener.onResponse(new CheckpointInfoResponse(checkpoint, SI_SNAPSHOT, buffer.toArrayCopy()));
             }
 
             @Override
@@ -343,6 +332,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
             @Override
             public void onFailure(Exception e) {
                 assertEquals(exception, e.getCause());
+                segrepTarget.fail(new OpenSearchException(e), false);
             }
         });
     }
@@ -356,7 +346,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 ReplicationCheckpoint checkpoint,
                 ActionListener<CheckpointInfoResponse> listener
             ) {
-                listener.onResponse(new CheckpointInfoResponse(checkpoint, SI_SNAPSHOT, buffer.toArrayCopy(), Set.of(PENDING_DELETE_FILE)));
+                listener.onResponse(new CheckpointInfoResponse(checkpoint, SI_SNAPSHOT, buffer.toArrayCopy()));
             }
 
             @Override
@@ -374,7 +364,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
             SegmentReplicationTargetService.SegmentReplicationListener.class
         );
         segrepTarget = spy(new SegmentReplicationTarget(repCheckpoint, indexShard, segrepSource, segRepListener));
-        when(segrepTarget.getMetadataSnapshot()).thenReturn(SI_SNAPSHOT_DIFFERENT);
+        when(segrepTarget.getMetadataMap()).thenReturn(SI_SNAPSHOT_DIFFERENT);
         segrepTarget.startReplication(new ActionListener<Void>() {
             @Override
             public void onResponse(Void replicationResponse) {
@@ -384,6 +374,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
             @Override
             public void onFailure(Exception e) {
                 assert (e instanceof IllegalStateException);
+                segrepTarget.fail(new OpenSearchException(e), false);
             }
         });
     }
@@ -406,9 +397,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 ReplicationCheckpoint checkpoint,
                 ActionListener<CheckpointInfoResponse> listener
             ) {
-                listener.onResponse(
-                    new CheckpointInfoResponse(checkpoint, storeMetadataSnapshots.get(1), buffer.toArrayCopy(), Set.of(PENDING_DELETE_FILE))
-                );
+                listener.onResponse(new CheckpointInfoResponse(checkpoint, storeMetadataSnapshots.get(1).asMap(), buffer.toArrayCopy()));
             }
 
             @Override
@@ -427,16 +416,18 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
         );
 
         segrepTarget = spy(new SegmentReplicationTarget(repCheckpoint, indexShard, segrepSource, segRepListener));
-        when(segrepTarget.getMetadataSnapshot()).thenReturn(storeMetadataSnapshots.get(0));
+        when(segrepTarget.getMetadataMap()).thenReturn(storeMetadataSnapshots.get(0).asMap());
         segrepTarget.startReplication(new ActionListener<Void>() {
             @Override
             public void onResponse(Void replicationResponse) {
                 logger.info("No error processing checkpoint info");
+                segrepTarget.markAsDone();
             }
 
             @Override
             public void onFailure(Exception e) {
-                assert (e instanceof IllegalStateException);
+                logger.error("Unexpected onFailure", e);
+                Assert.fail();
             }
         });
     }
@@ -448,7 +439,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
      * @return
      * @throws IOException
      */
-    List<Store.MetadataSnapshot> generateStoreMetadataSnapshot(int docCount) throws IOException {
+    private List<Store.MetadataSnapshot> generateStoreMetadataSnapshot(int docCount) throws IOException {
         List<Document> docList = new ArrayList<>();
         for (int i = 0; i < docCount; i++) {
             Document document = new Document();
@@ -480,7 +471,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
         return Arrays.asList(storeMetadata, storeMetadataWithDeletes);
     }
 
-    public static void deleteContent(Directory directory) throws IOException {
+    private static void deleteContent(Directory directory) throws IOException {
         final String[] files = directory.listAll();
         final List<IOException> exceptions = new ArrayList<>();
         for (String file : files) {
@@ -498,7 +489,6 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
     @Override
     public void tearDown() throws Exception {
         super.tearDown();
-        segrepTarget.markAsDone();
         closeShards(spyIndexShard, indexShard);
     }
 }
