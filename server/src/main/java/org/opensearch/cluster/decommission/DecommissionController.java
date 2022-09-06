@@ -143,7 +143,7 @@ public class DecommissionController {
         clusterService.submitStateUpdateTasks(
             "node-decommissioned",
             nodesDecommissionTasks,
-            ClusterStateTaskConfig.build(Priority.IMMEDIATE),
+            ClusterStateTaskConfig.build(Priority.URGENT),
             nodeRemovalExecutor
         );
 
@@ -170,7 +170,7 @@ public class DecommissionController {
 
             @Override
             public void onClusterServiceClose() {
-                logger.debug("cluster service closed while waiting for removal of decommissioned nodes.");
+                logger.warn("cluster service closed while waiting for removal of decommissioned nodes.");
             }
 
             @Override
@@ -178,7 +178,8 @@ public class DecommissionController {
                 logger.info("timed out while waiting for removal of decommissioned nodes");
                 nodesRemovedListener.onFailure(
                     new OpenSearchTimeoutException(
-                        "timed out waiting for removal of decommissioned nodes [{}] to take effect",
+                        "timed out [{}] while waiting for removal of decommissioned nodes [{}] to take effect",
+                        timeout.toString(),
                         nodesToBeDecommissioned.toString()
                     )
                 );
@@ -226,9 +227,11 @@ public class DecommissionController {
             case DECOMMISSION_SUCCESSFUL:
                 // if the new status is SUCCESSFUL, the old status has to be IN_PROGRESS
                 return oldStatus.equals(DecommissionStatus.DECOMMISSION_IN_PROGRESS);
-            default:
+            case DECOMMISSION_FAILED:
                 // if the new status is FAILED, we don't need to assert for previous state
                 return true;
+            default:
+                throw new IllegalStateException("unexpected status [" + newStatus.status() + "] requested to update");
         }
     }
 }
