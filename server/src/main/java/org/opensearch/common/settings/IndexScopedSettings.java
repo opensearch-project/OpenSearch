@@ -61,6 +61,7 @@ import org.opensearch.indices.IndicesRequestCache;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -217,11 +218,11 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
      * is ready for production release, the feature flag can be removed, and the
      * setting should be moved to {@link #BUILT_IN_INDEX_SETTINGS}.
      */
-    public static final Map<String, Setting> FEATURE_FLAGGED_INDEX_SETTINGS = Map.of(
+    public static final Map<String, List<Setting>> FEATURE_FLAGGED_INDEX_SETTINGS = Map.of(
         FeatureFlags.REPLICATION_TYPE,
-        IndexMetadata.INDEX_REPLICATION_TYPE_SETTING,
+        Collections.singletonList(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING),
         FeatureFlags.REMOTE_STORE,
-        IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING
+        Arrays.asList(IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING, IndexMetadata.INDEX_REMOTE_STORE_REPOSITORY_SETTING)
     );
 
     public static final IndexScopedSettings DEFAULT_SCOPED_SETTINGS = new IndexScopedSettings(Settings.EMPTY, BUILT_IN_INDEX_SETTINGS);
