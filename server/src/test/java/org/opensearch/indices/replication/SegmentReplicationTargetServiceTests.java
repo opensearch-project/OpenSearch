@@ -15,6 +15,7 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
@@ -29,6 +30,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.doAnswer;
@@ -37,6 +39,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.eq;
+import static org.opensearch.indices.replication.SegmentReplicationState.Stage.CANCELLED;
 
 public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
 
@@ -215,24 +218,25 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         // Mocking response when startReplication is called on targetSpy we send a new checkpoint to serviceSpy and later reduce countdown
         // of latch.
         doAnswer(invocation -> {
-            final ActionListener<Void> listener = invocation.getArgument(0);
+            // short circuit loop on new checkpoint request
+            doReturn(null).when(serviceSpy).startReplication(eq(newPrimaryCheckpoint), eq(replicaShard), any());
             // a new checkpoint arrives before we've completed.
             serviceSpy.onNewCheckpoint(newPrimaryCheckpoint, replicaShard);
-            listener.onResponse(null);
-            latch.countDown();
+            try {
+                invocation.callRealMethod();
+            } catch (CancellableThreads.ExecutionCancelledException e) {
+                latch.countDown();
+            }
             return null;
         }).when(targetSpy).startReplication(any());
-        doNothing().when(targetSpy).onDone();
 
         // start replication. This adds the target to on-ongoing replication collection
         serviceSpy.startReplication(targetSpy);
-
+        latch.await();
         // wait for the new checkpoint to arrive, before the listener completes.
-        latch.await(5, TimeUnit.SECONDS);
-        doNothing().when(targetSpy).startReplication(any());
+        assertEquals(CANCELLED, targetSpy.state().getStage());
         verify(targetSpy, times(1)).cancel("Cancelling stuck target after new primary");
         verify(serviceSpy, times(1)).startReplication(eq(newPrimaryCheckpoint), eq(replicaShard), any());
-        closeShards(replicaShard);
     }
 
     public void testNewCheckpointBehindCurrentCheckpoint() {

@@ -1207,6 +1207,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                             copyState.getPendingDeleteFiles()
                         )
                     );
+                    copyState.decRef();
                 } catch (IOException e) {
                     logger.error("Unexpected error computing CopyState", e);
                     Assert.fail("Failed to compute copyState");
