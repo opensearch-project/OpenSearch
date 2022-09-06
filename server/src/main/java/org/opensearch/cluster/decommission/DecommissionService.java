@@ -127,7 +127,7 @@ public class DecommissionService {
 
         DecommissionAttributeMetadata decommissionAttributeMetadata = state.metadata().custom(DecommissionAttributeMetadata.TYPE);
         // validates that there's no inflight decommissioning or already executed decommission in place
-        ensureNoAwarenessAttributeDecommissioned(decommissionAttributeMetadata, decommissionAttribute);
+        ensureNoInflightDifferentDecommissionRequest(decommissionAttributeMetadata, decommissionAttribute);
 
         logger.info("initiating awareness attribute [{}] decommissioning", decommissionAttribute.toString());
 
@@ -214,7 +214,7 @@ public class DecommissionService {
                     Metadata metadata = currentState.metadata();
                     Metadata.Builder mdBuilder = Metadata.builder(metadata);
                     DecommissionAttributeMetadata decommissionAttributeMetadata = metadata.custom(DecommissionAttributeMetadata.TYPE);
-                    ensureNoAwarenessAttributeDecommissioned(decommissionAttributeMetadata, decommissionAttribute);
+                    ensureNoInflightDifferentDecommissionRequest(decommissionAttributeMetadata, decommissionAttribute);
                     decommissionAttributeMetadata = new DecommissionAttributeMetadata(decommissionAttribute);
                     mdBuilder.putCustom(DecommissionAttributeMetadata.TYPE, decommissionAttributeMetadata);
                     logger.info(
@@ -401,17 +401,28 @@ public class DecommissionService {
         }
     }
 
-    private static void ensureNoAwarenessAttributeDecommissioned(
+    private static void ensureNoInflightDifferentDecommissionRequest(
         DecommissionAttributeMetadata decommissionAttributeMetadata,
         DecommissionAttribute decommissionAttribute
     ) {
-        // If the previous decommission request failed, we will allow the request to pass this check
-        if (decommissionAttributeMetadata != null
-            && !decommissionAttributeMetadata.status().equals(DecommissionStatus.DECOMMISSION_FAILED)) {
-            throw new DecommissioningFailedException(
-                decommissionAttribute,
-                "one awareness attribute already decommissioned, recommission before triggering another decommission"
-            );
+        String msg = null;
+        if (decommissionAttributeMetadata!=null) {
+            if (decommissionAttributeMetadata.status().equals(DecommissionStatus.DECOMMISSION_SUCCESSFUL)) {
+                // one awareness attribute is already decommissioned. We will reject the new request
+                msg = "one awareness attribute already successfully decommissioned. Recommission before triggering another decommission";
+            } else if (decommissionAttributeMetadata.status().equals(DecommissionStatus.DECOMMISSION_FAILED)) {
+                // here we are sure that the previous decommission request failed, we can let this request pass this check
+                return;
+            } else {
+                // it means the decommission has been initiated or is inflight. In that case, if the same attribute is requested for decommissioning,
+                // which can happen during retries, we will pass this check, if not, we will throw exception
+                if (!decommissionAttributeMetadata.decommissionAttribute().equals(decommissionAttribute)) {
+                    msg = "another request for decommission is in flight, will not process this request";
+                }
+            }
+        }
+        if (msg != null) {
+            throw new DecommissioningFailedException(decommissionAttribute, msg);
         }
     }
 
