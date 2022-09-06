@@ -50,6 +50,7 @@ import java.util.Locale;
 @Plugin(category = PatternConverter.CATEGORY, name = "NodeAndClusterIdConverter")
 @ConverterKeys({ "node_and_cluster_id" })
 public final class NodeAndClusterIdConverter extends LogEventPatternConverter {
+    static final String ENABLED_SYSTEM_PROPERTY = "org.opensearch.common.logging.NodeAndClusterIdConverter.enabled";
     private static final SetOnce<String> nodeAndClusterId = new SetOnce<>();
 
     /**
@@ -71,7 +72,9 @@ public final class NodeAndClusterIdConverter extends LogEventPatternConverter {
      * @param clusterUUID a clusterId received from cluster state update
      */
     public static void setNodeIdAndClusterId(String nodeId, String clusterUUID) {
-        nodeAndClusterId.set(formatIds(clusterUUID, nodeId));
+        if (isEnabled()) {
+            nodeAndClusterId.set(formatIds(clusterUUID, nodeId));
+        }
     }
 
     /**
@@ -89,5 +92,10 @@ public final class NodeAndClusterIdConverter extends LogEventPatternConverter {
 
     private static String formatIds(String clusterUUID, String nodeId) {
         return String.format(Locale.ROOT, "\"cluster.uuid\": \"%s\", \"node.id\": \"%s\"", clusterUUID, nodeId);
+    }
+
+    private static boolean isEnabled() {
+        String enabled = System.getProperty(ENABLED_SYSTEM_PROPERTY, "true");
+        return Boolean.valueOf(enabled);
     }
 }
