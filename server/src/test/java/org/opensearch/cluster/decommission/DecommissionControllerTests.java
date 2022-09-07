@@ -237,7 +237,7 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
         final CountDownLatch countDownLatch = new CountDownLatch(1);
         DecommissionAttributeMetadata oldMetadata = new DecommissionAttributeMetadata(
             new DecommissionAttribute("zone", "zone-1"),
-            DecommissionStatus.DECOMMISSION_IN_PROGRESS
+            DecommissionStatus.IN_PROGRESS
         );
         ClusterState state = clusterService.state();
         Metadata metadata = state.metadata();
@@ -246,9 +246,9 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
         state = ClusterState.builder(state).metadata(mdBuilder).build();
         setState(clusterService, state);
 
-        decommissionController.updateMetadataWithDecommissionStatus(DecommissionStatus.DECOMMISSION_SUCCESSFUL, new ActionListener<Void>() {
+        decommissionController.updateMetadataWithDecommissionStatus(DecommissionStatus.SUCCESSFUL, new ActionListener<DecommissionStatus>() {
             @Override
-            public void onResponse(Void unused) {
+            public void onResponse(DecommissionStatus status) {
                 countDownLatch.countDown();
             }
 
@@ -260,7 +260,7 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
         ClusterState newState = clusterService.getClusterApplierService().state();
         DecommissionAttributeMetadata decommissionAttributeMetadata = newState.metadata().custom(DecommissionAttributeMetadata.TYPE);
-        assertEquals(decommissionAttributeMetadata.status(), DecommissionStatus.DECOMMISSION_SUCCESSFUL);
+        assertEquals(decommissionAttributeMetadata.status(), DecommissionStatus.SUCCESSFUL);
     }
 
     private ClusterState addNodes(ClusterState clusterState, String zone, String... nodeIds) {

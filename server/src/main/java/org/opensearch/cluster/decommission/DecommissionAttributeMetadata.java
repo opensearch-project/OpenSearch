@@ -50,12 +50,12 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
     }
 
     /**
-     * Constructs new decommission attribute metadata with status as {@link DecommissionStatus#DECOMMISSION_INIT}
+     * Constructs new decommission attribute metadata with status as {@link DecommissionStatus#INIT}
      *
      * @param decommissionAttribute attribute details
      */
     public DecommissionAttributeMetadata(DecommissionAttribute decommissionAttribute) {
-        this(decommissionAttribute, DecommissionStatus.DECOMMISSION_INIT);
+        this(decommissionAttribute, DecommissionStatus.INIT);
     }
 
     /**

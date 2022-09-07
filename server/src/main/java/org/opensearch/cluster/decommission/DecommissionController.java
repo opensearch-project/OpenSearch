@@ -37,11 +37,12 @@ import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.Iterator;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 /**
  * Helper controller class to remove list of nodes from the cluster and update status
@@ -135,7 +136,7 @@ public class DecommissionController {
         TimeValue timeout,
         ActionListener<Void> nodesRemovedListener
     ) {
-        final Map<NodeRemovalClusterStateTaskExecutor.Task, ClusterStateTaskListener> nodesDecommissionTasks = new LinkedHashMap<>();
+        final Map<NodeRemovalClusterStateTaskExecutor.Task, ClusterStateTaskListener> nodesDecommissionTasks = new LinkedHashMap<>(nodesToBeDecommissioned.size());
         nodesToBeDecommissioned.forEach(discoveryNode -> {
             final NodeRemovalClusterStateTaskExecutor.Task task = new NodeRemovalClusterStateTaskExecutor.Task(discoveryNode, reason);
             nodesDecommissionTasks.put(task, nodeRemovalExecutor);
@@ -148,15 +149,10 @@ public class DecommissionController {
         );
 
         Predicate<ClusterState> allDecommissionedNodesRemovedPredicate = clusterState -> {
-            Iterator<DiscoveryNode> nodesIter = clusterState.nodes().getNodes().valuesIt();
-            while (nodesIter.hasNext()) {
-                final DiscoveryNode node = nodesIter.next();
-                // check if the node is part of node decommissioned list
-                if (nodesToBeDecommissioned.contains(node)) {
-                    return false;
-                }
-            }
-            return true;
+            Set<DiscoveryNode> intersection = Arrays.stream(
+                clusterState.nodes().getNodes().values().toArray(DiscoveryNode.class)).collect(Collectors.toSet());
+            intersection.retainAll(nodesToBeDecommissioned);
+            return intersection.size() == 0;
         };
 
         final ClusterStateObserver observer = new ClusterStateObserver(clusterService, timeout, logger, threadPool.getThreadContext());
@@ -187,14 +183,25 @@ public class DecommissionController {
         }, allDecommissionedNodesRemovedPredicate);
     }
 
-    public void updateMetadataWithDecommissionStatus(DecommissionStatus decommissionStatus, ActionListener<Void> listener) {
+    public void updateMetadataWithDecommissionStatus(DecommissionStatus decommissionStatus, ActionListener<DecommissionStatus> listener) {
         clusterService.submitStateUpdateTask(decommissionStatus.status(), new ClusterStateUpdateTask(Priority.URGENT) {
             @Override
-            public ClusterState execute(ClusterState currentState) {
+            public ClusterState execute(ClusterState currentState) throws Exception {
                 Metadata metadata = currentState.metadata();
                 DecommissionAttributeMetadata decommissionAttributeMetadata = metadata.custom(DecommissionAttributeMetadata.TYPE);
                 assert decommissionAttributeMetadata != null && decommissionAttributeMetadata.decommissionAttribute() != null;
-                assert assertStatusTransitionOrFailed(decommissionAttributeMetadata.status(), decommissionStatus);
+                // we need to update the status only when the previous stage is just behind than expected stage
+                // if the previous stage is already ahead of expected stage, we don't need to update the stage
+                // For failures, we update it no matter what
+                int previousStage = decommissionAttributeMetadata.status().stage();
+                int expectedStage = decommissionStatus.stage();
+                if (previousStage >= expectedStage) return currentState;
+                if (expectedStage - previousStage != 1 && !decommissionStatus.equals(DecommissionStatus.FAILED)) {
+                    throw new DecommissioningFailedException(
+                        decommissionAttributeMetadata.decommissionAttribute(),
+                        "invalid previous decommission status found while updating status"
+                    );
+                }
                 Metadata.Builder mdBuilder = Metadata.builder(metadata);
                 DecommissionAttributeMetadata newMetadata = decommissionAttributeMetadata.withUpdatedStatus(decommissionStatus);
                 mdBuilder.putCustom(DecommissionAttributeMetadata.TYPE, newMetadata);
@@ -208,30 +215,10 @@ public class DecommissionController {
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                DecommissionAttributeMetadata decommissionAttributeMetadata = newState.metadata()
-                    .custom(DecommissionAttributeMetadata.TYPE);
-                assert decommissionAttributeMetadata.status().equals(decommissionStatus);
-                listener.onResponse(null);
+                DecommissionAttributeMetadata decommissionAttributeMetadata = newState.metadata().custom(DecommissionAttributeMetadata.TYPE);
+                logger.info("updated decommission status to [{}]", decommissionAttributeMetadata.status());
+                listener.onResponse(decommissionAttributeMetadata.status());
             }
         });
-    }
-
-    private static boolean assertStatusTransitionOrFailed(DecommissionStatus oldStatus, DecommissionStatus newStatus) {
-        switch (newStatus) {
-            case DECOMMISSION_INIT:
-                // if the new status is INIT, then the old status cannot be anything but FAILED
-                return oldStatus.equals(DecommissionStatus.DECOMMISSION_FAILED);
-            case DECOMMISSION_IN_PROGRESS:
-                // if the new status is IN_PROGRESS, the old status has to be INIT
-                return oldStatus.equals(DecommissionStatus.DECOMMISSION_INIT);
-            case DECOMMISSION_SUCCESSFUL:
-                // if the new status is SUCCESSFUL, the old status has to be IN_PROGRESS
-                return oldStatus.equals(DecommissionStatus.DECOMMISSION_IN_PROGRESS);
-            case DECOMMISSION_FAILED:
-                // if the new status is FAILED, we don't need to assert for previous state
-                return true;
-            default:
-                throw new IllegalStateException("unexpected status [" + newStatus.status() + "] requested to update");
-        }
     }
 }

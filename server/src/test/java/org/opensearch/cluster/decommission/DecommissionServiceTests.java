@@ -146,7 +146,7 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
     public void testDecommissioningNotInitiatedWhenAlreadyDecommissioned() {
         DecommissionAttributeMetadata oldMetadata = new DecommissionAttributeMetadata(
             new DecommissionAttribute("zone", "zone_1"),
-            DecommissionStatus.DECOMMISSION_IN_PROGRESS
+            DecommissionStatus.IN_PROGRESS
         );
         final ClusterState.Builder builder = builder(clusterService.state());
         setState(

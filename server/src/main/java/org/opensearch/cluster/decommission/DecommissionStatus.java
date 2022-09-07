@@ -15,24 +15,30 @@ public enum DecommissionStatus {
     /**
      * Decommission process is initiated
      */
-    DECOMMISSION_INIT("decommission_init"),
+    INIT("init", 0),
     /**
-     * Decommission process has started, decommissioned nodes should be weighed away
+     * Exclude cluster manager from Voting Configuration
      */
-    DECOMMISSION_IN_PROGRESS("decommission_in_progress"),
+    EXCLUDE_LEADER_FROM_VOTING_CONFIG("exclude_leader_from_voting_config", 2),
     /**
-     * Decommissioning awareness attribute completed
+     * Decommission process has started, decommissioned nodes should be removed
      */
-    DECOMMISSION_SUCCESSFUL("decommission_successful"),
+    IN_PROGRESS("in_progress", 3),
+    /**
+     * Decommission action completed
+     */
+    SUCCESSFUL("successful", 4),
     /**
      * Decommission request failed
      */
-    DECOMMISSION_FAILED("decommission_failed");
+    FAILED("failed", -1);
 
     private final String status;
+    private final int stage;
 
-    DecommissionStatus(String status) {
+    DecommissionStatus(String status, int stage) {
         this.status = status;
+        this.stage = stage;
     }
 
     /**
@@ -45,6 +51,13 @@ public enum DecommissionStatus {
     }
 
     /**
+     * Returns stage that represents the decommission stage
+     */
+    public int stage() {
+        return stage;
+    }
+
+    /**
      * Generate decommission status from given string
      *
      * @param status status in string
@@ -54,15 +67,38 @@ public enum DecommissionStatus {
         if (status == null) {
             throw new IllegalArgumentException("decommission status cannot be null");
         }
-        if (status.equals(DECOMMISSION_INIT.status())) {
-            return DECOMMISSION_INIT;
-        } else if (status.equals(DECOMMISSION_IN_PROGRESS.status())) {
-            return DECOMMISSION_IN_PROGRESS;
-        } else if (status.equals(DECOMMISSION_SUCCESSFUL.status())) {
-            return DECOMMISSION_SUCCESSFUL;
-        } else if (status.equals(DECOMMISSION_FAILED.status())) {
-            return DECOMMISSION_FAILED;
+        if (status.equals(INIT.status())) {
+            return INIT;
+        } else if (status.equals(EXCLUDE_LEADER_FROM_VOTING_CONFIG.status())) {
+            return EXCLUDE_LEADER_FROM_VOTING_CONFIG;
+        } else if (status.equals(IN_PROGRESS.status())) {
+            return IN_PROGRESS;
+        } else if (status.equals(SUCCESSFUL.status())) {
+            return SUCCESSFUL;
+        } else if (status.equals(FAILED.status())) {
+            return FAILED;
         }
         throw new IllegalStateException("Decommission status [" + status + "] not recognized.");
+    }
+
+    /**
+     * Generate decommission status from given stage
+     *
+     * @param stage stage in int
+     * @return status
+     */
+    public static DecommissionStatus fromStage(int stage) {
+        if (stage == INIT.stage()) {
+            return INIT;
+        } else if (stage == EXCLUDE_LEADER_FROM_VOTING_CONFIG.stage()) {
+            return EXCLUDE_LEADER_FROM_VOTING_CONFIG;
+        } else if (stage == IN_PROGRESS.stage()) {
+            return IN_PROGRESS;
+        } else if (stage == SUCCESSFUL.stage()) {
+            return SUCCESSFUL;
+        } else if (stage == FAILED.stage()) {
+            return FAILED;
+        }
+        throw new IllegalStateException("Decommission stage [" + stage + "] not recognized.");
     }
 }

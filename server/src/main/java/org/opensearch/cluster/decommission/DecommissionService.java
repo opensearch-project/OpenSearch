@@ -48,11 +48,11 @@ import static org.opensearch.cluster.routing.allocation.decider.AwarenessAllocat
  * the service makes the best attempt to perform the following task -
  * <ul>
  * <li>Remove cluster-manager eligible nodes from voting config [TODO - checks to avoid quorum loss scenarios]</li>
- * <li>Initiates nodes decommissioning by adding custom metadata with the attribute and state as {@link DecommissionStatus#DECOMMISSION_INIT}</li>
- * <li>Triggers weigh away for nodes having given awareness attribute to drain. This marks the decommission status as {@link DecommissionStatus#DECOMMISSION_IN_PROGRESS}</li>
+ * <li>Initiates nodes decommissioning by adding custom metadata with the attribute and state as {@link DecommissionStatus#INIT}</li>
+ * <li>Triggers weigh away for nodes having given awareness attribute to drain. This marks the decommission status as {@link DecommissionStatus#IN_PROGRESS}</li>
  * <li>Once weighed away, the service triggers nodes decommission</li>
- * <li>Once the decommission is successful, the service clears the voting config and marks the status as {@link DecommissionStatus#DECOMMISSION_SUCCESSFUL}</li>
- * <li>If service fails at any step, it would mark the status as {@link DecommissionStatus#DECOMMISSION_FAILED}</li>
+ * <li>Once the decommission is successful, the service clears the voting config and marks the status as {@link DecommissionStatus#SUCCESSFUL}</li>
+ * <li>If service fails at any step, it would mark the status as {@link DecommissionStatus#FAILED}</li>
  * </ul>
  *
  * @opensearch.internal
@@ -107,44 +107,130 @@ public class DecommissionService {
         this.forcedAwarenessAttributes = forcedAwarenessAttributes;
     }
 
-    public void initiateAttributeDecommissioning(
+    /**
+     * Starts the new decommission request and registers the metadata with status as {@link DecommissionStatus#INIT}
+     * or the last known status if not {@link DecommissionStatus#FAILED}
+     * Once the status is updated, it tries to exclude to-be-decommissioned cluster manager nodes from Voting Configuration
+     *
+     * @param decommissionAttribute register decommission attribute in the metadata request
+     * @param listener register decommission listener
+     */
+    public synchronized void startDecommissionAction(
         final DecommissionAttribute decommissionAttribute,
-        final ActionListener<ClusterStateUpdateResponse> listener,
-        ClusterState state
+        final ActionListener<ClusterStateUpdateResponse> listener
     ) {
-        // validates if the correct awareness attributes and forced awareness attribute set to the cluster before initiating decommission
-        // action
+        // validates if correct awareness attributes and forced awareness attribute set to the cluster before starting action
         validateAwarenessAttribute(decommissionAttribute, awarenessAttributes, forcedAwarenessAttributes);
 
-        Set<DiscoveryNode> clusterManagerNodesToBeDecommissioned = filterNodesWithDecommissionAttribute(state, decommissionAttribute, true);
-        ensureNoQuorumLossDueToDecommissioning(
-            decommissionAttribute,
-            clusterManagerNodesToBeDecommissioned,
-            state.getLastAcceptedConfiguration()
+        // register the metadata with status as DECOMMISSION_INIT as first step
+        clusterService.submitStateUpdateTask(
+            "decommission [" + decommissionAttribute + "]",
+            new ClusterStateUpdateTask(Priority.URGENT) {
+                @Override
+                public ClusterState execute(ClusterState currentState) throws Exception {
+                    Metadata metadata = currentState.metadata();
+                    Metadata.Builder mdBuilder = Metadata.builder(metadata);
+                    DecommissionAttributeMetadata decommissionAttributeMetadata = metadata.custom(DecommissionAttributeMetadata.TYPE);
+                    // check if the same attribute is requested for decommission and currently not FAILED, then return the current state as is
+                    if(decommissionAttributeMetadata!=null &&
+                        decommissionAttributeMetadata.decommissionAttribute().equals(decommissionAttribute) &&
+                        !decommissionAttributeMetadata.status().equals(DecommissionStatus.FAILED)) {
+                        logger.info("re-request received for decommissioning [{}], will not update state", decommissionAttribute);
+                        return currentState;
+                    }
+                    // check the request sanity and reject the request if there's any inflight or successful request already present
+                    ensureNoInflightDifferentDecommissionRequest(decommissionAttributeMetadata, decommissionAttribute);
+                    decommissionAttributeMetadata = new DecommissionAttributeMetadata(decommissionAttribute);
+                    mdBuilder.putCustom(DecommissionAttributeMetadata.TYPE, decommissionAttributeMetadata);
+                    logger.info(
+                        "registering decommission metadata [{}] to execute action",
+                        decommissionAttributeMetadata.toString()
+                    );
+                    return ClusterState.builder(currentState).metadata(mdBuilder).build();
+                }
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                    if (e instanceof NotClusterManagerException) {
+                        logger.debug(
+                            () -> new ParameterizedMessage(
+                                "cluster-manager updated while executing request for decommission attribute [{}]",
+                                decommissionAttribute.toString()
+                            ),
+                            e
+                        );
+                        // we don't want to send the failure response to the listener here as the request will be retried
+                    } else {
+                        logger.error(
+                            () -> new ParameterizedMessage(
+                                "failed to start decommission action for attribute [{}]",
+                                decommissionAttribute.toString()
+                            ),
+                            e
+                        );
+                        listener.onFailure(e);
+                    }
+                }
+
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    DecommissionAttributeMetadata decommissionAttributeMetadata = newState.metadata()
+                        .custom(DecommissionAttributeMetadata.TYPE);
+                    assert decommissionAttribute.equals(decommissionAttributeMetadata.decommissionAttribute());
+                    listener.onResponse(new ClusterStateUpdateResponse(true));
+                    if (!decommissionAttributeMetadata.status().equals(DecommissionStatus.SUCCESSFUL)) {
+                        decommissionClusterManagerNodes(decommissionAttributeMetadata.decommissionAttribute());
+                    }
+                }
+            }
         );
+    }
 
-        DecommissionAttributeMetadata decommissionAttributeMetadata = state.metadata().custom(DecommissionAttributeMetadata.TYPE);
-        // validates that there's no inflight decommissioning or already executed decommission in place
-        ensureNoInflightDifferentDecommissionRequest(decommissionAttributeMetadata, decommissionAttribute);
+    private void decommissionClusterManagerNodes(final DecommissionAttribute decommissionAttribute) {
+        decommissionController.updateMetadataWithDecommissionStatus(
+            DecommissionStatus.EXCLUDE_LEADER_FROM_VOTING_CONFIG,
+            new ActionListener<DecommissionStatus>() {
+                @Override
+                public void onResponse(DecommissionStatus status) {
+                    ClusterState state = clusterService.getClusterApplierService().state();
+                    Set<DiscoveryNode> clusterManagerNodesToBeDecommissioned = filterNodesWithDecommissionAttribute(
+                        state, decommissionAttribute, true
+                    );
+                    ensureNoQuorumLossDueToDecommissioning(
+                        decommissionAttribute,
+                        clusterManagerNodesToBeDecommissioned,
+                        state.getLastCommittedConfiguration()
+                    );
+                    // remove all 'to-be-decommissioned' cluster manager eligible nodes from voting config
+                    // The method ensures that we don't exclude same nodes multiple times
+                    excludeDecommissionedClusterManagerNodesFromVotingConfig(clusterManagerNodesToBeDecommissioned);
+                    // explicitly throwing NotClusterManagerException as we can certainly say the local cluster manager node will
+                    // be abdicated and soon will no longer be cluster manager.
+                    if (transportService.getLocalNode().isClusterManagerNode()
+                        && !nodeHasDecommissionedAttribute(transportService.getLocalNode(), decommissionAttribute)) {
+                        failDecommissionedNodes(clusterService.getClusterApplierService().state());
+                    } else {
+                        throw new NotClusterManagerException(
+                            "node ["
+                                + transportService.getLocalNode().toString()
+                                + "] not eligible to execute decommission request. Will retry until timeout."
+                        );
+                    }
+                }
 
-        logger.info("initiating awareness attribute [{}] decommissioning", decommissionAttribute.toString());
-
-        // remove all 'to-be-decommissioned' cluster manager eligible nodes from voting config
-        // The method ensures that we don't exclude same nodes multiple times
-        excludeDecommissionedClusterManagerNodesFromVotingConfig(clusterManagerNodesToBeDecommissioned);
-
-        // explicitly throwing NotClusterManagerException as we can certainly say the local cluster manager node will
-        // be abdicated and soon will no longer be cluster manager.
-        if (transportService.getLocalNode().isClusterManagerNode()
-            && !nodeHasDecommissionedAttribute(transportService.getLocalNode(), decommissionAttribute)) {
-            registerDecommissionAttribute(decommissionAttribute, listener);
-        } else {
-            throw new NotClusterManagerException(
-                "node ["
-                    + transportService.getLocalNode().toString()
-                    + "] not eligible to execute decommission request. Will retry until timeout."
-            );
-        }
+                @Override
+                public void onFailure(Exception e) {
+                    logger.error(
+                        () -> new ParameterizedMessage(
+                            "failed to update decommission status for attribute [{}] to [{}]",
+                            decommissionAttribute.toString(),
+                            DecommissionStatus.EXCLUDE_LEADER_FROM_VOTING_CONFIG
+                        ),
+                        e
+                    );
+                }
+            }
+        );
     }
 
     private void excludeDecommissionedClusterManagerNodesFromVotingConfig(Set<DiscoveryNode> clusterManagerNodesToBeDecommissioned) {
@@ -189,141 +275,44 @@ public class DecommissionService {
         );
     }
 
-    /**
-     * Registers new decommissioned attribute metadata in the cluster state with {@link DecommissionStatus#DECOMMISSION_INIT}
-     * <p>
-     * This method can be only called on the cluster-manager node. It tries to create a new decommissioned attribute on the cluster manager
-     * and if it was successful it adds new decommissioned attribute to cluster metadata.
-     * <p>
-     * This method would only be executed on eligible cluster manager node
-     *
-     * @param decommissionAttribute register decommission attribute in the metadata request
-     * @param listener              register decommission listener
-     */
-    private void registerDecommissionAttribute(
-        final DecommissionAttribute decommissionAttribute,
-        final ActionListener<ClusterStateUpdateResponse> listener
-    ) {
-        clusterService.submitStateUpdateTask(
-            "put_decommission [" + decommissionAttribute + "]",
-            new ClusterStateUpdateTask(Priority.URGENT) {
-                @Override
-                public ClusterState execute(ClusterState currentState) {
-                    Metadata metadata = currentState.metadata();
-                    Metadata.Builder mdBuilder = Metadata.builder(metadata);
-                    DecommissionAttributeMetadata decommissionAttributeMetadata = metadata.custom(DecommissionAttributeMetadata.TYPE);
-                    ensureNoInflightDifferentDecommissionRequest(decommissionAttributeMetadata, decommissionAttribute);
-                    decommissionAttributeMetadata = new DecommissionAttributeMetadata(decommissionAttribute);
-                    mdBuilder.putCustom(DecommissionAttributeMetadata.TYPE, decommissionAttributeMetadata);
-                    logger.info(
-                        "registering decommission metadata for attribute [{}] with status as [{}]",
-                        decommissionAttribute.toString(),
-                        DecommissionStatus.DECOMMISSION_INIT
-                    );
-                    return ClusterState.builder(currentState).metadata(mdBuilder).build();
-                }
-
-                @Override
-                public void onFailure(String source, Exception e) {
-                    if (e instanceof NotClusterManagerException) {
-                        logger.debug(
-                            () -> new ParameterizedMessage(
-                                "cluster-manager updated while executing request for decommission attribute [{}]",
-                                decommissionAttribute.toString()
-                            ),
-                            e
-                        );
-                        // we don't want to send the failure response to the listener here as the request will be retried
-                    } else {
-                        logger.error(
-                            () -> new ParameterizedMessage(
-                                "failed to initiate decommissioning for attribute [{}]",
-                                decommissionAttribute.toString()
-                            ),
-                            e
-                        );
-                        failAndClearVotingConfigExclusion(listener, e);
-                    }
-                }
-
-                @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                    DecommissionAttributeMetadata decommissionAttributeMetadata = newState.metadata()
-                        .custom(DecommissionAttributeMetadata.TYPE);
-                    assert decommissionAttribute.equals(decommissionAttributeMetadata.decommissionAttribute());
-                    assert DecommissionStatus.DECOMMISSION_INIT.equals(decommissionAttributeMetadata.status());
-                    listener.onResponse(new ClusterStateUpdateResponse(true));
-                    weighAwayForGracefulDecommission();
-                }
-            }
-        );
-    }
-
-    private void failAndClearVotingConfigExclusion(final ActionListener<ClusterStateUpdateResponse> listener, Exception e) {
-        decommissionController.clearVotingConfigExclusion(new ActionListener<Void>() {
-            @Override
-            public void onResponse(Void unused) {
-                logger.info("successfully cleared voting config exclusion after failing to execute decommission request");
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                logger.debug(
-                    new ParameterizedMessage("failure in clearing voting config exclusion after failing to execute decommission request"),
-                    e
-                );
-            }
-        });
-        listener.onFailure(e);
-    }
-
-    private void weighAwayForGracefulDecommission() {
+    private void failDecommissionedNodes(ClusterState state) {
+        DecommissionAttributeMetadata decommissionAttributeMetadata = state.metadata().custom(DecommissionAttributeMetadata.TYPE);
+        DecommissionAttribute decommissionAttribute = decommissionAttributeMetadata.decommissionAttribute();
         decommissionController.updateMetadataWithDecommissionStatus(
-            DecommissionStatus.DECOMMISSION_IN_PROGRESS,
-            new ActionListener<Void>() {
+            DecommissionStatus.IN_PROGRESS,
+            new ActionListener<DecommissionStatus>() {
                 @Override
-                public void onResponse(Void unused) {
-                    logger.info(
-                        "updated decommission status to [{}], weighing away awareness attribute for graceful shutdown",
-                        DecommissionStatus.DECOMMISSION_IN_PROGRESS
+                public void onResponse(DecommissionStatus status) {
+                    // execute nodes decommissioning
+                    decommissionController.removeDecommissionedNodes(
+                        filterNodesWithDecommissionAttribute(state, decommissionAttribute, false),
+                        "nodes-decommissioned",
+                        TimeValue.timeValueSeconds(30L), // TODO - read timeout from request while integrating with API
+                        new ActionListener<Void>() {
+                            @Override
+                            public void onResponse(Void unused) {
+                                clearVotingConfigExclusionAndUpdateStatus(true);
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                clearVotingConfigExclusionAndUpdateStatus(false);
+                            }
+                        }
                     );
-                    // TODO - should trigger weigh away here and on successful weigh away -> fail the decommissioned nodes
-                    failDecommissionedNodes(clusterService.getClusterApplierService().state());
                 }
 
                 @Override
                 public void onFailure(Exception e) {
                     logger.error(
                         () -> new ParameterizedMessage(
-                            "failed to update decommission status to [{}], will not proceed with decommission",
-                            DecommissionStatus.DECOMMISSION_IN_PROGRESS
+                            "failed to update decommission status for attribute [{}] to [{}]",
+                            decommissionAttribute.toString(),
+                            DecommissionStatus.IN_PROGRESS
                         ),
                         e
                     );
-                }
-            }
-        );
-    }
-
-    private void failDecommissionedNodes(ClusterState state) {
-        DecommissionAttributeMetadata decommissionAttributeMetadata = state.metadata().custom(DecommissionAttributeMetadata.TYPE);
-        assert decommissionAttributeMetadata.status().equals(DecommissionStatus.DECOMMISSION_IN_PROGRESS)
-            : "unexpected status encountered while decommissioning nodes";
-        DecommissionAttribute decommissionAttribute = decommissionAttributeMetadata.decommissionAttribute();
-
-        // execute nodes decommissioning
-        decommissionController.removeDecommissionedNodes(
-            filterNodesWithDecommissionAttribute(state, decommissionAttribute, false),
-            "nodes-decommissioned",
-            TimeValue.timeValueSeconds(30L), // TODO - read timeout from request while integrating with API
-            new ActionListener<Void>() {
-                @Override
-                public void onResponse(Void unused) {
-                    clearVotingConfigExclusionAndUpdateStatus(true);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
+                    // since we are not able to update the status, we will clear the voting config exclusion we have set earlier
                     clearVotingConfigExclusionAndUpdateStatus(false);
                 }
             }
@@ -331,18 +320,15 @@ public class DecommissionService {
     }
 
     private void clearVotingConfigExclusionAndUpdateStatus(boolean decommissionSuccessful) {
-        ActionListener<Void> statusUpdateListener = new ActionListener<Void>() {
+        ActionListener<DecommissionStatus> statusUpdateListener = new ActionListener<DecommissionStatus>() {
             @Override
-            public void onResponse(Void unused) {
-                logger.info(
-                    "successful updated decommission status with [{}]",
-                    decommissionSuccessful ? DecommissionStatus.DECOMMISSION_SUCCESSFUL : DecommissionStatus.DECOMMISSION_FAILED
-                );
+            public void onResponse(DecommissionStatus status) {
+                logger.info("completed decommission action");
             }
 
             @Override
             public void onFailure(Exception e) {
-                logger.error("failed to update the decommission status");
+                logger.error("failure encountered while executing decommission action");
             }
         };
         decommissionController.clearVotingConfigExclusion(new ActionListener<Void>() {
@@ -350,8 +336,8 @@ public class DecommissionService {
             public void onResponse(Void unused) {
                 logger.info("successfully cleared voting config exclusion after failing to execute decommission request");
                 DecommissionStatus updateStatusWith = decommissionSuccessful
-                    ? DecommissionStatus.DECOMMISSION_SUCCESSFUL
-                    : DecommissionStatus.DECOMMISSION_FAILED;
+                    ? DecommissionStatus.SUCCESSFUL
+                    : DecommissionStatus.FAILED;
                 decommissionController.updateMetadataWithDecommissionStatus(updateStatusWith, statusUpdateListener);
             }
 
@@ -361,7 +347,7 @@ public class DecommissionService {
                     new ParameterizedMessage("failure in clearing voting config exclusion after processing decommission request"),
                     e
                 );
-                decommissionController.updateMetadataWithDecommissionStatus(DecommissionStatus.DECOMMISSION_FAILED, statusUpdateListener);
+                decommissionController.updateMetadataWithDecommissionStatus(DecommissionStatus.FAILED, statusUpdateListener);
             }
         });
     }
@@ -418,10 +404,10 @@ public class DecommissionService {
     ) {
         String msg = null;
         if (decommissionAttributeMetadata != null) {
-            if (decommissionAttributeMetadata.status().equals(DecommissionStatus.DECOMMISSION_SUCCESSFUL)) {
+            if (decommissionAttributeMetadata.status().equals(DecommissionStatus.SUCCESSFUL)) {
                 // one awareness attribute is already decommissioned. We will reject the new request
                 msg = "one awareness attribute already successfully decommissioned. Recommission before triggering another decommission";
-            } else if (decommissionAttributeMetadata.status().equals(DecommissionStatus.DECOMMISSION_FAILED)) {
+            } else if (decommissionAttributeMetadata.status().equals(DecommissionStatus.FAILED)) {
                 // here we are sure that the previous decommission request failed, we can let this request pass this check
                 return;
             } else {
