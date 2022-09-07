@@ -8,7 +8,6 @@
 
 package org.opensearch.cluster.decommission;
 
-import org.hamcrest.MatcherAssert;
 import org.junit.After;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
@@ -19,8 +18,6 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
-
-import static org.hamcrest.Matchers.*;
 
 public class DecommissionServiceTests extends OpenSearchTestCase {
 
