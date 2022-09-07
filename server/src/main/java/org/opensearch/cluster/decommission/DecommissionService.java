@@ -49,28 +49,25 @@ public class DecommissionService {
     }
 
     public void clearDecommissionStatus(final ActionListener<ClusterStateUpdateResponse> listener) {
-        clusterService.submitStateUpdateTask(
-                "delete_decommission_state",
-                new ClusterStateUpdateTask(Priority.URGENT) {
-                    @Override
-                    public ClusterState execute(ClusterState currentState) {
-                        return deleteDecommissionAttribute(currentState);
-                    }
+        clusterService.submitStateUpdateTask("delete_decommission_state", new ClusterStateUpdateTask(Priority.URGENT) {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                return deleteDecommissionAttribute(currentState);
+            }
 
-                    @Override
-                    public void onFailure(String source, Exception e) {
-                        logger.error(() -> new ParameterizedMessage("Failed to clear decommission attribute."), e);
-                        listener.onFailure(e);
-                    }
+            @Override
+            public void onFailure(String source, Exception e) {
+                logger.error(() -> new ParameterizedMessage("Failed to clear decommission attribute."), e);
+                listener.onFailure(e);
+            }
 
-                    @Override
-                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                        // Once the cluster state is processed we can try to recommission nodes by setting the weights for the zone.
-                        // TODO Set the weights for the recommissioning zone.
-                        listener.onResponse(new ClusterStateUpdateResponse(true));
-                    }
-                }
-        );
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                // Once the cluster state is processed we can try to recommission nodes by setting the weights for the zone.
+                // TODO Set the weights for the recommissioning zone.
+                listener.onResponse(new ClusterStateUpdateResponse(true));
+            }
+        });
     }
 
     ClusterState deleteDecommissionAttribute(final ClusterState currentState) {

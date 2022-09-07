@@ -32,12 +32,13 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
         final ClusterSettings settings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         DecommissionService service = new DecommissionService(new ClusterService(Settings.EMPTY, settings, threadPool));
         DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "zone-2");
-        DecommissionAttributeMetadata decommissionAttributeMetadata =
-                new DecommissionAttributeMetadata(decommissionAttribute, DecommissionStatus.DECOMMISSION_SUCCESSFUL);
+        DecommissionAttributeMetadata decommissionAttributeMetadata = new DecommissionAttributeMetadata(
+            decommissionAttribute,
+            DecommissionStatus.DECOMMISSION_SUCCESSFUL
+        );
         ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
-                .metadata(Metadata.builder()
-                        .putCustom(DecommissionAttributeMetadata.TYPE, decommissionAttributeMetadata).build())
-                .build();
+            .metadata(Metadata.builder().putCustom(DecommissionAttributeMetadata.TYPE, decommissionAttributeMetadata).build())
+            .build();
 
         final ClusterState newClusterState = service.deleteDecommissionAttribute(clusterState);
         DecommissionAttributeMetadata metadata = newClusterState.metadata().custom(DecommissionAttributeMetadata.TYPE);

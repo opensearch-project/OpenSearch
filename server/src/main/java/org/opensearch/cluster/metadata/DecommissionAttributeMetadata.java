@@ -143,8 +143,8 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
                 if (attributeType.equals(currentFieldName)) {
                     if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
                         throw new OpenSearchParseException(
-                                "failed to parse decommission attribute type [{}], expected object",
-                                attributeType
+                            "failed to parse decommission attribute type [{}], expected object",
+                            attributeType
                         );
                     }
                     token = parser.nextToken();
@@ -157,8 +157,8 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
                                 value = parser.text();
                             } else {
                                 throw new OpenSearchParseException(
-                                        "failed to parse attribute [{}], expected string for attribute value",
-                                        fieldName
+                                    "failed to parse attribute [{}], expected string for attribute value",
+                                    fieldName
                                 );
                             }
                             decommissionAttribute = new DecommissionAttribute(fieldName, value);
@@ -172,14 +172,14 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
                 } else if ("status".equals(currentFieldName)) {
                     if (parser.nextToken() != XContentParser.Token.VALUE_STRING) {
                         throw new OpenSearchParseException(
-                                "failed to parse status of decommissioning, expected string but found unknown type"
+                            "failed to parse status of decommissioning, expected string but found unknown type"
                         );
                     }
                     status = DecommissionStatus.fromString(parser.text());
                 } else {
                     throw new OpenSearchParseException(
-                            "unknown field found [{}], failed to parse the decommission attribute",
-                            currentFieldName
+                        "unknown field found [{}], failed to parse the decommission attribute",
+                        currentFieldName
                     );
                 }
             }
@@ -209,11 +209,11 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
      * @param params                serialization parameters
      */
     public static void toXContent(
-            DecommissionAttribute decommissionAttribute,
-            DecommissionStatus status,
-            String attributeType,
-            XContentBuilder builder,
-            ToXContent.Params params
+        DecommissionAttribute decommissionAttribute,
+        DecommissionStatus status,
+        String attributeType,
+        XContentBuilder builder,
+        ToXContent.Params params
     ) throws IOException {
         builder.startObject(attributeType);
         builder.field(decommissionAttribute.attributeName(), decommissionAttribute.attributeValue());
