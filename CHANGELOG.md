@@ -45,7 +45,6 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Label configuration for dependabot PRs ([#4348](https://github.com/opensearch-project/OpenSearch/pull/4348))
 
 ### Changed
-- Update to Netty 4.1.80.Final ([#4378](https://github.com/opensearch-project/OpenSearch/pull/4378))
 
 ### Deprecated
 
