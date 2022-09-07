@@ -157,7 +157,9 @@ public class DecommissionController {
         TimeValue timeout,
         ActionListener<Void> nodesRemovedListener
     ) {
-        final Map<NodeRemovalClusterStateTaskExecutor.Task, ClusterStateTaskListener> nodesDecommissionTasks = new LinkedHashMap<>(nodesToBeDecommissioned.size());
+        final Map<NodeRemovalClusterStateTaskExecutor.Task, ClusterStateTaskListener> nodesDecommissionTasks = new LinkedHashMap<>(
+            nodesToBeDecommissioned.size()
+        );
         nodesToBeDecommissioned.forEach(discoveryNode -> {
             final NodeRemovalClusterStateTaskExecutor.Task task = new NodeRemovalClusterStateTaskExecutor.Task(discoveryNode, reason);
             nodesDecommissionTasks.put(task, nodeRemovalExecutor);
@@ -170,8 +172,8 @@ public class DecommissionController {
         );
 
         Predicate<ClusterState> allDecommissionedNodesRemovedPredicate = clusterState -> {
-            Set<DiscoveryNode> intersection = Arrays.stream(
-                clusterState.nodes().getNodes().values().toArray(DiscoveryNode.class)).collect(Collectors.toSet());
+            Set<DiscoveryNode> intersection = Arrays.stream(clusterState.nodes().getNodes().values().toArray(DiscoveryNode.class))
+                .collect(Collectors.toSet());
             intersection.retainAll(nodesToBeDecommissioned);
             return intersection.size() == 0;
         };
@@ -243,7 +245,8 @@ public class DecommissionController {
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                DecommissionAttributeMetadata decommissionAttributeMetadata = newState.metadata().custom(DecommissionAttributeMetadata.TYPE);
+                DecommissionAttributeMetadata decommissionAttributeMetadata = newState.metadata()
+                    .custom(DecommissionAttributeMetadata.TYPE);
                 logger.info("updated decommission status to [{}]", decommissionAttributeMetadata.status());
                 listener.onResponse(decommissionAttributeMetadata.status());
             }

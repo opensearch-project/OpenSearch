@@ -121,7 +121,7 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
         ActionListener<ClusterStateUpdateResponse> listener = mock(ActionListener.class);
         DecommissioningFailedException e = expectThrows(
             DecommissioningFailedException.class,
-            () -> { decommissionService.initiateAttributeDecommissioning(decommissionAttribute, listener, clusterService.state()); }
+            () -> { decommissionService.startDecommissionAction(decommissionAttribute, listener); }
         );
         assertThat(e.getMessage(), Matchers.endsWith("invalid awareness attribute requested for decommissioning"));
     }
@@ -132,7 +132,7 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
         ActionListener<ClusterStateUpdateResponse> listener = mock(ActionListener.class);
         DecommissioningFailedException e = expectThrows(
             DecommissioningFailedException.class,
-            () -> { decommissionService.initiateAttributeDecommissioning(decommissionAttribute, listener, clusterService.state()); }
+            () -> { decommissionService.startDecommissionAction(decommissionAttribute, listener); }
         );
         assertThat(
             e.getMessage(),
@@ -158,13 +158,7 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
         ActionListener<ClusterStateUpdateResponse> listener = mock(ActionListener.class);
         DecommissioningFailedException e = expectThrows(
             DecommissioningFailedException.class,
-            () -> {
-                decommissionService.initiateAttributeDecommissioning(
-                    new DecommissionAttribute("zone", "zone_2"),
-                    listener,
-                    clusterService.state()
-                );
-            }
+            () -> { decommissionService.startDecommissionAction(new DecommissionAttribute("zone", "zone_2"), listener); }
         );
         assertThat(e.getMessage(), Matchers.endsWith("another request for decommission is in flight, will not process this request"));
     }
@@ -172,7 +166,7 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
     @SuppressWarnings("unchecked")
     public void testDecommissioningInitiatedWhenEnoughClusterManagerNodes() {
         ActionListener<ClusterStateUpdateResponse> listener = mock(ActionListener.class);
-        decommissionService.initiateAttributeDecommissioning(new DecommissionAttribute("zone", "zone_3"), listener, clusterService.state());
+        decommissionService.startDecommissionAction(new DecommissionAttribute("zone", "zone_3"), listener);
     }
 
     @SuppressWarnings("unchecked")
@@ -184,13 +178,7 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
         ActionListener<ClusterStateUpdateResponse> listener = mock(ActionListener.class);
         DecommissioningFailedException e = expectThrows(
             DecommissioningFailedException.class,
-            () -> {
-                decommissionService.initiateAttributeDecommissioning(
-                    new DecommissionAttribute("zone", "zone_3"),
-                    listener,
-                    clusterService.state()
-                );
-            }
+            () -> { decommissionService.startDecommissionAction(new DecommissionAttribute("zone", "zone_3"), listener); }
         );
         assertThat(e.getMessage(), Matchers.endsWith("cannot proceed with decommission request as cluster might go into quorum loss"));
     }

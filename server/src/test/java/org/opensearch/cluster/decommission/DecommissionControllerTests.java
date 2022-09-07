@@ -246,17 +246,20 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
         state = ClusterState.builder(state).metadata(mdBuilder).build();
         setState(clusterService, state);
 
-        decommissionController.updateMetadataWithDecommissionStatus(DecommissionStatus.SUCCESSFUL, new ActionListener<DecommissionStatus>() {
-            @Override
-            public void onResponse(DecommissionStatus status) {
-                countDownLatch.countDown();
-            }
+        decommissionController.updateMetadataWithDecommissionStatus(
+            DecommissionStatus.SUCCESSFUL,
+            new ActionListener<DecommissionStatus>() {
+                @Override
+                public void onResponse(DecommissionStatus status) {
+                    countDownLatch.countDown();
+                }
 
-            @Override
-            public void onFailure(Exception e) {
-                fail("decommission status update failed");
+                @Override
+                public void onFailure(Exception e) {
+                    fail("decommission status update failed");
+                }
             }
-        });
+        );
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
         ClusterState newState = clusterService.getClusterApplierService().state();
         DecommissionAttributeMetadata decommissionAttributeMetadata = newState.metadata().custom(DecommissionAttributeMetadata.TYPE);
