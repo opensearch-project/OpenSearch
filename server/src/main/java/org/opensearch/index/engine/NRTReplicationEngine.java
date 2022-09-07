@@ -122,7 +122,7 @@ public class NRTReplicationEngine extends Engine {
 
     public synchronized void updateSegments(final SegmentInfos infos, long seqNo) throws IOException {
         // Update the current infos reference on the Engine's reader.
-        long incomingGeneration = infos.getGeneration();
+        final long incomingGeneration = infos.getGeneration();
         readerManager.updateSegments(infos);
 
         // Commit and roll the xlog when we receive a different generation than what was last received.
