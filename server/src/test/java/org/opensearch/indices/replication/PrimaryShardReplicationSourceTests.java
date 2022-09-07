@@ -9,12 +9,14 @@
 package org.opensearch.indices.replication;
 
 import org.apache.lucene.util.Version;
+import org.junit.Assert;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
@@ -28,6 +30,8 @@ import org.opensearch.transport.TransportService;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.mockito.Mockito.mock;
 
@@ -124,6 +128,39 @@ public class PrimaryShardReplicationSourceTests extends IndexShardTestCase {
         assertEquals(SegmentReplicationSourceService.Actions.GET_SEGMENT_FILES, capturedRequest.action);
         assertEquals(sourceNode, capturedRequest.node);
         assertTrue(capturedRequest.request instanceof GetSegmentFilesRequest);
+    }
+
+    public void testGetSegmentFiles_CancelWhileRequestOpen() throws InterruptedException {
+        CountDownLatch latch = new CountDownLatch(1);
+        final ReplicationCheckpoint checkpoint = new ReplicationCheckpoint(
+            indexShard.shardId(),
+            PRIMARY_TERM,
+            SEGMENTS_GEN,
+            SEQ_NO,
+            VERSION
+        );
+        StoreFileMetadata testMetadata = new StoreFileMetadata("testFile", 1L, "checksum", Version.LATEST);
+        replicationSource.getSegmentFiles(
+            REPLICATION_ID,
+            checkpoint,
+            Arrays.asList(testMetadata),
+            mock(Store.class),
+            new ActionListener<>() {
+                @Override
+                public void onResponse(GetSegmentFilesResponse getSegmentFilesResponse) {
+                    Assert.fail("onFailure response expected.");
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    assertEquals(e.getClass(), CancellableThreads.ExecutionCancelledException.class);
+                    latch.countDown();
+                }
+            }
+        );
+        replicationSource.cancel();
+        latch.await(2, TimeUnit.SECONDS);
+        assertEquals("listener should have resolved in a failure", 0, latch.getCount());
     }
 
     private DiscoveryNode newDiscoveryNode(String nodeName) {

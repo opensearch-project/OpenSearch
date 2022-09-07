@@ -81,6 +81,7 @@ import org.opensearch.indices.recovery.PeerRecoverySourceService;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryListener;
 import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.indices.replication.SegmentReplicationSourceService;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.common.ReplicationState;
@@ -152,6 +153,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final ThreadPool threadPool,
         final PeerRecoveryTargetService recoveryTargetService,
         final SegmentReplicationTargetService segmentReplicationTargetService,
+        final SegmentReplicationSourceService segmentReplicationSourceService,
         final ShardStateAction shardStateAction,
         final NodeMappingRefreshAction nodeMappingRefreshAction,
         final RepositoriesService repositoriesService,
@@ -170,6 +172,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             threadPool,
             checkpointPublisher,
             segmentReplicationTargetService,
+            segmentReplicationSourceService,
             recoveryTargetService,
             shardStateAction,
             nodeMappingRefreshAction,
@@ -191,6 +194,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final ThreadPool threadPool,
         final SegmentReplicationCheckpointPublisher checkpointPublisher,
         final SegmentReplicationTargetService segmentReplicationTargetService,
+        final SegmentReplicationSourceService segmentReplicationSourceService,
         final PeerRecoveryTargetService recoveryTargetService,
         final ShardStateAction shardStateAction,
         final NodeMappingRefreshAction nodeMappingRefreshAction,
@@ -211,6 +215,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         // if segrep feature flag is not enabled, don't wire the target serivce as an IndexEventListener.
         if (FeatureFlags.isEnabled(FeatureFlags.REPLICATION_TYPE)) {
             indexEventListeners.add(segmentReplicationTargetService);
+            indexEventListeners.add(segmentReplicationSourceService);
         }
         this.builtInIndexListener = Collections.unmodifiableList(indexEventListeners);
         this.indicesService = indicesService;

@@ -54,6 +54,8 @@ import org.opensearch.action.get.GetRequest;
 import org.opensearch.action.get.MultiGetRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.search.ClearScrollRequest;
+import org.opensearch.action.search.CreatePitRequest;
+import org.opensearch.action.search.DeletePitRequest;
 import org.opensearch.action.search.MultiSearchRequest;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchScrollRequest;
@@ -92,6 +94,7 @@ import org.opensearch.index.reindex.DeleteByQueryRequest;
 import org.opensearch.index.reindex.ReindexRequest;
 import org.opensearch.index.reindex.UpdateByQueryRequest;
 import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.rest.action.search.RestCreatePitAction;
 import org.opensearch.rest.action.search.RestSearchAction;
 import org.opensearch.script.mustache.MultiSearchTemplateRequest;
 import org.opensearch.script.mustache.SearchTemplateRequest;
@@ -433,9 +436,19 @@ final class RequestConverters {
         params.putParam(RestSearchAction.TYPED_KEYS_PARAM, "true");
         params.withRouting(searchRequest.routing());
         params.withPreference(searchRequest.preference());
-        params.withIndicesOptions(searchRequest.indicesOptions());
+        if (searchRequest.pointInTimeBuilder() == null) {
+            params.withIndicesOptions(searchRequest.indicesOptions());
+        }
         params.withSearchType(searchRequest.searchType().name().toLowerCase(Locale.ROOT));
-        params.putParam("ccs_minimize_roundtrips", Boolean.toString(searchRequest.isCcsMinimizeRoundtrips()));
+        /**
+         * Merging search responses as part of CCS flow to reduce roundtrips is not supported for point in time -
+         * refer to org.opensearch.action.search.SearchResponseMerger
+         */
+        if (searchRequest.pointInTimeBuilder() != null) {
+            params.putParam("ccs_minimize_roundtrips", "false");
+        } else {
+            params.putParam("ccs_minimize_roundtrips", Boolean.toString(searchRequest.isCcsMinimizeRoundtrips()));
+        }
         if (searchRequest.getPreFilterShardSize() != null) {
             params.putParam("pre_filter_shard_size", Integer.toString(searchRequest.getPreFilterShardSize()));
         }
@@ -462,6 +475,27 @@ final class RequestConverters {
         Request request = new Request(HttpDelete.METHOD_NAME, "/_search/scroll");
         request.setEntity(createEntity(clearScrollRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
+    }
+
+    static Request createPit(CreatePitRequest createPitRequest) throws IOException {
+        Params params = new Params();
+        params.putParam(RestCreatePitAction.ALLOW_PARTIAL_PIT_CREATION, Boolean.toString(createPitRequest.shouldAllowPartialPitCreation()));
+        params.putParam(RestCreatePitAction.KEEP_ALIVE, createPitRequest.getKeepAlive());
+        params.withIndicesOptions(createPitRequest.indicesOptions());
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint(createPitRequest.indices(), "_search/point_in_time"));
+        request.addParameters(params.asMap());
+        request.setEntity(createEntity(createPitRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request deletePit(DeletePitRequest deletePitRequest) throws IOException {
+        Request request = new Request(HttpDelete.METHOD_NAME, "/_search/point_in_time");
+        request.setEntity(createEntity(deletePitRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request deleteAllPits() {
+        return new Request(HttpDelete.METHOD_NAME, "/_search/point_in_time/_all");
     }
 
     static Request multiSearch(MultiSearchRequest multiSearchRequest) throws IOException {
