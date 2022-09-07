@@ -81,7 +81,7 @@ public class PrimaryShardReplicationSource implements SegmentReplicationSource {
         final Writeable.Reader<GetSegmentFilesResponse> reader = GetSegmentFilesResponse::new;
         final ActionListener<GetSegmentFilesResponse> responseListener = ActionListener.map(listener, r -> r);
         // Few of the below assumptions and calculations are added for experimental release of segment replication feature in 2.3
-        // version. These will be changed in next release.
+        // version. These can change in upcoming releases.
 
         // Storing the size of files to fetch in bytes.
         final long sizeOfSegmentFiles = filesToFetch.stream().mapToLong(file -> file.length()).sum();
