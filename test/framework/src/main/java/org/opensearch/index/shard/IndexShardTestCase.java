@@ -1201,6 +1201,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                     listener.onResponse(
                         new CheckpointInfoResponse(copyState.getCheckpoint(), copyState.getMetadataMap(), copyState.getInfosBytes())
                     );
+                    copyState.decRef();
                 } catch (IOException e) {
                     logger.error("Unexpected error computing CopyState", e);
                     Assert.fail("Failed to compute copyState");
