@@ -9,7 +9,8 @@ package org.opensearch.gradle.pluginzip;
 
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
-import org.gradle.api.publish.Publication;
+import org.gradle.api.logging.Logger;
+import org.gradle.api.logging.Logging;
 import org.gradle.api.publish.PublishingExtension;
 import org.gradle.api.publish.maven.MavenPublication;
 import org.gradle.api.publish.maven.plugins.MavenPublishPlugin;
@@ -18,6 +19,9 @@ import java.nio.file.Path;
 import org.gradle.api.Task;
 
 public class Publish implements Plugin<Project> {
+
+    private static final Logger LOGGER = Logging.getLogger(Publish.class);
+
     public final static String EXTENSION_NAME = "zipmavensettings";
     public final static String PUBLICATION_NAME = "pluginZip";
     public final static String STAGING_REPO = "zipStaging";
@@ -37,27 +41,25 @@ public class Publish implements Plugin<Project> {
                 });
             });
             publishing.publications(publications -> {
-                final Publication publication = publications.findByName(PUBLICATION_NAME);
-                if (publication == null) {
-                    publications.create(PUBLICATION_NAME, MavenPublication.class, mavenZip -> {
-                        String zipGroup = "org.opensearch.plugin";
-                        String zipArtifact = project.getName();
-                        String zipVersion = getProperty("version", project);
-                        mavenZip.artifact(project.getTasks().named("bundlePlugin"));
-                        mavenZip.setGroupId(zipGroup);
-                        mavenZip.setArtifactId(zipArtifact);
-                        mavenZip.setVersion(zipVersion);
-                    });
-                } else {
-                    final MavenPublication mavenZip = (MavenPublication) publication;
-                    String zipGroup = "org.opensearch.plugin";
-                    String zipArtifact = project.getName();
-                    String zipVersion = getProperty("version", project);
-                    mavenZip.artifact(project.getTasks().named("bundlePlugin"));
-                    mavenZip.setGroupId(zipGroup);
-                    mavenZip.setArtifactId(zipArtifact);
-                    mavenZip.setVersion(zipVersion);
+                MavenPublication mavenZip = (MavenPublication) publications.findByName(PUBLICATION_NAME);
+
+                if (mavenZip == null) {
+                    mavenZip = publications.create(PUBLICATION_NAME, MavenPublication.class);
                 }
+
+                String groupId = mavenZip.getGroupId();
+                if (groupId == null) {
+                    // The groupId is not customized thus we get the value from "project.group".
+                    // See https://docs.gradle.org/current/userguide/publishing_maven.html#sec:identity_values_in_the_generated_pom
+                    groupId = getProperty("group", project);
+                }
+
+                String artifactId = project.getName();
+                String pluginVersion = getProperty("version", project);
+                mavenZip.artifact(project.getTasks().named("bundlePlugin"));
+                mavenZip.setGroupId(groupId);
+                mavenZip.setArtifactId(artifactId);
+                mavenZip.setVersion(pluginVersion);
             });
         });
     }
