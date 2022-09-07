@@ -111,7 +111,7 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_2_3_0;
+        return Version.V_3_0_0;
     }
 
     public DecommissionAttributeMetadata(StreamInput in) throws IOException {

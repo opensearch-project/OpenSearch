@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
@@ -188,19 +189,33 @@ public class DecommissionService {
             ensureNoQuorumLossDueToDecommissioning(decommissionAttribute, clusterManagerNodesToBeDecommissioned, state.getLastCommittedConfiguration());
         } catch (DecommissioningFailedException dfe) {
             listener.onFailure(dfe);
+            decommissionController.updateMetadataWithDecommissionStatus(DecommissionStatus.FAILED, new ActionListener<DecommissionStatus>() {
+                @Override
+                public void onResponse(DecommissionStatus status) {
+                    logger.info("updated the status to [{}], as cluster could have gone to quorum loss situation due to decommissioning", status.toString());
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.error("unexpected error found while updating the status", e);
+                }
+            });
         }
         // remove all 'to-be-decommissioned' cluster manager eligible nodes from voting config
         // The method ensures that we don't exclude same nodes multiple times
-        excludeDecommissionedClusterManagerNodesFromVotingConfig(clusterManagerNodesToBeDecommissioned);
+        boolean toBeDecommissionedClusterManagerNodesExcluded = excludeDecommissionedClusterManagerNodesFromVotingConfig(clusterManagerNodesToBeDecommissioned);
 
-        // explicitly calling listener.onFailure with NotClusterManagerException as we can certainly say the local cluster manager node will
-        // be abdicated and soon will no longer be cluster manager.
         if (transportService.getLocalNode().isClusterManagerNode()
-            && !nodeHasDecommissionedAttribute(transportService.getLocalNode(), decommissionAttribute)) {
+            && !nodeHasDecommissionedAttribute(transportService.getLocalNode(), decommissionAttribute)
+            && toBeDecommissionedClusterManagerNodesExcluded
+        ) {
             // we are good here to send the response now as the request is processed by an eligible active leader
+            // and to-be-decommissioned cluster manager is no more part of Voting Configuration
             listener.onResponse(new ClusterStateUpdateResponse(true));
             failDecommissionedNodes(clusterService.getClusterApplierService().state());
         } else {
+            // explicitly calling listener.onFailure with NotClusterManagerException as we can certainly say the local cluster manager node will
+            // be abdicated and soon will no longer be cluster manager.
             // this will ensure that request is retried until cluster manager times out
             listener.onFailure(new NotClusterManagerException("node ["
                 + transportService.getLocalNode().toString()
@@ -208,7 +223,7 @@ public class DecommissionService {
         }
     }
 
-    private void excludeDecommissionedClusterManagerNodesFromVotingConfig(Set<DiscoveryNode> clusterManagerNodesToBeDecommissioned) {
+    private boolean excludeDecommissionedClusterManagerNodesFromVotingConfig(Set<DiscoveryNode> clusterManagerNodesToBeDecommissioned) {
         Set<String> clusterManagerNodesNameToBeDecommissioned = clusterManagerNodesToBeDecommissioned.stream()
             .map(DiscoveryNode::getName)
             .collect(Collectors.toSet());
@@ -225,7 +240,7 @@ public class DecommissionService {
         if (clusterManagerNodesNameToBeDecommissioned.size() == 0
             || (clusterManagerNodesNameToBeDecommissioned.size() == excludedNodesName.size()
                 && excludedNodesName.containsAll(clusterManagerNodesNameToBeDecommissioned))) {
-            return;
+            return true;
         }
         // send a transport request to exclude to-be-decommissioned cluster manager eligible nodes from voting config
         decommissionController.excludeDecommissionedNodesFromVotingConfig(
@@ -248,6 +263,8 @@ public class DecommissionService {
                 }
             }
         );
+        // send false for now and let the transport request be retried
+        return false;
     }
 
     private void failDecommissionedNodes(ClusterState state) {

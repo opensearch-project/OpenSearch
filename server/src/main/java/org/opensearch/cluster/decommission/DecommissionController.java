@@ -71,6 +71,12 @@ public class DecommissionController {
         this.threadPool = threadPool;
     }
 
+    /**
+     * Transport call to add nodes to voting config exclusion
+     *
+     * @param nodes set of nodes to be added to voting config exclusion list
+     * @param listener callback for response or failure
+     */
     public void excludeDecommissionedNodesFromVotingConfig(Set<String> nodes, ActionListener<Void> listener) {
         transportService.sendRequest(
             transportService.getLocalNode(),
@@ -100,6 +106,11 @@ public class DecommissionController {
         );
     }
 
+    /**
+     * Transport call to clear voting config exclusion
+     *
+     * @param listener callback for response or failure
+     */
     public void clearVotingConfigExclusion(ActionListener<Void> listener) {
         final ClearVotingConfigExclusionsRequest clearVotingConfigExclusionsRequest = new ClearVotingConfigExclusionsRequest();
         transportService.sendRequest(
@@ -130,6 +141,16 @@ public class DecommissionController {
         );
     }
 
+    /**
+     * This method triggers batch of tasks for nodes to be decommissioned using executor {@link NodeRemovalClusterStateTaskExecutor}
+     * Once the tasks are submitted, it waits for an expected cluster state to guarantee
+     * that the expected decommissioned nodes are removed from the cluster
+     *
+     * @param nodesToBeDecommissioned set of the node to be decommissioned
+     * @param reason reason of removal
+     * @param timeout timeout for the request
+     * @param nodesRemovedListener callback for the success or failure
+     */
     public void removeDecommissionedNodes(
         Set<DiscoveryNode> nodesToBeDecommissioned,
         String reason,
@@ -183,6 +204,13 @@ public class DecommissionController {
         }, allDecommissionedNodesRemovedPredicate);
     }
 
+    /**
+     * This method updates the status in the currently registered metadata.
+     * This method also validates the status with its previous state before executing the request
+     *
+     * @param decommissionStatus status to update decommission metadata with
+     * @param listener listener for response and failure
+     */
     public void updateMetadataWithDecommissionStatus(DecommissionStatus decommissionStatus, ActionListener<DecommissionStatus> listener) {
         clusterService.submitStateUpdateTask(decommissionStatus.status(), new ClusterStateUpdateTask(Priority.URGENT) {
             @Override

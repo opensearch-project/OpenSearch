@@ -157,7 +157,7 @@ public class AddVotingConfigExclusionsRequest extends ClusterManagerNodeRequest<
         } else {
             assert nodeNames.length >= 1;
             Map<String, DiscoveryNode> existingNodes = StreamSupport.stream(allNodes.spliterator(), false)
-                .collect(Collectors.toMap(DiscoveryNode::getName, Function.identity(), (r1, r2) -> r1));
+                .collect(Collectors.toMap(DiscoveryNode::getName, Function.identity()));
 
             for (String nodeName : nodeNames) {
                 if (existingNodes.containsKey(nodeName)) {
