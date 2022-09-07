@@ -132,6 +132,8 @@ public class DecommissionService {
                     Metadata metadata = currentState.metadata();
                     Metadata.Builder mdBuilder = Metadata.builder(metadata);
                     DecommissionAttributeMetadata decommissionAttributeMetadata = metadata.custom(DecommissionAttributeMetadata.TYPE);
+                    // check the request sanity and reject the request if there's any inflight or successful request already present
+                    ensureNoInflightDifferentDecommissionRequest(decommissionAttributeMetadata, decommissionAttribute);
                     // check if the same attribute is requested for decommission and currently not FAILED, then return the current state as is
                     if(decommissionAttributeMetadata!=null &&
                         decommissionAttributeMetadata.decommissionAttribute().equals(decommissionAttribute) &&
@@ -139,8 +141,6 @@ public class DecommissionService {
                         logger.info("re-request received for decommissioning [{}], will not update state", decommissionAttribute);
                         return currentState;
                     }
-                    // check the request sanity and reject the request if there's any inflight or successful request already present
-                    ensureNoInflightDifferentDecommissionRequest(decommissionAttributeMetadata, decommissionAttribute);
                     decommissionAttributeMetadata = new DecommissionAttributeMetadata(decommissionAttribute);
                     mdBuilder.putCustom(DecommissionAttributeMetadata.TYPE, decommissionAttributeMetadata);
                     logger.info(
@@ -237,9 +237,7 @@ public class DecommissionService {
             .collect(Collectors.toSet());
 
         // check if the to-be-excluded nodes are excluded. If yes, we don't need to exclude them again
-        if (clusterManagerNodesNameToBeDecommissioned.size() == 0
-            || (clusterManagerNodesNameToBeDecommissioned.size() == excludedNodesName.size()
-                && excludedNodesName.containsAll(clusterManagerNodesNameToBeDecommissioned))) {
+        if (clusterManagerNodesNameToBeDecommissioned.size() == 0 || excludedNodesName.containsAll(clusterManagerNodesNameToBeDecommissioned)) {
             return true;
         }
         // send a transport request to exclude to-be-decommissioned cluster manager eligible nodes from voting config
