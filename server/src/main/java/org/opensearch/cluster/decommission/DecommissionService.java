@@ -50,7 +50,7 @@ public class DecommissionService {
 
     public void clearDecommissionStatus(final ActionListener<ClusterStateUpdateResponse> listener) {
         clusterService.submitStateUpdateTask(
-                "delete_decommission",
+                "delete_decommission_state",
                 new ClusterStateUpdateTask(Priority.URGENT) {
                     @Override
                     public ClusterState execute(ClusterState currentState) {
