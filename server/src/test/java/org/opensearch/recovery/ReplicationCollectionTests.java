@@ -105,7 +105,25 @@ public class ReplicationCollectionTests extends OpenSearchIndexLevelReplicationT
                 collection.cancel(recoveryId, "meh");
             }
         }
+    }
 
+    public void testMultiReplicationsForSingleShard() throws Exception {
+        try (ReplicationGroup shards = createGroup(0)) {
+            final ReplicationCollection<RecoveryTarget> collection = new ReplicationCollection<>(logger, threadPool);
+            final IndexShard shard1 = shards.addReplica();
+            final IndexShard shard2 = shards.addReplica();
+            final long recoveryId = startRecovery(collection, shards.getPrimaryNode(), shard1);
+            final long recoveryId2 = startRecovery(collection, shards.getPrimaryNode(), shard2);
+            try {
+                collection.getOngoingReplicationTarget(shard1.shardId());
+            } catch (AssertionError e) {
+                assertEquals(e.getMessage(), "More than one on-going replication targets");
+            } finally {
+                collection.cancel(recoveryId, "meh");
+                collection.cancel(recoveryId2, "meh");
+            }
+            closeShards(shard1, shard2);
+        }
     }
 
     public void testRecoveryCancellation() throws Exception {

@@ -21,9 +21,20 @@ import java.io.IOException;
  */
 public class GetAllPitNodesRequest extends BaseNodesRequest<GetAllPitNodesRequest> {
 
+    // Security plugin intercepts and sets the response with permitted PIT contexts
+    private GetAllPitNodesResponse getAllPitNodesResponse;
+
     @Inject
     public GetAllPitNodesRequest(DiscoveryNode... concreteNodes) {
         super(concreteNodes);
+    }
+
+    public void setGetAllPitNodesResponse(GetAllPitNodesResponse getAllPitNodesResponse) {
+        this.getAllPitNodesResponse = getAllPitNodesResponse;
+    }
+
+    public GetAllPitNodesResponse getGetAllPitNodesResponse() {
+        return getAllPitNodesResponse;
     }
 
     public GetAllPitNodesRequest(StreamInput in) throws IOException {
