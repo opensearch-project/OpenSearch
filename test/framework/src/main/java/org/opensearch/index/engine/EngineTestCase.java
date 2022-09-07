@@ -1492,10 +1492,15 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
      * Exposes a translog associated with the given engine for testing purpose.
      */
     public static Translog getTranslog(Engine engine) {
-        assert engine instanceof InternalEngine || engine instanceof NRTReplicationEngine
+        // This is a hack for bwc for 2.x, main will use TranslogManager on Engine directly
+        if (engine instanceof NRTReplicationEngine) {
+            return ((NRTReplicationEngine)(engine)).getTranslog();
+        }
+        assert engine instanceof InternalEngine
             : "only InternalEngines or NRTReplicationEngines have translogs, got: " + engine.getClass();
-        engine.ensureOpen();
-        TranslogManager translogManager = engine.translogManager();
+        InternalEngine internalEngine = (InternalEngine) engine;
+        internalEngine.ensureOpen();
+        TranslogManager translogManager = internalEngine.translogManager();
         assert translogManager instanceof InternalTranslogManager : "only InternalTranslogManager have translogs, got: "
             + engine.getClass();
         InternalTranslogManager internalTranslogManager = (InternalTranslogManager) translogManager;
