@@ -17,11 +17,13 @@ import org.apache.lucene.store.BufferedChecksumIndexInput;
 import org.apache.lucene.store.ByteBuffersDataInput;
 import org.apache.lucene.store.ByteBuffersIndexInput;
 import org.apache.lucene.store.ChecksumIndexInput;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.StepListener;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.index.shard.IndexShard;
@@ -36,12 +38,9 @@ import org.opensearch.indices.replication.common.ReplicationTarget;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
+import java.util.Collections;
+import java.util.Map;
 
 /**
  * Represents the target of a replication event.
@@ -54,6 +53,10 @@ public class SegmentReplicationTarget extends ReplicationTarget {
     private final SegmentReplicationSource source;
     private final SegmentReplicationState state;
     protected final MultiFileWriter multiFileWriter;
+
+    public ReplicationCheckpoint getCheckpoint() {
+        return this.checkpoint;
+    }
 
     public SegmentReplicationTarget(
         ReplicationCheckpoint checkpoint,
@@ -103,7 +106,15 @@ public class SegmentReplicationTarget extends ReplicationTarget {
 
     @Override
     public void notifyListener(OpenSearchException e, boolean sendShardFailure) {
-        listener.onFailure(state(), e, sendShardFailure);
+        // Cancellations still are passed to our SegmentReplicationListner as failures, if we have failed because of cancellation
+        // update the stage.
+        final Throwable cancelledException = ExceptionsHelper.unwrap(e, CancellableThreads.ExecutionCancelledException.class);
+        if (cancelledException != null) {
+            state.setStage(SegmentReplicationState.Stage.CANCELLED);
+            listener.onFailure(state(), (CancellableThreads.ExecutionCancelledException) cancelledException, sendShardFailure);
+        } else {
+            listener.onFailure(state(), e, sendShardFailure);
+        }
     }
 
     @Override
@@ -134,11 +145,20 @@ public class SegmentReplicationTarget extends ReplicationTarget {
      * @param listener {@link ActionListener} listener.
      */
     public void startReplication(ActionListener<Void> listener) {
+        cancellableThreads.setOnCancel((reason, beforeCancelEx) -> {
+            // This method only executes when cancellation is triggered by this node and caught by a call to checkForCancel,
+            // SegmentReplicationSource does not share CancellableThreads.
+            final CancellableThreads.ExecutionCancelledException executionCancelledException =
+                new CancellableThreads.ExecutionCancelledException("replication was canceled reason [" + reason + "]");
+            notifyListener(executionCancelledException, false);
+            throw executionCancelledException;
+        });
         state.setStage(SegmentReplicationState.Stage.REPLICATING);
         final StepListener<CheckpointInfoResponse> checkpointInfoListener = new StepListener<>();
         final StepListener<GetSegmentFilesResponse> getFilesListener = new StepListener<>();
         final StepListener<Void> finalizeListener = new StepListener<>();
 
+        cancellableThreads.checkForCancel();
         logger.trace("[shardId {}] Replica starting replication [id {}]", shardId().getId(), getId());
         // Get list of files to copy from this checkpoint.
         state.setStage(SegmentReplicationState.Stage.GET_CHECKPOINT_INFO);
@@ -154,10 +174,9 @@ public class SegmentReplicationTarget extends ReplicationTarget {
 
     private void getFiles(CheckpointInfoResponse checkpointInfo, StepListener<GetSegmentFilesResponse> getFilesListener)
         throws IOException {
+        cancellableThreads.checkForCancel();
         state.setStage(SegmentReplicationState.Stage.FILE_DIFF);
-        final Store.MetadataSnapshot snapshot = checkpointInfo.getSnapshot();
-        Store.MetadataSnapshot localMetadata = getMetadataSnapshot();
-        final Store.RecoveryDiff diff = snapshot.segmentReplicationDiff(localMetadata);
+        final Store.RecoveryDiff diff = Store.segmentReplicationDiff(checkpointInfo.getMetadataMap(), getMetadataMap());
         logger.trace("Replication diff {}", diff);
         /*
          * Segments are immutable. So if the replica has any segments with the same name that differ from the one in the incoming
@@ -172,28 +191,20 @@ public class SegmentReplicationTarget extends ReplicationTarget {
                 )
             );
         }
-        final List<StoreFileMetadata> filesToFetch = new ArrayList<StoreFileMetadata>(diff.missing);
 
-        Set<String> storeFiles = new HashSet<>(Arrays.asList(store.directory().listAll()));
-        final Set<StoreFileMetadata> pendingDeleteFiles = checkpointInfo.getPendingDeleteFiles()
-            .stream()
-            .filter(f -> storeFiles.contains(f.name()) == false)
-            .collect(Collectors.toSet());
-
-        filesToFetch.addAll(pendingDeleteFiles);
-        logger.trace("Files to fetch {}", filesToFetch);
-
-        for (StoreFileMetadata file : filesToFetch) {
+        for (StoreFileMetadata file : diff.missing) {
             state.getIndex().addFileDetail(file.name(), file.length(), false);
         }
         // always send a req even if not fetching files so the primary can clear the copyState for this shard.
         state.setStage(SegmentReplicationState.Stage.GET_FILES);
-        source.getSegmentFiles(getId(), checkpointInfo.getCheckpoint(), filesToFetch, store, getFilesListener);
+        cancellableThreads.checkForCancel();
+        source.getSegmentFiles(getId(), checkpointInfo.getCheckpoint(), diff.missing, store, getFilesListener);
     }
 
     private void finalizeReplication(CheckpointInfoResponse checkpointInfoResponse, ActionListener<Void> listener) {
-        state.setStage(SegmentReplicationState.Stage.FINALIZE_REPLICATION);
         ActionListener.completeWith(listener, () -> {
+            cancellableThreads.checkForCancel();
+            state.setStage(SegmentReplicationState.Stage.FINALIZE_REPLICATION);
             multiFileWriter.renameAllTempFiles();
             final Store store = store();
             store.incRef();
@@ -206,7 +217,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
                     responseCheckpoint.getSegmentsGen()
                 );
                 indexShard.finalizeReplication(infos, responseCheckpoint.getSeqNo());
-                store.cleanupAndPreserveLatestCommitPoint("finalize - clean with in memory infos", store.getMetadata(infos));
+                store.cleanupAndPreserveLatestCommitPoint("finalize - clean with in memory infos", infos);
             } catch (CorruptIndexException | IndexFormatTooNewException | IndexFormatTooOldException ex) {
                 // this is a fatal exception at this stage.
                 // this means we transferred files from the remote that have not be checksummed and they are
@@ -255,10 +266,18 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         );
     }
 
-    Store.MetadataSnapshot getMetadataSnapshot() throws IOException {
+    Map<String, StoreFileMetadata> getMetadataMap() throws IOException {
         if (indexShard.getSegmentInfosSnapshot() == null) {
-            return Store.MetadataSnapshot.EMPTY;
+            return Collections.emptyMap();
         }
-        return store.getMetadata(indexShard.getSegmentInfosSnapshot().get());
+        try (final GatedCloseable<SegmentInfos> snapshot = indexShard.getSegmentInfosSnapshot()) {
+            return store.getSegmentMetadataMap(snapshot.get());
+        }
+    }
+
+    @Override
+    protected void onCancel(String reason) {
+        cancellableThreads.cancel(reason);
+        source.cancel();
     }
 }

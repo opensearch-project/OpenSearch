@@ -969,6 +969,7 @@ public class Node implements Closeable {
                             .toInstance(new SegmentReplicationSourceService(indicesService, transportService, recoverySettings));
                     } else {
                         b.bind(SegmentReplicationTargetService.class).toInstance(SegmentReplicationTargetService.NO_OP);
+                        b.bind(SegmentReplicationSourceService.class).toInstance(SegmentReplicationSourceService.NO_OP);
                     }
                 }
                 b.bind(HttpServerTransport.class).toInstance(httpServerTransport);
@@ -1112,6 +1113,9 @@ public class Node implements Closeable {
         assert transportService.getLocalNode().equals(localNodeFactory.getNode())
             : "transportService has a different local node than the factory provided";
         injector.getInstance(PeerRecoverySourceService.class).start();
+        if (FeatureFlags.isEnabled(REPLICATION_TYPE)) {
+            injector.getInstance(SegmentReplicationSourceService.class).start();
+        }
 
         // Load (and maybe upgrade) the metadata stored on disk
         final GatewayMetaState gatewayMetaState = injector.getInstance(GatewayMetaState.class);
@@ -1287,6 +1291,9 @@ public class Node implements Closeable {
         // close filter/fielddata caches after indices
         toClose.add(injector.getInstance(IndicesStore.class));
         toClose.add(injector.getInstance(PeerRecoverySourceService.class));
+        if (FeatureFlags.isEnabled(REPLICATION_TYPE)) {
+            toClose.add(injector.getInstance(SegmentReplicationSourceService.class));
+        }
         toClose.add(() -> stopWatch.stop().start("cluster"));
         toClose.add(injector.getInstance(ClusterService.class));
         toClose.add(() -> stopWatch.stop().start("node_connections_service"));

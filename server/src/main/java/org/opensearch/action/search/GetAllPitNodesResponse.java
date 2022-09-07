@@ -52,6 +52,14 @@ public class GetAllPitNodesResponse extends BaseNodesResponse<GetAllPitNodeRespo
         );
     }
 
+    /**
+     * Copy constructor that explicitly sets the list pit infos
+     */
+    public GetAllPitNodesResponse(List<ListPitInfo> listPitInfos, GetAllPitNodesResponse response) {
+        super(response.getClusterName(), response.getNodes(), response.failures());
+        pitInfos.addAll(listPitInfos);
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();

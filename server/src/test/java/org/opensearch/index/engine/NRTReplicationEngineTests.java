@@ -112,10 +112,14 @@ public class NRTReplicationEngineTests extends EngineTestCase {
             final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore)
         ) {
             // add docs to the primary engine.
-            List<Engine.Operation> operations = generateHistoryOnReplica(between(1, 500), randomBoolean(), randomBoolean(), randomBoolean())
-                .stream()
-                .filter(op -> op.operationType().equals(Engine.Operation.TYPE.INDEX))
-                .collect(Collectors.toList());
+            List<Engine.Operation> operations = generateHistoryOnReplica(
+                between(1, 500),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                Engine.Operation.TYPE.INDEX
+            );
+
             for (Engine.Operation op : operations) {
                 applyOperation(engine, op);
                 applyOperation(nrtEngine, op);
@@ -248,6 +252,8 @@ public class NRTReplicationEngineTests extends EngineTestCase {
             // ensure getLatestSegmentInfos returns an updated infos ref with correct userdata.
             final SegmentInfos latestSegmentInfos = nrtEngine.getLatestSegmentInfos();
             assertEquals(previousInfos.getGeneration(), latestSegmentInfos.getLastGeneration());
+            assertEquals(previousInfos.getVersion(), latestSegmentInfos.getVersion());
+            assertEquals(previousInfos.counter, latestSegmentInfos.counter);
             Map<String, String> userData = latestSegmentInfos.getUserData();
             assertEquals(processedCheckpoint, localCheckpointTracker.getProcessedCheckpoint());
             assertEquals(maxSeqNo, Long.parseLong(userData.get(MAX_SEQ_NO)));

@@ -185,6 +185,7 @@ import org.opensearch.indices.recovery.PeerRecoverySourceService;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.replication.SegmentReplicationSourceFactory;
+import org.opensearch.indices.replication.SegmentReplicationSourceService;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.ingest.IngestService;
@@ -1857,6 +1858,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         transportService,
                         new SegmentReplicationSourceFactory(transportService, recoverySettings, clusterService)
                     ),
+                    SegmentReplicationSourceService.NO_OP,
                     shardStateAction,
                     new NodeMappingRefreshAction(transportService, metadataMappingService),
                     repositoriesService,
