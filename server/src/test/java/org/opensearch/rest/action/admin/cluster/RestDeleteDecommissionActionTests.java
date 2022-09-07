@@ -15,9 +15,7 @@ import org.opensearch.rest.RestRequest;
 import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.test.rest.RestActionTestCase;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 public class RestDeleteDecommissionActionTests extends RestActionTestCase {
 
@@ -37,8 +35,7 @@ public class RestDeleteDecommissionActionTests extends RestActionTestCase {
     }
 
     public void testCreateRequest() {
-        RestRequest deprecatedRequest = buildRestRequest();
-        DeleteDecommissionRequest request = action.createRequest(deprecatedRequest);
+        DeleteDecommissionRequest request = action.createRequest();
         assertNotNull(request);
     }
 

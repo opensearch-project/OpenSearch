@@ -17,11 +17,11 @@ import java.io.IOException;
 
 public class DeleteDecommissionResponse extends AcknowledgedResponse implements ToXContentObject {
 
-    DeleteDecommissionResponse(StreamInput in) throws IOException {
+    public DeleteDecommissionResponse(StreamInput in) throws IOException {
         super(in);
     }
 
-    DeleteDecommissionResponse(boolean acknowledged) {
+    public DeleteDecommissionResponse(boolean acknowledged) {
         super(acknowledged);
     }
 

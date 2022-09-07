@@ -10,8 +10,6 @@ package org.opensearch.action.admin.cluster.decommission.awareness.delete;
 
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
-import org.opensearch.cluster.decommission.DecommissionAttribute;
-import org.opensearch.common.unit.TimeValue;
 
 public class DeleteDecommissionRequestBuilder extends ClusterManagerNodeOperationRequestBuilder<
     DeleteDecommissionRequest,
