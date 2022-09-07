@@ -343,6 +343,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
             indexOutput.writeMapOfStrings(uploadedSegments);
             indexOutput.close();
             storeDirectory.sync(Collections.singleton(metadataFilename));
+            logger.debug("Uploading metadata file: {}", metadataFilename);
             remoteMetadataDirectory.copyFrom(storeDirectory, metadataFilename, metadataFilename, IOContext.DEFAULT);
             storeDirectory.deleteFile(metadataFilename);
         }
@@ -397,6 +398,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
             sortedMetadataFileList.size() - lastNMetadataFilesToKeep,
             sortedMetadataFileList.size()
         );
+        logger.debug("SortedMetadataFileList: {}", sortedMetadataFileList);
+        logger.debug("LatestNMetadataFiles: {}", latestNMetadataFiles);
         Map<String, UploadedSegmentMetadata> activeSegmentFilesMetadataMap = new HashMap<>();
         Set<String> activeSegmentRemoteFilenames = new HashSet<>();
         for (String metadataFile : latestNMetadataFiles) {
@@ -415,8 +418,10 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
             AtomicBoolean deletionSuccessful = new AtomicBoolean(true);
             staleSegmentRemoteFilenames.stream().filter(file -> !activeSegmentRemoteFilenames.contains(file)).forEach(file -> {
                 try {
+                    logger.debug("Deleting stale segment: {} from remote segment store", file);
                     remoteDataDirectory.deleteFile(file);
                     if (!activeSegmentFilesMetadataMap.containsKey(getLocalSegmentFilename(file))) {
+                        logger.debug("Removing entry for segment: {} from segmentsUploadedToRemoteStore", file);
                         segmentsUploadedToRemoteStore.remove(getLocalSegmentFilename(file));
                     }
                 } catch (NoSuchFileException e) {

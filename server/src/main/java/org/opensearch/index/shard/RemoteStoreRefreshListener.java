@@ -61,6 +61,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
         localSegmentChecksumMap = new HashMap<>();
         if (indexShard.shardRouting.primary()) {
             try {
+                logger.debug("Initializing remote directory for primary shard");
                 this.remoteDirectory.init();
             } catch (IOException e) {
                 logger.error("Exception while initialising RemoteSegmentStoreDirectory", e);
@@ -84,8 +85,9 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
             try {
                 if (indexShard.shardRouting.primary()) {
                     if (this.primaryTerm != indexShard.getOperationPrimaryTerm()) {
-                        this.primaryTerm = indexShard.getOperationPrimaryTerm();
+                        logger.debug("Re-Initializing remote directory due to primary term change");
                         this.remoteDirectory.init();
+                        this.primaryTerm = indexShard.getOperationPrimaryTerm();
                     }
                     try {
                         String lastCommittedLocalSegmentFileName = SegmentInfos.getLastCommitSegmentsFileName(storeDirectory);
@@ -93,6 +95,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                             lastCommittedLocalSegmentFileName,
                             getChecksumOfLocalFile(lastCommittedLocalSegmentFileName)
                         )) {
+                            logger.debug("New segments_N file found, deleting stale segments and metadata files");
                             deleteStaleCommits();
                         }
                         try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = indexShard.getSegmentInfosSnapshot()) {
@@ -106,6 +109,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                                 .max(Comparator.comparingLong(IndexFileNames::parseGeneration));
 
                             if (latestSegmentInfos.isPresent()) {
+                                logger.debug("Latest segments_N filename: {}", latestSegmentInfos.get());
                                 refreshedLocalFiles.addAll(SegmentInfos.readCommit(storeDirectory, latestSegmentInfos.get()).files(true));
                                 segmentInfosFiles.stream()
                                     .filter(file -> !file.equals(latestSegmentInfos.get()))
@@ -123,8 +127,18 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                                         .stream()
                                         .filter(file -> !refreshedLocalFiles.contains(file))
                                         .collect(Collectors.toSet())
-                                        .forEach(localSegmentChecksumMap::remove);
+                                        .forEach(file -> {
+                                            logger.debug(
+                                                "Removing segment entry: {} from localSegmentChecksumMap as it was not part of latest SegmentInfosSnapshot",
+                                                file
+                                            );
+                                            localSegmentChecksumMap.remove(file);
+                                        });
+                                } else {
+                                    logger.debug("Upload new segments failed, skipping metadata upload");
                                 }
+                            } else {
+                                logger.debug("No segments_N file present in the SegmentInfosSnapshot");
                             }
                         } catch (EngineException e) {
                             logger.warn("Exception while reading SegmentInfosSnapshot", e);
@@ -134,6 +148,8 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                         // in the next refresh. This should not affect durability of the indexed data after remote trans-log integration.
                         logger.warn("Exception while uploading new segments to the remote segment store", e);
                     }
+                } else {
+                    logger.debug("Skipping upload segments for replica");
                 }
             } catch (Throwable t) {
                 logger.error("Exception in RemoteStoreRefreshListener.afterRefresh()", t);
@@ -156,6 +172,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
             }
         }).forEach(file -> {
             try {
+                logger.debug("Copy segment: {} from local to remote store", file);
                 remoteDirectory.copyFrom(storeDirectory, file, file, IOContext.DEFAULT);
             } catch (IOException e) {
                 uploadSuccess.set(false);
@@ -168,6 +185,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
 
     private String getChecksumOfLocalFile(String file) throws IOException {
         if (!localSegmentChecksumMap.containsKey(file)) {
+            logger.debug("Retrieving the checksum of segment: {}", file);
             try (IndexInput indexInput = storeDirectory.openInput(file, IOContext.DEFAULT)) {
                 String checksum = Long.toString(CodecUtil.retrieveChecksum(indexInput));
                 localSegmentChecksumMap.put(file, checksum);
@@ -178,6 +196,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
 
     private void deleteStaleCommits() {
         try {
+            logger.debug("Deleting all but {} metadata files and corresponding segments", LAST_N_METADATA_FILES_TO_KEEP);
             remoteDirectory.deleteStaleSegments(LAST_N_METADATA_FILES_TO_KEEP);
         } catch (IOException e) {
             logger.info("Exception while deleting stale commits from remote segment store, will retry delete post next commit", e);
