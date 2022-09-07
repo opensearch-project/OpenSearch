@@ -397,7 +397,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
 
     /**
      * This tests ensures that new files generated on primary (due to delete operation) are not considered missing on replica
-     * @throws IOException
+     * @throws IOException Exception
      */
     public void test_MissingFiles_NotCausingFailure() throws IOException {
         int docCount = 1 + random().nextInt(10);
@@ -453,9 +453,9 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
     /**
      * Generates a list of Store.MetadataSnapshot with two elements where second snapshot has extra files due to delete
      * operation. A list of snapshots is returned so that identical files have same checksum.
-     * @param docCount
-     * @return
-     * @throws IOException
+     * @param docCount Count
+     * @return return
+     * @throws IOException Exception
      */
     private List<Store.MetadataSnapshot> generateStoreMetadataSnapshot(int docCount) throws IOException {
         List<Document> docList = new ArrayList<>();

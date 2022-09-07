@@ -117,7 +117,7 @@ public class Netty4BadRequestTests extends OpenSearchTestCase {
             httpServerTransport.start();
             final TransportAddress transportAddress = randomFrom(httpServerTransport.boundAddress().boundAddresses());
 
-            try (Netty4HttpClient nettyHttpClient = new Netty4HttpClient()) {
+            try (Netty4HttpClient nettyHttpClient = Netty4HttpClient.http()) {
                 final Collection<FullHttpResponse> responses = nettyHttpClient.get(
                     transportAddress.address(),
                     "/_cluster/settings?pretty=%"
