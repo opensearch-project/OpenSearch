@@ -15,6 +15,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ### Dependencies
 - Bumps `org.gradle.test-retry` from 1.4.0 to 1.4.1
 - Bumps `reactor-netty-core` from 1.0.19 to 1.0.22
+- Bumps `antlr4-runtime` from 4.9.3 to 4.11.1
 
 ### Dependencies
 - Bumps `com.diffplug.spotless` from 6.9.1 to 6.10.0
