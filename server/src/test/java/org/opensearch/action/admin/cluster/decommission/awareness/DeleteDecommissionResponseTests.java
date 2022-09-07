@@ -26,5 +26,4 @@ public class DeleteDecommissionResponseTests extends OpenSearchTestCase {
         assertEquals(deserialized, originalResponse);
 
     }
-
 }
