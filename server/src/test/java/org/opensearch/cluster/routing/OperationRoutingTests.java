@@ -1022,13 +1022,17 @@ public class OperationRoutingTests extends OpenSearchTestCase {
                 selectedNodes.add(shardRouting.currentNodeId());
             }
         }
-        // tests no nodes are assigned to nodes in zone c
+        boolean weighAwayNodesInUndefinedZone = true;
+        // tests no shards are assigned to nodes in zone c
+        // tests shards are assigned to nodes in zone b
         for (String nodeID : selectedNodes) {
             // shard from nodes in zone c is not selected since its weight is 0
             assertFalse(nodeID.contains("c"));
-            // shard from nodes in zone b is not selected since its weight is not set
-            assertFalse(nodeID.contains("b"));
+            if (nodeID.contains("b")) {
+                weighAwayNodesInUndefinedZone = false;
+            }
         }
+        assertFalse(weighAwayNodesInUndefinedZone);
 
         selectedNodes = new HashSet<>();
         setting = Settings.builder().put("cluster.routing.allocation.awareness.attributes", "zone").build();
@@ -1056,12 +1060,16 @@ public class OperationRoutingTests extends OpenSearchTestCase {
             }
         }
         // tests that no shards are assigned to zone with weight zero
+        // tests shards are assigned to nodes in zone c
+        weighAwayNodesInUndefinedZone = true;
         for (String nodeID : selectedNodes) {
             // shard from nodes in zone a is not selected since its weight is 0
             assertFalse(nodeID.contains("a"));
-            // shard from nodes in zone c is not selected since its weight is not set
-            assertFalse(nodeID.contains("c"));
+            if (nodeID.contains("c")) {
+                weighAwayNodesInUndefinedZone = false;
+            }
         }
+        assertFalse(weighAwayNodesInUndefinedZone);
         IOUtils.close(clusterService);
         terminate(threadPool);
     }

@@ -353,11 +353,8 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         for (ShardRouting shard : shards) {
             DiscoveryNode node = nodes.get(shard.currentNodeId());
             String attVal = node.getAttributes().get(wrrWeight.attributeName());
-            // If weight for a zone is not defined, not considering shards from that zone
-            if (wrrWeight.weights().get(attVal) == null) {
-                continue;
-            }
-            Double weight = Double.parseDouble(wrrWeight.weights().get(attVal).toString());
+            // If weight for a zone is not defined, considering it as 1 by default
+            Double weight = Double.parseDouble(wrrWeight.weights().getOrDefault(attVal, 1).toString());
             weightedShards.add(new WeightedRoundRobin.Entity<>(weight, shard));
         }
         return weightedShards;
