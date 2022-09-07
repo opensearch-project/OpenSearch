@@ -35,6 +35,7 @@ import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.util.SloppyMath;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.geo.GeoPoint;
+import org.opensearch.common.geo.GeoShapeDocValue;
 import org.opensearch.common.util.OpenSearchSloppyMath;
 import org.opensearch.common.xcontent.ObjectParser.ValueType;
 import org.opensearch.common.xcontent.XContentParser;
@@ -42,6 +43,8 @@ import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.geometry.Rectangle;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 import static org.opensearch.common.geo.GeoUtils.normalizeLat;
@@ -276,6 +279,39 @@ public final class GeoTileUtils {
     public static Rectangle toBoundingBox(String hash) {
         int[] hashAsInts = parseHash(hash);
         return toBoundingBox(hashAsInts[1], hashAsInts[2], hashAsInts[0]);
+    }
+
+    /**
+     * The function encodes the shape provided as {@link GeoShapeDocValue} to a {@link List} of {@link Long} values
+     * (representing the GeoTiles) which are intersecting with the shapes at a given precision.
+     *
+     * @param geoShapeDocValue {@link GeoShapeDocValue}
+     * @param precision int
+     * @return {@link List} of {@link Long}
+     */
+    public static List<Long> encodeShape(final GeoShapeDocValue geoShapeDocValue, final int precision) {
+        final GeoShapeDocValue.BoundingRectangle boundingRectangle = geoShapeDocValue.getBoundingRectangle();
+        // generate all the grid long values that this shape intersects.
+        final long totalTilesAtPrecision = 1L << checkPrecisionRange(precision);
+        int maxXTile = getXTile(boundingRectangle.getMaxX(), totalTilesAtPrecision);
+        int minXTile = getXTile(boundingRectangle.getMinX(), totalTilesAtPrecision);
+
+        int maxYTile = getYTile(boundingRectangle.getMaxY(), totalTilesAtPrecision);
+        int minYTile = getYTile(boundingRectangle.getMinY(), totalTilesAtPrecision);
+        final List<Long> encodedValues = new ArrayList<>();
+        for (int x = minXTile; x <= maxXTile; x++) {
+            for (int y = minYTile; y <= maxYTile; y++) {
+                // Convert the precision, x , y to encoded value.
+                long encodedValue = longEncodeTiles(precision, x, y);
+                // Convert encoded value to rectangle
+                final Rectangle tileRectangle = toBoundingBox(encodedValue);
+                // check to see if the GeoShape is intersecting with the rectangle.
+                if (geoShapeDocValue.isIntersectingRectangle(tileRectangle)) {
+                    encodedValues.add(encodedValue);
+                }
+            }
+        }
+        return encodedValues;
     }
 
     public static Rectangle toBoundingBox(int xTile, int yTile, int precision) {

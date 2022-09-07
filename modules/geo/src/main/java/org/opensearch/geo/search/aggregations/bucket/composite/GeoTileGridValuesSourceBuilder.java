@@ -42,7 +42,7 @@ import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.xcontent.ObjectParser;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
-import org.opensearch.geo.search.aggregations.bucket.geogrid.CellIdSource;
+import org.opensearch.geo.search.aggregations.bucket.geogrid.cells.CellIdSource;
 import org.opensearch.geo.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.query.QueryShardContext;

@@ -29,7 +29,7 @@
  * GitHub history for details.
  */
 
-package org.opensearch.geo.search.aggregations.bucket.geogrid;
+package org.opensearch.geo.search.aggregations.bucket.geogrid.cells;
 
 import org.opensearch.index.fielddata.AbstractSortingNumericDocValues;
 import org.opensearch.index.fielddata.MultiGeoPointValues;
@@ -54,12 +54,16 @@ abstract class CellValues extends AbstractSortingNumericDocValues {
         this.encoder = encoder;
     }
 
+    // we will need a way to clear the values array, as it is storing the states
     @Override
     public boolean advanceExact(int docId) throws IOException {
         if (geoValues.advanceExact(docId)) {
             int docValueCount = geoValues.docValueCount();
             resize(docValueCount);
             int j = 0;
+            // we will need a way to convert the shape into a set of GeoTiles. Now, rather than iterating over the
+            // points as in GeoPoints, we need to add the list of tiles which shape is intersecting with like we are
+            // doing for the points.
             for (int i = 0; i < docValueCount; i++) {
                 j = advanceValue(geoValues.nextValue(), j);
             }
