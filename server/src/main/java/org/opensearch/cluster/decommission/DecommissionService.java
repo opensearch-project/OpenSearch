@@ -177,60 +177,46 @@ public class DecommissionService {
                     DecommissionAttributeMetadata decommissionAttributeMetadata = newState.metadata()
                         .custom(DecommissionAttributeMetadata.TYPE);
                     assert decommissionAttribute.equals(decommissionAttributeMetadata.decommissionAttribute());
-                    listener.onResponse(new ClusterStateUpdateResponse(true));
                     if (!decommissionAttributeMetadata.status().equals(DecommissionStatus.SUCCESSFUL)) {
-                        decommissionClusterManagerNodes(decommissionAttributeMetadata.decommissionAttribute());
+                        decommissionClusterManagerNodes(
+                            decommissionAttributeMetadata.decommissionAttribute(),
+                            listener
+                        );
                     }
                 }
             }
         );
     }
 
-    private void decommissionClusterManagerNodes(final DecommissionAttribute decommissionAttribute) {
-        decommissionController.updateMetadataWithDecommissionStatus(
-            DecommissionStatus.EXCLUDE_LEADER_FROM_VOTING_CONFIG,
-            new ActionListener<DecommissionStatus>() {
-                @Override
-                public void onResponse(DecommissionStatus status) {
-                    ClusterState state = clusterService.getClusterApplierService().state();
-                    Set<DiscoveryNode> clusterManagerNodesToBeDecommissioned = filterNodesWithDecommissionAttribute(
-                        state, decommissionAttribute, true
-                    );
-                    ensureNoQuorumLossDueToDecommissioning(
-                        decommissionAttribute,
-                        clusterManagerNodesToBeDecommissioned,
-                        state.getLastCommittedConfiguration()
-                    );
-                    // remove all 'to-be-decommissioned' cluster manager eligible nodes from voting config
-                    // The method ensures that we don't exclude same nodes multiple times
-                    excludeDecommissionedClusterManagerNodesFromVotingConfig(clusterManagerNodesToBeDecommissioned);
-                    // explicitly throwing NotClusterManagerException as we can certainly say the local cluster manager node will
-                    // be abdicated and soon will no longer be cluster manager.
-                    if (transportService.getLocalNode().isClusterManagerNode()
-                        && !nodeHasDecommissionedAttribute(transportService.getLocalNode(), decommissionAttribute)) {
-                        failDecommissionedNodes(clusterService.getClusterApplierService().state());
-                    } else {
-                        throw new NotClusterManagerException(
-                            "node ["
-                                + transportService.getLocalNode().toString()
-                                + "] not eligible to execute decommission request. Will retry until timeout."
-                        );
-                    }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    logger.error(
-                        () -> new ParameterizedMessage(
-                            "failed to update decommission status for attribute [{}] to [{}]",
-                            decommissionAttribute.toString(),
-                            DecommissionStatus.EXCLUDE_LEADER_FROM_VOTING_CONFIG
-                        ),
-                        e
-                    );
-                }
-            }
+    private void decommissionClusterManagerNodes(
+        final DecommissionAttribute decommissionAttribute,
+        ActionListener<ClusterStateUpdateResponse> listener
+    ) {
+        ClusterState state = clusterService.getClusterApplierService().state();
+        Set<DiscoveryNode> clusterManagerNodesToBeDecommissioned = filterNodesWithDecommissionAttribute(
+            state, decommissionAttribute, true
         );
+        ensureNoQuorumLossDueToDecommissioning(
+            decommissionAttribute,
+            clusterManagerNodesToBeDecommissioned,
+            state.getLastCommittedConfiguration()
+        );
+        // remove all 'to-be-decommissioned' cluster manager eligible nodes from voting config
+        // The method ensures that we don't exclude same nodes multiple times
+        excludeDecommissionedClusterManagerNodesFromVotingConfig(clusterManagerNodesToBeDecommissioned);
+        // explicitly throwing NotClusterManagerException as we can certainly say the local cluster manager node will
+        // be abdicated and soon will no longer be cluster manager.
+        if (transportService.getLocalNode().isClusterManagerNode()
+            && !nodeHasDecommissionedAttribute(transportService.getLocalNode(), decommissionAttribute)) {
+            // we are good here to send the response now as the request is processed by an eligible active leader
+            listener.onResponse(new ClusterStateUpdateResponse(true));
+            failDecommissionedNodes(clusterService.getClusterApplierService().state());
+        } else {
+            // this will ensure that request is retried until cluster manager times out
+            listener.onFailure(new NotClusterManagerException("node ["
+                + transportService.getLocalNode().toString()
+                + "] not eligible to execute decommission request. Will retry until timeout."));
+        }
     }
 
     private void excludeDecommissionedClusterManagerNodesFromVotingConfig(Set<DiscoveryNode> clusterManagerNodesToBeDecommissioned) {

@@ -9,25 +9,21 @@
 package org.opensearch.cluster.decommission;
 
 /**
- * An enumeration of the states during decommissioning and recommissioning.
+ * An enumeration of the states during decommissioning
  */
 public enum DecommissionStatus {
     /**
-     * Decommission process is initiated
+     * Decommission process is initiated, and to-be-decommissioned leader is excluded from voting config
      */
     INIT("init", 0),
     /**
-     * Exclude cluster manager from Voting Configuration
-     */
-    EXCLUDE_LEADER_FROM_VOTING_CONFIG("exclude_leader_from_voting_config", 2),
-    /**
      * Decommission process has started, decommissioned nodes should be removed
      */
-    IN_PROGRESS("in_progress", 3),
+    IN_PROGRESS("in_progress", 1),
     /**
      * Decommission action completed
      */
-    SUCCESSFUL("successful", 4),
+    SUCCESSFUL("successful", 2),
     /**
      * Decommission request failed
      */
@@ -69,8 +65,6 @@ public enum DecommissionStatus {
         }
         if (status.equals(INIT.status())) {
             return INIT;
-        } else if (status.equals(EXCLUDE_LEADER_FROM_VOTING_CONFIG.status())) {
-            return EXCLUDE_LEADER_FROM_VOTING_CONFIG;
         } else if (status.equals(IN_PROGRESS.status())) {
             return IN_PROGRESS;
         } else if (status.equals(SUCCESSFUL.status())) {
@@ -90,8 +84,6 @@ public enum DecommissionStatus {
     public static DecommissionStatus fromStage(int stage) {
         if (stage == INIT.stage()) {
             return INIT;
-        } else if (stage == EXCLUDE_LEADER_FROM_VOTING_CONFIG.stage()) {
-            return EXCLUDE_LEADER_FROM_VOTING_CONFIG;
         } else if (stage == IN_PROGRESS.stage()) {
             return IN_PROGRESS;
         } else if (stage == SUCCESSFUL.stage()) {
