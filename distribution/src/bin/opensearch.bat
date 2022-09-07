@@ -56,6 +56,12 @@ IF ERRORLEVEL 1 (
 	EXIT /B %ERRORLEVEL%
 )
 
+if "%SERVICE_LOG_DIR%" == "" set SERVICE_LOG_DIR=%OPENSEARCH_HOME%\logs
+rem The logs directory must exist for the service to start.
+if not exist "%SERVICE_LOG_DIR%" (
+	mkdir "%SERVICE_LOG_DIR%"
+)
+
 SET KEYSTORE_PASSWORD=
 IF "%checkpassword%"=="Y" (
   CALL "%~dp0opensearch-keystore.bat" has-passwd --silent
@@ -69,7 +75,7 @@ IF "%checkpassword%"=="Y" (
 )
 
 if not defined OPENSEARCH_TMPDIR (
-  for /f "tokens=* usebackq" %%a in (`CALL %JAVA% -cp "!OPENSEARCH_CLASSPATH!" "org.opensearch.tools.launchers.TempDirectory"`) do set  OPENSEARCH_TMPDIR=%%a
+  for /f "tokens=* usebackq" %%a in (`CALL "%JAVA%" -cp "!OPENSEARCH_CLASSPATH!" "org.opensearch.tools.launchers.TempDirectory"`) do set  OPENSEARCH_TMPDIR=%%a
 )
 
 rem The JVM options parser produces the final JVM options to start
@@ -82,7 +88,7 @@ rem     jvm.options.d/*.options
 rem   - third, JVM options from OPENSEARCH_JAVA_OPTS are applied
 rem   - fourth, ergonomic JVM options are applied
 @setlocal
-for /F "usebackq delims=" %%a in (`CALL %JAVA% -cp "!OPENSEARCH_CLASSPATH!" "org.opensearch.tools.launchers.JvmOptionsParser" "!OPENSEARCH_PATH_CONF!" ^|^| echo jvm_options_parser_failed`) do set OPENSEARCH_JAVA_OPTS=%%a
+for /F "usebackq delims=" %%a in (`CALL "%JAVA%" -cp "!OPENSEARCH_CLASSPATH!" "org.opensearch.tools.launchers.JvmOptionsParser" "!OPENSEARCH_PATH_CONF!" ^|^| echo jvm_options_parser_failed`) do set OPENSEARCH_JAVA_OPTS=%%a
 @endlocal & set "MAYBE_JVM_OPTIONS_PARSER_FAILED=%OPENSEARCH_JAVA_OPTS%" & set OPENSEARCH_JAVA_OPTS=%OPENSEARCH_JAVA_OPTS%
 
 if "%MAYBE_JVM_OPTIONS_PARSER_FAILED%" == "jvm_options_parser_failed" (
@@ -97,7 +103,7 @@ SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^<=^^^<!
 SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^>=^^^>!
 SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^\=^^^\!
 
-ECHO.!KEYSTORE_PASSWORD!| %JAVA% %OPENSEARCH_JAVA_OPTS% -Dopensearch ^
+ECHO.!KEYSTORE_PASSWORD!| "%JAVA%" %OPENSEARCH_JAVA_OPTS% -Dopensearch ^
   -Dopensearch.path.home="%OPENSEARCH_HOME%" -Dopensearch.path.conf="%OPENSEARCH_PATH_CONF%" ^
   -Dopensearch.distribution.type="%OPENSEARCH_DISTRIBUTION_TYPE%" ^
   -Dopensearch.bundled_jdk="%OPENSEARCH_BUNDLED_JDK%" ^
