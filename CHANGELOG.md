@@ -14,6 +14,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Support for labels on version bump PRs, skip label support for changelog verifier ([#4391](https://github.com/opensearch-project/OpenSearch/pull/4391))
 ### Dependencies
 - Bumps `org.gradle.test-retry` from 1.4.0 to 1.4.1
+- Bumps `reactor-netty-core` from 1.0.19 to 1.0.22
 
 ### Dependencies
 - Bumps `com.diffplug.spotless` from 6.9.1 to 6.10.0
