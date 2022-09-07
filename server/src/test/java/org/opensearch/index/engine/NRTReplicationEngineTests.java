@@ -252,6 +252,8 @@ public class NRTReplicationEngineTests extends EngineTestCase {
             // ensure getLatestSegmentInfos returns an updated infos ref with correct userdata.
             final SegmentInfos latestSegmentInfos = nrtEngine.getLatestSegmentInfos();
             assertEquals(previousInfos.getGeneration(), latestSegmentInfos.getLastGeneration());
+            assertEquals(previousInfos.getVersion(), latestSegmentInfos.getVersion());
+            assertEquals(previousInfos.counter, latestSegmentInfos.counter);
             Map<String, String> userData = latestSegmentInfos.getUserData();
             assertEquals(processedCheckpoint, localCheckpointTracker.getProcessedCheckpoint());
             assertEquals(maxSeqNo, Long.parseLong(userData.get(MAX_SEQ_NO)));
