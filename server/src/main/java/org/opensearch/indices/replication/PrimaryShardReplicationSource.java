@@ -81,23 +81,16 @@ public class PrimaryShardReplicationSource implements SegmentReplicationSource {
         final Writeable.Reader<GetSegmentFilesResponse> reader = GetSegmentFilesResponse::new;
         final ActionListener<GetSegmentFilesResponse> responseListener = ActionListener.map(listener, r -> r);
         // Few of the below assumptions and calculations are added for experimental release of segment replication feature in 2.3
-        // version.These will be changed in next release.
+        // version. These will be changed in next release.
 
         // Storing the size of files to fetch in bytes.
-        long sizeOfSegmentFiles = 0;
-        for (int i = 0; i < filesToFetch.size(); i++) {
-            sizeOfSegmentFiles += filesToFetch.get(i).length();
-        }
-        // Making sure files size is in correct format to perform time calculation.
-        if(sizeOfSegmentFiles<0){
-            sizeOfSegmentFiles *=-1;
-        }
-        // Maximum size of files to fetch (segment files), that can be processed in 1 minute for a m5.xlarge machine.
-        long baseSegmentFilesSize = 300000000;
+        final long sizeOfSegmentFiles = filesToFetch.stream().mapToLong(file -> file.length()).sum();
 
-        long timeToGetSegmentFiles = 1;
+        // Maximum size of files to fetch (segment files) in bytes, that can be processed in 1 minute for a m5.xlarge machine.
+        long baseSegmentFilesSize = 100000000;
+
         // Formula for calculating time needed to process a replication event's files to fetch process
-        timeToGetSegmentFiles += sizeOfSegmentFiles / baseSegmentFilesSize;
+        final long timeToGetSegmentFiles = 1 + (sizeOfSegmentFiles / baseSegmentFilesSize);
         final GetSegmentFilesRequest request = new GetSegmentFilesRequest(
             replicationId,
             targetAllocationId,
