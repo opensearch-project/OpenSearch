@@ -197,6 +197,7 @@ public class DecommissionService {
                 if (transportService.getLocalNode().isClusterManagerNode()
                     && !nodeHasDecommissionedAttribute(transportService.getLocalNode(), decommissionAttribute)
                 ) {
+                    logger.info("will attempt to fail decommissioned nodes as local node is eligible to process the request");
                     // we are good here to send the response now as the request is processed by an eligible active leader
                     // and to-be-decommissioned cluster manager is no more part of Voting Configuration
                     listener.onResponse(new ClusterStateUpdateResponse(true));
@@ -205,6 +206,8 @@ public class DecommissionService {
                     // explicitly calling listener.onFailure with NotClusterManagerException as we can certainly say that
                     // the local cluster manager node will be abdicated and soon will no longer be cluster manager.
                     // this will ensure that request is retried until cluster manager times out
+                    logger.info("local node is not eligible to process the request, " +
+                        "throwing NotClusterManagerException to attempt a retry on an eligible node");
                     listener.onFailure(
                         new NotClusterManagerException(
                             "node ["
@@ -218,6 +221,7 @@ public class DecommissionService {
             @Override
             public void onFailure(Exception e) {
                 listener.onFailure(e);
+                // attempting to mark the status as FAILED
                 decommissionController.updateMetadataWithDecommissionStatus(DecommissionStatus.FAILED, statusUpdateListener());
             }
         };
@@ -379,12 +383,14 @@ public class DecommissionService {
             switch (decommissionAttributeMetadata.status()) {
                 case SUCCESSFUL:
                     // one awareness attribute is already decommissioned. We will reject the new request
-                    msg = "one awareness attribute already successfully decommissioned, recommission before triggering another decommission";
+                    msg = "one awareness attribute [" + decommissionAttributeMetadata.decommissionAttribute().toString() +
+                        "] already successfully decommissioned, recommission before triggering another decommission";
                     break;
                 case IN_PROGRESS:
                 case INIT:
                     // it means the decommission has been initiated or is inflight. In that case, will fail new request
-                    msg = "there's an inflight decommission request in progress, cannot process this request";
+                    msg = "there's an inflight decommission request for attribute [" + decommissionAttributeMetadata.decommissionAttribute().toString() +
+                        "] is in progress, cannot process this request";
                     break;
                 case FAILED:
                     break;
