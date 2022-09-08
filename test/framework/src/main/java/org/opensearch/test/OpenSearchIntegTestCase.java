@@ -36,7 +36,8 @@ import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-import org.apache.http.HttpHost;
+
+import org.apache.hc.core5.http.HttpHost;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.tests.util.LuceneTestCase;
@@ -2344,7 +2345,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             if (node.getInfo(HttpInfo.class) != null) {
                 TransportAddress publishAddress = node.getInfo(HttpInfo.class).address().publishAddress();
                 InetSocketAddress address = publishAddress.address();
-                hosts.add(new HttpHost(NetworkAddress.format(address.getAddress()), address.getPort(), protocol));
+                hosts.add(new HttpHost(protocol, NetworkAddress.format(address.getAddress()), address.getPort()));
             }
         }
         RestClientBuilder builder = RestClient.builder(hosts.toArray(new HttpHost[hosts.size()]));

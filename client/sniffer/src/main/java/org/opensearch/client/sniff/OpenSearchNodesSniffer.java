@@ -37,8 +37,8 @@ import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpHost;
+import org.apache.hc.core5.http.HttpEntity;
+import org.apache.hc.core5.http.HttpHost;
 import org.opensearch.client.Node;
 import org.opensearch.client.Node.Roles;
 import org.opensearch.client.Request;
@@ -192,12 +192,12 @@ public final class OpenSearchNodesSniffer implements NodesSniffer {
                                 publishAddressAsURI = URI.create(scheme + "://" + address);
                                 host = publishAddressAsURI.getHost();
                             }
-                            publishedHost = new HttpHost(host, publishAddressAsURI.getPort(), publishAddressAsURI.getScheme());
+                            publishedHost = new HttpHost(publishAddressAsURI.getScheme(), host, publishAddressAsURI.getPort());
                         } else if (parser.currentToken() == JsonToken.START_ARRAY && "bound_address".equals(parser.getCurrentName())) {
                             while (parser.nextToken() != JsonToken.END_ARRAY) {
                                 URI boundAddressAsURI = URI.create(scheme + "://" + parser.getValueAsString());
                                 boundHosts.add(
-                                    new HttpHost(boundAddressAsURI.getHost(), boundAddressAsURI.getPort(), boundAddressAsURI.getScheme())
+                                    new HttpHost(boundAddressAsURI.getScheme(), boundAddressAsURI.getHost(), boundAddressAsURI.getPort())
                                 );
                             }
                         } else if (parser.getCurrentToken() == JsonToken.START_OBJECT) {

@@ -35,8 +35,9 @@ package org.opensearch.client;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-import org.apache.http.Header;
-import org.apache.http.message.BasicHeader;
+
+import org.apache.hc.core5.http.Header;
+import org.apache.hc.core5.http.message.BasicHeader;
 
 import java.util.ArrayList;
 import java.util.Arrays;

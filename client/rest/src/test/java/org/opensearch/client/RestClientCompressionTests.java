@@ -11,10 +11,11 @@ package org.opensearch.client;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpHost;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
+
+import org.apache.hc.core5.http.ContentType;
+import org.apache.hc.core5.http.HttpEntity;
+import org.apache.hc.core5.http.HttpHost;
+import org.apache.hc.core5.http.io.entity.StringEntity;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -108,7 +109,7 @@ public class RestClientCompressionTests extends RestClientTestCase {
 
     private RestClient createClient(boolean enableCompression, boolean chunkedEnabled) {
         InetSocketAddress address = httpServer.getAddress();
-        return RestClient.builder(new HttpHost(address.getHostString(), address.getPort(), "http"))
+        return RestClient.builder(new HttpHost("http", address.getHostString(), address.getPort()))
             .setCompressionEnabled(enableCompression)
             .setChunkedEnabled(chunkedEnabled)
             .build();

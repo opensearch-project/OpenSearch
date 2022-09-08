@@ -31,8 +31,6 @@
 
 package org.opensearch.upgrades;
 
-import org.apache.http.HttpStatus;
-import org.apache.http.util.EntityUtils;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.client.Node;
 import org.opensearch.client.Request;
@@ -42,6 +40,9 @@ import org.opensearch.client.WarningsHandler;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.search.DocValueFormat;
+import org.apache.hc.core5.http.HttpStatus;
+import org.apache.hc.core5.http.ParseException;
+import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -190,7 +191,7 @@ public class JodaCompatibilityIT extends AbstractRollingTestCase {
                     "  }" +
                     "}"),
                 EntityUtils.toString(searchResp.getEntity(), StandardCharsets.UTF_8));
-        } catch (IOException e) {
+        } catch (IOException | ParseException e) {
             throw new AssertionError("Exception during response parising", e);
         }
     }

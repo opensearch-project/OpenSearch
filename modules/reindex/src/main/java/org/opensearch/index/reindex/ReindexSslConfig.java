@@ -32,10 +32,10 @@
 
 package org.opensearch.index.reindex;
 
-import org.apache.http.conn.ssl.DefaultHostnameVerifier;
-import org.apache.http.conn.ssl.NoopHostnameVerifier;
-import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
-import org.opensearch.common.Strings;
+import org.apache.hc.client5.http.ssl.ClientTlsStrategyBuilder;
+import org.apache.hc.client5.http.ssl.DefaultHostnameVerifier;
+import org.apache.hc.client5.http.ssl.NoopHostnameVerifier;
+import org.apache.hc.core5.http.nio.ssl.TlsStrategy;
 import org.opensearch.common.settings.SecureSetting;
 import org.opensearch.common.settings.SecureString;
 import org.opensearch.common.settings.Setting;
@@ -161,16 +161,24 @@ class ReindexSslConfig {
     }
 
     /**
-     * Encapsulate the loaded SSL configuration as a HTTP-client {@link SSLIOSessionStrategy}.
+     * Encapsulate the loaded SSL configuration as a HTTP-client {@link TlsStrategy}.
      * The returned strategy is immutable, but successive calls will return different objects that may have different
      * configurations if the underlying key/certificate files are modified.
      */
-    SSLIOSessionStrategy getStrategy() {
+    TlsStrategy getStrategy() {
         final HostnameVerifier hostnameVerifier = configuration.getVerificationMode().isHostnameVerificationEnabled()
             ? new DefaultHostnameVerifier()
             : new NoopHostnameVerifier();
-        final String[] protocols = configuration.getSupportedProtocols().toArray(Strings.EMPTY_ARRAY);
-        final String[] cipherSuites = configuration.getCipherSuites().toArray(Strings.EMPTY_ARRAY);
-        return new SSLIOSessionStrategy(context, protocols, cipherSuites, hostnameVerifier);
+
+        final String[] protocols = configuration.getSupportedProtocols().toArray(new String[0]);
+        final String[] cipherSuites = configuration.getCipherSuites().toArray(new String[0]);
+
+        return ClientTlsStrategyBuilder.create()
+            .setSslContext(context)
+            .setHostnameVerifier(hostnameVerifier)
+            .setCiphers(cipherSuites)
+            .setTlsVersions(protocols)
+            .build();
+
     }
 }

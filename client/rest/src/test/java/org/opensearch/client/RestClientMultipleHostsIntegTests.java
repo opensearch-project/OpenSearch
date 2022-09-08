@@ -35,7 +35,8 @@ package org.opensearch.client;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
-import org.apache.http.HttpHost;
+
+import org.apache.hc.core5.http.HttpHost;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -63,7 +64,7 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 /**
- * Integration test to check interaction between {@link RestClient} and {@link org.apache.http.client.HttpClient}.
+ * Integration test to check interaction between {@link RestClient} and {@link org.apache.hc.client5.http.classic.HttpClient}.
  * Works against real http servers, multiple hosts. Also tests failover by randomly shutting down hosts.
  */
 public class RestClientMultipleHostsIntegTests extends RestClientTestCase {

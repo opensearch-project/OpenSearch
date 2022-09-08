@@ -32,7 +32,8 @@
 
 package org.opensearch.client;
 
-import org.apache.http.util.EntityUtils;
+import org.apache.hc.core5.http.ParseException;
+import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchStatusException;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
@@ -220,7 +221,7 @@ public class ClusterClientIT extends OpenSearchRestHighLevelClientTestCase {
         assertThat(response.getStatus(), equalTo(ClusterHealthStatus.GREEN));
     }
 
-    public void testClusterHealthYellowClusterLevel() throws IOException {
+    public void testClusterHealthYellowClusterLevel() throws IOException, ParseException {
         createIndex("index", Settings.EMPTY);
         createIndex("index2", Settings.EMPTY);
         ClusterHealthRequest request = new ClusterHealthRequest();
@@ -231,7 +232,7 @@ public class ClusterClientIT extends OpenSearchRestHighLevelClientTestCase {
         assertThat(response.getIndices().size(), equalTo(0));
     }
 
-    public void testClusterHealthYellowIndicesLevel() throws IOException {
+    public void testClusterHealthYellowIndicesLevel() throws IOException, ParseException {
         String firstIndex = "index";
         String secondIndex = "index2";
         // including another index that we do not assert on, to ensure that we are not

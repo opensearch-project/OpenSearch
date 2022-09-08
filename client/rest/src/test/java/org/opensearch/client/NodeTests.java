@@ -32,7 +32,7 @@
 
 package org.opensearch.client;
 
-import org.apache.http.HttpHost;
+import org.apache.hc.core5.http.HttpHost;
 import org.opensearch.client.Node.Roles;
 
 import java.util.Arrays;

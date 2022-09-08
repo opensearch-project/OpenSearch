@@ -32,7 +32,7 @@
 
 package org.opensearch.client;
 
-import org.apache.http.HttpHost;
+import org.apache.hc.core5.http.HttpHost;
 
 import java.util.HashSet;
 import java.util.List;

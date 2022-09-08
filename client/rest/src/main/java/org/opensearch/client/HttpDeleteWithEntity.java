@@ -31,24 +31,18 @@
 
 package org.opensearch.client;
 
-import org.apache.http.client.methods.HttpDelete;
-import org.apache.http.client.methods.HttpEntityEnclosingRequestBase;
+import org.apache.hc.client5.http.classic.methods.HttpDelete;
+import org.apache.hc.client5.http.classic.methods.HttpUriRequestBase;
 
 import java.net.URI;
 
 /**
  * Allows to send DELETE requests providing a body (not supported out of the box)
  */
-final class HttpDeleteWithEntity extends HttpEntityEnclosingRequestBase {
-
-    static final String METHOD_NAME = HttpDelete.METHOD_NAME;
+final class HttpDeleteWithEntity extends HttpUriRequestBase {
+    public static final String METHOD_NAME = HttpDelete.METHOD_NAME;
 
     HttpDeleteWithEntity(final URI uri) {
-        setURI(uri);
-    }
-
-    @Override
-    public String getMethod() {
-        return METHOD_NAME;
+        super(METHOD_NAME, uri);
     }
 }

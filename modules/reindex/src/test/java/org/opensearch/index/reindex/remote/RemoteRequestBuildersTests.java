@@ -32,8 +32,8 @@
 
 package org.opensearch.index.reindex.remote;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.entity.ContentType;
+import org.apache.hc.core5.http.ContentType;
+import org.apache.hc.core5.http.HttpEntity;
 import org.opensearch.Version;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.client.Request;
@@ -245,7 +245,7 @@ public class RemoteRequestBuildersTests extends OpenSearchTestCase {
         searchRequest.source(new SearchSourceBuilder());
         String query = "{\"match_all\":{}}";
         HttpEntity entity = initialSearch(searchRequest, new BytesArray(query), remoteVersion).getEntity();
-        assertEquals(ContentType.APPLICATION_JSON.toString(), entity.getContentType().getValue());
+        assertEquals(ContentType.APPLICATION_JSON.toString(), entity.getContentType());
         if (remoteVersion.onOrAfter(Version.fromId(1000099))) {
             assertEquals(
                 "{\"query\":" + query + ",\"_source\":true}",
@@ -261,7 +261,7 @@ public class RemoteRequestBuildersTests extends OpenSearchTestCase {
         // Source filtering is included if set up
         searchRequest.source().fetchSource(new String[] { "in1", "in2" }, new String[] { "out" });
         entity = initialSearch(searchRequest, new BytesArray(query), remoteVersion).getEntity();
-        assertEquals(ContentType.APPLICATION_JSON.toString(), entity.getContentType().getValue());
+        assertEquals(ContentType.APPLICATION_JSON.toString(), entity.getContentType());
         assertEquals(
             "{\"query\":" + query + ",\"_source\":{\"includes\":[\"in1\",\"in2\"],\"excludes\":[\"out\"]}}",
             Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8))
@@ -287,7 +287,7 @@ public class RemoteRequestBuildersTests extends OpenSearchTestCase {
     public void testScrollEntity() throws IOException {
         String scroll = randomAlphaOfLength(30);
         HttpEntity entity = scroll(scroll, timeValueMillis(between(1, 1000)), Version.fromString("5.0.0")).getEntity();
-        assertEquals(ContentType.APPLICATION_JSON.toString(), entity.getContentType().getValue());
+        assertEquals(ContentType.APPLICATION_JSON.toString(), entity.getContentType());
         assertThat(
             Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8)),
             containsString("\"" + scroll + "\"")
@@ -295,14 +295,14 @@ public class RemoteRequestBuildersTests extends OpenSearchTestCase {
 
         // Test with version < 2.0.0
         entity = scroll(scroll, timeValueMillis(between(1, 1000)), Version.fromId(1070499)).getEntity();
-        assertEquals(ContentType.TEXT_PLAIN.toString(), entity.getContentType().getValue());
+        assertEquals(ContentType.TEXT_PLAIN.toString(), entity.getContentType());
         assertEquals(scroll, Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8)));
     }
 
     public void testClearScroll() throws IOException {
         String scroll = randomAlphaOfLength(30);
         Request request = clearScroll(scroll, Version.fromString("5.0.0"));
-        assertEquals(ContentType.APPLICATION_JSON.toString(), request.getEntity().getContentType().getValue());
+        assertEquals(ContentType.APPLICATION_JSON.toString(), request.getEntity().getContentType());
         assertThat(
             Streams.copyToString(new InputStreamReader(request.getEntity().getContent(), StandardCharsets.UTF_8)),
             containsString("\"" + scroll + "\"")
@@ -311,7 +311,7 @@ public class RemoteRequestBuildersTests extends OpenSearchTestCase {
 
         // Test with version < 2.0.0
         request = clearScroll(scroll, Version.fromId(1070499));
-        assertEquals(ContentType.TEXT_PLAIN.toString(), request.getEntity().getContentType().getValue());
+        assertEquals(ContentType.TEXT_PLAIN.toString(), request.getEntity().getContentType());
         assertEquals(scroll, Streams.copyToString(new InputStreamReader(request.getEntity().getContent(), StandardCharsets.UTF_8)));
         assertThat(request.getParameters().keySet(), empty());
     }

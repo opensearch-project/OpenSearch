@@ -32,10 +32,10 @@
 
 package org.opensearch.client;
 
-import org.apache.http.Header;
-import org.apache.http.client.config.RequestConfig;
-import org.apache.http.message.BasicHeader;
-import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
+import org.apache.hc.client5.http.config.RequestConfig;
+import org.apache.hc.core5.http.Header;
+import org.apache.hc.core5.http.message.BasicHeader;
+import org.apache.hc.core5.http.nio.AsyncResponseConsumer;
 import org.opensearch.client.HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory;
 
 import java.util.ArrayList;
@@ -86,7 +86,7 @@ public final class RequestOptions {
 
     /**
      * The {@link HttpAsyncResponseConsumerFactory} used to create one
-     * {@link HttpAsyncResponseConsumer} callback per retry. Controls how the
+     * {@link AsyncResponseConsumer} callback per retry. Controls how the
      * response body gets streamed from a non-blocking HTTP connection on the
      * client side.
      */
@@ -218,11 +218,11 @@ public final class RequestOptions {
 
         /**
          * Set the {@link HttpAsyncResponseConsumerFactory} used to create one
-         * {@link HttpAsyncResponseConsumer} callback per retry. Controls how the
+         * {@link AsyncResponseConsumer} callback per retry. Controls how the
          * response body gets streamed from a non-blocking HTTP connection on the
          * client side.
          *
-         * @param httpAsyncResponseConsumerFactory factory for creating {@link HttpAsyncResponseConsumer}.
+         * @param httpAsyncResponseConsumerFactory factory for creating {@link AsyncResponseConsumer}.
          * @throws NullPointerException if {@code httpAsyncResponseConsumerFactory} is null.
          */
         public void setHttpAsyncResponseConsumerFactory(HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory) {

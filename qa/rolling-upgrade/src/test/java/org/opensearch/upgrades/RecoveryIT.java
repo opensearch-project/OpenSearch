@@ -31,7 +31,6 @@
 
 package org.opensearch.upgrades;
 
-import org.apache.http.util.EntityUtils;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.support.PlainActionFuture;
@@ -49,6 +48,7 @@ import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.test.rest.yaml.ObjectPath;
+import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 

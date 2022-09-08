@@ -8,7 +8,9 @@
 
 package org.opensearch.backwards;
 
-import org.apache.http.util.EntityUtils;
+import org.apache.hc.core5.http.HttpStatus;
+import org.apache.hc.core5.http.ParseException;
+import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.opensearch.Version;
 import org.opensearch.client.Node;
 import org.opensearch.client.Request;
@@ -20,8 +22,6 @@ import org.opensearch.test.rest.yaml.ObjectPath;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
-
-import static org.apache.http.HttpStatus.SC_NOT_FOUND;
 
 public class ExceptionIT extends OpenSearchRestTestCase {
     public void testOpensearchException() throws Exception {
@@ -38,13 +38,13 @@ public class ExceptionIT extends OpenSearchRestTestCase {
             } catch (ResponseException e) {
                 logger.debug(e.getMessage());
                 Response response = e.getResponse();
-                assertEquals(SC_NOT_FOUND, response.getStatusLine().getStatusCode());
+                assertEquals(HttpStatus.SC_NOT_FOUND, response.getStatusLine().getStatusCode());
                 assertEquals("no_such_index", ObjectPath.createFromResponse(response).evaluate("error.index"));
             }
         }
     }
 
-    private void logClusterNodes() throws IOException {
+    private void logClusterNodes() throws IOException, ParseException {
         ObjectPath objectPath = ObjectPath.createFromResponse(client().performRequest(new Request("GET", "_nodes")));
         Map<String, ?> nodes = objectPath.evaluate("nodes");
         // As of 2.0, 'GET _cat/master' API is deprecated to promote inclusive language.

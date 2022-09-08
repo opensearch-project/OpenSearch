@@ -32,7 +32,7 @@
 
 package org.opensearch.client.documentation;
 
-import org.apache.http.HttpHost;
+import org.apache.hc.core5.http.HttpHost;
 import org.opensearch.client.OpenSearchRestHighLevelClientTestCase;
 import org.opensearch.client.RequestOptions;
 import org.opensearch.client.RestClient;
@@ -92,8 +92,8 @@ public class MiscellaneousDocumentationIT extends OpenSearchRestHighLevelClientT
         //tag::rest-high-level-client-init
         RestHighLevelClient client = new RestHighLevelClient(
                 RestClient.builder(
-                        new HttpHost("localhost", 9200, "http"),
-                        new HttpHost("localhost", 9201, "http")));
+                        new HttpHost("http", "localhost", 9200),
+                        new HttpHost("http", "localhost", 9201)));
         //end::rest-high-level-client-init
 
         //tag::rest-high-level-client-close

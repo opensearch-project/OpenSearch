@@ -40,12 +40,12 @@ group = 'org.opensearch.client'
 archivesBaseName = 'opensearch-rest-client'
 
 dependencies {
-  api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
-  api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
-  api "org.apache.httpcomponents:httpasyncclient:${versions.httpasyncclient}"
-  api "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
+  api "org.apache.httpcomponents.client5:httpclient5:${versions.httpclient5}"
+  api "org.apache.httpcomponents.core5:httpcore5:${versions.httpcore5}"
+  api "org.apache.httpcomponents.core5:httpcore5-h2:${versions.httpcore5}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
   api "commons-logging:commons-logging:${versions.commonslogging}"
+  api "org.slf4j:slf4j-api:${versions.slf4j}"
 
   testImplementation project(":client:test")
   testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
@@ -54,6 +54,9 @@ dependencies {
   testImplementation "org.mockito:mockito-core:${versions.mockito}"
   testImplementation "org.objenesis:objenesis:${versions.objenesis}"
   testImplementation "net.bytebuddy:byte-buddy:${versions.bytebuddy}"
+  testImplementation "org.apache.logging.log4j:log4j-api:${versions.log4j}"
+  testImplementation "org.apache.logging.log4j:log4j-core:${versions.log4j}"
+  testImplementation "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
 }
 
 tasks.withType(CheckForbiddenApis).configureEach {
@@ -85,6 +88,10 @@ testingConventions {
 }
 
 thirdPartyAudit.ignoreMissingClasses(
+  'org.conscrypt.Conscrypt',
+  'org.slf4j.impl.StaticLoggerBinder',
+  'org.slf4j.impl.StaticMDCBinder',
+  'org.slf4j.impl.StaticMarkerBinder',
   //commons-logging optional dependencies
   'org.apache.avalon.framework.logger.Logger',
   'org.apache.log.Hierarchy',

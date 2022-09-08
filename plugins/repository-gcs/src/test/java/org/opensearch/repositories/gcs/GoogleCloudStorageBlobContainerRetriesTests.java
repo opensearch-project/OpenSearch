@@ -37,8 +37,8 @@ import com.google.cloud.storage.StorageException;
 import com.google.cloud.storage.StorageOptions;
 import com.sun.net.httpserver.HttpHandler;
 import fixture.gcs.FakeOAuth2HttpHandler;
-import org.apache.http.HttpStatus;
 
+import org.apache.hc.core5.http.HttpStatus;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
 import org.opensearch.common.SuppressForbidden;

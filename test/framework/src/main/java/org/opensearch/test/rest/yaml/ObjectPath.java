@@ -31,7 +31,7 @@
 
 package org.opensearch.test.rest.yaml;
 
-import org.apache.http.util.EntityUtils;
+import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.opensearch.client.Response;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;

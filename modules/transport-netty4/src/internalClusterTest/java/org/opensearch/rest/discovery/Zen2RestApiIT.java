@@ -32,7 +32,6 @@
 
 package org.opensearch.rest.discovery;
 
-import org.apache.http.HttpHost;
 import org.opensearch.OpenSearchNetty4IntegTestCase;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.client.Client;
@@ -49,9 +48,11 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalTestCluster;
+import org.apache.hc.core5.http.HttpHost;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.util.Collections;
 import java.util.List;
 
@@ -124,6 +125,8 @@ public class Zen2RestApiIT extends OpenSearchNetty4IntegTestCase {
                         .get();
                     assertFalse(nodeName, clusterHealthResponse.isTimedOut());
                     return Settings.EMPTY;
+                } catch (final URISyntaxException ex) {
+                    throw new IOException(ex);
                 } finally {
                     restClient.setNodes(allNodes);
                 }

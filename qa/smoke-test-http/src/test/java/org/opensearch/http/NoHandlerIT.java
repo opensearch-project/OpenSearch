@@ -32,7 +32,8 @@
 
 package org.opensearch.http;
 
-import org.apache.http.util.EntityUtils;
+import org.apache.hc.core5.http.ParseException;
+import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.opensearch.client.Request;
 import org.opensearch.client.RequestOptions;
 import org.opensearch.client.Response;
@@ -46,7 +47,7 @@ import static org.hamcrest.Matchers.is;
 
 public class NoHandlerIT extends HttpSmokeTestCase {
 
-    public void testNoHandlerRespectsAcceptHeader() throws IOException {
+    public void testNoHandlerRespectsAcceptHeader() throws IOException, ParseException {
         runTestNoHandlerRespectsAcceptHeader(
                 "application/json",
                 "application/json; charset=UTF-8",
@@ -58,7 +59,7 @@ public class NoHandlerIT extends HttpSmokeTestCase {
     }
 
     private void runTestNoHandlerRespectsAcceptHeader(
-            final String accept, final String contentType, final String expect) throws IOException {
+            final String accept, final String contentType, final String expect) throws IOException, ParseException {
         Request request = new Request("GET", "/foo/bar/baz/qux/quux");
         RequestOptions.Builder options = request.getOptions().toBuilder();
         options.addHeader("Accept", accept);

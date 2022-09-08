@@ -32,19 +32,17 @@
 
 package org.opensearch.client;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpHost;
-import org.apache.http.HttpResponse;
-import org.apache.http.ProtocolVersion;
-import org.apache.http.RequestLine;
-import org.apache.http.StatusLine;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.InputStreamEntity;
-import org.apache.http.entity.StringEntity;
-import org.apache.http.message.BasicHttpResponse;
-import org.apache.http.message.BasicRequestLine;
-import org.apache.http.message.BasicStatusLine;
-import org.apache.http.util.EntityUtils;
+import org.apache.hc.core5.http.ClassicHttpResponse;
+import org.apache.hc.core5.http.ContentType;
+import org.apache.hc.core5.http.HttpEntity;
+import org.apache.hc.core5.http.HttpHost;
+import org.apache.hc.core5.http.ParseException;
+import org.apache.hc.core5.http.ProtocolVersion;
+import org.apache.hc.core5.http.io.entity.EntityUtils;
+import org.apache.hc.core5.http.io.entity.InputStreamEntity;
+import org.apache.hc.core5.http.io.entity.StringEntity;
+import org.apache.hc.core5.http.message.BasicClassicHttpResponse;
+import org.apache.hc.core5.http.message.RequestLine;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -57,10 +55,9 @@ import static org.junit.Assert.assertSame;
 
 public class ResponseExceptionTests extends RestClientTestCase {
 
-    public void testResponseException() throws IOException {
+    public void testResponseException() throws IOException, ParseException {
         ProtocolVersion protocolVersion = new ProtocolVersion("http", 1, 1);
-        StatusLine statusLine = new BasicStatusLine(protocolVersion, 500, "Internal Server Error");
-        HttpResponse httpResponse = new BasicHttpResponse(statusLine);
+        ClassicHttpResponse httpResponse = new BasicClassicHttpResponse(500, "Internal Server Error");
 
         String responseBody = "{\"error\":{\"root_cause\": {}}}";
         boolean hasBody = getRandom().nextBoolean();
@@ -78,7 +75,7 @@ public class ResponseExceptionTests extends RestClientTestCase {
             httpResponse.setEntity(entity);
         }
 
-        RequestLine requestLine = new BasicRequestLine("GET", "/", protocolVersion);
+        RequestLine requestLine = new RequestLine("GET", "/", protocolVersion);
         HttpHost httpHost = new HttpHost("localhost", 9200);
         Response response = new Response(requestLine, httpHost, httpResponse);
         ResponseException responseException = new ResponseException(response);

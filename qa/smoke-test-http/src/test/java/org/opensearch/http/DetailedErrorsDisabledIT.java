@@ -34,7 +34,8 @@ package org.opensearch.http;
 
 import java.io.IOException;
 
-import org.apache.http.util.EntityUtils;
+import org.apache.hc.core5.http.ParseException;
+import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 import org.opensearch.client.ResponseException;
@@ -60,7 +61,7 @@ public class DetailedErrorsDisabledIT extends HttpSmokeTestCase {
                 .build();
     }
 
-    public void testThatErrorTraceParamReturns400() throws IOException {
+    public void testThatErrorTraceParamReturns400() throws IOException, ParseException {
         Request request = new Request("DELETE", "/");
         request.addParameter("error_trace", "true");
         ResponseException e = expectThrows(ResponseException.class, () ->

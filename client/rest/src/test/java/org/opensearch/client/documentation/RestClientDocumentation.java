@@ -32,23 +32,28 @@
 
 package org.opensearch.client.documentation;
 
-import org.apache.http.Header;
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpHost;
-import org.apache.http.RequestLine;
-import org.apache.http.auth.AuthScope;
-import org.apache.http.auth.UsernamePasswordCredentials;
-import org.apache.http.client.CredentialsProvider;
-import org.apache.http.client.config.RequestConfig;
-import org.apache.http.entity.ContentType;
-import org.apache.http.impl.client.BasicCredentialsProvider;
-import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
-import org.apache.http.impl.nio.reactor.IOReactorConfig;
-import org.apache.http.message.BasicHeader;
-import org.apache.http.nio.entity.NStringEntity;
-import org.apache.http.ssl.SSLContextBuilder;
-import org.apache.http.ssl.SSLContexts;
-import org.apache.http.util.EntityUtils;
+import org.apache.hc.client5.http.auth.AuthScope;
+import org.apache.hc.client5.http.auth.UsernamePasswordCredentials;
+import org.apache.hc.client5.http.config.RequestConfig;
+import org.apache.hc.client5.http.impl.async.HttpAsyncClientBuilder;
+import org.apache.hc.client5.http.impl.auth.BasicCredentialsProvider;
+import org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManager;
+import org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManagerBuilder;
+import org.apache.hc.client5.http.ssl.ClientTlsStrategyBuilder;
+import org.apache.hc.core5.http.ContentType;
+import org.apache.hc.core5.http.Header;
+import org.apache.hc.core5.http.HttpEntity;
+import org.apache.hc.core5.http.HttpHost;
+import org.apache.hc.core5.http.ParseException;
+import org.apache.hc.core5.http.io.entity.EntityUtils;
+import org.apache.hc.core5.http.io.entity.StringEntity;
+import org.apache.hc.core5.http.message.BasicHeader;
+import org.apache.hc.core5.http.message.RequestLine;
+import org.apache.hc.core5.http.nio.ssl.TlsStrategy;
+import org.apache.hc.core5.reactor.IOReactorConfig;
+import org.apache.hc.core5.ssl.SSLContextBuilder;
+import org.apache.hc.core5.ssl.SSLContexts;
+import org.apache.hc.core5.util.Timeout;
 import org.opensearch.client.Cancellable;
 import org.opensearch.client.HttpAsyncResponseConsumerFactory;
 import org.opensearch.client.Node;
@@ -109,12 +114,12 @@ public class RestClientDocumentation {
     // end::rest-client-options-singleton
 
     @SuppressWarnings("unused")
-    public void usage() throws IOException, InterruptedException {
+    public void usage() throws IOException, InterruptedException, ParseException {
 
         //tag::rest-client-init
         RestClient restClient = RestClient.builder(
-            new HttpHost("localhost", 9200, "http"),
-            new HttpHost("localhost", 9201, "http")).build();
+            new HttpHost("http", "localhost", 9200),
+            new HttpHost("http", "localhost", 9201)).build();
         //end::rest-client-init
 
         //tag::rest-client-close
@@ -124,7 +129,7 @@ public class RestClientDocumentation {
         {
             //tag::rest-client-init-default-headers
             RestClientBuilder builder = RestClient.builder(
-                new HttpHost("localhost", 9200, "http"));
+                new HttpHost("http", "localhost", 9200));
             Header[] defaultHeaders = new Header[]{new BasicHeader("header", "value")};
             builder.setDefaultHeaders(defaultHeaders); // <1>
             //end::rest-client-init-default-headers
@@ -132,14 +137,14 @@ public class RestClientDocumentation {
         {
             //tag::rest-client-init-node-selector
             RestClientBuilder builder = RestClient.builder(
-                new HttpHost("localhost", 9200, "http"));
+                new HttpHost("http", "localhost", 9200));
             builder.setNodeSelector(NodeSelector.SKIP_DEDICATED_CLUSTER_MANAGERS); // <1>
             //end::rest-client-init-node-selector
         }
         {
             //tag::rest-client-init-allocation-aware-selector
             RestClientBuilder builder = RestClient.builder(
-                    new HttpHost("localhost", 9200, "http"));
+                    new HttpHost("http", "localhost", 9200));
             builder.setNodeSelector(new NodeSelector() { // <1>
                 @Override
                 public void select(Iterable<Node> nodes) {
@@ -173,7 +178,7 @@ public class RestClientDocumentation {
         {
             //tag::rest-client-init-failure-listener
             RestClientBuilder builder = RestClient.builder(
-                    new HttpHost("localhost", 9200, "http"));
+                    new HttpHost("http", "localhost", 9200));
             builder.setFailureListener(new RestClient.FailureListener() {
                 @Override
                 public void onFailure(Node node) {
@@ -185,13 +190,13 @@ public class RestClientDocumentation {
         {
             //tag::rest-client-init-request-config-callback
             RestClientBuilder builder = RestClient.builder(
-                    new HttpHost("localhost", 9200, "http"));
+                    new HttpHost("http", "localhost", 9200));
             builder.setRequestConfigCallback(
                 new RestClientBuilder.RequestConfigCallback() {
                     @Override
                     public RequestConfig.Builder customizeRequestConfig(
                             RequestConfig.Builder requestConfigBuilder) {
-                        return requestConfigBuilder.setSocketTimeout(10000); // <1>
+                        return requestConfigBuilder.setResponseTimeout(Timeout.ofMilliseconds(10000)); // <1>
                     }
                 });
             //end::rest-client-init-request-config-callback
@@ -199,13 +204,13 @@ public class RestClientDocumentation {
         {
             //tag::rest-client-init-client-config-callback
             RestClientBuilder builder = RestClient.builder(
-                new HttpHost("localhost", 9200, "http"));
+                new HttpHost("http", "localhost", 9200));
             builder.setHttpClientConfigCallback(new HttpClientConfigCallback() {
                     @Override
                     public HttpAsyncClientBuilder customizeHttpClient(
                             HttpAsyncClientBuilder httpClientBuilder) {
                         return httpClientBuilder.setProxy(
-                            new HttpHost("proxy", 9000, "http"));  // <1>
+                            new HttpHost("http", "proxy", 9000));  // <1>
                     }
                 });
             //end::rest-client-init-client-config-callback
@@ -244,7 +249,7 @@ public class RestClientDocumentation {
             request.addParameter("pretty", "true");
             //end::rest-client-parameters
             //tag::rest-client-body
-            request.setEntity(new NStringEntity(
+            request.setEntity(new StringEntity(
                     "{\"json\":\"text\"}",
                     ContentType.APPLICATION_JSON));
             //end::rest-client-body
@@ -334,8 +339,8 @@ public class RestClientDocumentation {
                         public RequestConfig.Builder customizeRequestConfig(
                                 RequestConfig.Builder requestConfigBuilder) {
                             return requestConfigBuilder
-                                .setConnectTimeout(5000)
-                                .setSocketTimeout(60000);
+                                .setConnectTimeout(Timeout.ofMilliseconds(5000))
+                                .setResponseTimeout(Timeout.ofMilliseconds(60000));
                         }
                     });
             //end::rest-client-config-timeouts
@@ -343,8 +348,8 @@ public class RestClientDocumentation {
         {
             //tag::rest-client-config-request-options-timeouts
             RequestConfig requestConfig = RequestConfig.custom()
-                .setConnectTimeout(5000)
-                .setSocketTimeout(60000)
+                .setConnectTimeout(Timeout.ofMilliseconds(5000))
+                .setResponseTimeout(Timeout.ofMilliseconds(60000))
                 .build();
             RequestOptions options = RequestOptions.DEFAULT.toBuilder()
                 .setRequestConfig(requestConfig)
@@ -359,7 +364,7 @@ public class RestClientDocumentation {
                     @Override
                     public HttpAsyncClientBuilder customizeHttpClient(
                             HttpAsyncClientBuilder httpClientBuilder) {
-                        return httpClientBuilder.setDefaultIOReactorConfig(
+                        return httpClientBuilder.setIOReactorConfig(
                             IOReactorConfig.custom()
                                 .setIoThreadCount(1)
                                 .build());
@@ -369,10 +374,9 @@ public class RestClientDocumentation {
         }
         {
             //tag::rest-client-config-basic-auth
-            final CredentialsProvider credentialsProvider =
-                new BasicCredentialsProvider();
-            credentialsProvider.setCredentials(AuthScope.ANY,
-                new UsernamePasswordCredentials("user", "password"));
+            final BasicCredentialsProvider credentialsProvider = new BasicCredentialsProvider();
+            credentialsProvider.setCredentials(new AuthScope(new HttpHost("localhost", 9200)),
+                  new UsernamePasswordCredentials("user", "password".toCharArray()));
 
             RestClientBuilder builder = RestClient.builder(
                 new HttpHost("localhost", 9200))
@@ -388,10 +392,10 @@ public class RestClientDocumentation {
         }
         {
             //tag::rest-client-config-disable-preemptive-auth
-            final CredentialsProvider credentialsProvider =
+            final BasicCredentialsProvider credentialsProvider =
                 new BasicCredentialsProvider();
-            credentialsProvider.setCredentials(AuthScope.ANY,
-                new UsernamePasswordCredentials("user", "password"));
+            credentialsProvider.setCredentials(new AuthScope(new HttpHost("localhost", 9200)),
+                new UsernamePasswordCredentials("user", "password".toCharArray()));
 
             RestClientBuilder builder = RestClient.builder(
                 new HttpHost("localhost", 9200))
@@ -418,12 +422,20 @@ public class RestClientDocumentation {
                 .loadTrustMaterial(truststore, null);
             final SSLContext sslContext = sslBuilder.build();
             RestClientBuilder builder = RestClient.builder(
-                new HttpHost("localhost", 9200, "https"))
+                new HttpHost("https", "localhost", 9200))
                 .setHttpClientConfigCallback(new HttpClientConfigCallback() {
                     @Override
                     public HttpAsyncClientBuilder customizeHttpClient(
                             HttpAsyncClientBuilder httpClientBuilder) {
-                        return httpClientBuilder.setSSLContext(sslContext);
+                        final TlsStrategy tlsStrategy = ClientTlsStrategyBuilder.create()
+                                .setSslContext(sslContext)
+                                .build();
+
+                        final PoolingAsyncClientConnectionManager connectionManager = PoolingAsyncClientConnectionManagerBuilder.create()
+                                .setTlsStrategy(tlsStrategy)
+                                .build();
+
+                        return httpClientBuilder.setConnectionManager(connectionManager);
                     }
                 });
             //end::rest-client-config-encrypted-communication
@@ -444,12 +456,20 @@ public class RestClientDocumentation {
                 .loadTrustMaterial(trustStore, null);
             final SSLContext sslContext = sslContextBuilder.build();
             RestClient.builder(
-                new HttpHost("localhost", 9200, "https"))
+                new HttpHost("https", "localhost", 9200))
                 .setHttpClientConfigCallback(new HttpClientConfigCallback() {
                     @Override
                     public HttpAsyncClientBuilder customizeHttpClient(
                         HttpAsyncClientBuilder httpClientBuilder) {
-                        return httpClientBuilder.setSSLContext(sslContext);
+                        final TlsStrategy tlsStrategy = ClientTlsStrategyBuilder.create()
+                                .setSslContext(sslContext)
+                                .build();
+
+                        final PoolingAsyncClientConnectionManager connectionManager = PoolingAsyncClientConnectionManagerBuilder.create()
+                                .setTlsStrategy(tlsStrategy)
+                                .build();
+
+                        return httpClientBuilder.setConnectionManager(connectionManager);
                     }
                 });
             //end::rest-client-config-trust-ca-pem
@@ -473,12 +493,20 @@ public class RestClientDocumentation {
                 .loadKeyMaterial(keyStore, keyStorePass.toCharArray());
             final SSLContext sslContext = sslBuilder.build();
             RestClientBuilder builder = RestClient.builder(
-                new HttpHost("localhost", 9200, "https"))
+                new HttpHost("https", "localhost", 9200))
                 .setHttpClientConfigCallback(new HttpClientConfigCallback() {
                     @Override
                     public HttpAsyncClientBuilder customizeHttpClient(
                         HttpAsyncClientBuilder httpClientBuilder) {
-                        return httpClientBuilder.setSSLContext(sslContext);
+                        final TlsStrategy tlsStrategy = ClientTlsStrategyBuilder.create()
+                                .setSslContext(sslContext)
+                                .build();
+
+                        final PoolingAsyncClientConnectionManager connectionManager = PoolingAsyncClientConnectionManagerBuilder.create()
+                                .setTlsStrategy(tlsStrategy)
+                                .build();
+
+                        return httpClientBuilder.setConnectionManager(connectionManager);
                     }
                 });
             //end::rest-client-config-mutual-tls-authentication
@@ -486,7 +514,7 @@ public class RestClientDocumentation {
         {
             //tag::rest-client-auth-bearer-token
             RestClientBuilder builder = RestClient.builder(
-                new HttpHost("localhost", 9200, "http"));
+                new HttpHost("http", "localhost", 9200));
             Header[] defaultHeaders =
                 new Header[]{new BasicHeader("Authorization",
                     "Bearer u6iuAxZ0RG1Kcm5jVFI4eU4tZU9aVFEwT2F3")};
@@ -502,7 +530,7 @@ public class RestClientDocumentation {
                     (apiKeyId + ":" + apiKeySecret)
                         .getBytes(StandardCharsets.UTF_8));
             RestClientBuilder builder = RestClient.builder(
-                new HttpHost("localhost", 9200, "http"));
+                new HttpHost("http", "localhost", 9200));
             Header[] defaultHeaders =
                 new Header[]{new BasicHeader("Authorization",
                     "ApiKey " + apiKeyAuth)};

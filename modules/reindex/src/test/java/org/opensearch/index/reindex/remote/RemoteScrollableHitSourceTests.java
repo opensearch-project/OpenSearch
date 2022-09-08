@@ -32,31 +32,13 @@
 
 package org.opensearch.index.reindex.remote;
 
-import org.apache.http.ContentTooLongException;
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpEntityEnclosingRequest;
-import org.apache.http.HttpHost;
-import org.apache.http.HttpResponse;
-import org.apache.http.ProtocolVersion;
-import org.apache.http.StatusLine;
-import org.apache.http.client.protocol.HttpClientContext;
-import org.apache.http.concurrent.FutureCallback;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.InputStreamEntity;
-import org.apache.http.entity.StringEntity;
-import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
-import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
-import org.apache.http.message.BasicHttpResponse;
-import org.apache.http.message.BasicStatusLine;
-import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
-import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchStatusException;
 import org.opensearch.Version;
 import org.opensearch.action.bulk.BackoffPolicy;
 import org.opensearch.action.search.SearchRequest;
-import org.opensearch.client.HeapBufferedAsyncResponseConsumer;
 import org.opensearch.client.RestClient;
+import org.opensearch.client.nio.HeapBufferedAsyncResponseConsumer;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.io.FileSystemUtils;
@@ -74,6 +56,25 @@ import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
+import org.apache.hc.client5.http.impl.async.CloseableHttpAsyncClient;
+import org.apache.hc.client5.http.impl.async.HttpAsyncClientBuilder;
+import org.apache.hc.client5.http.protocol.HttpClientContext;
+import org.apache.hc.core5.concurrent.FutureCallback;
+import org.apache.hc.core5.http.ClassicHttpRequest;
+import org.apache.hc.core5.http.ClassicHttpResponse;
+import org.apache.hc.core5.http.ContentTooLongException;
+import org.apache.hc.core5.http.ContentType;
+import org.apache.hc.core5.http.HttpEntity;
+import org.apache.hc.core5.http.HttpHost;
+import org.apache.hc.core5.http.HttpResponse;
+import org.apache.hc.core5.http.ProtocolVersion;
+import org.apache.hc.core5.http.io.entity.InputStreamEntity;
+import org.apache.hc.core5.http.io.entity.StringEntity;
+import org.apache.hc.core5.http.message.BasicClassicHttpResponse;
+import org.apache.hc.core5.http.message.BasicHttpResponse;
+import org.apache.hc.core5.http.nio.AsyncRequestProducer;
+import org.apache.hc.core5.http.nio.AsyncResponseConsumer;
+import org.apache.hc.core5.http.nio.support.BasicRequestProducer;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.invocation.InvocationOnMock;
@@ -81,6 +82,7 @@ import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.lang.reflect.Field;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Queue;
@@ -447,8 +449,8 @@ public class RemoteScrollableHitSourceTests extends OpenSearchTestCase {
         CloseableHttpAsyncClient httpClient = mock(CloseableHttpAsyncClient.class);
         when(
             httpClient.<HttpResponse>execute(
-                any(HttpAsyncRequestProducer.class),
-                any(HttpAsyncResponseConsumer.class),
+                any(AsyncRequestProducer.class),
+                any(AsyncResponseConsumer.class),
                 any(HttpClientContext.class),
                 any(FutureCallback.class)
             )
@@ -542,8 +544,8 @@ public class RemoteScrollableHitSourceTests extends OpenSearchTestCase {
         CloseableHttpAsyncClient httpClient = mock(CloseableHttpAsyncClient.class);
         when(
             httpClient.<HttpResponse>execute(
-                any(HttpAsyncRequestProducer.class),
-                any(HttpAsyncResponseConsumer.class),
+                any(AsyncRequestProducer.class),
+                any(AsyncResponseConsumer.class),
                 any(HttpClientContext.class),
                 any(FutureCallback.class)
             )
@@ -555,24 +557,22 @@ public class RemoteScrollableHitSourceTests extends OpenSearchTestCase {
             public Future<HttpResponse> answer(InvocationOnMock invocationOnMock) throws Throwable {
                 // Throw away the current thread context to simulate running async httpclient's thread pool
                 threadPool.getThreadContext().stashContext();
-                HttpAsyncRequestProducer requestProducer = (HttpAsyncRequestProducer) invocationOnMock.getArguments()[0];
+                AsyncRequestProducer requestProducer = (AsyncRequestProducer) invocationOnMock.getArguments()[0];
                 FutureCallback<HttpResponse> futureCallback = (FutureCallback<HttpResponse>) invocationOnMock.getArguments()[3];
-                HttpEntityEnclosingRequest request = (HttpEntityEnclosingRequest) requestProducer.generateRequest();
+                ClassicHttpRequest request = getRequest(requestProducer);
                 URL resource = resources[responseCount];
                 String path = paths[responseCount++];
                 ProtocolVersion protocolVersion = new ProtocolVersion("http", 1, 1);
                 if (path.startsWith("fail:")) {
                     String body = Streams.copyToString(new InputStreamReader(request.getEntity().getContent(), StandardCharsets.UTF_8));
                     if (path.equals("fail:rejection.json")) {
-                        StatusLine statusLine = new BasicStatusLine(protocolVersion, RestStatus.TOO_MANY_REQUESTS.getStatus(), "");
-                        BasicHttpResponse httpResponse = new BasicHttpResponse(statusLine);
+                        BasicHttpResponse httpResponse = new BasicHttpResponse(RestStatus.TOO_MANY_REQUESTS.getStatus(), "");
                         futureCallback.completed(httpResponse);
                     } else {
                         futureCallback.failed(new RuntimeException(body));
                     }
                 } else {
-                    StatusLine statusLine = new BasicStatusLine(protocolVersion, 200, "");
-                    HttpResponse httpResponse = new BasicHttpResponse(statusLine);
+                    ClassicHttpResponse httpResponse = new BasicClassicHttpResponse(200, "");
                     httpResponse.setEntity(new InputStreamEntity(FileSystemUtils.openFileURLStream(resource), contentType));
                     futureCallback.completed(httpResponse);
                 }
@@ -648,5 +648,12 @@ public class RemoteScrollableHitSourceTests extends OpenSearchTestCase {
         }, e -> fail()));
         assertNotNull(exception.get());
         return exception.get();
+    }
+
+    // TODO: Find the better way to extract request than reflection
+    private static ClassicHttpRequest getRequest(AsyncRequestProducer requestProducer) throws NoSuchFieldException, IllegalAccessException {
+        final Field field = BasicRequestProducer.class.getDeclaredField("request");
+        field.setAccessible(true);
+        return (ClassicHttpRequest) field.get(requestProducer);
     }
 }

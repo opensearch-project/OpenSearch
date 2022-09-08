@@ -43,7 +43,8 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakLingering;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakZombies;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
-import org.apache.http.Header;
+
+import org.apache.hc.core5.http.Header;
 
 import java.util.ArrayList;
 import java.util.HashMap;

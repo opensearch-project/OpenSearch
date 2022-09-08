@@ -34,8 +34,6 @@ package org.opensearch.repositories.blobstore;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
-import org.apache.http.ConnectionClosedException;
-import org.apache.http.HttpStatus;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.blobstore.BlobContainer;
@@ -46,6 +44,8 @@ import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.CountDown;
 import org.opensearch.test.OpenSearchTestCase;
+import org.apache.hc.core5.http.ConnectionClosedException;
+import org.apache.hc.core5.http.HttpStatus;
 import org.junit.After;
 import org.junit.Before;
 

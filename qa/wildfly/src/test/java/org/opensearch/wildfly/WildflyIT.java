@@ -32,14 +32,15 @@
 
 package org.opensearch.wildfly;
 
-import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.client.methods.HttpPut;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClientBuilder;
-import org.apache.http.util.EntityUtils;
+import org.apache.hc.client5.http.classic.methods.HttpGet;
+import org.apache.hc.client5.http.classic.methods.HttpPut;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
+import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
+import org.apache.hc.core5.http.ContentType;
+import org.apache.hc.core5.http.ParseException;
+import org.apache.hc.core5.http.io.entity.EntityUtils;
+import org.apache.hc.core5.http.io.entity.StringEntity;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.tests.util.LuceneTestCase;
@@ -78,7 +79,7 @@ public class WildflyIT extends LuceneTestCase {
         return "http://localhost:" + port + "/example-app/transport";
     }
 
-    public void testRestClient() throws URISyntaxException, IOException {
+    public void testRestClient() throws URISyntaxException, IOException, ParseException {
         final String baseUrl = buildBaseUrl();
 
         try (CloseableHttpClient client = HttpClientBuilder.create().build()) {
@@ -100,7 +101,7 @@ public class WildflyIT extends LuceneTestCase {
 
             put.setEntity(new StringEntity(body, ContentType.APPLICATION_JSON));
             try (CloseableHttpResponse response = client.execute(put)) {
-                int status = response.getStatusLine().getStatusCode();
+                int status = response.getCode();
                 assertThat(
                     "expected a 201 response but got: " + status + " - body: " + EntityUtils.toString(response.getEntity()),
                     status,

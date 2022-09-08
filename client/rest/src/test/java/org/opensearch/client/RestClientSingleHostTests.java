@@ -34,43 +34,48 @@ package org.opensearch.client;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.http.ConnectionClosedException;
-import org.apache.http.Header;
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpEntityEnclosingRequest;
-import org.apache.http.HttpHost;
-import org.apache.http.HttpRequest;
-import org.apache.http.HttpResponse;
-import org.apache.http.ProtocolVersion;
-import org.apache.http.StatusLine;
-import org.apache.http.client.methods.HttpHead;
-import org.apache.http.client.methods.HttpOptions;
-import org.apache.http.client.methods.HttpPatch;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.methods.HttpPut;
-import org.apache.http.client.methods.HttpTrace;
-import org.apache.http.client.methods.HttpUriRequest;
-import org.apache.http.client.protocol.HttpClientContext;
-import org.apache.http.client.utils.URIBuilder;
-import org.apache.http.concurrent.FutureCallback;
-import org.apache.http.conn.ConnectTimeoutException;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
-import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
-import org.apache.http.message.BasicHttpResponse;
-import org.apache.http.message.BasicStatusLine;
-import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
-import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
-import org.apache.http.util.EntityUtils;
+import org.apache.hc.client5.http.ConnectTimeoutException;
+import org.apache.hc.client5.http.classic.methods.HttpHead;
+import org.apache.hc.client5.http.classic.methods.HttpOptions;
+import org.apache.hc.client5.http.classic.methods.HttpPatch;
+import org.apache.hc.client5.http.classic.methods.HttpPost;
+import org.apache.hc.client5.http.classic.methods.HttpPut;
+import org.apache.hc.client5.http.classic.methods.HttpTrace;
+import org.apache.hc.client5.http.classic.methods.HttpUriRequest;
+import org.apache.hc.client5.http.impl.async.CloseableHttpAsyncClient;
+import org.apache.hc.client5.http.protocol.HttpClientContext;
+import org.apache.hc.core5.concurrent.FutureCallback;
+import org.apache.hc.core5.function.Supplier;
+import org.apache.hc.core5.http.ClassicHttpRequest;
+import org.apache.hc.core5.http.ClassicHttpResponse;
+import org.apache.hc.core5.http.ConnectionClosedException;
+import org.apache.hc.core5.http.ContentType;
+import org.apache.hc.core5.http.Header;
+import org.apache.hc.core5.http.HttpEntity;
+import org.apache.hc.core5.http.HttpHost;
+import org.apache.hc.core5.http.HttpRequest;
+import org.apache.hc.core5.http.io.entity.EntityUtils;
+import org.apache.hc.core5.http.io.entity.StringEntity;
+import org.apache.hc.core5.http.message.BasicClassicHttpResponse;
+import org.apache.hc.core5.http.nio.AsyncPushConsumer;
+import org.apache.hc.core5.http.nio.AsyncRequestProducer;
+import org.apache.hc.core5.http.nio.AsyncResponseConsumer;
+import org.apache.hc.core5.http.nio.HandlerFactory;
+import org.apache.hc.core5.http.nio.support.BasicRequestProducer;
+import org.apache.hc.core5.http.protocol.HttpContext;
+import org.apache.hc.core5.io.CloseMode;
+import org.apache.hc.core5.net.URIBuilder;
+import org.apache.hc.core5.reactor.IOReactorStatus;
+import org.apache.hc.core5.util.TimeValue;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
-import org.mockito.stubbing.Answer;
 
 import javax.net.ssl.SSLHandshakeException;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.lang.reflect.Field;
 import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -102,10 +107,8 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.nullable;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 /**
  * Tests for basic functionality of {@link RestClient} against one single host: tests http requests being sent, headers,
@@ -145,39 +148,63 @@ public class RestClientSingleHostTests extends RestClientTestCase {
 
     @SuppressWarnings("unchecked")
     static CloseableHttpAsyncClient mockHttpClient(final ExecutorService exec) {
-        CloseableHttpAsyncClient httpClient = mock(CloseableHttpAsyncClient.class);
-        when(
-            httpClient.<HttpResponse>execute(
-                any(HttpAsyncRequestProducer.class),
-                any(HttpAsyncResponseConsumer.class),
-                any(HttpClientContext.class),
-                nullable(FutureCallback.class)
-            )
-        ).thenAnswer((Answer<Future<HttpResponse>>) invocationOnMock -> {
-            final HttpAsyncRequestProducer requestProducer = (HttpAsyncRequestProducer) invocationOnMock.getArguments()[0];
-            final FutureCallback<HttpResponse> futureCallback = (FutureCallback<HttpResponse>) invocationOnMock.getArguments()[3];
-            // Call the callback asynchronous to better simulate how async http client works
-            return exec.submit(() -> {
-                if (futureCallback != null) {
-                    try {
-                        HttpResponse httpResponse = responseOrException(requestProducer);
-                        futureCallback.completed(httpResponse);
-                    } catch (Exception e) {
-                        futureCallback.failed(e);
+        CloseableHttpAsyncClient httpClient = new CloseableHttpAsyncClient() {
+            @Override
+            public void close() throws IOException {}
+
+            @Override
+            public void close(CloseMode closeMode) {}
+
+            @Override
+            public void start() {}
+
+            @Override
+            public void register(String hostname, String uriPattern, Supplier<AsyncPushConsumer> supplier) {}
+
+            @Override
+            public void initiateShutdown() {}
+
+            @Override
+            public IOReactorStatus getStatus() {
+                return null;
+            }
+
+            @Override
+            protected <T> Future<T> doExecute(
+                HttpHost target,
+                AsyncRequestProducer requestProducer,
+                AsyncResponseConsumer<T> responseConsumer,
+                HandlerFactory<AsyncPushConsumer> pushHandlerFactory,
+                HttpContext context,
+                FutureCallback<T> callback
+            ) {
+                // Call the callback asynchronous to better simulate how async http client works
+                return exec.submit(() -> {
+                    if (callback != null) {
+                        try {
+                            ClassicHttpResponse httpResponse = responseOrException(requestProducer);
+                            callback.completed((T) httpResponse);
+                        } catch (Exception e) {
+                            callback.failed(e);
+                        }
+                        return null;
                     }
-                    return null;
-                }
-                return responseOrException(requestProducer);
-            });
-        });
+                    return (T) responseOrException(requestProducer);
+                });
+            }
+
+            @Override
+            public void awaitShutdown(TimeValue waitTime) throws InterruptedException {}
+        };
+
         return httpClient;
     }
 
-    private static HttpResponse responseOrException(HttpAsyncRequestProducer requestProducer) throws Exception {
-        final HttpUriRequest request = (HttpUriRequest) requestProducer.generateRequest();
-        final HttpHost httpHost = requestProducer.getTarget();
+    private static ClassicHttpResponse responseOrException(AsyncRequestProducer requestProducer) throws Exception {
+        final ClassicHttpRequest request = getRequest(requestProducer);
+        final HttpHost httpHost = new HttpHost(request.getAuthority());
         // return the desired status code or exception depending on the path
-        switch (request.getURI().getPath()) {
+        switch (request.getRequestUri()) {
             case "/soe":
                 throw new SocketTimeoutException(httpHost.toString());
             case "/coe":
@@ -193,20 +220,17 @@ public class RestClientSingleHostTests extends RestClientTestCase {
             case "/runtime":
                 throw new RuntimeException();
             default:
-                int statusCode = Integer.parseInt(request.getURI().getPath().substring(1));
-                StatusLine statusLine = new BasicStatusLine(new ProtocolVersion("http", 1, 1), statusCode, "");
+                int statusCode = Integer.parseInt(request.getRequestUri().substring(1));
 
-                final HttpResponse httpResponse = new BasicHttpResponse(statusLine);
+                final ClassicHttpResponse httpResponse = new BasicClassicHttpResponse(statusCode, "");
                 // return the same body that was sent
-                if (request instanceof HttpEntityEnclosingRequest) {
-                    HttpEntity entity = ((HttpEntityEnclosingRequest) request).getEntity();
-                    if (entity != null) {
-                        assertTrue("the entity is not repeatable, cannot set it to the response directly", entity.isRepeatable());
-                        httpResponse.setEntity(entity);
-                    }
+                HttpEntity entity = request.getEntity();
+                if (entity != null) {
+                    assertTrue("the entity is not repeatable, cannot set it to the response directly", entity.isRepeatable());
+                    httpResponse.setEntity(entity);
                 }
                 // return the same headers that were sent
-                httpResponse.setHeaders(request.getAllHeaders());
+                httpResponse.setHeaders(request.getHeaders());
                 return httpResponse;
         }
     }
@@ -224,26 +248,25 @@ public class RestClientSingleHostTests extends RestClientTestCase {
      */
     @SuppressWarnings("unchecked")
     public void testInternalHttpRequest() throws Exception {
-        ArgumentCaptor<HttpAsyncRequestProducer> requestArgumentCaptor = ArgumentCaptor.forClass(HttpAsyncRequestProducer.class);
+        ArgumentCaptor<AsyncRequestProducer> requestArgumentCaptor = ArgumentCaptor.forClass(AsyncRequestProducer.class);
         int times = 0;
         for (String httpMethod : getHttpMethods()) {
             HttpUriRequest expectedRequest = performRandomRequest(httpMethod);
-            verify(httpClient, times(++times)).<HttpResponse>execute(
+            verify(httpClient, times(++times)).<Future<ClassicHttpResponse>>execute(
                 requestArgumentCaptor.capture(),
-                any(HttpAsyncResponseConsumer.class),
+                any(AsyncResponseConsumer.class),
                 any(HttpClientContext.class),
                 nullable(FutureCallback.class)
             );
-            HttpUriRequest actualRequest = (HttpUriRequest) requestArgumentCaptor.getValue().generateRequest();
-            assertEquals(expectedRequest.getURI(), actualRequest.getURI());
+            ClassicHttpRequest actualRequest = getRequest(requestArgumentCaptor.getValue());
+            assertEquals(expectedRequest.getRequestUri(), actualRequest.getRequestUri());
             assertEquals(expectedRequest.getClass(), actualRequest.getClass());
-            assertArrayEquals(expectedRequest.getAllHeaders(), actualRequest.getAllHeaders());
-            if (expectedRequest instanceof HttpEntityEnclosingRequest) {
-                HttpEntity expectedEntity = ((HttpEntityEnclosingRequest) expectedRequest).getEntity();
-                if (expectedEntity != null) {
-                    HttpEntity actualEntity = ((HttpEntityEnclosingRequest) actualRequest).getEntity();
-                    assertEquals(EntityUtils.toString(expectedEntity), EntityUtils.toString(actualEntity));
-                }
+            assertArrayEquals(expectedRequest.getHeaders(), actualRequest.getHeaders());
+
+            HttpEntity expectedEntity = expectedRequest.getEntity();
+            if (expectedEntity != null) {
+                HttpEntity actualEntity = actualRequest.getEntity();
+                assertEquals(EntityUtils.toString(expectedEntity), EntityUtils.toString(actualEntity));
             }
         }
     }
@@ -614,9 +637,9 @@ public class RestClientSingleHostTests extends RestClientTestCase {
                 throw new UnsupportedOperationException("method not supported: " + method);
         }
 
-        if (expectedRequest instanceof HttpEntityEnclosingRequest && getRandom().nextBoolean()) {
+        if (getRandom().nextBoolean()) {
             HttpEntity entity = new StringEntity(randomAsciiAlphanumOfLengthBetween(10, 100), ContentType.APPLICATION_JSON);
-            ((HttpEntityEnclosingRequest) expectedRequest).setEntity(entity);
+            expectedRequest.setEntity(entity);
             request.setEntity(entity);
         }
 
@@ -698,4 +721,12 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         t.printStackTrace(new PrintWriter(stack));
         fail("didn't find the calling method (looks like " + myMethod + ") in:\n" + stack);
     }
+
+    // TODO: Find the better way to extract request than reflection
+    private static ClassicHttpRequest getRequest(AsyncRequestProducer requestProducer) throws NoSuchFieldException, IllegalAccessException {
+        final Field field = BasicRequestProducer.class.getDeclaredField("request");
+        field.setAccessible(true);
+        return (ClassicHttpRequest) field.get(requestProducer);
+    }
+
 }
