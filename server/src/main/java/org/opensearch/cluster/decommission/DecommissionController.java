@@ -68,7 +68,6 @@ public class DecommissionController {
     private final ClusterService clusterService;
     private final TransportService transportService;
     private final ThreadPool threadPool;
-    private final TimeValue decommissionedNodeRequestCheckInterval = TimeValue.timeValueMillis(5000);
 
     DecommissionController(
             ClusterService clusterService,
@@ -149,10 +148,11 @@ public class DecommissionController {
             List<String> zones,
             String reason,
             TimeValue timeout,
+            TimeValue timeoutForNodeDecommission,
             ActionListener<Void> nodesRemovedListener
     ) {
         setWeightForDecommissionedZone(zones);
-        checkHttpStatsForDecommissionedNodes(nodesToBeDecommissioned, reason, timeout, nodesRemovedListener);
+        checkHttpStatsForDecommissionedNodes(nodesToBeDecommissioned, reason, timeout, timeoutForNodeDecommission, nodesRemovedListener);
     }
 
     private void setWeightForDecommissionedZone(List<String> zones) {
@@ -304,22 +304,16 @@ public class DecommissionController {
             Set<DiscoveryNode> decommissionedNodes,
             String reason,
             TimeValue timeout,
+            TimeValue timeoutForNodeDecommission,
             ActionListener<Void> listener) {
         ActionListener<NodesStatsResponse> nodesStatsResponseActionListener = new ActionListener<NodesStatsResponse>() {
             @Override
             public void onResponse(NodesStatsResponse nodesStatsResponse) {
-                boolean hasActiveConnections = false;
-                List<NodeStats> responseNodes = nodesStatsResponse.getNodes();
-                for (int i=0; i < responseNodes.size(); i++) {
-                    HttpStats httpStats = responseNodes.get(i).getHttp();
-                    if (httpStats != null && httpStats.getServerOpen() != 0) {
-                        hasActiveConnections = true;
-                        break;
-                    }
-                }
-                if (hasActiveConnections) {
+                boolean hasActiveConnections = hasActiveConnections(nodesStatsResponse, false);
+
+                if (hasActiveConnections && timeoutForNodeDecommission.getSeconds() > 0) {
                     // Slow down the next call to get the Http stats from the decommissioned nodes.
-                    scheduleDecommissionNodesRequestCheck(decommissionedNodes, this);
+                    scheduleDecommissionNodesRequestCheck(decommissionedNodes, this, timeoutForNodeDecommission);
                 } else {
                     updateClusterStatusForDecommissioning(decommissionedNodes, reason, timeout, listener);
                 }
@@ -333,7 +327,28 @@ public class DecommissionController {
         waitForGracefulDecommission(decommissionedNodes, nodesStatsResponseActionListener);
     }
 
-    private void scheduleDecommissionNodesRequestCheck(Set<DiscoveryNode> decommissionedNodes, ActionListener<NodesStatsResponse> listener) {
+    private boolean hasActiveConnections(NodesStatsResponse nodesStatsResponse, boolean logConnectionStatus) {
+        boolean hasActiveConnections = false;
+        Map<String, Long> nodeActiveConnectionMap = new HashMap<>();
+        List<NodeStats> responseNodes = nodesStatsResponse.getNodes();
+        for (int i=0; i < responseNodes.size(); i++) {
+            HttpStats httpStats = responseNodes.get(i).getHttp();
+            DiscoveryNode node = responseNodes.get(i).getNode();
+            if (httpStats != null && httpStats.getServerOpen() != 0) {
+                hasActiveConnections = true;
+            }
+            nodeActiveConnectionMap.put(node.getId(), httpStats.getServerOpen());
+        }
+        if (logConnectionStatus) {
+            logger.info("Decommissioning node with connections : " + nodeActiveConnectionMap);
+        }
+        return hasActiveConnections;
+    }
+
+    private void scheduleDecommissionNodesRequestCheck(
+            Set<DiscoveryNode> decommissionedNodes,
+            ActionListener<NodesStatsResponse> listener,
+            TimeValue timeoutForNodeDecommission) {
         transportService.getThreadPool().schedule(new Runnable() {
             @Override
             public void run() {
@@ -345,7 +360,7 @@ public class DecommissionController {
             public String toString() {
                 return "";
             }
-        }, decommissionedNodeRequestCheckInterval, org.opensearch.threadpool.ThreadPool.Names.SAME);
+        }, timeoutForNodeDecommission, org.opensearch.threadpool.ThreadPool.Names.SAME);
     }
 
     private void waitForGracefulDecommission(Set<DiscoveryNode> decommissionedNodes, ActionListener<NodesStatsResponse> listener) {

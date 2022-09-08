@@ -109,6 +109,7 @@ public class DecommissionService {
 
     public void initiateAttributeDecommissioning(
             final DecommissionAttribute decommissionAttribute,
+            TimeValue timeOutForNodeDecommission,
             final ActionListener<ClusterStateUpdateResponse> listener,
             ClusterState state
     ) {
@@ -130,7 +131,7 @@ public class DecommissionService {
         // be abdicated and soon will no longer be cluster manager.
         if (transportService.getLocalNode().isClusterManagerNode()
                 && !nodeHasDecommissionedAttribute(transportService.getLocalNode(), decommissionAttribute)) {
-            registerDecommissionAttribute(decommissionAttribute, listener);
+            registerDecommissionAttribute(decommissionAttribute, listener, timeOutForNodeDecommission);
         } else {
             throw new NotClusterManagerException(
                     "node ["
@@ -200,7 +201,8 @@ public class DecommissionService {
      */
     private void registerDecommissionAttribute(
             final DecommissionAttribute decommissionAttribute,
-            final ActionListener<ClusterStateUpdateResponse> listener
+            final ActionListener<ClusterStateUpdateResponse> listener,
+            final TimeValue timeOutForNodeDecommission
     ) {
         clusterService.submitStateUpdateTask(
                 "put_decommission [" + decommissionAttribute + "]",
@@ -257,13 +259,13 @@ public class DecommissionService {
                         assert decommissionAttribute.equals(decommissionAttributeMetadata.decommissionAttribute());
                         assert DecommissionStatus.DECOMMISSION_INIT.equals(decommissionAttributeMetadata.status());
                         listener.onResponse(new ClusterStateUpdateResponse(true));
-                        initiateGracefulDecommission();
+                        initiateGracefulDecommission(timeOutForNodeDecommission);
                     }
                 }
         );
     }
 
-    private void initiateGracefulDecommission() {
+    private void initiateGracefulDecommission(final TimeValue timeOutForNodeDecommission) {
 
         decommissionController.updateMetadataWithDecommissionStatus(
                 DecommissionStatus.DECOMMISSION_IN_PROGRESS,
@@ -275,7 +277,7 @@ public class DecommissionService {
                                 DecommissionStatus.DECOMMISSION_IN_PROGRESS
                         );
                         // TODO - should trigger weigh away here and on successful weigh away -> fail the decommissioned nodes
-                        failDecommissionedNodes(clusterService.getClusterApplierService().state());
+                        failDecommissionedNodes(clusterService.getClusterApplierService().state(), timeOutForNodeDecommission);
                     }
 
                     @Override
@@ -292,7 +294,7 @@ public class DecommissionService {
         );
     }
 
-    private void failDecommissionedNodes(ClusterState state) {
+    private void failDecommissionedNodes(ClusterState state, TimeValue timeOutForNodeDecommission) {
         DecommissionAttributeMetadata decommissionAttributeMetadata = state.metadata().custom(DecommissionAttributeMetadata.TYPE);
         assert decommissionAttributeMetadata.status().equals(DecommissionStatus.DECOMMISSION_IN_PROGRESS)
                 : "unexpected status encountered while decommissioning nodes";
@@ -307,6 +309,7 @@ public class DecommissionService {
                 awarenessValues,
                 "nodes-decommissioned",
                 TimeValue.timeValueSeconds(30L), // TODO - read timeout from request while integrating with API
+                timeOutForNodeDecommission,
                 new ActionListener<Void>() {
                     @Override
                     public void onResponse(Void unused) {
