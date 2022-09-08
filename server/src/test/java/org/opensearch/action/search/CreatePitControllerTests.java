@@ -14,6 +14,7 @@ import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.action.StepListener;
+import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -70,6 +71,8 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
     ClusterService clusterServiceMock = null;
 
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
+    Settings settings = Settings.builder().put("node.name", CreatePitControllerTests.class.getSimpleName()).build();
+    NodeClient client = new NodeClient(settings, threadPool);
 
     @Override
     public void tearDown() throws Exception {
@@ -219,7 +222,7 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
                 CreatePitRequest request = new CreatePitRequest(TimeValue.timeValueDays(1), true);
                 request.setIndices(new String[] { "index" });
 
-                PitService pitService = new PitService(clusterServiceMock, searchTransportService, transportService);
+                PitService pitService = new PitService(clusterServiceMock, searchTransportService, transportService, client);
                 CreatePitController controller = new CreatePitController(
                     searchTransportService,
                     clusterServiceMock,
@@ -308,7 +311,7 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
 
                 CreatePitRequest request = new CreatePitRequest(TimeValue.timeValueDays(1), true);
                 request.setIndices(new String[] { "index" });
-                PitService pitService = new PitService(clusterServiceMock, searchTransportService, transportService);
+                PitService pitService = new PitService(clusterServiceMock, searchTransportService, transportService, client);
                 CreatePitController controller = new CreatePitController(
                     searchTransportService,
                     clusterServiceMock,
@@ -406,7 +409,7 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
 
                 CreatePitRequest request = new CreatePitRequest(TimeValue.timeValueDays(1), true);
                 request.setIndices(new String[] { "index" });
-                PitService pitService = new PitService(clusterServiceMock, searchTransportService, transportService);
+                PitService pitService = new PitService(clusterServiceMock, searchTransportService, transportService, client);
                 CreatePitController controller = new CreatePitController(
                     searchTransportService,
                     clusterServiceMock,
@@ -494,7 +497,7 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
                 };
                 CreatePitRequest request = new CreatePitRequest(TimeValue.timeValueDays(1), true);
                 request.setIndices(new String[] { "index" });
-                PitService pitService = new PitService(clusterServiceMock, searchTransportService, transportService);
+                PitService pitService = new PitService(clusterServiceMock, searchTransportService, transportService, client);
                 CreatePitController controller = new CreatePitController(
                     searchTransportService,
                     clusterServiceMock,
