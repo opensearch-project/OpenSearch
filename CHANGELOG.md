@@ -38,7 +38,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Add timing data and more granular stages to SegmentReplicationState ([#4367](https://github.com/opensearch-project/OpenSearch/pull/4367))
 - BWC version 2.2.2 ([#4385](https://github.com/opensearch-project/OpenSearch/pull/4385))
 - BWC version 1.3.6 ([#4452](https://github.com/opensearch-project/OpenSearch/pull/4452))
-
+- 2.3.0 release notes ([#4457](https://github.com/opensearch-project/OpenSearch/pull/4457))
 
 ### Changed
 
