@@ -32,6 +32,7 @@
 
 package org.opensearch.client.node;
 
+import org.opensearch.action.ActionModule;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRequest;
@@ -57,6 +58,7 @@ import java.util.function.Supplier;
  */
 public class NodeClient extends AbstractClient {
 
+    private ActionModule.ActionRegistry actionsRegistry;
     private Map<ActionType, TransportAction> actions;
     /**
      * The id of the local {@link DiscoveryNode}. Useful for generating task ids from tasks returned by
@@ -71,12 +73,12 @@ public class NodeClient extends AbstractClient {
     }
 
     public void initialize(
-        Map<ActionType, TransportAction> actions,
+        ActionModule.ActionRegistry actionsRegistry,
         Supplier<String> localNodeId,
         RemoteClusterService remoteClusterService,
         NamedWriteableRegistry namedWriteableRegistry
     ) {
-        this.actions = actions;
+        this.actionsRegistry = actionsRegistry;
         this.localNodeId = localNodeId;
         this.remoteClusterService = remoteClusterService;
         this.namedWriteableRegistry = namedWriteableRegistry;
@@ -137,6 +139,7 @@ public class NodeClient extends AbstractClient {
     private <Request extends ActionRequest, Response extends ActionResponse> TransportAction<Request, Response> transportAction(
         ActionType<Response> action
     ) {
+        /* TODO add support to read actionsRegistry along with actions */
         if (actions == null) {
             throw new IllegalStateException("NodeClient has not been initialized");
         }
