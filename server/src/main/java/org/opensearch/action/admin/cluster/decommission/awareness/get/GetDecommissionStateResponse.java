@@ -14,6 +14,7 @@ import org.opensearch.cluster.decommission.DecommissionAttribute;
 import org.opensearch.cluster.decommission.DecommissionStatus;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.ToXContentObject;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
@@ -39,14 +40,30 @@ public class GetDecommissionStateResponse extends ActionResponse implements ToXC
     }
 
     GetDecommissionStateResponse(StreamInput in) throws IOException {
-        this.decommissionedAttribute = new DecommissionAttribute(in);
-        this.status = DecommissionStatus.fromValue(in.readByte());
+        if (in.readBoolean()) {
+            this.decommissionedAttribute = new DecommissionAttribute(in);
+        } else {
+            this.decommissionedAttribute = null;
+        }
+        if (in.readBoolean()) {
+            this.status = DecommissionStatus.fromString(in.readString());
+        } else {
+            this.status = null;
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        decommissionedAttribute.writeTo(out);
-        out.writeByte(status.value());
+        boolean isNotNullDecommissionAttribute = this.decommissionedAttribute != null;
+        boolean isNotNullStatus = this.status != null;
+        out.writeBoolean(isNotNullDecommissionAttribute);
+        if (isNotNullDecommissionAttribute) {
+            decommissionedAttribute.writeTo(out);
+        }
+        out.writeBoolean(isNotNullStatus);
+        if (isNotNullStatus) {
+            out.writeString(status.status());
+        }
     }
 
     public DecommissionAttribute getDecommissionedAttribute() {
