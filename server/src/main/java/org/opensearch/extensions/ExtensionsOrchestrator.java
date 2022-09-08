@@ -37,6 +37,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.discovery.InitializeExtensionsRequest;
 import org.opensearch.discovery.InitializeExtensionsResponse;
+import org.opensearch.env.Environment;
+import org.opensearch.env.EnvironmentSettingsResponse;
 import org.opensearch.extensions.ExtensionsSettings.Extension;
 import org.opensearch.extensions.rest.RegisterRestActionsRequest;
 import org.opensearch.extensions.rest.RestActionsRequestHandler;
@@ -70,6 +72,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     public static final String REQUEST_EXTENSION_CLUSTER_STATE = "internal:discovery/clusterstate";
     public static final String REQUEST_EXTENSION_LOCAL_NODE = "internal:discovery/localnode";
     public static final String REQUEST_EXTENSION_CLUSTER_SETTINGS = "internal:discovery/clustersettings";
+    public static final String REQUEST_EXTENSION_ENVIRONMENT_SETTINGS = "internal:discovery/enviornmentsettings";
     public static final String REQUEST_EXTENSION_REGISTER_REST_ACTIONS = "internal:discovery/registerrestactions";
     public static final String REQUEST_EXTENSION_REGISTER_TRANSPORT_ACTIONS = "internal:discovery/registertransportactions";
     public static final String REQUEST_OPENSEARCH_NAMED_WRITEABLE_REGISTRY = "internal:discovery/namedwriteableregistry";
@@ -87,6 +90,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         REQUEST_EXTENSION_CLUSTER_STATE,
         REQUEST_EXTENSION_LOCAL_NODE,
         REQUEST_EXTENSION_CLUSTER_SETTINGS,
+        REQUEST_EXTENSION_ENVIRONMENT_SETTINGS,
         REQUEST_EXTENSION_REGISTER_REST_ACTIONS,
         CREATE_COMPONENT,
         ON_INDEX_MODULE,
@@ -111,6 +115,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     TransportService transportService;
     ClusterService clusterService;
     ExtensionNamedWriteableRegistry namedWriteableRegistry;
+    Settings environmentSettings;
 
     /**
      * Instantiate a new ExtensionsOrchestrator object to handle requests and responses from extensions. This is called during Node bootstrap.
@@ -127,6 +132,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         this.extensionIdMap = new HashMap<String, DiscoveryExtension>();
         this.clusterService = null;
         this.namedWriteableRegistry = null;
+        this.environmentSettings = null;
 
         /*
          * Now Discover extensions
@@ -136,21 +142,24 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     }
 
     /**
-     * Initializes the {@link RestActionsRequestHandler}, {@link TransportService} and {@link ClusterService}. This is called during Node bootstrap.
+     * Initializes the {@link RestActionsRequestHandler}, {@link TransportService}, {@link ClusterService} and environment settings. This is called during Node bootstrap.
      * Lists/maps of extensions have already been initialized but not yet populated.
      *
      * @param restController  The RestController on which to register Rest Actions.
      * @param transportService  The Node's transport service.
      * @param clusterService  The Node's cluster service.
+     * @param environmentSettings The finalized view of settings for the Environment
      */
     public void initializeServicesAndRestHandler(
         RestController restController,
         TransportService transportService,
-        ClusterService clusterService
+        ClusterService clusterService,
+        Settings environmentSettings
     ) {
         this.restActionsRequestHandler = new RestActionsRequestHandler(restController, extensionIdMap, transportService);
         this.transportService = transportService;
         this.clusterService = clusterService;
+        this.environmentSettings = environmentSettings;
         registerRequestHandler();
     }
 
@@ -181,6 +190,14 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         );
         transportService.registerRequestHandler(
             REQUEST_EXTENSION_CLUSTER_SETTINGS,
+            ThreadPool.Names.GENERIC,
+            false,
+            false,
+            ExtensionRequest::new,
+            ((request, channel, task) -> channel.sendResponse(handleExtensionRequest(request)))
+        );
+        transportService.registerRequestHandler(
+            REQUEST_EXTENSION_ENVIRONMENT_SETTINGS,
             ThreadPool.Names.GENERIC,
             false,
             false,
@@ -348,6 +365,8 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
                 return new LocalNodeResponse(clusterService);
             case REQUEST_EXTENSION_CLUSTER_SETTINGS:
                 return new ClusterSettingsResponse(clusterService);
+            case REQUEST_EXTENSION_ENVIRONMENT_SETTINGS:
+                return new EnvironmentSettingsResponse(environmentSettings);
             default:
                 throw new Exception("Handler not present for the provided request");
         }
