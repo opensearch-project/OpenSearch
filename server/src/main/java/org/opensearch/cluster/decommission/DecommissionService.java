@@ -129,6 +129,15 @@ public class DecommissionService {
                 Metadata metadata = currentState.metadata();
                 Metadata.Builder mdBuilder = Metadata.builder(metadata);
                 DecommissionAttributeMetadata decommissionAttributeMetadata = metadata.custom(DecommissionAttributeMetadata.TYPE);
+                // check if the same attribute is requested for decommission and currently not FAILED or SUCCESS, then return the current state as is
+                if (decommissionAttributeMetadata != null
+                    && decommissionAttributeMetadata.decommissionAttribute().equals(decommissionAttribute)
+                    && !decommissionAttributeMetadata.status().equals(DecommissionStatus.FAILED)
+                    && !decommissionAttributeMetadata.status().equals(DecommissionStatus.SUCCESSFUL)
+                ) {
+                    logger.info("re-request received for decommissioning [{}], will not update state", decommissionAttribute);
+                    return currentState;
+                }
                 // check the request sanity and reject the request if there's any inflight or successful request already present
                 ensureNoInflightRequest(decommissionAttributeMetadata, decommissionAttribute);
                 decommissionAttributeMetadata = new DecommissionAttributeMetadata(decommissionAttribute);
@@ -159,7 +168,7 @@ public class DecommissionService {
         });
     }
 
-    private void decommissionClusterManagerNodes(
+    private synchronized void decommissionClusterManagerNodes(
         final DecommissionAttribute decommissionAttribute,
         ActionListener<ClusterStateUpdateResponse> listener
     ) {
