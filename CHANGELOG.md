@@ -3,6 +3,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
 ### Added
+- Add support for s390x architecture ([#4001](https://github.com/opensearch-project/OpenSearch/pull/4001))
 - Github workflow for changelog verification ([#4085](https://github.com/opensearch-project/OpenSearch/pull/4085))
 - Point in time rest layer changes for create and delete PIT API ([#4064](https://github.com/opensearch-project/OpenSearch/pull/4064))
 - Added @dreamer-89 as an Opensearch maintainer ([#4342](https://github.com/opensearch-project/OpenSearch/pull/4342))
