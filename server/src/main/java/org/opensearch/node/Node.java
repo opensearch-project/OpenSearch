@@ -38,6 +38,8 @@ import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
+import org.opensearch.extensions.action.ExtensionsAction;
+import org.opensearch.extensions.action.TransportExtensionsAction;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.extensions.ExtensionsOrchestrator;
 import org.opensearch.index.store.RemoteDirectoryFactory;
@@ -53,12 +55,11 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionModule;
-import org.opensearch.action.ActionType;
+import org.opensearch.action.ActionModule.ActionRegistry;
 import org.opensearch.action.admin.cluster.snapshots.status.TransportNodesSnapshotsStatus;
 import org.opensearch.action.search.SearchExecutionStatsCollector;
 import org.opensearch.action.search.SearchPhaseController;
 import org.opensearch.action.search.SearchTransportService;
-import org.opensearch.action.support.TransportAction;
 import org.opensearch.action.update.UpdateHelper;
 import org.opensearch.bootstrap.BootstrapCheck;
 import org.opensearch.bootstrap.BootstrapContext;
@@ -91,7 +92,6 @@ import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.component.Lifecycle;
 import org.opensearch.common.component.LifecycleComponent;
 import org.opensearch.common.inject.Injector;
-import org.opensearch.common.inject.Key;
 import org.opensearch.common.inject.Module;
 import org.opensearch.common.inject.ModulesBuilder;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
@@ -916,6 +916,7 @@ public class Node implements Closeable {
             final PersistentTasksService persistentTasksService = new PersistentTasksService(clusterService, threadPool, client);
 
             modules.add(b -> {
+                b.bind(ActionModule.class).toInstance(actionModule);
                 b.bind(Node.class).toInstance(this);
                 b.bind(NodeService.class).toInstance(nodeService);
                 b.bind(NamedXContentRegistry.class).toInstance(xContentRegistry);
@@ -1013,8 +1014,12 @@ public class Node implements Closeable {
             resourcesToClose.addAll(pluginLifecycleComponents);
             resourcesToClose.add(injector.getInstance(PeerRecoverySourceService.class));
             this.pluginLifecycleComponents = Collections.unmodifiableList(pluginLifecycleComponents);
-            client.initialize(injector.getInstance(new Key<Map<ActionType, TransportAction>>() {
-            }), () -> clusterService.localNode().getId(), transportService.getRemoteClusterService(), namedWriteableRegistry);
+            client.initialize(
+                injector.getInstance(ActionRegistry.class),
+                () -> clusterService.localNode().getId(),
+                transportService.getRemoteClusterService(),
+                namedWriteableRegistry
+            );
             this.namedWriteableRegistry = namedWriteableRegistry;
 
             logger.debug("initializing HTTP handlers ...");
@@ -1097,6 +1102,8 @@ public class Node implements Closeable {
         nodeService.getMonitorService().start();
 
         final ClusterService clusterService = injector.getInstance(ClusterService.class);
+        final ActionModule actionModule = injector.getInstance(ActionModule.class);
+        actionModule.registerAction(ExtensionsAction.INSTANCE, TransportExtensionsAction.class);
 
         final NodeConnectionsService nodeConnectionsService = injector.getInstance(NodeConnectionsService.class);
         nodeConnectionsService.start();

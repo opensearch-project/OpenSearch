@@ -427,8 +427,6 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static java.util.Collections.unmodifiableMap;
-
 /**
  * Builds and binds the generic action map, all {@link TransportAction}s, and {@link ActionFilters}.
  *
@@ -445,6 +443,7 @@ public class ActionModule extends AbstractModule {
     private final SettingsFilter settingsFilter;
     private final List<ActionPlugin> actionPlugins;
     private final Map<String, ActionHandler<?, ?>> actions;
+    private ActionRegistry actionRegistryMap;
     private final ActionFilters actionFilters;
     private final AutoCreateIndex autoCreateIndex;
     private final DestructiveOperations destructiveOperations;
@@ -474,6 +473,7 @@ public class ActionModule extends AbstractModule {
         this.actionPlugins = actionPlugins;
         this.threadPool = threadPool;
         actions = setupActions(actionPlugins);
+        actionRegistryMap = new ActionRegistry(actions);
         actionFilters = setupActionFilters(actionPlugins);
         autoCreateIndex = new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver, systemIndices);
         destructiveOperations = new DestructiveOperations(settings, clusterSettings);
@@ -506,25 +506,31 @@ public class ActionModule extends AbstractModule {
         return actions;
     }
 
+    public static class ActionRegistry extends NamedRegistry<ActionHandler<?, ?>> {
+        ActionRegistry() {
+            super("action");
+        }
+
+        ActionRegistry(Map<String, ActionHandler<?, ?>> actions) {
+            super("action", actions);
+        }
+
+        public void register(ActionHandler<?, ?> handler) {
+            register(handler.getAction().name(), handler);
+        }
+
+        public <Request extends ActionRequest, Response extends ActionResponse> void register(
+            ActionType<Response> action,
+            Class<? extends TransportAction<Request, Response>> transportAction,
+            Class<?>... supportTransportActions
+        ) {
+            register(new ActionHandler<>(action, transportAction, supportTransportActions));
+        }
+    }
+
     static Map<String, ActionHandler<?, ?>> setupActions(List<ActionPlugin> actionPlugins) {
         // Subclass NamedRegistry for easy registration
-        class ActionRegistry extends NamedRegistry<ActionHandler<?, ?>> {
-            ActionRegistry() {
-                super("action");
-            }
 
-            public void register(ActionHandler<?, ?> handler) {
-                register(handler.getAction().name(), handler);
-            }
-
-            public <Request extends ActionRequest, Response extends ActionResponse> void register(
-                ActionType<Response> action,
-                Class<? extends TransportAction<Request, Response>> transportAction,
-                Class<?>... supportTransportActions
-            ) {
-                register(new ActionHandler<>(action, transportAction, supportTransportActions));
-            }
-        }
         ActionRegistry actions = new ActionRegistry();
 
         actions.register(MainAction.INSTANCE, TransportMainAction.class);
@@ -678,7 +684,10 @@ public class ActionModule extends AbstractModule {
         // Remote Store
         actions.register(RestoreRemoteStoreAction.INSTANCE, TransportRestoreRemoteStoreAction.class);
 
-        return unmodifiableMap(actions.getRegistry());
+        // Extensions
+        // actions.register(ExtensionsAction.INSTANCE, TransportExtensionsAction.class);
+
+        return actions.getRegistry();
     }
 
     private ActionFilters setupActionFilters(List<ActionPlugin> actionPlugins) {
@@ -882,6 +891,8 @@ public class ActionModule extends AbstractModule {
         // Supporting classes
         bind(AutoCreateIndex.class).toInstance(autoCreateIndex);
         bind(TransportLivenessAction.class).asEagerSingleton();
+        // binding new actions for NodeClient to consume
+        bind(ActionRegistry.class).toInstance(actionRegistryMap);
 
         // register ActionType -> transportAction Map used by NodeClient
         @SuppressWarnings("rawtypes")
@@ -906,5 +917,13 @@ public class ActionModule extends AbstractModule {
 
     public RestController getRestController() {
         return restController;
+    }
+
+    public <Request extends ActionRequest, Response extends ActionResponse> void registerAction(
+        ActionType<Response> action,
+        Class<? extends TransportAction<Request, Response>> transportAction,
+        Class<?>... supportTransportActions
+    ) {
+        actionRegistryMap.register(new ActionHandler<>(action, transportAction, supportTransportActions));
     }
 }

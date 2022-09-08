@@ -45,11 +45,17 @@ import static java.util.Objects.requireNonNull;
  * @opensearch.internal
  */
 public class NamedRegistry<T> {
-    private final Map<String, T> registry = new HashMap<>();
+    private final Map<String, T> registry;
     private final String targetName;
 
     public NamedRegistry(String targetName) {
         this.targetName = targetName;
+        this.registry = new HashMap<>();
+    }
+
+    public NamedRegistry(String targetName, Map<String, T> registry) {
+        this.targetName = targetName;
+        this.registry = registry;
     }
 
     public Map<String, T> getRegistry() {
