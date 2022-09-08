@@ -29,6 +29,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
+import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.threadpool.ThreadPool;
@@ -74,14 +75,14 @@ public class DecommissionController {
     /**
      * Transport call to add nodes to voting config exclusion
      *
-     * @param nodes set of nodes to be added to voting config exclusion list
+     * @param nodes set of nodes Ids to be added to voting config exclusion list
      * @param listener callback for response or failure
      */
     public void excludeDecommissionedNodesFromVotingConfig(Set<String> nodes, ActionListener<Void> listener) {
         transportService.sendRequest(
             transportService.getLocalNode(),
             AddVotingConfigExclusionsAction.NAME,
-            new AddVotingConfigExclusionsRequest(nodes.stream().toArray(String[]::new)),
+            new AddVotingConfigExclusionsRequest(Strings.EMPTY_ARRAY, nodes.toArray(String[]::new), Strings.EMPTY_ARRAY, TimeValue.timeValueSeconds(30)),
             new TransportResponseHandler<AddVotingConfigExclusionsResponse>() {
                 @Override
                 public void handleResponse(AddVotingConfigExclusionsResponse response) {
