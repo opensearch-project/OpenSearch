@@ -247,6 +247,9 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
                     case X64:
                         classifier = ":" + distribution.getPlatform() + "-x64";
                         break;
+                    case S390X:
+                        classifier = ":" + distribution.getPlatform() + "-s390x";
+                        break;
                     default:
                         throw new IllegalArgumentException("Unsupported architecture: " + distribution.getArchitecture());
                 }
