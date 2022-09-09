@@ -45,7 +45,7 @@ public class RestExecuteOnExtensionRequest extends TransportRequest {
             throw new IOException(e);
         }
         uri = in.readString();
-        requesterToken = in.readString(); // more complex than this
+        requesterToken = in.readString();
     }
 
     @Override
