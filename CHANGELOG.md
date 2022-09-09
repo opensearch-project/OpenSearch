@@ -14,6 +14,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - BWC version 2.2.2 ([#4383](https://github.com/opensearch-project/OpenSearch/pull/4383))
 - Support for labels on version bump PRs, skip label support for changelog verifier ([#4391](https://github.com/opensearch-project/OpenSearch/pull/4391))
 - Update previous release bwc version to 2.4.0 ([#4455](https://github.com/opensearch-project/OpenSearch/pull/4455))
+- 2.3.0 release notes ([#4457](https://github.com/opensearch-project/OpenSearch/pull/4457))
 
 ### Dependencies
 - Bumps `org.gradle.test-retry` from 1.4.0 to 1.4.1
