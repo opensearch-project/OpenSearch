@@ -8,7 +8,7 @@
 
 package org.opensearch.extensions.rest;
 
-import org.opensearch.identity.ExtensionIdentifierUtils;
+import org.opensearch.identity.ExtensionIdentifier;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamInput;
@@ -26,13 +26,17 @@ public class RestExecuteOnExtensionTests extends OpenSearchTestCase {
     public void testRestExecuteOnExtensionRequest() throws Exception {
         Method expectedMethod = Method.GET;
         String expectedUri = "/test/uri";
-        String username = "admin";
-        String expectedPrincipalIdentifier = ExtensionIdentifierUtils.toIdentifier(username);
-        RestExecuteOnExtensionRequest request = new RestExecuteOnExtensionRequest(expectedMethod, expectedUri, expectedPrincipalIdentifier);
+        String entityName = "admin";
+        String extensionId = "ext_1";
+
+        ExtensionIdentifier extensionIdentifier = new ExtensionIdentifier(entityName, extensionId);
+
+        String expectedRequestorToken = extensionIdentifier.generateToken();
+        RestExecuteOnExtensionRequest request = new RestExecuteOnExtensionRequest(expectedMethod, expectedUri, extensionIdentifier);
 
         assertEquals(expectedMethod, request.getMethod());
         assertEquals(expectedUri, request.getUri());
-        assertEquals(expectedPrincipalIdentifier, request.getPrincipalIdentifier());
+        assertEquals(expectedRequestorToken, request.getRequesterToken());
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             request.writeTo(out);
@@ -42,7 +46,7 @@ public class RestExecuteOnExtensionTests extends OpenSearchTestCase {
 
                 assertEquals(expectedMethod, request.getMethod());
                 assertEquals(expectedUri, request.getUri());
-                assertEquals(expectedPrincipalIdentifier, request.getPrincipalIdentifier());
+                assertEquals(expectedRequestorToken, request.getRequesterToken());
             }
         }
     }

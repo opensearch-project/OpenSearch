@@ -10,7 +10,7 @@ package org.opensearch.extensions.rest;
 
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.identity.ExtensionIdentifierUtils;
+import org.opensearch.identity.ExtensionIdentifier;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestRequest.Method;
 import org.opensearch.transport.TransportRequest;
@@ -28,15 +28,13 @@ public class RestExecuteOnExtensionRequest extends TransportRequest {
     private Method method;
     private String uri;
 
-    // UUID of request owner
-    private String principalIdentifier;
+    // TODO: this signature should be revisited encryption/decryption is implemented
+    private String requesterToken;
 
-    // TODO: Principal UUID should be fed here
-
-    public RestExecuteOnExtensionRequest(Method method, String uri, String principalIdentfier) {
+    public RestExecuteOnExtensionRequest(Method method, String uri, ExtensionIdentifier extensionIdentifier) {
         this.method = method;
         this.uri = uri;
-        this.principalIdentifier = principalIdentfier;
+        this.requesterToken = extensionIdentifier.generateToken();
     }
 
     public RestExecuteOnExtensionRequest(StreamInput in) throws IOException {
@@ -47,8 +45,7 @@ public class RestExecuteOnExtensionRequest extends TransportRequest {
             throw new IOException(e);
         }
         uri = in.readString();
-
-        principalIdentifier = ExtensionIdentifierUtils.toIdentifier(in.readString());
+        requesterToken = in.readString(); // more complex than this
     }
 
     @Override
@@ -56,7 +53,7 @@ public class RestExecuteOnExtensionRequest extends TransportRequest {
         super.writeTo(out);
         out.writeString(method.name());
         out.writeString(uri);
-        out.writeString(ExtensionIdentifierUtils.toUsername(principalIdentifier));
+        out.writeString(requesterToken);
     }
 
     public Method getMethod() {
@@ -67,13 +64,13 @@ public class RestExecuteOnExtensionRequest extends TransportRequest {
         return uri;
     }
 
-    public String getPrincipalIdentifier() {
-        return principalIdentifier;
+    public String getRequesterToken() {
+        return requesterToken;
     }
 
     @Override
     public String toString() {
-        return "RestExecuteOnExtensionRequest{method=" + method + ", uri=" + uri + ", principal = " + principalIdentifier + "}";
+        return "RestExecuteOnExtensionRequest{method=" + method + ", uri=" + uri + ", requester = " + requesterToken + "}";
     }
 
     @Override
@@ -81,13 +78,11 @@ public class RestExecuteOnExtensionRequest extends TransportRequest {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
         RestExecuteOnExtensionRequest that = (RestExecuteOnExtensionRequest) obj;
-        return Objects.equals(method, that.method)
-            && Objects.equals(uri, that.uri)
-            && Objects.equals(principalIdentifier, that.principalIdentifier);
+        return Objects.equals(method, that.method) && Objects.equals(uri, that.uri) && Objects.equals(requesterToken, that.requesterToken);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(method, uri, principalIdentifier);
+        return Objects.hash(method, uri, requesterToken);
     }
 }
