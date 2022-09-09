@@ -39,6 +39,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - BWC version 2.2.2 ([#4385](https://github.com/opensearch-project/OpenSearch/pull/4385))
 - BWC version 1.3.6 ([#4452](https://github.com/opensearch-project/OpenSearch/pull/4452))
 - Bump current version to 2.4.0 on 2.x branch ([#4454](https://github.com/opensearch-project/OpenSearch/pull/4454))
+- 2.3.0 release notes ([#4457](https://github.com/opensearch-project/OpenSearch/pull/4457))
 
 ### Changed
 
