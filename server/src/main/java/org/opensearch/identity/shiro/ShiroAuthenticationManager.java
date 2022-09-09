@@ -11,7 +11,10 @@ import org.apache.shiro.SecurityUtils;
 import org.apache.shiro.subject.SimplePrincipalCollection;
 import org.apache.shiro.subject.support.SubjectThreadState;
 import org.opensearch.common.Strings;
-
+import org.opensearch.identity.AuthenticationManager;
+import org.opensearch.identity.PermissionResult;
+import org.opensearch.identity.AuthenticationSession;
+import org.opensearch.identity.Subject;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
 import java.util.Base64;
