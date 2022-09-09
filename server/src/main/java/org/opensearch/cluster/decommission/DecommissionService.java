@@ -269,6 +269,7 @@ public class DecommissionService {
         decommissionController.updateMetadataWithDecommissionStatus(DecommissionStatus.IN_PROGRESS, new ActionListener<>() {
             @Override
             public void onResponse(DecommissionStatus status) {
+                logger.info("updated the decommission status to [{}]", status.toString());
                 // execute nodes decommissioning
                 decommissionController.removeDecommissionedNodes(
                     filterNodesWithDecommissionAttribute(clusterService.getClusterApplierService().state(), decommissionAttribute, false),
@@ -425,7 +426,7 @@ public class DecommissionService {
         return new ActionListener<DecommissionStatus>() {
             @Override
             public void onResponse(DecommissionStatus status) {
-                logger.info("updated the status to [{}]", status.toString());
+                logger.info("updated the decommission status to [{}]", status.toString());
             }
 
             @Override

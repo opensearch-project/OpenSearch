@@ -253,7 +253,6 @@ public class DecommissionController {
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 DecommissionAttributeMetadata decommissionAttributeMetadata = newState.metadata()
                     .custom(DecommissionAttributeMetadata.TYPE);
-                logger.info("updated decommission status to [{}]", decommissionAttributeMetadata.status());
                 listener.onResponse(decommissionAttributeMetadata.status());
             }
         });
