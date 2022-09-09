@@ -61,6 +61,7 @@ import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.engine.InternalEngineTests;
+import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.replication.OpenSearchIndexLevelReplicationTestCase;
 import org.opensearch.index.replication.RecoveryDuringReplicationTests;
@@ -106,7 +107,7 @@ public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
 
     public void testWithSegmentReplication_ReplicaUsesPrimaryTranslogUUID() throws Exception {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).build();
-        try (ReplicationGroup shards = createGroup(2, settings)) {
+        try (ReplicationGroup shards = createGroup(2, settings, new NRTReplicationEngineFactory())) {
             shards.startAll();
             final String expectedUUID = getTranslog(shards.getPrimary()).getTranslogUUID();
             assertTrue(

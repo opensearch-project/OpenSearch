@@ -11,28 +11,30 @@ package org.opensearch.indices.replication;
 import org.junit.Assert;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.IndexService;
+import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.index.shard.ShardId;
-import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.recovery.FileChunkWriter;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.CopyState;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -55,15 +57,18 @@ public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
 
     private GetSegmentFilesRequest getSegmentFilesRequest;
 
-    final Settings settings = Settings.builder().put("node.name", SegmentReplicationTargetServiceTests.class.getSimpleName()).build();
+    final Settings settings = Settings.builder()
+        .put("node.name", SegmentReplicationTargetServiceTests.class.getSimpleName())
+        .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+        .build();
     final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
     final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        primary = newStartedShard(true);
-        replica = newShard(primary.shardId(), false);
+        primary = newStartedShard(true, settings);
+        replica = newShard(false, settings, new NRTReplicationEngineFactory());
         recoverReplica(replica, primary, true);
         replicaDiscoveryNode = replica.recoveryState().getTargetNode();
         primaryDiscoveryNode = replica.recoveryState().getSourceNode();
@@ -93,6 +98,8 @@ public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
     }
 
     public void testPrepareAndSendSegments() throws IOException {
+        indexDoc(primary, "1", "{\"foo\" : \"baz\"}", XContentType.JSON, "foobar");
+        primary.refresh("Test");
         OngoingSegmentReplications replications = spy(new OngoingSegmentReplications(mockIndicesService, recoverySettings));
         final CheckpointInfoRequest request = new CheckpointInfoRequest(
             1L,
@@ -112,17 +119,14 @@ public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
             1L,
             replica.routingEntry().allocationId().getId(),
             replicaDiscoveryNode,
-            new ArrayList<>(copyState.getMetadataSnapshot().asMap().values()),
+            new ArrayList<>(copyState.getMetadataMap().values()),
             testCheckpoint
         );
 
-        final Collection<StoreFileMetadata> expectedFiles = List.copyOf(primary.store().getMetadata().asMap().values());
         replications.startSegmentCopy(getSegmentFilesRequest, new ActionListener<>() {
             @Override
             public void onResponse(GetSegmentFilesResponse getSegmentFilesResponse) {
-                assertEquals(1, getSegmentFilesResponse.files.size());
-                assertEquals(1, expectedFiles.size());
-                assertTrue(expectedFiles.stream().findFirst().get().isSame(getSegmentFilesResponse.files.get(0)));
+                assertEquals(copyState.getMetadataMap().size(), getSegmentFilesResponse.files.size());
                 assertEquals(0, copyState.refCount());
                 assertFalse(replications.isInCopyStateMap(request.getCheckpoint()));
                 assertEquals(0, replications.size());
@@ -181,7 +185,7 @@ public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
             1L,
             replica.routingEntry().allocationId().getId(),
             replicaDiscoveryNode,
-            new ArrayList<>(copyState.getMetadataSnapshot().asMap().values()),
+            new ArrayList<>(copyState.getMetadataMap().values()),
             testCheckpoint
         );
         replications.startSegmentCopy(getSegmentFilesRequest, new ActionListener<>() {
