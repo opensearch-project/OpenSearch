@@ -15,7 +15,6 @@ import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
 import org.opensearch.cluster.coordination.CoordinationMetadata;
 import org.opensearch.cluster.metadata.Metadata;
@@ -27,7 +26,6 @@ import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDeci
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.TimeValue;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransport;
 import org.opensearch.threadpool.TestThreadPool;
@@ -152,7 +150,7 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
         DecommissionStatus oldStatus = randomFrom(DecommissionStatus.SUCCESSFUL, DecommissionStatus.IN_PROGRESS, DecommissionStatus.INIT);
         DecommissionAttributeMetadata oldMetadata = new DecommissionAttributeMetadata(
             new DecommissionAttribute("zone", "zone_1"),
-           oldStatus
+            oldStatus
         );
         final ClusterState.Builder builder = builder(clusterService.state());
         setState(
@@ -173,18 +171,10 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
                 if (oldStatus.equals(DecommissionStatus.SUCCESSFUL)) {
                     assertThat(
                         e.getMessage(),
-                        Matchers.endsWith(
-                            "already successfully decommissioned, recommission before triggering another decommission"
-                        )
+                        Matchers.endsWith("already successfully decommissioned, recommission before triggering another decommission")
                     );
-                }
-                else {
-                    assertThat(
-                        e.getMessage(),
-                        Matchers.endsWith(
-                            "is in progress, cannot process this request"
-                        )
-                    );
+                } else {
+                    assertThat(e.getMessage(), Matchers.endsWith("is in progress, cannot process this request"));
                 }
                 countDownLatch.countDown();
             }
