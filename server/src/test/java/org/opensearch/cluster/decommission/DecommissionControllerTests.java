@@ -8,6 +8,7 @@
 
 package org.opensearch.cluster.decommission;
 
+import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 import org.opensearch.OpenSearchTimeoutException;
@@ -18,6 +19,8 @@ import org.opensearch.action.admin.cluster.configuration.TransportClearVotingCon
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.ClusterStateObserver;
+import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.coordination.CoordinationMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
@@ -48,8 +51,11 @@ import java.util.stream.StreamSupport;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonMap;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
 import static org.opensearch.cluster.ClusterState.builder;
 import static org.opensearch.cluster.OpenSearchAllocationTestCase.createAllocationService;
@@ -58,23 +64,17 @@ import static org.opensearch.test.ClusterServiceUtils.setState;
 
 public class DecommissionControllerTests extends OpenSearchTestCase {
 
-    private ThreadPool threadPool;
-    private ClusterService clusterService;
+    private static ThreadPool threadPool;
+    private static ClusterService clusterService;
     private TransportService transportService;
     private AllocationService allocationService;
     private DecommissionController decommissionController;
     private ClusterSettings clusterSettings;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        threadPool = new TestThreadPool("test", Settings.EMPTY);
-        clusterService = createClusterService(threadPool);
-        allocationService = createAllocationService();
-    }
-
     @Before
     public void setTransportServiceAndDefaultClusterState() {
+        threadPool = new TestThreadPool("test", Settings.EMPTY);
+        allocationService = createAllocationService();
         ClusterState clusterState = ClusterState.builder(new ClusterName("test")).build();
         logger.info("--> adding five nodes on same zone_1");
         clusterState = addNodes(clusterState, "zone_1", "node1", "node2", "node3", "node4", "node5");
@@ -85,6 +85,7 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
         clusterState = setLocalNodeAsClusterManagerNode(clusterState, "node1");
         clusterState = setThreeNodesInVotingConfig(clusterState);
         final ClusterState.Builder builder = builder(clusterState);
+        clusterService = createClusterService(threadPool, clusterState.nodes().get("node1"));
         setState(clusterService, builder);
         final MockTransport transport = new MockTransport();
         transportService = transport.createTransportService(
@@ -130,7 +131,10 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
     }
 
     public void testAddNodesToVotingConfigExclusion() throws InterruptedException {
-        final CountDownLatch countDownLatch = new CountDownLatch(1);
+        final CountDownLatch countDownLatch = new CountDownLatch(2);
+
+        ClusterStateObserver clusterStateObserver = new ClusterStateObserver(clusterService, null, logger, threadPool.getThreadContext());
+        clusterStateObserver.waitForNextChange(new AdjustConfigurationForExclusions(countDownLatch));
         Set<String> nodesToRemoveFromVotingConfig = Collections.singleton(randomFrom("node1", "node6", "node11"));
         decommissionController.excludeDecommissionedNodesFromVotingConfig(nodesToRemoveFromVotingConfig, new ActionListener<Void>() {
             @Override
@@ -145,7 +149,7 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
         });
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
         clusterService.getClusterApplierService().state().getVotingConfigExclusions().forEach(vce -> {
-            assertTrue(nodesToRemoveFromVotingConfig.contains(vce.getNodeName()));
+            assertTrue(nodesToRemoveFromVotingConfig.contains(vce.getNodeId()));
             assertEquals(nodesToRemoveFromVotingConfig.size(), 1);
         });
     }
@@ -214,7 +218,7 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
         nodesToBeRemoved.add(clusterService.state().nodes().get("node15"));
         decommissionController.removeDecommissionedNodes(
             nodesToBeRemoved,
-            "unit-test",
+            "unit-test-timeout",
             TimeValue.timeValueMillis(2),
             new ActionListener<Void>() {
                 @Override
@@ -225,7 +229,7 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
                 @Override
                 public void onFailure(Exception e) {
                     assertThat(e, instanceOf(OpenSearchTimeoutException.class));
-                    assertThat(e.getMessage(), startsWith("timed out waiting for removal of decommissioned nodes"));
+                    assertThat(e.getMessage(), containsString("waiting for removal of decommissioned nodes"));
                     countDownLatch.countDown();
                 }
             }
@@ -251,6 +255,7 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
             new ActionListener<DecommissionStatus>() {
                 @Override
                 public void onResponse(DecommissionStatus status) {
+                    assertEquals(DecommissionStatus.SUCCESSFUL, status);
                     countDownLatch.countDown();
                 }
 
@@ -264,6 +269,58 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
         ClusterState newState = clusterService.getClusterApplierService().state();
         DecommissionAttributeMetadata decommissionAttributeMetadata = newState.metadata().custom(DecommissionAttributeMetadata.TYPE);
         assertEquals(decommissionAttributeMetadata.status(), DecommissionStatus.SUCCESSFUL);
+    }
+
+    private static class AdjustConfigurationForExclusions implements ClusterStateObserver.Listener {
+
+        final CountDownLatch doneLatch;
+
+        AdjustConfigurationForExclusions(CountDownLatch latch) {
+            this.doneLatch = latch;
+        }
+
+        @Override
+        public void onNewClusterState(ClusterState state) {
+            clusterService.getClusterManagerService().submitStateUpdateTask("reconfiguration", new ClusterStateUpdateTask() {
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    assertThat(currentState, sameInstance(state));
+                    final Set<String> votingNodeIds = new HashSet<>();
+                    currentState.nodes().forEach(n -> votingNodeIds.add(n.getId()));
+                    currentState.getVotingConfigExclusions().forEach(t -> votingNodeIds.remove(t.getNodeId()));
+                    final CoordinationMetadata.VotingConfiguration votingConfiguration = new CoordinationMetadata.VotingConfiguration(votingNodeIds);
+                    return builder(currentState).metadata(
+                        Metadata.builder(currentState.metadata())
+                            .coordinationMetadata(
+                                CoordinationMetadata.builder(currentState.coordinationMetadata())
+                                    .lastAcceptedConfiguration(votingConfiguration)
+                                    .lastCommittedConfiguration(votingConfiguration)
+                                    .build()
+                            )
+                    ).build();
+                }
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                    throw new AssertionError("unexpected failure", e);
+                }
+
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    doneLatch.countDown();
+                }
+            });
+        }
+
+        @Override
+        public void onClusterServiceClose() {
+            throw new AssertionError("unexpected close");
+        }
+
+        @Override
+        public void onTimeout(TimeValue timeout) {
+            throw new AssertionError("unexpected timeout");
+        }
     }
 
     private ClusterState addNodes(ClusterState clusterState, String zone, String... nodeIds) {
@@ -300,7 +357,7 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
     }
 
     private static DiscoveryNode newNode(String nodeId, Map<String, String> attributes) {
-        return new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), attributes, CLUSTER_MANAGER_DATA_ROLE, Version.CURRENT);
+        return new DiscoveryNode(nodeId, nodeId, buildNewFakeTransportAddress(), attributes, CLUSTER_MANAGER_DATA_ROLE, Version.CURRENT);
     }
 
     final private static Set<DiscoveryNodeRole> CLUSTER_MANAGER_DATA_ROLE = Collections.unmodifiableSet(
