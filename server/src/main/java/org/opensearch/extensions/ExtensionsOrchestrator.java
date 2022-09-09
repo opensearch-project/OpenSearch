@@ -74,7 +74,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     public static final String REQUEST_EXTENSION_REGISTER_TRANSPORT_ACTIONS = "internal:discovery/registertransportactions";
     public static final String REQUEST_OPENSEARCH_NAMED_WRITEABLE_REGISTRY = "internal:discovery/namedwriteableregistry";
     public static final String REQUEST_OPENSEARCH_PARSE_NAMED_WRITEABLE = "internal:discovery/parsenamedwriteable";
-    public static final String REQUEST_EXTENSION_ACTION_LISTENER_ON_FAILURE = "internal:discovery/actionlisteneronfailure";
+    public static final String REQUEST_EXTENSION_ACTION_LISTENER_ON_FAILURE = "internal:extensions/actionlisteneronfailure";
     public static final String REQUEST_REST_EXECUTE_ON_EXTENSION_ACTION = "internal:extensions/restexecuteonextensiontaction";
 
     private static final Logger logger = LogManager.getLogger(ExtensionsOrchestrator.class);
@@ -346,11 +346,19 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
                 ClusterSettingsResponse clusterSettingsResponse = new ClusterSettingsResponse(clusterService);
                 return clusterSettingsResponse;
             case REQUEST_EXTENSION_ACTION_LISTENER_ON_FAILURE:
-                listener.onFailure(new Exception(extensionRequest.getFailureException()));
-                ExtensionBooleanResponse actionListenerOnFailureResponse = new ExtensionBooleanResponse(true);
-                return actionListenerOnFailureResponse;
+                return handleExtensionActionListenerOnFailureRequest(extensionRequest.getFailureException());
             default:
                 throw new Exception("Handler not present for the provided request");
+        }
+    }
+
+    private ExtensionBooleanResponse handleExtensionActionListenerOnFailureRequest(String failureException) throws Exception {
+        try {
+            listener.onFailure(new Exception(failureException));
+            return new ExtensionBooleanResponse(true);
+        } catch (Exception e) {
+            logger.error(e.getMessage());
+            throw e;
         }
     }
 
