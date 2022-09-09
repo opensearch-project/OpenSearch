@@ -28,7 +28,7 @@ public interface AuthenticationManager {
      *
      * Why dangerous?  authenticateAs(...) allows OpenSearch to run as Subject without
      * any other checks or safeguards.  If downstream code is not safeguarded it could run
-     * as permissions that are not intented, resulting in security issues.
+     * as permissions that are not indented, resulting in security issues.
      *
      * External data should never be directly populate subject
      *
@@ -37,7 +37,7 @@ public interface AuthenticationManager {
      * */
     public AuthenticationSession dangerousAuthenticateAs(final String subject);
 
-    // Perist subject lifetime through thread boundaries
+    // Persists subject lifetime through thread boundaries
 
     /**
      * Ensures the execution of this runnable is done with the current subject

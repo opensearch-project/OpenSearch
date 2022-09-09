@@ -1,4 +1,4 @@
-package org.opensearch.identity;
+package org.opensearch.identity.shiro;
 
 import org.apache.shiro.authz.Permission;
 import org.apache.shiro.authz.permission.AllPermission;

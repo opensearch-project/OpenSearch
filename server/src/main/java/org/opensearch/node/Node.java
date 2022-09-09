@@ -229,7 +229,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.opensearch.identity.AuthenticationManager;
-import org.opensearch.identity.ShiroAuthenticationManager;
+import org.opensearch.identity.shiro.ShiroAuthenticationManager;
 
 import static java.util.stream.Collectors.toList;
 import static org.opensearch.common.util.FeatureFlags.REPLICATION_TYPE;

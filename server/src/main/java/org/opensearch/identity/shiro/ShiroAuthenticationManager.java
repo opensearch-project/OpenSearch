@@ -1,4 +1,4 @@
-package org.opensearch.identity;
+package org.opensearch.identity.shiro;
 
 import java.security.Principal;
 import java.util.concurrent.Callable;
