@@ -9,7 +9,7 @@
 package org.opensearch.index.translog.transfer;
 
 import org.opensearch.index.shard.ShardId;
-import org.opensearch.index.translog.FileSnapshot;
+import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
 import org.opensearch.index.translog.transfer.listener.FileTransferListener;
 
 import java.util.Map;
@@ -28,7 +28,7 @@ public class FileTransferTracker implements FileTransferListener {
     }
 
     @Override
-    public void onSuccess(FileSnapshot fileSnapshot) {
+    public void onSuccess(TransferFileSnapshot fileSnapshot) {
         TransferState targetState = TransferState.SUCCESS;
         fileTransferTracker.compute(fileSnapshot.getName(), (k, v) -> {
             if (v == null || v.validateNextState(targetState)) {
@@ -39,7 +39,7 @@ public class FileTransferTracker implements FileTransferListener {
     }
 
     @Override
-    public void onFailure(FileSnapshot fileSnapshot, Exception e) {
+    public void onFailure(TransferFileSnapshot fileSnapshot, Exception e) {
         TransferState targetState = TransferState.FAILED;
         fileTransferTracker.compute(fileSnapshot.getName(), (k, v) -> {
             if (v == null || v.validateNextState(targetState)) {
@@ -49,7 +49,7 @@ public class FileTransferTracker implements FileTransferListener {
         });
     }
 
-    public Set<FileSnapshot> exclusionFilter(Set<FileSnapshot> original) {
+    public Set<TransferFileSnapshot> exclusionFilter(Set<TransferFileSnapshot> original) {
         return original.stream()
             .filter(fileSnapshot -> fileTransferTracker.get(fileSnapshot.getName()) != TransferState.SUCCESS)
             .collect(Collectors.toSet());

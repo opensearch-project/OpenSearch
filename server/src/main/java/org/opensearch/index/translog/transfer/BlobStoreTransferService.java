@@ -15,13 +15,14 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
-import org.opensearch.index.translog.FileSnapshot;
+import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 
 /**
- * Service that handles remote transfer of translog related operations
+ * Service that handles remote transfer of translog and checkpoint files
  */
 public class BlobStoreTransferService implements TransferService {
 
@@ -37,9 +38,9 @@ public class BlobStoreTransferService implements TransferService {
 
     @Override
     public void uploadFileAsync(
-        final FileSnapshot fileSnapshot,
+        final TransferFileSnapshot fileSnapshot,
         Iterable<String> remoteTransferPath,
-        ActionListener<FileSnapshot> listener
+        ActionListener<TransferFileSnapshot> listener
     ) {
         assert remoteTransferPath instanceof BlobPath;
         BlobPath blobPath = (BlobPath) remoteTransferPath;
@@ -54,14 +55,14 @@ public class BlobStoreTransferService implements TransferService {
                     );
                 l.onResponse(fileSnapshot);
             } catch (Exception e) {
-                logger.warn(() -> new ParameterizedMessage("Failed to upload some blobs"), e);
+                logger.error(() -> new ParameterizedMessage("Failed to upload blob {}", fileSnapshot.getName()), e);
                 l.onFailure(new FileTransferException(fileSnapshot, e));
             }
         }));
     }
 
     @Override
-    public void uploadFile(final FileSnapshot fileSnapshot, Iterable<String> remoteTransferPath) {
+    public void uploadFile(final TransferFileSnapshot fileSnapshot, Iterable<String> remoteTransferPath) throws IOException {
         assert remoteTransferPath instanceof BlobPath;
         BlobPath blobPath = (BlobPath) remoteTransferPath;
         try {
@@ -73,7 +74,8 @@ public class BlobStoreTransferService implements TransferService {
                     true
                 );
         } catch (Exception ex) {
-            logger.warn(() -> new ParameterizedMessage("Failed to upload some blobs"), ex);
+            logger.error(() -> new ParameterizedMessage("Failed to upload blob {}", fileSnapshot.getName()), ex);
+            throw ex;
         }
     }
 }

@@ -8,15 +8,15 @@
 
 package org.opensearch.index.translog.transfer;
 
-import org.opensearch.index.translog.FileSnapshot;
+import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
 
 import java.util.Set;
 
 public interface TransferSnapshot {
 
-    Set<FileSnapshot> getCheckpointFileSnapshots();
+    Set<TransferFileSnapshot> getCheckpointFileSnapshots();
 
-    Set<FileSnapshot> getTranslogFileSnapshots();
+    Set<TransferFileSnapshot> getTranslogFileSnapshots();
 
     int getTransferSize();
 

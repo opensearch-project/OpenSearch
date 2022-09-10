@@ -9,7 +9,6 @@
 package org.opensearch.index.translog.transfer;
 
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.index.translog.FileSnapshot;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogReader;
 
@@ -25,8 +24,8 @@ import java.util.stream.Collectors;
 import java.util.zip.CRC32;
 import java.util.zip.CheckedInputStream;
 
-import static org.opensearch.index.translog.FileSnapshot.TranslogFileSnapshot;
-import static org.opensearch.index.translog.FileSnapshot.CheckpointFileSnapshot;
+import static org.opensearch.index.translog.transfer.FileSnapshot.TranslogFileSnapshot;
+import static org.opensearch.index.translog.transfer.FileSnapshot.CheckpointFileSnapshot;
 
 public class TransferSnapshotProvider implements Supplier<TransferSnapshot> {
 

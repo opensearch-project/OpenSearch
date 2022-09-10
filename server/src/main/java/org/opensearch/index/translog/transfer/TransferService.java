@@ -9,14 +9,15 @@
 package org.opensearch.index.translog.transfer;
 
 import org.opensearch.action.ActionListener;
-import org.opensearch.index.translog.FileSnapshot;
+import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
 
 import java.io.IOException;
 
+
 public interface TransferService {
 
-    void uploadFileAsync(final FileSnapshot fileSnapshot, Iterable<String> remotePath, ActionListener<FileSnapshot> listener);
+    void uploadFileAsync(final TransferFileSnapshot fileSnapshot, Iterable<String> remotePath, ActionListener<TransferFileSnapshot> listener);
 
-    void uploadFile(final FileSnapshot fileSnapshot, Iterable<String> remotePath) throws IOException;
+    void uploadFile(final TransferFileSnapshot fileSnapshot, Iterable<String> remotePath) throws IOException;
 
 }

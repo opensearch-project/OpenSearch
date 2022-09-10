@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.index.translog;
+package org.opensearch.index.translog.transfer;
 
 import org.opensearch.common.Nullable;
 
@@ -20,17 +20,14 @@ public class FileSnapshot {
     private final String name;
     private final long contentLength;
     @Nullable
-    private long primaryTerm;
-    @Nullable
     private Path path;
 
-    public FileSnapshot(String name, Path path, long checksum, byte[] content, long primaryTerm) {
+    public FileSnapshot(String name, Path path, long checksum, byte[] content) {
         this.name = name;
         this.path = path;
         this.checksum = checksum;
         this.content = content;
         this.contentLength = content.length;
-        this.primaryTerm = primaryTerm;
     }
 
     public FileSnapshot(String name, long checksum, byte[] content) {
@@ -60,10 +57,6 @@ public class FileSnapshot {
         return contentLength;
     }
 
-    public long getPrimaryTerm() {
-        return primaryTerm;
-    }
-
     @Override
     public int hashCode() {
         return Objects.hash(name, path, checksum, contentLength);
@@ -77,8 +70,7 @@ public class FileSnapshot {
         return Objects.equals(this.name, other.name)
             && Objects.equals(this.path, other.path)
             && Objects.equals(this.checksum, other.checksum)
-            && Objects.equals(this.contentLength, other.contentLength)
-            && Objects.equals(this.primaryTerm, other.primaryTerm);
+            && Objects.equals(this.contentLength, other.contentLength);
     }
 
     @Override
@@ -86,7 +78,42 @@ public class FileSnapshot {
         return new StringBuilder("FileInfo [").append(name).append(path.toUri()).append(checksum).append(contentLength).toString();
     }
 
-    public static class TranslogFileSnapshot extends FileSnapshot {
+    public static class TransferFileSnapshot extends FileSnapshot {
+
+        private final long primaryTerm;
+
+        public TransferFileSnapshot(String name, Path path, long checksum, byte[] content, long primaryTerm) {
+            super(name, path, checksum, content);
+            this.primaryTerm = primaryTerm;
+        }
+
+        public TransferFileSnapshot(String name, long checksum, byte[] content, long primaryTerm) {
+            super(name, checksum, content);
+            this.primaryTerm = primaryTerm;
+        }
+
+        public long getPrimaryTerm() {
+            return primaryTerm;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(primaryTerm, super.hashCode());
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (super.equals(o)) {
+                if (this == o) return true;
+                if (o == null || getClass() != o.getClass()) return false;
+                TransferFileSnapshot other = (TransferFileSnapshot) o;
+                return Objects.equals(this.primaryTerm, other.primaryTerm);
+            }
+            return false;
+        }
+    }
+
+    public static class TranslogFileSnapshot extends TransferFileSnapshot {
 
         private final long generation;
 
@@ -116,7 +143,7 @@ public class FileSnapshot {
         }
     }
 
-    public static class CheckpointFileSnapshot extends FileSnapshot {
+    public static class CheckpointFileSnapshot extends TransferFileSnapshot {
 
         private final long minTranslogGeneration;
 

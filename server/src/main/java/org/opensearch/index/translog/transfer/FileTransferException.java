@@ -8,23 +8,23 @@
 
 package org.opensearch.index.translog.transfer;
 
-import org.opensearch.index.translog.FileSnapshot;
+import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
 
 public class FileTransferException extends RuntimeException {
 
-    private final FileSnapshot fileSnapshot;
+    private final TransferFileSnapshot fileSnapshot;
 
-    public FileTransferException(FileSnapshot fileSnapshot, Throwable cause) {
+    public FileTransferException(TransferFileSnapshot fileSnapshot, Throwable cause) {
         super(cause);
         this.fileSnapshot = fileSnapshot;
     }
 
-    public FileTransferException(FileSnapshot fileSnapshot, String message, Throwable cause) {
+    public FileTransferException(TransferFileSnapshot fileSnapshot, String message, Throwable cause) {
         super(message, cause);
         this.fileSnapshot = fileSnapshot;
     }
 
-    public FileSnapshot getFileSnapshot() {
+    public TransferFileSnapshot getFileSnapshot() {
         return fileSnapshot;
     }
 }
