@@ -190,11 +190,11 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
 
         // Verify authorization for the task (AuthZ)
         final Subject subject = Identity.getAuthenticationManager().getSubject();
-        final PermissionResult result = subject.isPermitted(task.getAction());
-        if (result.isAllowed()) {
+        final PermissionResult permissionCheck = subject.isPermitted(task.getAction());
+        if (permissionCheck.isAllowed()) {
             logger.atInfo().log(subject + " is allowed to " + task.getAction());
         } else {
-            logger.atError().log(result.getErrorMessage() + ", but is not being stopped");
+            logger.atError().log(permissionCheck.getErrorMessage() + ", but is not being stopped");
         }
 
         RequestFilterChain<Request, Response> requestFilterChain = new RequestFilterChain<>(this, logger);
