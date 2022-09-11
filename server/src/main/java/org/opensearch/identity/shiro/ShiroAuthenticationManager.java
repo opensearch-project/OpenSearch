@@ -12,8 +12,10 @@ import org.apache.shiro.subject.SimplePrincipalCollection;
 import org.apache.shiro.subject.support.SubjectThreadState;
 import org.opensearch.common.Strings;
 import org.opensearch.identity.AuthenticationManager;
+import org.opensearch.identity.AuthenticationToken;
 import org.opensearch.identity.PermissionResult;
 import org.opensearch.identity.AuthenticationSession;
+import org.opensearch.identity.HttpHeaderToken;
 import org.opensearch.identity.Subject;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
@@ -35,22 +37,29 @@ public class ShiroAuthenticationManager implements AuthenticationManager {
     }
 
     @Override
-    public Subject getCurrentSubject() {
+    public Subject getSubject() {
         return new ShiroSubject(SecurityUtils.getSubject());
     }
 
     @Override
-    public void authenticateWithHeader(final String authHeader) {
+    public void login(final AuthenticationToken token) {
+        if (token instanceof HttpHeaderToken) {
+            loginWith((HttpHeaderToken)token);
+        } else {
+            throw new RuntimeException("Unsupported token type, " + token.getClass().getSimpleName());
+        }
+    }
+
+    public void loginWith(final HttpHeaderToken token) {
         // Iterate over the available authorizers to attempt to authorize the user
         for (final HeaderAuthorizer authorizer : authorizers) {
-            if (authorizer.authorizeWithHeader(authHeader)) {
+            if (authorizer.authorizeWithHeader(token.getHeaderValue())) {
                 return;
             }
         }
         throw new RuntimeException("Unable to authenticate user!");
     }
 
-    @Override
     public AuthenticationSession dangerousAuthenticateAs(final String subject) {
         final org.apache.shiro.subject.Subject internalSubject = new org.apache.shiro.subject.Subject.Builder().authenticated(true)
             .principals(new SimplePrincipalCollection("INTERNAL-" + subject, "OpenSearch")) // How can we ensure the roles this
@@ -134,7 +143,7 @@ public class ShiroAuthenticationManager implements AuthenticationManager {
 
         @Override
         public String toString() {
-            return this.getPrincipal().getName();
+            return this.getPrincipal() != null ? this.getPrincipal().getName() : "No Subject";
         }
     }
 

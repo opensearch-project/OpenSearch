@@ -59,7 +59,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
-import org.opensearch.identity.AuthenticationSession;
 import org.opensearch.index.store.StoreStats;
 import org.opensearch.monitor.fs.FsInfo;
 import org.opensearch.threadpool.ThreadPool;
@@ -252,7 +251,6 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
      */
     public final ClusterInfo refresh() {
         logger.trace("refreshing cluster info");
-        try (final AuthenticationSession session = client.getAuthenticationManager().dangerousAuthenticateAs("refreshNodeStats")) {
             final CountDownLatch nodeLatch = updateNodeStats(new ActionListener<NodesStatsResponse>() {
                 @Override
                 public void onResponse(NodesStatsResponse nodesStatsResponse) {
@@ -353,7 +351,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             }
             assert anyListeners : "expected to notify at least one listener";
             return clusterInfo;
-        }
+        // }
     }
 
     @Override

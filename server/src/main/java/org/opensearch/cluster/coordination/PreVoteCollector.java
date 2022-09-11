@@ -42,7 +42,6 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.lease.Releasable;
-import org.opensearch.identity.AuthenticationSession;
 import org.opensearch.monitor.NodeHealthService;
 import org.opensearch.monitor.StatusInfo;
 import org.opensearch.threadpool.ThreadPool.Names;
@@ -180,7 +179,6 @@ public class PreVoteCollector {
         private final PreVoteRequest preVoteRequest;
         private final ClusterState clusterState;
         private final AtomicBoolean isClosed = new AtomicBoolean();
-        private final AtomicReference<AuthenticationSession> authenticationSession = new AtomicReference<AuthenticationSession>();
 
         PreVotingRound(final ClusterState clusterState, final long currentTerm) {
             this.clusterState = clusterState;
@@ -191,7 +189,6 @@ public class PreVoteCollector {
             assert StreamSupport.stream(broadcastNodes.spliterator(), false).noneMatch(Coordinator::isZen1Node) : broadcastNodes;
             logger.debug("{} requesting pre-votes from {}", this, broadcastNodes);
             /* Direct transportService.sendRequest calls need a user context */
-            authenticationSession.set(transportService.getAuthenticationManager().dangerousAuthenticateAs("PreVoteCollector"));
             transportService.getAuthenticationManager()
                 .executeWith(
                     () -> broadcastNodes.forEach(
@@ -302,7 +299,6 @@ public class PreVoteCollector {
 
         @Override
         public void close() {
-            authenticationSession.get().close();
             final boolean isNotAlreadyClosed = isClosed.compareAndSet(false, true);
             assert isNotAlreadyClosed;
         }

@@ -12,30 +12,18 @@ public interface AuthenticationManager {
     /**
      * Get the current subject
      * */
-    public Subject getCurrentSubject();
+    public Subject getSubject();
 
     // Update the current subject
 
     /**
-     * Authenticate a Subject via an http header
+     * Authenticate a Subject via a supported token
      *
      * Note: define exceptional states
+     * Exceptions:
+     *  Token not supported
      * */
-    public void authenticateWithHeader(final String authorizationHeader);
-
-    /**
-     * authenticateAs a Subject by an identifier
-     *
-     * Why dangerous?  authenticateAs(...) allows OpenSearch to run as Subject without
-     * any other checks or safeguards.  If downstream code is not safeguarded it could run
-     * as permissions that are not indented, resulting in security issues.
-     *
-     * External data should never be directly populate subject
-     *
-     * Note: define exceptional states
-     *
-     * */
-    public AuthenticationSession dangerousAuthenticateAs(final String subject);
+    public void login(final AuthenticationToken token);
 
     // Persists subject lifetime through thread boundaries
 

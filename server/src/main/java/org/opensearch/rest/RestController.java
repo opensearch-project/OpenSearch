@@ -51,6 +51,7 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.internal.io.Streams;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.identity.AuthenticationManager;
+import org.opensearch.identity.HttpHeaderToken;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.usage.UsageService;
 
@@ -404,13 +405,14 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 } else {
 
                     final Optional<String> authHeader = request.getHeaders()
-                        .getOrDefault("Authorization", Collections.emptyList())
+                        .getOrDefault(HttpHeaderToken.HEADER_NAME, Collections.emptyList())
                         .stream()
                         .findFirst();
 
                     if (authHeader.isPresent()) {
                         try {
-                            authenticationManager.authenticateWithHeader(authHeader.get());
+                            HttpHeaderToken token = new HttpHeaderToken(authHeader.get());
+                            authenticationManager.login(token);
                         } catch (final Exception e) {
                             final BytesRestResponse bytesRestResponse = BytesRestResponse.createSimpleErrorResponse(
                                 channel,

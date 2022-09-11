@@ -796,10 +796,10 @@ public class TransportService extends AbstractLifecycleComponent
         final TransportResponseHandler<T> handler
     ) {
         try {
-            final Subject currentSubject = this.authenticationManager.getCurrentSubject();
+            final Subject currentSubject = this.authenticationManager.getSubject();
             logger.info("Action: " + action + ", as Subject: " + currentSubject);
             if (currentSubject.getPrincipal() == null) {
-                throw new RuntimeException("Discovered a request that does not have a princpal associated with it!");
+                // throw new RuntimeException("Discovered a request that does not have a principal associated with it!");
             }
             final TransportResponseHandler<T> delegate;
             if (request.getParentTask().isSet()) {

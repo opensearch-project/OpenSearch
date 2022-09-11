@@ -187,9 +187,9 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
         }
 
         // Verify authorization for the task (AuthZ)
-        final PermissionResult result = taskManager.getAuthenticationManager().getCurrentSubject().isPermitted(task.getAction());
+        final PermissionResult result = taskManager.getAuthenticationManager().getSubject().isPermitted(task.getAction());
         if (result.isAllowed()) {
-            logger.atInfo().log(taskManager.getAuthenticationManager().getCurrentSubject() + " is allowed to " + task.getAction());
+            logger.atInfo().log(taskManager.getAuthenticationManager().getSubject() + " is allowed to " + task.getAction());
         } else {
             logger.atError().log(result.getErrorMessage() + ", but is not being stopped");
         }
