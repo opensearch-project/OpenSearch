@@ -95,7 +95,6 @@ configure([
   project(":client:client-benchmark-noop-api-plugin"),
   project(":client:rest-high-level"),
   project(":client:test"),
-  project(":distribution:tools:launchers"),
   project(":doc-tools"),
   project(":example-plugins:custom-settings"),
   project(":example-plugins:custom-significance-heuristic"),
