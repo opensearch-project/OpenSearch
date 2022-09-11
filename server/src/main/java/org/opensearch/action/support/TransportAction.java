@@ -40,6 +40,8 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.identity.AuthenticationManager;
+import org.opensearch.identity.Identity;
+import org.opensearch.identity.Subject;
 import org.opensearch.identity.PermissionResult;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.concurrent.ThreadContext;
@@ -187,9 +189,10 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
         }
 
         // Verify authorization for the task (AuthZ)
-        final PermissionResult result = taskManager.getAuthenticationManager().getSubject().isPermitted(task.getAction());
+        final Subject subject = Identity.getAuthenticationManager().getSubject();
+        final PermissionResult result = subject.isPermitted(task.getAction());
         if (result.isAllowed()) {
-            logger.atInfo().log(taskManager.getAuthenticationManager().getSubject() + " is allowed to " + task.getAction());
+            logger.atInfo().log(subject + " is allowed to " + task.getAction());
         } else {
             logger.atError().log(result.getErrorMessage() + ", but is not being stopped");
         }

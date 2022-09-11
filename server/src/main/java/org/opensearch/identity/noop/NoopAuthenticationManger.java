@@ -15,24 +15,4 @@ public class NoopAuthenticationManger implements AuthenticationManager {
 
     public void login(AuthenticationToken token) {
     }
-
-    public Runnable associateWith(Runnable r) {
-        return r;
-    }
-
-    public <V> Callable<V> associateWith(Callable<V> c) {
-        return c;
-    }
-
-    public void executeWith(Runnable r) {
-        r.run();
-    }
-
-    public <V> V executeWith(Callable<V> c) {
-        try {
-            return c.call();
-        } catch (final Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
 }

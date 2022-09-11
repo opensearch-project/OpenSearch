@@ -83,26 +83,6 @@ public class ShiroAuthenticationManager implements AuthenticationManager {
         };
     }
 
-    @Override
-    public Runnable associateWith(final Runnable r) {
-        return SecurityUtils.getSubject().associateWith(r);
-    }
-
-    @Override
-    public <V> Callable<V> associateWith(final Callable<V> c) {
-        return SecurityUtils.getSubject().associateWith(c);
-    }
-
-    @Override
-    public void executeWith(final Runnable r) {
-        SecurityUtils.getSubject().execute(r);
-    }
-
-    @Override
-    public <V> V executeWith(final Callable<V> c) {
-        return SecurityUtils.getSubject().execute(c);
-    }
-
     /**
      * Wraps Shiro's Subject implementation
      */

@@ -242,8 +242,7 @@ public class PeerFinderTests extends OpenSearchTestCase {
             boundTransportAddress -> localNode,
             null,
             emptySet(),
-            connectionManager,
-            null
+            connectionManager
         );
 
         transportService.start();

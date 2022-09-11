@@ -247,8 +247,7 @@ public final class MockTransportService extends TransportService {
             localNodeFactory,
             clusterSettings,
             taskHeaders,
-            new StubbableConnectionManager(new ClusterConnectionManager(settings, transport)),
-            null
+            new StubbableConnectionManager(new ClusterConnectionManager(settings, transport))
         );
         this.original = transport.getDelegate();
     }

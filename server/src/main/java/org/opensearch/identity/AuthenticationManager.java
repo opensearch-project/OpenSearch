@@ -24,26 +24,4 @@ public interface AuthenticationManager {
      *  Token not supported
      * */
     public void login(final AuthenticationToken token);
-
-    // Persists subject lifetime through thread boundaries
-
-    /**
-     * Ensures the execution of this runnable is done with the current subject
-     * */
-    public Runnable associateWith(Runnable r);
-
-    /**
-     * Ensures the execution of this callable is done with the current subject
-     * */
-    public <V> Callable<V> associateWith(Callable<V> c);
-
-    /**
-     * Executes this runnable is done with the current subject
-     * */
-    public void executeWith(Runnable r);
-
-    /**
-     * Executes this callable is done with the current subject
-     * */
-    public <V> V executeWith(Callable<V> c);
 }

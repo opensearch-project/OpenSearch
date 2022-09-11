@@ -92,8 +92,7 @@ public class MockTransport extends StubbableTransport {
             localNodeFactory,
             clusterSettings,
             taskHeaders,
-            connectionManager,
-            null
+            connectionManager
         );
     }
 

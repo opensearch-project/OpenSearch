@@ -62,6 +62,7 @@ import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionExceptio
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.identity.AuthenticationManager;
+import org.opensearch.identity.Identity;
 import org.opensearch.identity.Subject;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.internal.io.IOUtils;
@@ -118,7 +119,6 @@ public class TransportService extends AbstractLifecycleComponent
     private final boolean remoteClusterClient;
     private final Transport.ResponseHandlers responseHandlers;
     private final TransportInterceptor interceptor;
-    private final AuthenticationManager authenticationManager;
 
     // An LRU (don't really care about concurrency here) that holds the latest timed out requests so if they
     // do show up, we can print more descriptive information about them
@@ -184,20 +184,6 @@ public class TransportService extends AbstractLifecycleComponent
         @Nullable ClusterSettings clusterSettings,
         Set<String> taskHeaders
     ) {
-        // TEMP keeping this to limit unit test build breaks
-        this(settings, transport, threadPool, transportInterceptor, localNodeFactory, clusterSettings, taskHeaders, null);
-    }
-
-    public TransportService(
-        Settings settings,
-        Transport transport,
-        ThreadPool threadPool,
-        TransportInterceptor transportInterceptor,
-        Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
-        @Nullable ClusterSettings clusterSettings,
-        Set<String> taskHeaders,
-        AuthenticationManager authenticationManager
-    ) {
         this(
             settings,
             transport,
@@ -206,8 +192,7 @@ public class TransportService extends AbstractLifecycleComponent
             localNodeFactory,
             clusterSettings,
             taskHeaders,
-            new ClusterConnectionManager(settings, transport),
-            authenticationManager
+            new ClusterConnectionManager(settings, transport)
         );
     }
 
@@ -219,10 +204,8 @@ public class TransportService extends AbstractLifecycleComponent
         Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
         @Nullable ClusterSettings clusterSettings,
         Set<String> taskHeaders,
-        ConnectionManager connectionManager,
-        AuthenticationManager authenticationManager
+        ConnectionManager connectionManager
     ) {
-        this.authenticationManager = authenticationManager;
         this.transport = transport;
         transport.setSlowLogThreshold(TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING.get(settings));
         this.threadPool = threadPool;
@@ -268,15 +251,8 @@ public class TransportService extends AbstractLifecycleComponent
         return taskManager;
     }
 
-    /**
-     * Gets the current identity manager
-     */
-    public AuthenticationManager getAuthenticationManager() {
-        return this.authenticationManager;
-    }
-
     protected TaskManager createTaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
-        return new TaskManager(settings, threadPool, taskHeaders, this.authenticationManager);
+        return new TaskManager(settings, threadPool, taskHeaders);
     }
 
     /**
@@ -796,10 +772,9 @@ public class TransportService extends AbstractLifecycleComponent
         final TransportResponseHandler<T> handler
     ) {
         try {
-            final Subject currentSubject = this.authenticationManager.getSubject();
-            logger.info("Action: " + action + ", as Subject: " + currentSubject);
+            final Subject currentSubject = Identity.getAuthenticationManager().getSubject();
             if (currentSubject.getPrincipal() == null) {
-                // throw new RuntimeException("Discovered a request that does not have a principal associated with it!");
+                logger.info("Action: " + action ", has no principal associated with it");
             }
             final TransportResponseHandler<T> delegate;
             if (request.getParentTask().isSet()) {
@@ -964,7 +939,7 @@ public class TransportService extends AbstractLifecycleComponent
                 // thread on a best effort basis though.
                 final SendRequestTransportException sendRequestException = new SendRequestTransportException(node, action, e);
                 final String executor = lifecycle.stoppedOrClosed() ? ThreadPool.Names.SAME : ThreadPool.Names.GENERIC;
-                threadPool.executor(executor).execute(this.authenticationManager.associateWith(new AbstractRunnable() {
+                threadPool.executor(executor).execute(new AbstractRunnable() {
                     @Override
                     public void onRejection(Exception e) {
                         // if we get rejected during node shutdown we don't wanna bubble it up
@@ -992,7 +967,7 @@ public class TransportService extends AbstractLifecycleComponent
                     protected void doRun() throws Exception {
                         contextToNotify.handler().handleException(sendRequestException);
                     }
-                }));
+                });
             } else {
                 logger.debug("Exception while sending request, handler likely already notified due to timeout", e);
             }
@@ -1013,7 +988,7 @@ public class TransportService extends AbstractLifecycleComponent
                 // noinspection unchecked
                 reg.processMessageReceived(request, channel);
             } else {
-                threadPool.executor(executor).execute(this.authenticationManager.associateWith(new AbstractRunnable() {
+                threadPool.executor(executor).execute(new AbstractRunnable() {
                     @Override
                     protected void doRun() throws Exception {
                         // noinspection unchecked
@@ -1042,7 +1017,7 @@ public class TransportService extends AbstractLifecycleComponent
                     public String toString() {
                         return "processing of [" + requestId + "][" + action + "]: " + request;
                     }
-                }));
+                });
             }
 
         } catch (Exception e) {
@@ -1490,7 +1465,7 @@ public class TransportService extends AbstractLifecycleComponent
                 if (ThreadPool.Names.SAME.equals(executor)) {
                     processResponse(handler, response);
                 } else {
-                    threadPool.executor(executor).execute(service.authenticationManager.associateWith(new Runnable() {
+                    threadPool.executor(executor).execute(new Runnable() {
                         @Override
                         public void run() {
                             processResponse(handler, response);
@@ -1500,7 +1475,7 @@ public class TransportService extends AbstractLifecycleComponent
                         public String toString() {
                             return "delivery of response to [" + requestId + "][" + action + "]: " + response;
                         }
-                    }));
+                    });
                 }
             }
         }
@@ -1525,7 +1500,7 @@ public class TransportService extends AbstractLifecycleComponent
                 if (ThreadPool.Names.SAME.equals(executor)) {
                     processException(handler, rtx);
                 } else {
-                    threadPool.executor(handler.executor()).execute(service.authenticationManager.associateWith(new Runnable() {
+                    threadPool.executor(handler.executor()).execute(new Runnable() {
                         @Override
                         public void run() {
                             processException(handler, rtx);
@@ -1535,7 +1510,7 @@ public class TransportService extends AbstractLifecycleComponent
                         public String toString() {
                             return "delivery of failure response to [" + requestId + "][" + action + "]: " + exception;
                         }
-                    }));
+                    });
                 }
             }
         }

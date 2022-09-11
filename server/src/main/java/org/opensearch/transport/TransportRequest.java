@@ -32,6 +32,7 @@
 
 package org.opensearch.transport;
 
+import org.apache.shiro.authc.AuthenticationToken;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.tasks.TaskAwareRequest;
@@ -65,6 +66,11 @@ public abstract class TransportRequest extends TransportMessage implements TaskA
      */
     private TaskId parentTaskId = TaskId.EMPTY_TASK_ID;
 
+    /**
+     * Authentication information about this request, defaults to null for not authenticated
+     */
+    private AuthenticationToken authenticationToken = null;
+
     public TransportRequest() {}
 
     public TransportRequest(StreamInput in) throws IOException {
@@ -90,5 +96,13 @@ public abstract class TransportRequest extends TransportMessage implements TaskA
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         parentTaskId.writeTo(out);
+    }
+
+    public void setAuthenticationToken(final AuthenticationToken token) {
+        this.authenticationToken = token;
+    }
+
+    public AuthenticationToken getAuthenticationToken() {
+        return this.authenticationToken;
     }
 }

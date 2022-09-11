@@ -52,7 +52,6 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongConsumer;
 import java.util.stream.StreamSupport;
 
@@ -188,43 +187,39 @@ public class PreVoteCollector {
         void start(final Iterable<DiscoveryNode> broadcastNodes) {
             assert StreamSupport.stream(broadcastNodes.spliterator(), false).noneMatch(Coordinator::isZen1Node) : broadcastNodes;
             logger.debug("{} requesting pre-votes from {}", this, broadcastNodes);
-            /* Direct transportService.sendRequest calls need a user context */
-            transportService.getAuthenticationManager()
-                .executeWith(
-                    () -> broadcastNodes.forEach(
-                        n -> transportService.sendRequest(
-                            n,
-                            REQUEST_PRE_VOTE_ACTION_NAME,
-                            preVoteRequest,
-                            new TransportResponseHandler<PreVoteResponse>() {
-                                @Override
-                                public PreVoteResponse read(StreamInput in) throws IOException {
-                                    return new PreVoteResponse(in);
-                                }
+            broadcastNodes.forEach(
+                n -> transportService.sendRequest(
+                    n,
+                    REQUEST_PRE_VOTE_ACTION_NAME,
+                    preVoteRequest,
+                    new TransportResponseHandler<PreVoteResponse>() {
+                        @Override
+                        public PreVoteResponse read(StreamInput in) throws IOException {
+                            return new PreVoteResponse(in);
+                        }
 
-                                @Override
-                                public void handleResponse(PreVoteResponse response) {
-                                    handlePreVoteResponse(response, n);
-                                }
+                        @Override
+                        public void handleResponse(PreVoteResponse response) {
+                            handlePreVoteResponse(response, n);
+                        }
 
-                                @Override
-                                public void handleException(TransportException exp) {
-                                    logger.debug(new ParameterizedMessage("{} failed", this), exp);
-                                }
+                        @Override
+                        public void handleException(TransportException exp) {
+                            logger.debug(new ParameterizedMessage("{} failed", this), exp);
+                        }
 
-                                @Override
-                                public String executor() {
-                                    return Names.GENERIC;
-                                }
+                        @Override
+                        public String executor() {
+                            return Names.GENERIC;
+                        }
 
-                                @Override
-                                public String toString() {
-                                    return "TransportResponseHandler{" + PreVoteCollector.this + ", node=" + n + '}';
-                                }
-                            }
-                        )
-                    )
-                );
+                        @Override
+                        public String toString() {
+                            return "TransportResponseHandler{" + PreVoteCollector.this + ", node=" + n + '}';
+                        }
+                    }
+                )
+            );
         }
 
         private void handlePreVoteResponse(final PreVoteResponse response, final DiscoveryNode sender) {

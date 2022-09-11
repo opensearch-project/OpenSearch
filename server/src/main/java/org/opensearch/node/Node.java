@@ -229,6 +229,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.opensearch.identity.AuthenticationManager;
+import org.opensearch.identity.Identity;
 import org.opensearch.identity.shiro.ShiroAuthenticationManager;
 
 import static java.util.stream.Collectors.toList;
@@ -467,6 +468,8 @@ public class Node implements Closeable {
             resourcesToClose.add(() -> HeaderWarning.removeThreadContext(threadPool.getThreadContext()));
 
             final AuthenticationManager authManager = new ShiroAuthenticationManager();
+            Identity.setAuthenticationManager(authManager);
+
             final List<Setting<?>> additionalSettings = new ArrayList<>();
             // register the node.data, node.ingest, node.master, node.remote_cluster_client settings here so we can mark them private
             additionalSettings.add(NODE_DATA_SETTING);
@@ -478,7 +481,7 @@ public class Node implements Closeable {
             for (final ExecutorBuilder<?> builder : threadPool.builders()) {
                 additionalSettings.addAll(builder.getRegisteredSettings());
             }
-            client = new NodeClient(settings, threadPool, authManager);
+            client = new NodeClient(settings, threadPool);
 
             final ScriptModule scriptModule = new ScriptModule(settings, pluginsService.filterPlugins(ScriptPlugin.class));
             final ScriptService scriptService = newScriptService(settings, scriptModule.engines, scriptModule.contexts);
@@ -726,8 +729,7 @@ public class Node implements Closeable {
                 client,
                 circuitBreakerService,
                 usageService,
-                systemIndices,
-                authManager
+                systemIndices
             );
             modules.add(actionModule);
 
@@ -774,8 +776,7 @@ public class Node implements Closeable {
                 networkModule.getTransportInterceptor(),
                 localNodeFactory,
                 settingsModule.getClusterSettings(),
-                taskHeaders,
-                authManager
+                taskHeaders
             );
             /*
              * TODO: Understand the dependencies from plugins to initialize TransportService.
@@ -1045,19 +1046,9 @@ public class Node implements Closeable {
         TransportInterceptor interceptor,
         Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
         ClusterSettings clusterSettings,
-        Set<String> taskHeaders,
-        AuthenticationManager authenticationManager
+        Set<String> taskHeaders
     ) {
-        return new TransportService(
-            settings,
-            transport,
-            threadPool,
-            interceptor,
-            localNodeFactory,
-            clusterSettings,
-            taskHeaders,
-            authenticationManager
-        );
+        return new TransportService(settings, transport, threadPool, interceptor, localNodeFactory, clusterSettings, taskHeaders);
     }
 
     protected void processRecoverySettings(ClusterSettings clusterSettings, RecoverySettings recoverySettings) {
