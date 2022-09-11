@@ -11,8 +11,6 @@ package org.opensearch.index.translog.transfer;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.index.translog.TranslogReader;
 
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.HashSet;
@@ -21,8 +19,6 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import java.util.zip.CRC32;
-import java.util.zip.CheckedInputStream;
 
 import static org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
 import static org.opensearch.index.translog.transfer.FileSnapshot.TranslogFileSnapshot;
@@ -42,7 +38,7 @@ public class TransferSnapshotProvider implements Supplier<TransferSnapshot> {
         long generation,
         Path location,
         List<TranslogReader> readers,
-        Function<Long, String> checkpointFileNameMapper
+        Function<Long, String> checkpointGenFileNameMapper
     ) throws IOException {
         translogTransferSnapshot = new TranslogCheckpointTransferSnapshot(primaryTerm, generation, readers.size());
         for (TranslogReader reader : readers) {
@@ -50,10 +46,10 @@ public class TransferSnapshotProvider implements Supplier<TransferSnapshot> {
             final long readerPrimaryTerm = reader.getPrimaryTerm();
             final long minTranslogGeneration = reader.getCheckpoint().getMinTranslogGeneration();
             Path translogPath = reader.path();
-            Path checkpointPath = location.resolve(checkpointFileNameMapper.apply(readerGeneration));
+            Path checkpointPath = location.resolve(checkpointGenFileNameMapper.apply(readerGeneration));
             translogTransferSnapshot.add(
-                buildTranslogFileInfo(translogPath.toFile(), readerPrimaryTerm, readerGeneration),
-                buildCheckpointFileInfo(checkpointPath.toFile(), readerPrimaryTerm, minTranslogGeneration)
+                new TranslogFileSnapshot(readerPrimaryTerm, readerGeneration, translogPath),
+                new CheckpointFileSnapshot(readerPrimaryTerm, minTranslogGeneration, checkpointPath)
             );
         }
     }
@@ -63,35 +59,15 @@ public class TransferSnapshotProvider implements Supplier<TransferSnapshot> {
         return translogTransferSnapshot;
     }
 
-    private TranslogFileSnapshot buildTranslogFileInfo(File file, long primaryTerm, long generation) throws IOException {
-        TranslogFileSnapshot fileSnapshot;
-        try (CheckedInputStream stream = new CheckedInputStream(new FileInputStream(file), new CRC32())) {
-            byte[] content = stream.readAllBytes();
-            long checksum = stream.getChecksum().getValue();
-            fileSnapshot = new TranslogFileSnapshot(primaryTerm, generation, file.getName(), file.toPath(), checksum, content);
-        }
-        return fileSnapshot;
-    }
-
-    private CheckpointFileSnapshot buildCheckpointFileInfo(File file, long primaryTerm, long minTranslogGeneration) throws IOException {
-        CheckpointFileSnapshot fileSnapshot;
-        try (CheckedInputStream stream = new CheckedInputStream(new FileInputStream(file), new CRC32())) {
-            byte[] content = stream.readAllBytes();
-            long checksum = stream.getChecksum().getValue();
-            fileSnapshot = new CheckpointFileSnapshot(primaryTerm, minTranslogGeneration, file.getName(), file.toPath(), checksum, content);
-        }
-        return fileSnapshot;
-    }
-
     static class TranslogCheckpointTransferSnapshot implements TransferSnapshot {
 
         private final Set<Tuple<TranslogFileSnapshot, CheckpointFileSnapshot>> translogCheckpointFileInfoTupleSet;
         private final int size;
         private CheckpointFileSnapshot latestCheckPointFileSnapshot;
         private TranslogFileSnapshot latestTranslogFileSnapshot;
-        private long generation;
+        private final long generation;
         private long highestGeneration;
-        private long primaryTerm;
+        private final long primaryTerm;
 
         TranslogCheckpointTransferSnapshot(long primaryTerm, long generation, int size) {
             translogCheckpointFileInfoTupleSet = new HashSet<>(size);
@@ -115,8 +91,9 @@ public class TransferSnapshotProvider implements Supplier<TransferSnapshot> {
             assert translogCheckpointFileInfoTupleSet.size() == size : "inconsistent translog and checkpoint file count";
         }
 
+        @Override
         public Set<TransferFileSnapshot> getTranslogFileSnapshots() {
-            return translogCheckpointFileInfoTupleSet.stream().map(tuple -> tuple.v1()).collect(Collectors.toSet());
+            return translogCheckpointFileInfoTupleSet.stream().map(Tuple::v1).collect(Collectors.toSet());
         }
 
         @Override
@@ -125,12 +102,23 @@ public class TransferSnapshotProvider implements Supplier<TransferSnapshot> {
                 latestTranslogFileSnapshot.getPrimaryTerm(),
                 latestTranslogFileSnapshot.getGeneration(),
                 latestCheckPointFileSnapshot.getMinTranslogGeneration(),
-                translogCheckpointFileInfoTupleSet.size()
+                translogCheckpointFileInfoTupleSet.size() * 2
             );
         }
 
+        @Override
         public Set<TransferFileSnapshot> getCheckpointFileSnapshots() {
-            return translogCheckpointFileInfoTupleSet.stream().map(tuple -> tuple.v2()).collect(Collectors.toSet());
+            return translogCheckpointFileInfoTupleSet.stream().map(Tuple::v2).collect(Collectors.toSet());
+        }
+
+        @Override
+        public String toString() {
+            return new StringBuilder("TranslogTransferSnapshot [").append(" primary term = ")
+                .append(primaryTerm)
+                .append(", generation = ")
+                .append(generation)
+                .append(" ]")
+                .toString();
         }
     }
 }

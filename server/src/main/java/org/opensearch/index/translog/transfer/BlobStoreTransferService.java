@@ -39,7 +39,7 @@ public class BlobStoreTransferService implements TransferService {
     }
 
     @Override
-    public void uploadFileAsync(
+    public void uploadBlobAsync(
         final TransferFileSnapshot fileSnapshot,
         Iterable<String> remoteTransferPath,
         ActionListener<TransferFileSnapshot> listener
@@ -64,7 +64,7 @@ public class BlobStoreTransferService implements TransferService {
     }
 
     @Override
-    public void uploadFile(final TransferFileSnapshot fileSnapshot, Iterable<String> remoteTransferPath) throws IOException {
+    public void uploadBlob(final TransferFileSnapshot fileSnapshot, Iterable<String> remoteTransferPath) throws IOException {
         assert remoteTransferPath instanceof BlobPath;
         BlobPath blobPath = (BlobPath) remoteTransferPath;
         try {

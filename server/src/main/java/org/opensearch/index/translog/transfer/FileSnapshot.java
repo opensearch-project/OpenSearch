@@ -10,8 +10,13 @@ package org.opensearch.index.translog.transfer;
 
 import org.opensearch.common.Nullable;
 
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Objects;
+import java.util.zip.CRC32;
+import java.util.zip.CheckedInputStream;
 
 /**
  * Snapshot of a single file that gets transferred
@@ -27,19 +32,26 @@ public class FileSnapshot {
     @Nullable
     private Path path;
 
-    public FileSnapshot(String name, Path path, long checksum, byte[] content) {
-        this.name = name;
+    public FileSnapshot(Path path) throws IOException {
+        Objects.requireNonNull(path);
+        this.name = path.getFileName().toString();
         this.path = path;
-        this.checksum = checksum;
-        this.content = content;
-        this.contentLength = content.length;
+        try (CheckedInputStream stream = new CheckedInputStream(Files.newInputStream(path), new CRC32())) {
+            this.content = stream.readAllBytes();
+            this.checksum = stream.getChecksum().getValue();
+            this.contentLength = content.length;
+        }
     }
 
-    public FileSnapshot(String name, long checksum, byte[] content) {
+    public FileSnapshot(String name, byte[] content) throws IOException {
+        Objects.requireNonNull(content);
+        Objects.requireNonNull(name);
         this.name = name;
-        this.checksum = checksum;
-        this.content = content;
-        this.contentLength = content.length;
+        try (CheckedInputStream stream = new CheckedInputStream(new ByteArrayInputStream(content), new CRC32())) {
+            this.content = stream.readAllBytes();
+            this.checksum = stream.getChecksum().getValue();
+            this.contentLength = content.length;
+        }
     }
 
     public Path getPath() {
@@ -80,20 +92,29 @@ public class FileSnapshot {
 
     @Override
     public String toString() {
-        return new StringBuilder("FileInfo [").append(name).append(path.toUri()).append(checksum).append(contentLength).toString();
+        return new StringBuilder("FileInfo [").append(" name = ")
+            .append(name)
+            .append(", path = ")
+            .append(path.toUri())
+            .append(", checksum = ")
+            .append(checksum)
+            .append(", contentLength = ")
+            .append(contentLength)
+            .append("]")
+            .toString();
     }
 
     public static class TransferFileSnapshot extends FileSnapshot {
 
         private final long primaryTerm;
 
-        public TransferFileSnapshot(String name, Path path, long checksum, byte[] content, long primaryTerm) {
-            super(name, path, checksum, content);
+        public TransferFileSnapshot(Path path, long primaryTerm) throws IOException {
+            super(path);
             this.primaryTerm = primaryTerm;
         }
 
-        public TransferFileSnapshot(String name, long checksum, byte[] content, long primaryTerm) {
-            super(name, checksum, content);
+        public TransferFileSnapshot(String name, byte[] content, long primaryTerm) throws IOException {
+            super(name, content);
             this.primaryTerm = primaryTerm;
         }
 
@@ -110,7 +131,7 @@ public class FileSnapshot {
         public boolean equals(Object o) {
             if (super.equals(o)) {
                 if (this == o) return true;
-                if (o == null || getClass() != o.getClass()) return false;
+                if (getClass() != o.getClass()) return false;
                 TransferFileSnapshot other = (TransferFileSnapshot) o;
                 return Objects.equals(this.primaryTerm, other.primaryTerm);
             }
@@ -122,8 +143,8 @@ public class FileSnapshot {
 
         private final long generation;
 
-        public TranslogFileSnapshot(long primaryTerm, long generation, String name, Path path, long checksum, byte[] content) {
-            super(name, path, checksum, content, primaryTerm);
+        public TranslogFileSnapshot(long primaryTerm, long generation, Path path) throws IOException {
+            super(path, primaryTerm);
             this.generation = generation;
         }
 
@@ -140,7 +161,7 @@ public class FileSnapshot {
         public boolean equals(Object o) {
             if (super.equals(o)) {
                 if (this == o) return true;
-                if (o == null || getClass() != o.getClass()) return false;
+                if (getClass() != o.getClass()) return false;
                 TranslogFileSnapshot other = (TranslogFileSnapshot) o;
                 return Objects.equals(this.generation, other.generation);
             }
@@ -152,8 +173,8 @@ public class FileSnapshot {
 
         private final long minTranslogGeneration;
 
-        public CheckpointFileSnapshot(long primaryTerm, long minTranslogGeneration, String name, Path path, long checksum, byte[] content) {
-            super(name, path, checksum, content, primaryTerm);
+        public CheckpointFileSnapshot(long primaryTerm, long minTranslogGeneration, Path path) throws IOException {
+            super(path, primaryTerm);
             this.minTranslogGeneration = minTranslogGeneration;
         }
 
@@ -170,7 +191,7 @@ public class FileSnapshot {
         public boolean equals(Object o) {
             if (super.equals(o)) {
                 if (this == o) return true;
-                if (o == null || getClass() != o.getClass()) return false;
+                if (getClass() != o.getClass()) return false;
                 CheckpointFileSnapshot other = (CheckpointFileSnapshot) o;
                 return Objects.equals(this.minTranslogGeneration, other.minTranslogGeneration);
             }

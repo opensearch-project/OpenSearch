@@ -20,12 +20,12 @@ import java.io.IOException;
  */
 public interface TransferService {
 
-    void uploadFileAsync(
+    void uploadBlobAsync(
         final TransferFileSnapshot fileSnapshot,
         Iterable<String> remotePath,
         ActionListener<TransferFileSnapshot> listener
     );
 
-    void uploadFile(final TransferFileSnapshot fileSnapshot, Iterable<String> remotePath) throws IOException;
+    void uploadBlob(final TransferFileSnapshot fileSnapshot, Iterable<String> remotePath) throws IOException;
 
 }
