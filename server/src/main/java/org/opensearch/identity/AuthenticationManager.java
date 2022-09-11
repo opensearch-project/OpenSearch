@@ -1,7 +1,5 @@
 package org.opensearch.identity;
 
-import java.util.concurrent.Callable;
-
 /**
  * Authentication management for OpenSearch.
  *
@@ -24,4 +22,13 @@ public interface AuthenticationManager {
      *  Token not supported
      * */
     public void login(final AuthenticationToken token);
+
+    /**
+     * Authenticates the runnable as an OpenSearch system response.
+     * 
+     * TODO: systemResource is coming through as `opensearch[runTask-0][management]` when
+     * run through the OpenSearchThreadFactory, ideally this should be an enum looking somewhat
+     * like ThreadPool.Names that can having a mapping for permissions associated with it.
+     */
+    public Runnable systemLogin(final Runnable runnable, final String systemResource);
 }

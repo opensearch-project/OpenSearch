@@ -4,6 +4,7 @@ import org.opensearch.identity.AuthenticationManager;
 import org.opensearch.identity.PermissionResult;
 import org.opensearch.identity.Subject;
 
+/** No Operation implementation of an permissions result, always allows */
 public class NoopPermissionResult implements PermissionResult {
 
     @Override

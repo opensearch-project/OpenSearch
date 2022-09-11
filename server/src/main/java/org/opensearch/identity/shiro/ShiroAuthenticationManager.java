@@ -60,16 +60,26 @@ public class ShiroAuthenticationManager implements AuthenticationManager {
         throw new RuntimeException("Unable to authenticate user!");
     }
 
+    public Runnable systemLogin(final Runnable runnable, final String systemResource) {
+        final org.apache.shiro.subject.Subject internalSubject = new org.apache.shiro.subject.Subject.Builder().authenticated(true)
+        .principals(new SimplePrincipalCollection("System-" + systemResource, "OpenSearch")) // How can we ensure the roles this
+                                                                                        // principal resolves?
+        .buildSubject();
+
+        return internalSubject.associateWith(runnable);
+    }
+
     public AuthenticationSession dangerousAuthenticateAs(final String subject) {
         final org.apache.shiro.subject.Subject internalSubject = new org.apache.shiro.subject.Subject.Builder().authenticated(true)
             .principals(new SimplePrincipalCollection("INTERNAL-" + subject, "OpenSearch")) // How can we ensure the roles this
-                                                                                            // princpal resolves?
+                                                                                            // principal resolves?
             .contextAttribute("NodeId", "???") // Can we use this to source the originating node in a cluster?
             .buildSubject();
 
         final SubjectThreadState threadState = new SubjectThreadState(internalSubject);
         threadState.bind();
 
+        
         return closeAuthenticateAsSession(threadState, subject);
     }
 

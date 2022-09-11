@@ -774,7 +774,7 @@ public class TransportService extends AbstractLifecycleComponent
         try {
             final Subject currentSubject = Identity.getAuthenticationManager().getSubject();
             if (currentSubject.getPrincipal() == null) {
-                logger.info("Action: " + action ", has no principal associated with it");
+                logger.warn("Action: " + action + ", has no principal associated with it");
             }
             final TransportResponseHandler<T> delegate;
             if (request.getParentTask().isSet()) {

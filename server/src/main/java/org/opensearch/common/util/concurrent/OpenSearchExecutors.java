@@ -39,6 +39,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.identity.Identity;
 import org.opensearch.node.Node;
 import org.opensearch.threadpool.RunnableTaskExecutionListener;
 import org.opensearch.threadpool.TaskAwareRunnable;
@@ -401,7 +402,8 @@ public class OpenSearchExecutors {
 
         @Override
         public Thread newThread(Runnable r) {
-            Thread t = new Thread(group, r, namePrefix + "[T#" + threadNumber.getAndIncrement() + "]", 0);
+            final Runnable authenticatedRunable = Identity.getAuthenticationManager().systemLogin(r, namePrefix);
+            Thread t = new Thread(group, authenticatedRunable, namePrefix + "[T#" + threadNumber.getAndIncrement() + "]", 0);
             t.setDaemon(true);
             return t;
         }
