@@ -96,7 +96,6 @@ configure([
   project(":client:rest-high-level"),
   project(":client:test"),
   project(":distribution:tools:launchers"),
-  project(":distribution:tools:plugin-cli"),
   project(":doc-tools"),
   project(":example-plugins:custom-settings"),
   project(":example-plugins:custom-significance-heuristic"),
