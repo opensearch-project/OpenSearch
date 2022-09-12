@@ -53,6 +53,7 @@ import org.opensearch.monitor.MonitorService;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.aggregations.support.AggregationUsageService;
+import org.opensearch.search.backpressure.SearchBackpressureService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -81,6 +82,7 @@ public class NodeService implements Closeable {
     private final SearchTransportService searchTransportService;
     private final IndexingPressureService indexingPressureService;
     private final AggregationUsageService aggregationUsageService;
+    private final SearchBackpressureService searchBackpressureService;
 
     private final Discovery discovery;
 
@@ -101,7 +103,8 @@ public class NodeService implements Closeable {
         ResponseCollectorService responseCollectorService,
         SearchTransportService searchTransportService,
         IndexingPressureService indexingPressureService,
-        AggregationUsageService aggregationUsageService
+        AggregationUsageService aggregationUsageService,
+        SearchBackpressureService searchBackpressureService
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -119,6 +122,7 @@ public class NodeService implements Closeable {
         this.searchTransportService = searchTransportService;
         this.indexingPressureService = indexingPressureService;
         this.aggregationUsageService = aggregationUsageService;
+        this.searchBackpressureService = searchBackpressureService;
         clusterService.addStateApplier(ingestService);
     }
 

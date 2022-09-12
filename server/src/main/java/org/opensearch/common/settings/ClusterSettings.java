@@ -41,6 +41,7 @@ import org.opensearch.index.IndexingPressure;
 import org.opensearch.index.ShardIndexingPressureMemoryManager;
 import org.opensearch.index.ShardIndexingPressureSettings;
 import org.opensearch.index.ShardIndexingPressureStore;
+import org.opensearch.search.backpressure.SearchBackpressureSettings;
 import org.opensearch.tasks.TaskManager;
 import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.watcher.ResourceWatcherService;
@@ -581,7 +582,20 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 ShardIndexingPressureMemoryManager.MAX_OUTSTANDING_REQUESTS,
                 IndexingPressure.MAX_INDEXING_BYTES,
                 TaskResourceTrackingService.TASK_RESOURCE_TRACKING_ENABLED,
-                TaskManager.TASK_RESOURCE_CONSUMERS_ENABLED
+                TaskManager.TASK_RESOURCE_CONSUMERS_ENABLED,
+                SearchBackpressureSettings.SETTING_ENABLED,
+                SearchBackpressureSettings.SETTING_ENFORCED,
+                SearchBackpressureSettings.SETTING_NODE_DURESS_NUM_CONSECUTIVE_BREACHES,
+                SearchBackpressureSettings.SETTING_NODE_DURESS_CPU_THRESHOLD,
+                SearchBackpressureSettings.SETTING_NODE_DURESS_HEAP_THRESHOLD,
+                SearchBackpressureSettings.SETTING_SEARCH_HEAP_THRESHOLD,
+                SearchBackpressureSettings.SETTING_SEARCH_TASK_HEAP_THRESHOLD,
+                SearchBackpressureSettings.SETTING_SEARCH_TASK_HEAP_VARIANCE_THRESHOLD,
+                SearchBackpressureSettings.SETTING_SEARCH_TASK_CPU_TIME_THRESHOLD,
+                SearchBackpressureSettings.SETTING_SEARCH_TASK_ELAPSED_TIME_THRESHOLD,
+                SearchBackpressureSettings.SETTING_CANCELLATION_RATIO,
+                SearchBackpressureSettings.SETTING_CANCELLATION_RATE,
+                SearchBackpressureSettings.SETTING_CANCELLATION_BURST
             )
         )
     );
