@@ -50,9 +50,12 @@ import org.opensearch.cluster.routing.ShardShuffler;
 import org.opensearch.cluster.routing.ShardsIterator;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.shard.ShardId;
+import org.opensearch.test.ClusterServiceUtils;
+import org.opensearch.threadpool.TestThreadPool;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -422,11 +425,14 @@ public class RoutingIteratorTests extends OpenSearchAllocationTestCase {
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
+        TestThreadPool threadPool = new TestThreadPool("testThatOnlyNodesSupport");
+        ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
+
         OperationRouting operationRouting = new OperationRouting(
             Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
-
+        operationRouting.setClusterService(clusterService);
         GroupShardsIterator<ShardIterator> shardIterators = operationRouting.searchShards(
             clusterState,
             new String[] { "test" },
@@ -468,6 +474,7 @@ public class RoutingIteratorTests extends OpenSearchAllocationTestCase {
         } else {
             assertThat(it.nextOrNull().currentNodeId(), equalTo("node1"));
         }
+        terminate(threadPool);
     }
 
     public void testReplicaShardPreferenceIters() throws Exception {

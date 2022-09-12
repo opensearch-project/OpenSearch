@@ -48,7 +48,10 @@ public class WeightedRoundRobinRoutingMetadata extends AbstractNamedDiffable<Met
     }
 
     public WeightedRoundRobinRoutingMetadata(StreamInput in) throws IOException {
-        this.wrrWeight = new WRRWeights(in);
+        if (in.available() != 0) {
+            this.wrrWeight = new WRRWeights(in);
+
+        }
     }
 
     public WeightedRoundRobinRoutingMetadata(WRRWeights wrrWeight) {
@@ -73,7 +76,9 @@ public class WeightedRoundRobinRoutingMetadata extends AbstractNamedDiffable<Met
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        wrrWeight.writeTo(out);
+        if (wrrWeight != null) {
+            wrrWeight.writeTo(out);
+        }
     }
 
     public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput in) throws IOException {
@@ -113,8 +118,6 @@ public class WeightedRoundRobinRoutingMetadata extends AbstractNamedDiffable<Met
                         }
                     }
                 }
-            } else {
-                throw new OpenSearchParseException("failed to parse wrr metadata attribute [{}]", attributeName);
             }
         }
         wrrWeight = new WRRWeights(attributeName, weights);

@@ -26,6 +26,7 @@ import java.util.List;
  *
  * @opensearch.internal
  */
+
 public class WRRShardsCache implements Releasable, ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(WRRShardsCache.class);
 
@@ -41,14 +42,22 @@ public class WRRShardsCache implements Releasable, ClusterStateListener {
         clusterService.addListener(this);
     }
 
-    @Override
-    public void close() {
-        logger.info("Invalidating WRRShardsCache on close");
-        cache.invalidateAll();
+    public long hits() {
+        return cache.stats().getHits();
     }
 
-    public Cache<Key, List<ShardRouting>> getCache() {
-        return cache;
+    public long misses() {
+        return cache.stats().getMisses();
+    }
+
+    public long size() {
+        return cache.count();
+    }
+
+    @Override
+    public void close() {
+        logger.debug("Invalidating WRRShardsCache on close");
+        cache.invalidateAll();
     }
 
     /**
@@ -58,8 +67,16 @@ public class WRRShardsCache implements Releasable, ClusterStateListener {
      */
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        logger.info("Invalidating WRRShardsCache on ClusterChangedEvent");
+        logger.debug("Invalidating WRRShardsCache on ClusterChangedEvent");
         cache.invalidateAll();
+    }
+
+    public List<ShardRouting> get(Key k) {
+        return cache.get(k);
+    }
+
+    public void put(Key key, List<ShardRouting> value) {
+        cache.put(key, value);
     }
 
     /**
@@ -71,7 +88,6 @@ public class WRRShardsCache implements Releasable, ClusterStateListener {
         public final ShardId shardId;
 
         Key(ShardId shardId) {
-
             this.shardId = shardId;
         }
 
@@ -87,7 +103,6 @@ public class WRRShardsCache implements Releasable, ClusterStateListener {
         @Override
         public int hashCode() {
             int result = shardId.hashCode();
-
             return result;
         }
 

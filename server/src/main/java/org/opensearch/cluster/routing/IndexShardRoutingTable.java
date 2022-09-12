@@ -304,11 +304,11 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         final int seed = shuffler.nextSeed();
         List<ShardRouting> ordered = new ArrayList<>(activeShards.size() + allInitializingShards.size());
         List<ShardRouting> orderedActiveShards;
-        if (cache.getCache().get(new WRRShardsCache.Key(shardId)) != null) {
-            orderedActiveShards = cache.getCache().get(new WRRShardsCache.Key(shardId));
+        if (cache.get(new WRRShardsCache.Key(shardId)) != null) {
+            orderedActiveShards = cache.get(new WRRShardsCache.Key(shardId));
         } else {
             orderedActiveShards = getShardsWRR(activeShards, wrrWeight, nodes);
-            cache.getCache().put(new WRRShardsCache.Key(shardId), orderedActiveShards);
+            cache.put(new WRRShardsCache.Key(shardId), orderedActiveShards);
         }
         ordered.addAll(shuffler.shuffle(orderedActiveShards, seed));
 

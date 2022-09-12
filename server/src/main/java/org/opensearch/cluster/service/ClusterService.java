@@ -45,7 +45,9 @@ import org.opensearch.cluster.NodeConnectionsService;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.OperationRouting;
 import org.opensearch.cluster.routing.RerouteService;
+import org.opensearch.cluster.routing.WRRShardsCache;
 import org.opensearch.common.component.AbstractLifecycleComponent;
+import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
@@ -108,7 +110,6 @@ public class ClusterService extends AbstractLifecycleComponent {
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.clusterManagerService = clusterManagerService;
         this.operationRouting = new OperationRouting(settings, clusterSettings);
-        this.operationRouting.setClusterService(this);
         this.clusterSettings = clusterSettings;
         this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
         // Add a no-op update consumer so changes are logged
