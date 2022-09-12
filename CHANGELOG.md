@@ -58,5 +58,9 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Security
 
+## [1.x]
+### Added
+- Backported CODEOWNERS file and Dependabot configuration
+
 
 [Unreleased]: https://github.com/opensearch-project/OpenSearch/compare/2.2.0...HEAD
