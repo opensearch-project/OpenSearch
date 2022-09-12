@@ -188,7 +188,7 @@ public class MetadataRolloverService {
         ClusterState newState = createIndexService.applyCreateIndexRequest(currentState, createIndexClusterStateRequest, silent);
         newState = indexAliasesService.applyAliasActions(
             newState,
-            rolloverAliasToNewIndex(sourceIndexName, rolloverIndexName, explicitWriteIndex, aliasMetadata.isHidden(), aliasName)
+            rolloverAliasToNewIndex(sourceIndexName, rolloverIndexName, explicitWriteIndex, aliasMetadata, aliasName)
         );
 
         RolloverInfo rolloverInfo = new RolloverInfo(aliasName, metConditions, threadPool.absoluteTimeInMillis());
@@ -309,20 +309,20 @@ public class MetadataRolloverService {
         String oldIndex,
         String newIndex,
         boolean explicitWriteIndex,
-        @Nullable Boolean isHidden,
+        AliasMetadata aliasMetada,
         String alias
     ) {
         if (explicitWriteIndex) {
             return Collections.unmodifiableList(
                 Arrays.asList(
-                    new AliasAction.Add(newIndex, alias, null, null, null, true, isHidden),
-                    new AliasAction.Add(oldIndex, alias, null, null, null, false, isHidden)
+                    new AliasAction.Add(newIndex, alias, aliasMetada.getFilterAsString(), aliasMetada.getIndexRouting(), aliasMetada.getSearchRouting(), true, aliasMetada.isHidden()),
+                    new AliasAction.Add(oldIndex, alias, aliasMetada.getFilterAsString(), aliasMetada.getIndexRouting(), aliasMetada.getSearchRouting(), false, aliasMetada.isHidden())
                 )
             );
         } else {
             return Collections.unmodifiableList(
                 Arrays.asList(
-                    new AliasAction.Add(newIndex, alias, null, null, null, null, isHidden),
+                    new AliasAction.Add(newIndex, alias, aliasMetada.getFilterAsString(), aliasMetada.getIndexRouting(), aliasMetada.getSearchRouting(), null, aliasMetada.isHidden()),
                     new AliasAction.Remove(oldIndex, alias, null)
                 )
             );
@@ -385,8 +385,8 @@ public class MetadataRolloverService {
                     + indexAbstraction.getType().getDisplayName()
                     + "] but one of ["
                     + Strings.collectionToCommaDelimitedString(
-                        VALID_ROLLOVER_TARGETS.stream().map(IndexAbstraction.Type::getDisplayName).collect(Collectors.toList())
-                    )
+                    VALID_ROLLOVER_TARGETS.stream().map(IndexAbstraction.Type::getDisplayName).collect(Collectors.toList())
+                )
                     + "] was expected"
             );
         }

@@ -43,6 +43,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.DataStreamTestHelper;
 import org.opensearch.cluster.metadata.AliasAction;
 import org.opensearch.cluster.metadata.AliasMetadata;
+import org.opensearch.cluster.metadata.AliasMetadata.Builder;
 import org.opensearch.cluster.metadata.AliasValidator;
 import org.opensearch.cluster.metadata.ComponentTemplate;
 import org.opensearch.cluster.metadata.ComposableIndexTemplate;
@@ -100,6 +101,7 @@ import java.util.Locale;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
+import static org.hamcrest.Matchers.in;
 import static org.opensearch.cluster.DataStreamTestHelper.generateMapping;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -126,7 +128,7 @@ public class MetadataRolloverServiceTests extends OpenSearchTestCase {
         String sourceIndex = randomAlphaOfLength(10);
         String targetIndex = randomAlphaOfLength(10);
 
-        List<AliasAction> actions = MetadataRolloverService.rolloverAliasToNewIndex(sourceIndex, targetIndex, false, null, sourceAlias);
+        List<AliasAction> actions = MetadataRolloverService.rolloverAliasToNewIndex(sourceIndex, targetIndex, false, createDefaultAliasMetadata(sourceAlias, null), sourceAlias);
         assertThat(actions, hasSize(2));
         boolean foundAdd = false;
         boolean foundRemove = false;
@@ -149,7 +151,7 @@ public class MetadataRolloverServiceTests extends OpenSearchTestCase {
         String sourceAlias = randomAlphaOfLength(10);
         String sourceIndex = randomAlphaOfLength(10);
         String targetIndex = randomAlphaOfLength(10);
-        List<AliasAction> actions = MetadataRolloverService.rolloverAliasToNewIndex(sourceIndex, targetIndex, true, null, sourceAlias);
+        List<AliasAction> actions = MetadataRolloverService.rolloverAliasToNewIndex(sourceIndex, targetIndex, true, createDefaultAliasMetadata(sourceAlias, null), sourceAlias);
 
         assertThat(actions, hasSize(2));
         boolean foundAddWrite = false;
@@ -172,11 +174,47 @@ public class MetadataRolloverServiceTests extends OpenSearchTestCase {
         assertTrue(foundRemoveWrite);
     }
 
+    public void testRolloverAliasActionsWithFilterAndExplicitWriteIndex() {
+        String sourceAlias = randomAlphaOfLength(10);
+        String sourceIndex = randomAlphaOfLength(10);
+        String targetIndex = randomAlphaOfLength(10);
+        Map filter = Collections.singletonMap(randomAlphaOfLength(2), randomAlphaOfLength(2));
+        String indexRouting = randomAlphaOfLength(10);
+        String sourceRouting = randomAlphaOfLength(10);
+        AliasMetadata aliasMetadata = createAliasMetadata(sourceAlias, filter, indexRouting, sourceRouting, true);
+
+        List<AliasAction> actions = MetadataRolloverService.rolloverAliasToNewIndex(sourceIndex, targetIndex, true, aliasMetadata, sourceAlias);
+
+        assertThat(actions, hasSize(2));
+        boolean foundAddWrite = false;
+        boolean foundRemoveWrite = false;
+        for (AliasAction action : actions) {
+            AliasAction.Add addAction = (AliasAction.Add) action;
+            if (action.getIndex().equals(targetIndex)) {
+                assertEquals(sourceAlias, addAction.getAlias());
+                assertEquals(aliasMetadata.getFilterAsString(), addAction.getFilter());
+                assertEquals(indexRouting, addAction.getIndexRouting());
+                assertEquals(sourceRouting, addAction.getSearchRouting());
+
+                assertTrue(addAction.writeIndex());
+                foundAddWrite = true;
+            } else if (action.getIndex().equals(sourceIndex)) {
+                assertEquals(sourceAlias, addAction.getAlias());
+                assertFalse(addAction.writeIndex());
+                foundRemoveWrite = true;
+            } else {
+                throw new AssertionError("Unknown index [" + action.getIndex() + "]");
+            }
+        }
+        assertTrue(foundAddWrite);
+        assertTrue(foundRemoveWrite);
+    }
+
     public void testRolloverAliasActionsWithHiddenAliasAndExplicitWriteIndex() {
         String sourceAlias = randomAlphaOfLength(10);
         String sourceIndex = randomAlphaOfLength(10);
         String targetIndex = randomAlphaOfLength(10);
-        List<AliasAction> actions = MetadataRolloverService.rolloverAliasToNewIndex(sourceIndex, targetIndex, true, true, sourceAlias);
+        List<AliasAction> actions = MetadataRolloverService.rolloverAliasToNewIndex(sourceIndex, targetIndex, true, createDefaultAliasMetadata(sourceAlias,true), sourceAlias);
 
         assertThat(actions, hasSize(2));
         boolean foundAddWrite = false;
@@ -202,11 +240,49 @@ public class MetadataRolloverServiceTests extends OpenSearchTestCase {
         assertTrue(foundRemoveWrite);
     }
 
+    public void testRolloverAliasActionsWithFilterAndHiddenAliasAndImplicitWriteIndex() {
+        String sourceAlias = randomAlphaOfLength(10);
+        String sourceIndex = randomAlphaOfLength(10);
+        String targetIndex = randomAlphaOfLength(10);
+        Map filter = Collections.singletonMap(randomAlphaOfLength(2), randomAlphaOfLength(2));
+        String indexRouting = randomAlphaOfLength(10);
+        String sourceRouting = randomAlphaOfLength(10);
+        AliasMetadata aliasMetadata = createAliasMetadata(sourceAlias, filter, indexRouting, sourceRouting, true);
+
+        List<AliasAction> actions = MetadataRolloverService.rolloverAliasToNewIndex(sourceIndex, targetIndex, false,  aliasMetadata, sourceAlias);
+
+        assertThat(actions, hasSize(2));
+        boolean foundAddWrite = false;
+        boolean foundRemoveWrite = false;
+        for (AliasAction action : actions) {
+            if (action.getIndex().equals(targetIndex)) {
+                assertThat(action, instanceOf(AliasAction.Add.class));
+                AliasAction.Add addAction = (AliasAction.Add) action;
+                assertEquals(sourceAlias, addAction.getAlias());
+                assertThat(addAction.writeIndex(), nullValue());
+                assertTrue(addAction.isHidden());
+                assertEquals(aliasMetadata.getFilterAsString(), addAction.getFilter());
+                assertEquals(indexRouting, addAction.getIndexRouting());
+                assertEquals(sourceRouting, addAction.getSearchRouting());
+                foundAddWrite = true;
+            } else if (action.getIndex().equals(sourceIndex)) {
+                assertThat(action, instanceOf(AliasAction.Remove.class));
+                AliasAction.Remove removeAction = (AliasAction.Remove) action;
+                assertEquals(sourceAlias, removeAction.getAlias());
+                foundRemoveWrite = true;
+            } else {
+                throw new AssertionError("Unknown index [" + action.getIndex() + "]");
+            }
+        }
+        assertTrue(foundAddWrite);
+        assertTrue(foundRemoveWrite);
+    }
+
     public void testRolloverAliasActionsWithHiddenAliasAndImplicitWriteIndex() {
         String sourceAlias = randomAlphaOfLength(10);
         String sourceIndex = randomAlphaOfLength(10);
         String targetIndex = randomAlphaOfLength(10);
-        List<AliasAction> actions = MetadataRolloverService.rolloverAliasToNewIndex(sourceIndex, targetIndex, false, true, sourceAlias);
+        List<AliasAction> actions = MetadataRolloverService.rolloverAliasToNewIndex(sourceIndex, targetIndex, false,  createDefaultAliasMetadata(sourceAlias,true), sourceAlias);
 
         assertThat(actions, hasSize(2));
         boolean foundAddWrite = false;
@@ -1008,6 +1084,20 @@ public class MetadataRolloverServiceTests extends OpenSearchTestCase {
         return IndexMetadata.builder(indexName)
             .creationDate(System.currentTimeMillis() - TimeValue.timeValueHours(3).getMillis())
             .settings(settings)
+            .build();
+    }
+
+    private static AliasMetadata createDefaultAliasMetadata(String alias, Boolean isHidden) {
+        return AliasMetadata.builder(alias).isHidden(isHidden).build();
+    }
+
+    private static AliasMetadata createAliasMetadata(String alias, Map filter, String indexRouting, String searchRouting, Boolean isHidden) {
+        return AliasMetadata
+            .builder(alias)
+            .isHidden(isHidden)
+            .filter(filter)
+            .indexRouting(indexRouting)
+            .searchRouting(searchRouting)
             .build();
     }
 }

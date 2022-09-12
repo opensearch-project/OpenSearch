@@ -129,6 +129,13 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
         return filter();
     }
 
+    public String getFilterAsString() {
+        if(filter == null){
+            return null;
+        }
+        return filter.string();
+    }
+
     public boolean filteringRequired() {
         return filter != null;
     }
