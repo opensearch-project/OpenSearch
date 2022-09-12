@@ -12,6 +12,7 @@ import com.sun.management.ThreadMXBean;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.ClusterSettings;
@@ -50,6 +51,7 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
     private static final ThreadMXBean threadMXBean = (ThreadMXBean) ManagementFactory.getThreadMXBean();
 
     private final ConcurrentMapLong<Task> resourceAwareTasks = ConcurrentCollections.newConcurrentMapLongWithAggressiveConcurrency();
+    private final List<TaskCompletionListener> taskCompletionListeners = new ArrayList<>();
     private final ThreadPool threadPool;
     private volatile boolean taskResourceTrackingEnabled;
 
@@ -116,6 +118,16 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
         } finally {
             resourceAwareTasks.remove(task.getId());
         }
+
+        List<Exception> exceptions = new ArrayList<>();
+        for (TaskCompletionListener listener : taskCompletionListeners) {
+            try {
+                listener.onTaskCompleted(task);
+            } catch (Exception e) {
+                exceptions.add(e);
+            }
+        }
+        ExceptionsHelper.maybeThrowRuntimeAndSuppress(exceptions);
     }
 
     /**
@@ -245,4 +257,14 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
         return storedContext;
     }
 
+    /**
+     * Listener that gets invoked when a task execution completes.
+     */
+    public interface TaskCompletionListener {
+        void onTaskCompleted(Task task);
+    }
+
+    public void addTaskCompletionListener(TaskCompletionListener listener) {
+        this.taskCompletionListeners.add(listener);
+    }
 }
