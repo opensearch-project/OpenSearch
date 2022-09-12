@@ -31,10 +31,10 @@ public class WRRShardsCache implements Releasable, ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(WRRShardsCache.class);
 
     private final Cache<Key, List<ShardRouting>> cache;
+    private static final long sizeInBytes = 2000000;
 
     public WRRShardsCache(ClusterService clusterService) {
 
-        final long sizeInBytes = 2000000;
         CacheBuilder<Key, List<ShardRouting>> cacheBuilder = CacheBuilder.<Key, List<ShardRouting>>builder()
             .removalListener(notification -> logger.info("Object" + " {} removed from cache", notification.getKey().shardId))
             .setMaximumWeight(sizeInBytes);
