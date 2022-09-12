@@ -48,8 +48,6 @@ import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.UsageTrackingQueryCachingPolicy;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.util.SetOnce;
 import org.apache.lucene.util.ThreadInterruptedException;
 import org.opensearch.Assertions;
@@ -625,7 +623,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             if (indexSettings.isSegRepEnabled()) {
                                 // this Shard's engine was read only, we need to update its engine before restoring local history from xlog.
                                 assert newRouting.primary() && currentRouting.primary() == false;
-                                promoteNRTReplicaToPrimary();
+                                resetEngineToGlobalCheckpoint();
                             }
                             replicationTracker.activatePrimaryMode(getLocalCheckpoint());
                             ensurePeerRecoveryRetentionLeasesExist();
@@ -3228,8 +3226,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final List<ReferenceManager.RefreshListener> internalRefreshListener = new ArrayList<>();
         internalRefreshListener.add(new RefreshMetricUpdater(refreshMetric));
         if (isRemoteStoreEnabled()) {
-            Directory remoteDirectory = ((FilterDirectory) ((FilterDirectory) remoteStore.directory()).getDelegate()).getDelegate();
-            internalRefreshListener.add(new RemoteStoreRefreshListener(store.directory(), remoteDirectory));
+            internalRefreshListener.add(new RemoteStoreRefreshListener(this));
         }
         if (this.checkpointPublisher != null && indexSettings.isSegRepEnabled() && shardRouting.primary()) {
             internalRefreshListener.add(new CheckpointRefreshListener(this, this.checkpointPublisher));
@@ -3560,7 +3557,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             currentGlobalCheckpoint,
                             maxSeqNo
                         );
-                        if (currentGlobalCheckpoint < maxSeqNo) {
+                        // With Segment Replication enabled, we never want to reset a replica's engine unless
+                        // it is promoted to primary.
+                        if (currentGlobalCheckpoint < maxSeqNo && indexSettings.isSegRepEnabled() == false) {
                             resetEngineToGlobalCheckpoint();
                         } else {
                             getEngine().translogManager().rollTranslogGeneration();
@@ -4122,27 +4121,5 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public GatedCloseable<SegmentInfos> getSegmentInfosSnapshot() {
         return getEngine().getSegmentInfosSnapshot();
-    }
-
-    /**
-     * With segment replication enabled - prepare the shard's engine to be promoted as the new primary.
-     *
-     * If this shard is currently using a replication engine, this method:
-     * 1. Invokes {@link NRTReplicationEngine#commitSegmentInfos()} to ensure the engine can be reopened as writeable from the latest refresh point.
-     * InternalEngine opens its IndexWriter from an on-disk commit point, but this replica may have recently synced from a primary's refresh point, meaning it has documents searchable in its in-memory SegmentInfos
-     * that are not part of a commit point.  This ensures that those documents are made part of a commit and do not need to be reindexed after promotion.
-     * 2. Invokes resetEngineToGlobalCheckpoint - This call performs the engine swap, opening up as a writeable engine and replays any operations in the xlog. The operations indexed from xlog here will be
-     * any ack'd writes that were not copied to this replica before promotion.
-     */
-    private void promoteNRTReplicaToPrimary() {
-        assert shardRouting.primary() && indexSettings.isSegRepEnabled();
-        getReplicationEngine().ifPresentOrElse(engine -> {
-            try {
-                engine.commitSegmentInfos();
-                resetEngineToGlobalCheckpoint();
-            } catch (IOException e) {
-                throw new EngineException(shardId, "Unable to update  replica to writeable engine, failing shard", e);
-            }
-        }, () -> { throw new EngineException(shardId, "Expected replica engine to be of type NRTReplicationEngine"); });
     }
 }

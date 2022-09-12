@@ -151,6 +151,13 @@ distribution_archives {
     }
   }
 
+  linuxS390xTar {
+    archiveClassifier = 'linux-s390x'
+    content {
+      archiveFiles(modulesFiles('linux-s390x'), 'tar', 'linux', 's390x', false)
+    }
+  }
+
   windowsZip {
     archiveClassifier = 'windows-x64'
     content {

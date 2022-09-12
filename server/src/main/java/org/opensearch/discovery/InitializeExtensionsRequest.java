@@ -15,7 +15,6 @@ import org.opensearch.extensions.DiscoveryExtension;
 import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Objects;
 
 /**
@@ -25,40 +24,37 @@ import java.util.Objects;
  */
 public class InitializeExtensionsRequest extends TransportRequest {
     private final DiscoveryNode sourceNode;
-    /*
-     * TODO change DiscoveryNode to Extension information
-     */
-    private final List<DiscoveryExtension> extensions;
+    private final DiscoveryExtension extension;
 
-    public InitializeExtensionsRequest(DiscoveryNode sourceNode, List<DiscoveryExtension> extensions) {
+    public InitializeExtensionsRequest(DiscoveryNode sourceNode, DiscoveryExtension extension) {
         this.sourceNode = sourceNode;
-        this.extensions = extensions;
+        this.extension = extension;
     }
 
     public InitializeExtensionsRequest(StreamInput in) throws IOException {
         super(in);
         sourceNode = new DiscoveryNode(in);
-        extensions = in.readList(DiscoveryExtension::new);
+        extension = new DiscoveryExtension(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         sourceNode.writeTo(out);
-        out.writeList(extensions);
-    }
-
-    public List<DiscoveryExtension> getExtensions() {
-        return extensions;
+        extension.writeTo(out);
     }
 
     public DiscoveryNode getSourceNode() {
         return sourceNode;
     }
 
+    public DiscoveryExtension getExtension() {
+        return extension;
+    }
+
     @Override
     public String toString() {
-        return "InitializeExtensionsRequest{" + "sourceNode=" + sourceNode + ", extensions=" + extensions + '}';
+        return "InitializeExtensionsRequest{" + "sourceNode=" + sourceNode + ", extension=" + extension + '}';
     }
 
     @Override
@@ -66,11 +62,11 @@ public class InitializeExtensionsRequest extends TransportRequest {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         InitializeExtensionsRequest that = (InitializeExtensionsRequest) o;
-        return Objects.equals(sourceNode, that.sourceNode) && Objects.equals(extensions, that.extensions);
+        return Objects.equals(sourceNode, that.sourceNode) && Objects.equals(extension, that.extension);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(sourceNode, extensions);
+        return Objects.hash(sourceNode, extension);
     }
 }

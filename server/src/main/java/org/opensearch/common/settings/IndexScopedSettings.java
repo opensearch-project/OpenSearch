@@ -223,7 +223,11 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         FeatureFlags.REPLICATION_TYPE,
         Collections.singletonList(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING),
         FeatureFlags.REMOTE_STORE,
-        Arrays.asList(IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING, IndexMetadata.INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING)
+        Arrays.asList(
+            IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING,
+            IndexMetadata.INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING,
+            IndexMetadata.INDEX_REMOTE_STORE_REPOSITORY_SETTING
+        )
     );
 
     public static final IndexScopedSettings DEFAULT_SCOPED_SETTINGS = new IndexScopedSettings(Settings.EMPTY, BUILT_IN_INDEX_SETTINGS);

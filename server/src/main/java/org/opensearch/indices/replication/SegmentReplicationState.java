@@ -35,7 +35,8 @@ public class SegmentReplicationState implements ReplicationState {
         GET_CHECKPOINT_INFO((byte) 3),
         FILE_DIFF((byte) 4),
         GET_FILES((byte) 5),
-        FINALIZE_REPLICATION((byte) 6);
+        FINALIZE_REPLICATION((byte) 6),
+        CANCELLED((byte) 7);
 
         private static final Stage[] STAGES = new Stage[Stage.values().length];
 
@@ -118,6 +119,10 @@ public class SegmentReplicationState implements ReplicationState {
                 "can't move replication to stage [" + next + "]. current stage: [" + stage + "] (expected [" + expected + "])"
             );
         }
+        stopTimersAndSetStage(next);
+    }
+
+    private void stopTimersAndSetStage(Stage next) {
         // save the timing data for the current step
         stageTimer.stop();
         timingData.add(new Tuple<>(stage.name(), stageTimer.time()));
@@ -152,6 +157,14 @@ public class SegmentReplicationState implements ReplicationState {
             case DONE:
                 validateAndSetStage(Stage.FINALIZE_REPLICATION, stage);
                 // add the overall timing data
+                overallTimer.stop();
+                timingData.add(new Tuple<>("OVERALL", overallTimer.time()));
+                break;
+            case CANCELLED:
+                if (this.stage == Stage.DONE) {
+                    throw new IllegalStateException("can't move replication to Cancelled state from Done.");
+                }
+                stopTimersAndSetStage(Stage.CANCELLED);
                 overallTimer.stop();
                 timingData.add(new Tuple<>("OVERALL", overallTimer.time()));
                 break;

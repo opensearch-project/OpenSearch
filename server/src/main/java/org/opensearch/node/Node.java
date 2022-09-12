@@ -42,12 +42,13 @@ import org.opensearch.extensions.action.ExtensionsAction;
 import org.opensearch.extensions.action.TransportExtensionsAction;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.extensions.ExtensionsOrchestrator;
-import org.opensearch.index.store.RemoteDirectoryFactory;
+//import org.opensearch.index.store.RemoteDirectoryFactory;
 import org.opensearch.indices.replication.SegmentReplicationSourceFactory;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.indices.replication.SegmentReplicationSourceService;
 import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.threadpool.RunnableTaskExecutionListener;
+import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.watcher.ResourceWatcherService;
 import org.opensearch.Assertions;
 import org.opensearch.Build;
@@ -632,7 +633,9 @@ public class Node implements Closeable {
             rerouteServiceReference.set(rerouteService);
             clusterService.setRerouteService(rerouteService);
 
-            final RemoteDirectoryFactory remoteDirectoryFactory = new RemoteDirectoryFactory(repositoriesServiceReference::get);
+            final IndexStorePlugin.RemoteDirectoryFactory remoteDirectoryFactory = new RemoteSegmentStoreDirectoryFactory(
+                repositoriesServiceReference::get
+            );
 
             final IndicesService indicesService = new IndicesService(
                 settings,
@@ -727,6 +730,7 @@ public class Node implements Closeable {
             modules.add(actionModule);
 
             final RestController restController = actionModule.getRestController();
+
             final NetworkModule networkModule = new NetworkModule(
                 settings,
                 pluginsService.filterPlugins(NetworkPlugin.class),
@@ -774,8 +778,7 @@ public class Node implements Closeable {
              * TODO: Understand the dependencies from plugins to initialize TransportService.
              *  This seems like a chicken and egg problem.
              */
-            this.extensionsOrchestrator.setTransportService(transportService);
-            this.extensionsOrchestrator.setClusterService(clusterService);
+            this.extensionsOrchestrator.initializeServicesAndRestHandler(restController, transportService, clusterService);
             final GatewayMetaState gatewayMetaState = new GatewayMetaState();
             final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
             final SearchTransportService searchTransportService = new SearchTransportService(
@@ -978,6 +981,7 @@ public class Node implements Closeable {
                             .toInstance(new SegmentReplicationSourceService(indicesService, transportService, recoverySettings));
                     } else {
                         b.bind(SegmentReplicationTargetService.class).toInstance(SegmentReplicationTargetService.NO_OP);
+                        b.bind(SegmentReplicationSourceService.class).toInstance(SegmentReplicationSourceService.NO_OP);
                     }
                 }
                 b.bind(HttpServerTransport.class).toInstance(httpServerTransport);
@@ -1127,6 +1131,9 @@ public class Node implements Closeable {
         assert transportService.getLocalNode().equals(localNodeFactory.getNode())
             : "transportService has a different local node than the factory provided";
         injector.getInstance(PeerRecoverySourceService.class).start();
+        if (FeatureFlags.isEnabled(REPLICATION_TYPE)) {
+            injector.getInstance(SegmentReplicationSourceService.class).start();
+        }
 
         // Load (and maybe upgrade) the metadata stored on disk
         final GatewayMetaState gatewayMetaState = injector.getInstance(GatewayMetaState.class);
@@ -1172,7 +1179,6 @@ public class Node implements Closeable {
             : "clusterService has a different local node than the factory provided";
         transportService.acceptIncomingRequests();
         extensionsOrchestrator.extensionsInitialize();
-        extensionsOrchestrator.setNamedWriteableRegistry();
         discovery.startInitialJoin();
         final TimeValue initialStateTimeout = DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.get(settings());
         configureNodeAndClusterIdStateListener(clusterService);
@@ -1304,6 +1310,9 @@ public class Node implements Closeable {
         // close filter/fielddata caches after indices
         toClose.add(injector.getInstance(IndicesStore.class));
         toClose.add(injector.getInstance(PeerRecoverySourceService.class));
+        if (FeatureFlags.isEnabled(REPLICATION_TYPE)) {
+            toClose.add(injector.getInstance(SegmentReplicationSourceService.class));
+        }
         toClose.add(() -> stopWatch.stop().start("cluster"));
         toClose.add(injector.getInstance(ClusterService.class));
         toClose.add(() -> stopWatch.stop().start("node_connections_service"));
