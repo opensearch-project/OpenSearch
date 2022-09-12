@@ -138,11 +138,17 @@ public abstract class AliasAction {
             return alias;
         }
 
-        public String getFilter(){ return filter; }
+        public String getFilter() {
+            return filter;
+        }
 
-        public String getSearchRouting() { return searchRouting; }
+        public String getSearchRouting() {
+            return searchRouting;
+        }
 
-        public String getIndexRouting() { return indexRouting; }
+        public String getIndexRouting() {
+            return indexRouting;
+        }
 
         public Boolean writeIndex() {
             return writeIndex;
