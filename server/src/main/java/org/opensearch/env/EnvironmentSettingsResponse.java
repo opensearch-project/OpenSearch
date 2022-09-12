@@ -29,10 +29,14 @@ public class EnvironmentSettingsResponse extends TransportResponse {
     private Map<String, String> componentSettingValues;
 
     public EnvironmentSettingsResponse(Settings environmentSettings, List<String> componentSettingKeys) {
+        Map<String, String> componentSettingValues = new HashMap<>();
         for (String componentSettingKey : componentSettingKeys) {
             String componentSettingValue = environmentSettings.get(componentSettingKey);
-            componentSettingValues.put(componentSettingKey, componentSettingValue);
+            if(componentSettingValue != null) {
+                componentSettingValues.put(componentSettingKey, componentSettingValue);
+            }
         }
+        this.componentSettingValues = componentSettingValues;
     }
 
     public EnvironmentSettingsResponse(StreamInput in) throws IOException {

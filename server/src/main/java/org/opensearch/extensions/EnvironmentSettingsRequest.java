@@ -39,6 +39,7 @@ public class EnvironmentSettingsRequest extends TransportRequest {
         for (int i = 0; i < componentSettingKeysCount; i++) {
             componentSettingKeys.add(in.readString());
         }
+        this.componentSettingKeys = componentSettingKeys;
     }
 
     @Override
