@@ -2363,7 +2363,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * This method should only be invoked if Segment Replication or Remote Store is not enabled.
      */
     public Translog.Snapshot getHistoryOperationsFromTranslog(long startingSeqNo, long endSeqNo) throws IOException {
-        assert !(indexSettings.isSegRepEnabled() || indexSettings.isRemoteStoreEnabled())
+        assert (indexSettings.isSegRepEnabled() || indexSettings.isRemoteStoreEnabled()) == false
             : "unsupported operation for segment replication enabled indices or remote store backed indices";
         return getEngine().translogManager().newChangesSnapshot(startingSeqNo, endSeqNo, true);
     }
