@@ -23,33 +23,25 @@ import org.opensearch.action.admin.indices.analyze.AnalyzeAction.Response;
 public class ExtensionActionListener<ExtensionBooleanResponse> implements ActionListener<Response> {
 
     private static final Logger logger = LogManager.getLogger(ExtensionActionListener.class);
-    private int responseCount;
     private ArrayList<Exception> exceptionList;
 
     public ExtensionActionListener() {
-        responseCount = 0;
         exceptionList = new ArrayList<Exception>();
     }
 
     @Override
     public void onResponse(Response response) {
         logger.info("response {}", response);
-        responseCount++;
     }
 
     @Override
     public void onFailure(Exception e) {
-        responseCount++;
         exceptionList.add(e);
         logger.error(e.getMessage());
     }
 
     public static Logger getLogger() {
         return logger;
-    }
-
-    public int getResponseCount() {
-        return responseCount;
     }
 
     public ArrayList<Exception> getExceptionList() {
