@@ -46,6 +46,7 @@ import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterSettingsResponse;
 import org.opensearch.cluster.LocalNodeResponse;
+;
 import org.opensearch.env.EnvironmentSettingsResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
@@ -82,6 +83,7 @@ import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Transport;
+import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.nio.MockNioTransport;
@@ -421,12 +423,22 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         ExtensionRequest localNodeRequest = new ExtensionRequest(ExtensionsOrchestrator.RequestType.REQUEST_EXTENSION_LOCAL_NODE);
         assertEquals(LocalNodeResponse.class, extensionsOrchestrator.handleExtensionRequest(localNodeRequest).getClass());
 
-        ExtensionRequest environmentSettingsRequest = new ExtensionRequest(ExtensionsOrchestrator.RequestType.REQUEST_EXTENSION_ENVIRONMENT_SETTINGS);
-        assertEquals(EnvironmentSettingsResponse.class, extensionsOrchestrator.handleExtensionRequest(environmentSettingsRequest).getClass());
-
         ExtensionRequest exceptionRequest = new ExtensionRequest(ExtensionsOrchestrator.RequestType.GET_SETTINGS);
         Exception exception = expectThrows(Exception.class, () -> extensionsOrchestrator.handleExtensionRequest(exceptionRequest));
         assertEquals("Handler not present for the provided request", exception.getMessage());
+    }
+
+    public void testHandleEnvironmentSettingsRequest() throws Exception {
+
+        ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
+        extensionsOrchestrator.initializeServicesAndRestHandler(restController, transportService, clusterService, settings);
+
+        List<String> componentSettingKeys = new ArrayList<>();
+        EnvironmentSettingsRequest environmentSettingsRequest = new EnvironmentSettingsRequest(componentSettingKeys);
+        assertEquals(
+            EnvironmentSettingsResponse.class,
+            extensionsOrchestrator.handleEnvironmentSettingsRequest(environmentSettingsRequest).getClass()
+        );
     }
 
     public void testRegisterHandler() throws Exception {

@@ -37,7 +37,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.discovery.InitializeExtensionsRequest;
 import org.opensearch.discovery.InitializeExtensionsResponse;
-import org.opensearch.env.Environment;
 import org.opensearch.env.EnvironmentSettingsResponse;
 import org.opensearch.extensions.ExtensionsSettings.Extension;
 import org.opensearch.extensions.rest.RegisterRestActionsRequest;
@@ -201,8 +200,8 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             ThreadPool.Names.GENERIC,
             false,
             false,
-            ExtensionRequest::new,
-            ((request, channel, task) -> channel.sendResponse(handleExtensionRequest(request)))
+            EnvironmentSettingsRequest::new,
+            ((request, channel, task) -> channel.sendResponse(handleEnvironmentSettingsRequest(request)))
         );
         transportService.registerRequestHandler(
             REQUEST_EXTENSION_REGISTER_TRANSPORT_ACTIONS,
@@ -350,6 +349,10 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         return new ExtensionBooleanResponse(true);
     }
 
+    TransportResponse handleEnvironmentSettingsRequest(EnvironmentSettingsRequest environmentSettingsRequest) {
+        return new EnvironmentSettingsResponse(environmentSettings, environmentSettingsRequest.getComponentSettingKeys());
+    }
+
     /**
      * Handles an {@link ExtensionRequest}.
      *
@@ -365,8 +368,6 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
                 return new LocalNodeResponse(clusterService);
             case REQUEST_EXTENSION_CLUSTER_SETTINGS:
                 return new ClusterSettingsResponse(clusterService);
-            case REQUEST_EXTENSION_ENVIRONMENT_SETTINGS:
-                return new EnvironmentSettingsResponse(environmentSettings);
             default:
                 throw new Exception("Handler not present for the provided request");
         }

@@ -778,7 +778,12 @@ public class Node implements Closeable {
              * TODO: Understand the dependencies from plugins to initialize TransportService.
              *  This seems like a chicken and egg problem.
              */
-            this.extensionsOrchestrator.initializeServicesAndRestHandler(restController, transportService, clusterService, environment.settings());
+            this.extensionsOrchestrator.initializeServicesAndRestHandler(
+                restController,
+                transportService,
+                clusterService,
+                environment.settings()
+            );
             final GatewayMetaState gatewayMetaState = new GatewayMetaState();
             final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
             final SearchTransportService searchTransportService = new SearchTransportService(
