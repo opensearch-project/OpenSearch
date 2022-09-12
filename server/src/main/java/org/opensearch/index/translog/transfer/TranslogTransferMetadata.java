@@ -19,7 +19,9 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * The metadata associated with every transfer {@link TransferSnapshot}
+ * The metadata associated with every transfer {@link TransferSnapshot}. The metadata is uploaded at the end of the
+ * tranlog and generational checkpoint uploads to mark the latest generation and the translog/checkpoint files that are
+ * still referenced by the last checkpoint.
  *
  * @opensearch.internal
  */

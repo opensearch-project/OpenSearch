@@ -17,7 +17,16 @@ import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
  */
 public interface FileTransferListener {
 
+    /**
+     * Invoked when the transfer of a single {@link TransferFileSnapshot} succeeds
+     * @param fileSnapshot the corresponding file snapshot
+     */
     void onSuccess(TransferFileSnapshot fileSnapshot);
 
+    /**
+     * Invoked when the transfer of a single {@link TransferFileSnapshot} fails
+     * @param fileSnapshot the corresponding file snapshot
+     * @param e the exception while processing the {@link TransferFileSnapshot}
+     */
     void onFailure(TransferFileSnapshot fileSnapshot, Exception e);
 }

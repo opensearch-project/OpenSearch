@@ -20,12 +20,24 @@ import java.io.IOException;
  */
 public interface TransferService {
 
+    /**
+     * Uploads the {@link TransferFileSnapshot} async, once the upload is complete the callback is invoked
+     * @param fileSnapshot the file snapshot to upload
+     * @param remotePath the remote path where upload should be made
+     * @param listener the callback to be invoked once upload completes successfully/fails
+     */
     void uploadBlobAsync(
         final TransferFileSnapshot fileSnapshot,
         Iterable<String> remotePath,
         ActionListener<TransferFileSnapshot> listener
     );
 
+    /**
+     * Uploads the {@link TransferFileSnapshot} blob
+     * @param fileSnapshot the file snapshot to upload
+     * @param remotePath the remote path where upload should be made
+     * @throws IOException
+     */
     void uploadBlob(final TransferFileSnapshot fileSnapshot, Iterable<String> remotePath) throws IOException;
 
 }
