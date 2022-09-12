@@ -50,7 +50,6 @@ public class WeightedRoundRobinRoutingMetadata extends AbstractNamedDiffable<Met
     public WeightedRoundRobinRoutingMetadata(StreamInput in) throws IOException {
         if (in.available() != 0) {
             this.wrrWeight = new WRRWeights(in);
-
         }
     }
 
@@ -71,7 +70,6 @@ public class WeightedRoundRobinRoutingMetadata extends AbstractNamedDiffable<Met
     @Override
     public Version getMinimalSupportedVersion() {
         return Version.V_2_3_0;
-
     }
 
     @Override

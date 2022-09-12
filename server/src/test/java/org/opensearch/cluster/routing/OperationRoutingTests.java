@@ -104,7 +104,6 @@ public class OperationRoutingTests extends OpenSearchTestCase {
                 .settings(settings(Version.CURRENT))
                 .numberOfShards(shardSplits[2])
                 .numberOfReplicas(1)
-
                 .setRoutingNumShards(shardSplits[0])
                 .build();
             shrunkShard = OperationRouting.generateShardId(shrunk, term, null);

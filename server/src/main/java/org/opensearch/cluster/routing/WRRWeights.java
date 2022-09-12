@@ -64,7 +64,7 @@ public class WRRWeights implements Writeable {
 
     @Override
     public String toString() {
-        return "WRRWeightsDefinition{" + attributeName + "}{" + weights().toString() + "}";
+        return "WRRWeights{" + attributeName + "}{" + weights().toString() + "}";
     }
 
     public Map<String, Object> weights() {
