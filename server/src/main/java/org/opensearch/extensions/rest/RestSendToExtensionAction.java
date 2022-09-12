@@ -14,7 +14,9 @@ import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.extensions.DiscoveryExtension;
 import org.opensearch.extensions.ExtensionsOrchestrator;
-import org.opensearch.identity.ExtensionIdentifier;
+import org.opensearch.identity.ExtensionTokenProcessor;
+import org.opensearch.identity.Principal;
+import org.opensearch.identity.PrincipalIdentifierToken;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestRequest;
@@ -100,24 +102,19 @@ public class RestSendToExtensionAction extends BaseRestHandler {
         String uri = request.getHttpRequest().uri();
 
         // TODO: should be replaced with MyShiro calls (fetch user/identity from shiro)
-        // String userName = getCurrentSubject();
-        /* assuming admin user for now until shiro realm is implemented */
-        String entityName = "admin";
+        // Principal principal = getCurrentSubject().getPrincipal();
+        /* assuming admin principal for now until shiro realm is implemented */
+        Principal principal = new Principal("admin");
         /* getting extension id for this request which is unique to every extension */
         String discoveryExtensionId = this.discoveryExtension.getId();
-        ExtensionIdentifier extensionIdentifier = new ExtensionIdentifier(entityName, discoveryExtensionId);
+        ExtensionTokenProcessor extensionTokenProcessor = new ExtensionTokenProcessor(discoveryExtensionId);
+
+        PrincipalIdentifierToken token = extensionTokenProcessor.generateToken(principal);
 
         if (uri.startsWith(uriPrefix)) {
             uri = uri.substring(uriPrefix.length());
         }
-        String message = "Forwarding the request "
-            + method
-            + " "
-            + uri
-            + " with owner "
-            + extensionIdentifier
-            + " to "
-            + discoveryExtension;
+        String message = "Forwarding the request " + method + " " + uri + " with owner " + token.getToken() + " to " + discoveryExtension;
         logger.info(message);
         // Initialize response. Values will be changed in the handler.
         final RestExecuteOnExtensionResponse restExecuteOnExtensionResponse = new RestExecuteOnExtensionResponse(
@@ -175,7 +172,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
                 ExtensionsOrchestrator.REQUEST_REST_EXECUTE_ON_EXTENSION_ACTION,
                 // HERE BE DRAGONS - DO NOT INCLUDE HEADERS
                 // SEE https://github.com/opensearch-project/OpenSearch/issues/4429
-                new RestExecuteOnExtensionRequest(method, uri, extensionIdentifier),
+                new RestExecuteOnExtensionRequest(method, uri, token),
                 restExecuteOnExtensionResponseHandler
             );
             try {
