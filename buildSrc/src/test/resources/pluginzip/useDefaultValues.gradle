@@ -1,6 +1,5 @@
 plugins {
   id 'java-gradle-plugin'
-  id 'nebula.maven-base-publish'
   id 'opensearch.pluginzip'
 }
 
@@ -18,8 +17,8 @@ publishing {
   publications {
     pluginZip(MavenPublication) {
       pom {
-        name = "sample-plugin"
-        description = "pluginDescription"
+//        name = "plugin name"
+//        description = "plugin description"
         licenses {
           license {
             name = "The Apache License, Version 2.0"
