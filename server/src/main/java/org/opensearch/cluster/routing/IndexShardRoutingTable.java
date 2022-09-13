@@ -59,7 +59,6 @@ import java.util.Set;
 import java.util.function.Predicate;
 
 import static java.util.Collections.emptyMap;
-import static java.util.stream.Collectors.toList;
 
 /**
  * {@link IndexShardRoutingTable} encapsulates all instances of a single shard.
@@ -308,7 +307,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         WeightedRoutingCache cache
     ) {
         final int seed = shuffler.nextSeed();
-        List<ShardRouting> ordered = new ArrayList<>(activeShards.size() + allInitializingShards.size());
+        List<ShardRouting> ordered = new ArrayList<>();
         List<ShardRouting> orderedActiveShards;
         if (cache.get(new WeightedRoutingCache.Key(shardId)) != null) {
             orderedActiveShards = cache.get(new WeightedRoutingCache.Key(shardId));
@@ -332,7 +331,14 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         WeightedRoundRobin<ShardRouting> weightedRoundRobin = new WeightedRoundRobin<>(
             calculateShardWeight(shards, weightedRouting, nodes)
         );
-        return weightedRoundRobin.orderEntities().stream().map(WeightedRoundRobin.Entity<ShardRouting>::getTarget).collect(toList());
+        List<WeightedRoundRobin.Entity<ShardRouting>> shardsOrderedbyWeight = weightedRoundRobin.orderEntities();
+        List<ShardRouting> orderedShardRouting = new ArrayList<>(activeShards.size());
+        if (shardsOrderedbyWeight != null) {
+            for (WeightedRoundRobin.Entity<ShardRouting> shardRouting : shardsOrderedbyWeight) {
+                orderedShardRouting.add(shardRouting.getTarget());
+            }
+        }
+        return orderedShardRouting;
     }
 
     /**

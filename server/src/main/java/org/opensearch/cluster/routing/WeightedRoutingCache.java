@@ -21,12 +21,11 @@ import org.opensearch.index.shard.ShardId;
 import java.util.List;
 
 /**
- * The WRR shards cache allows caching shard ordering returned by Weighted round-robin scheduling policy ,helping with
- * improving similar requests.
+ * The weighted shard routing cache allows caching shard routing iterator returned by Weighted round-robin scheduling
+ * policy, helping with improving similar requests.
  *
  * @opensearch.internal
  */
-
 public class WeightedRoutingCache implements Releasable, ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(WeightedRoutingCache.class);
 

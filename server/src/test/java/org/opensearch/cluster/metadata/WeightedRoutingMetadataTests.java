@@ -20,8 +20,8 @@ public class WeightedRoutingMetadataTests extends AbstractXContentTestCase<Weigh
     protected WeightedRoutingMetadata createTestInstance() {
         Map<String, Object> weights = Map.of("a", "1", "b", "1", "c", "0");
         WeightedRouting weightedRouting = new WeightedRouting("zone", weights);
-        WeightedRoutingMetadata wrrMetadata = new WeightedRoutingMetadata(weightedRouting);
-        return wrrMetadata;
+        WeightedRoutingMetadata weightedRoutingMetadata = new WeightedRoutingMetadata(weightedRouting);
+        return weightedRoutingMetadata;
     }
 
     @Override
@@ -33,5 +33,4 @@ public class WeightedRoutingMetadataTests extends AbstractXContentTestCase<Weigh
     protected boolean supportsUnknownFields() {
         return false;
     }
-
 }
