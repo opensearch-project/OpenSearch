@@ -31,7 +31,7 @@ public class ExtensionTokenProcessor {
      * Create a two-way encrypted access token for given principal for this extension
      * @return token generated from principal
      */
-    public PrincipalIdentifierToken generateToken(Principal principal) {
+    public PrincipalIdentifierToken generateRequestIssuerIdentity(Principal principal) {
         String token = principal.getName() + ":" + extensionUniqueId;
         return new PrincipalIdentifierToken(token);
     }

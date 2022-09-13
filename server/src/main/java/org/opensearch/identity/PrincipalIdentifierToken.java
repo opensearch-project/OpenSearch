@@ -9,6 +9,7 @@
 package org.opensearch.identity;
 
 import org.opensearch.common.io.stream.NamedWriteable;
+import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
@@ -21,9 +22,12 @@ import java.io.Serializable;
 public class PrincipalIdentifierToken implements Serializable, NamedWriteable {
     public static final String NAME = "principal_identifier_token";
     private String token;
-
     public PrincipalIdentifierToken(String token) {
         this.token = token;
+    }
+
+    public PrincipalIdentifierToken(StreamInput in) throws IOException {
+        this.token = in.readString();
     }
 
     public String getToken() {

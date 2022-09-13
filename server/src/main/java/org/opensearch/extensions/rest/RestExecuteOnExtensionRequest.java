@@ -28,12 +28,12 @@ public class RestExecuteOnExtensionRequest extends TransportRequest {
     private Method method;
     private String uri;
 
-    private PrincipalIdentifierToken token;
+    private PrincipalIdentifierToken requestIssuerIdentity;
 
     public RestExecuteOnExtensionRequest(Method method, String uri, PrincipalIdentifierToken token) {
         this.method = method;
         this.uri = uri;
-        this.token = token;
+        this.requestIssuerIdentity = token;
     }
 
     public RestExecuteOnExtensionRequest(StreamInput in) throws IOException {
@@ -44,7 +44,7 @@ public class RestExecuteOnExtensionRequest extends TransportRequest {
             throw new IOException(e);
         }
         uri = in.readString();
-        token = in.readNamedWriteable(PrincipalIdentifierToken.class, PrincipalIdentifierToken.NAME);
+        requestIssuerIdentity = in.readNamedWriteable(PrincipalIdentifierToken.class, PrincipalIdentifierToken.NAME);
     }
 
     @Override
@@ -52,7 +52,7 @@ public class RestExecuteOnExtensionRequest extends TransportRequest {
         super.writeTo(out);
         out.writeString(method.name());
         out.writeString(uri);
-        out.writeNamedWriteable(token);
+        out.writeNamedWriteable(requestIssuerIdentity);
     }
 
     public Method getMethod() {
@@ -63,13 +63,13 @@ public class RestExecuteOnExtensionRequest extends TransportRequest {
         return uri;
     }
 
-    public PrincipalIdentifierToken getToken() {
-        return token;
+    public PrincipalIdentifierToken getRequestIssuerIdentity() {
+        return requestIssuerIdentity;
     }
 
     @Override
     public String toString() {
-        return "RestExecuteOnExtensionRequest{method=" + method + ", uri=" + uri + ", requester = " + token.getToken() + "}";
+        return "RestExecuteOnExtensionRequest{method=" + method + ", uri=" + uri + ", requester = " + requestIssuerIdentity.getToken() + "}";
     }
 
     @Override
@@ -77,11 +77,11 @@ public class RestExecuteOnExtensionRequest extends TransportRequest {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
         RestExecuteOnExtensionRequest that = (RestExecuteOnExtensionRequest) obj;
-        return Objects.equals(method, that.method) && Objects.equals(uri, that.uri) && Objects.equals(token, that.token);
+        return Objects.equals(method, that.method) && Objects.equals(uri, that.uri) && Objects.equals(requestIssuerIdentity, that.requestIssuerIdentity);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(method, uri, token);
+        return Objects.hash(method, uri, requestIssuerIdentity);
     }
 }

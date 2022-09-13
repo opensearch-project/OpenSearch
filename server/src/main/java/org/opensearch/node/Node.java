@@ -343,7 +343,6 @@ public class Node implements Closeable {
     private final Collection<LifecycleComponent> pluginLifecycleComponents;
     private final LocalNodeFactory localNodeFactory;
     private final NodeService nodeService;
-
     final NamedWriteableRegistry namedWriteableRegistry;
     private final AtomicReference<RunnableTaskExecutionListener> runnableTaskListener;
 

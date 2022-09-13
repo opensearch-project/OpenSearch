@@ -32,13 +32,13 @@ public class RestExecuteOnExtensionTests extends OpenSearchTestCase {
         Principal p1 = new Principal("admin");
         String extensionId = "ext_1";
         ExtensionTokenProcessor extensionTokenProcessor = new ExtensionTokenProcessor(extensionId);
-        PrincipalIdentifierToken expectedRequesterToken = extensionTokenProcessor.generateToken(p1);
+        PrincipalIdentifierToken expectedRequesterToken = extensionTokenProcessor.generateRequestIssuerIdentity(p1);
 
         RestExecuteOnExtensionRequest request = new RestExecuteOnExtensionRequest(expectedMethod, expectedUri, expectedRequesterToken);
 
         assertEquals(expectedMethod, request.getMethod());
         assertEquals(expectedUri, request.getUri());
-        assertEquals(expectedRequesterToken, request.getToken());
+        assertEquals(expectedRequesterToken, request.getRequestIssuerIdentity());
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             request.writeTo(out);
@@ -48,7 +48,7 @@ public class RestExecuteOnExtensionTests extends OpenSearchTestCase {
 
                 assertEquals(expectedMethod, request.getMethod());
                 assertEquals(expectedUri, request.getUri());
-                assertEquals(expectedRequesterToken, request.getToken());
+                assertEquals(expectedRequesterToken, request.getRequestIssuerIdentity());
             }
         }
     }

@@ -109,7 +109,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
         String discoveryExtensionId = this.discoveryExtension.getId();
         ExtensionTokenProcessor extensionTokenProcessor = new ExtensionTokenProcessor(discoveryExtensionId);
 
-        PrincipalIdentifierToken token = extensionTokenProcessor.generateToken(principal);
+        PrincipalIdentifierToken token = extensionTokenProcessor.generateRequestIssuerIdentity(principal);
 
         if (uri.startsWith(uriPrefix)) {
             uri = uri.substring(uriPrefix.length());
