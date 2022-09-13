@@ -55,7 +55,7 @@ dependencies {
   api "io.netty:netty-transport-native-unix-common:${versions.netty}"
   implementation project(':modules:transport-netty4')
   api 'com.azure:azure-storage-blob:12.16.1'
-  api 'org.reactivestreams:reactive-streams:1.0.3'
+  api 'org.reactivestreams:reactive-streams:1.0.4'
   api 'io.projectreactor:reactor-core:3.4.18'
   api 'io.projectreactor.netty:reactor-netty:1.0.18'
   api 'io.projectreactor.netty:reactor-netty-core:1.0.22'
