@@ -14,6 +14,7 @@ import org.opensearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.io.Serializable;
+import java.util.Objects;
 
 /**
  * Requester Token for requests to/from an extension
@@ -43,5 +44,18 @@ public class PrincipalIdentifierToken implements Serializable, NamedWriteable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(token);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (!(obj instanceof PrincipalIdentifierToken)) return false;
+        PrincipalIdentifierToken other = (PrincipalIdentifierToken) obj;
+        return Objects.equals(token, other.token);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(token);
     }
 }

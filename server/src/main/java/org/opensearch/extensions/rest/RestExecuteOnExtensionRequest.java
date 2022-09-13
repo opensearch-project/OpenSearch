@@ -8,8 +8,6 @@
 
 package org.opensearch.extensions.rest;
 
-import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.identity.PrincipalIdentifierToken;
@@ -35,19 +33,18 @@ public class RestExecuteOnExtensionRequest extends TransportRequest {
     public RestExecuteOnExtensionRequest(Method method, String uri, PrincipalIdentifierToken requestorIdentifier) {
         this.method = method;
         this.uri = uri;
-        this.requestIssuerIdentity = token;
+        this.requestIssuerIdentity = requestorIdentifier;
     }
 
     public RestExecuteOnExtensionRequest(StreamInput in) throws IOException {
         super(in);
-        try (NamedWriteableAwareStreamInput nameWritableAwareIn = new NamedWriteableAwareStreamInput(in, registry))
         try {
             method = RestRequest.Method.valueOf(in.readString());
         } catch (IllegalArgumentException e) {
             throw new IOException(e);
         }
         uri = in.readString();
-        requestIssuerIdentity = in.readNamedWriteable(PrincipalIdentifierToken.class, PrincipalIdentifierToken.NAME);
+        requestIssuerIdentity = in.readNamedWriteable(PrincipalIdentifierToken.class);
     }
 
     @Override

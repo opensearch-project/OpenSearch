@@ -8,12 +8,13 @@
 
 package org.opensearch.extensions.rest;
 
-import org.opensearch.identity.ExtensionTokenProcessor;
 import org.opensearch.identity.PrincipalIdentifierToken;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamInput;
 import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestRequest.Method;
 import org.opensearch.test.OpenSearchTestCase;
@@ -27,40 +28,30 @@ public class RestExecuteOnExtensionTests extends OpenSearchTestCase {
     public void testRestExecuteOnExtensionRequest() throws Exception {
         Method expectedMethod = Method.GET;
         String expectedUri = "/test/uri";
-        PrincipalIdentifierToken expectedRequestorIdentifier = new PrincipalIdentifierToken("requestor-identifier");
+        PrincipalIdentifierToken expectedRequestIssuerIdentity = new PrincipalIdentifierToken("requestor-identifier");
+        NamedWriteableRegistry registry = new NamedWriteableRegistry(
+            org.opensearch.common.collect.List.of(
+                new NamedWriteableRegistry.Entry(PrincipalIdentifierToken.class, PrincipalIdentifierToken.NAME, PrincipalIdentifierToken::new)
+            )
+        );
 
-<<<<<<< HEAD
-        Principal p1 = new Principal("admin");
-        String extensionId = "ext_1";
-        ExtensionTokenProcessor extensionTokenProcessor = new ExtensionTokenProcessor(extensionId);
-        PrincipalIdentifierToken expectedRequesterToken = extensionTokenProcessor.generateRequestIssuerIdentity(p1);
-
-        RestExecuteOnExtensionRequest request = new RestExecuteOnExtensionRequest(expectedMethod, expectedUri, expectedRequesterToken);
-
-        assertEquals(expectedMethod, request.getMethod());
-        assertEquals(expectedUri, request.getUri());
-        assertEquals(expectedRequesterToken, request.getRequestIssuerIdentity());
-=======
-        RestExecuteOnExtensionRequest request = new RestExecuteOnExtensionRequest(expectedMethod, expectedUri, expectedRequestorIdentifier);
+        RestExecuteOnExtensionRequest request = new RestExecuteOnExtensionRequest(expectedMethod, expectedUri, expectedRequestIssuerIdentity);
 
         assertEquals(expectedMethod, request.getMethod());
         assertEquals(expectedUri, request.getUri());
-        assertEquals(expectedRequestorIdentifier, request.getRequestorIdentifier());
->>>>>>> 2874249c8b5 (Changes in flight)
+        assertEquals(expectedRequestIssuerIdentity, request.getRequestIssuerIdentity());
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             request.writeTo(out);
             out.flush();
             try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
-                request = new RestExecuteOnExtensionRequest(in);
+                try (NamedWriteableAwareStreamInput nameWritableAwareIn = new NamedWriteableAwareStreamInput(in, registry)) {
+                    request = new RestExecuteOnExtensionRequest(nameWritableAwareIn);
+                }
 
                 assertEquals(expectedMethod, request.getMethod());
                 assertEquals(expectedUri, request.getUri());
-<<<<<<< HEAD
-                assertEquals(expectedRequesterToken, request.getRequestIssuerIdentity());
-=======
-                assertEquals(expectedRequestorIdentifier, request.getRequestorIdentifier());
->>>>>>> 2874249c8b5 (Changes in flight)
+                assertEquals(expectedRequestIssuerIdentity, request.getRequestIssuerIdentity());
             }
         }
     }

@@ -164,14 +164,14 @@ public class RestSendToExtensionAction extends BaseRestHandler {
         };
         try {
             final ExtensionTokenProcessor extensionTokenProcessor = new ExtensionTokenProcessor(discoveryExtension.getId());
-            final PrincipalIdentifierToken requestorIdentifier = extensionTokenProcessor.generateToken(DEFAULT_PRINCIPAL);
-    
+            final PrincipalIdentifierToken requestIssuerIdentity = extensionTokenProcessor.generateToken(DEFAULT_PRINCIPAL);
+
             transportService.sendRequest(
                 discoveryExtension,
                 ExtensionsOrchestrator.REQUEST_REST_EXECUTE_ON_EXTENSION_ACTION,
                 // HERE BE DRAGONS - DO NOT INCLUDE HEADERS
                 // SEE https://github.com/opensearch-project/OpenSearch/issues/4429
-                new RestExecuteOnExtensionRequest(method, uri, token),
+                new RestExecuteOnExtensionRequest(method, uri, requestIssuerIdentity),
                 restExecuteOnExtensionResponseHandler
             );
             try {
