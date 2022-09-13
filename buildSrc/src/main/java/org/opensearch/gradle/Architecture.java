@@ -35,7 +35,8 @@ package org.opensearch.gradle;
 public enum Architecture {
 
     X64,
-    ARM64;
+    ARM64,
+    S390X;
 
     public static Architecture current() {
         final String architecture = System.getProperty("os.arch", "");
@@ -45,6 +46,8 @@ public enum Architecture {
                 return X64;
             case "aarch64":
                 return ARM64;
+            case "s390x":
+                return S390X;
             default:
                 throw new IllegalArgumentException("can not determine architecture from [" + architecture + "]");
         }
