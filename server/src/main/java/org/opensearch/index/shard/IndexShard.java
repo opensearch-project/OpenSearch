@@ -2358,6 +2358,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
+     * Creates a new history snapshot from the translog instead of the lucene index. Required for cross cluster replication.
+     * Use the recommended {@link #getHistoryOperations(String, long, long, boolean)} method for other cases.
+     * This method should only be invoked if Segment Replication or Remote Store is not enabled.
+     */
+    public Translog.Snapshot getHistoryOperationsFromTranslog(long startingSeqNo, long endSeqNo) throws IOException {
+        assert (indexSettings.isSegRepEnabled() || indexSettings.isRemoteStoreEnabled()) == false
+            : "unsupported operation for segment replication enabled indices or remote store backed indices";
+        return getEngine().translogManager().newChangesSnapshot(startingSeqNo, endSeqNo, true);
+    }
+
+    /**
      * Checks if we have a completed history of operations since the given starting seqno (inclusive).
      * This method should be called after acquiring the retention lock; See {@link #acquireHistoryRetentionLock()}
      */
