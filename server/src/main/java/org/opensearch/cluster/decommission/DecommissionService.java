@@ -131,7 +131,7 @@ public class DecommissionService {
                 DecommissionAttributeMetadata decommissionAttributeMetadata = metadata.custom(DecommissionAttributeMetadata.TYPE);
                 // check if the same attribute is requested for decommission and currently not FAILED,
                 // then return the current state as is; as we don't need a state update here
-                if(isSameNonFailedRequest(decommissionAttributeMetadata, decommissionAttribute)) {
+                if (isSameNonFailedRequest(decommissionAttributeMetadata, decommissionAttribute)) {
                     logger.info("re-request received for decommissioning [{}], will not update state", decommissionAttribute);
                     return currentState;
                 }
@@ -406,7 +406,8 @@ public class DecommissionService {
 
     private static boolean isSameNonFailedRequest(
         DecommissionAttributeMetadata decommissionAttributeMetadata,
-        DecommissionAttribute decommissionAttribute) {
+        DecommissionAttribute decommissionAttribute
+    ) {
         return decommissionAttributeMetadata != null
             && decommissionAttributeMetadata.decommissionAttribute().equals(decommissionAttribute)
             && !decommissionAttributeMetadata.status().equals(DecommissionStatus.FAILED);

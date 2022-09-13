@@ -231,7 +231,8 @@ public class DecommissionController {
                 // For failures, we update it no matter what
                 int previousStage = decommissionAttributeMetadata.status().stage();
                 int expectedStage = decommissionStatus.stage();
-                logger.info("attempting to update current decommission status [{}] with expected status [{}]",
+                logger.info(
+                    "attempting to update current decommission status [{}] with expected status [{}]",
                     decommissionAttributeMetadata.status().stage(),
                     decommissionStatus
                 );

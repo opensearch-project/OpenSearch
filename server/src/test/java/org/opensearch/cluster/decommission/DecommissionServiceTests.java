@@ -41,7 +41,6 @@ import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonMap;
-import static org.mockito.Mockito.mock;
 import static org.opensearch.cluster.ClusterState.builder;
 import static org.opensearch.cluster.OpenSearchAllocationTestCase.createAllocationService;
 import static org.opensearch.test.ClusterServiceUtils.createClusterService;
@@ -151,8 +150,13 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
             @Override
             public void onFailure(Exception e) {
                 assertTrue(e instanceof DecommissioningFailedException);
-                assertThat(e.getMessage(), Matchers.endsWith("invalid awareness attribute value requested for decommissioning. " +
-                    "Set forced awareness values before to decommission"));
+                assertThat(
+                    e.getMessage(),
+                    Matchers.endsWith(
+                        "invalid awareness attribute value requested for decommissioning. "
+                            + "Set forced awareness values before to decommission"
+                    )
+                );
                 countDownLatch.countDown();
             }
         };
