@@ -689,9 +689,6 @@ public class ActionModule extends AbstractModule {
         // Remote Store
         actions.register(RestoreRemoteStoreAction.INSTANCE, TransportRestoreRemoteStoreAction.class);
 
-        // Extensions
-        // actions.register(ExtensionsAction.INSTANCE, TransportExtensionsAction.class);
-
         return actions.getRegistry();
     }
 
