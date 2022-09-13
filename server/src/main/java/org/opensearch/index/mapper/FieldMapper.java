@@ -266,10 +266,11 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      * Parse the field value using the provided {@link ParseContext}.
      */
     public void parse(ParseContext context) throws IOException {
-        boolean ignore_malformed = IGNORE_MALFORMED_SETTING.get(context.indexSettings().getSettings());
         try {
             parseCreateField(context);
         } catch (Exception e) {
+            boolean ignore_malformed = false;
+            if (context.indexSettings() != null) ignore_malformed = IGNORE_MALFORMED_SETTING.get(context.indexSettings().getSettings());
             String valuePreview = "";
             try {
                 XContentParser parser = context.parser();
