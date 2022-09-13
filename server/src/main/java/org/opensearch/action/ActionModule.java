@@ -689,7 +689,7 @@ public class ActionModule extends AbstractModule {
         // Remote Store
         actions.register(RestoreRemoteStoreAction.INSTANCE, TransportRestoreRemoteStoreAction.class);
 
-        return actions.getRegistry();
+        return unmodifiableMap(actions.getRegistry());
     }
 
     private ActionFilters setupActionFilters(List<ActionPlugin> actionPlugins) {
