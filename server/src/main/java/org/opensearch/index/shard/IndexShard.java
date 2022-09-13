@@ -623,7 +623,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             if (indexSettings.isSegRepEnabled()) {
                                 // this Shard's engine was read only, we need to update its engine before restoring local history from xlog.
                                 assert newRouting.primary() && currentRouting.primary() == false;
-                                promoteNRTReplicaToPrimary();
+                                resetEngineToGlobalCheckpoint();
                             }
                             replicationTracker.activatePrimaryMode(getLocalCheckpoint());
                             ensurePeerRecoveryRetentionLeasesExist();
@@ -2358,6 +2358,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
+     * Creates a new history snapshot from the translog instead of the lucene index. Required for cross cluster replication.
+     * Use the recommended {@link #getHistoryOperations(String, long, long, boolean)} method for other cases.
+     * This method should only be invoked if Segment Replication or Remote Store is not enabled.
+     */
+    public Translog.Snapshot getHistoryOperationsFromTranslog(long startingSeqNo, long endSeqNo) throws IOException {
+        assert (indexSettings.isSegRepEnabled() || indexSettings.isRemoteStoreEnabled()) == false
+            : "unsupported operation for segment replication enabled indices or remote store backed indices";
+        return getEngine().translogManager().newChangesSnapshot(startingSeqNo, endSeqNo, true);
+    }
+
+    /**
      * Checks if we have a completed history of operations since the given starting seqno (inclusive).
      * This method should be called after acquiring the retention lock; See {@link #acquireHistoryRetentionLock()}
      */
@@ -3557,7 +3568,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             currentGlobalCheckpoint,
                             maxSeqNo
                         );
-                        if (currentGlobalCheckpoint < maxSeqNo) {
+                        // With Segment Replication enabled, we never want to reset a replica's engine unless
+                        // it is promoted to primary.
+                        if (currentGlobalCheckpoint < maxSeqNo && indexSettings.isSegRepEnabled() == false) {
                             resetEngineToGlobalCheckpoint();
                         } else {
                             getEngine().translogManager().rollTranslogGeneration();
@@ -4119,27 +4132,5 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public GatedCloseable<SegmentInfos> getSegmentInfosSnapshot() {
         return getEngine().getSegmentInfosSnapshot();
-    }
-
-    /**
-     * With segment replication enabled - prepare the shard's engine to be promoted as the new primary.
-     *
-     * If this shard is currently using a replication engine, this method:
-     * 1. Invokes {@link NRTReplicationEngine#commitSegmentInfos()} to ensure the engine can be reopened as writeable from the latest refresh point.
-     * InternalEngine opens its IndexWriter from an on-disk commit point, but this replica may have recently synced from a primary's refresh point, meaning it has documents searchable in its in-memory SegmentInfos
-     * that are not part of a commit point.  This ensures that those documents are made part of a commit and do not need to be reindexed after promotion.
-     * 2. Invokes resetEngineToGlobalCheckpoint - This call performs the engine swap, opening up as a writeable engine and replays any operations in the xlog. The operations indexed from xlog here will be
-     * any ack'd writes that were not copied to this replica before promotion.
-     */
-    private void promoteNRTReplicaToPrimary() {
-        assert shardRouting.primary() && indexSettings.isSegRepEnabled();
-        getReplicationEngine().ifPresentOrElse(engine -> {
-            try {
-                engine.commitSegmentInfos();
-                resetEngineToGlobalCheckpoint();
-            } catch (IOException e) {
-                throw new EngineException(shardId, "Unable to update  replica to writeable engine, failing shard", e);
-            }
-        }, () -> { throw new EngineException(shardId, "Expected replica engine to be of type NRTReplicationEngine"); });
     }
 }

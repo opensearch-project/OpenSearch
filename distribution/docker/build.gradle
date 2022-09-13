@@ -27,11 +27,13 @@ testFixtures.useFixture()
 
 configurations {
   arm64DockerSource
+  s390xDockerSource
   dockerSource
 }
 
 dependencies {
   arm64DockerSource project(path: ":distribution:archives:linux-arm64-tar", configuration:"default")
+  s390xDockerSource project(path: ":distribution:archives:linux-s390x-tar", configuration:"default")
   dockerSource project(path: ":distribution:archives:linux-tar", configuration:"default")
 }
 
@@ -42,6 +44,8 @@ ext.expansions = { Architecture architecture, DockerBase base, boolean local ->
       classifier = "linux-arm64"
     } else if (architecture == Architecture.X64) {
       classifier = "linux-x64"
+    } else if (architecture == Architecture.S390X) {
+      classifier = "linux-s390x"
     } else {
       throw new IllegalArgumentException("Unsupported architecture [" + architecture + "]")
     }
@@ -85,12 +89,14 @@ RUN curl --retry 8 -S -L \\
 private static String buildPath(Architecture architecture, DockerBase base) {
   return 'build/' +
     (architecture == Architecture.ARM64 ? 'arm64-' : '') +
+    (architecture == Architecture.S390X ? 's390x-' : '') +
     'docker'
 }
 
 private static String taskName(String prefix, Architecture architecture, DockerBase base, String suffix) {
   return prefix +
     (architecture == Architecture.ARM64 ? 'Arm64' : '') +
+    (architecture == Architecture.S390X ? 'S390x' : '') +
     suffix
 }
 
@@ -127,6 +133,8 @@ void addCopyDockerContextTask(Architecture architecture, DockerBase base) {
 
     if (architecture == Architecture.ARM64) {
       from configurations.arm64DockerSource
+    } else if (architecture == Architecture.S390X) {
+      from configurations.s390xDockerSource
     } else {
       from configurations.dockerSource
     }

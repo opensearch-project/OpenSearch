@@ -133,12 +133,7 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
             );
             final CopyState copyState = ongoingSegmentReplications.prepareForReplication(request, segmentSegmentFileChunkWriter);
             channel.sendResponse(
-                new CheckpointInfoResponse(
-                    copyState.getCheckpoint(),
-                    copyState.getMetadataSnapshot(),
-                    copyState.getInfosBytes(),
-                    copyState.getPendingDeleteFiles()
-                )
+                new CheckpointInfoResponse(copyState.getCheckpoint(), copyState.getMetadataMap(), copyState.getInfosBytes())
             );
             timer.stop();
             logger.trace(
