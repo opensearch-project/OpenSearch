@@ -271,11 +271,6 @@ public class BwcVersions {
         // The current version is being worked, is always unreleased
         unreleased.add(currentVersion);
 
-        // No unreleased versions for 1.0.0
-        // todo remove this hack
-        if (currentVersion.equals(Version.fromString("1.0.0"))) {
-            return unmodifiableList(unreleased);
-        }
 
         // the tip of the previous major is unreleased for sure, be it a minor or a bugfix
         if (currentVersion.getMajor() != 1) {
