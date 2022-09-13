@@ -18,6 +18,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Added missing javadocs for `:distribution:tools` modules ([#4483](https://github.com/opensearch-project/OpenSearch/pull/4483))
 ### Dependencies
 - Bumps `reactive-streams` from 1.0.3 to 1.0.4
+- Bumps `antlr4` from 4.9.3 to 4.11.1
 
 ### Dependencies
 - Bumps `org.gradle.test-retry` from 1.4.0 to 1.4.1
