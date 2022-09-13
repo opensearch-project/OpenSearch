@@ -16,6 +16,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Update previous release bwc version to 2.4.0 ([#4455](https://github.com/opensearch-project/OpenSearch/pull/4455))
 - 2.3.0 release notes ([#4457](https://github.com/opensearch-project/OpenSearch/pull/4457))
 - Warn future developers not to pass headers to extensions ([#4430](https://github.com/opensearch-project/OpenSearch/pull/4430))
+- Principal Identity for Opensearch requests to/from extensions ([#4299](https://github.com/opensearch-project/OpenSearch/pull/4299))
 
 ### Dependencies
 - Bumps `org.gradle.test-retry` from 1.4.0 to 1.4.1
