@@ -31,11 +31,19 @@ public class RestExecuteOnExtensionTests extends OpenSearchTestCase {
         PrincipalIdentifierToken expectedRequestIssuerIdentity = new PrincipalIdentifierToken("requestor-identifier");
         NamedWriteableRegistry registry = new NamedWriteableRegistry(
             org.opensearch.common.collect.List.of(
-                new NamedWriteableRegistry.Entry(PrincipalIdentifierToken.class, PrincipalIdentifierToken.NAME, PrincipalIdentifierToken::new)
+                new NamedWriteableRegistry.Entry(
+                    PrincipalIdentifierToken.class,
+                    PrincipalIdentifierToken.NAME,
+                    PrincipalIdentifierToken::new
+                )
             )
         );
 
-        RestExecuteOnExtensionRequest request = new RestExecuteOnExtensionRequest(expectedMethod, expectedUri, expectedRequestIssuerIdentity);
+        RestExecuteOnExtensionRequest request = new RestExecuteOnExtensionRequest(
+            expectedMethod,
+            expectedUri,
+            expectedRequestIssuerIdentity
+        );
 
         assertEquals(expectedMethod, request.getMethod());
         assertEquals(expectedUri, request.getUri());
