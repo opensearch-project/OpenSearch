@@ -36,6 +36,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
+import org.opensearch.action.ActionType;
+import org.opensearch.action.support.TransportAction;
+import org.opensearch.common.inject.Key;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.extensions.action.ExtensionsAction;
@@ -1018,8 +1021,8 @@ public class Node implements Closeable {
             resourcesToClose.addAll(pluginLifecycleComponents);
             resourcesToClose.add(injector.getInstance(PeerRecoverySourceService.class));
             this.pluginLifecycleComponents = Collections.unmodifiableList(pluginLifecycleComponents);
-            client.initialize(
-                injector.getInstance(ActionRegistry.class),
+            client.initialize(injector.getInstance(new Key<Map<ActionType, TransportAction>>() {
+                }), injector.getInstance(ActionRegistry.class),
                 () -> clusterService.localNode().getId(),
                 transportService.getRemoteClusterService(),
                 namedWriteableRegistry

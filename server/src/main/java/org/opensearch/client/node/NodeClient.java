@@ -73,11 +73,13 @@ public class NodeClient extends AbstractClient {
     }
 
     public void initialize(
+        Map<ActionType, TransportAction> actions,
         ActionModule.ActionRegistry actionsRegistry,
         Supplier<String> localNodeId,
         RemoteClusterService remoteClusterService,
         NamedWriteableRegistry namedWriteableRegistry
     ) {
+        this.actions = actions;
         this.actionsRegistry = actionsRegistry;
         this.localNodeId = localNodeId;
         this.remoteClusterService = remoteClusterService;

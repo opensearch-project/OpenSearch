@@ -511,24 +511,16 @@ public class ActionModule extends AbstractModule {
     }
 
     public static class ActionRegistry extends NamedRegistry<ActionHandler<?, ?>> {
-        ActionRegistry() {
+        public ActionRegistry() {
             super("action");
         }
 
-        ActionRegistry(Map<String, ActionHandler<?, ?>> actions) {
+        public ActionRegistry(Map<String, ActionHandler<?, ?>> actions) {
             super("action", actions);
         }
 
         public void register(ActionHandler<?, ?> handler) {
             register(handler.getAction().name(), handler);
-        }
-
-        public <Request extends ActionRequest, Response extends ActionResponse> void register(
-            ActionType<Response> action,
-            Class<? extends TransportAction<Request, Response>> transportAction,
-            Class<?>... supportTransportActions
-        ) {
-            register(new ActionHandler<>(action, transportAction, supportTransportActions));
         }
 
         public <Request extends ActionRequest, Response extends ActionResponse> void register(

@@ -38,6 +38,7 @@ import org.apache.lucene.util.SetOnce;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
+import org.opensearch.action.ActionModule;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.RequestValidators;
 import org.opensearch.action.StepListener;
@@ -2148,6 +2149,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                 );
                 client.initialize(
                     actions,
+                    null,
                     () -> clusterService.localNode().getId(),
                     transportService.getRemoteClusterService(),
                     new NamedWriteableRegistry(Collections.emptyList())

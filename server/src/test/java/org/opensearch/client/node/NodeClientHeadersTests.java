@@ -32,6 +32,7 @@
 
 package org.opensearch.client.node;
 
+import org.opensearch.action.ActionModule;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRequest;
@@ -57,7 +58,7 @@ public class NodeClientHeadersTests extends AbstractClientHeadersTestCase {
         Settings settings = HEADER_SETTINGS;
         Actions actions = new Actions(settings, threadPool, testedActions);
         NodeClient client = new NodeClient(settings, threadPool);
-        client.initialize(actions, () -> "test", null, new NamedWriteableRegistry(Collections.emptyList()));
+        client.initialize(actions, null, () -> "test", null, new NamedWriteableRegistry(Collections.emptyList()));
         return client;
     }
 

@@ -34,6 +34,7 @@ package org.opensearch.test.client;
 
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
+import org.opensearch.action.ActionModule;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.action.ActionType;
@@ -87,6 +88,7 @@ public class NoOpNodeClient extends NodeClient {
     @Override
     public void initialize(
         Map<ActionType, TransportAction> actions,
+        ActionModule.ActionRegistry actionRegistry,
         Supplier<String> localNodeId,
         RemoteClusterService remoteClusterService,
         NamedWriteableRegistry namedWriteableRegistry
