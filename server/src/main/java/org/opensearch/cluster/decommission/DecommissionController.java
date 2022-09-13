@@ -226,11 +226,15 @@ public class DecommissionController {
                 Metadata metadata = currentState.metadata();
                 DecommissionAttributeMetadata decommissionAttributeMetadata = metadata.custom(DecommissionAttributeMetadata.TYPE);
                 assert decommissionAttributeMetadata != null && decommissionAttributeMetadata.decommissionAttribute() != null;
-                // we need to update the status only when the previous stage is just behind than expected stage
+                // we need to update the status only when the previous stage is just behind the expected stage
                 // if the previous stage is already ahead of expected stage, we don't need to update the stage
                 // For failures, we update it no matter what
                 int previousStage = decommissionAttributeMetadata.status().stage();
                 int expectedStage = decommissionStatus.stage();
+                logger.info("attempting to update current decommission status [{}] with expected status [{}]",
+                    decommissionAttributeMetadata.status().stage(),
+                    decommissionStatus
+                );
                 if (previousStage >= expectedStage) return currentState;
                 if (expectedStage - previousStage != 1 && !decommissionStatus.equals(DecommissionStatus.FAILED)) {
                     throw new DecommissioningFailedException(
