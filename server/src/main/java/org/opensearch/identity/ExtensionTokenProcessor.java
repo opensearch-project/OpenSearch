@@ -11,6 +11,8 @@
 
 package org.opensearch.identity;
 
+import java.security.Principal;
+
 /**
  * Token processor class to handle token encryption/decryption
  */
@@ -49,7 +51,10 @@ public class ExtensionTokenProcessor {
             return null;
         }
 
-        return new Principal(parts[0]);
+        return new Principal() {
+            public String getName() {
+                return parts[0];
+            };
+        };
     }
-
 }

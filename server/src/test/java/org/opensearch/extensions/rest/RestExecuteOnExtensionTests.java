@@ -9,7 +9,6 @@
 package org.opensearch.extensions.rest;
 
 import org.opensearch.identity.ExtensionTokenProcessor;
-import org.opensearch.identity.Principal;
 import org.opensearch.identity.PrincipalIdentifierToken;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.common.bytes.BytesReference;
@@ -28,7 +27,9 @@ public class RestExecuteOnExtensionTests extends OpenSearchTestCase {
     public void testRestExecuteOnExtensionRequest() throws Exception {
         Method expectedMethod = Method.GET;
         String expectedUri = "/test/uri";
+        PrincipalIdentifierToken expectedRequestorIdentifier = new PrincipalIdentifierToken("requestor-identifier");
 
+<<<<<<< HEAD
         Principal p1 = new Principal("admin");
         String extensionId = "ext_1";
         ExtensionTokenProcessor extensionTokenProcessor = new ExtensionTokenProcessor(extensionId);
@@ -39,6 +40,13 @@ public class RestExecuteOnExtensionTests extends OpenSearchTestCase {
         assertEquals(expectedMethod, request.getMethod());
         assertEquals(expectedUri, request.getUri());
         assertEquals(expectedRequesterToken, request.getRequestIssuerIdentity());
+=======
+        RestExecuteOnExtensionRequest request = new RestExecuteOnExtensionRequest(expectedMethod, expectedUri, expectedRequestorIdentifier);
+
+        assertEquals(expectedMethod, request.getMethod());
+        assertEquals(expectedUri, request.getUri());
+        assertEquals(expectedRequestorIdentifier, request.getRequestorIdentifier());
+>>>>>>> 2874249c8b5 (Changes in flight)
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             request.writeTo(out);
@@ -48,7 +56,11 @@ public class RestExecuteOnExtensionTests extends OpenSearchTestCase {
 
                 assertEquals(expectedMethod, request.getMethod());
                 assertEquals(expectedUri, request.getUri());
+<<<<<<< HEAD
                 assertEquals(expectedRequesterToken, request.getRequestIssuerIdentity());
+=======
+                assertEquals(expectedRequestorIdentifier, request.getRequestorIdentifier());
+>>>>>>> 2874249c8b5 (Changes in flight)
             }
         }
     }

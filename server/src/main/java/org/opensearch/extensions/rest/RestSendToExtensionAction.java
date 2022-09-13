@@ -15,7 +15,6 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.extensions.DiscoveryExtension;
 import org.opensearch.extensions.ExtensionsOrchestrator;
 import org.opensearch.identity.ExtensionTokenProcessor;
-import org.opensearch.identity.Principal;
 import org.opensearch.identity.PrincipalIdentifierToken;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
@@ -29,6 +28,7 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.security.Principal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -48,6 +48,13 @@ public class RestSendToExtensionAction extends BaseRestHandler {
     private static final String SEND_TO_EXTENSION_ACTION = "send_to_extension_action";
     private static final Logger logger = LogManager.getLogger(RestSendToExtensionAction.class);
     private static final String CONSUMED_PARAMS_KEY = "extension.consumed.parameters";
+    // To replace with user identity see https://github.com/opensearch-project/OpenSearch/pull/4247
+    private static final Principal DEFAULT_PRINCIPAL = new Principal() {
+        @Override
+        public String getName() {
+            return "OpenSearchUser";
+        }
+    };
 
     private final List<Route> routes;
     private final String uriPrefix;
@@ -100,21 +107,10 @@ public class RestSendToExtensionAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         Method method = request.getHttpRequest().method();
         String uri = request.getHttpRequest().uri();
-
-        // TODO: should be replaced with MyShiro calls (fetch user/identity from shiro)
-        // Principal principal = getCurrentSubject().getPrincipal();
-        /* assuming admin principal for now until shiro realm is implemented */
-        Principal principal = new Principal("admin");
-        /* getting extension id for this request which is unique to every extension */
-        String discoveryExtensionId = this.discoveryExtension.getId();
-        ExtensionTokenProcessor extensionTokenProcessor = new ExtensionTokenProcessor(discoveryExtensionId);
-
-        PrincipalIdentifierToken token = extensionTokenProcessor.generateRequestIssuerIdentity(principal);
-
         if (uri.startsWith(uriPrefix)) {
             uri = uri.substring(uriPrefix.length());
         }
-        String message = "Forwarding the request " + method + " " + uri + " with owner " + token.getToken() + " to " + discoveryExtension;
+        String message = "Forwarding the request " + method + " " + uri + " to " + discoveryExtension;
         logger.info(message);
         // Initialize response. Values will be changed in the handler.
         final RestExecuteOnExtensionResponse restExecuteOnExtensionResponse = new RestExecuteOnExtensionResponse(
@@ -167,6 +163,9 @@ public class RestSendToExtensionAction extends BaseRestHandler {
             }
         };
         try {
+            final ExtensionTokenProcessor extensionTokenProcessor = new ExtensionTokenProcessor(discoveryExtension.getId());
+            final PrincipalIdentifierToken requestorIdentifier = extensionTokenProcessor.generateToken(DEFAULT_PRINCIPAL);
+    
             transportService.sendRequest(
                 discoveryExtension,
                 ExtensionsOrchestrator.REQUEST_REST_EXECUTE_ON_EXTENSION_ACTION,
