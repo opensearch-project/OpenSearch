@@ -22,6 +22,7 @@ import java.io.Serializable;
 public class PrincipalIdentifierToken implements Serializable, NamedWriteable {
     public static final String NAME = "principal_identifier_token";
     private String token;
+
     public PrincipalIdentifierToken(String token) {
         this.token = token;
     }

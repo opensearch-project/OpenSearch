@@ -69,7 +69,13 @@ public class RestExecuteOnExtensionRequest extends TransportRequest {
 
     @Override
     public String toString() {
-        return "RestExecuteOnExtensionRequest{method=" + method + ", uri=" + uri + ", requester = " + requestIssuerIdentity.getToken() + "}";
+        return "RestExecuteOnExtensionRequest{method="
+            + method
+            + ", uri="
+            + uri
+            + ", requester = "
+            + requestIssuerIdentity.getToken()
+            + "}";
     }
 
     @Override
@@ -77,7 +83,9 @@ public class RestExecuteOnExtensionRequest extends TransportRequest {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
         RestExecuteOnExtensionRequest that = (RestExecuteOnExtensionRequest) obj;
-        return Objects.equals(method, that.method) && Objects.equals(uri, that.uri) && Objects.equals(requestIssuerIdentity, that.requestIssuerIdentity);
+        return Objects.equals(method, that.method)
+            && Objects.equals(uri, that.uri)
+            && Objects.equals(requestIssuerIdentity, that.requestIssuerIdentity);
     }
 
     @Override
