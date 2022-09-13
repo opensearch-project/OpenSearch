@@ -32,7 +32,6 @@
 
 package org.opensearch.client.node;
 
-import org.opensearch.action.ActionModule;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRequest;

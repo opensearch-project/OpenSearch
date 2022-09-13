@@ -38,7 +38,6 @@ import org.apache.lucene.util.SetOnce;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
-import org.opensearch.action.ActionModule;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.RequestValidators;
 import org.opensearch.action.StepListener;

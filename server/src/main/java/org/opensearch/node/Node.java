@@ -1022,7 +1022,8 @@ public class Node implements Closeable {
             resourcesToClose.add(injector.getInstance(PeerRecoverySourceService.class));
             this.pluginLifecycleComponents = Collections.unmodifiableList(pluginLifecycleComponents);
             client.initialize(injector.getInstance(new Key<Map<ActionType, TransportAction>>() {
-                }), injector.getInstance(ActionRegistry.class),
+            }),
+                injector.getInstance(ActionRegistry.class),
                 () -> clusterService.localNode().getId(),
                 transportService.getRemoteClusterService(),
                 namedWriteableRegistry
