@@ -118,30 +118,46 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testDecommissioningNotStartedForInvalidAttributeName() {
+    public void testDecommissioningNotStartedForInvalidAttributeName() throws InterruptedException {
+        final CountDownLatch countDownLatch = new CountDownLatch(1);
         DecommissionAttribute decommissionAttribute = new DecommissionAttribute("rack", "rack-a");
-        ActionListener<ClusterStateUpdateResponse> listener = mock(ActionListener.class);
-        DecommissioningFailedException e = expectThrows(
-            DecommissioningFailedException.class,
-            () -> decommissionService.startDecommissionAction(decommissionAttribute, listener)
-        );
-        assertThat(e.getMessage(), Matchers.endsWith("invalid awareness attribute requested for decommissioning"));
+        ActionListener<ClusterStateUpdateResponse> listener = new ActionListener<ClusterStateUpdateResponse>() {
+            @Override
+            public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {
+                fail("on response shouldn't have been called");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assertTrue(e instanceof DecommissioningFailedException);
+                assertThat(e.getMessage(), Matchers.endsWith("invalid awareness attribute requested for decommissioning"));
+                countDownLatch.countDown();
+            }
+        };
+        decommissionService.startDecommissionAction(decommissionAttribute, listener);
+        assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
     }
 
     @SuppressWarnings("unchecked")
-    public void testDecommissioningNotStartedForInvalidAttributeValue() {
-        DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "random");
-        ActionListener<ClusterStateUpdateResponse> listener = mock(ActionListener.class);
-        DecommissioningFailedException e = expectThrows(
-            DecommissioningFailedException.class,
-            () -> { decommissionService.startDecommissionAction(decommissionAttribute, listener); }
-        );
-        assertThat(
-            e.getMessage(),
-            Matchers.endsWith(
-                "invalid awareness attribute value requested for decommissioning. Set forced awareness values before to decommission"
-            )
-        );
+    public void testDecommissioningNotStartedForInvalidAttributeValue() throws InterruptedException {
+        final CountDownLatch countDownLatch = new CountDownLatch(1);
+        DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "rack-a");
+        ActionListener<ClusterStateUpdateResponse> listener = new ActionListener<ClusterStateUpdateResponse>() {
+            @Override
+            public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {
+                fail("on response shouldn't have been called");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assertTrue(e instanceof DecommissioningFailedException);
+                assertThat(e.getMessage(), Matchers.endsWith("invalid awareness attribute value requested for decommissioning. " +
+                    "Set forced awareness values before to decommission"));
+                countDownLatch.countDown();
+            }
+        };
+        decommissionService.startDecommissionAction(decommissionAttribute, listener);
+        assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
     }
 
     @SuppressWarnings("unchecked")
