@@ -21,21 +21,21 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
-public class WRRWeights implements Writeable {
+public class WeightedRouting implements Writeable {
     private String attributeName;
     private Map<String, Object> weights;
 
-    public WRRWeights(String attributeName, Map<String, Object> weights) {
+    public WeightedRouting(String attributeName, Map<String, Object> weights) {
         this.attributeName = attributeName;
         this.weights = weights;
     }
 
-    public WRRWeights(WRRWeights wrrWeight) {
-        this.attributeName = wrrWeight.attributeName();
-        this.weights = wrrWeight.weights;
+    public WeightedRouting(WeightedRouting weightedRouting) {
+        this.attributeName = weightedRouting.attributeName();
+        this.weights = weightedRouting.weights;
     }
 
-    public WRRWeights(StreamInput in) throws IOException {
+    public WeightedRouting(StreamInput in) throws IOException {
         attributeName = in.readString();
         weights = in.readMap();
     }
@@ -51,7 +51,7 @@ public class WRRWeights implements Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        WRRWeights that = (WRRWeights) o;
+        WeightedRouting that = (WeightedRouting) o;
 
         if (!attributeName.equals(that.attributeName)) return false;
         return weights.equals(that.weights);
@@ -64,7 +64,7 @@ public class WRRWeights implements Writeable {
 
     @Override
     public String toString() {
-        return "WRRWeights{" + attributeName + "}{" + weights().toString() + "}";
+        return "WeightedRouting{" + attributeName + "}{" + weights().toString() + "}";
     }
 
     public Map<String, Object> weights() {

@@ -46,7 +46,7 @@ public class WeightedRoundRobin<T> {
         for (WeightedRoundRobin.Entity<T> entity : entities) {
             maxWeight = Math.max(maxWeight, entity.getWeight());
             gcd = (gcd == null) ? entity.getWeight() : gcd(gcd, entity.getWeight());
-            sumWeight += entity.getWeight();
+            sumWeight += entity.getWeight() > 0 ? entity.getWeight() : 0;
         }
         int count = 0;
         while (count < sumWeight) {

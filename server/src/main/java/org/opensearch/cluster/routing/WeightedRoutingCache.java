@@ -27,13 +27,13 @@ import java.util.List;
  * @opensearch.internal
  */
 
-public class WRRShardsCache implements Releasable, ClusterStateListener {
-    private static final Logger logger = LogManager.getLogger(WRRShardsCache.class);
+public class WeightedRoutingCache implements Releasable, ClusterStateListener {
+    private static final Logger logger = LogManager.getLogger(WeightedRoutingCache.class);
 
     private final Cache<Key, List<ShardRouting>> cache;
     private static final long sizeInBytes = 2000000;
 
-    public WRRShardsCache(ClusterService clusterService) {
+    public WeightedRoutingCache(ClusterService clusterService) {
 
         CacheBuilder<Key, List<ShardRouting>> cacheBuilder = CacheBuilder.<Key, List<ShardRouting>>builder()
             .removalListener(notification -> logger.info("Object" + " {} removed from cache", notification.getKey().shardId))
@@ -56,7 +56,7 @@ public class WRRShardsCache implements Releasable, ClusterStateListener {
 
     @Override
     public void close() {
-        logger.debug("Invalidating WRRShardsCache on close");
+        logger.debug("Invalidating WeightedRoutingCache on close");
         cache.invalidateAll();
     }
 
@@ -67,7 +67,7 @@ public class WRRShardsCache implements Releasable, ClusterStateListener {
      */
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        logger.debug("Invalidating WRRShardsCache on ClusterChangedEvent");
+        logger.debug("Invalidating WeightedRoutingCache on ClusterChangedEvent");
         cache.invalidateAll();
     }
 
@@ -80,12 +80,12 @@ public class WRRShardsCache implements Releasable, ClusterStateListener {
     }
 
     /**
-     * Key for the WRRShardsCache
+     * Key for the WeightedRoutingCache
      *
      * @opensearch.internal
      */
     public static class Key {
-        public final ShardId shardId;
+        private final ShardId shardId;
 
         Key(ShardId shardId) {
             this.shardId = shardId;
@@ -95,7 +95,7 @@ public class WRRShardsCache implements Releasable, ClusterStateListener {
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            WRRShardsCache.Key key = (WRRShardsCache.Key) o;
+            WeightedRoutingCache.Key key = (WeightedRoutingCache.Key) o;
             if (!shardId.equals(key.shardId)) return false;
             return true;
         }

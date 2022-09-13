@@ -37,7 +37,7 @@ import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
-import org.opensearch.cluster.metadata.WeightedRoundRobinRoutingMetadata;
+import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
@@ -790,10 +790,10 @@ public class OperationRoutingTests extends OpenSearchTestCase {
     }
 
     private ClusterState setWRRWeights(ClusterState clusterState, Map<String, Object> weights) {
-        WRRWeights wrrWeight = new WRRWeights("zone", weights);
-        WeightedRoundRobinRoutingMetadata wrrMetadata = new WeightedRoundRobinRoutingMetadata(wrrWeight);
+        WeightedRouting wrrWeight = new WeightedRouting("zone", weights);
+        WeightedRoutingMetadata wrrMetadata = new WeightedRoutingMetadata(wrrWeight);
         Metadata.Builder metadataBuilder = Metadata.builder(clusterState.metadata());
-        metadataBuilder.putCustom(WeightedRoundRobinRoutingMetadata.TYPE, wrrMetadata);
+        metadataBuilder.putCustom(WeightedRoutingMetadata.TYPE, wrrMetadata);
         clusterState = ClusterState.builder(clusterState).metadata(metadataBuilder).build();
         return clusterState;
     }
@@ -832,7 +832,7 @@ public class OperationRoutingTests extends OpenSearchTestCase {
         ClusterServiceUtils.setState(clusterService, builder);
 
         opRouting.setClusterService(clusterService);
-        opRouting.setWrrShardsCache(new WRRShardsCache(clusterService));
+        opRouting.setWeightedRoutingCache(new WeightedRoutingCache(clusterService));
 
         // search shards call
         GroupShardsIterator<ShardIterator> groupIterator = opRouting.searchShards(
@@ -869,7 +869,7 @@ public class OperationRoutingTests extends OpenSearchTestCase {
 
         opRouting = new OperationRouting(setting, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
         opRouting.setClusterService(clusterService);
-        opRouting.setWrrShardsCache(new WRRShardsCache(clusterService));
+        opRouting.setWeightedRoutingCache(new WeightedRoutingCache(clusterService));
 
         // search shards call
         groupIterator = opRouting.searchShards(state, indexNames, null, null, collector, outstandingRequests);
@@ -911,7 +911,7 @@ public class OperationRoutingTests extends OpenSearchTestCase {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
         opRouting.setClusterService(clusterService);
-        opRouting.setWrrShardsCache(new WRRShardsCache(clusterService));
+        opRouting.setWeightedRoutingCache(new WeightedRoutingCache(clusterService));
 
         assertTrue(opRouting.ignoreAwarenessAttributes());
         ResponseCollectorService collector = new ResponseCollectorService(clusterService);
@@ -933,19 +933,19 @@ public class OperationRoutingTests extends OpenSearchTestCase {
         );
 
         // shard wrr ordering details are not present in cache, the details are calculated and put in cache
-        assertEquals(6, opRouting.getWrrShardsCache().misses());
-        assertEquals(6, opRouting.getWrrShardsCache().size());
+        assertEquals(6, opRouting.getWeightedRoutingCache().misses());
+        assertEquals(6, opRouting.getWeightedRoutingCache().size());
 
         // Calling operation routing again without any cluster state change to test that wrr shard routing details are
         // fetched from cache
         groupIterator = opRouting.searchShards(state, indexNames, null, null, collector, outstandingRequests);
 
         // details are fetched from cache
-        assertEquals(12, opRouting.getWrrShardsCache().hits());
+        assertEquals(12, opRouting.getWeightedRoutingCache().hits());
         // cache count stays same
-        assertEquals(6, opRouting.getWrrShardsCache().size());
+        assertEquals(6, opRouting.getWeightedRoutingCache().size());
         // cache misses stay same
-        assertEquals(6, opRouting.getWrrShardsCache().misses());
+        assertEquals(6, opRouting.getWeightedRoutingCache().misses());
 
         // Updating cluster state to test wrr shard routing details are calculated again
         weights = Map.of("a", "1", "b", "0", "c", "1");
@@ -954,19 +954,19 @@ public class OperationRoutingTests extends OpenSearchTestCase {
         ClusterServiceUtils.setState(clusterService, ClusterState.builder(state2));
 
         ClusterChangedEvent event = new ClusterChangedEvent("test", state2, state);
-        opRouting.getWrrShardsCache().clusterChanged(event);
+        opRouting.getWeightedRoutingCache().clusterChanged(event);
 
         // cache is invalidated after cluster state change, cache count is zero
-        assertEquals(0, opRouting.getWrrShardsCache().size());
+        assertEquals(0, opRouting.getWeightedRoutingCache().size());
 
         // search shards call
         groupIterator = opRouting.searchShards(state2, indexNames, null, null, collector, outstandingRequests);
 
         // cache hit remain same
-        assertEquals(12, opRouting.getWrrShardsCache().hits());
+        assertEquals(12, opRouting.getWeightedRoutingCache().hits());
         // cache miss increases by 6
-        assertEquals(12, opRouting.getWrrShardsCache().misses());
-        assertEquals(6, opRouting.getWrrShardsCache().size());
+        assertEquals(12, opRouting.getWeightedRoutingCache().misses());
+        assertEquals(6, opRouting.getWeightedRoutingCache().size());
 
         IOUtils.close(clusterService);
         terminate(threadPool);
@@ -1003,7 +1003,7 @@ public class OperationRoutingTests extends OpenSearchTestCase {
         ClusterServiceUtils.setState(clusterService, ClusterState.builder(state));
 
         opRouting.setClusterService(clusterService);
-        opRouting.setWrrShardsCache(new WRRShardsCache(clusterService));
+        opRouting.setWeightedRoutingCache(new WeightedRoutingCache(clusterService));
         // search shards call
         GroupShardsIterator<ShardIterator> groupIterator = opRouting.searchShards(
             state,
@@ -1044,7 +1044,7 @@ public class OperationRoutingTests extends OpenSearchTestCase {
 
         opRouting = new OperationRouting(setting, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
         opRouting.setClusterService(clusterService);
-        opRouting.setWrrShardsCache(new WRRShardsCache(clusterService));
+        opRouting.setWeightedRoutingCache(new WeightedRoutingCache(clusterService));
 
         // search shards call
         groupIterator = opRouting.searchShards(state, indexNames, null, null, collector, outstandingRequests);
@@ -1236,9 +1236,9 @@ public class OperationRoutingTests extends OpenSearchTestCase {
         }
         // add wrr weights in metadata
         Map<String, Object> weights = Map.of("a", "1", "b", "1", "c", "0");
-        WRRWeights wrrWeights = new WRRWeights("zone", weights);
-        WeightedRoundRobinRoutingMetadata wrrMetadata = new WeightedRoundRobinRoutingMetadata(wrrWeights);
-        metadataBuilder.putCustom(WeightedRoundRobinRoutingMetadata.TYPE, wrrMetadata);
+        WeightedRouting weightedRouting = new WeightedRouting("zone", weights);
+        WeightedRoutingMetadata wrrMetadata = new WeightedRoutingMetadata(weightedRouting);
+        metadataBuilder.putCustom(WeightedRoutingMetadata.TYPE, wrrMetadata);
         clusterState.metadata(metadataBuilder);
         clusterState.routingTable(routingTableBuilder.build());
         return clusterState.build();

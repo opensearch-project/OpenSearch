@@ -34,7 +34,7 @@ package org.opensearch.cluster.routing;
 
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.cluster.metadata.WeightedRoundRobinRoutingMetadata;
+import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.opensearch.cluster.service.ClusterService;
@@ -82,8 +82,8 @@ public class OperationRouting {
     private volatile boolean useAdaptiveReplicaSelection;
     private volatile boolean ignoreAwarenessAttr;
 
-    public WRRShardsCache wrrShardsCache;
-    public ClusterService clusterService;
+    private WeightedRoutingCache weightedRoutingCache;
+    private ClusterService clusterService;
 
     public OperationRouting(Settings settings, ClusterSettings clusterSettings) {
         // whether to ignore awareness attributes when routing requests
@@ -128,12 +128,12 @@ public class OperationRouting {
     }
 
     @Inject
-    public void setWrrShardsCache(WRRShardsCache wrrShardsCache) {
-        this.wrrShardsCache = wrrShardsCache;
+    public void setWeightedRoutingCache(WeightedRoutingCache weightedRoutingCache) {
+        this.weightedRoutingCache = weightedRoutingCache;
     }
 
-    public WRRShardsCache getWrrShardsCache() {
-        return wrrShardsCache;
+    public WeightedRoutingCache getWeightedRoutingCache() {
+        return weightedRoutingCache;
     }
 
     public ShardIterator indexShards(ClusterState clusterState, String index, String id, @Nullable String routing) {
@@ -202,20 +202,6 @@ public class OperationRouting {
             }
         }
         return GroupShardsIterator.sortAndCreate(new ArrayList<>(set));
-    }
-
-    private boolean isWeightedRoundRobinEnabled() {
-        WeightedRoundRobinRoutingMetadata weightedRoundRobinRoutingMetadata = clusterService.state()
-            .metadata()
-            .custom(WeightedRoundRobinRoutingMetadata.TYPE);
-        return weightedRoundRobinRoutingMetadata != null;
-    }
-
-    private WRRWeights fetchWRRWeights() {
-        WeightedRoundRobinRoutingMetadata weightedRoundRobinRoutingMetadata = clusterService.state()
-            .metadata()
-            .custom(WeightedRoundRobinRoutingMetadata.TYPE);
-        return weightedRoundRobinRoutingMetadata.getWrrWeight();
     }
 
     public static ShardIterator getShards(ClusterState clusterState, ShardId shardId) {
@@ -334,8 +320,9 @@ public class OperationRouting {
         @Nullable ResponseCollectorService collectorService,
         @Nullable Map<String, Long> nodeCounts
     ) {
-        if (isWeightedRoundRobinEnabled()) {
-            return indexShard.activeInitializingShardsWRR(fetchWRRWeights(), nodes, wrrShardsCache);
+        WeightedRoutingMetadata weightedRoutingMetadata = clusterService.state().metadata().weightedRoutingMetadata();
+        if (weightedRoutingMetadata != null) {
+            return indexShard.activeInitializingShardsWeightedIt(weightedRoutingMetadata.getWeightedRouting(), nodes, weightedRoutingCache);
         } else if (ignoreAwarenessAttributes()) {
             if (useAdaptiveReplicaSelection) {
                 return indexShard.activeInitializingShardsRankedIt(collectorService, nodeCounts);

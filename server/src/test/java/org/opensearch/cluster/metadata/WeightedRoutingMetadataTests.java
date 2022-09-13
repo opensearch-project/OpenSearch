@@ -8,25 +8,25 @@
 
 package org.opensearch.cluster.metadata;
 
-import org.opensearch.cluster.routing.WRRWeights;
+import org.opensearch.cluster.routing.WeightedRouting;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 import java.util.Map;
 
-public class WeightedRoundRobinRoutingMetadataTests extends AbstractXContentTestCase<WeightedRoundRobinRoutingMetadata> {
+public class WeightedRoutingMetadataTests extends AbstractXContentTestCase<WeightedRoutingMetadata> {
     @Override
-    protected WeightedRoundRobinRoutingMetadata createTestInstance() {
+    protected WeightedRoutingMetadata createTestInstance() {
         Map<String, Object> weights = Map.of("a", "1", "b", "1", "c", "0");
-        WRRWeights wrrWeights = new WRRWeights("zone", weights);
-        WeightedRoundRobinRoutingMetadata wrrMetadata = new WeightedRoundRobinRoutingMetadata(wrrWeights);
+        WeightedRouting weightedRouting = new WeightedRouting("zone", weights);
+        WeightedRoutingMetadata wrrMetadata = new WeightedRoutingMetadata(weightedRouting);
         return wrrMetadata;
     }
 
     @Override
-    protected WeightedRoundRobinRoutingMetadata doParseInstance(XContentParser parser) throws IOException {
-        return WeightedRoundRobinRoutingMetadata.fromXContent(parser);
+    protected WeightedRoutingMetadata doParseInstance(XContentParser parser) throws IOException {
+        return WeightedRoutingMetadata.fromXContent(parser);
     }
 
     @Override
