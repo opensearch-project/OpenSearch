@@ -38,6 +38,8 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ### Deprecated
 
 ### Removed
+- Non executing "if" statement from "buildSrc\src\main\java\org\opensearch\gradle\BwcVersions.java" line - (274 - 278)
+([#4496](https://github.com/opensearch-project/OpenSearch/pull/4496))
 
 ### Fixed
 - `opensearch-service.bat start` and `opensearch-service.bat manager` failing to run ([#4289](https://github.com/opensearch-project/OpenSearch/pull/4289))
