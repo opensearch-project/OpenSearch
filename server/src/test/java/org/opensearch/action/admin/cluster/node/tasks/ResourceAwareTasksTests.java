@@ -42,6 +42,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -615,6 +616,10 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
         });
 
         taskTestContext.requestCompleteLatch.await();
+
+        // It is possible for the MockTaskManagerListener to be called after the response is sent already.
+        // Wait enough time for taskId to be added to taskIdsRemovedFromThreadContext before performing validations.
+        waitUntil(() -> taskIdsAddedToThreadContext.size() == taskIdsRemovedFromThreadContext.size(), 5, TimeUnit.SECONDS);
 
         assertEquals(expectedTaskIdInThreadContext.get(), actualTaskIdInThreadContext.get());
         assertThat(taskIdsAddedToThreadContext, containsInAnyOrder(taskIdsRemovedFromThreadContext.toArray()));
