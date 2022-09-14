@@ -16,8 +16,8 @@ import org.opensearch.identity.Principals;
 
 /**
  * Implementation of subject that is always authenticated
- * 
- * This class and related classes in this package will not return nulls or fail permissions checks 
+ *
+ * This class and related classes in this package will not return nulls or fail permissions checks
  */
 public class NoopSubject implements Subject {
 
@@ -41,8 +41,6 @@ public class NoopSubject implements Subject {
 
     @Override
     public String toString() {
-        return "NoopSubject(" + 
-            "principal=" + getPrincipal() +
-            ")";
+        return "NoopSubject(" + "principal=" + getPrincipal() + ")";
     }
 }

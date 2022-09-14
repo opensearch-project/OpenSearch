@@ -11,9 +11,7 @@ package org.opensearch.identity.noop;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.identity.Subject;
 
-import static org.mockito.Mockito.mock;
-
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 public class NoopSubjectTests extends OpenSearchTestCase {

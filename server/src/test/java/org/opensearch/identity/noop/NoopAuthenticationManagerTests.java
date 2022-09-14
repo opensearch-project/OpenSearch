@@ -8,11 +8,9 @@
 
 package org.opensearch.identity.noop;
 
-import org.opensearch.identity.AuthenticationManager;
-import org.opensearch.identity.Subject;
 import org.opensearch.test.OpenSearchTestCase;
 
-import static org.mockito.Mockito.mock;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.equalTo;
@@ -20,7 +18,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class NoopAuthenticationManagerTests extends OpenSearchTestCase {
 
     public void testGetSubject() {
-       assertThat(new NoopAuthenticationManager().getSubject(), not(nullValue()));
+        assertThat(new NoopAuthenticationManager().getSubject(), not(nullValue()));
     }
 
     public void testConsistantSubjects() {

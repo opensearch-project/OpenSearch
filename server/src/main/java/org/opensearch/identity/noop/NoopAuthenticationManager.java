@@ -13,8 +13,8 @@ import org.opensearch.identity.Subject;
 
 /**
  * Implementation of authentication manager that does not enforce authentication
- * 
- * This class and related classes in this package will not return nulls or fail permissions checks 
+ *
+ * This class and related classes in this package will not return nulls or fail permissions checks
  */
 public class NoopAuthenticationManager implements AuthenticationManager {
 

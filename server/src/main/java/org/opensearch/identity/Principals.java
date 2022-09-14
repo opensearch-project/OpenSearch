@@ -21,6 +21,7 @@ public enum Principals {
     Unauthenticated(new StringPrincipal("Unauthenticated"));
 
     private final Principal principal;
+
     private Principals(final Principal principal) {
         this.principal = principal;
     }

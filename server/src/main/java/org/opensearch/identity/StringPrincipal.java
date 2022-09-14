@@ -17,7 +17,7 @@ import java.util.Objects;
 class StringPrincipal implements Principal {
 
     private final String name;
-    
+
     /**
      * Creates a principal for an identity specified as a string
      * @param name A persistent string that represent an identity
@@ -46,8 +46,6 @@ class StringPrincipal implements Principal {
 
     @Override
     public String toString() {
-        return "StringPrincipal(" +
-            "name=" + name +
-            ")";
+        return "StringPrincipal(" + "name=" + name + ")";
     }
 }

@@ -10,14 +10,11 @@ package org.opensearch.identity;
 
 import org.opensearch.test.OpenSearchTestCase;
 
-import static org.mockito.Mockito.mock;
-
 import java.security.Principal;
 
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.nullValue;
-
 
 public class StringPrincipalTests extends OpenSearchTestCase {
 
