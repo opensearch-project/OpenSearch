@@ -281,7 +281,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                     valuePreview = complexValue.toString();
                 }
             } catch (Exception innerException) {
-                if (!ignore_malformed) {
+                if (ignore_malformed == false) {
                     throw new MapperParsingException(
                         "failed to parse field [{}] of type [{}] in document with id '{}'. " + "Could not parse field value preview,",
                         e,
@@ -292,7 +292,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 }
             }
 
-            if (!ignore_malformed) {
+            if (ignore_malformed == false) {
                 throw new MapperParsingException(
                     "failed to parse field [{}] of type [{}] in document with id '{}'. " + "Preview of field's value: '{}'",
                     e,
