@@ -271,7 +271,6 @@ public class BwcVersions {
         // The current version is being worked, is always unreleased
         unreleased.add(currentVersion);
 
-
         // the tip of the previous major is unreleased for sure, be it a minor or a bugfix
         if (currentVersion.getMajor() != 1) {
             final Version latestOfPreviousMajor = getLatestVersionByKey(
