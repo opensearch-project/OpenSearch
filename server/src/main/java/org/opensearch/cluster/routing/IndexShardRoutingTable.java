@@ -310,8 +310,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         final int seed = shuffler.nextSeed();
         List<ShardRouting> ordered = new ArrayList<>();
         List<ShardRouting> orderedActiveShards = cache.get(new WeightedRoutingCache.Key(shardId));
-        if (orderedActiveShards == null)
-        {
+        if (orderedActiveShards == null) {
             orderedActiveShards = shardsOrderedByWeight(activeShards, weightedRouting, nodes, defaultWeight);
             cache.put(new WeightedRoutingCache.Key(shardId), orderedActiveShards);
         }
