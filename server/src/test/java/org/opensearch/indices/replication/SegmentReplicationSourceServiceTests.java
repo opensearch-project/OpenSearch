@@ -121,9 +121,7 @@ public class SegmentReplicationSourceServiceTests extends OpenSearchTestCase {
             public void onResponse(CheckpointInfoResponse response) {
                 assertEquals(testCheckpoint, response.getCheckpoint());
                 assertNotNull(response.getInfosBytes());
-                // CopyStateTests sets up one pending delete file and one committed segments file
-                assertEquals(1, response.getPendingDeleteFiles().size());
-                assertEquals(1, response.getSnapshot().size());
+                assertEquals(1, response.getMetadataMap().size());
             }
 
             @Override
