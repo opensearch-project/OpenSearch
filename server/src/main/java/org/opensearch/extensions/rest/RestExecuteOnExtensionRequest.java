@@ -30,10 +30,10 @@ public class RestExecuteOnExtensionRequest extends TransportRequest {
 
     private PrincipalIdentifierToken requestIssuerIdentity;
 
-    public RestExecuteOnExtensionRequest(Method method, String uri, PrincipalIdentifierToken requestorIdentifier) {
+    public RestExecuteOnExtensionRequest(Method method, String uri, PrincipalIdentifierToken requesterIdentifier) {
         this.method = method;
         this.uri = uri;
-        this.requestIssuerIdentity = requestorIdentifier;
+        this.requestIssuerIdentity = requesterIdentifier;
     }
 
     public RestExecuteOnExtensionRequest(StreamInput in) throws IOException {

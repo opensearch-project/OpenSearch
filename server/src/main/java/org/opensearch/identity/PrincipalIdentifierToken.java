@@ -13,18 +13,21 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
-import java.io.Serializable;
 import java.util.Objects;
 
 /**
  * Requester Token for requests to/from an extension
  * Each user will have different token for different extension
  */
-public class PrincipalIdentifierToken implements Serializable, NamedWriteable {
+public class PrincipalIdentifierToken implements NamedWriteable {
     public static final String NAME = "principal_identifier_token";
-    private String token;
+    private final String token;
 
-    public PrincipalIdentifierToken(String token) {
+    /**
+     * Should only be instantiated via extensionTokenProcessor.generateToken(..)
+     * @param token string value of token
+     */
+    protected PrincipalIdentifierToken(String token) {
         this.token = token;
     }
 
