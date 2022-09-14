@@ -34,12 +34,15 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.io.FileSystemUtils;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsModule;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.discovery.InitializeExtensionsRequest;
 import org.opensearch.discovery.InitializeExtensionsResponse;
 import org.opensearch.extensions.ExtensionsSettings.Extension;
 import org.opensearch.extensions.rest.RegisterRestActionsRequest;
 import org.opensearch.extensions.rest.RestActionsRequestHandler;
+import org.opensearch.extensions.settings.RegisterSettingsRequest;
+import org.opensearch.extensions.settings.SettingsRequestHandler;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndicesModuleRequest;
@@ -71,6 +74,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     public static final String REQUEST_EXTENSION_LOCAL_NODE = "internal:discovery/localnode";
     public static final String REQUEST_EXTENSION_CLUSTER_SETTINGS = "internal:discovery/clustersettings";
     public static final String REQUEST_EXTENSION_REGISTER_REST_ACTIONS = "internal:discovery/registerrestactions";
+    public static final String REQUEST_EXTENSION_REGISTER_SETTINGS = "internal:discovery/registersettings";
     public static final String REQUEST_EXTENSION_REGISTER_TRANSPORT_ACTIONS = "internal:discovery/registertransportactions";
     public static final String REQUEST_OPENSEARCH_NAMED_WRITEABLE_REGISTRY = "internal:discovery/namedwriteableregistry";
     public static final String REQUEST_OPENSEARCH_PARSE_NAMED_WRITEABLE = "internal:discovery/parsenamedwriteable";
@@ -90,6 +94,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         REQUEST_EXTENSION_CLUSTER_SETTINGS,
         REQUEST_EXTENSION_ACTION_LISTENER_ON_FAILURE,
         REQUEST_EXTENSION_REGISTER_REST_ACTIONS,
+        REQUEST_EXTENSION_REGISTER_SETTINGS,
         CREATE_COMPONENT,
         ON_INDEX_MODULE,
         GET_SETTINGS
@@ -110,6 +115,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     // A map of extension uniqueId to full extension details used for node transport here and in the RestActionsRequestHandler
     Map<String, DiscoveryExtension> extensionIdMap;
     RestActionsRequestHandler restActionsRequestHandler;
+    SettingsRequestHandler settingsRequestHandler;
     TransportService transportService;
     ClusterService clusterService;
     ExtensionNamedWriteableRegistry namedWriteableRegistry;
@@ -144,15 +150,18 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
      * Lists/maps of extensions have already been initialized but not yet populated.
      *
      * @param restController  The RestController on which to register Rest Actions.
+     * @param settingsModule
      * @param transportService  The Node's transport service.
      * @param clusterService  The Node's cluster service.
      */
     public void initializeServicesAndRestHandler(
         RestController restController,
+        SettingsModule settingsModule,
         TransportService transportService,
         ClusterService clusterService
     ) {
         this.restActionsRequestHandler = new RestActionsRequestHandler(restController, extensionIdMap, transportService);
+        this.settingsRequestHandler = new SettingsRequestHandler(settingsModule, extensionIdMap, transportService);
         this.transportService = transportService;
         this.clusterService = clusterService;
         registerRequestHandler();
@@ -166,6 +175,14 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             false,
             RegisterRestActionsRequest::new,
             ((request, channel, task) -> channel.sendResponse(restActionsRequestHandler.handleRegisterRestActionsRequest(request)))
+        );
+        transportService.registerRequestHandler(
+            REQUEST_EXTENSION_REGISTER_SETTINGS,
+            ThreadPool.Names.GENERIC,
+            false,
+            false,
+            RegisterSettingsRequest::new,
+            ((request, channel, task) -> channel.sendResponse(settingsRequestHandler.handleRegisterSettingsRequest(request)))
         );
         transportService.registerRequestHandler(
             REQUEST_EXTENSION_CLUSTER_STATE,
