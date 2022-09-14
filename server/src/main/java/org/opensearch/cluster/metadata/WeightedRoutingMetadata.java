@@ -28,7 +28,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Contains metadata for weighted round-robin shard routing weights
+ * Contains metadata for weighted routing
  *
  * @opensearch.internal
  */

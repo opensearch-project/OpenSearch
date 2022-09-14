@@ -338,7 +338,10 @@ public class OperationRouting {
         @Nullable ResponseCollectorService collectorService,
         @Nullable Map<String, Long> nodeCounts
     ) {
-        WeightedRoutingMetadata weightedRoutingMetadata = clusterService.state().metadata().weightedRoutingMetadata();
+        WeightedRoutingMetadata weightedRoutingMetadata = null;
+        if (clusterService != null) {
+            weightedRoutingMetadata = clusterService.state().metadata().weightedRoutingMetadata();
+        }
         if (weightedRoutingMetadata != null) {
             return indexShard.activeInitializingShardsWeightedIt(
                 weightedRoutingMetadata.getWeightedRouting(),
