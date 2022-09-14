@@ -555,7 +555,7 @@ public class RoutingIteratorTests extends OpenSearchAllocationTestCase {
             ShardIterator shardIterator = clusterState.routingTable()
                 .index("test")
                 .shard(0)
-                .activeInitializingShardsWeightedIt(weightedRouting, clusterState.nodes(), cache);
+                .activeInitializingShardsWeightedIt(weightedRouting, clusterState.nodes(), cache, 1);
 
             assertEquals(2, shardIterator.size());
             ShardRouting shardRouting = shardIterator.nextOrNull();
@@ -571,7 +571,7 @@ public class RoutingIteratorTests extends OpenSearchAllocationTestCase {
             shardIterator = clusterState.routingTable()
                 .index("test")
                 .shard(0)
-                .activeInitializingShardsWeightedIt(weightedRouting, clusterState.nodes(), cache);
+                .activeInitializingShardsWeightedIt(weightedRouting, clusterState.nodes(), cache, 1);
             assertEquals(3, shardIterator.size());
             cache.close();
 
@@ -580,7 +580,7 @@ public class RoutingIteratorTests extends OpenSearchAllocationTestCase {
             shardIterator = clusterState.routingTable()
                 .index("test")
                 .shard(0)
-                .activeInitializingShardsWeightedIt(weightedRouting, clusterState.nodes(), cache);
+                .activeInitializingShardsWeightedIt(weightedRouting, clusterState.nodes(), cache, 1);
             assertEquals(1, shardIterator.size());
             cache.close();
 
@@ -589,7 +589,7 @@ public class RoutingIteratorTests extends OpenSearchAllocationTestCase {
             shardIterator = clusterState.routingTable()
                 .index("test")
                 .shard(0)
-                .activeInitializingShardsWeightedIt(weightedRouting, clusterState.nodes(), cache);
+                .activeInitializingShardsWeightedIt(weightedRouting, clusterState.nodes(), cache, 1);
             assertEquals(0, shardIterator.size());
             cache.close();
         } finally {

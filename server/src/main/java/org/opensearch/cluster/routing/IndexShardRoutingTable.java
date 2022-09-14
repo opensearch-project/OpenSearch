@@ -304,7 +304,8 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     public ShardIterator activeInitializingShardsWeightedIt(
         WeightedRouting weightedRouting,
         DiscoveryNodes nodes,
-        WeightedRoutingCache cache
+        WeightedRoutingCache cache,
+        int defaultWeight
     ) {
         final int seed = shuffler.nextSeed();
         List<ShardRouting> ordered = new ArrayList<>();
@@ -312,13 +313,18 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         if (cache.get(new WeightedRoutingCache.Key(shardId)) != null) {
             orderedActiveShards = cache.get(new WeightedRoutingCache.Key(shardId));
         } else {
-            orderedActiveShards = shardsOrderedByWeight(activeShards, weightedRouting, nodes);
+            orderedActiveShards = shardsOrderedByWeight(activeShards, weightedRouting, nodes, defaultWeight);
             cache.put(new WeightedRoutingCache.Key(shardId), orderedActiveShards);
         }
         ordered.addAll(shuffler.shuffle(orderedActiveShards, seed));
 
         if (!allInitializingShards.isEmpty()) {
-            List<ShardRouting> orderedInitializingShards = shardsOrderedByWeight(allInitializingShards, weightedRouting, nodes);
+            List<ShardRouting> orderedInitializingShards = shardsOrderedByWeight(
+                allInitializingShards,
+                weightedRouting,
+                nodes,
+                defaultWeight
+            );
             ordered.addAll(orderedInitializingShards);
         }
         return new PlainShardIterator(shardId, ordered);
@@ -327,9 +333,14 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     /**
      * Returns a list containing shard routings ordered using weighted round-robin scheduling.
      */
-    private List<ShardRouting> shardsOrderedByWeight(List<ShardRouting> shards, WeightedRouting weightedRouting, DiscoveryNodes nodes) {
+    private List<ShardRouting> shardsOrderedByWeight(
+        List<ShardRouting> shards,
+        WeightedRouting weightedRouting,
+        DiscoveryNodes nodes,
+        int defaultWeight
+    ) {
         WeightedRoundRobin<ShardRouting> weightedRoundRobin = new WeightedRoundRobin<>(
-            calculateShardWeight(shards, weightedRouting, nodes)
+            calculateShardWeight(shards, weightedRouting, nodes, defaultWeight)
         );
         List<WeightedRoundRobin.Entity<ShardRouting>> shardsOrderedbyWeight = weightedRoundRobin.orderEntities();
         List<ShardRouting> orderedShardRouting = new ArrayList<>(activeShards.size());
@@ -349,14 +360,15 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     private List<WeightedRoundRobin.Entity<ShardRouting>> calculateShardWeight(
         List<ShardRouting> shards,
         WeightedRouting weightedRouting,
-        DiscoveryNodes nodes
+        DiscoveryNodes nodes,
+        int defaultWeight
     ) {
         List<WeightedRoundRobin.Entity<ShardRouting>> shardsWithWeights = new ArrayList<>();
         for (ShardRouting shard : shards) {
             DiscoveryNode node = nodes.get(shard.currentNodeId());
             String attVal = node.getAttributes().get(weightedRouting.attributeName());
             // If weight for a zone is not defined, considering it as 1 by default
-            Double weight = Double.parseDouble(weightedRouting.weights().getOrDefault(attVal, 1).toString());
+            Double weight = Double.parseDouble(weightedRouting.weights().getOrDefault(attVal, defaultWeight).toString());
             shardsWithWeights.add(new WeightedRoundRobin.Entity<>(weight, shard));
         }
         return shardsWithWeights;

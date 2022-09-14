@@ -78,9 +78,17 @@ public class OperationRouting {
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
+    public static final Setting<Integer> WEIGHTED_ROUTING_DEFAULT_WEIGHT = Setting.intSetting(
+        "cluster.routing.weighted.default_weight",
+        1,
+        1,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
     private volatile List<String> awarenessAttributes;
     private volatile boolean useAdaptiveReplicaSelection;
     private volatile boolean ignoreAwarenessAttr;
+    private volatile int weightedRoutingDefaultWeight;
 
     private WeightedRoutingCache weightedRoutingCache;
     private ClusterService clusterService;
@@ -94,8 +102,10 @@ public class OperationRouting {
             this::setAwarenessAttributes
         );
         this.useAdaptiveReplicaSelection = USE_ADAPTIVE_REPLICA_SELECTION_SETTING.get(settings);
+        this.weightedRoutingDefaultWeight = WEIGHTED_ROUTING_DEFAULT_WEIGHT.get(settings);
         clusterSettings.addSettingsUpdateConsumer(USE_ADAPTIVE_REPLICA_SELECTION_SETTING, this::setUseAdaptiveReplicaSelection);
         clusterSettings.addSettingsUpdateConsumer(IGNORE_AWARENESS_ATTRIBUTES_SETTING, this::setIgnoreAwarenessAttributes);
+        clusterSettings.addSettingsUpdateConsumer(WEIGHTED_ROUTING_DEFAULT_WEIGHT, this::setWeightedRoutingDefaultWeight);
     }
 
     void setUseAdaptiveReplicaSelection(boolean useAdaptiveReplicaSelection) {
@@ -104,6 +114,10 @@ public class OperationRouting {
 
     void setIgnoreAwarenessAttributes(boolean ignoreAwarenessAttributes) {
         this.ignoreAwarenessAttr = ignoreAwarenessAttributes;
+    }
+
+    void setWeightedRoutingDefaultWeight(int weightedRoutingDefaultWeight) {
+        this.weightedRoutingDefaultWeight = weightedRoutingDefaultWeight;
     }
 
     public boolean isIgnoreAwarenessAttr() {
@@ -120,6 +134,10 @@ public class OperationRouting {
 
     public boolean ignoreAwarenessAttributes() {
         return this.awarenessAttributes.isEmpty() || this.ignoreAwarenessAttr;
+    }
+
+    public int getWeightedRoutingDefaultWeight() {
+        return this.weightedRoutingDefaultWeight;
     }
 
     @Inject
@@ -322,7 +340,12 @@ public class OperationRouting {
     ) {
         WeightedRoutingMetadata weightedRoutingMetadata = clusterService.state().metadata().weightedRoutingMetadata();
         if (weightedRoutingMetadata != null) {
-            return indexShard.activeInitializingShardsWeightedIt(weightedRoutingMetadata.getWeightedRouting(), nodes, weightedRoutingCache);
+            return indexShard.activeInitializingShardsWeightedIt(
+                weightedRoutingMetadata.getWeightedRouting(),
+                nodes,
+                weightedRoutingCache,
+                getWeightedRoutingDefaultWeight()
+            );
         } else if (ignoreAwarenessAttributes()) {
             if (useAdaptiveReplicaSelection) {
                 return indexShard.activeInitializingShardsRankedIt(collectorService, nodeCounts);
