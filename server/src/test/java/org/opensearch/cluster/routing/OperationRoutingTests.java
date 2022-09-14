@@ -947,7 +947,7 @@ public class OperationRoutingTests extends OpenSearchTestCase {
             groupIterator = opRouting.searchShards(state, indexNames, null, null, collector, outstandingRequests);
 
             // details are fetched from cache
-            assertEquals(12, opRouting.getWeightedRoutingCache().hits());
+            assertEquals(6, opRouting.getWeightedRoutingCache().hits());
             // cache count stays same
             assertEquals(6, opRouting.getWeightedRoutingCache().size());
             // cache misses stay same
@@ -969,7 +969,7 @@ public class OperationRoutingTests extends OpenSearchTestCase {
             groupIterator = opRouting.searchShards(state2, indexNames, null, null, collector, outstandingRequests);
 
             // cache hit remain same
-            assertEquals(12, opRouting.getWeightedRoutingCache().hits());
+            assertEquals(6, opRouting.getWeightedRoutingCache().hits());
             // cache miss increases by 6
             assertEquals(12, opRouting.getWeightedRoutingCache().misses());
             assertEquals(6, opRouting.getWeightedRoutingCache().size());
