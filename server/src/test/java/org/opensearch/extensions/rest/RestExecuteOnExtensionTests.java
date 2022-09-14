@@ -8,6 +8,7 @@
 
 package org.opensearch.extensions.rest;
 
+import org.opensearch.identity.ExtensionTokenProcessor;
 import org.opensearch.identity.PrincipalIdentifierToken;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.common.bytes.BytesReference;
@@ -20,6 +21,7 @@ import org.opensearch.rest.RestRequest.Method;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.charset.StandardCharsets;
+import java.security.Principal;
 import java.util.List;
 import java.util.Map;
 
@@ -28,7 +30,10 @@ public class RestExecuteOnExtensionTests extends OpenSearchTestCase {
     public void testRestExecuteOnExtensionRequest() throws Exception {
         Method expectedMethod = Method.GET;
         String expectedUri = "/test/uri";
-        PrincipalIdentifierToken expectedRequestIssuerIdentity = new PrincipalIdentifierToken("requestor-identifier");
+        String extensionUniqueId1 = "ext_1";
+        Principal userPrincipal = () -> "user1";
+        ExtensionTokenProcessor extensionTokenProcessor = new ExtensionTokenProcessor(extensionUniqueId1);
+        PrincipalIdentifierToken expectedRequestIssuerIdentity = extensionTokenProcessor.generateToken(userPrincipal);
         NamedWriteableRegistry registry = new NamedWriteableRegistry(
             org.opensearch.common.collect.List.of(
                 new NamedWriteableRegistry.Entry(
