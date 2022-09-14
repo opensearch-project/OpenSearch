@@ -33,6 +33,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.io.FileSystemUtils;
 import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.discovery.InitializeExtensionsRequest;
@@ -72,6 +73,8 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     public static final String REQUEST_EXTENSION_LOCAL_NODE = "internal:discovery/localnode";
     public static final String REQUEST_EXTENSION_CLUSTER_SETTINGS = "internal:discovery/clustersettings";
     public static final String REQUEST_EXTENSION_ENVIRONMENT_SETTINGS = "internal:discovery/enviornmentsettings";
+    public static final String REQUEST_EXTENSION_ADD_SETTINGS_UPDATE_CONSUMER = "internal:discovery/addsettingsupdateconsumer";
+    public static final String REQUEST_EXTENSION_UPDATE_SETTINGS = "internal:discovery/updatesettings";
     public static final String REQUEST_EXTENSION_REGISTER_REST_ACTIONS = "internal:discovery/registerrestactions";
     public static final String REQUEST_EXTENSION_REGISTER_TRANSPORT_ACTIONS = "internal:discovery/registertransportactions";
     public static final String REQUEST_OPENSEARCH_NAMED_WRITEABLE_REGISTRY = "internal:discovery/namedwriteableregistry";
@@ -89,7 +92,6 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         REQUEST_EXTENSION_CLUSTER_STATE,
         REQUEST_EXTENSION_LOCAL_NODE,
         REQUEST_EXTENSION_CLUSTER_SETTINGS,
-        REQUEST_EXTENSION_ENVIRONMENT_SETTINGS,
         REQUEST_EXTENSION_REGISTER_REST_ACTIONS,
         CREATE_COMPONENT,
         ON_INDEX_MODULE,
@@ -202,6 +204,14 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             false,
             EnvironmentSettingsRequest::new,
             ((request, channel, task) -> channel.sendResponse(handleEnvironmentSettingsRequest(request)))
+        );
+        transportService.registerRequestHandler(
+            REQUEST_EXTENSION_ADD_SETTINGS_UPDATE_CONSUMER,
+            ThreadPool.Names.GENERIC,
+            false,
+            false,
+            AddSettingsUpdateConsumerRequest::new,
+            ((request, channel, task) -> channel.sendResponse(handleAddSettingsUpdateConsumerRequest(request)))
         );
         transportService.registerRequestHandler(
             REQUEST_EXTENSION_REGISTER_TRANSPORT_ACTIONS,
@@ -349,8 +359,46 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         return new ExtensionBooleanResponse(true);
     }
 
-    TransportResponse handleEnvironmentSettingsRequest(EnvironmentSettingsRequest environmentSettingsRequest) {
+    /**
+     * Handles a {@link EnvironmentSettingsRequest}.
+     *
+     * @param environmentSettingsRequest  The request to handle.
+     * @return  A {@link EnvironmentSettingsResponse}
+     * @throws Exception if the request is not handled properly.
+     */
+    TransportResponse handleEnvironmentSettingsRequest(EnvironmentSettingsRequest environmentSettingsRequest) throws Exception {
         return new EnvironmentSettingsResponse(environmentSettings, environmentSettingsRequest.getComponentSettingKeys());
+    }
+
+    /**
+     * Handles a {@link AddSettingsUpdateConsumerRequest}.
+     *
+     * @param addSettingsUpdateConsumerRequest  The request to handle.
+     * @return  A {@link ExtensionBooleanResponse} indicating success.
+     * @throws Exception if the request is not handled properly.
+     */
+    TransportResponse handleAddSettingsUpdateConsumerRequest(AddSettingsUpdateConsumerRequest addSettingsUpdateConsumerRequest)
+        throws Exception {
+
+        List<Setting> extensionComponentSettings = addSettingsUpdateConsumerRequest.getComponentSettings();
+        DiscoveryExtension extensionNode = addSettingsUpdateConsumerRequest.getExtensionNode();
+
+        for (Setting extensionComponentSetting : extensionComponentSettings) {
+
+            // Register setting update consumer with callback method to extension
+            this.clusterService.getClusterSettings().addSettingsUpdateConsumer(extensionComponentSetting, (data) -> {
+                logger.info("Sending extension request type: " + REQUEST_EXTENSION_UPDATE_SETTINGS);
+                UpdateSettingsResponseHandler updateSettingsResponseHandler = new UpdateSettingsResponseHandler();
+                transportService.sendRequest(
+                    extensionNode,
+                    REQUEST_EXTENSION_UPDATE_SETTINGS,
+                    new UpdateSettingsRequest(extensionComponentSetting.getKey(), data),
+                    updateSettingsResponseHandler
+                );
+            });
+        }
+
+        return new ExtensionBooleanResponse(true);
     }
 
     /**

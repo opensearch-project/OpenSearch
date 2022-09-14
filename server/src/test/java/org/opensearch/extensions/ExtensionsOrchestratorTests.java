@@ -457,7 +457,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         );
 
         extensionsOrchestrator.initializeServicesAndRestHandler(restController, mockTransportService, clusterService, settings);
-        verify(mockTransportService, times(6)).registerRequestHandler(anyString(), anyString(), anyBoolean(), anyBoolean(), any(), any());
+        verify(mockTransportService, times(7)).registerRequestHandler(anyString(), anyString(), anyBoolean(), anyBoolean(), any(), any());
     }
 
     private static class Example implements NamedWriteable {

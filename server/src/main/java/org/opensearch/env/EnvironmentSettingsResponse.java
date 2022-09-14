@@ -32,7 +32,7 @@ public class EnvironmentSettingsResponse extends TransportResponse {
         Map<String, String> componentSettingValues = new HashMap<>();
         for (String componentSettingKey : componentSettingKeys) {
             String componentSettingValue = environmentSettings.get(componentSettingKey);
-            if(componentSettingValue != null) {
+            if (componentSettingValue != null) {
                 componentSettingValues.put(componentSettingKey, componentSettingValue);
             }
         }
