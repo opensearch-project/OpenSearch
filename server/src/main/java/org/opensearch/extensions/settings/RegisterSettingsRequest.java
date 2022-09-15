@@ -11,6 +11,7 @@ package org.opensearch.extensions.settings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.WriteableSetting;
 import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;
@@ -34,8 +35,14 @@ public class RegisterSettingsRequest extends TransportRequest {
 
     public RegisterSettingsRequest(StreamInput in) throws IOException {
         super(in);
-        uniqueId = in.readString();
-        // TODO add vInt and read N settings
+        this.uniqueId = in.readString();
+        int size = in.readVInt();
+        List<Setting<?>> settingsList = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            WriteableSetting ws = new WriteableSetting(in);
+            settingsList.add(ws.getSetting());
+        }
+        this.settings = settingsList;
     }
 
     @Override
@@ -44,9 +51,8 @@ public class RegisterSettingsRequest extends TransportRequest {
         out.writeString(uniqueId);
         out.writeVInt(settings.size());
         for (Setting<?> setting : settings) {
-            setting.getDefault(null);
+            new WriteableSetting(setting).writeTo(out);
         }
-        // TODO add vINt and write N settings
     }
 
     public String getUniqueId() {
@@ -59,7 +65,7 @@ public class RegisterSettingsRequest extends TransportRequest {
 
     @Override
     public String toString() {
-        return "RegisterSettingsRequest{uniqueId=" + uniqueId + ", settingss=" + settings + "}";
+        return "RegisterSettingsRequest{uniqueId=" + uniqueId + ", settings=" + settings + "}";
     }
 
     @Override
