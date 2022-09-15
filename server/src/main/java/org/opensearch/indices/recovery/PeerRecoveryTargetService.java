@@ -238,11 +238,8 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     assert recoveryTarget.sourceNode() != null : "can not do a recovery without a source node";
                     logger.trace("{} preparing shard for peer recovery", recoveryTarget.shardId());
                     indexShard.prepareForIndexRecovery();
-                    boolean isRecoveringReplicaWithRemoteTxLogEnabledIndex = recoveryTarget.state().getPrimary() == false
-                        && indexShard.isRemoteTranslogEnabledOnPrimary();
-                    final long startingSeqNo = isRecoveringReplicaWithRemoteTxLogEnabledIndex
-                        ? indexShard.fetchStartSeqNoFromLastCommit()
-                        : indexShard.recoverLocallyUpToGlobalCheckpoint();
+                    boolean remoteTranslogEnabled = recoveryTarget.state().getPrimary() == false && indexShard.isRemoteTranslogEnabled();
+                    final long startingSeqNo = indexShard.recoverLocallyAndFetchStartSeqNo(remoteTranslogEnabled == false);
                     assert startingSeqNo == UNASSIGNED_SEQ_NO || recoveryTarget.state().getStage() == RecoveryState.Stage.TRANSLOG
                         : "unexpected recovery stage [" + recoveryTarget.state().getStage() + "] starting seqno [ " + startingSeqNo + "]";
                     startRequest = getStartRecoveryRequest(
@@ -250,7 +247,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                         clusterService.localNode(),
                         recoveryTarget,
                         startingSeqNo,
-                        !isRecoveringReplicaWithRemoteTxLogEnabledIndex
+                        remoteTranslogEnabled == false
                     );
                     requestToSend = startRequest;
                     actionName = PeerRecoverySourceService.Actions.START_RECOVERY;
@@ -297,7 +294,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
      * @param recoveryTarget   the target of the recovery
      * @param startingSeqNo    a sequence number that an operation-based peer recovery can start with.
      *                         This is the first operation after the local checkpoint of the safe commit if exists.
-     * @param validateTranslog should the recovery request validate translog consistency with snapshot store metadata.
+     * @param verifyTranslog should the recovery request validate translog consistency with snapshot store metadata.
      * @return a start recovery request
      */
     public static StartRecoveryRequest getStartRecoveryRequest(
@@ -305,7 +302,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         DiscoveryNode localNode,
         RecoveryTarget recoveryTarget,
         long startingSeqNo,
-        boolean validateTranslog
+        boolean verifyTranslog
     ) {
         final StartRecoveryRequest request;
         logger.trace("{} collecting local files for [{}]", recoveryTarget.shardId(), recoveryTarget.sourceNode());
@@ -313,7 +310,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         Store.MetadataSnapshot metadataSnapshot;
         try {
             metadataSnapshot = recoveryTarget.indexShard().snapshotStoreMetadata();
-            if (validateTranslog) {
+            if (verifyTranslog) {
                 // Make sure that the current translog is consistent with the Lucene index; otherwise, we have to throw away the Lucene
                 // index.
                 try {

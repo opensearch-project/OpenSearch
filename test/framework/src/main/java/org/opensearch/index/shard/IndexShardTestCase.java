@@ -134,7 +134,6 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -854,11 +853,8 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         replica.prepareForIndexRecovery();
         final RecoveryTarget recoveryTarget = targetSupplier.apply(replica, pNode);
         IndexShard indexShard = recoveryTarget.indexShard();
-        boolean isRecoveringReplicaWithRemoteTxLogEnabledIndex = recoveryTarget.state().getPrimary() == false
-            && indexShard.isRemoteTranslogEnabledOnPrimary();
-        final long startingSeqNo = isRecoveringReplicaWithRemoteTxLogEnabledIndex
-            ? indexShard.fetchStartSeqNoFromLastCommit()
-            : indexShard.recoverLocallyUpToGlobalCheckpoint();
+        boolean remoteTranslogEnabled = recoveryTarget.state().getPrimary() == false && indexShard.isRemoteTranslogEnabled();
+        final long startingSeqNo = indexShard.recoverLocallyAndFetchStartSeqNo(remoteTranslogEnabled == false);
         final StartRecoveryRequest request = PeerRecoveryTargetService.getStartRecoveryRequest(
             logger,
             rNode,

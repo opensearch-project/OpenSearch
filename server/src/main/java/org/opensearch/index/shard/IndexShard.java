@@ -163,8 +163,8 @@ import org.opensearch.indices.recovery.RecoveryFailedException;
 import org.opensearch.indices.recovery.RecoveryListener;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
-import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
+import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.rest.RestStatus;
@@ -1792,12 +1792,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
+    public long recoverLocallyAndFetchStartSeqNo(boolean localTranslog) {
+        if (localTranslog) {
+            return recoverLocallyUpToGlobalCheckpoint();
+        } else {
+            return recoverLocallyUptoLastCommit();
+        }
+    }
+
     /**
      * The method figures out the sequence number basis the last commit.
      *
      * @return the starting sequence number from which the recovery should start.
      */
-    public long fetchStartSeqNoFromLastCommit() {
+    public long recoverLocallyUptoLastCommit() {
         long seqNo;
         assert Thread.holdsLock(mutex) == false : "recover locally under mutex";
         if (state != IndexShardState.RECOVERING) {
@@ -3310,7 +3318,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return (remoteStore != null && shardRouting.primary());
     }
 
-    public boolean isRemoteTranslogEnabledOnPrimary() {
+    public boolean isRemoteTranslogEnabled() {
         return indexSettings() != null && indexSettings().isRemoteTranslogStoreEnabled();
     }
 
