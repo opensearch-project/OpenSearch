@@ -203,6 +203,7 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static org.opensearch.index.seqno.RetentionLeaseActions.RETAIN_ALL;
+import static org.opensearch.index.seqno.SequenceNumbers.MAX_SEQ_NO;
 import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 /**
@@ -1704,12 +1705,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * This is the first operation after the local checkpoint of the safe commit if exists.
      */
     private long recoverLocallyUpToGlobalCheckpoint() {
-        assert Thread.holdsLock(mutex) == false : "recover locally under mutex";
-        if (state != IndexShardState.RECOVERING) {
-            throw new IndexShardNotRecoveringException(shardId, state);
-        }
-        recoveryState.validateCurrentStage(RecoveryState.Stage.INDEX);
-        assert routingEntry().recoverySource().getType() == RecoverySource.Type.PEER : "not a peer recovery [" + routingEntry() + "]";
+        validateLocalRecoveryState();
         final Optional<SequenceNumbers.CommitInfo> safeCommit;
         final long globalCheckpoint;
         try {
@@ -1806,21 +1802,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @return the starting sequence number from which the recovery should start.
      */
     private long recoverLocallyUptoLastCommit() {
+        assert isRemoteTranslogEnabled() : "Remote translog store is not enabled";
         long seqNo;
-        assert Thread.holdsLock(mutex) == false : "recover locally under mutex";
-        if (state != IndexShardState.RECOVERING) {
-            throw new IndexShardNotRecoveringException(shardId, state);
-        }
-        recoveryState.validateCurrentStage(RecoveryState.Stage.INDEX);
-        assert routingEntry().recoverySource().getType() == RecoverySource.Type.PEER : "not a peer recovery [" + routingEntry() + "]";
+        validateLocalRecoveryState();
 
         try {
-            seqNo = Long.parseLong(store.readLastCommittedSegmentsInfo().getUserData().get(SequenceNumbers.MAX_SEQ_NO));
+            seqNo = Long.parseLong(store.readLastCommittedSegmentsInfo().getUserData().get(MAX_SEQ_NO));
         } catch (org.apache.lucene.index.IndexNotFoundException e) {
-            logger.trace("skip local recovery as no index commit found");
+            logger.error("skip local recovery as no index commit found", e);
             return UNASSIGNED_SEQ_NO;
         } catch (Exception e) {
-            logger.debug("skip local recovery as failed to find the safe commit", e);
+            logger.error("skip local recovery as failed to find the safe commit", e);
             return UNASSIGNED_SEQ_NO;
         }
 
@@ -1829,10 +1821,19 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
             recoveryState.getTranslog().totalLocal(0);
         } catch (Exception e) {
-            logger.debug("check index failed during fetch seqNo", e);
+            logger.error("check index failed during fetch seqNo", e);
             return UNASSIGNED_SEQ_NO;
         }
         return seqNo;
+    }
+
+    private void validateLocalRecoveryState() {
+        assert Thread.holdsLock(mutex) == false : "recover locally under mutex";
+        if (state != IndexShardState.RECOVERING) {
+            throw new IndexShardNotRecoveringException(shardId, state);
+        }
+        recoveryState.validateCurrentStage(RecoveryState.Stage.INDEX);
+        assert routingEntry().recoverySource().getType() == RecoverySource.Type.PEER : "not a peer recovery [" + routingEntry() + "]";
     }
 
     public void trimOperationOfPreviousPrimaryTerms(long aboveSeqNo) {
@@ -2041,7 +2042,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private boolean assertSequenceNumbersInCommit() throws IOException {
         final Map<String, String> userData = SegmentInfos.readLatestCommit(store.directory()).getUserData();
         assert userData.containsKey(SequenceNumbers.LOCAL_CHECKPOINT_KEY) : "commit point doesn't contains a local checkpoint";
-        assert userData.containsKey(SequenceNumbers.MAX_SEQ_NO) : "commit point doesn't contains a maximum sequence number";
+        assert userData.containsKey(MAX_SEQ_NO) : "commit point doesn't contains a maximum sequence number";
         assert userData.containsKey(Engine.HISTORY_UUID_KEY) : "commit point doesn't contains a history uuid";
         assert userData.get(Engine.HISTORY_UUID_KEY).equals(getHistoryUUID()) : "commit point history uuid ["
             + userData.get(Engine.HISTORY_UUID_KEY)

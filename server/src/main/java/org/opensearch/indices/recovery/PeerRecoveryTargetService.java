@@ -219,6 +219,12 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         threadPool.scheduleUnlessShuttingDown(retryAfter, ThreadPool.Names.GENERIC, new RecoveryRunner(recoveryId, request));
     }
 
+    /**
+     * Initiates recovery of the replica. TODO - Need to revisit it with PRRL and later. @see
+     * <a href="https://github.com/opensearch-project/OpenSearch/issues/4502">github issue</a> on it.
+     * @param recoveryId recovery id
+     * @param preExistingRequest start recovery request
+     */
     private void doRecovery(final long recoveryId, final StartRecoveryRequest preExistingRequest) {
         final String actionName;
         final TransportRequest requestToSend;
@@ -239,7 +245,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     logger.trace("{} preparing shard for peer recovery", recoveryTarget.shardId());
                     indexShard.prepareForIndexRecovery();
                     boolean remoteTranslogEnabled = recoveryTarget.state().getPrimary() == false && indexShard.isRemoteTranslogEnabled();
-                    final long startingSeqNo = indexShard.recoverLocallyAndFetchStartSeqNo(remoteTranslogEnabled == false);
+                    final long startingSeqNo = indexShard.recoverLocallyAndFetchStartSeqNo(!remoteTranslogEnabled);
                     assert startingSeqNo == UNASSIGNED_SEQ_NO || recoveryTarget.state().getStage() == RecoveryState.Stage.TRANSLOG
                         : "unexpected recovery stage [" + recoveryTarget.state().getStage() + "] starting seqno [ " + startingSeqNo + "]";
                     startRequest = getStartRecoveryRequest(
@@ -247,7 +253,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                         clusterService.localNode(),
                         recoveryTarget,
                         startingSeqNo,
-                        remoteTranslogEnabled == false
+                        !remoteTranslogEnabled
                     );
                     requestToSend = startRequest;
                     actionName = PeerRecoverySourceService.Actions.START_RECOVERY;
