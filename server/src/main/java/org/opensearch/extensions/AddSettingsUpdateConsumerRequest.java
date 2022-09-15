@@ -28,11 +28,11 @@ import java.util.Objects;
 public class AddSettingsUpdateConsumerRequest extends TransportRequest {
     private static final Logger logger = LogManager.getLogger(AddSettingsUpdateConsumerRequest.class);
     private final DiscoveryExtension extensionNode;
-    private final List<Setting> componentSettings;
+    private final List<Setting<?>> componentSettings;
 
-    public AddSettingsUpdateConsumerRequest(DiscoveryExtension extensionNode, List<Setting> componentSettings) {
+    public AddSettingsUpdateConsumerRequest(DiscoveryExtension extensionNode, List<Setting<?>> componentSettings) {
         this.extensionNode = extensionNode;
-        this.componentSettings = componentSettings;
+        this.componentSettings = new ArrayList<>(componentSettings);
     }
 
     public AddSettingsUpdateConsumerRequest(StreamInput in) throws IOException {
@@ -42,8 +42,8 @@ public class AddSettingsUpdateConsumerRequest extends TransportRequest {
         this.extensionNode = new DiscoveryExtension(in);
 
         // Read in component setting list
-        List<Setting> componentSettings = new ArrayList<>();
         int componentSettingsCount = in.readVInt();
+        List<Setting<?>> componentSettings = new ArrayList<>(componentSettingsCount);
         for (int i = 0; i < componentSettingsCount; i++) {
             // TODO : determine how to read Setting<T> object from stream input and add Setting<> object to List
         }
@@ -59,13 +59,13 @@ public class AddSettingsUpdateConsumerRequest extends TransportRequest {
 
         // Write component setting list to stream output
         out.writeVInt(this.componentSettings.size());
-        for (Setting componentSetting : this.componentSettings) {
+        for (Setting<?> componentSetting : this.componentSettings) {
             // TODO : determine how to write Setting<T> object to stream output
         }
     }
 
-    public List<Setting> getComponentSettings() {
-        return this.componentSettings;
+    public List<Setting<?>> getComponentSettings() {
+        return new ArrayList<>(this.componentSettings);
     }
 
     public DiscoveryExtension getExtensionNode() {

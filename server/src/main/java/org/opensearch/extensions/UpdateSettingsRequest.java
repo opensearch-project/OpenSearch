@@ -10,6 +10,7 @@ package org.opensearch.extensions;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.transport.TransportRequest;
@@ -25,29 +26,32 @@ import java.util.Objects;
 public class UpdateSettingsRequest extends TransportRequest {
     private static final Logger logger = LogManager.getLogger(EnvironmentSettingsRequest.class);
 
-    private String settingKey;
+    private Setting<?> componentSetting;
     private Object data;
 
-    public UpdateSettingsRequest(String settingKey, Object data) {
-        this.settingKey = settingKey;
+    public UpdateSettingsRequest(Setting<?> componentSetting, Object data) {
+        this.componentSetting = componentSetting;
         this.data = data;
     }
 
     public UpdateSettingsRequest(StreamInput in) throws IOException {
         super(in);
-        this.settingKey = in.readString();
+        // TODO : After getSetting support is added, replace
+        // this.componentSetting = new WriteableSetting(in);
+        this.componentSetting = null;
         this.data = in.readGenericValue();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(this.settingKey);
+        // TODO : After getSetting support is added, uncomment
+        // new WriteableSetting(componentSetting).writeTo(out);
         out.writeGenericValue(this.data);
     }
 
-    public String getSettingKey() {
-        return this.settingKey;
+    public Setting<?> getComponentSetting() {
+        return this.componentSetting;
     }
 
     public Object getData() {
@@ -56,7 +60,7 @@ public class UpdateSettingsRequest extends TransportRequest {
 
     @Override
     public String toString() {
-        return "UpdateSettingRequest{settingKey=" + this.settingKey + ", data=" + this.data.toString() + "}";
+        return "UpdateSettingRequest{componentSetting=" + this.componentSetting.toString() + ", data=" + this.data.toString() + "}";
     }
 
     @Override
@@ -64,12 +68,12 @@ public class UpdateSettingsRequest extends TransportRequest {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
         UpdateSettingsRequest that = (UpdateSettingsRequest) obj;
-        return Objects.equals(settingKey, that.settingKey) && Objects.equals(data, that.data);
+        return Objects.equals(componentSetting, that.componentSetting) && Objects.equals(data, that.data);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(settingKey, data);
+        return Objects.hash(componentSetting, data);
     }
 
 }

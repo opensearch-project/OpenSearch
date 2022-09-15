@@ -87,6 +87,7 @@ import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.nio.MockNioTransport;
 import org.opensearch.usage.UsageService;
+import org.opensearch.common.settings.Setting;
 
 public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
 
@@ -432,8 +433,8 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
         extensionsOrchestrator.initializeServicesAndRestHandler(restController, transportService, clusterService, settings);
 
-        List<String> componentSettingKeys = new ArrayList<>();
-        EnvironmentSettingsRequest environmentSettingsRequest = new EnvironmentSettingsRequest(componentSettingKeys);
+        List<Setting<?>> componentSettings = new ArrayList<>();
+        EnvironmentSettingsRequest environmentSettingsRequest = new EnvironmentSettingsRequest(componentSettings);
         assertEquals(
             EnvironmentSettingsResponse.class,
             extensionsOrchestrator.handleEnvironmentSettingsRequest(environmentSettingsRequest).getClass()

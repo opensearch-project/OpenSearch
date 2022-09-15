@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.transport.TransportRequest;
+import org.opensearch.common.settings.Setting;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -26,38 +27,40 @@ import java.util.Objects;
  */
 public class EnvironmentSettingsRequest extends TransportRequest {
     private static final Logger logger = LogManager.getLogger(EnvironmentSettingsRequest.class);
-    private List<String> componentSettingKeys;
+    private List<Setting<?>> componentSettings;
 
-    public EnvironmentSettingsRequest(List<String> componentSettingKeys) {
-        this.componentSettingKeys = componentSettingKeys;
+    public EnvironmentSettingsRequest(List<Setting<?>> componentSettings) {
+        this.componentSettings = new ArrayList<>(componentSettings);
     }
 
     public EnvironmentSettingsRequest(StreamInput in) throws IOException {
         super(in);
-        List<String> componentSettingKeys = new ArrayList<String>();
-        int componentSettingKeysCount = in.readVInt();
-        for (int i = 0; i < componentSettingKeysCount; i++) {
-            componentSettingKeys.add(in.readString());
+        int componentSettingsCount = in.readVInt();
+        List<Setting<?>> componentSettings = new ArrayList<>(componentSettingsCount);
+        for (int i = 0; i < componentSettingsCount; i++) {
+            // TODO : After getSettings support is added
+            // componentSettings.add(new WriteableSetting(in));
         }
-        this.componentSettingKeys = componentSettingKeys;
+        this.componentSettings = componentSettings;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeVInt(this.componentSettingKeys.size());
-        for (String key : componentSettingKeys) {
-            out.writeString(key);
+        out.writeVInt(this.componentSettings.size());
+        for (Setting<?> componentSetting : componentSettings) {
+            // TODO : After getSettings support is added
+            // new WriteableSetting(componentSetting).writeTo(out);
         }
     }
 
-    public List<String> getComponentSettingKeys() {
-        return this.componentSettingKeys;
+    public List<Setting<?>> getComponentSettings() {
+        return new ArrayList<>(componentSettings);
     }
 
     @Override
     public String toString() {
-        return "EnvironmentSettingsRequest{componentSettingKeys=" + componentSettingKeys.toString() + "}";
+        return "EnvironmentSettingsRequest{componentSettings=" + componentSettings.toString() + "}";
     }
 
     @Override
@@ -65,12 +68,12 @@ public class EnvironmentSettingsRequest extends TransportRequest {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
         EnvironmentSettingsRequest that = (EnvironmentSettingsRequest) obj;
-        return Objects.equals(componentSettingKeys, that.componentSettingKeys);
+        return Objects.equals(componentSettings, that.componentSettings);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(componentSettingKeys);
+        return Objects.hash(componentSettings);
     }
 
 }

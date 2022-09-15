@@ -367,7 +367,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
      * @throws Exception if the request is not handled properly.
      */
     TransportResponse handleEnvironmentSettingsRequest(EnvironmentSettingsRequest environmentSettingsRequest) throws Exception {
-        return new EnvironmentSettingsResponse(environmentSettings, environmentSettingsRequest.getComponentSettingKeys());
+        return new EnvironmentSettingsResponse(this.environmentSettings, environmentSettingsRequest.getComponentSettings());
     }
 
     /**
@@ -380,10 +380,10 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     TransportResponse handleAddSettingsUpdateConsumerRequest(AddSettingsUpdateConsumerRequest addSettingsUpdateConsumerRequest)
         throws Exception {
 
-        List<Setting> extensionComponentSettings = addSettingsUpdateConsumerRequest.getComponentSettings();
+        List<Setting<?>> extensionComponentSettings = addSettingsUpdateConsumerRequest.getComponentSettings();
         DiscoveryExtension extensionNode = addSettingsUpdateConsumerRequest.getExtensionNode();
 
-        for (Setting extensionComponentSetting : extensionComponentSettings) {
+        for (Setting<?> extensionComponentSetting : extensionComponentSettings) {
 
             // Register setting update consumer with callback method to extension
             this.clusterService.getClusterSettings().addSettingsUpdateConsumer(extensionComponentSetting, (data) -> {
@@ -392,7 +392,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
                 transportService.sendRequest(
                     extensionNode,
                     REQUEST_EXTENSION_UPDATE_SETTINGS,
-                    new UpdateSettingsRequest(extensionComponentSetting.getKey(), data),
+                    new UpdateSettingsRequest(extensionComponentSetting, data),
                     updateSettingsResponseHandler
                 );
             });

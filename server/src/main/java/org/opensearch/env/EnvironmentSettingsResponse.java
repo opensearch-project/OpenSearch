@@ -10,6 +10,7 @@ package org.opensearch.env;
 
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.transport.TransportResponse;
 
@@ -26,42 +27,44 @@ import java.util.Objects;
  * @opensearch.internal
  */
 public class EnvironmentSettingsResponse extends TransportResponse {
-    private Map<String, String> componentSettingValues;
+    private Map<Setting<?>, Object> componentSettingValues;
 
-    public EnvironmentSettingsResponse(Settings environmentSettings, List<String> componentSettingKeys) {
-        Map<String, String> componentSettingValues = new HashMap<>();
-        for (String componentSettingKey : componentSettingKeys) {
-            String componentSettingValue = environmentSettings.get(componentSettingKey);
-            if (componentSettingValue != null) {
-                componentSettingValues.put(componentSettingKey, componentSettingValue);
-            }
+    public EnvironmentSettingsResponse(Settings environmentSettings, List<Setting<?>> componentSettings) {
+        Map<Setting<?>, Object> componentSettingValues = new HashMap<>();
+        for (Setting<?> componentSetting : componentSettings) {
+
+            // Retrieve component setting value from enviornment settings, or default value if it does not exist
+            Object componentSettingValue = componentSetting.get(environmentSettings);
+            componentSettingValues.put(componentSetting, componentSettingValue);
         }
         this.componentSettingValues = componentSettingValues;
     }
 
     public EnvironmentSettingsResponse(StreamInput in) throws IOException {
         super(in);
-        Map<String, String> componentSettingValues = new HashMap<>();
+        Map<Setting<?>, Object> componentSettingValues = new HashMap<>();
         int componentSettingValuesCount = in.readVInt();
         for (int i = 0; i < componentSettingValuesCount; i++) {
-            String componentSettingKey = in.readString();
-            String componentSettingValue = in.readString();
-            componentSettingValues.put(componentSettingKey, componentSettingValue);
+            // TODO : After getSettings support is added, uncomment
+            // Setting<?> componentSetting = new WriteableSetting(in);
+            // Object componentSettingValue = in.readGenericValue();
+            // componentSettingValues.put(componentSetting, componentSettingValue);
         }
         this.componentSettingValues = componentSettingValues;
-    }
-
-    public Map<String, String> getComponentSettingValues() {
-        return Collections.unmodifiableMap(this.componentSettingValues);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(componentSettingValues.size());
-        for (Map.Entry<String, String> componentSettings : componentSettingValues.entrySet()) {
-            out.writeString(componentSettings.getKey());
-            out.writeString(componentSettings.getValue());
+        for (Map.Entry<Setting<?>, Object> componentSettingValue : componentSettingValues.entrySet()) {
+            // TODO : After getSettings support is added, uncomment
+            // new WriteableSetting(componentSettingValue.getKey()).writeTo(out);
+            // out.writeGenericValue(componentSettingValue.getValue());
         }
+    }
+
+    public Map<Setting<?>, Object> getComponentSettingValues() {
+        return Collections.unmodifiableMap(this.componentSettingValues);
     }
 
     @Override
