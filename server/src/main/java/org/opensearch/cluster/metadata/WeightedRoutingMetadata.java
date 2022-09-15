@@ -114,7 +114,7 @@ public class WeightedRoutingMetadata extends AbstractNamedDiffable<Metadata.Cust
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             attrKey = parser.currentName();
-                        } else if (token == XContentParser.Token.VALUE_STRING) {
+                        } else if (token == XContentParser.Token.VALUE_NUMBER) {
                             attrValue = Double.parseDouble(parser.text());
                             weights.put(attrKey, attrValue);
                         } else {
