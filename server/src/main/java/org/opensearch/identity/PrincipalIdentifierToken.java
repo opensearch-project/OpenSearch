@@ -18,6 +18,8 @@ import java.util.Objects;
 /**
  * Requester Token for requests to/from an extension
  * Each user will have different token for different extension
+ *
+ * @opensearch.internal
  */
 public class PrincipalIdentifierToken implements NamedWriteable {
     public static final String NAME = "principal_identifier_token";

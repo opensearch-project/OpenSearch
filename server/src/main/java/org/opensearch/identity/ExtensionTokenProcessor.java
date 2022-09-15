@@ -48,6 +48,8 @@ public class ExtensionTokenProcessor {
      * @param token the requester identity token, should not be null
      * @return Principal
      *
+     * @opensearch.internal
+     *
      * This method contains a placeholder implementation.
      * More concrete implementation will be covered in https://github.com/opensearch-project/OpenSearch/issues/4485
      */

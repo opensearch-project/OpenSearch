@@ -9,5 +9,9 @@
  * GitHub history for details.
  */
 
-/** Holds classes related to the identity owners of request to/from extensions */
+/**
+ * Holds classes related to the identity owners of request to/from extensions
+ *
+ * @opensearch.internal
+ */
 package org.opensearch.identity;
