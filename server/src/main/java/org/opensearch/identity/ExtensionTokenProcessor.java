@@ -59,7 +59,8 @@ public class ExtensionTokenProcessor {
         validateToken(token);
 
         String[] parts = token.getToken().split(":");
-        return () -> parts[0];
+        final String principalName = parts[0];
+        return () -> principalName;
     }
 
     /**
