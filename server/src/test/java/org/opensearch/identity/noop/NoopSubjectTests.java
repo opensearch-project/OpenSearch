@@ -21,8 +21,9 @@ public class NoopSubjectTests extends OpenSearchTestCase {
     }
 
     public void testHashCode() {
-        final Subject s = new NoopSubject();
-        assertThat(s.hashCode(), equalTo(1331011156));
+        final Subject s1 = new NoopSubject();
+        final Subject s2 = new NoopSubject();
+        assertThat(s.hashCode(), equalTo(s.hashCode()));
     }
 
     public void testToString() {

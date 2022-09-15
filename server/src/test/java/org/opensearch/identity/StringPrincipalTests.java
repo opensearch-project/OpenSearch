@@ -37,7 +37,8 @@ public class StringPrincipalTests extends OpenSearchTestCase {
 
     public void testHashCode() {
         final Principal p1 = new StringPrincipal("p1");
-        assertThat(p1.hashCode(), equalTo(3552));
+        final Principal p1Duplicated = new StringPrincipal("p1");
+        assertThat(p1.hashCode(), equalTo(p1Duplicated.hashCode()));
     }
 
     public void testToString() {

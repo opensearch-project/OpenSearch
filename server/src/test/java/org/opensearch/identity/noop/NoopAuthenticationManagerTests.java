@@ -21,7 +21,7 @@ public class NoopAuthenticationManagerTests extends OpenSearchTestCase {
         assertThat(new NoopAuthenticationManager().getSubject(), not(nullValue()));
     }
 
-    public void testConsistantSubjects() {
+    public void testConsistentSubjects() {
         NoopAuthenticationManager authManager = new NoopAuthenticationManager();
         assertThat(authManager.getSubject(), equalTo(authManager.getSubject()));
     }

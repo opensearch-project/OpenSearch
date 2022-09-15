@@ -23,7 +23,7 @@ public class NoopSubject implements Subject {
 
     @Override
     public Principal getPrincipal() {
-        return Principals.Unauthenticated.getPrincipal();
+        return Principals.UNAUTHENTICATED.getPrincipal();
     }
 
     @Override
@@ -41,6 +41,6 @@ public class NoopSubject implements Subject {
 
     @Override
     public String toString() {
-        return "NoopSubject(" + "principal=" + getPrincipal() + ")";
+        return "NoopSubject(principal=" + getPrincipal() + ")";
     }
 }

@@ -18,7 +18,7 @@ public enum Principals {
     /**
      * Represents a principal which has not been authenticated
      */
-    Unauthenticated(new StringPrincipal("Unauthenticated"));
+    UNAUTHENTICATED(new StringPrincipal("Unauthenticated"));
 
     private final Principal principal;
 
