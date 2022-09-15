@@ -116,7 +116,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     TransportService transportService;
     ClusterService clusterService;
     ExtensionNamedWriteableRegistry namedWriteableRegistry;
-    Settings environmentSettings;
+    Settings initialEnvironmentSettings;
 
     /**
      * Instantiate a new ExtensionsOrchestrator object to handle requests and responses from extensions. This is called during Node bootstrap.
@@ -133,7 +133,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         this.extensionIdMap = new HashMap<String, DiscoveryExtension>();
         this.clusterService = null;
         this.namedWriteableRegistry = null;
-        this.environmentSettings = null;
+        this.initialEnvironmentSettings = null;
 
         /*
          * Now Discover extensions
@@ -149,18 +149,18 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
      * @param restController  The RestController on which to register Rest Actions.
      * @param transportService  The Node's transport service.
      * @param clusterService  The Node's cluster service.
-     * @param environmentSettings The finalized view of settings for the Environment
+     * @param initialEnvironmentSettings The finalized view of settings for the Environment
      */
     public void initializeServicesAndRestHandler(
         RestController restController,
         TransportService transportService,
         ClusterService clusterService,
-        Settings environmentSettings
+        Settings initialEnvironmentSettings
     ) {
         this.restActionsRequestHandler = new RestActionsRequestHandler(restController, extensionIdMap, transportService);
         this.transportService = transportService;
         this.clusterService = clusterService;
-        this.environmentSettings = environmentSettings;
+        this.initialEnvironmentSettings = initialEnvironmentSettings;
         registerRequestHandler();
     }
 
@@ -367,7 +367,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
      * @throws Exception if the request is not handled properly.
      */
     TransportResponse handleEnvironmentSettingsRequest(EnvironmentSettingsRequest environmentSettingsRequest) throws Exception {
-        return new EnvironmentSettingsResponse(this.environmentSettings, environmentSettingsRequest.getComponentSettings());
+        return new EnvironmentSettingsResponse(this.initialEnvironmentSettings, environmentSettingsRequest.getComponentSettings());
     }
 
     /**
