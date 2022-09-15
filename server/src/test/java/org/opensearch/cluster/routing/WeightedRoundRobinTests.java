@@ -110,6 +110,42 @@ public class WeightedRoundRobinTests extends OpenSearchTestCase {
         }
         assertEquals(3, countB);
         assertEquals(10000, countD);
+
+        // weights set C:0
+        entity = new ArrayList<WeightedRoundRobin.Entity<String>>();
+        entity.add(new WeightedRoundRobin.Entity<>(0, "C"));
+        weightedRoundRobin = new WeightedRoundRobin<String>(entity);
+        orderedEntities = weightedRoundRobin.orderEntities();
+        expectedOrdering = Arrays.asList();
+        actualOrdering = new ArrayList<>();
+        for (WeightedRoundRobin.Entity<String> en : orderedEntities) {
+            actualOrdering.add(en.getTarget());
+        }
+        assertEquals(expectedOrdering, actualOrdering);
+
+        // weights set C:1
+        entity = new ArrayList<WeightedRoundRobin.Entity<String>>();
+        entity.add(new WeightedRoundRobin.Entity<>(1, "C"));
+        weightedRoundRobin = new WeightedRoundRobin<String>(entity);
+        orderedEntities = weightedRoundRobin.orderEntities();
+        expectedOrdering = Arrays.asList("C");
+        actualOrdering = new ArrayList<>();
+        for (WeightedRoundRobin.Entity<String> en : orderedEntities) {
+            actualOrdering.add(en.getTarget());
+        }
+        assertEquals(expectedOrdering, actualOrdering);
+
+        // weights set C:2
+        entity = new ArrayList<WeightedRoundRobin.Entity<String>>();
+        entity.add(new WeightedRoundRobin.Entity<>(2, "C"));
+        weightedRoundRobin = new WeightedRoundRobin<String>(entity);
+        orderedEntities = weightedRoundRobin.orderEntities();
+        expectedOrdering = Arrays.asList("C", "C");
+        actualOrdering = new ArrayList<>();
+        for (WeightedRoundRobin.Entity<String> en : orderedEntities) {
+            actualOrdering.add(en.getTarget());
+        }
+        assertEquals(expectedOrdering, actualOrdering);
     }
 
 }

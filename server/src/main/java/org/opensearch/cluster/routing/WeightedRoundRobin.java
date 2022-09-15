@@ -36,9 +36,6 @@ public class WeightedRoundRobin<T> {
         if (size == 0) {
             return null;
         }
-        if (size == 1) {
-            return entities;
-        }
         // Find maximum weight and greatest common divisor of weight across all entities
         double maxWeight = 0;
         double sumWeight = 0;
