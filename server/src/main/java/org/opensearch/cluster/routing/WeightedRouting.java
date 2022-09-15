@@ -23,9 +23,9 @@ import java.util.Objects;
  */
 public class WeightedRouting implements Writeable {
     private String attributeName;
-    private Map<String, Object> weights;
+    private Map<String, Double> weights;
 
-    public WeightedRouting(String attributeName, Map<String, Object> weights) {
+    public WeightedRouting(String attributeName, Map<String, Double> weights) {
         this.attributeName = attributeName;
         this.weights = weights;
     }
@@ -37,13 +37,13 @@ public class WeightedRouting implements Writeable {
 
     public WeightedRouting(StreamInput in) throws IOException {
         attributeName = in.readString();
-        weights = in.readMap();
+        weights = (Map<String, Double>) in.readGenericValue();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(attributeName);
-        out.writeMap(weights);
+        out.writeGenericValue(weights);
     }
 
     @Override
@@ -67,7 +67,7 @@ public class WeightedRouting implements Writeable {
         return "WeightedRouting{" + attributeName + "}{" + weights().toString() + "}";
     }
 
-    public Map<String, Object> weights() {
+    public Map<String, Double> weights() {
         return this.weights;
     }
 

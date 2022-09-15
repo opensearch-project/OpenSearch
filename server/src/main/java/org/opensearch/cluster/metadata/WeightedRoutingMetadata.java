@@ -85,9 +85,9 @@ public class WeightedRoutingMetadata extends AbstractNamedDiffable<Metadata.Cust
 
     public static WeightedRoutingMetadata fromXContent(XContentParser parser) throws IOException {
         String attrKey = null;
-        Object attrValue;
+        Double attrValue;
         String attributeName = null;
-        Map<String, Object> weights = new HashMap<>();
+        Map<String, Double> weights = new HashMap<>();
         WeightedRouting weightedRouting = null;
         XContentParser.Token token;
         // move to the first alias
@@ -115,7 +115,7 @@ public class WeightedRoutingMetadata extends AbstractNamedDiffable<Metadata.Cust
                         if (token == XContentParser.Token.FIELD_NAME) {
                             attrKey = parser.currentName();
                         } else if (token == XContentParser.Token.VALUE_STRING) {
-                            attrValue = parser.text();
+                            attrValue = Double.parseDouble(parser.text());
                             weights.put(attrKey, attrValue);
                         } else {
                             throw new OpenSearchParseException(
@@ -153,7 +153,7 @@ public class WeightedRoutingMetadata extends AbstractNamedDiffable<Metadata.Cust
     public static void toXContent(WeightedRouting weightedRouting, XContentBuilder builder) throws IOException {
         builder.startObject(AWARENESS);
         builder.startObject(weightedRouting.attributeName());
-        for (Map.Entry<String, Object> entry : weightedRouting.weights().entrySet()) {
+        for (Map.Entry<String, Double> entry : weightedRouting.weights().entrySet()) {
             builder.field(entry.getKey(), entry.getValue());
         }
         builder.endObject();

@@ -789,7 +789,7 @@ public class OperationRoutingTests extends OpenSearchTestCase {
 
     }
 
-    private ClusterState setWeightedRoutingWeights(ClusterState clusterState, Map<String, Object> weights) {
+    private ClusterState setWeightedRoutingWeights(ClusterState clusterState, Map<String, Double> weights) {
         WeightedRouting weightedRouting = new WeightedRouting("zone", weights);
         WeightedRoutingMetadata weightedRoutingMetadata = new WeightedRoutingMetadata(weightedRouting);
         Metadata.Builder metadataBuilder = Metadata.builder(clusterState.metadata());
@@ -827,7 +827,7 @@ public class OperationRoutingTests extends OpenSearchTestCase {
             Map<String, Long> outstandingRequests = new HashMap<>();
 
             // Setting up weights for weighted round-robin in cluster state
-            Map<String, Object> weights = Map.of("a", "1", "b", "1", "c", "0");
+            Map<String, Double> weights = Map.of("a", 1.0, "b", 1.0, "c", 0.0);
             state = setWeightedRoutingWeights(state, weights);
 
             ClusterState.Builder builder = ClusterState.builder(state);
@@ -863,7 +863,7 @@ public class OperationRoutingTests extends OpenSearchTestCase {
             setting = Settings.builder().put("cluster.routing.allocation.awareness.attributes", "zone").build();
 
             // Updating weighted round robin weights in cluster state
-            weights = Map.of("a", "1", "b", "0", "c", "1");
+            weights = Map.of("a", 1.0, "b", 0.0, "c", 1.0);
             state = setWeightedRoutingWeights(state, weights);
 
             builder = ClusterState.builder(state);
@@ -924,7 +924,7 @@ public class OperationRoutingTests extends OpenSearchTestCase {
             Map<String, Long> outstandingRequests = new HashMap<>();
 
             // Setting up weights for weighted round-robin in cluster state
-            Map<String, Object> weights = Map.of("a", "1", "b", "1", "c", "0");
+            Map<String, Double> weights = Map.of("a", 1.0, "b", 1.0, "c", 0.0);
             state = setWeightedRoutingWeights(state, weights);
             ClusterServiceUtils.setState(clusterService, ClusterState.builder(state));
 
@@ -954,7 +954,7 @@ public class OperationRoutingTests extends OpenSearchTestCase {
             assertEquals(6, opRouting.getWeightedRoutingCache().misses());
 
             // Updating cluster state to test weighted routing details are calculated again
-            weights = Map.of("a", "1", "b", "0", "c", "1");
+            weights = Map.of("a", 1.0, "b", 0.0, "c", 1.0);
             // building new cluster state
             ClusterState state2 = setWeightedRoutingWeights(state, weights);
             ClusterServiceUtils.setState(clusterService, ClusterState.builder(state2));
@@ -1009,7 +1009,7 @@ public class OperationRoutingTests extends OpenSearchTestCase {
             Map<String, Long> outstandingRequests = new HashMap<>();
 
             // Setting up weights for weighted round-robin in cluster state, weight for nodes in zone b is not set
-            Map<String, Object> weights = Map.of("a", "1", "c", "0");
+            Map<String, Double> weights = Map.of("a", 1.0, "c", 0.0);
             state = setWeightedRoutingWeights(state, weights);
             ClusterServiceUtils.setState(clusterService, ClusterState.builder(state));
 
@@ -1048,7 +1048,7 @@ public class OperationRoutingTests extends OpenSearchTestCase {
             setting = Settings.builder().put("cluster.routing.allocation.awareness.attributes", "zone").build();
 
             // Updating weighted round robin weights in cluster state
-            weights = Map.of("a", "0", "b", "1");
+            weights = Map.of("a", 0.0, "b", 1.0);
 
             state = setWeightedRoutingWeights(state, weights);
             ClusterServiceUtils.setState(clusterService, ClusterState.builder(state));
@@ -1248,7 +1248,7 @@ public class OperationRoutingTests extends OpenSearchTestCase {
             routingTableBuilder.add(indexRoutingTableBuilder.build());
         }
         // add weighted routing weights in metadata
-        Map<String, Object> weights = Map.of("a", "1", "b", "1", "c", "0");
+        Map<String, Double> weights = Map.of("a", 1.0, "b", 1.0, "c", 0.0);
         WeightedRouting weightedRouting = new WeightedRouting("zone", weights);
         WeightedRoutingMetadata weightedRoutingMetadata = new WeightedRoutingMetadata(weightedRouting);
         metadataBuilder.putCustom(WeightedRoutingMetadata.TYPE, weightedRoutingMetadata);

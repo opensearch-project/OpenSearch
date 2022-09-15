@@ -78,17 +78,17 @@ public class OperationRouting {
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
-    public static final Setting<Integer> WEIGHTED_ROUTING_DEFAULT_WEIGHT = Setting.intSetting(
+    public static final Setting<Double> WEIGHTED_ROUTING_DEFAULT_WEIGHT = Setting.doubleSetting(
         "cluster.routing.weighted.default_weight",
-        1,
-        1,
+        1.0,
+        1.0,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
     private volatile List<String> awarenessAttributes;
     private volatile boolean useAdaptiveReplicaSelection;
     private volatile boolean ignoreAwarenessAttr;
-    private volatile int weightedRoutingDefaultWeight;
+    private volatile double weightedRoutingDefaultWeight;
 
     private WeightedRoutingCache weightedRoutingCache;
     private ClusterService clusterService;
@@ -116,7 +116,7 @@ public class OperationRouting {
         this.ignoreAwarenessAttr = ignoreAwarenessAttributes;
     }
 
-    void setWeightedRoutingDefaultWeight(int weightedRoutingDefaultWeight) {
+    void setWeightedRoutingDefaultWeight(double weightedRoutingDefaultWeight) {
         this.weightedRoutingDefaultWeight = weightedRoutingDefaultWeight;
     }
 
@@ -136,7 +136,7 @@ public class OperationRouting {
         return this.awarenessAttributes.isEmpty() || this.ignoreAwarenessAttr;
     }
 
-    public int getWeightedRoutingDefaultWeight() {
+    public double getWeightedRoutingDefaultWeight() {
         return this.weightedRoutingDefaultWeight;
     }
 

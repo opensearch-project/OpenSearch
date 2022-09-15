@@ -549,7 +549,7 @@ public class RoutingIteratorTests extends OpenSearchAllocationTestCase {
             clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
             WeightedRoutingCache cache = new WeightedRoutingCache(clusterService);
-            Map<String, Object> weights = Map.of("zone1", "1", "zone2", "1", "zone3", "0");
+            Map<String, Double> weights = Map.of("zone1", 1.0, "zone2", 1.0, "zone3", 0.0);
             WeightedRouting weightedRouting = new WeightedRouting("zone", weights);
 
             ShardIterator shardIterator = clusterState.routingTable()
@@ -566,7 +566,7 @@ public class RoutingIteratorTests extends OpenSearchAllocationTestCase {
             assertFalse(shardRouting.currentNodeId().equals("node3"));
             cache.close();
 
-            weights = Map.of("zone1", "1", "zone2", "1", "zone3", "1");
+            weights = Map.of("zone1", 1.0, "zone2", 1.0, "zone3", 1.0);
             weightedRouting = new WeightedRouting("zone", weights);
             shardIterator = clusterState.routingTable()
                 .index("test")
@@ -575,7 +575,7 @@ public class RoutingIteratorTests extends OpenSearchAllocationTestCase {
             assertEquals(3, shardIterator.size());
             cache.close();
 
-            weights = Map.of("zone1", "-1", "zone2", "0", "zone3", "1");
+            weights = Map.of("zone1", -1.0, "zone2", 0.0, "zone3", 1.0);
             weightedRouting = new WeightedRouting("zone", weights);
             shardIterator = clusterState.routingTable()
                 .index("test")
@@ -584,7 +584,7 @@ public class RoutingIteratorTests extends OpenSearchAllocationTestCase {
             assertEquals(1, shardIterator.size());
             cache.close();
 
-            weights = Map.of("zone1", "0", "zone2", "0", "zone3", "0");
+            weights = Map.of("zone1", 0.0, "zone2", 0.0, "zone3", 0.0);
             weightedRouting = new WeightedRouting("zone", weights);
             shardIterator = clusterState.routingTable()
                 .index("test")

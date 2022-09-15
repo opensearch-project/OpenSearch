@@ -18,7 +18,7 @@ import java.util.Map;
 public class WeightedRoutingMetadataTests extends AbstractXContentTestCase<WeightedRoutingMetadata> {
     @Override
     protected WeightedRoutingMetadata createTestInstance() {
-        Map<String, Object> weights = Map.of("a", "1", "b", "1", "c", "0");
+        Map<String, Double> weights = Map.of("a", 1.0, "b", 1.0, "c", 0.0);
         WeightedRouting weightedRouting = new WeightedRouting("zone", weights);
         WeightedRoutingMetadata weightedRoutingMetadata = new WeightedRoutingMetadata(weightedRouting);
         return weightedRoutingMetadata;
