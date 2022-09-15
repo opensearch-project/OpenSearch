@@ -1703,7 +1703,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @return a sequence number that an operation-based peer recovery can start with.
      * This is the first operation after the local checkpoint of the safe commit if exists.
      */
-    public long recoverLocallyUpToGlobalCheckpoint() {
+    private long recoverLocallyUpToGlobalCheckpoint() {
         assert Thread.holdsLock(mutex) == false : "recover locally under mutex";
         if (state != IndexShardState.RECOVERING) {
             throw new IndexShardNotRecoveringException(shardId, state);
@@ -1805,7 +1805,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      *
      * @return the starting sequence number from which the recovery should start.
      */
-    public long recoverLocallyUptoLastCommit() {
+    private long recoverLocallyUptoLastCommit() {
         long seqNo;
         assert Thread.holdsLock(mutex) == false : "recover locally under mutex";
         if (state != IndexShardState.RECOVERING) {
