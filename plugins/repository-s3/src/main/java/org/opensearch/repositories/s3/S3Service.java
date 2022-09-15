@@ -305,21 +305,28 @@ class S3Service implements Closeable {
             }
 
             if (irsaCredentials.getIdentityTokenFile() == null) {
-                return new PrivilegedSTSAssumeRoleSessionCredentialsProvider<>(
-                    securityTokenService,
+                final STSAssumeRoleSessionCredentialsProvider.Builder stsCredentialsProviderBuilder =
                     new STSAssumeRoleSessionCredentialsProvider.Builder(irsaCredentials.getRoleArn(), irsaCredentials.getRoleSessionName())
-                        .withStsClient(securityTokenService)
-                        .build()
+                        .withStsClient(securityTokenService);
+
+                final STSAssumeRoleSessionCredentialsProvider stsCredentialsProvider = SocketAccess.doPrivileged(
+                    stsCredentialsProviderBuilder::build
                 );
+
+                return new PrivilegedSTSAssumeRoleSessionCredentialsProvider<>(securityTokenService, stsCredentialsProvider);
             } else {
-                return new PrivilegedSTSAssumeRoleSessionCredentialsProvider<>(
-                    securityTokenService,
+                final STSAssumeRoleWithWebIdentitySessionCredentialsProvider.Builder stsCredentialsProviderBuilder =
                     new STSAssumeRoleWithWebIdentitySessionCredentialsProvider.Builder(
                         irsaCredentials.getRoleArn(),
                         irsaCredentials.getRoleSessionName(),
                         irsaCredentials.getIdentityTokenFile()
-                    ).withStsClient(securityTokenService).build()
+                    ).withStsClient(securityTokenService);
+
+                final STSAssumeRoleWithWebIdentitySessionCredentialsProvider stsCredentialsProvider = SocketAccess.doPrivileged(
+                    stsCredentialsProviderBuilder::build
                 );
+
+                return new PrivilegedSTSAssumeRoleSessionCredentialsProvider<>(securityTokenService, stsCredentialsProvider);
             }
         } else if (basicCredentials != null) {
             logger.debug("Using basic key/secret credentials");
