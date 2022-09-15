@@ -34,6 +34,7 @@ package org.opensearch.index.mapper;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
@@ -268,6 +269,8 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         try {
             parseCreateField(context);
         } catch (Exception e) {
+            boolean ignore_malformed = false;
+            if (context.indexSettings() != null) ignore_malformed = IGNORE_MALFORMED_SETTING.get(context.indexSettings().getSettings());
             String valuePreview = "";
             try {
                 XContentParser parser = context.parser();
@@ -278,23 +281,27 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                     valuePreview = complexValue.toString();
                 }
             } catch (Exception innerException) {
+                if (ignore_malformed == false) {
+                    throw new MapperParsingException(
+                        "failed to parse field [{}] of type [{}] in document with id '{}'. " + "Could not parse field value preview,",
+                        e,
+                        fieldType().name(),
+                        fieldType().typeName(),
+                        context.sourceToParse().id()
+                    );
+                }
+            }
+
+            if (ignore_malformed == false) {
                 throw new MapperParsingException(
-                    "failed to parse field [{}] of type [{}] in document with id '{}'. " + "Could not parse field value preview,",
+                    "failed to parse field [{}] of type [{}] in document with id '{}'. " + "Preview of field's value: '{}'",
                     e,
                     fieldType().name(),
                     fieldType().typeName(),
-                    context.sourceToParse().id()
+                    context.sourceToParse().id(),
+                    valuePreview
                 );
             }
-
-            throw new MapperParsingException(
-                "failed to parse field [{}] of type [{}] in document with id '{}'. " + "Preview of field's value: '{}'",
-                e,
-                fieldType().name(),
-                fieldType().typeName(),
-                context.sourceToParse().id(),
-                valuePreview
-            );
         }
         multiFields.parse(this, context);
     }
