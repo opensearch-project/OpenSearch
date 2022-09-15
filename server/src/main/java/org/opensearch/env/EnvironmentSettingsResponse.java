@@ -56,10 +56,10 @@ public class EnvironmentSettingsResponse extends TransportResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(componentSettingValues.size());
-        for (Map.Entry<Setting<?>, Object> componentSettingValue : componentSettingValues.entrySet()) {
+        for (Map.Entry<Setting<?>, Object> entry : componentSettingValues.entrySet()) {
             // TODO : After getSettings support is added, uncomment
-            // new WriteableSetting(componentSettingValue.getKey()).writeTo(out);
-            // out.writeGenericValue(componentSettingValue.getValue());
+            // new WriteableSetting(entry.getKey()).writeTo(out);
+            // out.writeGenericValue(entry.getValue());
         }
     }
 
@@ -69,7 +69,7 @@ public class EnvironmentSettingsResponse extends TransportResponse {
 
     @Override
     public String toString() {
-        return "EnvironmentSettingsResponse{" + "componentSettingValues=" + componentSettingValues.toString() + '}';
+        return "EnvironmentSettingsResponse{componentSettingValues=" + componentSettingValues.toString() + '}';
     }
 
     @Override
