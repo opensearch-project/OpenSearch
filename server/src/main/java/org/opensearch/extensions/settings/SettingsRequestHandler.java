@@ -8,13 +8,13 @@
 
 package org.opensearch.extensions.settings;
 
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.SettingsModule;
-import org.opensearch.extensions.DiscoveryExtension;
 import org.opensearch.extensions.ExtensionStringResponse;
 import org.opensearch.transport.TransportResponse;
-import org.opensearch.transport.TransportService;
 
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Handles requests to register extension settings.
@@ -24,24 +24,14 @@ import java.util.Map;
 public class SettingsRequestHandler {
 
     private final SettingsModule settingsModule;
-    private final Map<String, DiscoveryExtension> extensionIdMap;
-    private final TransportService transportService;
 
     /**
      * Instantiates a new Settings Request Handler using the Node's SettingsModule.
      *
      * @param settingsModule  The Node's {@link SettingsModule}.
-     * @param extensionIdMap  A map of extension uniqueId to DiscoveryExtension
-     * @param transportService  The Node's transportService
      */
-    public SettingsRequestHandler(
-        SettingsModule settingsModule,
-        Map<String, DiscoveryExtension> extensionIdMap,
-        TransportService transportService
-    ) {
+    public SettingsRequestHandler(SettingsModule settingsModule) {
         this.settingsModule = settingsModule;
-        this.extensionIdMap = extensionIdMap;
-        this.transportService = transportService;
     }
 
     /**
@@ -52,10 +42,15 @@ public class SettingsRequestHandler {
      * @throws Exception if the request is not handled properly.
      */
     public TransportResponse handleRegisterSettingsRequest(RegisterSettingsRequest settingsRequest) throws Exception {
-        DiscoveryExtension discoveryExtension = extensionIdMap.get(settingsRequest.getUniqueId());
-        settingsModule.registerDynamicSetting(null);
+        // TODO: we have settingsRequest.getUniqueId() available.
+        // How do we prevent key collisions in settings registration?
+        List<String> registeredSettings = new ArrayList<>();
+        for (Setting<?> setting : settingsRequest.getSettings()) {
+            settingsModule.registerDynamicSetting(setting);
+            registeredSettings.add(setting.getKey());
+        }
         return new ExtensionStringResponse(
-            "Registered extension " + settingsRequest.getUniqueId() + " to handle settings " + settingsRequest.getSettings()
+            "Registered settings from extension " + settingsRequest.getUniqueId() + ": " + String.join(", ", registeredSettings)
         );
     }
 }
