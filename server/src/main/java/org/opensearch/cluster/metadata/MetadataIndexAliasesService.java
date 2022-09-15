@@ -107,6 +107,11 @@ public class MetadataIndexAliasesService {
                 }
 
                 @Override
+                public String getClusterManagerThrottlingKey() {
+                    return "index-aliases";
+                }
+
+                @Override
                 public ClusterState execute(ClusterState currentState) {
                     return applyAliasActions(currentState, request.actions());
                 }

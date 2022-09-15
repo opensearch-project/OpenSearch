@@ -230,6 +230,11 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                 }
 
                 @Override
+                public String getClusterManagerThrottlingKey() {
+                    return "put_repository";
+                }
+
+                @Override
                 public void onFailure(String source, Exception e) {
                     logger.warn(() -> new ParameterizedMessage("failed to create repository [{}]", request.name()), e);
                     super.onFailure(source, e);
@@ -288,6 +293,11 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                         return currentState;
                     }
                     throw new RepositoryMissingException(request.name());
+                }
+
+                @Override
+                public String getClusterManagerThrottlingKey() {
+                    return "delete_repository";
                 }
 
                 @Override

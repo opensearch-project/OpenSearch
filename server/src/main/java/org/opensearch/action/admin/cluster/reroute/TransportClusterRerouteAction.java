@@ -242,6 +242,11 @@ public class TransportClusterRerouteAction extends TransportClusterManagerNodeAc
         }
 
         @Override
+        public String getClusterManagerThrottlingKey() {
+            return "cluster-reroute-api";
+        }
+
+        @Override
         protected ClusterRerouteResponse newResponse(boolean acknowledged) {
             return new ClusterRerouteResponse(acknowledged, clusterStateToSend, explanations);
         }

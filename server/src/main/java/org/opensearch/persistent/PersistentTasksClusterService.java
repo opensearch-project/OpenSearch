@@ -145,6 +145,11 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
             }
 
             @Override
+            public String getClusterManagerThrottlingKey() {
+                return "create-persistent-task";
+            }
+
+            @Override
             public void onFailure(String source, Exception e) {
                 listener.onFailure(e);
             }
@@ -204,6 +209,11 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
             }
 
             @Override
+            public String getClusterManagerThrottlingKey() {
+                return "finish-persistent-task";
+            }
+
+            @Override
             public void onFailure(String source, Exception e) {
                 listener.onFailure(e);
             }
@@ -232,6 +242,11 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
                 } else {
                     throw new ResourceNotFoundException("the task with id {} doesn't exist", id);
                 }
+            }
+
+            @Override
+            public String getClusterManagerThrottlingKey() {
+                return "remove-persistent-task";
             }
 
             @Override
@@ -275,6 +290,11 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
                     }
                     throw new ResourceNotFoundException("the task with id {} and allocation id {} doesn't exist", taskId, taskAllocationId);
                 }
+            }
+
+            @Override
+            public String getClusterManagerThrottlingKey() {
+                return "update-task-state";
             }
 
             @Override

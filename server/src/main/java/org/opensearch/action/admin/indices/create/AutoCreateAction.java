@@ -143,6 +143,11 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     }
 
                     @Override
+                    public String getClusterManagerThrottlingKey() {
+                        return "auto-create";
+                    }
+
+                    @Override
                     public ClusterState execute(ClusterState currentState) throws Exception {
                         DataStreamTemplate dataStreamTemplate = resolveAutoCreateDataStream(request, currentState.metadata());
                         if (dataStreamTemplate != null) {

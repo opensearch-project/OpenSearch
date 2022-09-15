@@ -246,6 +246,11 @@ public class MetadataMappingService {
             }
         }
 
+        @Override
+        public String getClusterManagerThrottlingKey() {
+            return "put-mapping";
+        }
+
         private ClusterState applyRequest(
             ClusterState currentState,
             PutMappingClusterStateUpdateRequest request,

@@ -205,6 +205,11 @@ public class TransportRolloverAction extends TransportClusterManagerNodeAction<R
                             }
 
                             @Override
+                            public String getClusterManagerThrottlingKey() {
+                                return "rollover-index";
+                            }
+
+                            @Override
                             public void onFailure(String source, Exception e) {
                                 listener.onFailure(e);
                             }

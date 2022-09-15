@@ -291,6 +291,11 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 public ClusterState execute(ClusterState currentState) {
                     return innerDelete(request, currentState);
                 }
+
+                @Override
+                public String getClusterManagerThrottlingKey() {
+                    return "delete-pipeline";
+                }
             }
         );
     }
@@ -384,6 +389,11 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     return innerPut(request, currentState);
+                }
+
+                @Override
+                public String getClusterManagerThrottlingKey() {
+                    return "put-pipeline";
                 }
             }
         );

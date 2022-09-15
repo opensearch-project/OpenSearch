@@ -158,6 +158,11 @@ public class TransportDeleteDanglingIndexAction extends TransportClusterManagerN
                         }
 
                         @Override
+                        public String getClusterManagerThrottlingKey() {
+                            return "delete-dangling-index";
+                        }
+
+                        @Override
                         public ClusterState execute(final ClusterState currentState) {
                             return deleteDanglingIndex(currentState, indexToDelete);
                         }

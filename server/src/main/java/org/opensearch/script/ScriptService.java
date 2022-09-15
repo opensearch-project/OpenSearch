@@ -604,6 +604,11 @@ public class ScriptService implements Closeable, ClusterStateApplier {
 
                     return ClusterState.builder(currentState).metadata(mdb).build();
                 }
+
+                @Override
+                public String getClusterManagerThrottlingKey() {
+                    return "put-script";
+                }
             }
         );
     }
@@ -629,6 +634,11 @@ public class ScriptService implements Closeable, ClusterStateApplier {
                     Metadata.Builder mdb = Metadata.builder(currentState.getMetadata()).putCustom(ScriptMetadata.TYPE, smd);
 
                     return ClusterState.builder(currentState).metadata(mdb).build();
+                }
+
+                @Override
+                public String getClusterManagerThrottlingKey() {
+                    return "delete-script";
                 }
             }
         );

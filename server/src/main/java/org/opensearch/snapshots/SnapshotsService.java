@@ -344,6 +344,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             }
 
             @Override
+            public String getClusterManagerThrottlingKey() {
+                return "create-snapshot";
+            }
+
+            @Override
             public void onFailure(String source, Exception e) {
                 logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to create snapshot", repositoryName, snapshotName), e);
                 if (newEntry != null) {
@@ -525,6 +530,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             public void onFailure(String source, Exception e) {
                 logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to create snapshot", repositoryName, snapshotName), e);
                 listener.onFailure(e);
+            }
+
+            @Override
+            public String getClusterManagerThrottlingKey() {
+                return "create-snapshot";
             }
 
             @Override
@@ -2274,6 +2284,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             }
 
             @Override
+            public String getClusterManagerThrottlingKey() {
+                return "delete-snapshot";
+            }
+
+            @Override
             public void onFailure(String source, Exception e) {
                 listener.onFailure(e);
             }
@@ -3233,7 +3248,19 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      *
      * Package private to allow for tests.
      */
-    static final ClusterStateTaskExecutor<ShardSnapshotUpdate> SHARD_STATE_EXECUTOR = (currentState, tasks) -> {
+    static final ClusterStateTaskExecutor<ShardSnapshotUpdate> SHARD_STATE_EXECUTOR = new ClusterStateTaskExecutor<ShardSnapshotUpdate>() {
+        @Override
+        public ClusterTasksResult<ShardSnapshotUpdate> execute(ClusterState currentState, List<ShardSnapshotUpdate> tasks) throws Exception {
+            return shardStateExecutor.execute(currentState, tasks);
+        }
+
+        @Override
+        public String getClusterManagerThrottlingKey() {
+            return "update-snapshot-state";
+        }
+    };
+
+    static final ClusterStateTaskExecutor<ShardSnapshotUpdate> shardStateExecutor = (currentState, tasks) -> {
         int changedCount = 0;
         int startedCount = 0;
         final List<SnapshotsInProgress.Entry> entries = new ArrayList<>();
