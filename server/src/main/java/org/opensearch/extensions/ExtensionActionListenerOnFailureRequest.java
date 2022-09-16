@@ -12,33 +12,34 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.util.Objects;
 
 /**
- * CLusterService Request for Extensibility
+ * CLusterService Request for Action Listener onFailure
  *
  * @opensearch.internal
  */
-public class ExtensionRequest extends TransportRequest {
+public class ExtensionActionListenerOnFailureRequest extends ExtensionRequest {
     private static final Logger logger = LogManager.getLogger(ExtensionRequest.class);
     private ExtensionsOrchestrator.RequestType requestType;
+    private String failureException;
 
-    public ExtensionRequest(ExtensionsOrchestrator.RequestType requestType) {
-        this.requestType = requestType;
+    public ExtensionActionListenerOnFailureRequest(ExtensionsOrchestrator.RequestType requestType, String failureException) {
+        super(requestType);
+        this.failureException = failureException;
     }
 
-    public ExtensionRequest(StreamInput in) throws IOException {
+    public ExtensionActionListenerOnFailureRequest(StreamInput in) throws IOException {
         super(in);
-        this.requestType = in.readEnum(ExtensionsOrchestrator.RequestType.class);
+        this.failureException = in.readString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeEnum(requestType);
+        out.writeString(failureException);
     }
 
     public ExtensionsOrchestrator.RequestType getRequestType() {
@@ -46,14 +47,15 @@ public class ExtensionRequest extends TransportRequest {
     }
 
     public String toString() {
-        return "ExtensionRequest{" + "requestType=" + requestType + '}';
+        return "ExtensionRequest{" + "requestType=" + requestType + ", failureException=" + "}";
     }
 
     @Override
     public boolean equals(Object o) {
+
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        ExtensionRequest that = (ExtensionRequest) o;
+        ExtensionActionListenerOnFailureRequest that = (ExtensionActionListenerOnFailureRequest) o;
         return Objects.equals(requestType, that.requestType);
     }
 
@@ -61,4 +63,9 @@ public class ExtensionRequest extends TransportRequest {
     public int hashCode() {
         return Objects.hash(requestType);
     }
+
+    public String getFailureException() {
+        return failureException;
+    }
+
 }

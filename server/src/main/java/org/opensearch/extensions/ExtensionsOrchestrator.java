@@ -24,6 +24,7 @@ import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
@@ -196,8 +197,8 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             ThreadPool.Names.GENERIC,
             false,
             false,
-            ExtensionRequest::new,
-            ((request, channel, task) -> channel.sendResponse(handleExtensionRequest(request)))
+            ExtensionActionListenerOnFailureRequest::new,
+            ((request, channel, task) -> channel.sendResponse(handleExtensionActionListenerOnFailureRequest(request)))
         );
         transportService.registerRequestHandler(
             REQUEST_EXTENSION_REGISTER_TRANSPORT_ACTIONS,
@@ -329,6 +330,11 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         }
     }
 
+    /**
+     * Handles the extension request based on its request type
+     * @param extensionRequest ExtensionRequest received through transport service
+     * @return A response to send back to the extension
+     */
     TransportResponse handleExtensionRequest(ExtensionRequest extensionRequest) throws Exception {
         // Read enum
         switch (extensionRequest.getRequestType()) {
@@ -345,16 +351,15 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             case REQUEST_EXTENSION_CLUSTER_SETTINGS:
                 ClusterSettingsResponse clusterSettingsResponse = new ClusterSettingsResponse(clusterService);
                 return clusterSettingsResponse;
-            case REQUEST_EXTENSION_ACTION_LISTENER_ON_FAILURE:
-                return handleExtensionActionListenerOnFailureRequest(extensionRequest.getFailureException());
             default:
-                throw new Exception("Handler not present for the provided request");
+                throw new IllegalArgumentException("Handler not present for the provided request");
         }
     }
 
-    private ExtensionBooleanResponse handleExtensionActionListenerOnFailureRequest(String failureException) throws Exception {
+    public ExtensionBooleanResponse handleExtensionActionListenerOnFailureRequest(ExtensionActionListenerOnFailureRequest request)
+        throws Exception {
         try {
-            listener.onFailure(new Exception(failureException));
+            listener.onFailure(new OpenSearchException(request.getFailureException()));
             return new ExtensionBooleanResponse(true);
         } catch (Exception e) {
             logger.error(e.getMessage());
