@@ -389,8 +389,8 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         extensionsOrchestrator.initializeServicesAndRestHandler(restController, settingsModule, transportService, clusterService);
         String uniqueIdStr = "uniqueid1";
         List<Setting<?>> settingsList = List.of(
-            Setting.boolSetting("falseSetting", false, Property.IndexScope, Property.NodeScope),
-            Setting.simpleString("fooSetting", "foo", Property.Dynamic)
+            Setting.boolSetting("index.falseSetting", false, Property.IndexScope, Property.Dynamic),
+            Setting.simpleString("fooSetting", "foo", Property.NodeScope, Property.Final)
         );
         RegisterSettingsRequest registerSettingsRequest = new RegisterSettingsRequest(uniqueIdStr, settingsList);
         TransportResponse response = extensionsOrchestrator.settingsRequestHandler.handleRegisterSettingsRequest(registerSettingsRequest);
