@@ -116,10 +116,8 @@ public class SegmentReplicationSnapshotIT extends AbstractSnapshotIntegTestCase 
     public void createSnapshot() {
         // Snapshot declaration
         Path absolutePath = randomRepoPath().toAbsolutePath();
-        logger.info("Path [{}]", absolutePath);
         // Create snapshot
         createRepository(REPOSITORY_NAME, "fs", absolutePath);
-        logger.info("Perform snapshot");
         CreateSnapshotResponse createSnapshotResponse = client().admin()
             .cluster()
             .prepareCreateSnapshot(REPOSITORY_NAME, SNAPSHOT_NAME)
@@ -154,12 +152,10 @@ public class SegmentReplicationSnapshotIT extends AbstractSnapshotIntegTestCase 
         assertAcked(client().admin().indices().delete(new DeleteIndexRequest(INDEX_NAME)).get());
         assertFalse("index [" + INDEX_NAME + "] should have been deleted", indexExists(INDEX_NAME));
 
-        logger.info("Restore from snapshot");
         RestoreSnapshotResponse restoreSnapshotResponse = restoreSnapshotWithSettings(null);
 
         // Assertions
         assertThat(restoreSnapshotResponse.status(), equalTo(RestStatus.ACCEPTED));
-        logger.info("Ensure cluster is green");
         ensureGreen(RESTORED_INDEX_NAME);
         GetSettingsResponse settingsResponse = client().admin()
             .indices()
@@ -177,12 +173,10 @@ public class SegmentReplicationSnapshotIT extends AbstractSnapshotIntegTestCase 
         assertAcked(client().admin().indices().delete(new DeleteIndexRequest(INDEX_NAME)).get());
         assertFalse("index [" + INDEX_NAME + "] should have been deleted", indexExists(INDEX_NAME));
 
-        logger.info("Restore from snapshot");
         RestoreSnapshotResponse restoreSnapshotResponse = restoreSnapshotWithSettings(null);
 
         // Assertions
         assertThat(restoreSnapshotResponse.status(), equalTo(RestStatus.ACCEPTED));
-        logger.info("Ensure cluster is green");
         ingestData(5000, RESTORED_INDEX_NAME);
         ensureGreen(RESTORED_INDEX_NAME);
         GetSettingsResponse settingsResponse = client().admin()
@@ -200,12 +194,10 @@ public class SegmentReplicationSnapshotIT extends AbstractSnapshotIntegTestCase 
         // Delete index
         assertAcked(client().admin().indices().delete(new DeleteIndexRequest(INDEX_NAME)).get());
 
-        logger.info("Restore from snapshot");
         RestoreSnapshotResponse restoreSnapshotResponse = restoreSnapshotWithSettings(restoreIndexSegRepSettings());
 
         // Assertions
         assertThat(restoreSnapshotResponse.status(), equalTo(RestStatus.ACCEPTED));
-        logger.info("Ensure cluster is green");
         ensureGreen(RESTORED_INDEX_NAME);
         GetSettingsResponse settingsResponse = client().admin()
             .indices()
@@ -224,12 +216,10 @@ public class SegmentReplicationSnapshotIT extends AbstractSnapshotIntegTestCase 
         // Delete index
         assertAcked(client().admin().indices().delete(new DeleteIndexRequest(INDEX_NAME)).get());
 
-        logger.info("Restore from snapshot");
         RestoreSnapshotResponse restoreSnapshotResponse = restoreSnapshotWithSettings(restoreIndexDocRepSettings());
 
         // Assertions
         assertThat(restoreSnapshotResponse.status(), equalTo(RestStatus.ACCEPTED));
-        logger.info("Wait for green index health");
         ensureGreen(RESTORED_INDEX_NAME);
         GetSettingsResponse settingsResponse = client().admin()
             .indices()
@@ -246,12 +236,10 @@ public class SegmentReplicationSnapshotIT extends AbstractSnapshotIntegTestCase 
         // Delete index
         assertAcked(client().admin().indices().delete(new DeleteIndexRequest(INDEX_NAME)).get());
 
-        logger.info("Restore from snapshot");
         RestoreSnapshotResponse restoreSnapshotResponse = restoreSnapshotWithSettings(restoreIndexDocRepSettings());
 
         // Assertions
         assertThat(restoreSnapshotResponse.status(), equalTo(RestStatus.ACCEPTED));
-        logger.info("Ensure cluster is green");
         ensureGreen(RESTORED_INDEX_NAME);
         GetSettingsResponse settingsResponse = client().admin()
             .indices()
@@ -278,7 +266,6 @@ public class SegmentReplicationSnapshotIT extends AbstractSnapshotIntegTestCase 
 
         // Assertions
         assertThat(restoreSnapshotResponse.status(), equalTo(RestStatus.ACCEPTED));
-        logger.info("Ensure cluster is green");
         internalCluster().startNode();
         ensureGreen(RESTORED_INDEX_NAME);
         GetSettingsResponse settingsResponse = client().admin()
