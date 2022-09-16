@@ -254,10 +254,12 @@ public class DecommissionService {
                         public void onTimeout(TimeValue timeout) {
                             logger.info("timed out while waiting for abdication of to-be-decommissioned leader");
                             clearVotingConfigExclusionAndUpdateStatus(false, false);
-                            listener.onFailure(new OpenSearchTimeoutException(
-                                "timed out [{}] while waiting for abdication of to-be-decommissioned leader",
-                                timeout.toString()
-                            ));
+                            listener.onFailure(
+                                new OpenSearchTimeoutException(
+                                    "timed out [{}] while waiting for abdication of to-be-decommissioned leader",
+                                    timeout.toString()
+                                )
+                            );
                         }
                     };
                     // In case the cluster state is already processed even before this code is executed

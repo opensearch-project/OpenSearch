@@ -216,7 +216,7 @@ public class DecommissionController {
             }
         };
 
-        if(allDecommissionedNodesRemovedPredicate.test(clusterService.getClusterApplierService().state())) {
+        if (allDecommissionedNodesRemovedPredicate.test(clusterService.getClusterApplierService().state())) {
             removalListener.onNewClusterState(clusterService.getClusterApplierService().state());
         } else {
             observer.waitForNextChange(removalListener, allDecommissionedNodesRemovedPredicate);
