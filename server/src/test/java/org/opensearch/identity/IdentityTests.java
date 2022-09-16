@@ -16,10 +16,6 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class IdentityTests extends OpenSearchTestCase {
 
-    public void testGetAuthManagerDefaultsToNull() {
-        assertThat(Identity.getAuthManager(), nullValue());
-    }
-
     public void testGetAuthManagerSetAndGets() {
         final AuthenticationManager authManager = mock(AuthenticationManager.class);
         Identity.setAuthManager(authManager);
