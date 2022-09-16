@@ -11,7 +11,6 @@ package org.opensearch.identity;
 import org.opensearch.test.OpenSearchTestCase;
 
 import static org.mockito.Mockito.mock;
-import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.equalTo;
 
 public class IdentityTests extends OpenSearchTestCase {
