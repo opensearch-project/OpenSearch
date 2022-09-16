@@ -48,7 +48,7 @@ public class SegmentReplicationSnapshotIT extends AbstractSnapshotIntegTestCase 
 
     @BeforeClass
     public static void assumeFeatureFlag() {
-//        assumeTrue("Segment replication Feature flag is enabled", Boolean.parseBoolean(System.getProperty(FeatureFlags.REPLICATION_TYPE)));
+        assumeTrue("Segment replication Feature flag is enabled", Boolean.parseBoolean(System.getProperty(FeatureFlags.REPLICATION_TYPE)));
     }
 
     public Settings segRepEnableIndexSettings() {
@@ -103,7 +103,7 @@ public class SegmentReplicationSnapshotIT extends AbstractSnapshotIntegTestCase 
         final String primaryNode = internalCluster().startNode();
         List<String> nodeNames = new ArrayList<>();
         nodeNames.add(primaryNode);
-        for(int i=0; i<replicaCount; i++) {
+        for (int i = 0; i < replicaCount; i++) {
             nodeNames.add(internalCluster().startNode());
         }
         createIndex(INDEX_NAME, indexSettings);
@@ -151,8 +151,7 @@ public class SegmentReplicationSnapshotIT extends AbstractSnapshotIntegTestCase 
         startClusterWithSettings(segRepEnableIndexSettings(), 1);
         createSnapshot();
         // Delete index
-        client().admin().indices().delete(new DeleteIndexRequest(INDEX_NAME));
-        Thread.sleep(5000);
+        assertAcked(client().admin().indices().delete(new DeleteIndexRequest(INDEX_NAME)).get());
         assertFalse("index [" + INDEX_NAME + "] should have been deleted", indexExists(INDEX_NAME));
 
         logger.info("Restore from snapshot");
