@@ -8,6 +8,7 @@
 
 package org.opensearch.extensions;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.mockito.ArgumentMatchers.any;
@@ -58,14 +59,17 @@ import org.opensearch.common.io.stream.NamedWriteableRegistryResponse;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.network.NetworkService;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsModule;
+import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.extensions.rest.RegisterRestActionsRequest;
+import org.opensearch.extensions.settings.RegisterSettingsRequest;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AnalysisRegistry;
@@ -162,6 +166,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
             new NoneCircuitBreakerService(),
             new UsageService()
         );
+        settingsModule = new SettingsModule(Settings.EMPTY, emptyList(), emptyList(), emptySet());
         clusterService = createClusterService(threadPool);
 
         extensionDir = createTempDir();
@@ -371,6 +376,28 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         assertEquals(ExtensionStringResponse.class, response.getClass());
         assertTrue(((ExtensionStringResponse) response).getResponse().contains(uniqueIdStr));
         assertTrue(((ExtensionStringResponse) response).getResponse().contains(actionsList.toString()));
+    }
+
+    public void testHandleRegisterSettingsRequest() throws Exception {
+
+        Path extensionDir = createTempDir();
+
+        Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
+
+        ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
+
+        extensionsOrchestrator.initializeServicesAndRestHandler(restController, settingsModule, transportService, clusterService);
+        String uniqueIdStr = "uniqueid1";
+        List<Setting<?>> settingsList = List.of(
+            Setting.boolSetting("falseSetting", false, Property.IndexScope, Property.NodeScope),
+            Setting.simpleString("fooSetting", "foo", Property.Dynamic)
+        );
+        RegisterSettingsRequest registerSettingsRequest = new RegisterSettingsRequest(uniqueIdStr, settingsList);
+        TransportResponse response = extensionsOrchestrator.settingsRequestHandler.handleRegisterSettingsRequest(registerSettingsRequest);
+        assertEquals(ExtensionStringResponse.class, response.getClass());
+        assertTrue(((ExtensionStringResponse) response).getResponse().contains(uniqueIdStr));
+        assertTrue(((ExtensionStringResponse) response).getResponse().contains("falseSetting"));
+        assertTrue(((ExtensionStringResponse) response).getResponse().contains("fooSetting"));
     }
 
     public void testHandleRegisterRestActionsRequestWithInvalidMethod() throws Exception {
