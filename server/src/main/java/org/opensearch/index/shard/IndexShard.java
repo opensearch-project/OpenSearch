@@ -203,6 +203,7 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static org.opensearch.index.seqno.RetentionLeaseActions.RETAIN_ALL;
+import static org.opensearch.index.seqno.SequenceNumbers.LOCAL_CHECKPOINT_KEY;
 import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 /**
@@ -1405,9 +1406,25 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (indexSettings.isSegRepEnabled() == false) {
             return null;
         }
-        final IndexMetadata indexMetadata = indexSettings.getIndexMetadata();
-        if (getEngineOrNull() == null || (indexMetadata != null && indexMetadata.getState() == IndexMetadata.State.CLOSE)) {
+        if (getEngineOrNull() == null) {
             return ReplicationCheckpoint.empty(shardId);
+        }
+        // If index is closed, read replication checkpoint from last committed segments info on local store
+        if (indexSettings.getIndexMetadata().getState() == IndexMetadata.State.CLOSE) {
+            try {
+                final SegmentInfos segmentInfos = store.readLastCommittedSegmentsInfo();
+                return new ReplicationCheckpoint(
+                    this.shardId,
+                    getOperationPrimaryTerm(),
+                    segmentInfos.getGeneration(),
+                    Long.parseLong(
+                        segmentInfos.userData.getOrDefault(LOCAL_CHECKPOINT_KEY, String.valueOf(SequenceNumbers.NO_OPS_PERFORMED))
+                    ),
+                    segmentInfos.getVersion()
+                );
+            } catch (IOException ex) {
+                throw new OpenSearchException("Error reading SegmentInfos ", ex);
+            }
         }
         try (final GatedCloseable<SegmentInfos> snapshot = getSegmentInfosSnapshot()) {
             return Optional.ofNullable(snapshot.get())

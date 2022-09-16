@@ -91,7 +91,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
     }
 
     /**
-     * Test that latestReplicationCheckpoint returns empty ReplicationCheckpoint with close state
+     * Test that closed indices reads last committed segment infos on local store for replication checkpoint
      */
     public void testReplicationCheckpointOnClosedIndices() throws IOException {
         final IndexShard indexShard = newStartedShard(randomBoolean(), settings, new NRTReplicationEngineFactory());
@@ -106,7 +106,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             IndexMetadata.builder("index").settings(newSettings).state(IndexMetadata.State.CLOSE).build()
         );
         final ReplicationCheckpoint replicationCheckpoint = indexShard.getLatestReplicationCheckpoint();
-        assertEquals(replicationCheckpoint, ReplicationCheckpoint.empty(indexShard.shardId()));
+        assertNotNull(replicationCheckpoint);
         closeShards(indexShard);
     }
 
