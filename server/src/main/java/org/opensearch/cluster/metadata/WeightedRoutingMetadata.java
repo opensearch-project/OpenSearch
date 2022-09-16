@@ -164,5 +164,4 @@ public class WeightedRoutingMetadata extends AbstractNamedDiffable<Metadata.Cust
     public String toString() {
         return Strings.toString(this);
     }
-
 }
