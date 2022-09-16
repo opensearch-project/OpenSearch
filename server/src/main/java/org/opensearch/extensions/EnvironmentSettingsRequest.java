@@ -39,7 +39,8 @@ public class EnvironmentSettingsRequest extends TransportRequest {
         List<Setting<?>> componentSettings = new ArrayList<>(componentSettingsCount);
         for (int i = 0; i < componentSettingsCount; i++) {
             // TODO : After getSettings support is added
-            // componentSettings.add(new WriteableSetting(in));
+            // WriteableSetting writeableSetting = new WriteableSetting(in);
+            // componentSettings.add(writeableSetting.getSetting());
         }
         this.componentSettings = componentSettings;
     }
