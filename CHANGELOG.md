@@ -63,6 +63,31 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ### Security
 - CVE-2022-25857 org.yaml:snakeyaml DOS vulnerability ([#4341](https://github.com/opensearch-project/OpenSearch/pull/4341))
 
+## Feature/extensions Branch
+
+### Added
+ - Adding initial support for extensions ([#2796](https://github.com/opensearch-project/OpenSearch/pull/2796))
+ - Adding extension framework support for first extension point ([#3107](https://github.com/opensearch-project/OpenSearch/pull/3107))
+ - Updated imports with absolute path ([#3173](https://github.com/opensearch-project/OpenSearch/pull/3173))
+ - Fix a bug where indexing times out when extensions do not exist ([#3188](https://github.com/opensearch-project/OpenSearch/pull/3188))
+ - Integrated CreateComponent extensionPoint ([#3265](https://github.com/opensearch-project/OpenSearch/pull/3265))
+ - Added javadocs for extensibility ([#3366](https://github.com/opensearch-project/OpenSearch/pull/3366))
+ - Resolved javadoc error ([#3380](https://github.com/opensearch-project/OpenSearch/pull/3380))
+ - Read from extensions.yml ([#3381](https://github.com/opensearch-project/OpenSearch/pull/3381))
+ - Added unit tests and modified extension read logic for ExtensionsOrchestrator ([#3449](https://github.com/opensearch-project/OpenSearch/pull/3449))
+ - Removed Plugin Directory code from ExtensionsOrchestrator ([#3721](https://github.com/opensearch-project/OpenSearch/pull/3721))
+ - Added unit test for createComponent workflow ([#3750](https://github.com/opensearch-project/OpenSearch/pull/3750))
+ - Adding support to register settings dynamically ([#3753](https://github.com/opensearch-project/OpenSearch/pull/3753))
+ - Added flag to check if connectToNode request is coming from ExtensionsOrchestrator ([#3830](https://github.com/opensearch-project/OpenSearch/pull/3830))
+ - Extensibility support for getNamedWriteables ([#3925](https://github.com/opensearch-project/OpenSearch/pull/3925))
+ - Restructured testExtensionsInitialize ([#4029](https://github.com/opensearch-project/OpenSearch/pull/4029))
+ - Provide Extension API to OpenSearch ([#4100](https://github.com/opensearch-project/OpenSearch/pull/4100))
+ - Register REST API and forward REST requests to associated extension ([#4282](https://github.com/opensearch-project/OpenSearch/pull/4282))
+ - Only send one extension info when initializing ([#4302](https://github.com/opensearch-project/OpenSearch/pull/4302))
+ - Adding support for registering Transport Actions for extensions ([#4326](https://github.com/opensearch-project/OpenSearch/pull/4326))
+ - Pass full RestResponse to user from Extension ([#4356](https://github.com/opensearch-project/OpenSearch/pull/4356))
+ - Handle named wildcards (REST path parameters) ([#4415](https://github.com/opensearch-project/OpenSearch/pull/4415)) 
+
 ## [2.x]
 ### Added
 - Github workflow for changelog verification ([#4085](https://github.com/opensearch-project/OpenSearch/pull/4085))
