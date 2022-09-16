@@ -33,7 +33,6 @@ package org.opensearch.cluster.routing;
 
 import org.opensearch.Version;
 import org.opensearch.action.support.replication.ClusterStateCreationUtils;
-import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
@@ -595,7 +594,6 @@ public class OperationRoutingTests extends OpenSearchTestCase {
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
         ResponseCollectorService collector = new ResponseCollectorService(clusterService);
         Map<String, Long> outstandingRequests = new HashMap<>();
-        opRouting.setClusterService(clusterService);
         GroupShardsIterator<ShardIterator> groupIterator = opRouting.searchShards(
             state,
             indexNames,
@@ -700,7 +698,6 @@ public class OperationRoutingTests extends OpenSearchTestCase {
         Set<String> selectedNodes = new HashSet<>(numShards);
         ResponseCollectorService collector = new ResponseCollectorService(clusterService);
         Map<String, Long> outstandingRequests = new HashMap<>();
-        opRouting.setClusterService(clusterService);
         GroupShardsIterator<ShardIterator> groupIterator = opRouting.searchShards(
             state,
             indexNames,
@@ -833,9 +830,6 @@ public class OperationRoutingTests extends OpenSearchTestCase {
             ClusterState.Builder builder = ClusterState.builder(state);
             ClusterServiceUtils.setState(clusterService, builder);
 
-            opRouting.setClusterService(clusterService);
-            opRouting.setWeightedRoutingCache(new WeightedRoutingCache(clusterService));
-
             // search shards call
             GroupShardsIterator<ShardIterator> groupIterator = opRouting.searchShards(
                 state,
@@ -870,8 +864,6 @@ public class OperationRoutingTests extends OpenSearchTestCase {
             ClusterServiceUtils.setState(clusterService, builder);
 
             opRouting = new OperationRouting(setting, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
-            opRouting.setClusterService(clusterService);
-            opRouting.setWeightedRoutingCache(new WeightedRoutingCache(clusterService));
 
             // search shards call
             groupIterator = opRouting.searchShards(state, indexNames, null, null, collector, outstandingRequests);
@@ -887,92 +879,6 @@ public class OperationRoutingTests extends OpenSearchTestCase {
                 // No shards are assigned to nodes in zone b since its weight is 0
                 assertFalse(nodeID.contains("b"));
             }
-        } finally {
-            IOUtils.close(clusterService);
-            terminate(threadPool);
-        }
-    }
-
-    public void testWeightedOperationRoutingCaching() throws Exception {
-        final int numIndices = 2;
-        final int numShards = 3;
-        final int numReplicas = 2;
-        // setting up indices
-        final String[] indexNames = new String[numIndices];
-        for (int i = 0; i < numIndices; i++) {
-            indexNames[i] = "test" + i;
-        }
-        ClusterService clusterService = null;
-        TestThreadPool threadPool = null;
-        try {
-            ClusterState state = clusterStateForWeightedRouting(indexNames, numShards, numReplicas);
-
-            Settings setting = Settings.builder().put("cluster.routing.allocation.awareness.attributes", "zone").build();
-
-            threadPool = new TestThreadPool("testThatOnlyNodesSupport");
-            clusterService = ClusterServiceUtils.createClusterService(threadPool);
-
-            OperationRouting opRouting = new OperationRouting(
-                setting,
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
-            );
-            opRouting.setClusterService(clusterService);
-            opRouting.setWeightedRoutingCache(new WeightedRoutingCache(clusterService));
-
-            assertTrue(opRouting.ignoreAwarenessAttributes());
-            ResponseCollectorService collector = new ResponseCollectorService(clusterService);
-            Map<String, Long> outstandingRequests = new HashMap<>();
-
-            // Setting up weights for weighted round-robin in cluster state
-            Map<String, Double> weights = Map.of("a", 1.0, "b", 1.0, "c", 0.0);
-            state = setWeightedRoutingWeights(state, weights);
-            ClusterServiceUtils.setState(clusterService, ClusterState.builder(state));
-
-            // search shards call
-            GroupShardsIterator<ShardIterator> groupIterator = opRouting.searchShards(
-                state,
-                indexNames,
-                null,
-                null,
-                collector,
-                outstandingRequests
-            );
-
-            // shard weighted routing ordering details are not present in cache, the details are calculated and put in cache
-            assertEquals(6, opRouting.getWeightedRoutingCache().misses());
-            assertEquals(6, opRouting.getWeightedRoutingCache().size());
-
-            // Calling operation routing again without any cluster state change to test that weighted routing details
-            // are fetched from cache
-            groupIterator = opRouting.searchShards(state, indexNames, null, null, collector, outstandingRequests);
-
-            // details are fetched from cache
-            assertEquals(6, opRouting.getWeightedRoutingCache().hits());
-            // cache count stays same
-            assertEquals(6, opRouting.getWeightedRoutingCache().size());
-            // cache misses stay same
-            assertEquals(6, opRouting.getWeightedRoutingCache().misses());
-
-            // Updating cluster state to test weighted routing details are calculated again
-            weights = Map.of("a", 1.0, "b", 0.0, "c", 1.0);
-            // building new cluster state
-            ClusterState state2 = setWeightedRoutingWeights(state, weights);
-            ClusterServiceUtils.setState(clusterService, ClusterState.builder(state2));
-
-            ClusterChangedEvent event = new ClusterChangedEvent("test", state2, state);
-            opRouting.getWeightedRoutingCache().clusterChanged(event);
-
-            // cache is invalidated after cluster state change, cache count is zero
-            assertEquals(0, opRouting.getWeightedRoutingCache().size());
-
-            // search shards call
-            groupIterator = opRouting.searchShards(state2, indexNames, null, null, collector, outstandingRequests);
-
-            // cache hit remain same
-            assertEquals(6, opRouting.getWeightedRoutingCache().hits());
-            // cache miss increases by 6
-            assertEquals(12, opRouting.getWeightedRoutingCache().misses());
-            assertEquals(6, opRouting.getWeightedRoutingCache().size());
         } finally {
             IOUtils.close(clusterService);
             terminate(threadPool);
@@ -1013,8 +919,6 @@ public class OperationRoutingTests extends OpenSearchTestCase {
             state = setWeightedRoutingWeights(state, weights);
             ClusterServiceUtils.setState(clusterService, ClusterState.builder(state));
 
-            opRouting.setClusterService(clusterService);
-            opRouting.setWeightedRoutingCache(new WeightedRoutingCache(clusterService));
             // search shards call
             GroupShardsIterator<ShardIterator> groupIterator = opRouting.searchShards(
                 state,
@@ -1054,8 +958,6 @@ public class OperationRoutingTests extends OpenSearchTestCase {
             ClusterServiceUtils.setState(clusterService, ClusterState.builder(state));
 
             opRouting = new OperationRouting(setting, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
-            opRouting.setClusterService(clusterService);
-            opRouting.setWeightedRoutingCache(new WeightedRoutingCache(clusterService));
 
             // search shards call
             groupIterator = opRouting.searchShards(state, indexNames, null, null, collector, outstandingRequests);

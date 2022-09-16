@@ -37,10 +37,8 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
-import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
-import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -90,9 +88,6 @@ public class OperationRouting {
     private volatile boolean ignoreAwarenessAttr;
     private volatile double weightedRoutingDefaultWeight;
 
-    private WeightedRoutingCache weightedRoutingCache;
-    private ClusterService clusterService;
-
     public OperationRouting(Settings settings, ClusterSettings clusterSettings) {
         // whether to ignore awareness attributes when routing requests
         this.ignoreAwarenessAttr = clusterSettings.get(IGNORE_AWARENESS_ATTRIBUTES_SETTING);
@@ -140,20 +135,6 @@ public class OperationRouting {
         return this.weightedRoutingDefaultWeight;
     }
 
-    @Inject
-    public void setClusterService(ClusterService clusterService) {
-        this.clusterService = clusterService;
-    }
-
-    @Inject
-    public void setWeightedRoutingCache(WeightedRoutingCache weightedRoutingCache) {
-        this.weightedRoutingCache = weightedRoutingCache;
-    }
-
-    public WeightedRoutingCache getWeightedRoutingCache() {
-        return weightedRoutingCache;
-    }
-
     public ShardIterator indexShards(ClusterState clusterState, String index, String id, @Nullable String routing) {
         return shards(clusterState, index, id, routing).shardsIt();
     }
@@ -171,7 +152,8 @@ public class OperationRouting {
             clusterState.nodes(),
             preference,
             null,
-            null
+            null,
+            clusterState.getMetadata().weightedRoutingMetadata()
         );
     }
 
@@ -183,7 +165,8 @@ public class OperationRouting {
             clusterState.nodes(),
             preference,
             null,
-            null
+            null,
+            clusterState.metadata().weightedRoutingMetadata()
         );
     }
 
@@ -213,7 +196,8 @@ public class OperationRouting {
                 clusterState.nodes(),
                 preference,
                 collectorService,
-                nodeCounts
+                nodeCounts,
+                clusterState.metadata().weightedRoutingMetadata()
             );
             if (iterator != null) {
                 set.add(iterator);
@@ -263,10 +247,11 @@ public class OperationRouting {
         DiscoveryNodes nodes,
         @Nullable String preference,
         @Nullable ResponseCollectorService collectorService,
-        @Nullable Map<String, Long> nodeCounts
+        @Nullable Map<String, Long> nodeCounts,
+        @Nullable WeightedRoutingMetadata weightedRoutingMetadata
     ) {
         if (preference == null || preference.isEmpty()) {
-            return shardRoutings(indexShard, nodes, collectorService, nodeCounts);
+            return shardRoutings(indexShard, nodes, collectorService, nodeCounts, weightedRoutingMetadata);
         }
         if (preference.charAt(0) == '_') {
             Preference preferenceType = Preference.parse(preference);
@@ -293,7 +278,7 @@ public class OperationRouting {
                 }
                 // no more preference
                 if (index == -1 || index == preference.length() - 1) {
-                    return shardRoutings(indexShard, nodes, collectorService, nodeCounts);
+                    return shardRoutings(indexShard, nodes, collectorService, nodeCounts, weightedRoutingMetadata);
                 } else {
                     // update the preference and continue
                     preference = preference.substring(index + 1);
@@ -336,17 +321,13 @@ public class OperationRouting {
         IndexShardRoutingTable indexShard,
         DiscoveryNodes nodes,
         @Nullable ResponseCollectorService collectorService,
-        @Nullable Map<String, Long> nodeCounts
+        @Nullable Map<String, Long> nodeCounts,
+        @Nullable WeightedRoutingMetadata weightedRoutingMetadata
     ) {
-        WeightedRoutingMetadata weightedRoutingMetadata = null;
-        if (clusterService != null) {
-            weightedRoutingMetadata = clusterService.state().metadata().weightedRoutingMetadata();
-        }
         if (weightedRoutingMetadata != null) {
             return indexShard.activeInitializingShardsWeightedIt(
                 weightedRoutingMetadata.getWeightedRouting(),
                 nodes,
-                weightedRoutingCache,
                 getWeightedRoutingDefaultWeight()
             );
         } else if (ignoreAwarenessAttributes()) {

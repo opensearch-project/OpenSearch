@@ -85,6 +85,10 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     private volatile Map<AttributesKey, AttributesRoutings> activeShardsByAttributes = emptyMap();
     private volatile Map<AttributesKey, AttributesRoutings> initializingShardsByAttributes = emptyMap();
     private final Object shardsByAttributeMutex = new Object();
+    private final Object activeShardsByWeightMutex = new Object();
+    private final Object initializingShardsByWeightMutex = new Object();
+    private volatile Map<WeightedRoutingKey, List<ShardRouting>> activeShardsByWeight = emptyMap();
+    private volatile Map<WeightedRoutingKey, List<ShardRouting>> initializingShardsByWeight = emptyMap();
 
     /**
      * The initializing list, including ones that are initializing on a target node because of relocation.
@@ -301,28 +305,13 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
      * @return an iterator over active and initializing shards, ordered by weighted round-robin
      * scheduling policy. Making sure that initializing shards are the last to iterate through.
      */
-    public ShardIterator activeInitializingShardsWeightedIt(
-        WeightedRouting weightedRouting,
-        DiscoveryNodes nodes,
-        WeightedRoutingCache cache,
-        double defaultWeight
-    ) {
+    public ShardIterator activeInitializingShardsWeightedIt(WeightedRouting weightedRouting, DiscoveryNodes nodes, double defaultWeight) {
         final int seed = shuffler.nextSeed();
         List<ShardRouting> ordered = new ArrayList<>();
-        List<ShardRouting> orderedActiveShards = cache.get(new WeightedRoutingCache.Key(shardId));
-        if (orderedActiveShards == null) {
-            orderedActiveShards = shardsOrderedByWeight(activeShards, weightedRouting, nodes, defaultWeight);
-            cache.put(new WeightedRoutingCache.Key(shardId), orderedActiveShards);
-        }
+        List<ShardRouting> orderedActiveShards = getActiveShardsByWeight(weightedRouting, nodes, defaultWeight);
         ordered.addAll(shuffler.shuffle(orderedActiveShards, seed));
-
         if (!allInitializingShards.isEmpty()) {
-            List<ShardRouting> orderedInitializingShards = shardsOrderedByWeight(
-                allInitializingShards,
-                weightedRouting,
-                nodes,
-                defaultWeight
-            );
+            List<ShardRouting> orderedInitializingShards = getInitializingShardsByWeight(weightedRouting, nodes, defaultWeight);
             ordered.addAll(orderedInitializingShards);
         }
         return new PlainShardIterator(shardId, ordered);
@@ -675,7 +664,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
                 List<ShardRouting> to = collectAttributeShards(key, nodes, from);
 
                 shardRoutings = new AttributesRoutings(to, Collections.unmodifiableList(from));
-                activeShardsByAttributes = MapBuilder.newMapBuilder(activeShardsByAttributes).put(key, shardRoutings).immutableMap();
+                activeShardsByAttributes = new MapBuilder().put(key, shardRoutings).immutableMap();
             }
         }
         return shardRoutings;
@@ -688,9 +677,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
                 ArrayList<ShardRouting> from = new ArrayList<>(allInitializingShards);
                 List<ShardRouting> to = collectAttributeShards(key, nodes, from);
                 shardRoutings = new AttributesRoutings(to, Collections.unmodifiableList(from));
-                initializingShardsByAttributes = MapBuilder.newMapBuilder(initializingShardsByAttributes)
-                    .put(key, shardRoutings)
-                    .immutableMap();
+                initializingShardsByAttributes = new MapBuilder().put(key, shardRoutings).immutableMap();
             }
         }
         return shardRoutings;
@@ -776,6 +763,58 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
             }
         }
         return count;
+    }
+
+    /**
+     * Key for WeightedRouting
+     *
+     * @opensearch.internal
+     */
+    static class WeightedRoutingKey {
+        private final WeightedRouting weightedRouting;
+
+        WeightedRoutingKey(WeightedRouting weightedRouting) {
+            this.weightedRouting = weightedRouting;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            WeightedRoutingKey key = (WeightedRoutingKey) o;
+            if (!weightedRouting.equals(key.weightedRouting)) return false;
+            return true;
+        }
+
+        @Override
+        public int hashCode() {
+            int result = weightedRouting.hashCode();
+            return result;
+        }
+    }
+
+    private List<ShardRouting> getActiveShardsByWeight(WeightedRouting weightedRouting, DiscoveryNodes nodes, double defaultWeight) {
+        WeightedRoutingKey key = new WeightedRoutingKey(weightedRouting);
+        List<ShardRouting> shardRoutings = activeShardsByWeight.get(key);
+        if (shardRoutings == null) {
+            synchronized (activeShardsByWeightMutex) {
+                shardRoutings = shardsOrderedByWeight(activeShards, weightedRouting, nodes, defaultWeight);
+                activeShardsByWeight = MapBuilder.newMapBuilder(activeShardsByWeight).put(key, shardRoutings).immutableMap();
+            }
+        }
+        return shardRoutings;
+    }
+
+    private List<ShardRouting> getInitializingShardsByWeight(WeightedRouting weightedRouting, DiscoveryNodes nodes, double defaultWeight) {
+        WeightedRoutingKey key = new WeightedRoutingKey(weightedRouting);
+        List<ShardRouting> shardRoutings = initializingShardsByWeight.get(key);
+        if (shardRoutings == null) {
+            synchronized (initializingShardsByWeightMutex) {
+                shardRoutings = shardsOrderedByWeight(activeShards, weightedRouting, nodes, defaultWeight);
+                initializingShardsByWeight = MapBuilder.newMapBuilder(initializingShardsByWeight).put(key, shardRoutings).immutableMap();
+            }
+        }
+        return shardRoutings;
     }
 
     /**

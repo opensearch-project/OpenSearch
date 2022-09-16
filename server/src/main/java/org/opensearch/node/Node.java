@@ -36,8 +36,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
-import org.opensearch.cluster.routing.OperationRouting;
-import org.opensearch.cluster.routing.WeightedRoutingCache;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.index.IndexingPressureService;
@@ -908,7 +906,6 @@ public class Node implements Closeable {
             );
             resourcesToClose.add(persistentTasksClusterService);
             final PersistentTasksService persistentTasksService = new PersistentTasksService(clusterService, threadPool, client);
-            final WeightedRoutingCache weightedRoutingCache = new WeightedRoutingCache(clusterService);
 
             modules.add(b -> {
                 b.bind(Node.class).toInstance(this);
@@ -952,7 +949,6 @@ public class Node implements Closeable {
                 b.bind(SnapshotsInfoService.class).toInstance(snapshotsInfoService);
                 b.bind(GatewayMetaState.class).toInstance(gatewayMetaState);
                 b.bind(Discovery.class).toInstance(discoveryModule.getDiscovery());
-                b.bind(WeightedRoutingCache.class).toInstance(weightedRoutingCache);
                 {
                     processRecoverySettings(settingsModule.getClusterSettings(), recoverySettings);
                     b.bind(PeerRecoverySourceService.class)
@@ -990,7 +986,6 @@ public class Node implements Closeable {
                 b.bind(ShardLimitValidator.class).toInstance(shardLimitValidator);
                 b.bind(FsHealthService.class).toInstance(fsHealthService);
                 b.bind(SystemIndices.class).toInstance(systemIndices);
-                b.bind(OperationRouting.class).toInstance(clusterService.operationRouting());
             });
             injector = modules.createInjector();
 
@@ -1337,7 +1332,6 @@ public class Node implements Closeable {
         toClose.add(() -> stopWatch.stop().start("node_environment"));
         toClose.add(injector.getInstance(NodeEnvironment.class));
         toClose.add(stopWatch::stop);
-        toClose.add(injector.getInstance(WeightedRoutingCache.class));
 
         if (logger.isTraceEnabled()) {
             toClose.add(() -> logger.trace("Close times for each service:\n{}", stopWatch.prettyPrint()));
