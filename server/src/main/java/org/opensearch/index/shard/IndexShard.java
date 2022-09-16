@@ -1405,7 +1405,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (indexSettings.isSegRepEnabled() == false) {
             return null;
         }
-        if (getEngineOrNull() == null) {
+        final IndexMetadata indexMetadata = indexSettings.getIndexMetadata();
+        if (getEngineOrNull() == null || (indexMetadata != null && indexMetadata.getState() == IndexMetadata.State.CLOSE)) {
             return ReplicationCheckpoint.empty(shardId);
         }
         try (final GatedCloseable<SegmentInfos> snapshot = getSegmentInfosSnapshot()) {

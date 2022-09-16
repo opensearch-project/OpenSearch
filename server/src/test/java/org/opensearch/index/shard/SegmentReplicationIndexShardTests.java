@@ -12,6 +12,7 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.SegmentInfos;
 import org.junit.Assert;
 import org.opensearch.OpenSearchException;
+import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.delete.DeleteRequest;
 import org.opensearch.action.index.IndexRequest;
@@ -86,6 +87,26 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         final IndexShard indexShard = newStartedShard(randomBoolean(), settings, new NRTReplicationEngineFactory());
         final ReplicationCheckpoint replicationCheckpoint = indexShard.getLatestReplicationCheckpoint();
         assertNotNull(replicationCheckpoint);
+        closeShards(indexShard);
+    }
+
+    /**
+     * Test that latestReplicationCheckpoint returns empty ReplicationCheckpoint with close state
+     */
+    public void testReplicationCheckpointOnClosedIndices() throws IOException {
+        final IndexShard indexShard = newStartedShard(randomBoolean(), settings, new NRTReplicationEngineFactory());
+        // Pre-requisite settings needed for building IndexMetadata
+        Settings newSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .build();
+        indexShard.indexSettings.updateIndexMetadata(
+            IndexMetadata.builder("index").settings(newSettings).state(IndexMetadata.State.CLOSE).build()
+        );
+        final ReplicationCheckpoint replicationCheckpoint = indexShard.getLatestReplicationCheckpoint();
+        assertEquals(replicationCheckpoint, ReplicationCheckpoint.empty(indexShard.shardId()));
         closeShards(indexShard);
     }
 
