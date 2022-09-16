@@ -17,17 +17,17 @@ public class ExtensionResponseTests extends OpenSearchTestCase {
 
     public void testExtensionBooleanResponse() throws Exception {
         boolean response = true;
-        ExtensionBooleanResponse booleanRsponse = new ExtensionBooleanResponse(response);
+        ExtensionBooleanResponse booleanResponse = new ExtensionBooleanResponse(response);
 
-        assertEquals(response, booleanRsponse.getStatus());
+        assertEquals(response, booleanResponse.getStatus());
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            booleanRsponse.writeTo(out);
+            booleanResponse.writeTo(out);
             out.flush();
             try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
-                booleanRsponse = new ExtensionBooleanResponse(in);
+                booleanResponse = new ExtensionBooleanResponse(in);
 
-                assertEquals(response, booleanRsponse.getStatus());
+                assertEquals(response, booleanResponse.getStatus());
             }
         }
     }

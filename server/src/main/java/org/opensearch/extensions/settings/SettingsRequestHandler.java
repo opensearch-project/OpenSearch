@@ -42,8 +42,9 @@ public class SettingsRequestHandler {
      * @throws Exception if the request is not handled properly.
      */
     public TransportResponse handleRegisterSettingsRequest(RegisterSettingsRequest settingsRequest) throws Exception {
-        // TODO: we have settingsRequest.getUniqueId() available.
-        // How do we prevent key collisions in settings registration?
+        // TODO: How do we prevent key collisions in settings registration?
+        // we have settingsRequest.getUniqueId() available or could enforce reverse DNS naming
+        // See https://github.com/opensearch-project/opensearch-sdk-java/issues/142
         List<String> registeredSettings = new ArrayList<>();
         for (Setting<?> setting : settingsRequest.getSettings()) {
             settingsModule.registerDynamicSetting(setting);
