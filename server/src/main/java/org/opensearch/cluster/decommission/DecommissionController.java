@@ -188,7 +188,7 @@ public class DecommissionController {
 
         final ClusterStateObserver observer = new ClusterStateObserver(clusterService, timeout, logger, threadPool.getThreadContext());
 
-        observer.waitForNextChange(new ClusterStateObserver.Listener() {
+        final ClusterStateObserver.Listener removalListener = new ClusterStateObserver.Listener() {
             @Override
             public void onNewClusterState(ClusterState state) {
                 logger.info("successfully removed all decommissioned nodes [{}] from the cluster", nodesToBeDecommissioned.toString());
@@ -214,7 +214,13 @@ public class DecommissionController {
                     )
                 );
             }
-        }, allDecommissionedNodesRemovedPredicate);
+        };
+
+        if(allDecommissionedNodesRemovedPredicate.test(clusterService.getClusterApplierService().state())) {
+            removalListener.onNewClusterState(clusterService.getClusterApplierService().state());
+        } else {
+            observer.waitForNextChange(removalListener, allDecommissionedNodesRemovedPredicate);
+        }
     }
 
     /**
