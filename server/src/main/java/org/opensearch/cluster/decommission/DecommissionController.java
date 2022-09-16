@@ -117,8 +117,9 @@ public class DecommissionController {
      *
      * @param listener callback for response or failure
      */
-    public void clearVotingConfigExclusion(ActionListener<Void> listener) {
+    public void clearVotingConfigExclusion(ActionListener<Void> listener, boolean waitForRemoval) {
         final ClearVotingConfigExclusionsRequest clearVotingConfigExclusionsRequest = new ClearVotingConfigExclusionsRequest();
+        clearVotingConfigExclusionsRequest.setWaitForRemoval(waitForRemoval);
         transportService.sendRequest(
             transportService.getLocalNode(),
             ClearVotingConfigExclusionsAction.NAME,

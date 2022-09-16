@@ -196,17 +196,26 @@ public class DecommissionService {
         ActionListener<Void> exclusionListener = new ActionListener<Void>() {
             @Override
             public void onResponse(Void unused) {
-                if (transportService.getLocalNode().isClusterManagerNode()
-                    && !nodeHasDecommissionedAttribute(transportService.getLocalNode(), decommissionAttribute)) {
-                    logger.info("will attempt to fail decommissioned nodes as local node is eligible to process the request");
-                    // we are good here to send the response now as the request is processed by an eligible active leader
-                    // and to-be-decommissioned cluster manager is no more part of Voting Configuration
-                    listener.onResponse(new ClusterStateUpdateResponse(true));
-                    failDecommissionedNodes(clusterService.getClusterApplierService().state());
+                if (clusterService.getClusterApplierService().state().nodes().isLocalNodeElectedClusterManager()) {
+                    if (nodeHasDecommissionedAttribute(clusterService.localNode(), decommissionAttribute)) {
+                        // this is an unexpected state, as after exclusion of nodes having decommission attribute,
+                        // this local node shouldn't have had the decommission attribute. Will send the failure response to the user
+                        String errorMsg = "unexpected state encountered [local node is to-be-decommissioned leader] while executing decommission request";
+                        logger.error(errorMsg);
+                        // will go ahead and clear the voting config and mark the status as false
+                        clearVotingConfigExclusionAndUpdateStatus(false, false);
+                        // we can send the failure response to the user here
+                        listener.onFailure(new IllegalStateException(errorMsg));
+                    } else {
+                        logger.info("will attempt to fail decommissioned nodes as local node is eligible to process the request");
+                        // we are good here to send the response now as the request is processed by an eligible active leader
+                        // and to-be-decommissioned cluster manager is no more part of Voting Configuration
+                        listener.onResponse(new ClusterStateUpdateResponse(true));
+                        failDecommissionedNodes(clusterService.getClusterApplierService().state());
+                    }
                 } else {
-                    // explicitly calling listener.onFailure with NotClusterManagerException as we can certainly say that
-                    // the local cluster manager node will be abdicated and soon will no longer be cluster manager.
-                    // this will ensure that request is retried until cluster manager times out
+                    // explicitly calling listener.onFailure with NotClusterManagerException as the local node is not the cluster manager
+                    // this will ensures that request is retried until cluster manager times out
                     logger.info(
                         "local node is not eligible to process the request, "
                             + "throwing NotClusterManagerException to attempt a retry on an eligible node"
@@ -280,12 +289,12 @@ public class DecommissionService {
                     new ActionListener<Void>() {
                         @Override
                         public void onResponse(Void unused) {
-                            clearVotingConfigExclusionAndUpdateStatus(true);
+                            clearVotingConfigExclusionAndUpdateStatus(true, true);
                         }
 
                         @Override
                         public void onFailure(Exception e) {
-                            clearVotingConfigExclusionAndUpdateStatus(false);
+                            clearVotingConfigExclusionAndUpdateStatus(false, false);
                         }
                     }
                 );
@@ -302,12 +311,12 @@ public class DecommissionService {
                     e
                 );
                 // since we are not able to update the status, we will clear the voting config exclusion we have set earlier
-                clearVotingConfigExclusionAndUpdateStatus(false);
+                clearVotingConfigExclusionAndUpdateStatus(false, false);
             }
         });
     }
 
-    private void clearVotingConfigExclusionAndUpdateStatus(boolean decommissionSuccessful) {
+    private void clearVotingConfigExclusionAndUpdateStatus(boolean decommissionSuccessful, boolean waitForRemoval) {
         decommissionController.clearVotingConfigExclusion(new ActionListener<Void>() {
             @Override
             public void onResponse(Void unused) {
@@ -326,7 +335,7 @@ public class DecommissionService {
                 );
                 decommissionController.updateMetadataWithDecommissionStatus(DecommissionStatus.FAILED, statusUpdateListener());
             }
-        });
+        }, waitForRemoval);
     }
 
     private Set<DiscoveryNode> filterNodesWithDecommissionAttribute(
