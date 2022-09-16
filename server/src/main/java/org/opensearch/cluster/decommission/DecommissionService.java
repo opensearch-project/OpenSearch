@@ -11,8 +11,10 @@ package org.opensearch.cluster.decommission;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
@@ -212,11 +214,12 @@ public class DecommissionService {
             .map(DiscoveryNode::getId)
             .collect(Collectors.toSet());
 
-        final Predicate<ClusterState> allNodesRemoved = clusterState -> {
+        final Predicate<ClusterState> allNodesRemovedAndAbdicated = clusterState -> {
             final Set<String> votingConfigNodeIds = clusterState.getLastCommittedConfiguration().getNodeIds();
-            return nodeIdsToBeExcluded.stream().noneMatch(votingConfigNodeIds::contains);
+            return nodeIdsToBeExcluded.stream().noneMatch(votingConfigNodeIds::contains)
+                && nodeIdsToBeExcluded.contains(clusterState.nodes().getClusterManagerNodeId()) == false;
         };
-        if (allNodesRemoved.test(clusterService.getClusterApplierService().state())) {
+        if (allNodesRemovedAndAbdicated.test(clusterService.getClusterApplierService().state())) {
             exclusionListener.onResponse(null);
         } else {
             // send a transport request to exclude to-be-decommissioned cluster manager eligible nodes from voting config
@@ -227,7 +230,43 @@ public class DecommissionService {
                         "successfully removed decommissioned cluster manager eligible nodes [{}] from voting config ",
                         clusterManagerNodesToBeDecommissioned.toString()
                     );
-                    exclusionListener.onResponse(null);
+                    final ClusterStateObserver abdicationObserver = new ClusterStateObserver(
+                        clusterService,
+                        TimeValue.timeValueSeconds(30L),
+                        logger,
+                        threadPool.getThreadContext()
+                    );
+                    final ClusterStateObserver.Listener abdicationListener = new ClusterStateObserver.Listener() {
+                        @Override
+                        public void onNewClusterState(ClusterState state) {
+                            logger.debug("to-be-decommissioned node is no more the active leader");
+                            exclusionListener.onResponse(null);
+                        }
+
+                        @Override
+                        public void onClusterServiceClose() {
+                            String errorMsg = "cluster service closed while waiting for abdication of to-be-decommissioned leader";
+                            logger.warn(errorMsg);
+                            listener.onFailure(new DecommissioningFailedException(decommissionAttribute, errorMsg));
+                        }
+
+                        @Override
+                        public void onTimeout(TimeValue timeout) {
+                            logger.info("timed out while waiting for abdication of to-be-decommissioned leader");
+                            clearVotingConfigExclusionAndUpdateStatus(false, false);
+                            listener.onFailure(new OpenSearchTimeoutException(
+                                "timed out [{}] while waiting for abdication of to-be-decommissioned leader",
+                                timeout.toString()
+                            ));
+                        }
+                    };
+                    // In case the cluster state is already processed even before this code is executed
+                    // therefore testing first before attaching the listener
+                    if (allNodesRemovedAndAbdicated.test(clusterService.getClusterApplierService().state())) {
+                        abdicationListener.onNewClusterState(clusterService.getClusterApplierService().state());
+                    } else {
+                        abdicationObserver.waitForNextChange(abdicationListener, allNodesRemovedAndAbdicated);
+                    }
                 }
 
                 @Override
@@ -254,7 +293,7 @@ public class DecommissionService {
                 decommissionController.removeDecommissionedNodes(
                     filterNodesWithDecommissionAttribute(clusterService.getClusterApplierService().state(), decommissionAttribute, false),
                     "nodes-decommissioned",
-                    TimeValue.timeValueSeconds(30L), // TODO - read timeout from request while integrating with API
+                    TimeValue.timeValueSeconds(120L),
                     new ActionListener<Void>() {
                         @Override
                         public void onResponse(Void unused) {

@@ -88,7 +88,7 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
         // we need to update the status only when the previous stage is just behind the expected stage
         // if the previous stage is already ahead of expected stage, we don't need to update the stage
         // For failures, we update it no matter what
-        if (previousStage >= newStage) return this;
+        if (previousStage >= newStage && newStatus.equals(DecommissionStatus.FAILED) == false) return this;
         if (newStage - previousStage != 1 && newStatus.equals(DecommissionStatus.FAILED) == false) {
             throw new DecommissioningFailedException(
                 this.decommissionAttribute(),
