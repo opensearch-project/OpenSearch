@@ -371,11 +371,11 @@ public class DecommissionService {
             msg = "awareness attribute not set to the cluster.";
         } else if (forcedAwarenessAttributes == null) {
             msg = "forced awareness attribute not set to the cluster.";
-        } else if (!awarenessAttributes.contains(decommissionAttribute.attributeName())) {
+        } else if (awarenessAttributes.contains(decommissionAttribute.attributeName()) == false) {
             msg = "invalid awareness attribute requested for decommissioning";
-        } else if (!forcedAwarenessAttributes.containsKey(decommissionAttribute.attributeName())) {
+        } else if (forcedAwarenessAttributes.containsKey(decommissionAttribute.attributeName()) == false) {
             msg = "forced awareness attribute [" + forcedAwarenessAttributes.toString() + "] doesn't have the decommissioning attribute";
-        } else if (!forcedAwarenessAttributes.get(decommissionAttribute.attributeName()).contains(decommissionAttribute.attributeValue())) {
+        } else if (forcedAwarenessAttributes.get(decommissionAttribute.attributeName()).contains(decommissionAttribute.attributeValue()) == false) {
             msg = "invalid awareness attribute value requested for decommissioning. Set forced awareness values before to decommission";
         }
 
@@ -389,7 +389,7 @@ public class DecommissionService {
         DecommissionAttribute decommissionAttribute
     ) {
         String msg = null;
-        if (decommissionAttributeMetadata != null && !decommissionAttributeMetadata.decommissionAttribute().equals(decommissionAttribute)) {
+        if (decommissionAttributeMetadata != null && decommissionAttributeMetadata.decommissionAttribute().equals(decommissionAttribute) == false) {
             switch (decommissionAttributeMetadata.status()) {
                 case SUCCESSFUL:
                     // one awareness attribute is already decommissioned. We will reject the new request
@@ -419,7 +419,7 @@ public class DecommissionService {
     ) {
         return decommissionAttributeMetadata != null
             && decommissionAttributeMetadata.decommissionAttribute().equals(decommissionAttribute)
-            && !decommissionAttributeMetadata.status().equals(DecommissionStatus.FAILED);
+            && decommissionAttributeMetadata.status().equals(DecommissionStatus.FAILED) == false;
     }
 
     private static void ensureNoQuorumLossDueToDecommissioning(

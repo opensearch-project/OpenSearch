@@ -163,7 +163,7 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
             public void onFailure(Exception e) {
                 fail("unexpected failure occurred while clearing voting config exclusion" + e);
             }
-        });
+        }, false);
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
         assertThat(clusterService.getClusterApplierService().state().getVotingConfigExclusions(), empty());
     }

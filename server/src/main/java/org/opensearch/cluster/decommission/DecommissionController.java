@@ -86,7 +86,7 @@ public class DecommissionController {
                 Strings.EMPTY_ARRAY,
                 nodes.toArray(String[]::new),
                 Strings.EMPTY_ARRAY,
-                TimeValue.timeValueSeconds(30)
+                TimeValue.timeValueSeconds(120) // giving a larger timeout of 120 sec as cluster might already be in stress when decommission is triggered
             ),
             new TransportResponseHandler<AddVotingConfigExclusionsResponse>() {
                 @Override
@@ -196,12 +196,12 @@ public class DecommissionController {
 
             @Override
             public void onClusterServiceClose() {
-                logger.warn("cluster service closed while waiting for removal of decommissioned nodes.");
+                logger.warn("cluster service closed while waiting for removal of decommissioned nodes [{}]", nodesToBeDecommissioned.toString());
             }
 
             @Override
             public void onTimeout(TimeValue timeout) {
-                logger.info("timed out while waiting for removal of decommissioned nodes");
+                logger.info("timed out while waiting for removal of decommissioned nodes [{}]", nodesToBeDecommissioned.toString());
                 nodesRemovedListener.onFailure(
                     new OpenSearchTimeoutException(
                         "timed out [{}] while waiting for removal of decommissioned nodes [{}] to take effect",
@@ -238,7 +238,7 @@ public class DecommissionController {
                     decommissionStatus
                 );
                 if (previousStage >= expectedStage) return currentState;
-                if (expectedStage - previousStage != 1 && !decommissionStatus.equals(DecommissionStatus.FAILED)) {
+                if (expectedStage - previousStage != 1 && decommissionStatus.equals(DecommissionStatus.FAILED) == false) {
                     throw new DecommissioningFailedException(
                         decommissionAttributeMetadata.decommissionAttribute(),
                         "invalid previous decommission status found while updating status"
