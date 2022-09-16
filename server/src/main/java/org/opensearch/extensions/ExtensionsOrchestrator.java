@@ -35,6 +35,7 @@ import org.opensearch.common.io.FileSystemUtils;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.WriteableSetting;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.discovery.InitializeExtensionsRequest;
 import org.opensearch.discovery.InitializeExtensionsResponse;
@@ -380,19 +381,23 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     TransportResponse handleAddSettingsUpdateConsumerRequest(AddSettingsUpdateConsumerRequest addSettingsUpdateConsumerRequest)
         throws Exception {
 
-        List<Setting<?>> extensionComponentSettings = addSettingsUpdateConsumerRequest.getComponentSettings();
+        List<WriteableSetting> extensionComponentSettings = addSettingsUpdateConsumerRequest.getComponentSettings();
         DiscoveryExtension extensionNode = addSettingsUpdateConsumerRequest.getExtensionNode();
 
-        for (Setting<?> extensionComponentSetting : extensionComponentSettings) {
+        for (WriteableSetting extensionComponentSetting : extensionComponentSettings) {
+
+            // Extract setting and type from writeable setting
+            Setting<?> setting = extensionComponentSetting.getSetting();
+            WriteableSetting.WriteableSettingGenericType settingType = extensionComponentSetting.getType();
 
             // Register setting update consumer with callback method to extension
-            this.clusterService.getClusterSettings().addSettingsUpdateConsumer(extensionComponentSetting, (data) -> {
+            this.clusterService.getClusterSettings().addSettingsUpdateConsumer(setting, (data) -> {
                 logger.info("Sending extension request type: " + REQUEST_EXTENSION_UPDATE_SETTINGS);
                 UpdateSettingsResponseHandler updateSettingsResponseHandler = new UpdateSettingsResponseHandler();
                 transportService.sendRequest(
                     extensionNode,
                     REQUEST_EXTENSION_UPDATE_SETTINGS,
-                    new UpdateSettingsRequest(extensionComponentSetting, data),
+                    new UpdateSettingsRequest(settingType, setting, data),
                     updateSettingsResponseHandler
                 );
             });

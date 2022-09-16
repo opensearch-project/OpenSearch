@@ -13,6 +13,7 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.transport.TransportResponse;
+import org.opensearch.common.settings.WriteableSetting;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -45,10 +46,9 @@ public class EnvironmentSettingsResponse extends TransportResponse {
         Map<Setting<?>, Object> componentSettingValues = new HashMap<>();
         int componentSettingValuesCount = in.readVInt();
         for (int i = 0; i < componentSettingValuesCount; i++) {
-            // TODO : After getSettings support is added, uncomment
-            // Setting<?> componentSetting = new WriteableSetting(in);
-            // Object componentSettingValue = in.readGenericValue();
-            // componentSettingValues.put(componentSetting, componentSettingValue);
+            Setting<?> componentSetting = new WriteableSetting(in).getSetting();
+            Object componentSettingValue = in.readGenericValue();
+            componentSettingValues.put(componentSetting, componentSettingValue);
         }
         this.componentSettingValues = componentSettingValues;
     }
@@ -57,9 +57,8 @@ public class EnvironmentSettingsResponse extends TransportResponse {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(componentSettingValues.size());
         for (Map.Entry<Setting<?>, Object> entry : componentSettingValues.entrySet()) {
-            // TODO : After getSettings support is added, uncomment
-            // new WriteableSetting(entry.getKey()).writeTo(out);
-            // out.writeGenericValue(entry.getValue());
+            new WriteableSetting(entry.getKey()).writeTo(out);
+            out.writeGenericValue(entry.getValue());
         }
     }
 

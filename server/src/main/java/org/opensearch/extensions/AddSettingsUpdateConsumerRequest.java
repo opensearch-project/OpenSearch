@@ -14,6 +14,7 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.WriteableSetting;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -28,11 +29,14 @@ import java.util.Objects;
 public class AddSettingsUpdateConsumerRequest extends TransportRequest {
     private static final Logger logger = LogManager.getLogger(AddSettingsUpdateConsumerRequest.class);
     private final DiscoveryExtension extensionNode;
-    private final List<Setting<?>> componentSettings;
+    private final List<WriteableSetting> componentSettings;
 
     public AddSettingsUpdateConsumerRequest(DiscoveryExtension extensionNode, List<Setting<?>> componentSettings) {
         this.extensionNode = extensionNode;
-        this.componentSettings = new ArrayList<>(componentSettings);
+        this.componentSettings = new ArrayList<>(componentSettings.size());
+        for (Setting<?> setting : componentSettings) {
+            this.componentSettings.add(new WriteableSetting(setting));
+        }
     }
 
     public AddSettingsUpdateConsumerRequest(StreamInput in) throws IOException {
@@ -43,9 +47,9 @@ public class AddSettingsUpdateConsumerRequest extends TransportRequest {
 
         // Read in component setting list
         int componentSettingsCount = in.readVInt();
-        List<Setting<?>> componentSettings = new ArrayList<>(componentSettingsCount);
+        List<WriteableSetting> componentSettings = new ArrayList<>(componentSettingsCount);
         for (int i = 0; i < componentSettingsCount; i++) {
-            // TODO : determine how to read Setting<T> object from stream input and add Setting<> object to List
+            componentSettings.add(new WriteableSetting(in));
         }
         this.componentSettings = componentSettings;
     }
@@ -59,12 +63,12 @@ public class AddSettingsUpdateConsumerRequest extends TransportRequest {
 
         // Write component setting list to stream output
         out.writeVInt(this.componentSettings.size());
-        for (Setting<?> componentSetting : this.componentSettings) {
-            // TODO : determine how to write Setting<T> object to stream output
+        for (WriteableSetting componentSetting : this.componentSettings) {
+            componentSetting.writeTo(out);
         }
     }
 
-    public List<Setting<?>> getComponentSettings() {
+    public List<WriteableSetting> getComponentSettings() {
         return new ArrayList<>(this.componentSettings);
     }
 

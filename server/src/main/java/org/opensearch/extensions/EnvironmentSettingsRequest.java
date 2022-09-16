@@ -14,6 +14,7 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.WriteableSetting;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -38,9 +39,8 @@ public class EnvironmentSettingsRequest extends TransportRequest {
         int componentSettingsCount = in.readVInt();
         List<Setting<?>> componentSettings = new ArrayList<>(componentSettingsCount);
         for (int i = 0; i < componentSettingsCount; i++) {
-            // TODO : After getSettings support is added
-            // WriteableSetting writeableSetting = new WriteableSetting(in);
-            // componentSettings.add(writeableSetting.getSetting());
+            WriteableSetting writeableSetting = new WriteableSetting(in);
+            componentSettings.add(writeableSetting.getSetting());
         }
         this.componentSettings = componentSettings;
     }
@@ -50,8 +50,7 @@ public class EnvironmentSettingsRequest extends TransportRequest {
         super.writeTo(out);
         out.writeVInt(this.componentSettings.size());
         for (Setting<?> componentSetting : componentSettings) {
-            // TODO : After getSettings support is added
-            // new WriteableSetting(componentSetting).writeTo(out);
+            new WriteableSetting(componentSetting).writeTo(out);
         }
     }
 
