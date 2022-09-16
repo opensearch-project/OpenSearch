@@ -16,7 +16,6 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
-import org.opensearch.cluster.coordination.CoordinationMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.allocation.AllocationService;
@@ -131,8 +130,7 @@ public class DecommissionService {
                 decommissionAttributeMetadata = new DecommissionAttributeMetadata(decommissionAttribute);
                 logger.info("registering decommission metadata [{}] to execute action", decommissionAttributeMetadata.toString());
                 return ClusterState.builder(currentState)
-                    .metadata(Metadata.builder(currentState.metadata())
-                        .decommissionAttributeMetadata(decommissionAttributeMetadata))
+                    .metadata(Metadata.builder(currentState.metadata()).decommissionAttributeMetadata(decommissionAttributeMetadata))
                     .build();
             }
 
@@ -170,7 +168,8 @@ public class DecommissionService {
                     if (nodeHasDecommissionedAttribute(clusterService.localNode(), decommissionAttribute)) {
                         // this is an unexpected state, as after exclusion of nodes having decommission attribute,
                         // this local node shouldn't have had the decommission attribute. Will send the failure response to the user
-                        String errorMsg = "unexpected state encountered [local node is to-be-decommissioned leader] while executing decommission request";
+                        String errorMsg =
+                            "unexpected state encountered [local node is to-be-decommissioned leader] while executing decommission request";
                         logger.error(errorMsg);
                         // will go ahead and clear the voting config and mark the status as false
                         clearVotingConfigExclusionAndUpdateStatus(false, false);
@@ -345,9 +344,10 @@ public class DecommissionService {
             msg = "invalid awareness attribute requested for decommissioning";
         } else if (forcedAwarenessAttributes.containsKey(decommissionAttribute.attributeName()) == false) {
             msg = "forced awareness attribute [" + forcedAwarenessAttributes.toString() + "] doesn't have the decommissioning attribute";
-        } else if (forcedAwarenessAttributes.get(decommissionAttribute.attributeName()).contains(decommissionAttribute.attributeValue()) == false) {
-            msg = "invalid awareness attribute value requested for decommissioning. Set forced awareness values before to decommission";
-        }
+        } else if (forcedAwarenessAttributes.get(decommissionAttribute.attributeName())
+            .contains(decommissionAttribute.attributeValue()) == false) {
+                msg = "invalid awareness attribute value requested for decommissioning. Set forced awareness values before to decommission";
+            }
 
         if (msg != null) {
             throw new DecommissioningFailedException(decommissionAttribute, msg);
@@ -369,13 +369,16 @@ public class DecommissionService {
                         break;
                     case IN_PROGRESS:
                     case SUCCESSFUL:
-                        msg = "same request is already in status [" + decommissionAttributeMetadata.status() + "], please wait for it to complete";
+                        msg = "same request is already in status ["
+                            + decommissionAttributeMetadata.status()
+                            + "], please wait for it to complete";
                         break;
                     default:
-                        throw new IllegalStateException("unknown status [" + decommissionAttributeMetadata.status() + "] currently registered in metadata");
+                        throw new IllegalStateException(
+                            "unknown status [" + decommissionAttributeMetadata.status() + "] currently registered in metadata"
+                        );
                 }
-            }
-            else {
+            } else {
                 switch (decommissionAttributeMetadata.status()) {
                     case SUCCESSFUL:
                         // one awareness attribute is already decommissioned. We will reject the new request
@@ -393,7 +396,9 @@ public class DecommissionService {
                     case FAILED:
                         break;
                     default:
-                        throw new IllegalStateException("unknown status [" + decommissionAttributeMetadata.status() + "] currently registered in metadata");
+                        throw new IllegalStateException(
+                            "unknown status [" + decommissionAttributeMetadata.status() + "] currently registered in metadata"
+                        );
                 }
             }
         }

@@ -86,7 +86,8 @@ public class DecommissionController {
                 Strings.EMPTY_ARRAY,
                 nodes.toArray(String[]::new),
                 Strings.EMPTY_ARRAY,
-                TimeValue.timeValueSeconds(120) // giving a larger timeout of 120 sec as cluster might already be in stress when decommission is triggered
+                TimeValue.timeValueSeconds(120) // giving a larger timeout of 120 sec as cluster might already be in stress when
+                                                // decommission is triggered
             ),
             new TransportResponseHandler<AddVotingConfigExclusionsResponse>() {
                 @Override
@@ -196,7 +197,10 @@ public class DecommissionController {
 
             @Override
             public void onClusterServiceClose() {
-                logger.warn("cluster service closed while waiting for removal of decommissioned nodes [{}]", nodesToBeDecommissioned.toString());
+                logger.warn(
+                    "cluster service closed while waiting for removal of decommissioned nodes [{}]",
+                    nodesToBeDecommissioned.toString()
+                );
             }
 
             @Override
@@ -234,8 +238,7 @@ public class DecommissionController {
                 // withUpdatedStatus can throw DecommissioningFailedException if the sequence of update is not valid
                 DecommissionAttributeMetadata newMetadata = decommissionAttributeMetadata.withUpdatedStatus(decommissionStatus);
                 return ClusterState.builder(currentState)
-                    .metadata(Metadata.builder(currentState.metadata())
-                        .decommissionAttributeMetadata(newMetadata))
+                    .metadata(Metadata.builder(currentState.metadata()).decommissionAttributeMetadata(newMetadata))
                     .build();
             }
 

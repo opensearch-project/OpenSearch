@@ -82,7 +82,7 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
      * @return instance with valid status
      * @throws DecommissioningFailedException when unexpected status update is requested
      */
-    public DecommissionAttributeMetadata withUpdatedStatus(DecommissionStatus newStatus) throws DecommissioningFailedException{
+    public DecommissionAttributeMetadata withUpdatedStatus(DecommissionStatus newStatus) throws DecommissioningFailedException {
         int previousStage = this.status().stage();
         int newStage = newStatus.stage();
         // we need to update the status only when the previous stage is just behind the expected stage
