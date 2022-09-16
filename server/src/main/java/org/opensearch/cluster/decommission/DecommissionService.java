@@ -122,18 +122,18 @@ public class DecommissionService {
         // register the metadata with status as DECOMMISSION_INIT as first step
         clusterService.submitStateUpdateTask("decommission [" + decommissionAttribute + "]", new ClusterStateUpdateTask(Priority.URGENT) {
             @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
+            public ClusterState execute(ClusterState currentState) {
                 // validates if correct awareness attributes and forced awareness attribute set to the cluster before starting action
                 validateAwarenessAttribute(decommissionAttribute, awarenessAttributes, forcedAwarenessAttributes);
-                Metadata metadata = currentState.metadata();
-                Metadata.Builder mdBuilder = Metadata.builder(metadata);
-                DecommissionAttributeMetadata decommissionAttributeMetadata = metadata.custom(DecommissionAttributeMetadata.TYPE);
+                DecommissionAttributeMetadata decommissionAttributeMetadata = currentState.metadata().decommissionAttributeMetadata();
                 // check that request is eligible to proceed
                 ensureEligibleRequest(decommissionAttributeMetadata, decommissionAttribute);
                 decommissionAttributeMetadata = new DecommissionAttributeMetadata(decommissionAttribute);
-                mdBuilder.putCustom(DecommissionAttributeMetadata.TYPE, decommissionAttributeMetadata);
                 logger.info("registering decommission metadata [{}] to execute action", decommissionAttributeMetadata.toString());
-                return ClusterState.builder(currentState).metadata(mdBuilder).build();
+                return ClusterState.builder(currentState)
+                    .metadata(Metadata.builder(currentState.metadata())
+                        .decommissionAttributeMetadata(decommissionAttributeMetadata))
+                    .build();
             }
 
             @Override
@@ -150,8 +150,7 @@ public class DecommissionService {
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                DecommissionAttributeMetadata decommissionAttributeMetadata = newState.metadata()
-                    .custom(DecommissionAttributeMetadata.TYPE);
+                DecommissionAttributeMetadata decommissionAttributeMetadata = newState.metadata().decommissionAttributeMetadata();
                 assert decommissionAttribute.equals(decommissionAttributeMetadata.decommissionAttribute());
                 decommissionClusterManagerNodes(decommissionAttributeMetadata.decommissionAttribute(), listener);
             }
@@ -246,7 +245,7 @@ public class DecommissionService {
 
     private synchronized void failDecommissionedNodes(ClusterState state) {
         // this method ensures no matter what, we always exit from this function after clearing the voting config exclusion
-        DecommissionAttributeMetadata decommissionAttributeMetadata = state.metadata().custom(DecommissionAttributeMetadata.TYPE);
+        DecommissionAttributeMetadata decommissionAttributeMetadata = state.metadata().decommissionAttributeMetadata();
         DecommissionAttribute decommissionAttribute = decommissionAttributeMetadata.decommissionAttribute();
         decommissionController.updateMetadataWithDecommissionStatus(DecommissionStatus.IN_PROGRESS, new ActionListener<>() {
             @Override

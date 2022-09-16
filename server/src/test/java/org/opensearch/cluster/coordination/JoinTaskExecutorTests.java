@@ -240,10 +240,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             decommissionAttribute,
             decommissionStatus
         );
-        Metadata.Builder metaBuilder = Metadata.builder();
-        metaBuilder.putCustom(DecommissionAttributeMetadata.TYPE, decommissionAttributeMetadata);
-        Metadata metadata = metaBuilder.build();
-
+        Metadata metadata = Metadata.builder().decommissionAttributeMetadata(decommissionAttributeMetadata).build();
         DiscoveryNode discoveryNode = newDiscoveryNode(Collections.singletonMap("zone", "zone-1"));
         expectThrows(NodeDecommissionedException.class, () -> JoinTaskExecutor.ensureNodeCommissioned(discoveryNode, metadata));
     }
@@ -256,9 +253,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             decommissionAttribute,
             decommissionStatus
         );
-        Metadata.Builder metaBuilder = Metadata.builder();
-        metaBuilder.putCustom(DecommissionAttributeMetadata.TYPE, decommissionAttributeMetadata);
-        Metadata metadata = metaBuilder.build();
+        Metadata metadata = Metadata.builder().decommissionAttributeMetadata(decommissionAttributeMetadata).build();
 
         DiscoveryNode discoveryNode = newDiscoveryNode(Collections.singletonMap("zone", "zone-2"));
         JoinTaskExecutor.ensureNodeCommissioned(discoveryNode, metadata);
@@ -272,9 +267,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             decommissionAttribute,
             decommissionStatus
         );
-        Metadata.Builder metaBuilder = Metadata.builder();
-        metaBuilder.putCustom(DecommissionAttributeMetadata.TYPE, decommissionAttributeMetadata);
-        Metadata metadata = metaBuilder.build();
+        Metadata metadata = Metadata.builder().decommissionAttributeMetadata(decommissionAttributeMetadata).build();
 
         DiscoveryNode discoveryNode = newDiscoveryNode(Collections.singletonMap("zone", "zone-1"));
         JoinTaskExecutor.ensureNodeCommissioned(discoveryNode, metadata);

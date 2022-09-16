@@ -477,7 +477,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
     }
 
     public static void ensureNodeCommissioned(DiscoveryNode node, Metadata metadata) {
-        DecommissionAttributeMetadata decommissionAttributeMetadata = metadata.custom(DecommissionAttributeMetadata.TYPE);
+        DecommissionAttributeMetadata decommissionAttributeMetadata = metadata.decommissionAttributeMetadata();
         if (decommissionAttributeMetadata != null) {
             DecommissionAttribute decommissionAttribute = decommissionAttributeMetadata.decommissionAttribute();
             DecommissionStatus status = decommissionAttributeMetadata.status();

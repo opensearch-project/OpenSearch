@@ -176,7 +176,7 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
         setState(
             clusterService,
             builder.metadata(
-                Metadata.builder(clusterService.state().metadata()).putCustom(DecommissionAttributeMetadata.TYPE, oldMetadata).build()
+                Metadata.builder(clusterService.state().metadata()).decommissionAttributeMetadata(oldMetadata).build()
             )
         );
         ActionListener<ClusterStateUpdateResponse> listener = new ActionListener<ClusterStateUpdateResponse>() {

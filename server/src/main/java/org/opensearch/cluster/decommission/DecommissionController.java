@@ -223,9 +223,8 @@ public class DecommissionController {
     public void updateMetadataWithDecommissionStatus(DecommissionStatus decommissionStatus, ActionListener<DecommissionStatus> listener) {
         clusterService.submitStateUpdateTask(decommissionStatus.status(), new ClusterStateUpdateTask(Priority.URGENT) {
             @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
-                Metadata metadata = currentState.metadata();
-                DecommissionAttributeMetadata decommissionAttributeMetadata = metadata.custom(DecommissionAttributeMetadata.TYPE);
+            public ClusterState execute(ClusterState currentState) {
+                DecommissionAttributeMetadata decommissionAttributeMetadata = currentState.metadata().decommissionAttributeMetadata();
                 assert decommissionAttributeMetadata != null && decommissionAttributeMetadata.decommissionAttribute() != null;
                 // we need to update the status only when the previous stage is just behind the expected stage
                 // if the previous stage is already ahead of expected stage, we don't need to update the stage
@@ -244,10 +243,11 @@ public class DecommissionController {
                         "invalid previous decommission status found while updating status"
                     );
                 }
-                Metadata.Builder mdBuilder = Metadata.builder(metadata);
                 DecommissionAttributeMetadata newMetadata = decommissionAttributeMetadata.withUpdatedStatus(decommissionStatus);
-                mdBuilder.putCustom(DecommissionAttributeMetadata.TYPE, newMetadata);
-                return ClusterState.builder(currentState).metadata(mdBuilder).build();
+                return ClusterState.builder(currentState)
+                    .metadata(Metadata.builder(currentState.metadata())
+                        .decommissionAttributeMetadata(newMetadata))
+                    .build();
             }
 
             @Override
@@ -257,8 +257,7 @@ public class DecommissionController {
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                DecommissionAttributeMetadata decommissionAttributeMetadata = newState.metadata()
-                    .custom(DecommissionAttributeMetadata.TYPE);
+                DecommissionAttributeMetadata decommissionAttributeMetadata = newState.metadata().decommissionAttributeMetadata();
                 listener.onResponse(decommissionAttributeMetadata.status());
             }
         });
