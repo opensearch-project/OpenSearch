@@ -161,7 +161,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         ClusterService clusterService
     ) {
         this.restActionsRequestHandler = new RestActionsRequestHandler(restController, extensionIdMap, transportService);
-        this.settingsRequestHandler = new SettingsRequestHandler(settingsModule, extensionIdMap, transportService);
+        this.settingsRequestHandler = new SettingsRequestHandler(settingsModule);
         this.transportService = transportService;
         this.clusterService = clusterService;
         registerRequestHandler();

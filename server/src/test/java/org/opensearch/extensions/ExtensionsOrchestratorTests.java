@@ -59,13 +59,13 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsModule;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.extensions.rest.RegisterRestActionsRequest;
-import org.opensearch.extensions.rest.RegisterRestActionsResponse;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AnalysisRegistry;
@@ -90,6 +90,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
 
     private TransportService transportService;
     private RestController restController;
+    private SettingsModule settingsModule;
     private ClusterService clusterService;
     private MockNioTransport transport;
     private Path extensionDir;
@@ -321,7 +322,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
 
         transportService.start();
         transportService.acceptIncomingRequests();
-        extensionsOrchestrator.initializeServicesAndRestHandler(restController, transportService, clusterService);
+        extensionsOrchestrator.initializeServicesAndRestHandler(restController, settingsModule, transportService, clusterService);
 
         try (MockLogAppender mockLogAppender = MockLogAppender.createForLoggers(LogManager.getLogger(ExtensionsOrchestrator.class))) {
 
@@ -360,16 +361,16 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
 
         ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
 
-        extensionsOrchestrator.initializeServicesAndRestHandler(restController, transportService, clusterService);
+        extensionsOrchestrator.initializeServicesAndRestHandler(restController, settingsModule, transportService, clusterService);
         String uniqueIdStr = "uniqueid1";
         List<String> actionsList = List.of("GET /foo", "PUT /bar", "POST /baz");
         RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(uniqueIdStr, actionsList);
         TransportResponse response = extensionsOrchestrator.restActionsRequestHandler.handleRegisterRestActionsRequest(
             registerActionsRequest
         );
-        assertEquals(RegisterRestActionsResponse.class, response.getClass());
-        assertTrue(((RegisterRestActionsResponse) response).getResponse().contains(uniqueIdStr));
-        assertTrue(((RegisterRestActionsResponse) response).getResponse().contains(actionsList.toString()));
+        assertEquals(ExtensionStringResponse.class, response.getClass());
+        assertTrue(((ExtensionStringResponse) response).getResponse().contains(uniqueIdStr));
+        assertTrue(((ExtensionStringResponse) response).getResponse().contains(actionsList.toString()));
     }
 
     public void testHandleRegisterRestActionsRequestWithInvalidMethod() throws Exception {
@@ -378,7 +379,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
 
         ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
 
-        extensionsOrchestrator.initializeServicesAndRestHandler(restController, transportService, clusterService);
+        extensionsOrchestrator.initializeServicesAndRestHandler(restController, settingsModule, transportService, clusterService);
         String uniqueIdStr = "uniqueid1";
         List<String> actionsList = List.of("FOO /foo", "PUT /bar", "POST /baz");
         RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(uniqueIdStr, actionsList);
@@ -394,7 +395,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
 
         ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
 
-        extensionsOrchestrator.initializeServicesAndRestHandler(restController, transportService, clusterService);
+        extensionsOrchestrator.initializeServicesAndRestHandler(restController, settingsModule, transportService, clusterService);
         String uniqueIdStr = "uniqueid1";
         List<String> actionsList = List.of("GET", "PUT /bar", "POST /baz");
         RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(uniqueIdStr, actionsList);
@@ -408,7 +409,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
 
         ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
 
-        extensionsOrchestrator.initializeServicesAndRestHandler(restController, transportService, clusterService);
+        extensionsOrchestrator.initializeServicesAndRestHandler(restController, settingsModule, transportService, clusterService);
         ExtensionRequest clusterStateRequest = new ExtensionRequest(ExtensionsOrchestrator.RequestType.REQUEST_EXTENSION_CLUSTER_STATE);
         assertEquals(ClusterStateResponse.class, extensionsOrchestrator.handleExtensionRequest(clusterStateRequest).getClass());
 
@@ -447,7 +448,8 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
                 Collections.emptySet()
             )
         );
-        extensionsOrchestrator.initializeServicesAndRestHandler(restController, mockTransportService, clusterService);
+
+        extensionsOrchestrator.initializeServicesAndRestHandler(restController, settingsModule, mockTransportService, clusterService);
         verify(mockTransportService, times(6)).registerRequestHandler(anyString(), anyString(), anyBoolean(), anyBoolean(), any(), any());
     }
 
@@ -494,7 +496,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
         transportService.start();
         transportService.acceptIncomingRequests();
-        extensionsOrchestrator.initializeServicesAndRestHandler(restController, transportService, clusterService);
+        extensionsOrchestrator.initializeServicesAndRestHandler(restController, settingsModule, transportService, clusterService);
 
         try (
             MockLogAppender mockLogAppender = MockLogAppender.createForLoggers(
@@ -522,7 +524,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
         transportService.start();
         transportService.acceptIncomingRequests();
-        extensionsOrchestrator.initializeServicesAndRestHandler(restController, transportService, clusterService);
+        extensionsOrchestrator.initializeServicesAndRestHandler(restController, settingsModule, transportService, clusterService);
 
         List<DiscoveryExtension> extensionsList = new ArrayList<>(extensionsOrchestrator.extensionIdMap.values());
         DiscoveryNode extensionNode = extensionsList.get(0);
@@ -575,7 +577,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
         transportService.start();
         transportService.acceptIncomingRequests();
-        extensionsOrchestrator.initializeServicesAndRestHandler(restController, transportService, clusterService);
+        extensionsOrchestrator.initializeServicesAndRestHandler(restController, settingsModule, transportService, clusterService);
 
         String requestType = ExtensionsOrchestrator.REQUEST_OPENSEARCH_PARSE_NAMED_WRITEABLE;
         List<DiscoveryExtension> extensionsList = new ArrayList<>(extensionsOrchestrator.extensionIdMap.values());
@@ -619,7 +621,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
 
         transportService.start();
         transportService.acceptIncomingRequests();
-        extensionsOrchestrator.initializeServicesAndRestHandler(restController, transportService, clusterService);
+        extensionsOrchestrator.initializeServicesAndRestHandler(restController, settingsModule, transportService, clusterService);
 
         Environment environment = TestEnvironment.newEnvironment(settings);
         AnalysisRegistry emptyAnalysisRegistry = new AnalysisRegistry(

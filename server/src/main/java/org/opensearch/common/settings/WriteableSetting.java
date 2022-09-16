@@ -8,9 +8,7 @@
 
 package org.opensearch.common.settings;
 
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.io.stream.BytesStreamInput;
-import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.Version;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
@@ -38,7 +36,8 @@ public class WriteableSetting implements Writeable {
         Double,
         String,
         TimeValue, // long + TimeUnit
-        ByteSizeValue // long + ByteSizeUnit
+        ByteSizeValue, // long + ByteSizeUnit
+        Version
     }
 
     private Setting<?> setting;
@@ -97,15 +96,16 @@ public class WriteableSetting implements Writeable {
     }
 
     private static WriteableSettingGenericType getGenericTypeFromDefault(Setting<?> setting) {
-        Object defaultValue = setting.getDefault(Settings.EMPTY);
-        if (defaultValue == null) {
-            throw new IllegalArgumentException("Unable to determine the generic type of this setting with a null default value.");
-        }
-        String typeStr = defaultValue.getClass().getSimpleName();
+        String typeStr = null;
         try {
+            // This throws NPE on null default
+            typeStr = setting.getDefault(Settings.EMPTY).getClass().getSimpleName();
+            // This throws IAE if not in enum
             return WriteableSettingGenericType.valueOf(typeStr);
+        } catch (NullPointerException e) {
+            throw new IllegalArgumentException("Unable to determine the generic type of this setting with a null default value.");
         } catch (IllegalArgumentException e) {
-            throw new UnsupportedOperationException("This class is not yet set up to handle the Generic Type: " + typeStr);
+            throw new UnsupportedOperationException("This class is not yet set up to handle the generic type: " + typeStr);
         }
     }
 
@@ -168,6 +168,9 @@ public class WriteableSetting implements Writeable {
                 return fallback == null
                     ? Setting.byteSizeSetting(key, (ByteSizeValue) defaultValue, propArray)
                     : Setting.byteSizeSetting(key, (Setting<ByteSizeValue>) fallback.getSetting(), propArray);
+            case Version:
+                // No fallback option on this method
+                return Setting.versionSetting(key, (Version) defaultValue, propArray);
             default:
                 // This Should Never Happen (TM)
                 throw new UnsupportedOperationException("A WriteableSettingGenericType has been added to the enum and not handled here.");
@@ -225,6 +228,9 @@ public class WriteableSetting implements Writeable {
             case ByteSizeValue:
                 ((ByteSizeValue) defaultValue).writeTo(out);
                 break;
+            case Version:
+                Version.writeVersion((Version) defaultValue, out);
+                break;
             default:
                 // This Should Never Happen (TM)
                 throw new UnsupportedOperationException("A WriteableSettingGenericType has been added to the enum and not handled here.");
@@ -251,6 +257,8 @@ public class WriteableSetting implements Writeable {
                 return new TimeValue(duration, unit);
             case ByteSizeValue:
                 return new ByteSizeValue(in);
+            case Version:
+                return Version.readVersion(in);
             default:
                 // This Should Never Happen (TM)
                 throw new UnsupportedOperationException("A WriteableSettingGenericType has been added to the enum and not handled here.");
@@ -260,46 +268,5 @@ public class WriteableSetting implements Writeable {
     @Override
     public String toString() {
         return "WriteableSettings{type=Setting<" + type + ">, setting=" + setting + "}";
-    }
-
-    public static void main(String... args) throws IOException {
-        // TEMPORARY, this will be moved to a test class
-
-        // LegacyOpenDistroAnomalyDetectorSettings.MAX_RETRY_FOR_END_RUN_EXCEPTION
-        // Note this provides default value of 6
-        Setting<Integer> fallbackSetting = Setting.intSetting(
-            "opendistro.anomaly_detection.max_retry_for_end_run_exception",
-            6,
-            0,
-            Setting.Property.NodeScope,
-            Setting.Property.Dynamic // ,
-            // Fails if we try to use it
-            // Setting.Property.Deprecated
-        );
-
-        System.out.println("Original with fallback");
-        // AnomalyDetectorSetting.MAX_RETRY_FOR_END_RUN_EXCEPTION
-        // Note this falls back to the other setting
-        // This populates the default value since we have no settings, although it won't be used
-        Setting<Integer> intSetting = Setting.intSetting(
-            "plugins.anomaly_detection.max_retry_for_end_run_exception",
-            fallbackSetting,
-            0,
-            Setting.Property.NodeScope,
-            Setting.Property.Dynamic
-        );
-        System.out.println("Original");
-        System.out.println(intSetting.toString());
-
-        WriteableSetting wsOut = new WriteableSetting(intSetting);
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            wsOut.writeTo(out);
-            out.flush();
-            try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
-                WriteableSetting wsIn = new WriteableSetting(in);
-                System.out.println("After transport across a (byte)stream");
-                System.out.println(wsIn.toString());
-            }
-        }
     }
 }
