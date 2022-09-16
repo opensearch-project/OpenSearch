@@ -96,7 +96,8 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
  - Only send one extension info when initializing ([#4302](https://github.com/opensearch-project/OpenSearch/pull/4302))
  - Adding support for registering Transport Actions for extensions ([#4326](https://github.com/opensearch-project/OpenSearch/pull/4326))
  - Pass full RestResponse to user from Extension ([#4356](https://github.com/opensearch-project/OpenSearch/pull/4356))
- - Handle named wildcards (REST path parameters) ([#4415](https://github.com/opensearch-project/OpenSearch/pull/4415)) 
+ - Handle named wildcards (REST path parameters) ([#4415](https://github.com/opensearch-project/OpenSearch/pull/4415))
+ - Update jackson version to 2.13.4 ([#4539](https://github.com/opensearch-project/OpenSearch/pull/4539))
 
 ## [2.x]
 ### Added
