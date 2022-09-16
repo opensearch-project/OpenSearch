@@ -23,7 +23,7 @@ public class NoopSubjectTests extends OpenSearchTestCase {
     public void testHashCode() {
         final Subject s1 = new NoopSubject();
         final Subject s2 = new NoopSubject();
-        assertThat(s.hashCode(), equalTo(s.hashCode()));
+        assertThat(s1.hashCode(), equalTo(s2.hashCode()));
     }
 
     public void testToString() {
