@@ -226,23 +226,12 @@ public class DecommissionController {
             public ClusterState execute(ClusterState currentState) {
                 DecommissionAttributeMetadata decommissionAttributeMetadata = currentState.metadata().decommissionAttributeMetadata();
                 assert decommissionAttributeMetadata != null && decommissionAttributeMetadata.decommissionAttribute() != null;
-                // we need to update the status only when the previous stage is just behind the expected stage
-                // if the previous stage is already ahead of expected stage, we don't need to update the stage
-                // For failures, we update it no matter what
-                int previousStage = decommissionAttributeMetadata.status().stage();
-                int expectedStage = decommissionStatus.stage();
                 logger.info(
                     "attempting to update current decommission status [{}] with expected status [{}]",
                     decommissionAttributeMetadata.status().stage(),
                     decommissionStatus
                 );
-                if (previousStage >= expectedStage) return currentState;
-                if (expectedStage - previousStage != 1 && decommissionStatus.equals(DecommissionStatus.FAILED) == false) {
-                    throw new DecommissioningFailedException(
-                        decommissionAttributeMetadata.decommissionAttribute(),
-                        "invalid previous decommission status found while updating status"
-                    );
-                }
+                // withUpdatedStatus can throw DecommissioningFailedException if the sequence of update is not valid
                 DecommissionAttributeMetadata newMetadata = decommissionAttributeMetadata.withUpdatedStatus(decommissionStatus);
                 return ClusterState.builder(currentState)
                     .metadata(Metadata.builder(currentState.metadata())

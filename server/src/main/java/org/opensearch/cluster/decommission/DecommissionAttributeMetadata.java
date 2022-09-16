@@ -77,12 +77,25 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
     }
 
     /**
-     * Creates a new instance that has the given decommission attribute moved to the given @{@link DecommissionStatus}
-     * @param status status to be updated with
-     * @return new instance with updated status
+     * Returns new instance of the metadata with updated status
+     * @param newStatus status to be updated with
+     * @return instance with valid status
+     * @throws DecommissioningFailedException when unexpected status update is requested
      */
-    public DecommissionAttributeMetadata withUpdatedStatus(DecommissionStatus status) {
-        return new DecommissionAttributeMetadata(decommissionAttribute(), status);
+    public DecommissionAttributeMetadata withUpdatedStatus(DecommissionStatus newStatus) throws DecommissioningFailedException{
+        int previousStage = this.status().stage();
+        int newStage = newStatus.stage();
+        // we need to update the status only when the previous stage is just behind the expected stage
+        // if the previous stage is already ahead of expected stage, we don't need to update the stage
+        // For failures, we update it no matter what
+        if (previousStage >= newStage) return this;
+        if (newStage - previousStage != 1 && newStatus.equals(DecommissionStatus.FAILED) == false) {
+            throw new DecommissioningFailedException(
+                this.decommissionAttribute(),
+                "invalid previous decommission status [" + this.status + "] found while updating status to [" + newStatus + "]"
+            );
+        }
+        return new DecommissionAttributeMetadata(decommissionAttribute(), newStatus);
     }
 
     @Override

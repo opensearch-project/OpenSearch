@@ -74,23 +74,4 @@ public enum DecommissionStatus {
         }
         throw new IllegalStateException("Decommission status [" + status + "] not recognized.");
     }
-
-    /**
-     * Generate decommission status from given stage
-     *
-     * @param stage stage in int
-     * @return status
-     */
-    public static DecommissionStatus fromStage(int stage) {
-        if (stage == INIT.stage()) {
-            return INIT;
-        } else if (stage == IN_PROGRESS.stage()) {
-            return IN_PROGRESS;
-        } else if (stage == SUCCESSFUL.stage()) {
-            return SUCCESSFUL;
-        } else if (stage == FAILED.stage()) {
-            return FAILED;
-        }
-        throw new IllegalStateException("Decommission stage [" + stage + "] not recognized.");
-    }
 }
