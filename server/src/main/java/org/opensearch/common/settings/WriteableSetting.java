@@ -16,6 +16,7 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import java.io.IOException;
+import java.util.EnumSet;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -72,7 +73,7 @@ public class WriteableSetting implements Writeable {
      */
     public WriteableSetting(StreamInput in) throws IOException {
         // Read the type
-        this.type = WriteableSettingGenericType.valueOf(in.readString());
+        this.type = in.readEnum(WriteableSettingGenericType.class);
         // Read the key
         String key = in.readString();
         // Read the default value
@@ -86,13 +87,9 @@ public class WriteableSetting implements Writeable {
         // We are using known types so don't need the parser
         // We are not using validator
         // Read properties
-        int size = in.readVInt();
-        Property[] propArray = new Property[size];
-        for (int i = 0; i < size; i++) {
-            propArray[i] = Property.valueOf(in.readString());
-        }
+        EnumSet<Property> propSet = in.readEnumSet(Property.class);
         // Put it all in a setting object
-        this.setting = createSetting(type, key, defaultValue, fallback, propArray);
+        this.setting = createSetting(type, key, defaultValue, fallback, propSet.toArray(Property[]::new));
     }
 
     private static WriteableSettingGenericType getGenericTypeFromDefault(Setting<?> setting) {
@@ -180,7 +177,7 @@ public class WriteableSetting implements Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         // Write the type
-        out.writeString(type.name());
+        out.writeEnum(type);
         // Write the key
         out.writeString(setting.getKey());
         // Write the default value
@@ -194,10 +191,7 @@ public class WriteableSetting implements Writeable {
         // We are using known types so don't need the parser
         // We are not using validator
         // Write properties
-        out.writeVInt(setting.getProperties().size());
-        for (Property prop : setting.getProperties()) {
-            out.writeString(prop.name());
-        }
+        out.writeEnumSet(setting.getProperties());
     }
 
     private void writeDefaultValue(StreamOutput out, Object defaultValue) throws IOException {
