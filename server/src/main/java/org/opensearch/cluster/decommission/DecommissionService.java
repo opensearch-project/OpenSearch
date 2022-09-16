@@ -125,18 +125,11 @@ public class DecommissionService {
             public ClusterState execute(ClusterState currentState) throws Exception {
                 // validates if correct awareness attributes and forced awareness attribute set to the cluster before starting action
                 validateAwarenessAttribute(decommissionAttribute, awarenessAttributes, forcedAwarenessAttributes);
-
                 Metadata metadata = currentState.metadata();
                 Metadata.Builder mdBuilder = Metadata.builder(metadata);
                 DecommissionAttributeMetadata decommissionAttributeMetadata = metadata.custom(DecommissionAttributeMetadata.TYPE);
-                // check if the same attribute is requested for decommission and currently not FAILED,
-                // then return the current state as is; as we don't need a state update here
-                if (isSameNonFailedRequest(decommissionAttributeMetadata, decommissionAttribute)) {
-                    logger.info("re-request received for decommissioning [{}], will not update state", decommissionAttribute);
-                    return currentState;
-                }
-                // check the request sanity and reject the request if there's any conflicting inflight or successful request already present
-                ensureNoConflictingInflightRequest(decommissionAttributeMetadata, decommissionAttribute);
+                // check that request is eligible to proceed
+                ensureEligibleRequest(decommissionAttributeMetadata, decommissionAttribute);
                 decommissionAttributeMetadata = new DecommissionAttributeMetadata(decommissionAttribute);
                 mdBuilder.putCustom(DecommissionAttributeMetadata.TYPE, decommissionAttributeMetadata);
                 logger.info("registering decommission metadata [{}] to execute action", decommissionAttributeMetadata.toString());
@@ -160,12 +153,7 @@ public class DecommissionService {
                 DecommissionAttributeMetadata decommissionAttributeMetadata = newState.metadata()
                     .custom(DecommissionAttributeMetadata.TYPE);
                 assert decommissionAttribute.equals(decommissionAttributeMetadata.decommissionAttribute());
-                if (decommissionAttributeMetadata.status().equals(DecommissionStatus.SUCCESSFUL)) {
-                    logger.info("status is already marked SUCCESSFUL, no need to proceed for further processing");
-                    listener.onResponse(new ClusterStateUpdateResponse(true));
-                } else {
-                    decommissionClusterManagerNodes(decommissionAttributeMetadata.decommissionAttribute(), listener);
-                }
+                decommissionClusterManagerNodes(decommissionAttributeMetadata.decommissionAttribute(), listener);
             }
         });
     }
@@ -176,23 +164,6 @@ public class DecommissionService {
     ) {
         ClusterState state = clusterService.getClusterApplierService().state();
         Set<DiscoveryNode> clusterManagerNodesToBeDecommissioned = filterNodesWithDecommissionAttribute(state, decommissionAttribute, true);
-        // This check doesn't seem to be needed as exclusion automatically shrinks the config before sending the response.
-        // We can guarantee that because of exclusion there wouldn't be a quorum loss and if the service gets a successful response,
-        // we are certain that the config is updated and nodes are ready to be kicked out.
-        // Please add comment if you feel there could be a edge case here.
-        // try {
-        // // this is a sanity check that the cluster will not go into a quorum loss state because of exclusion
-        // ensureNoQuorumLossDueToDecommissioning(
-        // decommissionAttribute,
-        // clusterManagerNodesToBeDecommissioned,
-        // state.getLastCommittedConfiguration()
-        // );
-        // } catch (DecommissioningFailedException dfe) {
-        // listener.onFailure(dfe);
-        // decommissionController.updateMetadataWithDecommissionStatus(DecommissionStatus.FAILED, statusUpdateListener());
-        // return;
-        // }
-
         ActionListener<Void> exclusionListener = new ActionListener<Void>() {
             @Override
             public void onResponse(Void unused) {
@@ -384,61 +355,52 @@ public class DecommissionService {
         }
     }
 
-    private static void ensureNoConflictingInflightRequest(
+    private static void ensureEligibleRequest(
         DecommissionAttributeMetadata decommissionAttributeMetadata,
-        DecommissionAttribute decommissionAttribute
+        DecommissionAttribute requestedDecommissionAttribute
     ) {
         String msg = null;
-        if (decommissionAttributeMetadata != null && decommissionAttributeMetadata.decommissionAttribute().equals(decommissionAttribute) == false) {
-            switch (decommissionAttributeMetadata.status()) {
-                case SUCCESSFUL:
-                    // one awareness attribute is already decommissioned. We will reject the new request
-                    msg = "one awareness attribute ["
-                        + decommissionAttributeMetadata.decommissionAttribute().toString()
-                        + "] already successfully decommissioned, recommission before triggering another decommission";
-                    break;
-                case IN_PROGRESS:
-                case INIT:
-                    // it means the decommission has been initiated or is inflight. In that case, will fail new request
-                    msg = "there's an inflight decommission request for attribute ["
-                        + decommissionAttributeMetadata.decommissionAttribute().toString()
-                        + "] is in progress, cannot process this request";
-                    break;
-                case FAILED:
-                    break;
+        if (decommissionAttributeMetadata != null) {
+            // check if the same attribute is registered and handle it accordingly
+            if (decommissionAttributeMetadata.decommissionAttribute().equals(requestedDecommissionAttribute)) {
+                switch (decommissionAttributeMetadata.status()) {
+                    // for INIT and FAILED - we are good to process it again
+                    case INIT:
+                    case FAILED:
+                        break;
+                    case IN_PROGRESS:
+                    case SUCCESSFUL:
+                        msg = "same request is already in status [" + decommissionAttributeMetadata.status() + "], please wait for it to complete";
+                        break;
+                    default:
+                        throw new IllegalStateException("unknown status [" + decommissionAttributeMetadata.status() + "] currently registered in metadata");
+                }
+            }
+            else {
+                switch (decommissionAttributeMetadata.status()) {
+                    case SUCCESSFUL:
+                        // one awareness attribute is already decommissioned. We will reject the new request
+                        msg = "one awareness attribute ["
+                            + decommissionAttributeMetadata.decommissionAttribute().toString()
+                            + "] already successfully decommissioned, recommission before triggering another decommission";
+                        break;
+                    case IN_PROGRESS:
+                    case INIT:
+                        // it means the decommission has been initiated or is inflight. In that case, will fail new request
+                        msg = "there's an inflight decommission request for attribute ["
+                            + decommissionAttributeMetadata.decommissionAttribute().toString()
+                            + "] is in progress, cannot process this request";
+                        break;
+                    case FAILED:
+                        break;
+                    default:
+                        throw new IllegalStateException("unknown status [" + decommissionAttributeMetadata.status() + "] currently registered in metadata");
+                }
             }
         }
+
         if (msg != null) {
-            throw new DecommissioningFailedException(decommissionAttribute, msg);
-        }
-    }
-
-    private static boolean isSameNonFailedRequest(
-        DecommissionAttributeMetadata decommissionAttributeMetadata,
-        DecommissionAttribute decommissionAttribute
-    ) {
-        return decommissionAttributeMetadata != null
-            && decommissionAttributeMetadata.decommissionAttribute().equals(decommissionAttribute)
-            && decommissionAttributeMetadata.status().equals(DecommissionStatus.FAILED) == false;
-    }
-
-    private static void ensureNoQuorumLossDueToDecommissioning(
-        DecommissionAttribute decommissionAttribute,
-        Set<DiscoveryNode> clusterManagerNodesToBeDecommissioned,
-        CoordinationMetadata.VotingConfiguration votingConfiguration
-    ) {
-        Set<String> clusterManagerNodesIdToBeDecommissioned = new HashSet<>();
-        clusterManagerNodesToBeDecommissioned.forEach(node -> clusterManagerNodesIdToBeDecommissioned.add(node.getId()));
-        if (!votingConfiguration.hasQuorum(
-            votingConfiguration.getNodeIds()
-                .stream()
-                .filter(n -> clusterManagerNodesIdToBeDecommissioned.contains(n) == false)
-                .collect(Collectors.toList())
-        )) {
-            throw new DecommissioningFailedException(
-                decommissionAttribute,
-                "cannot proceed with decommission request as cluster might go into quorum loss"
-            );
+            throw new DecommissioningFailedException(requestedDecommissionAttribute, msg);
         }
     }
 
