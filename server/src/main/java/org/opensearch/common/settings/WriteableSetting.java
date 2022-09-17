@@ -29,7 +29,7 @@ public class WriteableSetting implements Writeable {
     /**
      * The Generic Types which this class can serialize.
      */
-    public enum WriteableSettingGenericType {
+    public enum SettingType {
         Boolean,
         Integer,
         Long,
@@ -42,7 +42,7 @@ public class WriteableSetting implements Writeable {
     }
 
     private Setting<?> setting;
-    private WriteableSettingGenericType type;
+    private SettingType type;
 
     /**
      * Wrap a {@link Setting}. The generic type is determined from the type of the default value.
@@ -60,7 +60,7 @@ public class WriteableSetting implements Writeable {
      * @param setting  The setting to wrap.
      * @param type  The Generic type of the setting.
      */
-    public WriteableSetting(Setting<?> setting, WriteableSettingGenericType type) {
+    public WriteableSetting(Setting<?> setting, SettingType type) {
         this.setting = setting;
         this.type = type;
     }
@@ -73,7 +73,7 @@ public class WriteableSetting implements Writeable {
      */
     public WriteableSetting(StreamInput in) throws IOException {
         // Read the type
-        this.type = in.readEnum(WriteableSettingGenericType.class);
+        this.type = in.readEnum(SettingType.class);
         // Read the key
         String key = in.readString();
         // Read the default value
@@ -92,13 +92,20 @@ public class WriteableSetting implements Writeable {
         this.setting = createSetting(type, key, defaultValue, fallback, propSet.toArray(Property[]::new));
     }
 
-    private static WriteableSettingGenericType getGenericTypeFromDefault(Setting<?> setting) {
+    /**
+     * Due to type erasure, it is impossible to determine the generic type of a Setting at runtime.
+     * All settings have a non-null default, however, so the type of the default can be used to determine the setting type.
+     *
+     * @param setting The setting with a generic type.
+     * @return The corresponding {@link SettingType} for the default value.
+     */
+    private static SettingType getGenericTypeFromDefault(Setting<?> setting) {
         String typeStr = null;
         try {
             // This throws NPE on null default
             typeStr = setting.getDefault(Settings.EMPTY).getClass().getSimpleName();
             // This throws IAE if not in enum
-            return WriteableSettingGenericType.valueOf(typeStr);
+            return SettingType.valueOf(typeStr);
         } catch (NullPointerException e) {
             throw new IllegalArgumentException("Unable to determine the generic type of this setting with a null default value.");
         } catch (IllegalArgumentException e) {
@@ -120,13 +127,13 @@ public class WriteableSetting implements Writeable {
      *
      * @return The wrapped setting's generic type.
      */
-    public WriteableSettingGenericType getType() {
+    public SettingType getType() {
         return this.type;
     }
 
     @SuppressWarnings("unchecked")
     private Setting<?> createSetting(
-        WriteableSettingGenericType genericType,
+        SettingType genericType,
         String key,
         Object defaultValue,
         WriteableSetting fallback,
@@ -170,7 +177,7 @@ public class WriteableSetting implements Writeable {
                 return Setting.versionSetting(key, (Version) defaultValue, propArray);
             default:
                 // This Should Never Happen (TM)
-                throw new UnsupportedOperationException("A WriteableSettingGenericType has been added to the enum and not handled here.");
+                throw new UnsupportedOperationException("A SettingType has been added to the enum and not handled here.");
         }
     }
 
@@ -227,7 +234,7 @@ public class WriteableSetting implements Writeable {
                 break;
             default:
                 // This Should Never Happen (TM)
-                throw new UnsupportedOperationException("A WriteableSettingGenericType has been added to the enum and not handled here.");
+                throw new UnsupportedOperationException("A SettingType has been added to the enum and not handled here.");
         }
     }
 
@@ -255,7 +262,7 @@ public class WriteableSetting implements Writeable {
                 return Version.readVersion(in);
             default:
                 // This Should Never Happen (TM)
-                throw new UnsupportedOperationException("A WriteableSettingGenericType has been added to the enum and not handled here.");
+                throw new UnsupportedOperationException("A SettingType has been added to the enum and not handled here.");
         }
     }
 
