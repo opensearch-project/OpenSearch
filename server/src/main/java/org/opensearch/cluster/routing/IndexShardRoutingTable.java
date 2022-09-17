@@ -237,6 +237,10 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         return this.assignedShards;
     }
 
+    public Map<WeightedRoutingKey, List<ShardRouting>> getActiveShardsByWeight() {
+        return activeShardsByWeight;
+    }
+
     public ShardIterator shardsRandomIt() {
         return new PlainShardIterator(shardId, shuffler.shuffle(shards));
     }
@@ -772,10 +776,10 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
      *
      * @opensearch.internal
      */
-    static class WeightedRoutingKey {
+    public static class WeightedRoutingKey {
         private final WeightedRouting weightedRouting;
 
-        WeightedRoutingKey(WeightedRouting weightedRouting) {
+        public WeightedRoutingKey(WeightedRouting weightedRouting) {
             this.weightedRouting = weightedRouting;
         }
 
