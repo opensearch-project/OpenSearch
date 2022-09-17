@@ -316,60 +316,85 @@ public class RecoverySourceHandler {
             }
             assert startingSeqNo >= 0 : "startingSeqNo must be non negative. got: " + startingSeqNo;
 
-            sendFileStep.whenComplete(r -> {
-                assert Transports.assertNotTransportThread(RecoverySourceHandler.this + "[prepareTargetForTranslog]");
-                // For a sequence based recovery, the target can keep its local translog
-                prepareTargetForTranslog(countNumberOfHistoryOperations(startingSeqNo), prepareEngineStep);
-            }, onFailure);
+            boolean isRecoveringReplicaWithRemoteTxLogEnabledIndex = request.isPrimaryRelocation() == false
+                && shard.isRemoteTranslogEnabled();
 
-            prepareEngineStep.whenComplete(prepareEngineTime -> {
-                assert Transports.assertNotTransportThread(RecoverySourceHandler.this + "[phase2]");
-                /*
-                 * add shard to replication group (shard will receive replication requests from this point on) now that engine is open.
-                 * This means that any document indexed into the primary after this will be replicated to this replica as well
-                 * make sure to do this before sampling the max sequence number in the next step, to ensure that we send
-                 * all documents up to maxSeqNo in phase2.
-                 */
-                RunUnderPrimaryPermit.run(
-                    () -> shard.initiateTracking(request.targetAllocationId()),
-                    shardId + " initiating tracking of " + request.targetAllocationId(),
-                    shard,
-                    cancellableThreads,
-                    logger
-                );
+            if (isRecoveringReplicaWithRemoteTxLogEnabledIndex) {
+                sendFileStep.whenComplete(r -> {
+                    assert Transports.assertNotTransportThread(RecoverySourceHandler.this + "[prepareTargetForTranslog]");
+                    // For a sequence based recovery, the target can keep its local translog
+                    prepareTargetForTranslog(0, prepareEngineStep);
+                }, onFailure);
 
-                final long endingSeqNo = shard.seqNoStats().getMaxSeqNo();
-                if (logger.isTraceEnabled()) {
-                    logger.trace("snapshot translog for recovery; current size is [{}]", countNumberOfHistoryOperations(startingSeqNo));
-                }
-                final Translog.Snapshot phase2Snapshot = shard.newChangesSnapshot(
-                    PEER_RECOVERY_NAME,
-                    startingSeqNo,
-                    Long.MAX_VALUE,
-                    false,
-                    true
-                );
-                resources.add(phase2Snapshot);
-                retentionLock.close();
+                prepareEngineStep.whenComplete(prepareEngineTime -> {
+                    assert Transports.assertNotTransportThread(RecoverySourceHandler.this + "[phase2]");
+                    RunUnderPrimaryPermit.run(
+                        () -> shard.initiateTracking(request.targetAllocationId()),
+                        shardId + " initiating tracking of " + request.targetAllocationId(),
+                        shard,
+                        cancellableThreads,
+                        logger
+                    );
+                    final long endingSeqNo = shard.seqNoStats().getMaxSeqNo();
+                    retentionLock.close();
+                    sendSnapshotStep.onResponse(new SendSnapshotResult(endingSeqNo, 0, TimeValue.ZERO));
+                }, onFailure);
+            } else {
+                sendFileStep.whenComplete(r -> {
+                    assert Transports.assertNotTransportThread(RecoverySourceHandler.this + "[prepareTargetForTranslog]");
+                    // For a sequence based recovery, the target can keep its local translog
+                    prepareTargetForTranslog(countNumberOfHistoryOperations(startingSeqNo), prepareEngineStep);
+                }, onFailure);
 
-                // we have to capture the max_seen_auto_id_timestamp and the max_seq_no_of_updates to make sure that these values
-                // are at least as high as the corresponding values on the primary when any of these operations were executed on it.
-                final long maxSeenAutoIdTimestamp = shard.getMaxSeenAutoIdTimestamp();
-                final long maxSeqNoOfUpdatesOrDeletes = shard.getMaxSeqNoOfUpdatesOrDeletes();
-                final RetentionLeases retentionLeases = shard.getRetentionLeases();
-                final long mappingVersionOnPrimary = shard.indexSettings().getIndexMetadata().getMappingVersion();
-                phase2(
-                    startingSeqNo,
-                    endingSeqNo,
-                    phase2Snapshot,
-                    maxSeenAutoIdTimestamp,
-                    maxSeqNoOfUpdatesOrDeletes,
-                    retentionLeases,
-                    mappingVersionOnPrimary,
-                    sendSnapshotStep
-                );
+                prepareEngineStep.whenComplete(prepareEngineTime -> {
+                    assert Transports.assertNotTransportThread(RecoverySourceHandler.this + "[phase2]");
+                    /*
+                     * add shard to replication group (shard will receive replication requests from this point on) now that engine is open.
+                     * This means that any document indexed into the primary after this will be replicated to this replica as well
+                     * make sure to do this before sampling the max sequence number in the next step, to ensure that we send
+                     * all documents up to maxSeqNo in phase2.
+                     */
+                    RunUnderPrimaryPermit.run(
+                        () -> shard.initiateTracking(request.targetAllocationId()),
+                        shardId + " initiating tracking of " + request.targetAllocationId(),
+                        shard,
+                        cancellableThreads,
+                        logger
+                    );
 
-            }, onFailure);
+                    final long endingSeqNo = shard.seqNoStats().getMaxSeqNo();
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("snapshot translog for recovery; current size is [{}]", countNumberOfHistoryOperations(startingSeqNo));
+                    }
+                    final Translog.Snapshot phase2Snapshot = shard.newChangesSnapshot(
+                        PEER_RECOVERY_NAME,
+                        startingSeqNo,
+                        Long.MAX_VALUE,
+                        false,
+                        true
+                    );
+                    resources.add(phase2Snapshot);
+                    retentionLock.close();
+
+                    // we have to capture the max_seen_auto_id_timestamp and the max_seq_no_of_updates to make sure that these values
+                    // are at least as high as the corresponding values on the primary when any of these operations were executed on it.
+                    final long maxSeenAutoIdTimestamp = shard.getMaxSeenAutoIdTimestamp();
+                    final long maxSeqNoOfUpdatesOrDeletes = shard.getMaxSeqNoOfUpdatesOrDeletes();
+                    final RetentionLeases retentionLeases = shard.getRetentionLeases();
+                    final long mappingVersionOnPrimary = shard.indexSettings().getIndexMetadata().getMappingVersion();
+                    phase2(
+                        startingSeqNo,
+                        endingSeqNo,
+                        phase2Snapshot,
+                        maxSeenAutoIdTimestamp,
+                        maxSeqNoOfUpdatesOrDeletes,
+                        retentionLeases,
+                        mappingVersionOnPrimary,
+                        sendSnapshotStep
+                    );
+
+                }, onFailure);
+            }
 
             // Recovery target can trim all operations >= startingSeqNo as we have sent all these operations in the phase 2
             final long trimAboveSeqNo = startingSeqNo - 1;
