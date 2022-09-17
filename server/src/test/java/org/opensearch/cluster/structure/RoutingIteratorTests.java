@@ -427,13 +427,11 @@ public class RoutingIteratorTests extends OpenSearchAllocationTestCase {
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
-        TestThreadPool threadPool = new TestThreadPool("testThatOnlyNodesSupport");
-        ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
-
         OperationRouting operationRouting = new OperationRouting(
             Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
+
         GroupShardsIterator<ShardIterator> shardIterators = operationRouting.searchShards(
             clusterState,
             new String[] { "test" },
@@ -475,7 +473,6 @@ public class RoutingIteratorTests extends OpenSearchAllocationTestCase {
         } else {
             assertThat(it.nextOrNull().currentNodeId(), equalTo("node1"));
         }
-        terminate(threadPool);
     }
 
     public void testReplicaShardPreferenceIters() throws Exception {

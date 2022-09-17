@@ -698,6 +698,7 @@ public class OperationRoutingTests extends OpenSearchTestCase {
         Set<String> selectedNodes = new HashSet<>(numShards);
         ResponseCollectorService collector = new ResponseCollectorService(clusterService);
         Map<String, Long> outstandingRequests = new HashMap<>();
+
         GroupShardsIterator<ShardIterator> groupIterator = opRouting.searchShards(
             state,
             indexNames,
@@ -847,7 +848,7 @@ public class OperationRoutingTests extends OpenSearchTestCase {
                     selectedNodes.add(shardRouting.currentNodeId());
                 }
             }
-            // tests no nodes are assigned to nodes in zone c
+            // tests no shards are assigned to nodes in zone c
             for (String nodeID : selectedNodes) {
                 // No shards are assigned to nodes in zone c since its weight is 0
                 assertFalse(nodeID.contains("c"));

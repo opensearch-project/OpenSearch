@@ -772,7 +772,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     }
 
     /**
-     * Key for WeightedRouting
+     * Key for WeightedRouting Shard Iterator
      *
      * @opensearch.internal
      */
@@ -799,6 +799,10 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         }
     }
 
+    /**
+     * *
+     * Gets active shard routing from memory if available, else calculates and put it in memory.
+     */
     private List<ShardRouting> getActiveShardsByWeight(WeightedRouting weightedRouting, DiscoveryNodes nodes, double defaultWeight) {
         WeightedRoutingKey key = new WeightedRoutingKey(weightedRouting);
         List<ShardRouting> shardRoutings = activeShardsByWeight.get(key);
@@ -811,6 +815,10 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         return shardRoutings;
     }
 
+    /**
+     * *
+     * Gets initializing shard routing from memory if available, else calculates and put it in memory.
+     */
     private List<ShardRouting> getInitializingShardsByWeight(WeightedRouting weightedRouting, DiscoveryNodes nodes, double defaultWeight) {
         WeightedRoutingKey key = new WeightedRoutingKey(weightedRouting);
         List<ShardRouting> shardRoutings = initializingShardsByWeight.get(key);

@@ -50,9 +50,7 @@ public class WeightedRouting implements Writeable {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-
         WeightedRouting that = (WeightedRouting) o;
-
         if (!attributeName.equals(that.attributeName)) return false;
         return weights.equals(that.weights);
     }
