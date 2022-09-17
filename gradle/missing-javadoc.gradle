@@ -96,7 +96,6 @@ configure([
   project(":client:rest-high-level"),
   project(":client:test"),
   project(":doc-tools"),
-  project(":example-plugins:custom-significance-heuristic"),
   project(":example-plugins:custom-suggester"),
   project(":example-plugins:painless-allowlist"),
   project(":example-plugins:rescore"),
