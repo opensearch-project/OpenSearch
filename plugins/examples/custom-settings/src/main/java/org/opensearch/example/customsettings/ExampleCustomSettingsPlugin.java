@@ -42,10 +42,19 @@ import java.util.List;
 
 import static java.util.stream.Collectors.toList;
 
+/**
+ * An example plugin that includes custom settings.
+ */
 public class ExampleCustomSettingsPlugin extends Plugin {
 
     private final ExampleCustomSettingsConfig config;
 
+    /**
+     * Instantiate this plugin with the specified settings and config path.
+     *
+     * @param settings The settings for this plugin.
+     * @param configPath The path to this plugin's configuration files.
+     */
     public ExampleCustomSettingsPlugin(final Settings settings, final Path configPath) {
         this.config = new ExampleCustomSettingsConfig(new Environment(settings, configPath));
 
@@ -53,9 +62,6 @@ public class ExampleCustomSettingsPlugin extends Plugin {
         assert "secret".equals(config.getFiltered());
     }
 
-    /**
-     * @return the plugin's custom settings
-     */
     @Override
     public List<Setting<?>> getSettings() {
         return Arrays.asList(
