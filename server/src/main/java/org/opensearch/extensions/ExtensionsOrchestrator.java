@@ -354,16 +354,13 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
      * @throws Exception if the request is not handled properly.
      */
     TransportResponse handleExtensionRequest(ExtensionRequest extensionRequest) throws Exception {
-        // Read enum
         switch (extensionRequest.getRequestType()) {
             case REQUEST_EXTENSION_CLUSTER_STATE:
                 return new ClusterStateResponse(clusterService.getClusterName(), clusterService.state(), false);
             case REQUEST_EXTENSION_LOCAL_NODE:
-                LocalNodeResponse localNodeResponse = new LocalNodeResponse(clusterService);
-                return localNodeResponse;
+                return new LocalNodeResponse(clusterService);
             case REQUEST_EXTENSION_CLUSTER_SETTINGS:
-                ClusterSettingsResponse clusterSettingsResponse = new ClusterSettingsResponse(clusterService);
-                return clusterSettingsResponse;
+                return new ClusterSettingsResponse(clusterService);
             case REQUEST_EXTENSION_ACTION_LISTENER_ON_FAILURE:
                 return handleExtensionActionListenerOnFailureRequest(extensionRequest.getFailureException());
             default:
