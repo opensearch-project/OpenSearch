@@ -211,7 +211,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         IndexShard shard = newShard(false);
         shard.markAsRecovering("for testing", new RecoveryState(shard.routingEntry(), localNode, localNode));
         shard.prepareForIndexRecovery();
-        assertThat(shard.recoverLocallyUpToGlobalCheckpoint(), equalTo(UNASSIGNED_SEQ_NO));
+        assertThat(shard.recoverLocallyAndFetchStartSeqNo(true), equalTo(UNASSIGNED_SEQ_NO));
         assertThat(shard.recoveryState().getTranslog().totalLocal(), equalTo(RecoveryState.Translog.UNKNOWN));
         assertThat(shard.recoveryState().getTranslog().recoveredOperations(), equalTo(0));
         assertThat(shard.getLastKnownGlobalCheckpoint(), equalTo(UNASSIGNED_SEQ_NO));
@@ -239,7 +239,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         );
         replica.markAsRecovering("for testing", new RecoveryState(replica.routingEntry(), localNode, localNode));
         replica.prepareForIndexRecovery();
-        assertThat(replica.recoverLocallyUpToGlobalCheckpoint(), equalTo(globalCheckpoint + 1));
+        assertThat(replica.recoverLocallyAndFetchStartSeqNo(true), equalTo(globalCheckpoint + 1));
         assertThat(replica.recoveryState().getTranslog().totalLocal(), equalTo(expectedTotalLocal));
         assertThat(replica.recoveryState().getTranslog().recoveredOperations(), equalTo(expectedTotalLocal));
         assertThat(replica.getLastKnownGlobalCheckpoint(), equalTo(UNASSIGNED_SEQ_NO));
@@ -254,7 +254,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         replica = reinitShard(shard, ShardRoutingHelper.initWithSameId(shard.routingEntry(), RecoverySource.PeerRecoverySource.INSTANCE));
         replica.markAsRecovering("for testing", new RecoveryState(replica.routingEntry(), localNode, localNode));
         replica.prepareForIndexRecovery();
-        assertThat(replica.recoverLocallyUpToGlobalCheckpoint(), equalTo(UNASSIGNED_SEQ_NO));
+        assertThat(replica.recoverLocallyAndFetchStartSeqNo(true), equalTo(UNASSIGNED_SEQ_NO));
         assertThat(replica.recoveryState().getTranslog().totalLocal(), equalTo(RecoveryState.Translog.UNKNOWN));
         assertThat(replica.recoveryState().getTranslog().recoveredOperations(), equalTo(0));
         assertThat(replica.getLastKnownGlobalCheckpoint(), equalTo(UNASSIGNED_SEQ_NO));
@@ -276,10 +276,10 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         replica.markAsRecovering("for testing", new RecoveryState(replica.routingEntry(), localNode, localNode));
         replica.prepareForIndexRecovery();
         if (safeCommit.isPresent()) {
-            assertThat(replica.recoverLocallyUpToGlobalCheckpoint(), equalTo(safeCommit.get().localCheckpoint + 1));
+            assertThat(replica.recoverLocallyAndFetchStartSeqNo(true), equalTo(safeCommit.get().localCheckpoint + 1));
             assertThat(replica.recoveryState().getTranslog().totalLocal(), equalTo(0));
         } else {
-            assertThat(replica.recoverLocallyUpToGlobalCheckpoint(), equalTo(UNASSIGNED_SEQ_NO));
+            assertThat(replica.recoverLocallyAndFetchStartSeqNo(true), equalTo(UNASSIGNED_SEQ_NO));
             assertThat(replica.recoveryState().getTranslog().totalLocal(), equalTo(RecoveryState.Translog.UNKNOWN));
         }
         assertThat(replica.recoveryState().getStage(), equalTo(RecoveryState.Stage.TRANSLOG));
@@ -322,7 +322,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         );
         replica.markAsRecovering("for testing", new RecoveryState(replica.routingEntry(), localNode, localNode));
         replica.prepareForIndexRecovery();
-        assertThat(replica.recoverLocallyUpToGlobalCheckpoint(), equalTo(safeCommit.get().localCheckpoint + 1));
+        assertThat(replica.recoverLocallyAndFetchStartSeqNo(true), equalTo(safeCommit.get().localCheckpoint + 1));
         assertThat(replica.recoveryState().getTranslog().totalLocal(), equalTo(0));
         assertThat(replica.recoveryState().getTranslog().recoveredOperations(), equalTo(0));
         assertThat(replica.getLastKnownGlobalCheckpoint(), equalTo(UNASSIGNED_SEQ_NO));
@@ -349,7 +349,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         shard = reinitShard(shard, ShardRoutingHelper.initWithSameId(shard.routingEntry(), RecoverySource.PeerRecoverySource.INSTANCE));
         shard.markAsRecovering("peer recovery", new RecoveryState(shard.routingEntry(), pNode, rNode));
         shard.prepareForIndexRecovery();
-        long startingSeqNo = shard.recoverLocallyUpToGlobalCheckpoint();
+        long startingSeqNo = shard.recoverLocallyAndFetchStartSeqNo(true);
         shard.store().markStoreCorrupted(new IOException("simulated"));
         RecoveryTarget recoveryTarget = new RecoveryTarget(shard, null, null);
         StartRecoveryRequest request = PeerRecoveryTargetService.getStartRecoveryRequest(logger, rNode, recoveryTarget, startingSeqNo);
