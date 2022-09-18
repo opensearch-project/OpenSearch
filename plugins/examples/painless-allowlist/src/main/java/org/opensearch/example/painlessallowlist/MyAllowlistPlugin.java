@@ -35,13 +35,15 @@ package org.opensearch.example.painlessallowlist;
 import org.opensearch.plugins.Plugin;
 
 /**
- * A class extending {@link Plugin} intended as a signpost.
- * Does nothing and should not be instantiated, since allowlists are extended through SPI.
+ * A class extending {@link Plugin} intended as a signpost. Does nothing, since allowlists are extended through SPI.
  * See {@link ExampleAllowlistExtension} for implementation details.
  */
 public class MyAllowlistPlugin extends Plugin {
 
-    private MyAllowlistPlugin() {}
+    /**
+     * Instantiates this class.
+     */
+    public MyAllowlistPlugin() {}
 
     // we don't actually need anything here,
 }
