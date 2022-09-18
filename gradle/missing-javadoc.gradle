@@ -96,7 +96,6 @@ configure([
   project(":client:rest-high-level"),
   project(":client:test"),
   project(":doc-tools"),
-  project(":example-plugins:script-expert-scoring"),
   project(":libs:opensearch-cli"),
   project(":libs:opensearch-core"),
   project(":libs:opensearch-dissect"),
