@@ -35,7 +35,7 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
     public static final String TYPE = "decommissionedAttribute";
 
     private final DecommissionAttribute decommissionAttribute;
-    private final DecommissionStatus status;
+    private DecommissionStatus status;
     public static final String attributeType = "awareness";
 
     /**
@@ -76,26 +76,39 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
         return this.status;
     }
 
+
     /**
-     * Returns new instance of the metadata with updated status
+     * Returns instance of the metadata with updated status
      * @param newStatus status to be updated with
      * @return instance with valid status
-     * @throws DecommissioningFailedException when unexpected status update is requested
      */
-    public DecommissionAttributeMetadata withUpdatedStatus(DecommissionStatus newStatus) throws DecommissioningFailedException {
-        int previousStage = this.status().stage();
-        int newStage = newStatus.stage();
-        // we need to update the status only when the previous stage is just behind the expected stage
-        // if the previous stage is already ahead of expected stage, we don't need to update the stage
-        // For failures, we update it no matter what
-        if (previousStage >= newStage && newStatus.equals(DecommissionStatus.FAILED) == false) return this;
-        if (newStage - previousStage != 1 && newStatus.equals(DecommissionStatus.FAILED) == false) {
-            throw new DecommissioningFailedException(
-                this.decommissionAttribute(),
-                "invalid previous decommission status [" + this.status + "] found while updating status to [" + newStatus + "]"
+    // synchronized is strictly speaking not needed (this is called by a single thread), but just to be safe
+    public synchronized DecommissionAttributeMetadata setUpdatedStatus(DecommissionStatus newStatus) {
+        // We don't expect that INIT will be new status, as it is registered only when starting the decommission action
+        switch(newStatus) {
+            case IN_PROGRESS:
+                validateAndSetStatus(DecommissionStatus.INIT, newStatus);
+                break;
+            case SUCCESSFUL:
+                validateAndSetStatus(DecommissionStatus.IN_PROGRESS, newStatus);
+                break;
+            case FAILED:
+                // we don't need to validate here and directly update status to FAILED
+                this.status = newStatus;
+            default:
+                throw new IllegalArgumentException("illegal decommission status [" + newStatus.status() + "] requested for updating metadata");
+        }
+        return this;
+    }
+
+    protected void validateAndSetStatus(DecommissionStatus expected, DecommissionStatus next) {
+        if (status.equals(expected) == false){
+            assert false : "can't move decommission status to [" + next + "]. current status: [" + status + "] (expected [" + expected + "])";
+            throw new IllegalStateException(
+                "can't move decommission status to [" + next + "]. current status: [" + status + "] (expected [" + expected + "])"
             );
         }
-        return new DecommissionAttributeMetadata(decommissionAttribute(), newStatus);
+        status = next;
     }
 
     @Override

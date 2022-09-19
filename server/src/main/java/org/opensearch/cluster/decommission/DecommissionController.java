@@ -238,13 +238,13 @@ public class DecommissionController {
                 assert decommissionAttributeMetadata != null && decommissionAttributeMetadata.decommissionAttribute() != null;
                 logger.info(
                     "attempting to update current decommission status [{}] with expected status [{}]",
-                    decommissionAttributeMetadata.status().stage(),
+                    decommissionAttributeMetadata.status(),
                     decommissionStatus
                 );
-                // withUpdatedStatus can throw DecommissioningFailedException if the sequence of update is not valid
-                DecommissionAttributeMetadata newMetadata = decommissionAttributeMetadata.withUpdatedStatus(decommissionStatus);
+                // setUpdatedStatus can throw IllegalStateException if the sequence of update is not valid
+                decommissionAttributeMetadata.setUpdatedStatus(decommissionStatus);
                 return ClusterState.builder(currentState)
-                    .metadata(Metadata.builder(currentState.metadata()).decommissionAttributeMetadata(newMetadata))
+                    .metadata(Metadata.builder(currentState.metadata()).decommissionAttributeMetadata(decommissionAttributeMetadata))
                     .build();
             }
 

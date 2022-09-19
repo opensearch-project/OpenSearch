@@ -15,26 +15,24 @@ public enum DecommissionStatus {
     /**
      * Decommission process is initiated, and to-be-decommissioned leader is excluded from voting config
      */
-    INIT("init", 0),
+    INIT("init"),
     /**
      * Decommission process has started, decommissioned nodes should be removed
      */
-    IN_PROGRESS("in_progress", 1),
+    IN_PROGRESS("in_progress"),
     /**
      * Decommission action completed
      */
-    SUCCESSFUL("successful", 2),
+    SUCCESSFUL("successful"),
     /**
      * Decommission request failed
      */
-    FAILED("failed", -1);
+    FAILED("failed");
 
     private final String status;
-    private final int stage;
 
-    DecommissionStatus(String status, int stage) {
+    DecommissionStatus(String status) {
         this.status = status;
-        this.stage = stage;
     }
 
     /**
@@ -44,13 +42,6 @@ public enum DecommissionStatus {
      */
     public String status() {
         return status;
-    }
-
-    /**
-     * Returns stage that represents the decommission stage
-     */
-    public int stage() {
-        return stage;
     }
 
     /**
