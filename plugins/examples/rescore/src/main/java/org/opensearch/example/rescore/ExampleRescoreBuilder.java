@@ -44,9 +44,9 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.xcontent.ConstructingObjectParser;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.LeafFieldData;
 import org.opensearch.index.fielddata.LeafNumericFieldData;
-import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.SortedNumericDoubleValues;
 import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.query.QueryShardContext;
@@ -67,16 +67,31 @@ import static org.opensearch.common.xcontent.ConstructingObjectParser.optionalCo
  * Example rescorer that multiplies the score of the hit by some factor and doesn't resort them.
  */
 public class ExampleRescoreBuilder extends RescorerBuilder<ExampleRescoreBuilder> {
+    /**
+     * The name of this builder.
+     */
     public static final String NAME = "example";
 
     private final float factor;
     private final String factorField;
 
+    /**
+     * Instantiate this builder with a weighting factor and optional field.
+     *
+     * @param factor The weighting factor.
+     * @param factorField An optional field.
+     */
     public ExampleRescoreBuilder(float factor, @Nullable String factorField) {
         this.factor = factor;
         this.factorField = factorField;
     }
 
+    /**
+     * Instantiate this object from a stream.
+     *
+     * @param in Input to read the value from
+     * @throws IOException on failure to read the value.
+     */
     ExampleRescoreBuilder(StreamInput in) throws IOException {
         super(in);
         factor = in.readFloat();
@@ -119,6 +134,11 @@ public class ExampleRescoreBuilder extends RescorerBuilder<ExampleRescoreBuilder
         PARSER.declareString(optionalConstructorArg(), FACTOR_FIELD);
     }
 
+    /**
+     * Instantiate an ExampleRescoreBuilder from XContent.
+     *
+     * @param parser The XContent parser to use
+     */
     public static ExampleRescoreBuilder fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }

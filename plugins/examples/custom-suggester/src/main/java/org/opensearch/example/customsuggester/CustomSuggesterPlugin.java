@@ -38,7 +38,16 @@ import org.opensearch.plugins.SearchPlugin;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * Plugin demonstrating custom suggestion-based search.
+ */
 public class CustomSuggesterPlugin extends Plugin implements SearchPlugin {
+
+    /**
+     * Instantiate this class.
+     */
+    public CustomSuggesterPlugin() {}
+
     @Override
     public List<SearchPlugin.SuggesterSpec<?>> getSuggesters() {
         return Collections.singletonList(
