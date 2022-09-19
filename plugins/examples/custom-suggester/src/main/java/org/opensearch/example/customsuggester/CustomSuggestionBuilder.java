@@ -48,21 +48,39 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Defines a suggest command based on a custom suffix.
+ */
 public class CustomSuggestionBuilder extends SuggestionBuilder<CustomSuggestionBuilder> {
 
+    /**
+     * The name of this builder.
+     */
     public static final String SUGGESTION_NAME = "custom";
 
+    /**
+     * The suffix field.
+     */
     protected static final ParseField RANDOM_SUFFIX_FIELD = new ParseField("suffix");
 
     private String randomSuffix;
 
+    /**
+     * Instantiate this object with the specified field and suffix.
+     *
+     * @param randomField The field name for the suggestion.
+     * @param randomSuffix The suffix for the suggestion.
+     */
     public CustomSuggestionBuilder(String randomField, String randomSuffix) {
         super(randomField);
         this.randomSuffix = randomSuffix;
     }
 
     /**
-     * Read from a stream.
+     * Instantiate this object from a stream.
+     *
+     * @param in Input to read the value from
+     * @throws IOException on failure to read the value.
      */
     public CustomSuggestionBuilder(StreamInput in) throws IOException {
         super(in);
@@ -95,6 +113,12 @@ public class CustomSuggestionBuilder extends SuggestionBuilder<CustomSuggestionB
         return Objects.hash(randomSuffix);
     }
 
+    /**
+     * Instantiate a CustomSuggestionBuilder from XContent.
+     *
+     * @param parser The XContent parser to use
+     * @throws IOException on deserialization error.
+     */
     public static CustomSuggestionBuilder fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token;
         String currentFieldName = null;
