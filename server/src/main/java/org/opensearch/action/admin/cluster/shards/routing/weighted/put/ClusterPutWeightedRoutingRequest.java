@@ -96,7 +96,7 @@ public class ClusterPutWeightedRoutingRequest extends ClusterManagerNodeRequest<
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     attrValue = parser.currentName();
-                } else if (token == XContentParser.Token.VALUE_NUMBER) {
+                } else if (token == XContentParser.Token.VALUE_STRING) {
                     attrWeight = Double.parseDouble(parser.text());
                     weights.put(attrValue, attrWeight);
                 } else {
@@ -122,18 +122,18 @@ public class ClusterPutWeightedRoutingRequest extends ClusterManagerNodeRequest<
             validationException = addValidationError("Weights are missing", validationException);
         }
         int countValueWithZeroWeights = 0;
-        int weight;
+        double weight;
         try {
             for (Object value : weightedRouting.weights().values()) {
                 if (value == null) {
                     validationException = addValidationError(("Weight is null"), validationException);
                 } else {
-                    weight = Integer.parseInt(value.toString());
+                    weight = Double.parseDouble(value.toString());
                     countValueWithZeroWeights = (weight == 0) ? countValueWithZeroWeights + 1 : countValueWithZeroWeights;
                 }
             }
         } catch (NumberFormatException e) {
-            validationException = addValidationError(("Weight is non-integer"), validationException);
+            validationException = addValidationError(("Weight is not number"), validationException);
         }
         if (countValueWithZeroWeights > 1) {
             validationException = addValidationError(("More than one value has weight set as 0 "), validationException);

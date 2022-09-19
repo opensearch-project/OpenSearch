@@ -9,7 +9,6 @@
 package org.opensearch.action.admin.cluster.shards.routing.weighted.put;
 
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.cluster.routing.WRRWeights;
 import org.opensearch.cluster.routing.WeightedRouting;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.xcontent.XContentType;
@@ -22,7 +21,7 @@ public class ClusterPutWeightedRoutingRequestTests extends OpenSearchTestCase {
     public void testSetWRRWeight() {
         String reqString = "{\"us-east-1c\" : \"0\", \"us-east-1b\":\"1\",\"us-east-1a\":\"1\"}";
         ClusterPutWeightedRoutingRequest request = new ClusterPutWeightedRoutingRequest();
-        Map<String, Object> weights = Map.of("us-east-1a", 1, "us-east-1b", 1, "us-east-1c", 0);
+        Map<String, Double> weights = Map.of("us-east-1a", 1.0, "us-east-1b", 1.0, "us-east-1c", 0.0);
         WeightedRouting weightedRouting = new WeightedRouting("zone", weights);
         request.attributeName("zone");
         request.setWeightedRouting(new BytesArray(reqString), XContentType.JSON);
@@ -30,7 +29,7 @@ public class ClusterPutWeightedRoutingRequestTests extends OpenSearchTestCase {
     }
 
     public void testValidate_ValuesAreProper() {
-        String reqString = "{\"us-east-1c\" : \"1\", \"us-east-1b\":\"0\",\"us-east-1a\":\"1\"}";
+        String reqString = "{\"us-east-1c\" : \"1\", \"us-east-1b\":0,\"us-east-1a\":\"1\"}";
         ClusterPutWeightedRoutingRequest request = new ClusterPutWeightedRoutingRequest();
         request.attributeName("zone");
         request.setWeightedRouting(new BytesArray(reqString), XContentType.JSON);
@@ -68,17 +67,6 @@ public class ClusterPutWeightedRoutingRequestTests extends OpenSearchTestCase {
         ActionRequestValidationException actionRequestValidationException = request.validate();
         assertNotNull(actionRequestValidationException);
         assertTrue(actionRequestValidationException.getMessage().contains("Attribute name is missing"));
-
-    }
-
-    public void testValidate_NonIntegerWeights() {
-        String reqString = "{\"us-east-1c\" : \"0\", \"us-east-1b\":\"5.6\",\"us-east-1a\":\"1\"}";
-        ClusterPutWeightedRoutingRequest request = new ClusterPutWeightedRoutingRequest();
-        request.attributeName("zone");
-        request.setWeightedRouting(new BytesArray(reqString), XContentType.JSON);
-        ActionRequestValidationException actionRequestValidationException = request.validate();
-        assertNotNull(actionRequestValidationException);
-        assertTrue(actionRequestValidationException.getMessage().contains("Weight is non-integer"));
 
     }
 
