@@ -331,20 +331,17 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     }
 
     /**
-     * Handles the extension request based on its request type
-     * @param extensionRequest ExtensionRequest received through transport service
-     * @return A response to send back to the extension
+     * Handles an {@link ExtensionRequest}.
+     *
+     * @param extensionRequest  The request to handle, of a type defined in the {@link RequestType} enum.
+     * @return  an Response matching the request.
+     * @throws Exception if the request is not handled properly.
      */
     TransportResponse handleExtensionRequest(ExtensionRequest extensionRequest) throws Exception {
         // Read enum
         switch (extensionRequest.getRequestType()) {
             case REQUEST_EXTENSION_CLUSTER_STATE:
-                ClusterStateResponse clusterStateResponse = new ClusterStateResponse(
-                    clusterService.getClusterName(),
-                    clusterService.state(),
-                    false
-                );
-                return clusterStateResponse;
+                return new ClusterStateResponse(clusterService.getClusterName(), clusterService.state(), false);
             case REQUEST_EXTENSION_LOCAL_NODE:
                 LocalNodeResponse localNodeResponse = new LocalNodeResponse(clusterService);
                 return localNodeResponse;
