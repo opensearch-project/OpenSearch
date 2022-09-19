@@ -35,7 +35,6 @@ public class ClusterPutWeightedRoutingRequestTests extends OpenSearchTestCase {
         request.setWeightedRouting(new BytesArray(reqString), XContentType.JSON);
         ActionRequestValidationException actionRequestValidationException = request.validate();
         assertNull(actionRequestValidationException);
-
     }
 
     public void testValidate_TwoZonesWithZeroWeight() {
@@ -46,7 +45,6 @@ public class ClusterPutWeightedRoutingRequestTests extends OpenSearchTestCase {
         ActionRequestValidationException actionRequestValidationException = request.validate();
         assertNotNull(actionRequestValidationException);
         assertTrue(actionRequestValidationException.getMessage().contains("More than one value has weight set as 0"));
-
     }
 
     public void testValidate_MissingWeights() {
@@ -57,7 +55,6 @@ public class ClusterPutWeightedRoutingRequestTests extends OpenSearchTestCase {
         ActionRequestValidationException actionRequestValidationException = request.validate();
         assertNotNull(actionRequestValidationException);
         assertTrue(actionRequestValidationException.getMessage().contains("Weights are missing"));
-
     }
 
     public void testValidate_AttributeMissing() {
@@ -67,7 +64,6 @@ public class ClusterPutWeightedRoutingRequestTests extends OpenSearchTestCase {
         ActionRequestValidationException actionRequestValidationException = request.validate();
         assertNotNull(actionRequestValidationException);
         assertTrue(actionRequestValidationException.getMessage().contains("Attribute name is missing"));
-
     }
 
 }

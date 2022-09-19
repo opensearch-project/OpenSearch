@@ -34,9 +34,7 @@ import java.io.IOException;
  */
 public class WeightedRoutingService extends AbstractLifecycleComponent implements ClusterStateApplier {
     private static final Logger logger = LogManager.getLogger(WeightedRoutingService.class);
-
     private final ClusterService clusterService;
-
     private final ThreadPool threadPool;
 
     @Inject

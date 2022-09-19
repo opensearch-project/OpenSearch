@@ -61,9 +61,7 @@ public class ClusterPutWeightedRoutingRequest extends ClusterManagerNodeRequest<
         weightedRouting = new WeightedRouting(in);
     }
 
-    public ClusterPutWeightedRoutingRequest() {
-
-    }
+    public ClusterPutWeightedRoutingRequest() {}
 
     public void setWeightedRouting(Map<String, String> source) {
         try {
@@ -141,7 +139,6 @@ public class ClusterPutWeightedRoutingRequest extends ClusterManagerNodeRequest<
         if (countValueWithZeroWeights > 1) {
             validationException = addValidationError(("More than one value has weight set as 0 "), validationException);
         }
-
         return validationException;
     }
 

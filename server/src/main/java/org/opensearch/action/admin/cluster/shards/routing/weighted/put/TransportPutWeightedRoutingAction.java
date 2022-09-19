@@ -40,7 +40,6 @@ public class TransportPutWeightedRoutingAction extends TransportClusterManagerNo
     ClusterPutWeightedRoutingResponse> {
 
     private final WeightedRoutingService weightedRoutingService;
-
     private volatile List<String> awarenessAttributes;
 
     @Inject
