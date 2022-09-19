@@ -242,6 +242,10 @@ public class DecommissionController {
                     decommissionAttributeMetadata.status(),
                     decommissionStatus
                 );
+                // if the same state is already registered, we will return the current state as is without making any change
+                if (decommissionAttributeMetadata.status().equals(decommissionStatus)) {
+                    return currentState;
+                }
                 // setUpdatedStatus can throw IllegalStateException if the sequence of update is not valid
                 decommissionAttributeMetadata.setUpdatedStatus(decommissionStatus);
                 return ClusterState.builder(currentState)
