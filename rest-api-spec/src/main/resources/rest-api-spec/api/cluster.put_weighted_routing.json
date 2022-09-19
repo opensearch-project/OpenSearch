@@ -1,0 +1,25 @@
+{
+  "cluster.put_weighted_routing": {
+    "documentation": {
+      "url": "http://TBA",
+      "description": "TBA"
+    },
+    "stability": "stable",
+    "url": {
+      "paths": [
+        {
+          "path": "/_cluster/routing/awareness/{attribute}/weights",
+          "methods": [
+            "PUT"
+          ],
+          "parts": {
+            "attribute": {
+              "type": "string",
+              "description": "Awareness attribute name"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

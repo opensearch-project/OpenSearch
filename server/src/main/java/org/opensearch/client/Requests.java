@@ -48,7 +48,7 @@ import org.opensearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.opensearch.action.admin.cluster.shards.routing.wrr.get.ClusterGetWRRWeightsRequest;
-import org.opensearch.action.admin.cluster.shards.routing.wrr.put.ClusterPutWRRWeightsRequest;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingRequest;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.opensearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.opensearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
@@ -172,7 +172,6 @@ public class Requests {
 
     /**
      * Creates an indices shard stores info request.
-     *
      * @param indices The indices to get shard store information on
      * @return The indices shard stores request
      * @see org.opensearch.client.IndicesAdminClient#shardStores(IndicesShardStoresRequest)
@@ -400,7 +399,8 @@ public class Requests {
      * Creates a nodes usage request against one or more nodes. Pass
      * {@code null} or an empty array for all nodes.
      *
-     * @param nodesIds The nodes ids to get the usage for
+     * @param nodesIds
+     *            The nodes ids to get the usage for
      * @return The nodes usage request
      * @see org.opensearch.client.ClusterAdminClient#nodesUsage(NodesUsageRequest)
      */
@@ -542,7 +542,7 @@ public class Requests {
     }
 
     /**
-     * Get status of snapshots
+     *  Get status of snapshots
      *
      * @param repository repository name
      * @return snapshot status request
@@ -556,8 +556,8 @@ public class Requests {
      *
      * @return update weight request
      */
-    public static ClusterPutWRRWeightsRequest putWRRWeightsRequest() {
-        return new ClusterPutWRRWeightsRequest();
+    public static ClusterPutWeightedRoutingRequest putWeightedRoutingRequest() {
+        return new ClusterPutWeightedRoutingRequest();
     }
 
     /**

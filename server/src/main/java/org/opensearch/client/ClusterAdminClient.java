@@ -89,9 +89,9 @@ import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.opensearch.action.admin.cluster.shards.routing.wrr.get.ClusterGetWRRWeightsRequest;
 import org.opensearch.action.admin.cluster.shards.routing.wrr.get.ClusterGetWRRWeightsRequestBuilder;
 import org.opensearch.action.admin.cluster.shards.routing.wrr.get.ClusterGetWRRWeightsResponse;
-import org.opensearch.action.admin.cluster.shards.routing.wrr.put.ClusterPutWRRWeightsRequest;
-import org.opensearch.action.admin.cluster.shards.routing.wrr.put.ClusterPutWRRWeightsRequestBuilder;
-import org.opensearch.action.admin.cluster.shards.routing.wrr.put.ClusterPutWRRWeightsResponse;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingRequest;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingRequestBuilder;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingResponse;
 import org.opensearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequest;
 import org.opensearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequestBuilder;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
@@ -146,8 +146,9 @@ import org.opensearch.tasks.TaskId;
 /**
  * Administrative actions/operations against indices.
  *
- * @opensearch.internal
  * @see AdminClient#cluster()
+ *
+ * @opensearch.internal
  */
 public interface ClusterAdminClient extends OpenSearchClient {
 
@@ -303,7 +304,8 @@ public interface ClusterAdminClient extends OpenSearchClient {
      * sampled for the node ids specified in the request. Nodes usage of the
      * cluster.
      *
-     * @param request The nodes usage request
+     * @param request
+     *            The nodes usage request
      * @return The result future
      * @see org.opensearch.client.Requests#nodesUsageRequest(String...)
      */
@@ -312,8 +314,10 @@ public interface ClusterAdminClient extends OpenSearchClient {
     /**
      * Nodes usage of the cluster.
      *
-     * @param request  The nodes usage request
-     * @param listener A listener to be notified with a result
+     * @param request
+     *            The nodes usage request
+     * @param listener
+     *            A listener to be notified with a result
      * @see org.opensearch.client.Requests#nodesUsageRequest(String...)
      */
     void nodesUsage(NodesUsageRequest request, ActionListener<NodesUsageResponse> listener);
@@ -326,6 +330,7 @@ public interface ClusterAdminClient extends OpenSearchClient {
     /**
      * Returns top N hot-threads samples per node. The hot-threads are only
      * sampled for the node ids specified in the request.
+     *
      */
     ActionFuture<NodesHotThreadsResponse> nodesHotThreads(NodesHotThreadsRequest request);
 
@@ -376,7 +381,7 @@ public interface ClusterAdminClient extends OpenSearchClient {
     /**
      * Get a task.
      *
-     * @param request  the request
+     * @param request the request
      * @param listener A listener to be notified with the result
      * @see org.opensearch.client.Requests#getTaskRequest()
      */
@@ -796,17 +801,17 @@ public interface ClusterAdminClient extends OpenSearchClient {
     /**
      * Updates weights for weighted round-robin search routing policy.
      */
-    ActionFuture<ClusterPutWRRWeightsResponse> putWRRWeights(ClusterPutWRRWeightsRequest request);
+    ActionFuture<ClusterPutWeightedRoutingResponse> putWeightedRouting(ClusterPutWeightedRoutingRequest request);
 
     /**
      * Updates weights for weighted round-robin search routing policy.
      */
-    void putWRRWeights(ClusterPutWRRWeightsRequest request, ActionListener<ClusterPutWRRWeightsResponse> listener);
+    void putWeightedRouting(ClusterPutWeightedRoutingRequest request, ActionListener<ClusterPutWeightedRoutingResponse> listener);
 
     /**
      * Updates weights for weighted round-robin search routing policy.
      */
-    ClusterPutWRRWeightsRequestBuilder prepareWRRWeights();
+    ClusterPutWeightedRoutingRequestBuilder prepareWeightedRouting();
 
     /**
      * Gets weights for weighted round-robin search routing policy.

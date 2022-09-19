@@ -34,10 +34,9 @@ package org.opensearch.cluster.routing;
 
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.cluster.metadata.WeightedRoundRobinRoutingMetadata;
+import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
-import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
 import org.opensearch.common.settings.ClusterSettings;
@@ -77,33 +76,17 @@ public class OperationRouting {
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
+    public static final Setting<Double> WEIGHTED_ROUTING_DEFAULT_WEIGHT = Setting.doubleSetting(
+        "cluster.routing.weighted.default_weight",
+        1.0,
+        1.0,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
     private volatile List<String> awarenessAttributes;
     private volatile boolean useAdaptiveReplicaSelection;
     private volatile boolean ignoreAwarenessAttr;
-
-    /**
-     * Reads value from cluster state to determine if weighted round-robin
-     * search routing is enabled
-     */
-    private volatile boolean isWeightedRoundRobinEnabled;
-
-    private volatile WRRWeights wrrWeights;
-
-    public WRRShardsCache getWrrShardsCache() {
-        return wrrShardsCache;
-    }
-
-    private WRRShardsCache wrrShardsCache;
-
-    public ClusterService getClusterService() {
-        return clusterService;
-    }
-
-    public void setClusterService(ClusterService clusterService) {
-        this.clusterService = clusterService;
-    }
-
-    private ClusterService clusterService;
+    private volatile double weightedRoutingDefaultWeight;
 
     public OperationRouting(Settings settings, ClusterSettings clusterSettings) {
         // whether to ignore awareness attributes when routing requests
@@ -114,9 +97,10 @@ public class OperationRouting {
             this::setAwarenessAttributes
         );
         this.useAdaptiveReplicaSelection = USE_ADAPTIVE_REPLICA_SELECTION_SETTING.get(settings);
+        this.weightedRoutingDefaultWeight = WEIGHTED_ROUTING_DEFAULT_WEIGHT.get(settings);
         clusterSettings.addSettingsUpdateConsumer(USE_ADAPTIVE_REPLICA_SELECTION_SETTING, this::setUseAdaptiveReplicaSelection);
         clusterSettings.addSettingsUpdateConsumer(IGNORE_AWARENESS_ATTRIBUTES_SETTING, this::setIgnoreAwarenessAttributes);
-
+        clusterSettings.addSettingsUpdateConsumer(WEIGHTED_ROUTING_DEFAULT_WEIGHT, this::setWeightedRoutingDefaultWeight);
     }
 
     void setUseAdaptiveReplicaSelection(boolean useAdaptiveReplicaSelection) {
@@ -125,6 +109,10 @@ public class OperationRouting {
 
     void setIgnoreAwarenessAttributes(boolean ignoreAwarenessAttributes) {
         this.ignoreAwarenessAttr = ignoreAwarenessAttributes;
+    }
+
+    void setWeightedRoutingDefaultWeight(double weightedRoutingDefaultWeight) {
+        this.weightedRoutingDefaultWeight = weightedRoutingDefaultWeight;
     }
 
     public boolean isIgnoreAwarenessAttr() {
@@ -143,8 +131,8 @@ public class OperationRouting {
         return this.awarenessAttributes.isEmpty() || this.ignoreAwarenessAttr;
     }
 
-    public WRRWeights getWrrWeights() {
-        return wrrWeights;
+    public double getWeightedRoutingDefaultWeight() {
+        return this.weightedRoutingDefaultWeight;
     }
 
     public ShardIterator indexShards(ClusterState clusterState, String index, String id, @Nullable String routing) {
@@ -164,20 +152,21 @@ public class OperationRouting {
             clusterState.nodes(),
             preference,
             null,
-            null
+            null,
+            clusterState.getMetadata().weightedRoutingMetadata()
         );
     }
 
     public ShardIterator getShards(ClusterState clusterState, String index, int shardId, @Nullable String preference) {
         final IndexShardRoutingTable indexShard = clusterState.getRoutingTable().shardRoutingTable(index, shardId);
-        setWeightedRoundRobinAttributes(clusterState, getClusterService());
         return preferenceActiveShardIterator(
             indexShard,
             clusterState.nodes().getLocalNodeId(),
             clusterState.nodes(),
             preference,
             null,
-            null
+            null,
+            clusterState.metadata().weightedRoutingMetadata()
         );
     }
 
@@ -200,7 +189,6 @@ public class OperationRouting {
     ) {
         final Set<IndexShardRoutingTable> shards = computeTargetedShards(clusterState, concreteIndices, routing);
         final Set<ShardIterator> set = new HashSet<>(shards.size());
-        setWeightedRoundRobinAttributes(clusterState, getClusterService());
         for (IndexShardRoutingTable shard : shards) {
             ShardIterator iterator = preferenceActiveShardIterator(
                 shard,
@@ -208,27 +196,14 @@ public class OperationRouting {
                 clusterState.nodes(),
                 preference,
                 collectorService,
-                nodeCounts
+                nodeCounts,
+                clusterState.metadata().weightedRoutingMetadata()
             );
             if (iterator != null) {
                 set.add(iterator);
             }
         }
         return GroupShardsIterator.sortAndCreate(new ArrayList<>(set));
-    }
-
-    private void setWeightedRoundRobinAttributes(ClusterState clusterState, ClusterService clusterService) {
-        WeightedRoundRobinRoutingMetadata weightedRoundRobinRoutingMetadata = clusterState.metadata()
-            .custom(WeightedRoundRobinRoutingMetadata.TYPE);
-        this.isWeightedRoundRobinEnabled = weightedRoundRobinRoutingMetadata != null;
-        if (this.isWeightedRoundRobinEnabled) {
-            this.wrrWeights = weightedRoundRobinRoutingMetadata.getWrrWeight();
-            this.wrrShardsCache = getWrrShardsCache() != null ? getWrrShardsCache() : new WRRShardsCache(clusterService);
-        }
-    }
-
-    private boolean isWeightedRoundRobinEnabled() {
-        return isWeightedRoundRobinEnabled;
     }
 
     public static ShardIterator getShards(ClusterState clusterState, ShardId shardId) {
@@ -272,11 +247,11 @@ public class OperationRouting {
         DiscoveryNodes nodes,
         @Nullable String preference,
         @Nullable ResponseCollectorService collectorService,
-        @Nullable Map<String, Long> nodeCounts
+        @Nullable Map<String, Long> nodeCounts,
+        @Nullable WeightedRoutingMetadata weightedRoutingMetadata
     ) {
-
         if (preference == null || preference.isEmpty()) {
-            return shardRoutings(indexShard, nodes, collectorService, nodeCounts);
+            return shardRoutings(indexShard, nodes, collectorService, nodeCounts, weightedRoutingMetadata);
         }
         if (preference.charAt(0) == '_') {
             Preference preferenceType = Preference.parse(preference);
@@ -303,7 +278,7 @@ public class OperationRouting {
                 }
                 // no more preference
                 if (index == -1 || index == preference.length() - 1) {
-                    return shardRoutings(indexShard, nodes, collectorService, nodeCounts);
+                    return shardRoutings(indexShard, nodes, collectorService, nodeCounts, weightedRoutingMetadata);
                 } else {
                     // update the preference and continue
                     preference = preference.substring(index + 1);
@@ -346,10 +321,15 @@ public class OperationRouting {
         IndexShardRoutingTable indexShard,
         DiscoveryNodes nodes,
         @Nullable ResponseCollectorService collectorService,
-        @Nullable Map<String, Long> nodeCounts
+        @Nullable Map<String, Long> nodeCounts,
+        @Nullable WeightedRoutingMetadata weightedRoutingMetadata
     ) {
-        if (isWeightedRoundRobinEnabled()) {
-            return indexShard.activeInitializingShardsWRR(getWrrWeights(), nodes, wrrShardsCache);
+        if (weightedRoutingMetadata != null) {
+            return indexShard.activeInitializingShardsWeightedIt(
+                weightedRoutingMetadata.getWeightedRouting(),
+                nodes,
+                getWeightedRoutingDefaultWeight()
+            );
         } else if (ignoreAwarenessAttributes()) {
             if (useAdaptiveReplicaSelection) {
                 return indexShard.activeInitializingShardsRankedIt(collectorService, nodeCounts);

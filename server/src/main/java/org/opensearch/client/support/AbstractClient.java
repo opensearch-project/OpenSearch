@@ -114,10 +114,10 @@ import org.opensearch.action.admin.cluster.shards.routing.wrr.get.ClusterGetWRRW
 import org.opensearch.action.admin.cluster.shards.routing.wrr.get.ClusterGetWRRWeightsRequest;
 import org.opensearch.action.admin.cluster.shards.routing.wrr.get.ClusterGetWRRWeightsRequestBuilder;
 import org.opensearch.action.admin.cluster.shards.routing.wrr.get.ClusterGetWRRWeightsResponse;
-import org.opensearch.action.admin.cluster.shards.routing.wrr.put.ClusterPutWRRWeightsAction;
-import org.opensearch.action.admin.cluster.shards.routing.wrr.put.ClusterPutWRRWeightsRequest;
-import org.opensearch.action.admin.cluster.shards.routing.wrr.put.ClusterPutWRRWeightsRequestBuilder;
-import org.opensearch.action.admin.cluster.shards.routing.wrr.put.ClusterPutWRRWeightsResponse;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingAction;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingRequest;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingRequestBuilder;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingResponse;
 import org.opensearch.action.admin.cluster.snapshots.clone.CloneSnapshotAction;
 import org.opensearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequest;
 import org.opensearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequestBuilder;
@@ -1273,18 +1273,21 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public ActionFuture<ClusterPutWRRWeightsResponse> putWRRWeights(ClusterPutWRRWeightsRequest request) {
-            return execute(ClusterPutWRRWeightsAction.INSTANCE, request);
+        public ActionFuture<ClusterPutWeightedRoutingResponse> putWeightedRouting(ClusterPutWeightedRoutingRequest request) {
+            return execute(ClusterPutWeightedRoutingAction.INSTANCE, request);
         }
 
         @Override
-        public void putWRRWeights(ClusterPutWRRWeightsRequest request, ActionListener<ClusterPutWRRWeightsResponse> listener) {
-            execute(ClusterPutWRRWeightsAction.INSTANCE, request, listener);
+        public void putWeightedRouting(
+            ClusterPutWeightedRoutingRequest request,
+            ActionListener<ClusterPutWeightedRoutingResponse> listener
+        ) {
+            execute(ClusterPutWeightedRoutingAction.INSTANCE, request, listener);
         }
 
         @Override
-        public ClusterPutWRRWeightsRequestBuilder prepareWRRWeights() {
-            return new ClusterPutWRRWeightsRequestBuilder(this, ClusterPutWRRWeightsAction.INSTANCE);
+        public ClusterPutWeightedRoutingRequestBuilder prepareWeightedRouting() {
+            return new ClusterPutWeightedRoutingRequestBuilder(this, ClusterPutWeightedRoutingAction.INSTANCE);
         }
 
         @Override
