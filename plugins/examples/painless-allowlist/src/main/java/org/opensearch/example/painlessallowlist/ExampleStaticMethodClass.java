@@ -32,7 +32,23 @@
 
 package org.opensearch.example.painlessallowlist;
 
+/**
+ * An example of a class with static methods to be allowlisted for use by painless scripts
+ *
+ * The method below is allowlisted for use in search scripts.
+ * See <a href="file:example_allowlist.txt">example_allowlist.txt</a>.
+ */
 public class ExampleStaticMethodClass {
+
+    private ExampleStaticMethodClass() {}
+
+    /**
+     * An example static method to add integers.
+     *
+     * @param x A number to add.
+     * @param y Another number to add.
+     * @return The sum of x and y.
+     */
     public static int exampleAddInts(int x, int y) {
         return x + y;
     }
