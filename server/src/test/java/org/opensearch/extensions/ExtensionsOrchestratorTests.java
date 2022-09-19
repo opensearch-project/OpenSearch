@@ -420,6 +420,13 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         ExtensionRequest localNodeRequest = new ExtensionRequest(ExtensionsOrchestrator.RequestType.REQUEST_EXTENSION_LOCAL_NODE);
         assertEquals(LocalNodeResponse.class, extensionsOrchestrator.handleExtensionRequest(localNodeRequest).getClass());
 
+        ExtensionRequest listenerFailureRequest = new ExtensionRequest(
+            ExtensionsOrchestrator.RequestType.REQUEST_EXTENSION_ACTION_LISTENER_ON_FAILURE,
+            "Test failure"
+        );
+        assertEquals(ExtensionBooleanResponse.class, extensionsOrchestrator.handleExtensionRequest(listenerFailureRequest).getClass());
+        assertEquals("Test failure", extensionsOrchestrator.listener.getExceptionList().get(0).getMessage());
+
         ExtensionRequest exceptionRequest = new ExtensionRequest(ExtensionsOrchestrator.RequestType.GET_SETTINGS);
         Exception exception = expectThrows(Exception.class, () -> extensionsOrchestrator.handleExtensionRequest(exceptionRequest));
         assertEquals("Handler not present for the provided request", exception.getMessage());
@@ -440,9 +447,8 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
                 Collections.emptySet()
             )
         );
-
         extensionsOrchestrator.initializeServicesAndRestHandler(restController, mockTransportService, clusterService);
-        verify(mockTransportService, times(5)).registerRequestHandler(anyString(), anyString(), anyBoolean(), anyBoolean(), any(), any());
+        verify(mockTransportService, times(6)).registerRequestHandler(anyString(), anyString(), anyBoolean(), anyBoolean(), any(), any());
     }
 
     private static class Example implements NamedWriteable {
