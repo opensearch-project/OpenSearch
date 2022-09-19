@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.action.admin.cluster.shards.routing.wrr.get;
+package org.opensearch.action.admin.cluster.shards.routing.weighted.get;
 
 import org.opensearch.action.ActionListener;
 import org.apache.logging.log4j.LogManager;
@@ -20,9 +20,9 @@ import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
 
-import org.opensearch.cluster.metadata.WeightedRoundRobinRoutingMetadata;
+import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.cluster.routing.WRRWeights;
+import org.opensearch.cluster.routing.WeightedRouting;
 import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
@@ -43,14 +43,14 @@ import static org.opensearch.action.ValidateActions.addValidationError;
  *
  * @opensearch.internal
  */
-public class TransportGetWRRWeightsAction extends TransportClusterManagerNodeReadAction<
-    ClusterGetWRRWeightsRequest,
-    ClusterGetWRRWeightsResponse> {
-    private static final Logger logger = LogManager.getLogger(TransportGetWRRWeightsAction.class);
+public class TransportGetWeightedRoutingAction extends TransportClusterManagerNodeReadAction<
+    ClusterGetWeightedRoutingRequest,
+    ClusterGetWeightedRoutingResponse> {
+    private static final Logger logger = LogManager.getLogger(TransportGetWeightedRoutingAction.class);
     private volatile List<String> awarenessAttributes;
 
     @Inject
-    public TransportGetWRRWeightsAction(
+    public TransportGetWeightedRoutingAction(
         Settings settings,
         ClusterSettings clusterSettings,
         TransportService transportService,
@@ -60,12 +60,12 @@ public class TransportGetWRRWeightsAction extends TransportClusterManagerNodeRea
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
-            ClusterGetWRRWeightsAction.NAME,
+            ClusterGetWeightedRoutingAction.NAME,
             transportService,
             clusterService,
             threadPool,
             actionFilters,
-            ClusterGetWRRWeightsRequest::new,
+            ClusterGetWeightedRoutingRequest::new,
             indexNameExpressionResolver
         );
         this.awarenessAttributes = AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.get(settings);
@@ -89,40 +89,40 @@ public class TransportGetWRRWeightsAction extends TransportClusterManagerNodeRea
     }
 
     @Override
-    protected ClusterGetWRRWeightsResponse read(StreamInput in) throws IOException {
-        return new ClusterGetWRRWeightsResponse(in);
+    protected ClusterGetWeightedRoutingResponse read(StreamInput in) throws IOException {
+        return new ClusterGetWeightedRoutingResponse(in);
     }
 
     @Override
-    protected ClusterBlockException checkBlock(ClusterGetWRRWeightsRequest request, ClusterState state) {
+    protected ClusterBlockException checkBlock(ClusterGetWeightedRoutingRequest request, ClusterState state) {
         return null;
     }
 
     @Override
     protected void clusterManagerOperation(
-        final ClusterGetWRRWeightsRequest request,
+        final ClusterGetWeightedRoutingRequest request,
         ClusterState state,
-        final ActionListener<ClusterGetWRRWeightsResponse> listener
+        final ActionListener<ClusterGetWeightedRoutingResponse> listener
     ) throws IOException {
         verifyAwarenessAttribute(request.getAwarenessAttribute());
         Metadata metadata = state.metadata();
-        WeightedRoundRobinRoutingMetadata weightedRoundRobinMetadata = metadata.custom(WeightedRoundRobinRoutingMetadata.TYPE);
-        ClusterGetWRRWeightsResponse clusterGetWRRWeightsResponse = new ClusterGetWRRWeightsResponse();
+        WeightedRoutingMetadata weightedRoutingMetadata = metadata.custom(WeightedRoutingMetadata.TYPE);
+        ClusterGetWeightedRoutingResponse clusterGetWeightedRoutingResponse = new ClusterGetWeightedRoutingResponse();
         String weight = null;
-        if (weightedRoundRobinMetadata != null && weightedRoundRobinMetadata.getWrrWeight() != null) {
-            WRRWeights wrrWeights = weightedRoundRobinMetadata.getWrrWeight();
+        if (weightedRoutingMetadata != null && weightedRoutingMetadata.getWeightedRouting() != null) {
+            WeightedRouting weightedRouting = weightedRoutingMetadata.getWeightedRouting();
             if (request.local()) {
                 DiscoveryNode localNode = state.getNodes().getLocalNode();
-                if (localNode.getAttributes().get(request.getAwarenessAttribute())!=null) {
+                if (localNode.getAttributes().get(request.getAwarenessAttribute()) != null) {
                     String attrVal = localNode.getAttributes().get(request.getAwarenessAttribute());
-                    if (wrrWeights.weights().containsKey(attrVal)) {
-                        weight = wrrWeights.weights().get(attrVal).toString();
+                    if (weightedRouting.weights().containsKey(attrVal)) {
+                        weight = weightedRouting.weights().get(attrVal).toString();
                     }
                 }
             }
-            clusterGetWRRWeightsResponse = new ClusterGetWRRWeightsResponse(weight, wrrWeights);
+            clusterGetWeightedRoutingResponse = new ClusterGetWeightedRoutingResponse(weight, weightedRouting);
         }
-        listener.onResponse(clusterGetWRRWeightsResponse);
+        listener.onResponse(clusterGetWeightedRoutingResponse);
     }
 
     private void verifyAwarenessAttribute(String attributeName) {
@@ -130,7 +130,7 @@ public class TransportGetWRRWeightsAction extends TransportClusterManagerNodeRea
         if (!getAwarenessAttributes().contains(attributeName) || !attributeName.equalsIgnoreCase("zone")) {
             ActionRequestValidationException validationException = null;
             validationException = addValidationError(
-                "invalid awareness attribute " + attributeName + " requested for " + "getting wrr weights",
+                "invalid awareness attribute " + attributeName + " requested for " + "getting weighted routing weights",
                 validationException
             );
             throw validationException;

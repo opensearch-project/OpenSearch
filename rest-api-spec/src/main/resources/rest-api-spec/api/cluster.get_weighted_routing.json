@@ -1,5 +1,5 @@
 {
-  "cluster.get_wrr_weights": {
+  "cluster.get_weighted_routing": {
     "documentation": {
       "url": "http://TBA",
       "description": "TBA"

@@ -10,7 +10,7 @@ package org.opensearch.rest.action.admin.cluster;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.action.admin.cluster.shards.routing.wrr.get.ClusterGetWRRWeightsRequest;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.get.ClusterGetWeightedRoutingRequest;
 import org.opensearch.client.Requests;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.rest.BaseRestHandler;
@@ -29,9 +29,9 @@ import static org.opensearch.rest.RestRequest.Method.GET;
  * @opensearch.api
  *
  */
-public class RestClusterGetWRRWeightsAction extends BaseRestHandler {
+public class RestClusterGetWeightedRoutingAction extends BaseRestHandler {
 
-    private static final Logger logger = LogManager.getLogger(RestClusterPutWRRWeightsAction.class);
+    private static final Logger logger = LogManager.getLogger(RestClusterGetWeightedRoutingAction.class);
 
     @Override
     public List<Route> routes() {
@@ -40,17 +40,16 @@ public class RestClusterGetWRRWeightsAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "get_wrr_weights_action";
+        return "get_weighted_routing_action";
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        ClusterGetWRRWeightsRequest getWRRWeightsRequest = Requests.getWRRWeightsRequest();
-        getWRRWeightsRequest.local(request.paramAsBoolean("local", getWRRWeightsRequest.local()));
+        ClusterGetWeightedRoutingRequest getWeightedRoutingRequest = Requests.getWeightedRoutingRequest();
+        getWeightedRoutingRequest.local(request.paramAsBoolean("local", getWeightedRoutingRequest.local()));
         if (request.hasParam("attribute")) {
-            getWRRWeightsRequest.setAwarenessAttribute(request.param("attribute"));
+            getWeightedRoutingRequest.setAwarenessAttribute(request.param("attribute"));
         }
-        return channel -> client.admin().cluster().getWRRWeights(getWRRWeightsRequest, new RestToXContentListener<>(channel));
+        return channel -> client.admin().cluster().getWeightedRouting(getWeightedRoutingRequest, new RestToXContentListener<>(channel));
     }
-
 }

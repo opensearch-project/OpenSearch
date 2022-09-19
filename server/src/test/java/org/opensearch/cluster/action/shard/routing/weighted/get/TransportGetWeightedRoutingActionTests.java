@@ -6,15 +6,15 @@
  * compatible open source license.
  */
 
-package org.opensearch.cluster.action.shard.routing.wrr.get;
+package org.opensearch.cluster.action.shard.routing.weighted.get;
 
 import org.junit.After;
 import org.junit.Before;
 import org.opensearch.Version;
-import org.opensearch.action.admin.cluster.shards.routing.wrr.get.ClusterGetWRRWeightsAction;
-import org.opensearch.action.admin.cluster.shards.routing.wrr.get.ClusterGetWRRWeightsRequestBuilder;
-import org.opensearch.action.admin.cluster.shards.routing.wrr.get.ClusterGetWRRWeightsResponse;
-import org.opensearch.action.admin.cluster.shards.routing.wrr.get.TransportGetWRRWeightsAction;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.get.ClusterGetWeightedRoutingAction;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.get.ClusterGetWeightedRoutingRequestBuilder;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.get.ClusterGetWeightedRoutingResponse;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.get.TransportGetWeightedRoutingAction;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.ActionTestUtils;
 import org.opensearch.client.node.NodeClient;
@@ -22,11 +22,11 @@ import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
-import org.opensearch.cluster.metadata.WeightedRoundRobinRoutingMetadata;
+import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
-import org.opensearch.cluster.routing.WRRWeights;
+import org.opensearch.cluster.routing.WeightedRouting;
 import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
@@ -46,12 +46,12 @@ import java.util.Set;
 import static java.util.Collections.emptySet;
 import static org.mockito.Mockito.mock;
 
-public class TransportGetWRRWeightsActionTests extends OpenSearchTestCase {
+public class TransportGetWeightedRoutingActionTests extends OpenSearchTestCase {
 
     private ThreadPool threadPool;
     private ClusterService clusterService;
     private TransportService transportService;
-    private TransportGetWRRWeightsAction transportGetWRRWeightsAction;
+    private TransportGetWeightedRoutingAction transportGetWeightedRoutingAction;
     private ClusterSettings clusterSettings;
     NodeClient client;
 
@@ -98,7 +98,7 @@ public class TransportGetWRRWeightsActionTests extends OpenSearchTestCase {
         transportService.start();
         transportService.acceptIncomingRequests();
 
-        this.transportGetWRRWeightsAction = new TransportGetWRRWeightsAction(
+        this.transportGetWeightedRoutingAction = new TransportGetWeightedRoutingAction(
             settingsBuilder.build(),
             clusterSettings,
             transportService,
@@ -169,65 +169,74 @@ public class TransportGetWRRWeightsActionTests extends OpenSearchTestCase {
         return clusterState;
     }
 
-    private ClusterState setWRRWeights(ClusterState clusterState, Map<String, Object> weights) {
-        WRRWeights wrrWeight = new WRRWeights("zone", weights);
-        WeightedRoundRobinRoutingMetadata wrrMetadata = new WeightedRoundRobinRoutingMetadata(wrrWeight);
+    private ClusterState setWeightedRoutingWeights(ClusterState clusterState, Map<String, Double> weights) {
+        WeightedRouting weightedRouting = new WeightedRouting("zone", weights);
+        WeightedRoutingMetadata weightedRoutingMetadata = new WeightedRoutingMetadata(weightedRouting);
         Metadata.Builder metadataBuilder = Metadata.builder(clusterState.metadata());
-        metadataBuilder.putCustom(WeightedRoundRobinRoutingMetadata.TYPE, wrrMetadata);
+        metadataBuilder.putCustom(WeightedRoutingMetadata.TYPE, weightedRoutingMetadata);
         clusterState = ClusterState.builder(clusterState).metadata(metadataBuilder).build();
         return clusterState;
     }
 
-    public void testGetWRR_WeightsNotSetInMetadata() {
+    public void testGetWeightedRouting_WeightsNotSetInMetadata() {
 
-        final ClusterGetWRRWeightsRequestBuilder request = new ClusterGetWRRWeightsRequestBuilder(
+        final ClusterGetWeightedRoutingRequestBuilder request = new ClusterGetWeightedRoutingRequestBuilder(
             client,
-            ClusterGetWRRWeightsAction.INSTANCE
+            ClusterGetWeightedRoutingAction.INSTANCE
         );
         request.setAwarenessAttribute("zone");
         ClusterState state = clusterService.state();
 
-        ClusterGetWRRWeightsResponse response = ActionTestUtils.executeBlocking(transportGetWRRWeightsAction, request.request());
+        ClusterGetWeightedRoutingResponse response = ActionTestUtils.executeBlocking(transportGetWeightedRoutingAction, request.request());
         assertEquals(response.getLocalNodeWeight(), null);
         assertEquals(response.weights(), null);
     }
 
-    public void testGetWRR_WeightsSetInMetadata() {
-        ClusterGetWRRWeightsRequestBuilder request = new ClusterGetWRRWeightsRequestBuilder(client, ClusterGetWRRWeightsAction.INSTANCE);
+    public void testGetWeightedRouting_WeightsSetInMetadata() {
+        ClusterGetWeightedRoutingRequestBuilder request = new ClusterGetWeightedRoutingRequestBuilder(
+            client,
+            ClusterGetWeightedRoutingAction.INSTANCE
+        );
         request.setAwarenessAttribute("zone");
 
         ClusterState state = clusterService.state();
         state = setLocalNode(state, "nodeB1");
-        Map<String, Object> weights = Map.of("zone_A", "1", "zone_B", "0", "zone_C", "1");
-        state = setWRRWeights(state, weights);
+        Map<String, Double> weights = Map.of("zone_A", 1.0, "zone_B", 0.0, "zone_C", 1.0);
+        state = setWeightedRoutingWeights(state, weights);
         ClusterState.Builder builder = ClusterState.builder(state);
         ClusterServiceUtils.setState(clusterService, builder);
 
-        ClusterGetWRRWeightsResponse response = ActionTestUtils.executeBlocking(transportGetWRRWeightsAction, request.request());
+        ClusterGetWeightedRoutingResponse response = ActionTestUtils.executeBlocking(transportGetWeightedRoutingAction, request.request());
         assertEquals(weights, response.weights().weights());
     }
 
-    public void testGetWRRLocalWeight_WeightsSetInMetadata() {
+    public void testGetWeightedRoutingLocalWeight_WeightsSetInMetadata() {
 
-        ClusterGetWRRWeightsRequestBuilder request = new ClusterGetWRRWeightsRequestBuilder(client, ClusterGetWRRWeightsAction.INSTANCE);
+        ClusterGetWeightedRoutingRequestBuilder request = new ClusterGetWeightedRoutingRequestBuilder(
+            client,
+            ClusterGetWeightedRoutingAction.INSTANCE
+        );
 
         request.setRequestLocal(true);
         request.setAwarenessAttribute("zone");
 
         ClusterState state = clusterService.state();
         state = setLocalNode(state, "nodeB1");
-        Map<String, Object> weights = Map.of("zone_A", "1", "zone_B", "0", "zone_C", "1");
-        state = setWRRWeights(state, weights);
+        Map<String, Double> weights = Map.of("zone_A", 1.0, "zone_B", 0.0, "zone_C", 1.0);
+        state = setWeightedRoutingWeights(state, weights);
         ClusterState.Builder builder = ClusterState.builder(state);
         ClusterServiceUtils.setState(clusterService, builder);
 
-        ClusterGetWRRWeightsResponse response = ActionTestUtils.executeBlocking(transportGetWRRWeightsAction, request.request());
-        assertEquals("0", response.getLocalNodeWeight());
+        ClusterGetWeightedRoutingResponse response = ActionTestUtils.executeBlocking(transportGetWeightedRoutingAction, request.request());
+        assertEquals("0.0", response.getLocalNodeWeight());
     }
 
-    public void testGetWRRLocalWeight_WeightsNotSetInMetadata() {
+    public void testGetWeightedRoutingLocalWeight_WeightsNotSetInMetadata() {
 
-        ClusterGetWRRWeightsRequestBuilder request = new ClusterGetWRRWeightsRequestBuilder(client, ClusterGetWRRWeightsAction.INSTANCE);
+        ClusterGetWeightedRoutingRequestBuilder request = new ClusterGetWeightedRoutingRequestBuilder(
+            client,
+            ClusterGetWeightedRoutingAction.INSTANCE
+        );
 
         request.setRequestLocal(true);
         request.setAwarenessAttribute("zone");
@@ -237,7 +246,7 @@ public class TransportGetWRRWeightsActionTests extends OpenSearchTestCase {
         ClusterState.Builder builder = ClusterState.builder(state);
         ClusterServiceUtils.setState(clusterService, builder);
 
-        ClusterGetWRRWeightsResponse response = ActionTestUtils.executeBlocking(transportGetWRRWeightsAction, request.request());
+        ClusterGetWeightedRoutingResponse response = ActionTestUtils.executeBlocking(transportGetWeightedRoutingAction, request.request());
         assertEquals(null, response.getLocalNodeWeight());
     }
 

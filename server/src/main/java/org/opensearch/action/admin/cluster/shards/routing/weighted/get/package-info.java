@@ -7,4 +7,4 @@
  */
 
 /** get weighted-round robin shard routing weights. */
-package org.opensearch.action.admin.cluster.shards.routing.wrr.get;
+package org.opensearch.action.admin.cluster.shards.routing.weighted.get;

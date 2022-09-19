@@ -6,12 +6,12 @@
  * compatible open source license.
  */
 
-package org.opensearch.action.admin.cluster.shards.routing.wrr.get;
+package org.opensearch.action.admin.cluster.shards.routing.weighted.get;
 
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.ActionResponse;
 
-import org.opensearch.cluster.routing.WRRWeights;
+import org.opensearch.cluster.routing.WeightedRouting;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.xcontent.ToXContentObject;
@@ -30,8 +30,8 @@ import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedT
  *
  * @opensearch.internal
  */
-public class ClusterGetWRRWeightsResponse extends ActionResponse implements ToXContentObject {
-    private WRRWeights wrrWeight;
+public class ClusterGetWeightedRoutingResponse extends ActionResponse implements ToXContentObject {
+    private WeightedRouting weightedRouting;
     private String localNodeWeight;
     private static final String NODE_WEIGHT = "node_weight";
 
@@ -39,19 +39,18 @@ public class ClusterGetWRRWeightsResponse extends ActionResponse implements ToXC
         return localNodeWeight;
     }
 
-    ClusterGetWRRWeightsResponse() {
-        this.wrrWeight = null;
+    ClusterGetWeightedRoutingResponse() {
+        this.weightedRouting = null;
     }
 
-    public ClusterGetWRRWeightsResponse(String localNodeWeight, WRRWeights wrrWeight) {
+    public ClusterGetWeightedRoutingResponse(String localNodeWeight, WeightedRouting weightedRouting) {
         this.localNodeWeight = localNodeWeight;
-        this.wrrWeight = wrrWeight;
+        this.weightedRouting = weightedRouting;
     }
 
-    ClusterGetWRRWeightsResponse(StreamInput in) throws IOException {
+    ClusterGetWeightedRoutingResponse(StreamInput in) throws IOException {
         if (in.available() != 0) {
-            this.wrrWeight = new WRRWeights(in);
-
+            this.weightedRouting = new WeightedRouting(in);
         }
     }
 
@@ -60,38 +59,38 @@ public class ClusterGetWRRWeightsResponse extends ActionResponse implements ToXC
      *
      * @return list or weights
      */
-    public WRRWeights weights() {
-        return this.wrrWeight;
+    public WeightedRouting weights() {
+        return this.weightedRouting;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (wrrWeight != null) {
-            wrrWeight.writeTo(out);
+        if (weightedRouting != null) {
+            weightedRouting.writeTo(out);
         }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (this.wrrWeight != null) {
-            for (Map.Entry<String, Object> entry : wrrWeight.weights().entrySet()) {
-                builder.field(entry.getKey(), entry.getValue());
+        if (this.weightedRouting != null) {
+            for (Map.Entry<String, Double> entry : weightedRouting.weights().entrySet()) {
+                builder.field(entry.getKey(), entry.getValue().toString());
             }
             if (localNodeWeight != null) {
-                builder.field(NODE_WEIGHT, localNodeWeight.toString());
+                builder.field(NODE_WEIGHT, localNodeWeight);
             }
         }
         builder.endObject();
         return builder;
     }
 
-    public static ClusterGetWRRWeightsResponse fromXContent(XContentParser parser) throws IOException {
+    public static ClusterGetWeightedRoutingResponse fromXContent(XContentParser parser) throws IOException {
         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
         XContentParser.Token token;
         String attrKey = null, attrValue = null;
         String localNodeWeight = null;
-        Map<String, Object> weights = new HashMap<>();
+        Map<String, Double> weights = new HashMap<>();
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -101,27 +100,27 @@ public class ClusterGetWRRWeightsResponse extends ActionResponse implements ToXC
                 if (attrKey != null && attrKey.equals(NODE_WEIGHT)) {
                     localNodeWeight = attrValue;
                 } else if (attrKey != null) {
-                    weights.put(attrKey, attrValue);
+                    weights.put(attrKey, Double.parseDouble(attrValue));
                 }
             } else {
-                throw new OpenSearchParseException("failed to parse wrr response");
+                throw new OpenSearchParseException("failed to parse weighted routing response");
             }
 
         }
-        WRRWeights wrrWeights = new WRRWeights("", weights);
-        return new ClusterGetWRRWeightsResponse(localNodeWeight, wrrWeights);
+        WeightedRouting weightedRouting = new WeightedRouting("", weights);
+        return new ClusterGetWeightedRoutingResponse(localNodeWeight, weightedRouting);
     }
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        ClusterGetWRRWeightsResponse that = (ClusterGetWRRWeightsResponse) o;
-        return wrrWeight.equals(that.wrrWeight) && localNodeWeight.equals(that.localNodeWeight);
+        ClusterGetWeightedRoutingResponse that = (ClusterGetWeightedRoutingResponse) o;
+        return weightedRouting.equals(that.weightedRouting) && localNodeWeight.equals(that.localNodeWeight);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(wrrWeight, localNodeWeight);
+        return Objects.hash(weightedRouting, localNodeWeight);
     }
 }

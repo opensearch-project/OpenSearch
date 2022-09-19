@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.action.admin.cluster.shards.routing.wrr.get;
+package org.opensearch.action.admin.cluster.shards.routing.weighted.get;
 
 import org.opensearch.action.ActionType;
 
@@ -15,11 +15,11 @@ import org.opensearch.action.ActionType;
  *
  * @opensearch.internal
  */
-public class ClusterGetWRRWeightsAction extends ActionType<ClusterGetWRRWeightsResponse> {
-    public static final ClusterGetWRRWeightsAction INSTANCE = new ClusterGetWRRWeightsAction();
+public class ClusterGetWeightedRoutingAction extends ActionType<ClusterGetWeightedRoutingResponse> {
+    public static final ClusterGetWeightedRoutingAction INSTANCE = new ClusterGetWeightedRoutingAction();
     public static final String NAME = "cluster:admin/routing/awareness/weights/get";
 
-    private ClusterGetWRRWeightsAction() {
-        super(NAME, ClusterGetWRRWeightsResponse::new);
+    private ClusterGetWeightedRoutingAction() {
+        super(NAME, ClusterGetWeightedRoutingResponse::new);
     }
 }

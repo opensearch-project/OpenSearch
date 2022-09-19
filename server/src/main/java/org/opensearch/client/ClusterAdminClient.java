@@ -86,9 +86,9 @@ import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRespons
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsRequestBuilder;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
-import org.opensearch.action.admin.cluster.shards.routing.wrr.get.ClusterGetWRRWeightsRequest;
-import org.opensearch.action.admin.cluster.shards.routing.wrr.get.ClusterGetWRRWeightsRequestBuilder;
-import org.opensearch.action.admin.cluster.shards.routing.wrr.get.ClusterGetWRRWeightsResponse;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.get.ClusterGetWeightedRoutingRequest;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.get.ClusterGetWeightedRoutingRequestBuilder;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.get.ClusterGetWeightedRoutingResponse;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingRequest;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingRequestBuilder;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingResponse;
@@ -816,15 +816,15 @@ public interface ClusterAdminClient extends OpenSearchClient {
     /**
      * Gets weights for weighted round-robin search routing policy.
      */
-    ActionFuture<ClusterGetWRRWeightsResponse> getWRRWeights(ClusterGetWRRWeightsRequest request);
+    ActionFuture<ClusterGetWeightedRoutingResponse> getWeightedRouting(ClusterGetWeightedRoutingRequest request);
 
     /**
      * Gets weights for weighted round-robin search routing policy.
      */
-    void getWRRWeights(ClusterGetWRRWeightsRequest request, ActionListener<ClusterGetWRRWeightsResponse> listener);
+    void getWeightedRouting(ClusterGetWeightedRoutingRequest request, ActionListener<ClusterGetWeightedRoutingResponse> listener);
 
     /**
      * Gets weights for weighted round-robin search routing policy.
      */
-    ClusterGetWRRWeightsRequestBuilder prepareGetWRRWeights();
+    ClusterGetWeightedRoutingRequestBuilder prepareGetWeightedRouting();
 }

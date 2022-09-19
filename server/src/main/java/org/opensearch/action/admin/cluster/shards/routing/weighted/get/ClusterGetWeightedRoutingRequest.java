@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.action.admin.cluster.shards.routing.wrr.get;
+package org.opensearch.action.admin.cluster.shards.routing.weighted.get;
 
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadRequest;
@@ -20,7 +20,7 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public class ClusterGetWRRWeightsRequest extends ClusterManagerNodeReadRequest<ClusterGetWRRWeightsRequest> {
+public class ClusterGetWeightedRoutingRequest extends ClusterManagerNodeReadRequest<ClusterGetWeightedRoutingRequest> {
     String awarenessAttribute;
 
     public String getAwarenessAttribute() {
@@ -31,9 +31,9 @@ public class ClusterGetWRRWeightsRequest extends ClusterManagerNodeReadRequest<C
         this.awarenessAttribute = awarenessAttribute;
     }
 
-    public ClusterGetWRRWeightsRequest() {}
+    public ClusterGetWeightedRoutingRequest() {}
 
-    public ClusterGetWRRWeightsRequest(StreamInput in) throws IOException {
+    public ClusterGetWeightedRoutingRequest(StreamInput in) throws IOException {
         super(in);
         awarenessAttribute = in.readString();
     }

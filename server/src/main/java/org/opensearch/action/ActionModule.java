@@ -79,8 +79,8 @@ import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
 import org.opensearch.action.admin.cluster.settings.TransportClusterUpdateSettingsAction;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsAction;
 import org.opensearch.action.admin.cluster.shards.TransportClusterSearchShardsAction;
-import org.opensearch.action.admin.cluster.shards.routing.wrr.get.ClusterGetWRRWeightsAction;
-import org.opensearch.action.admin.cluster.shards.routing.wrr.get.TransportGetWRRWeightsAction;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.get.ClusterGetWeightedRoutingAction;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.get.TransportGetWeightedRoutingAction;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingAction;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.put.TransportPutWeightedRoutingAction;
 import org.opensearch.action.admin.cluster.snapshots.clone.CloneSnapshotAction;
@@ -299,7 +299,7 @@ import org.opensearch.rest.action.admin.cluster.RestClearVotingConfigExclusionsA
 import org.opensearch.rest.action.admin.cluster.RestCloneSnapshotAction;
 import org.opensearch.rest.action.admin.cluster.RestClusterAllocationExplainAction;
 import org.opensearch.rest.action.admin.cluster.RestClusterGetSettingsAction;
-import org.opensearch.rest.action.admin.cluster.RestClusterGetWRRWeightsAction;
+import org.opensearch.rest.action.admin.cluster.RestClusterGetWeightedRoutingAction;
 import org.opensearch.rest.action.admin.cluster.RestClusterHealthAction;
 import org.opensearch.rest.action.admin.cluster.RestClusterPutWeightedRoutingAction;
 import org.opensearch.rest.action.admin.cluster.RestClusterRerouteAction;
@@ -569,7 +569,7 @@ public class ActionModule extends AbstractModule {
         actions.register(RestoreSnapshotAction.INSTANCE, TransportRestoreSnapshotAction.class);
         actions.register(SnapshotsStatusAction.INSTANCE, TransportSnapshotsStatusAction.class);
         actions.register(ClusterPutWeightedRoutingAction.INSTANCE, TransportPutWeightedRoutingAction.class);
-        actions.register(ClusterGetWRRWeightsAction.INSTANCE, TransportGetWRRWeightsAction.class);
+        actions.register(ClusterGetWeightedRoutingAction.INSTANCE, TransportGetWeightedRoutingAction.class);
         actions.register(IndicesStatsAction.INSTANCE, TransportIndicesStatsAction.class);
         actions.register(IndicesSegmentsAction.INSTANCE, TransportIndicesSegmentsAction.class);
         actions.register(IndicesShardStoresAction.INSTANCE, TransportIndicesShardStoresAction.class);
@@ -753,7 +753,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestOpenIndexAction());
         registerHandler.accept(new RestAddIndexBlockAction());
         registerHandler.accept(new RestClusterPutWeightedRoutingAction());
-        registerHandler.accept(new RestClusterGetWRRWeightsAction());
+        registerHandler.accept(new RestClusterGetWeightedRoutingAction());
 
         registerHandler.accept(new RestUpdateSettingsAction());
         registerHandler.accept(new RestGetSettingsAction());
