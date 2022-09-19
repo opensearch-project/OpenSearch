@@ -21,38 +21,36 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
-public class WRRWeights implements Writeable {
+public class WeightedRouting implements Writeable {
     private String attributeName;
-    private Map<String, Object> weights;
+    private Map<String, Double> weights;
 
-    public WRRWeights(String attributeName, Map<String, Object> weights) {
+    public WeightedRouting(String attributeName, Map<String, Double> weights) {
         this.attributeName = attributeName;
         this.weights = weights;
     }
 
-    public WRRWeights(WRRWeights wrrWeight) {
-        this.attributeName = wrrWeight.attributeName();
-        this.weights = wrrWeight.weights;
+    public WeightedRouting(WeightedRouting weightedRouting) {
+        this.attributeName = weightedRouting.attributeName();
+        this.weights = weightedRouting.weights;
     }
 
-    public WRRWeights(StreamInput in) throws IOException {
+    public WeightedRouting(StreamInput in) throws IOException {
         attributeName = in.readString();
-        weights = in.readMap();
+        weights = (Map<String, Double>) in.readGenericValue();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(attributeName);
-        out.writeMap(weights);
+        out.writeGenericValue(weights);
     }
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-
-        WRRWeights that = (WRRWeights) o;
-
+        WeightedRouting that = (WeightedRouting) o;
         if (!attributeName.equals(that.attributeName)) return false;
         return weights.equals(that.weights);
     }
@@ -64,10 +62,10 @@ public class WRRWeights implements Writeable {
 
     @Override
     public String toString() {
-        return "WRRWeightsDefinition{" + attributeName + "}{" + weights().toString() + "}";
+        return "WeightedRouting{" + attributeName + "}{" + weights().toString() + "}";
     }
 
-    public Map<String, Object> weights() {
+    public Map<String, Double> weights() {
         return this.weights;
     }
 
