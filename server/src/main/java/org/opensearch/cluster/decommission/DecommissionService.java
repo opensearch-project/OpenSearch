@@ -283,7 +283,7 @@ public class DecommissionService {
         }
     }
 
-    private synchronized void failDecommissionedNodes(ClusterState state) {
+    private void failDecommissionedNodes(ClusterState state) {
         // this method ensures no matter what, we always exit from this function after clearing the voting config exclusion
         DecommissionAttributeMetadata decommissionAttributeMetadata = state.metadata().decommissionAttributeMetadata();
         DecommissionAttribute decommissionAttribute = decommissionAttributeMetadata.decommissionAttribute();
