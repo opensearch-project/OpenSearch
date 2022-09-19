@@ -100,12 +100,13 @@ public class ClusterPutWeightedRoutingRequest extends ClusterManagerNodeRequest<
                     attrWeight = Double.parseDouble(parser.text());
                     weights.put(attrValue, attrWeight);
                 } else {
-                    throw new OpenSearchParseException("failed to parse wrr request attribute [{}], unknown type", attrWeight);
+                    throw new OpenSearchParseException("failed to parse weighted routing request attribute [{}], " +
+                        "unknown type", attrWeight);
                 }
             }
             this.weightedRouting = new WeightedRouting(this.attributeName, weights);
         } catch (IOException e) {
-            logger.error("error while parsing put wrr weights request object", e);
+            logger.error("error while parsing put for weighted routing request object", e);
         }
     }
 
@@ -113,7 +114,7 @@ public class ClusterPutWeightedRoutingRequest extends ClusterManagerNodeRequest<
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (weightedRouting == null) {
-            validationException = addValidationError("WRRWeights object is null", validationException);
+            validationException = addValidationError("Weighted routing request object is null", validationException);
         }
         if (weightedRouting.attributeName() == null || weightedRouting.attributeName().isEmpty()) {
             validationException = addValidationError("Attribute name is missing", validationException);
@@ -133,7 +134,7 @@ public class ClusterPutWeightedRoutingRequest extends ClusterManagerNodeRequest<
                 }
             }
         } catch (NumberFormatException e) {
-            validationException = addValidationError(("Weight is not number"), validationException);
+            validationException = addValidationError(("Weight is not a number"), validationException);
         }
         if (countValueWithZeroWeights > 1) {
             validationException = addValidationError(("More than one value has weight set as 0 "), validationException);

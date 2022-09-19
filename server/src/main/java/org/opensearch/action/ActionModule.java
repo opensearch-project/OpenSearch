@@ -531,7 +531,6 @@ public class ActionModule extends AbstractModule {
             ) {
                 register(new ActionHandler<>(action, transportAction, supportTransportActions));
             }
-
         }
         ActionRegistry actions = new ActionRegistry();
 
@@ -566,6 +565,7 @@ public class ActionModule extends AbstractModule {
         actions.register(CloneSnapshotAction.INSTANCE, TransportCloneSnapshotAction.class);
         actions.register(RestoreSnapshotAction.INSTANCE, TransportRestoreSnapshotAction.class);
         actions.register(SnapshotsStatusAction.INSTANCE, TransportSnapshotsStatusAction.class);
+
         actions.register(ClusterPutWeightedRoutingAction.INSTANCE, TransportPutWeightedRoutingAction.class);
         actions.register(IndicesStatsAction.INSTANCE, TransportIndicesStatsAction.class);
         actions.register(IndicesSegmentsAction.INSTANCE, TransportIndicesSegmentsAction.class);
