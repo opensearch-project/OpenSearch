@@ -11,9 +11,7 @@ package org.opensearch.cluster.service;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.Version;
-import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.cluster.ClusterStateTaskExecutor;
-import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -51,40 +49,44 @@ public class ClusterManagerTaskThrottler implements TaskBatcherListener {
      *
      * Added retry mechanism in TransportClusterManagerNodeAction so it would be retried for customer generated tasks.
      */
-    public static Set<String> CONFIGURED_TASK_FOR_THROTTLING = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
-        "update-settings",
-        "cluster-update-settings",
-        "create-index",
-        "auto-create",
-        "delete-index",
-        "delete-dangling-index",
-        "create-data-stream",
-        "remove-data-stream",
-        "rollover-index",
-        "index-aliases",
-        "put-mapping",
-        "create-index-template",
-        "remove-index-template",
-        "create-component-template",
-        "remove-component-template",
-        "create-index-template-v2",
-        "remove-index-template-v2",
-        "put-pipeline",
-        "delete-pipeline",
-        "create-persistent-task",
-        "finish-persistent-task",
-        "remove-persistent-task",
-        "update-task-state",
-        "put-script",
-        "delete-script",
-        "put_repository",
-        "delete_repository",
-        "create-snapshot",
-        "delete-snapshot",
-        "update-snapshot-state",
-        "restore_snapshot",
-        "cluster-reroute-api"
-        )));
+    public static Set<String> CONFIGURED_TASK_FOR_THROTTLING = Collections.unmodifiableSet(
+        new HashSet<>(
+            Arrays.asList(
+                "update-settings",
+                "cluster-update-settings",
+                "create-index",
+                "auto-create",
+                "delete-index",
+                "delete-dangling-index",
+                "create-data-stream",
+                "remove-data-stream",
+                "rollover-index",
+                "index-aliases",
+                "put-mapping",
+                "create-index-template",
+                "remove-index-template",
+                "create-component-template",
+                "remove-component-template",
+                "create-index-template-v2",
+                "remove-index-template-v2",
+                "put-pipeline",
+                "delete-pipeline",
+                "create-persistent-task",
+                "finish-persistent-task",
+                "remove-persistent-task",
+                "update-task-state",
+                "put-script",
+                "delete-script",
+                "put_repository",
+                "delete_repository",
+                "create-snapshot",
+                "delete-snapshot",
+                "update-snapshot-state",
+                "restore_snapshot",
+                "cluster-reroute-api"
+            )
+        )
+    );
     private final int MIN_THRESHOLD_VALUE = -1; // Disabled throttling
     private final ClusterManagerTaskThrottlerListener clusterManagerTaskThrottlerListener;
 
