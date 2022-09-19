@@ -388,7 +388,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
 
             // Extract setting and type from writeable setting
             Setting<?> setting = extensionComponentSetting.getSetting();
-            WriteableSetting.WriteableSettingGenericType settingType = extensionComponentSetting.getType();
+            WriteableSetting.SettingType settingType = extensionComponentSetting.getType();
 
             // Register setting update consumer with callback method to extension
             this.clusterService.getClusterSettings().addSettingsUpdateConsumer(setting, (data) -> {

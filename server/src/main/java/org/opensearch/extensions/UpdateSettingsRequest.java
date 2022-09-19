@@ -27,11 +27,11 @@ import java.util.Objects;
 public class UpdateSettingsRequest extends TransportRequest {
     private static final Logger logger = LogManager.getLogger(EnvironmentSettingsRequest.class);
 
-    private WriteableSetting.WriteableSettingGenericType settingType;
+    private WriteableSetting.SettingType settingType;
     private Setting<?> componentSetting;
     private Object data;
 
-    public UpdateSettingsRequest(WriteableSetting.WriteableSettingGenericType settingType, Setting<?> componentSetting, Object data) {
+    public UpdateSettingsRequest(WriteableSetting.SettingType settingType, Setting<?> componentSetting, Object data) {
         this.settingType = settingType;
         this.componentSetting = componentSetting;
         this.data = data;
@@ -39,7 +39,7 @@ public class UpdateSettingsRequest extends TransportRequest {
 
     public UpdateSettingsRequest(StreamInput in) throws IOException {
         super(in);
-        this.settingType = in.readEnum(WriteableSetting.WriteableSettingGenericType.class);
+        this.settingType = in.readEnum(WriteableSetting.SettingType.class);
         this.componentSetting = new WriteableSetting(in).getSetting();
         this.data = in.readGenericValue();
     }
@@ -52,7 +52,7 @@ public class UpdateSettingsRequest extends TransportRequest {
         out.writeGenericValue(this.data);
     }
 
-    public WriteableSetting.WriteableSettingGenericType getSettingType() {
+    public WriteableSetting.SettingType getSettingType() {
         return this.settingType;
     }
 
