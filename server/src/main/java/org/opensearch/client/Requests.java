@@ -384,13 +384,11 @@ public class Requests {
     }
 
     /**
-     * Creates a nodes usage request against one or more nodes. Pass
-     * {@code null} or an empty array for all nodes.
+     * Creates a nodes stats request against one or more nodes. Pass {@code null} or an empty array for all nodes.
      *
-     * @param nodesIds
-     *            The nodes ids to get the usage for
-     * @return The nodes usage request
-     * @see org.opensearch.client.ClusterAdminClient#nodesUsage(NodesUsageRequest)
+     * @param nodesIds The nodes ids to get the stats for
+     * @return The nodes info request
+     * @see org.opensearch.client.ClusterAdminClient#nodesStats(NodesStatsRequest)
      */
     public static NodesStatsRequest nodesStatsRequest(String... nodesIds) {
         return new NodesStatsRequest(nodesIds);
@@ -400,7 +398,8 @@ public class Requests {
      * Creates a nodes usage request against one or more nodes. Pass
      * {@code null} or an empty array for all nodes.
      *
-     * @param nodesIds The nodes ids to get the usage for
+     * @param nodesIds
+     *            The nodes ids to get the usage for
      * @return The nodes usage request
      * @see org.opensearch.client.ClusterAdminClient#nodesUsage(NodesUsageRequest)
      */
