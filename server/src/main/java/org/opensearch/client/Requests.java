@@ -171,7 +171,6 @@ public class Requests {
 
     /**
      * Creates an indices shard stores info request.
-     *
      * @param indices The indices to get shard store information on
      * @return The indices shard stores request
      * @see org.opensearch.client.IndicesAdminClient#shardStores(IndicesShardStoresRequest)
@@ -385,11 +384,13 @@ public class Requests {
     }
 
     /**
-     * Creates a nodes stats request against one or more nodes. Pass {@code null} or an empty array for all nodes.
+     * Creates a nodes usage request against one or more nodes. Pass
+     * {@code null} or an empty array for all nodes.
      *
-     * @param nodesIds The nodes ids to get the stats for
-     * @return The nodes info request
-     * @see org.opensearch.client.ClusterAdminClient#nodesStats(NodesStatsRequest)
+     * @param nodesIds
+     *            The nodes ids to get the usage for
+     * @return The nodes usage request
+     * @see org.opensearch.client.ClusterAdminClient#nodesUsage(NodesUsageRequest)
      */
     public static NodesStatsRequest nodesStatsRequest(String... nodesIds) {
         return new NodesStatsRequest(nodesIds);
@@ -541,7 +542,7 @@ public class Requests {
     }
 
     /**
-     * Get status of snapshots
+     *  Get status of snapshots
      *
      * @param repository repository name
      * @return snapshot status request
@@ -555,8 +556,7 @@ public class Requests {
      *
      * @return update weight request
      */
-    public static ClusterPutWeightedRoutingRequest putWRRWeightsRequest() {
+    public static ClusterPutWeightedRoutingRequest putWeightedRoutingRequest() {
         return new ClusterPutWeightedRoutingRequest();
     }
-
 }

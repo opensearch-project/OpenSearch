@@ -143,8 +143,9 @@ import org.opensearch.tasks.TaskId;
 /**
  * Administrative actions/operations against indices.
  *
- * @opensearch.internal
  * @see AdminClient#cluster()
+ *
+ * @opensearch.internal
  */
 public interface ClusterAdminClient extends OpenSearchClient {
 
@@ -300,7 +301,8 @@ public interface ClusterAdminClient extends OpenSearchClient {
      * sampled for the node ids specified in the request. Nodes usage of the
      * cluster.
      *
-     * @param request The nodes usage request
+     * @param request
+     *            The nodes usage request
      * @return The result future
      * @see org.opensearch.client.Requests#nodesUsageRequest(String...)
      */
@@ -309,8 +311,10 @@ public interface ClusterAdminClient extends OpenSearchClient {
     /**
      * Nodes usage of the cluster.
      *
-     * @param request  The nodes usage request
-     * @param listener A listener to be notified with a result
+     * @param request
+     *            The nodes usage request
+     * @param listener
+     *            A listener to be notified with a result
      * @see org.opensearch.client.Requests#nodesUsageRequest(String...)
      */
     void nodesUsage(NodesUsageRequest request, ActionListener<NodesUsageResponse> listener);
@@ -323,6 +327,7 @@ public interface ClusterAdminClient extends OpenSearchClient {
     /**
      * Returns top N hot-threads samples per node. The hot-threads are only
      * sampled for the node ids specified in the request.
+     *
      */
     ActionFuture<NodesHotThreadsResponse> nodesHotThreads(NodesHotThreadsRequest request);
 
@@ -373,7 +378,7 @@ public interface ClusterAdminClient extends OpenSearchClient {
     /**
      * Get a task.
      *
-     * @param request  the request
+     * @param request the request
      * @param listener A listener to be notified with the result
      * @see org.opensearch.client.Requests#getTaskRequest()
      */
