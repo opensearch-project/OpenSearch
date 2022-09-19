@@ -41,8 +41,8 @@ import org.opensearch.discovery.InitializeExtensionsResponse;
 import org.opensearch.extensions.ExtensionsSettings.Extension;
 import org.opensearch.extensions.rest.RegisterRestActionsRequest;
 import org.opensearch.extensions.rest.RestActionsRequestHandler;
-import org.opensearch.extensions.settings.RegisterSettingsRequest;
-import org.opensearch.extensions.settings.SettingsRequestHandler;
+import org.opensearch.extensions.settings.CustomSettingsRequestHandler;
+import org.opensearch.extensions.settings.RegisterCustomSettingsRequest;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndicesModuleRequest;
@@ -73,8 +73,8 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     public static final String REQUEST_EXTENSION_CLUSTER_STATE = "internal:discovery/clusterstate";
     public static final String REQUEST_EXTENSION_LOCAL_NODE = "internal:discovery/localnode";
     public static final String REQUEST_EXTENSION_CLUSTER_SETTINGS = "internal:discovery/clustersettings";
+    public static final String REQUEST_EXTENSION_REGISTER_CUSTOM_SETTINGS = "internal:discovery/registercustomsettings";
     public static final String REQUEST_EXTENSION_REGISTER_REST_ACTIONS = "internal:discovery/registerrestactions";
-    public static final String REQUEST_EXTENSION_REGISTER_SETTINGS = "internal:discovery/registersettings";
     public static final String REQUEST_EXTENSION_REGISTER_TRANSPORT_ACTIONS = "internal:discovery/registertransportactions";
     public static final String REQUEST_OPENSEARCH_NAMED_WRITEABLE_REGISTRY = "internal:discovery/namedwriteableregistry";
     public static final String REQUEST_OPENSEARCH_PARSE_NAMED_WRITEABLE = "internal:discovery/parsenamedwriteable";
@@ -115,7 +115,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     // A map of extension uniqueId to full extension details used for node transport here and in the RestActionsRequestHandler
     Map<String, DiscoveryExtension> extensionIdMap;
     RestActionsRequestHandler restActionsRequestHandler;
-    SettingsRequestHandler settingsRequestHandler;
+    CustomSettingsRequestHandler customSettingsRequestHandler;
     TransportService transportService;
     ClusterService clusterService;
     ExtensionNamedWriteableRegistry namedWriteableRegistry;
@@ -161,7 +161,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         ClusterService clusterService
     ) {
         this.restActionsRequestHandler = new RestActionsRequestHandler(restController, extensionIdMap, transportService);
-        this.settingsRequestHandler = new SettingsRequestHandler(settingsModule);
+        this.customSettingsRequestHandler = new CustomSettingsRequestHandler(settingsModule);
         this.transportService = transportService;
         this.clusterService = clusterService;
         registerRequestHandler();
@@ -177,12 +177,12 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             ((request, channel, task) -> channel.sendResponse(restActionsRequestHandler.handleRegisterRestActionsRequest(request)))
         );
         transportService.registerRequestHandler(
-            REQUEST_EXTENSION_REGISTER_SETTINGS,
+            REQUEST_EXTENSION_REGISTER_CUSTOM_SETTINGS,
             ThreadPool.Names.GENERIC,
             false,
             false,
-            RegisterSettingsRequest::new,
-            ((request, channel, task) -> channel.sendResponse(settingsRequestHandler.handleRegisterSettingsRequest(request)))
+            RegisterCustomSettingsRequest::new,
+            ((request, channel, task) -> channel.sendResponse(customSettingsRequestHandler.handleRegisterCustomSettingsRequest(request)))
         );
         transportService.registerRequestHandler(
             REQUEST_EXTENSION_CLUSTER_STATE,

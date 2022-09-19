@@ -24,16 +24,16 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
-public class RegisterSettingsRequest extends TransportRequest {
+public class RegisterCustomSettingsRequest extends TransportRequest {
     private String uniqueId;
     private List<Setting<?>> settings;
 
-    public RegisterSettingsRequest(String uniqueId, List<Setting<?>> settings) {
+    public RegisterCustomSettingsRequest(String uniqueId, List<Setting<?>> settings) {
         this.uniqueId = uniqueId;
         this.settings = new ArrayList<>(settings);
     }
 
-    public RegisterSettingsRequest(StreamInput in) throws IOException {
+    public RegisterCustomSettingsRequest(StreamInput in) throws IOException {
         super(in);
         this.uniqueId = in.readString();
         int size = in.readVInt();
@@ -72,7 +72,7 @@ public class RegisterSettingsRequest extends TransportRequest {
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
-        RegisterSettingsRequest that = (RegisterSettingsRequest) obj;
+        RegisterCustomSettingsRequest that = (RegisterCustomSettingsRequest) obj;
         return Objects.equals(uniqueId, that.uniqueId) && Objects.equals(settings, that.settings);
     }
 

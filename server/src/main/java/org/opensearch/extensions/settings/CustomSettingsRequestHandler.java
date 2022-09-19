@@ -21,7 +21,7 @@ import java.util.List;
  *
  * @opensearch.internal
  */
-public class SettingsRequestHandler {
+public class CustomSettingsRequestHandler {
 
     private final SettingsModule settingsModule;
 
@@ -30,28 +30,28 @@ public class SettingsRequestHandler {
      *
      * @param settingsModule  The Node's {@link SettingsModule}.
      */
-    public SettingsRequestHandler(SettingsModule settingsModule) {
+    public CustomSettingsRequestHandler(SettingsModule settingsModule) {
         this.settingsModule = settingsModule;
     }
 
     /**
-     * Handles a {@link RegisterSettingsRequest}.
+     * Handles a {@link RegisterCustomSettingsRequest}.
      *
-     * @param settingsRequest  The request to handle.
+     * @param customSettingsRequest  The request to handle.
      * @return A {@link ExtensionStringResponse} indicating success.
      * @throws Exception if the request is not handled properly.
      */
-    public TransportResponse handleRegisterSettingsRequest(RegisterSettingsRequest settingsRequest) throws Exception {
+    public TransportResponse handleRegisterCustomSettingsRequest(RegisterCustomSettingsRequest customSettingsRequest) throws Exception {
         // TODO: How do we prevent key collisions in settings registration?
         // we have settingsRequest.getUniqueId() available or could enforce reverse DNS naming
         // See https://github.com/opensearch-project/opensearch-sdk-java/issues/142
-        List<String> registeredSettings = new ArrayList<>();
-        for (Setting<?> setting : settingsRequest.getSettings()) {
+        List<String> registeredCustomSettings = new ArrayList<>();
+        for (Setting<?> setting : customSettingsRequest.getSettings()) {
             settingsModule.registerDynamicSetting(setting);
-            registeredSettings.add(setting.getKey());
+            registeredCustomSettings.add(setting.getKey());
         }
         return new ExtensionStringResponse(
-            "Registered settings from extension " + settingsRequest.getUniqueId() + ": " + String.join(", ", registeredSettings)
+            "Registered settings from extension " + customSettingsRequest.getUniqueId() + ": " + String.join(", ", registeredCustomSettings)
         );
     }
 }

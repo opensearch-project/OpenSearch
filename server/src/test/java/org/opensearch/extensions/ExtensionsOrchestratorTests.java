@@ -69,7 +69,7 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.extensions.rest.RegisterRestActionsRequest;
-import org.opensearch.extensions.settings.RegisterSettingsRequest;
+import org.opensearch.extensions.settings.RegisterCustomSettingsRequest;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AnalysisRegistry;
@@ -392,8 +392,10 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
             Setting.boolSetting("index.falseSetting", false, Property.IndexScope, Property.Dynamic),
             Setting.simpleString("fooSetting", "foo", Property.NodeScope, Property.Final)
         );
-        RegisterSettingsRequest registerSettingsRequest = new RegisterSettingsRequest(uniqueIdStr, settingsList);
-        TransportResponse response = extensionsOrchestrator.settingsRequestHandler.handleRegisterSettingsRequest(registerSettingsRequest);
+        RegisterCustomSettingsRequest registerCustomSettingsRequest = new RegisterCustomSettingsRequest(uniqueIdStr, settingsList);
+        TransportResponse response = extensionsOrchestrator.customSettingsRequestHandler.handleRegisterCustomSettingsRequest(
+            registerCustomSettingsRequest
+        );
         assertEquals(ExtensionStringResponse.class, response.getClass());
         assertTrue(((ExtensionStringResponse) response).getResponse().contains(uniqueIdStr));
         assertTrue(((ExtensionStringResponse) response).getResponse().contains("falseSetting"));

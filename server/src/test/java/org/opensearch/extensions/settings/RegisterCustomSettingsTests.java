@@ -21,9 +21,9 @@ import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.test.OpenSearchTestCase;
 
-public class RegisterSettingsTests extends OpenSearchTestCase {
+public class RegisterCustomSettingsTests extends OpenSearchTestCase {
 
-    public void testRegisterSettingsRequest() throws Exception {
+    public void testRegisterCustomSettingsRequest() throws Exception {
         String uniqueIdStr = "uniqueid1";
         List<Setting<?>> expected = List.of(
             Setting.boolSetting("falseSetting", false, Property.IndexScope, Property.NodeScope),
@@ -31,22 +31,22 @@ public class RegisterSettingsTests extends OpenSearchTestCase {
             Setting.timeSetting("timeSetting", new TimeValue(5, TimeUnit.MILLISECONDS), Property.Dynamic),
             Setting.byteSizeSetting("byteSizeSetting", new ByteSizeValue(10, ByteSizeUnit.KB), Property.Dynamic)
         );
-        RegisterSettingsRequest registerSettingsRequest = new RegisterSettingsRequest(uniqueIdStr, expected);
+        RegisterCustomSettingsRequest registerCustomSettingsRequest = new RegisterCustomSettingsRequest(uniqueIdStr, expected);
 
-        assertEquals(uniqueIdStr, registerSettingsRequest.getUniqueId());
-        List<Setting<?>> settings = registerSettingsRequest.getSettings();
+        assertEquals(uniqueIdStr, registerCustomSettingsRequest.getUniqueId());
+        List<Setting<?>> settings = registerCustomSettingsRequest.getSettings();
         assertEquals(expected.size(), settings.size());
         assertTrue(settings.containsAll(expected));
         assertTrue(expected.containsAll(settings));
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            registerSettingsRequest.writeTo(out);
+            registerCustomSettingsRequest.writeTo(out);
             out.flush();
             try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
-                registerSettingsRequest = new RegisterSettingsRequest(in);
+                registerCustomSettingsRequest = new RegisterCustomSettingsRequest(in);
 
-                assertEquals(uniqueIdStr, registerSettingsRequest.getUniqueId());
-                settings = registerSettingsRequest.getSettings();
+                assertEquals(uniqueIdStr, registerCustomSettingsRequest.getUniqueId());
+                settings = registerCustomSettingsRequest.getSettings();
                 assertEquals(expected.size(), settings.size());
                 assertTrue(settings.containsAll(expected));
                 assertTrue(expected.containsAll(settings));
