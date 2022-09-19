@@ -381,29 +381,35 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     TransportResponse handleAddSettingsUpdateConsumerRequest(AddSettingsUpdateConsumerRequest addSettingsUpdateConsumerRequest)
         throws Exception {
 
+        boolean status = true;
         List<WriteableSetting> extensionComponentSettings = addSettingsUpdateConsumerRequest.getComponentSettings();
         DiscoveryExtension extensionNode = addSettingsUpdateConsumerRequest.getExtensionNode();
 
-        for (WriteableSetting extensionComponentSetting : extensionComponentSettings) {
+        try {
+            for (WriteableSetting extensionComponentSetting : extensionComponentSettings) {
 
-            // Extract setting and type from writeable setting
-            Setting<?> setting = extensionComponentSetting.getSetting();
-            WriteableSetting.SettingType settingType = extensionComponentSetting.getType();
+                // Extract setting and type from writeable setting
+                Setting<?> setting = extensionComponentSetting.getSetting();
+                WriteableSetting.SettingType settingType = extensionComponentSetting.getType();
 
-            // Register setting update consumer with callback method to extension
-            this.clusterService.getClusterSettings().addSettingsUpdateConsumer(setting, (data) -> {
-                logger.info("Sending extension request type: " + REQUEST_EXTENSION_UPDATE_SETTINGS);
-                UpdateSettingsResponseHandler updateSettingsResponseHandler = new UpdateSettingsResponseHandler();
-                transportService.sendRequest(
-                    extensionNode,
-                    REQUEST_EXTENSION_UPDATE_SETTINGS,
-                    new UpdateSettingsRequest(settingType, setting, data),
-                    updateSettingsResponseHandler
-                );
-            });
+                // Register setting update consumer with callback method to extension
+                this.clusterService.getClusterSettings().addSettingsUpdateConsumer(setting, (data) -> {
+                    logger.info("Sending extension request type: " + REQUEST_EXTENSION_UPDATE_SETTINGS);
+                    UpdateSettingsResponseHandler updateSettingsResponseHandler = new UpdateSettingsResponseHandler();
+                    transportService.sendRequest(
+                        extensionNode,
+                        REQUEST_EXTENSION_UPDATE_SETTINGS,
+                        new UpdateSettingsRequest(settingType, setting, data),
+                        updateSettingsResponseHandler
+                    );
+                });
+            }
+        } catch (IllegalArgumentException e) {
+            logger.error(e.toString());
+            status = false;
         }
 
-        return new ExtensionBooleanResponse(true);
+        return new ExtensionBooleanResponse(status);
     }
 
     /**
