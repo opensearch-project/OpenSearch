@@ -601,7 +601,7 @@ public class GeoUtilsTests extends OpenSearchTestCase {
         try (XContentParser parser = createParser(json)) {
             parser.nextToken();
             Exception e = expectThrows(OpenSearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
-            assertThat(e.getMessage(), is("longitude must be a number"));
+            assertThat(e.getMessage(), is("lon must be a number"));
             assertThat(parser.currentToken(), is(Token.END_OBJECT));
             assertNull(parser.nextToken());
         }
@@ -613,7 +613,7 @@ public class GeoUtilsTests extends OpenSearchTestCase {
         try (XContentParser parser = createParser(json)) {
             parser.nextToken();
             Exception e = expectThrows(OpenSearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
-            assertThat(e.getMessage(), is("latitude must be a number"));
+            assertThat(e.getMessage(), is("lat must be a number"));
             assertThat(parser.currentToken(), is(Token.END_OBJECT));
             assertNull(parser.nextToken());
         }
@@ -626,7 +626,7 @@ public class GeoUtilsTests extends OpenSearchTestCase {
         try (XContentParser parser = createParser(json)) {
             parser.nextToken();
             Exception e = expectThrows(OpenSearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
-            assertThat(e.getMessage(), is("field must be either [lat], [lon] or [geohash]"));
+            assertThat(e.getMessage(), is("field must be either lon/lat, type/coordinates, or geohash"));
         }
     }
 
@@ -638,7 +638,7 @@ public class GeoUtilsTests extends OpenSearchTestCase {
         try (XContentParser parser = createParser(json)) {
             parser.nextToken();
             Exception e = expectThrows(OpenSearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
-            assertThat(e.getMessage(), containsString("field must be either lat/lon or geohash"));
+            assertThat(e.getMessage(), containsString("field must be either lon/lat, type/coordinates, or geohash"));
         }
     }
 

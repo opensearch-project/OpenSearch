@@ -142,12 +142,12 @@ public class GeoPointParsingTests extends OpenSearchTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
             parser.nextToken();
             Exception e = expectThrows(OpenSearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
-            assertThat(e.getMessage(), is("field must be either [lat], [lon] or [geohash]"));
+            assertThat(e.getMessage(), is("field must be either lon/lat, type/coordinates, or geohash"));
         }
         try (XContentParser parser2 = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
             parser2.nextToken();
             Exception e = expectThrows(OpenSearchParseException.class, () -> GeoUtils.parseGeoPoint(toObject(parser2), randomBoolean()));
-            assertThat(e.getMessage(), is("field must be either [lat], [lon] or [geohash]"));
+            assertThat(e.getMessage(), is("field must be either lon/lat, type/coordinates, or geohash"));
         }
     }
 
@@ -160,12 +160,12 @@ public class GeoPointParsingTests extends OpenSearchTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
             parser.nextToken();
             Exception e = expectThrows(OpenSearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
-            assertThat(e.getMessage(), is("field must be either lat/lon or geohash"));
+            assertThat(e.getMessage(), is("field must be either lon/lat, type/coordinates, or geohash"));
         }
         try (XContentParser parser2 = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
             parser2.nextToken();
             Exception e = expectThrows(OpenSearchParseException.class, () -> GeoUtils.parseGeoPoint(toObject(parser2), randomBoolean()));
-            assertThat(e.getMessage(), is("field must be either lat/lon or geohash"));
+            assertThat(e.getMessage(), is("field must be either lon/lat, type/coordinates, or geohash"));
         }
     }
 
@@ -179,12 +179,12 @@ public class GeoPointParsingTests extends OpenSearchTestCase {
             parser.nextToken();
 
             Exception e = expectThrows(OpenSearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
-            assertThat(e.getMessage(), is("field must be either lat/lon or geohash"));
+            assertThat(e.getMessage(), is("field must be either lon/lat, type/coordinates, or geohash"));
         }
         try (XContentParser parser2 = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
             parser2.nextToken();
             Exception e = expectThrows(OpenSearchParseException.class, () -> GeoUtils.parseGeoPoint(toObject(parser2), randomBoolean()));
-            assertThat(e.getMessage(), is("field must be either lat/lon or geohash"));
+            assertThat(e.getMessage(), is("field must be either lon/lat, type/coordinates, or geohash"));
         }
     }
 
@@ -197,13 +197,13 @@ public class GeoPointParsingTests extends OpenSearchTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
             parser.nextToken();
             Exception e = expectThrows(OpenSearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
-            assertThat(e.getMessage(), is("field must be either [lat], [lon] or [geohash]"));
+            assertThat(e.getMessage(), is("field must be either lon/lat, type/coordinates, or geohash"));
         }
 
         try (XContentParser parser2 = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
             parser2.nextToken();
             Exception e = expectThrows(OpenSearchParseException.class, () -> GeoUtils.parseGeoPoint(toObject(parser2), randomBoolean()));
-            assertThat(e.getMessage(), is("field must be either [lat], [lon] or [geohash]"));
+            assertThat(e.getMessage(), is("field must be either lon/lat, type/coordinates, or geohash"));
         }
     }
 

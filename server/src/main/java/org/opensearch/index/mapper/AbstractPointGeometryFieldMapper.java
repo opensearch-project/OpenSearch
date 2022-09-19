@@ -281,39 +281,38 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
 
         @Override
         public List<P> parse(XContentParser parser) throws IOException, ParseException {
-
             if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
-                XContentParser.Token token = parser.nextToken();
-                P point = pointSupplier.get();
-                ArrayList<P> points = new ArrayList<>();
-                if (token == XContentParser.Token.VALUE_NUMBER) {
+                parser.nextToken();
+                if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
                     double x = parser.doubleValue();
                     parser.nextToken();
                     double y = parser.doubleValue();
-                    token = parser.nextToken();
-                    if (token == XContentParser.Token.VALUE_NUMBER) {
+                    parser.nextToken();
+                    if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
                         GeoPoint.assertZValue(ignoreZValue, parser.doubleValue());
-                    } else if (token != XContentParser.Token.END_ARRAY) {
+                    } else if (parser.currentToken() != XContentParser.Token.END_ARRAY) {
                         throw new OpenSearchParseException("field type does not accept > 3 dimensions");
                     }
-
+                    P point = pointSupplier.get();
                     point.resetCoords(x, y);
-                    points.add(process(point));
+                    return Collections.singletonList(process(point));
                 } else {
-                    while (token != XContentParser.Token.END_ARRAY) {
-                        points.add(process(objectParser.apply(parser, point)));
-                        point = pointSupplier.get();
-                        token = parser.nextToken();
+                    ArrayList<P> points = new ArrayList<>();
+                    while (parser.currentToken() != XContentParser.Token.END_ARRAY) {
+                        points.add(process(objectParser.apply(parser, pointSupplier.get())));
+                        parser.nextToken();
                     }
+                    return points;
                 }
-                return points;
             } else if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+                // Null value
                 if (nullValue == null) {
                     return null;
                 } else {
                     return Collections.singletonList(nullValue);
                 }
             } else {
+                // Single point
                 return Collections.singletonList(process(objectParser.apply(parser, pointSupplier.get())));
             }
         }

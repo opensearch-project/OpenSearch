@@ -40,10 +40,10 @@ import org.opensearch.common.unit.DistanceUnit;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentParser.Token;
 import org.opensearch.common.xcontent.XContentSubParser;
 import org.opensearch.common.xcontent.support.MapXContentParser;
 import org.opensearch.common.xcontent.support.XContentMapValues;
+import org.opensearch.geometry.Point;
 import org.opensearch.index.fielddata.FieldData;
 import org.opensearch.index.fielddata.GeoPointValues;
 import org.opensearch.index.fielddata.MultiGeoPointValues;
@@ -94,6 +94,12 @@ public class GeoUtils {
 
     /** rounding error for quantized latitude and longitude values */
     public static final double TOLERANCE = 1E-6;
+
+    public static final PointUtils POINT_PARSER;
+
+    static {
+        POINT_PARSER = new PointUtils(LONGITUDE, LATITUDE, true);
+    }
 
     /** Returns true if latitude is actually a valid latitude value.*/
     public static boolean isValidLatitude(double latitude) {
@@ -444,113 +450,44 @@ public class GeoUtils {
      * Parse a {@link GeoPoint} with a {@link XContentParser}. A geopoint has one of the following forms:
      *
      * <ul>
-     *     <li>Object: <pre>{&quot;lat&quot;: <i>&lt;latitude&gt;</i>, &quot;lon&quot;: <i>&lt;longitude&gt;</i>}</pre></li>
-     *     <li>String: <pre>&quot;<i>&lt;latitude&gt;</i>,<i>&lt;longitude&gt;</i>&quot;</pre></li>
-     *     <li>Geohash: <pre>&quot;<i>&lt;geohash&gt;</i>&quot;</pre></li>
-     *     <li>Array: <pre>[<i>&lt;longitude&gt;</i>,<i>&lt;latitude&gt;</i>]</pre></li>
+     *     <li>Object: <pre>{@code {"lat": <latitude>, "lon": <longitude}}</pre></li>
+     *     <li>String: <pre>{@code "<latitude>,<longitude>"}</pre></li>
+     *     <li>GeoHash: <pre>{@code "<geohash>"}</pre></li>
+     *     <li>WKT: <pre>{@code "POINT (<longitude> <latitude>)"}</pre></li>
+     *     <li>Array: <pre>{@code [<longitude>, <latitude>]}</pre></li>
+     *     <li>GeoJson: <pre>{@code {"type": "Point", "coordinates": [<longitude>, <latitude>]}}</pre><li>
      * </ul>
+     *
      *
      * @param parser {@link XContentParser} to parse the value from
      * @param point A {@link GeoPoint} that will be reset by the values parsed
+     * @param ignoreZValue tells to ignore z value or throw exception when there is a z value
+     * @param effectivePoint tells which point to use for GeoHash form
      * @return new {@link GeoPoint} parsed from the parse
      */
     public static GeoPoint parseGeoPoint(XContentParser parser, GeoPoint point, final boolean ignoreZValue, EffectivePoint effectivePoint)
         throws IOException, OpenSearchParseException {
-        double lat = Double.NaN;
-        double lon = Double.NaN;
-        String geohash = null;
-        NumberFormatException numberFormatException = null;
-
-        if (parser.currentToken() == Token.START_OBJECT) {
-            try (XContentSubParser subParser = new XContentSubParser(parser)) {
-                while (subParser.nextToken() != Token.END_OBJECT) {
-                    if (subParser.currentToken() == Token.FIELD_NAME) {
-                        String field = subParser.currentName();
-                        if (LATITUDE.equals(field)) {
-                            subParser.nextToken();
-                            switch (subParser.currentToken()) {
-                                case VALUE_NUMBER:
-                                case VALUE_STRING:
-                                    try {
-                                        lat = subParser.doubleValue(true);
-                                    } catch (NumberFormatException e) {
-                                        numberFormatException = e;
-                                    }
-                                    break;
-                                default:
-                                    throw new OpenSearchParseException("latitude must be a number");
-                            }
-                        } else if (LONGITUDE.equals(field)) {
-                            subParser.nextToken();
-                            switch (subParser.currentToken()) {
-                                case VALUE_NUMBER:
-                                case VALUE_STRING:
-                                    try {
-                                        lon = subParser.doubleValue(true);
-                                    } catch (NumberFormatException e) {
-                                        numberFormatException = e;
-                                    }
-                                    break;
-                                default:
-                                    throw new OpenSearchParseException("longitude must be a number");
-                            }
-                        } else if (GEOHASH.equals(field)) {
-                            if (subParser.nextToken() == Token.VALUE_STRING) {
-                                geohash = subParser.text();
-                            } else {
-                                throw new OpenSearchParseException("geohash must be a string");
-                            }
-                        } else {
-                            throw new OpenSearchParseException("field must be either [{}], [{}] or [{}]", LATITUDE, LONGITUDE, GEOHASH);
-                        }
-                    } else {
-                        throw new OpenSearchParseException("token [{}] not allowed", subParser.currentToken());
-                    }
+        switch (parser.currentToken()) {
+            case START_OBJECT:
+                try (XContentSubParser subParser = new XContentSubParser(parser)) {
+                    Point pointInObject = POINT_PARSER.parseObject(subParser, ignoreZValue, effectivePoint);
+                    point.reset(pointInObject.getLat(), pointInObject.getLon());
                 }
-            }
-            if (geohash != null) {
-                if (!Double.isNaN(lat) || !Double.isNaN(lon)) {
-                    throw new OpenSearchParseException("field must be either lat/lon or geohash");
-                } else {
-                    return point.parseGeoHash(geohash, effectivePoint);
+                break;
+            case START_ARRAY:
+                try (XContentSubParser subParser = new XContentSubParser(parser)) {
+                    Point pointInArray = POINT_PARSER.parseFromArray(subParser, ignoreZValue, "geo_point");
+                    point.reset(pointInArray.getLat(), pointInArray.getLon());
                 }
-            } else if (numberFormatException != null) {
-                throw new OpenSearchParseException("[{}] and [{}] must be valid double values", numberFormatException, LATITUDE, LONGITUDE);
-            } else if (Double.isNaN(lat)) {
-                throw new OpenSearchParseException("field [{}] missing", LATITUDE);
-            } else if (Double.isNaN(lon)) {
-                throw new OpenSearchParseException("field [{}] missing", LONGITUDE);
-            } else {
-                return point.reset(lat, lon);
-            }
-
-        } else if (parser.currentToken() == Token.START_ARRAY) {
-            try (XContentSubParser subParser = new XContentSubParser(parser)) {
-                int element = 0;
-                while (subParser.nextToken() != Token.END_ARRAY) {
-                    if (subParser.currentToken() == Token.VALUE_NUMBER) {
-                        element++;
-                        if (element == 1) {
-                            lon = subParser.doubleValue();
-                        } else if (element == 2) {
-                            lat = subParser.doubleValue();
-                        } else if (element == 3) {
-                            GeoPoint.assertZValue(ignoreZValue, subParser.doubleValue());
-                        } else {
-                            throw new OpenSearchParseException("[geo_point] field type does not accept > 3 dimensions");
-                        }
-                    } else {
-                        throw new OpenSearchParseException("numeric value expected");
-                    }
-                }
-            }
-            return point.reset(lat, lon);
-        } else if (parser.currentToken() == Token.VALUE_STRING) {
-            String val = parser.text();
-            return point.resetFromString(val, ignoreZValue, effectivePoint);
-        } else {
-            throw new OpenSearchParseException("geo_point expected");
+                break;
+            case VALUE_STRING:
+                String val = parser.text();
+                point.resetFromString(val, ignoreZValue, effectivePoint);
+                break;
+            default:
+                throw new OpenSearchParseException("geo_point expected");
         }
+        return point;
     }
 
     /**
