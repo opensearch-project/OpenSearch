@@ -80,6 +80,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     public static final String REQUEST_EXTENSION_REGISTER_TRANSPORT_ACTIONS = "internal:discovery/registertransportactions";
     public static final String REQUEST_OPENSEARCH_NAMED_WRITEABLE_REGISTRY = "internal:discovery/namedwriteableregistry";
     public static final String REQUEST_OPENSEARCH_PARSE_NAMED_WRITEABLE = "internal:discovery/parsenamedwriteable";
+    public static final String REQUEST_EXTENSION_ACTION_LISTENER_ON_FAILURE = "internal:extensions/actionlisteneronfailure";
     public static final String REQUEST_REST_EXECUTE_ON_EXTENSION_ACTION = "internal:extensions/restexecuteonextensiontaction";
 
     private static final Logger logger = LogManager.getLogger(ExtensionsOrchestrator.class);
@@ -93,6 +94,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         REQUEST_EXTENSION_CLUSTER_STATE,
         REQUEST_EXTENSION_LOCAL_NODE,
         REQUEST_EXTENSION_CLUSTER_SETTINGS,
+        REQUEST_EXTENSION_ACTION_LISTENER_ON_FAILURE,
         REQUEST_EXTENSION_REGISTER_REST_ACTIONS,
         CREATE_COMPONENT,
         ON_INDEX_MODULE,
@@ -117,6 +119,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     TransportService transportService;
     ClusterService clusterService;
     ExtensionNamedWriteableRegistry namedWriteableRegistry;
+    ExtensionActionListener<ExtensionBooleanResponse> listener;
     Settings initialEnvironmentSettings;
 
     /**
@@ -134,6 +137,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         this.extensionIdMap = new HashMap<String, DiscoveryExtension>();
         this.clusterService = null;
         this.namedWriteableRegistry = null;
+        this.listener = new ExtensionActionListener<ExtensionBooleanResponse>();
         this.initialEnvironmentSettings = null;
 
         /*
@@ -192,6 +196,14 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         );
         transportService.registerRequestHandler(
             REQUEST_EXTENSION_CLUSTER_SETTINGS,
+            ThreadPool.Names.GENERIC,
+            false,
+            false,
+            ExtensionRequest::new,
+            ((request, channel, task) -> channel.sendResponse(handleExtensionRequest(request)))
+        );
+        transportService.registerRequestHandler(
+            REQUEST_EXTENSION_ACTION_LISTENER_ON_FAILURE,
             ThreadPool.Names.GENERIC,
             false,
             false,
@@ -426,9 +438,22 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             case REQUEST_EXTENSION_LOCAL_NODE:
                 return new LocalNodeResponse(clusterService);
             case REQUEST_EXTENSION_CLUSTER_SETTINGS:
-                return new ClusterSettingsResponse(clusterService);
+                ClusterSettingsResponse clusterSettingsResponse = new ClusterSettingsResponse(clusterService);
+                return clusterSettingsResponse;
+            case REQUEST_EXTENSION_ACTION_LISTENER_ON_FAILURE:
+                return handleExtensionActionListenerOnFailureRequest(extensionRequest.getFailureException());
             default:
                 throw new Exception("Handler not present for the provided request");
+        }
+    }
+
+    private ExtensionBooleanResponse handleExtensionActionListenerOnFailureRequest(String failureException) throws Exception {
+        try {
+            listener.onFailure(new Exception(failureException));
+            return new ExtensionBooleanResponse(true);
+        } catch (Exception e) {
+            logger.error(e.getMessage());
+            throw e;
         }
     }
 
