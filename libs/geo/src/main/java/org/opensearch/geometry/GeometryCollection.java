@@ -88,6 +88,15 @@ public class GeometryCollection<G extends Geometry> implements Geometry, Iterabl
         return shapes.get(i);
     }
 
+    /**
+     * Returns a {@link List} of All {@link Geometry} present in this collection.
+     *
+     * @return a {@link List} of All {@link Geometry}
+     */
+    public List<G> getAll() {
+        return shapes;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
