@@ -86,7 +86,8 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
  - Only send one extension info when initializing ([#4302](https://github.com/opensearch-project/OpenSearch/pull/4302))
  - Adding support for registering Transport Actions for extensions ([#4326](https://github.com/opensearch-project/OpenSearch/pull/4326))
  - Pass full RestResponse to user from Extension ([#4356](https://github.com/opensearch-project/OpenSearch/pull/4356))
- - Handle named wildcards (REST path parameters) ([#4415](https://github.com/opensearch-project/OpenSearch/pull/4415)) 
+ - Handle named wildcards (REST path parameters) ([#4415](https://github.com/opensearch-project/OpenSearch/pull/4415))
+ - Adding ActionListener onFailure to ExtensionsOrchestrator ([#61](https://github.com/opensearch-project/opensearch-sdk/issues/61))
 
 ## [2.x]
 ### Added
