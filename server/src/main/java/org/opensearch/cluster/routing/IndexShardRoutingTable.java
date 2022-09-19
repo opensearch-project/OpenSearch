@@ -85,8 +85,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     private volatile Map<AttributesKey, AttributesRoutings> activeShardsByAttributes = emptyMap();
     private volatile Map<AttributesKey, AttributesRoutings> initializingShardsByAttributes = emptyMap();
     private final Object shardsByAttributeMutex = new Object();
-    private final Object activeShardsByWeightMutex = new Object();
-    private final Object initializingShardsByWeightMutex = new Object();
+    private final Object shardsByWeightMutex = new Object();
     private volatile Map<WeightedRoutingKey, List<ShardRouting>> activeShardsByWeight = emptyMap();
     private volatile Map<WeightedRoutingKey, List<ShardRouting>> initializingShardsByWeight = emptyMap();
 
@@ -357,10 +356,12 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         List<WeightedRoundRobin.Entity<ShardRouting>> shardsWithWeights = new ArrayList<>();
         for (ShardRouting shard : shards) {
             DiscoveryNode node = nodes.get(shard.currentNodeId());
-            String attVal = node.getAttributes().get(weightedRouting.attributeName());
-            // If weight for a zone is not defined, considering it as 1 by default
-            Double weight = weightedRouting.weights().getOrDefault(attVal, defaultWeight);
-            shardsWithWeights.add(new WeightedRoundRobin.Entity<>(weight, shard));
+            if (node != null) {
+                String attVal = node.getAttributes().get(weightedRouting.attributeName());
+                // If weight for a zone is not defined, considering it as 1 by default
+                Double weight = weightedRouting.weights().getOrDefault(attVal, defaultWeight);
+                shardsWithWeights.add(new WeightedRoundRobin.Entity<>(weight, shard));
+            }
         }
         return shardsWithWeights;
     }
@@ -807,7 +808,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         WeightedRoutingKey key = new WeightedRoutingKey(weightedRouting);
         List<ShardRouting> shardRoutings = activeShardsByWeight.get(key);
         if (shardRoutings == null) {
-            synchronized (activeShardsByWeightMutex) {
+            synchronized (shardsByWeightMutex) {
                 shardRoutings = shardsOrderedByWeight(activeShards, weightedRouting, nodes, defaultWeight);
                 activeShardsByWeight = new MapBuilder().put(key, shardRoutings).immutableMap();
             }
@@ -823,7 +824,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         WeightedRoutingKey key = new WeightedRoutingKey(weightedRouting);
         List<ShardRouting> shardRoutings = initializingShardsByWeight.get(key);
         if (shardRoutings == null) {
-            synchronized (initializingShardsByWeightMutex) {
+            synchronized (shardsByWeightMutex) {
                 shardRoutings = shardsOrderedByWeight(activeShards, weightedRouting, nodes, defaultWeight);
                 initializingShardsByWeight = new MapBuilder().put(key, shardRoutings).immutableMap();
             }
