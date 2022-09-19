@@ -56,38 +56,35 @@ public class RestGetAllPitsAction extends BaseRestHandler {
         }
         DiscoveryNode[] disNodesArr = nodes.toArray(new DiscoveryNode[nodes.size()]);
         GetAllPitNodesRequest getAllPitNodesRequest = new GetAllPitNodesRequest(disNodesArr);
-        return channel -> client.admin()
-            .cluster()
-            .listAllPits(getAllPitNodesRequest, new RestBuilderListener<GetAllPitNodesResponse>(channel) {
-                @Override
-                public RestResponse buildResponse(final GetAllPitNodesResponse getAllPITNodesResponse, XContentBuilder builder)
-                    throws Exception {
-                    builder.startObject();
-                    if (getAllPITNodesResponse.hasFailures()) {
-                        builder.startArray("failures");
-                        for (int idx = 0; idx < getAllPITNodesResponse.failures().size(); idx++) {
-                            builder.startObject();
-                            builder.field(
-                                getAllPITNodesResponse.failures().get(idx).nodeId(),
-                                getAllPITNodesResponse.failures().get(idx).getDetailedMessage()
-                            );
-                            builder.endObject();
-                        }
-                        builder.endArray();
+        return channel -> client.getAllPits(getAllPitNodesRequest, new RestBuilderListener<GetAllPitNodesResponse>(channel) {
+            @Override
+            public RestResponse buildResponse(final GetAllPitNodesResponse getAllPITNodesResponse, XContentBuilder builder)
+                throws Exception {
+                builder.startObject();
+                if (getAllPITNodesResponse.hasFailures()) {
+                    builder.startArray("failures");
+                    for (int idx = 0; idx < getAllPITNodesResponse.failures().size(); idx++) {
+                        builder.startObject();
+                        builder.field(
+                            getAllPITNodesResponse.failures().get(idx).nodeId(),
+                            getAllPITNodesResponse.failures().get(idx).getDetailedMessage()
+                        );
+                        builder.endObject();
                     }
-                    builder.field("pits", getAllPITNodesResponse.getPitInfos());
-                    builder.endObject();
-                    if (getAllPITNodesResponse.hasFailures() && getAllPITNodesResponse.getPitInfos().isEmpty()) {
-                        return new BytesRestResponse(RestStatus.INTERNAL_SERVER_ERROR, builder);
-                    }
-                    return new BytesRestResponse(RestStatus.OK, builder);
+                    builder.endArray();
                 }
-            });
+                builder.field("pits", getAllPITNodesResponse.getPitInfos());
+                builder.endObject();
+                if (getAllPITNodesResponse.hasFailures() && getAllPITNodesResponse.getPitInfos().isEmpty()) {
+                    return new BytesRestResponse(RestStatus.INTERNAL_SERVER_ERROR, builder);
+                }
+                return new BytesRestResponse(RestStatus.OK, builder);
+            }
+        });
     }
 
     @Override
     public List<Route> routes() {
         return unmodifiableList(Collections.singletonList(new Route(GET, "/_search/point_in_time/_all")));
     }
-
 }

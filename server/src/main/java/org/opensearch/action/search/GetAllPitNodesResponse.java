@@ -68,10 +68,10 @@ public class GetAllPitNodesResponse extends BaseNodesResponse<GetAllPitNodeRespo
     public GetAllPitNodesResponse(
         List<ListPitInfo> listPitInfos,
         ClusterName clusterName,
-        List<GetAllPitNodeResponse> getAllPitNodeResponse,
+        List<GetAllPitNodeResponse> getAllPitNodeResponseList,
         List<FailedNodeException> failures
     ) {
-        super(clusterName, getAllPitNodeResponse, failures);
+        super(clusterName, getAllPitNodeResponseList, failures);
         pitInfos.addAll(listPitInfos);
     }
 

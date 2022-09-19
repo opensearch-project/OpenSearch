@@ -170,16 +170,14 @@ public class PitService {
     /**
      * Get all active point in time contexts
      */
-    public void getAllPits(GetAllPitNodesResponse getAllPitNodesResponse, ActionListener<GetAllPitNodesResponse> getAllPitsListener) {
+    public void getAllPits(ActionListener<GetAllPitNodesResponse> getAllPitsListener) {
         final List<DiscoveryNode> nodes = new ArrayList<>();
         for (ObjectCursor<DiscoveryNode> cursor : clusterService.state().nodes().getDataNodes().values()) {
             DiscoveryNode node = cursor.value;
             nodes.add(node);
         }
-        logger.debug("Number of active PITs in cluster: " + getAllPitNodesResponse.getPitInfos().size());
         DiscoveryNode[] disNodesArr = nodes.toArray(new DiscoveryNode[nodes.size()]);
         GetAllPitNodesRequest getAllPitNodesRequest = new GetAllPitNodesRequest(disNodesArr);
-        getAllPitNodesRequest.setGetAllPitNodesResponse(getAllPitNodesResponse);
         transportService.sendRequest(
             transportService.getLocalNode(),
             GetAllPitsAction.NAME,

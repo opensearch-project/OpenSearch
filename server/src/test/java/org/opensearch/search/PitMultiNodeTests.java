@@ -25,7 +25,7 @@ import org.opensearch.action.search.DeletePitRequest;
 import org.opensearch.action.search.DeletePitResponse;
 import org.opensearch.action.search.GetAllPitNodesRequest;
 import org.opensearch.action.search.GetAllPitNodesResponse;
-import org.opensearch.action.search.NodesGetAllPitsAction;
+import org.opensearch.action.search.GetAllPitsAction;
 import org.opensearch.action.search.PitTestsUtil;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -368,7 +368,7 @@ public class PitMultiNodeTests extends OpenSearchIntegTestCase {
         DiscoveryNode[] disNodesArr = new DiscoveryNode[nodes.size()];
         nodes.toArray(disNodesArr);
         GetAllPitNodesRequest getAllPITNodesRequest = new GetAllPitNodesRequest(disNodesArr);
-        ActionFuture<GetAllPitNodesResponse> execute1 = client().execute(NodesGetAllPitsAction.INSTANCE, getAllPITNodesRequest);
+        ActionFuture<GetAllPitNodesResponse> execute1 = client().execute(GetAllPitsAction.INSTANCE, getAllPITNodesRequest);
         GetAllPitNodesResponse getPitResponse = execute1.get();
         assertEquals(3, getPitResponse.getPitInfos().size());
         List<String> resultPitIds = getPitResponse.getPitInfos().stream().map(p -> p.getPitId()).collect(Collectors.toList());
@@ -388,7 +388,7 @@ public class PitMultiNodeTests extends OpenSearchIntegTestCase {
         internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
-                ActionFuture<GetAllPitNodesResponse> execute1 = client().execute(NodesGetAllPitsAction.INSTANCE, getAllPITNodesRequest);
+                ActionFuture<GetAllPitNodesResponse> execute1 = client().execute(GetAllPitsAction.INSTANCE, getAllPITNodesRequest);
                 GetAllPitNodesResponse getPitResponse = execute1.get();
                 // we still get a pit id from the data node which is up
                 assertEquals(1, getPitResponse.getPitInfos().size());
@@ -447,7 +447,7 @@ public class PitMultiNodeTests extends OpenSearchIntegTestCase {
                             @Override
                             public void onFailure(Exception e) {}
                         }, countDownLatch);
-                        client().execute(NodesGetAllPitsAction.INSTANCE, getAllPITNodesRequest, listener);
+                        client().execute(GetAllPitsAction.INSTANCE, getAllPITNodesRequest, listener);
                     } else {
                         LatchedActionListener listener = new LatchedActionListener<>(new ActionListener<DeletePitResponse>() {
                             @Override

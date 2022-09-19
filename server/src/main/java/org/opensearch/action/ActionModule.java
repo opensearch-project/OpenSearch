@@ -238,16 +238,14 @@ import org.opensearch.action.main.TransportMainAction;
 import org.opensearch.action.search.ClearScrollAction;
 import org.opensearch.action.search.CreatePitAction;
 import org.opensearch.action.search.DeletePitAction;
-import org.opensearch.action.search.GetAllPitsAction;
 import org.opensearch.action.search.MultiSearchAction;
-import org.opensearch.action.search.NodesGetAllPitsAction;
+import org.opensearch.action.search.GetAllPitsAction;
 import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.search.SearchScrollAction;
 import org.opensearch.action.search.TransportClearScrollAction;
 import org.opensearch.action.search.TransportCreatePitAction;
 import org.opensearch.action.search.TransportDeletePitAction;
 import org.opensearch.action.search.TransportGetAllPitsAction;
-import org.opensearch.action.search.TransportNodesGetAllPitsAction;
 import org.opensearch.action.search.TransportMultiSearchAction;
 import org.opensearch.action.search.TransportSearchAction;
 import org.opensearch.action.search.TransportSearchScrollAction;
@@ -677,10 +675,9 @@ public class ActionModule extends AbstractModule {
 
         // point in time actions
         actions.register(CreatePitAction.INSTANCE, TransportCreatePitAction.class);
-        actions.register(GetAllPitsAction.INSTANCE, TransportGetAllPitsAction.class);
         actions.register(DeletePitAction.INSTANCE, TransportDeletePitAction.class);
         actions.register(PitSegmentsAction.INSTANCE, TransportPitSegmentsAction.class);
-        actions.register(NodesGetAllPitsAction.INSTANCE, TransportNodesGetAllPitsAction.class);
+        actions.register(GetAllPitsAction.INSTANCE, TransportGetAllPitsAction.class);
 
         // Remote Store
         actions.register(RestoreRemoteStoreAction.INSTANCE, TransportRestoreRemoteStoreAction.class);
@@ -859,7 +856,7 @@ public class ActionModule extends AbstractModule {
 
         // Point in time API
         registerHandler.accept(new RestCreatePitAction());
-        registerHandler.accept(new RestDeletePitAction(nodesInCluster));
+        registerHandler.accept(new RestDeletePitAction());
         registerHandler.accept(new RestGetAllPitsAction(nodesInCluster));
         registerHandler.accept(new RestPitSegmentsAction(nodesInCluster));
 

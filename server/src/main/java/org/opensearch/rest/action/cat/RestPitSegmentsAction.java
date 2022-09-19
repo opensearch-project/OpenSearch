@@ -14,28 +14,20 @@ import org.opensearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.opensearch.action.admin.indices.segments.PitSegmentsAction;
 import org.opensearch.action.admin.indices.segments.PitSegmentsRequest;
 import org.opensearch.action.admin.indices.segments.ShardSegments;
-import org.opensearch.action.search.GetAllPitNodesRequest;
-import org.opensearch.action.search.GetAllPitNodesResponse;
 import org.opensearch.client.node.NodeClient;
-import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.Table;
-import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.index.engine.Segment;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
-import org.opensearch.rest.action.RestActionListener;
 import org.opensearch.rest.action.RestResponseListener;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
@@ -45,9 +37,6 @@ import static org.opensearch.rest.RestRequest.Method.GET;
  * Rest action for pit segments
  */
 public class RestPitSegmentsAction extends AbstractCatAction {
-
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestPitSegmentsAction.class);
-
     private final Supplier<DiscoveryNodes> nodesInCluster;
 
     public RestPitSegmentsAction(Supplier<DiscoveryNodes> nodesInCluster) {
@@ -88,47 +77,14 @@ public class RestPitSegmentsAction extends AbstractCatAction {
                 throw new IllegalArgumentException("Failed to parse request body", e);
             }
         }
-        if (request.path().contains(allPitIdsQualifier)) {
-            final List<DiscoveryNode> nodes = new ArrayList<>();
-            for (DiscoveryNode node : nodesInCluster.get()) {
-                nodes.add(node);
+        return channel -> client.execute(PitSegmentsAction.INSTANCE, pitSegmentsRequest, new RestResponseListener<>(channel) {
+            @Override
+            public RestResponse buildResponse(final IndicesSegmentResponse indicesSegmentResponse) throws Exception {
+                final Map<String, IndexSegments> indicesSegments = indicesSegmentResponse.getIndices();
+                Table tab = buildTable(request, indicesSegments);
+                return RestTable.buildResponse(tab, channel);
             }
-            DiscoveryNode[] disNodesArr = nodes.toArray(new DiscoveryNode[nodes.size()]);
-            GetAllPitNodesRequest getAllPitNodesRequest = new GetAllPitNodesRequest(disNodesArr);
-            return channel -> client.admin()
-                .cluster()
-                .listAllPits(getAllPitNodesRequest, new RestActionListener<GetAllPitNodesResponse>(channel) {
-                    @Override
-                    protected void processResponse(GetAllPitNodesResponse getAllPitNodesResponse) throws Exception {
-                        if (getAllPitNodesResponse.getPitInfos().size() == 0) {
-                            final Map<String, IndexSegments> indicesSegments = new HashMap<>();
-                            Table tab = buildTable(request, indicesSegments);
-                            channel.sendResponse(RestTable.buildResponse(tab, channel));
-                            return;
-                        }
-                        pitSegmentsRequest.clearAndSetPitIds(
-                            getAllPitNodesResponse.getPitInfos().stream().map(r -> r.getPitId()).collect(Collectors.toList())
-                        );
-                        client.execute(PitSegmentsAction.INSTANCE, pitSegmentsRequest, new RestResponseListener<>(channel) {
-                            @Override
-                            public RestResponse buildResponse(final IndicesSegmentResponse indicesSegmentResponse) throws Exception {
-                                final Map<String, IndexSegments> indicesSegments = indicesSegmentResponse.getIndices();
-                                Table tab = buildTable(request, indicesSegments);
-                                return RestTable.buildResponse(tab, channel);
-                            }
-                        });
-                    }
-                });
-        } else {
-            return channel -> client.execute(PitSegmentsAction.INSTANCE, pitSegmentsRequest, new RestResponseListener<>(channel) {
-                @Override
-                public RestResponse buildResponse(final IndicesSegmentResponse indicesSegmentResponse) throws Exception {
-                    final Map<String, IndexSegments> indicesSegments = indicesSegmentResponse.getIndices();
-                    Table tab = buildTable(request, indicesSegments);
-                    return RestTable.buildResponse(tab, channel);
-                }
-            });
-        }
+        });
     }
 
     @Override

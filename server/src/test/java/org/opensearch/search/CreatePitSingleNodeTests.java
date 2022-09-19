@@ -90,6 +90,7 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
         validatePitStats("index", 1, 0, 0);
         validatePitStats("index", 1, 0, 1);
         service.doClose(); // this kills the keep-alive reaper we have to reset the node after this test
+        assertSegments(true, client());
         validatePitStats("index", 0, 1, 0);
         validatePitStats("index", 0, 1, 1);
     }
@@ -113,6 +114,7 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
         validatePitStats("index", 1, 0, 0);
         validatePitStats("index1", 1, 0, 0);
         service.doClose();
+        assertSegments(true, client());
         validatePitStats("index", 0, 1, 0);
         validatePitStats("index1", 0, 1, 0);
     }
@@ -139,6 +141,7 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
         validatePitStats("index", 1, 0, 0);
         validatePitStats("index", 1, 0, 1);
         service.doClose();
+        assertSegments(true, client());
         validatePitStats("index", 0, 1, 0);
         validatePitStats("index", 0, 1, 1);
     }
@@ -156,6 +159,7 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
 
         assertTrue(ex.getMessage().contains("no such index [index1]"));
         assertEquals(0, service.getActiveContexts());
+        assertSegments(true, client());
         service.doClose();
     }
 
@@ -176,6 +180,7 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
         SearchService service = getInstanceFromNode(SearchService.class);
         assertEquals(0, service.getActiveContexts());
         PitTestsUtil.assertGetAllPitsEmpty(client());
+        assertSegments(true, client());
         service.doClose();
     }
 
@@ -199,6 +204,7 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
         SearchService service = getInstanceFromNode(SearchService.class);
         PitTestsUtil.assertGetAllPitsEmpty(client());
         assertEquals(0, service.getActiveContexts());
+        assertSegments(true, client());
         service.doClose();
     }
 
@@ -240,6 +246,7 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
         assertTrue(ex.shardFailures()[0].reason().contains("SearchContextMissingException"));
         assertEquals(0, service.getActiveContexts());
         PitTestsUtil.assertGetAllPitsEmpty(client());
+        assertSegments(true, client());
         // PIT reader contexts are lost after close, verifying it with open index api
         client().admin().indices().prepareOpen("index").get();
         ex = expectThrows(SearchPhaseExecutionException.class, () -> {
@@ -551,6 +558,7 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
             assertEquals(0, service.getActiveContexts());
             validatePitStats("test", 0, 1, 0);
             PitTestsUtil.assertGetAllPitsEmpty(client());
+            assertSegments(true, client());
         }
     }
 

@@ -38,7 +38,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 
 /**
@@ -148,6 +150,31 @@ public class DeletePitMultiNodeTests extends OpenSearchIntegTestCase {
         assertThat(e.getMessage(), containsString("invalid id"));
     }
 
+    public void testDeleteAllPits() throws Exception {
+        createPitOnIndex("index");
+        createIndex("index1", Settings.builder().put("index.number_of_shards", 5).put("index.number_of_replicas", 1).build());
+        client().prepareIndex("index1").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).execute().get();
+        ensureGreen();
+        createPitOnIndex("index1");
+        validatePitStats("index", 5, 0);
+        validatePitStats("index1", 5, 0);
+        DeletePitRequest deletePITRequest = new DeletePitRequest("_all");
+
+        /**
+         * When we invoke delete again, returns success after clearing the remaining readers. Asserting reader context
+         * not found exceptions don't result in failures ( as deletion in one node is successful )
+         */
+        ActionFuture<DeletePitResponse> execute = client().execute(DeletePitAction.INSTANCE, deletePITRequest);
+        DeletePitResponse deletePITResponse = execute.get();
+        for (DeletePitInfo deletePitInfo : deletePITResponse.getDeletePitResults()) {
+            assertThat(deletePitInfo.getPitId(), not(blankOrNullString()));
+            assertTrue(deletePitInfo.isSuccessful());
+        }
+        validatePitStats("index", 0, 5);
+        validatePitStats("index1", 0, 5);
+        client().admin().indices().prepareDelete("index1").get();
+    }
+
     public void testDeletePitWhileNodeDrop() throws Exception {
         CreatePitResponse pitResponse = createPitOnIndex("index");
         createIndex("index1", Settings.builder().put("index.number_of_shards", 5).put("index.number_of_replicas", 1).build());
@@ -185,6 +212,38 @@ public class DeletePitMultiNodeTests extends OpenSearchIntegTestCase {
             assertTrue(pitIds.contains(deletePitInfo.getPitId()));
             assertTrue(deletePitInfo.isSuccessful());
         }
+        client().admin().indices().prepareDelete("index1").get();
+    }
+
+    public void testDeleteAllPitsWhileNodeDrop() throws Exception {
+        createIndex("index1", Settings.builder().put("index.number_of_shards", 5).put("index.number_of_replicas", 1).build());
+        client().prepareIndex("index1").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).execute().get();
+        createPitOnIndex("index1");
+        ensureGreen();
+        DeletePitRequest deletePITRequest = new DeletePitRequest("_all");
+        internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
+            @Override
+            public Settings onNodeStopped(String nodeName) throws Exception {
+                ActionFuture<DeletePitResponse> execute = client().execute(DeletePitAction.INSTANCE, deletePITRequest);
+                try {
+                    DeletePitResponse deletePITResponse = execute.get();
+                    for (DeletePitInfo deletePitInfo : deletePITResponse.getDeletePitResults()) {
+                        assertThat(deletePitInfo.getPitId(), not(blankOrNullString()));
+                    }
+                } catch (Exception e) {
+                    assertTrue(e.getMessage().contains("Node not connected"));
+                }
+                return super.onNodeStopped(nodeName);
+            }
+        });
+        ensureGreen();
+        /**
+         * When we invoke delete again, returns success as all readers are cleared. (Delete all on node which is Up and
+         * once the node restarts, all active contexts are cleared in the node )
+         */
+        ActionFuture<DeletePitResponse> execute = client().execute(DeletePitAction.INSTANCE, deletePITRequest);
+        DeletePitResponse deletePITResponse = execute.get();
+        assertEquals(0, deletePITResponse.getDeletePitResults().size());
         client().admin().indices().prepareDelete("index1").get();
     }
 
