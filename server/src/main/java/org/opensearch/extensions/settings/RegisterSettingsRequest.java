@@ -20,7 +20,7 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Request to register extension settings
+ * Request to register a list of custom extension settings
  *
  * @opensearch.internal
  */

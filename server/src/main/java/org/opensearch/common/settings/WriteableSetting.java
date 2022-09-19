@@ -16,6 +16,7 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.concurrent.TimeUnit;
 
@@ -109,7 +110,12 @@ public class WriteableSetting implements Writeable {
         } catch (NullPointerException e) {
             throw new IllegalArgumentException("Unable to determine the generic type of this setting with a null default value.");
         } catch (IllegalArgumentException e) {
-            throw new UnsupportedOperationException("This class is not yet set up to handle the generic type: " + typeStr);
+            throw new UnsupportedOperationException(
+                "This class is not yet set up to handle the generic type: "
+                    + typeStr
+                    + ". Supported types are "
+                    + Arrays.toString(SettingType.values())
+            );
         }
     }
 
@@ -133,48 +139,48 @@ public class WriteableSetting implements Writeable {
 
     @SuppressWarnings("unchecked")
     private Setting<?> createSetting(
-        SettingType genericType,
+        SettingType type,
         String key,
         Object defaultValue,
         WriteableSetting fallback,
-        Property[] propArray
+        Property[] propertyArray
     ) {
-        switch (genericType) {
+        switch (type) {
             case Boolean:
                 return fallback == null
-                    ? Setting.boolSetting(key, (boolean) defaultValue, propArray)
-                    : Setting.boolSetting(key, (Setting<Boolean>) fallback.getSetting(), propArray);
+                    ? Setting.boolSetting(key, (boolean) defaultValue, propertyArray)
+                    : Setting.boolSetting(key, (Setting<Boolean>) fallback.getSetting(), propertyArray);
             case Integer:
                 return fallback == null
-                    ? Setting.intSetting(key, (int) defaultValue, propArray)
-                    : Setting.intSetting(key, (Setting<Integer>) fallback.getSetting(), propArray);
+                    ? Setting.intSetting(key, (int) defaultValue, propertyArray)
+                    : Setting.intSetting(key, (Setting<Integer>) fallback.getSetting(), propertyArray);
             case Long:
                 return fallback == null
-                    ? Setting.longSetting(key, (long) defaultValue, propArray)
-                    : Setting.longSetting(key, (Setting<Long>) fallback.getSetting(), propArray);
+                    ? Setting.longSetting(key, (long) defaultValue, propertyArray)
+                    : Setting.longSetting(key, (Setting<Long>) fallback.getSetting(), propertyArray);
             case Float:
                 return fallback == null
-                    ? Setting.floatSetting(key, (float) defaultValue, propArray)
-                    : Setting.floatSetting(key, (Setting<Float>) fallback.getSetting(), propArray);
+                    ? Setting.floatSetting(key, (float) defaultValue, propertyArray)
+                    : Setting.floatSetting(key, (Setting<Float>) fallback.getSetting(), propertyArray);
             case Double:
                 return fallback == null
-                    ? Setting.doubleSetting(key, (double) defaultValue, propArray)
-                    : Setting.doubleSetting(key, (Setting<Double>) fallback.getSetting(), propArray);
+                    ? Setting.doubleSetting(key, (double) defaultValue, propertyArray)
+                    : Setting.doubleSetting(key, (Setting<Double>) fallback.getSetting(), propertyArray);
             case String:
                 return fallback == null
-                    ? Setting.simpleString(key, (String) defaultValue, propArray)
-                    : Setting.simpleString(key, (Setting<String>) fallback.getSetting(), propArray);
+                    ? Setting.simpleString(key, (String) defaultValue, propertyArray)
+                    : Setting.simpleString(key, (Setting<String>) fallback.getSetting(), propertyArray);
             case TimeValue:
                 return fallback == null
-                    ? Setting.timeSetting(key, (TimeValue) defaultValue, propArray)
-                    : Setting.timeSetting(key, (Setting<TimeValue>) fallback.getSetting(), propArray);
+                    ? Setting.timeSetting(key, (TimeValue) defaultValue, propertyArray)
+                    : Setting.timeSetting(key, (Setting<TimeValue>) fallback.getSetting(), propertyArray);
             case ByteSizeValue:
                 return fallback == null
-                    ? Setting.byteSizeSetting(key, (ByteSizeValue) defaultValue, propArray)
-                    : Setting.byteSizeSetting(key, (Setting<ByteSizeValue>) fallback.getSetting(), propArray);
+                    ? Setting.byteSizeSetting(key, (ByteSizeValue) defaultValue, propertyArray)
+                    : Setting.byteSizeSetting(key, (Setting<ByteSizeValue>) fallback.getSetting(), propertyArray);
             case Version:
                 // No fallback option on this method
-                return Setting.versionSetting(key, (Version) defaultValue, propArray);
+                return Setting.versionSetting(key, (Version) defaultValue, propertyArray);
             default:
                 // This Should Never Happen (TM)
                 throw new UnsupportedOperationException("A SettingType has been added to the enum and not handled here.");

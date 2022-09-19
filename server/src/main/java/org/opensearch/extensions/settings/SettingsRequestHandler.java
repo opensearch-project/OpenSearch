@@ -17,7 +17,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Handles requests to register extension settings.
+ * Handles requests to register a list of custom extension settings.
  *
  * @opensearch.internal
  */
