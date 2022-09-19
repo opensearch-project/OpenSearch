@@ -412,7 +412,7 @@ public class DecommissionService {
                     case SUCCESSFUL:
                         msg = "same request is already in status ["
                             + decommissionAttributeMetadata.status()
-                            + "], please wait for it to complete";
+                            + "]";
                         break;
                     default:
                         throw new IllegalStateException(

@@ -95,6 +95,7 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
             case FAILED:
                 // we don't need to validate here and directly update status to FAILED
                 this.status = newStatus;
+                break;
             default:
                 throw new IllegalArgumentException("illegal decommission status [" + newStatus.status() + "] requested for updating metadata");
         }
