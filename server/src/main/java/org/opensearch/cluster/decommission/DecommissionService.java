@@ -410,9 +410,7 @@ public class DecommissionService {
                         break;
                     case IN_PROGRESS:
                     case SUCCESSFUL:
-                        msg = "same request is already in status ["
-                            + decommissionAttributeMetadata.status()
-                            + "]";
+                        msg = "same request is already in status [" + decommissionAttributeMetadata.status() + "]";
                         break;
                     default:
                         throw new IllegalStateException(

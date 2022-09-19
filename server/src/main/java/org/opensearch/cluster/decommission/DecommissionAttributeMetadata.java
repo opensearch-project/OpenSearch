@@ -76,7 +76,6 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
         return this.status;
     }
 
-
     /**
      * Returns instance of the metadata with updated status
      * @param newStatus status to be updated with
@@ -85,7 +84,7 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
     // synchronized is strictly speaking not needed (this is called by a single thread), but just to be safe
     public synchronized DecommissionAttributeMetadata setUpdatedStatus(DecommissionStatus newStatus) {
         // We don't expect that INIT will be new status, as it is registered only when starting the decommission action
-        switch(newStatus) {
+        switch (newStatus) {
             case IN_PROGRESS:
                 validateAndSetStatus(DecommissionStatus.INIT, newStatus);
                 break;
@@ -97,14 +96,22 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
                 this.status = newStatus;
                 break;
             default:
-                throw new IllegalArgumentException("illegal decommission status [" + newStatus.status() + "] requested for updating metadata");
+                throw new IllegalArgumentException(
+                    "illegal decommission status [" + newStatus.status() + "] requested for updating metadata"
+                );
         }
         return this;
     }
 
     protected void validateAndSetStatus(DecommissionStatus expected, DecommissionStatus next) {
-        if (status.equals(expected) == false){
-            assert false : "can't move decommission status to [" + next + "]. current status: [" + status + "] (expected [" + expected + "])";
+        if (status.equals(expected) == false) {
+            assert false : "can't move decommission status to ["
+                + next
+                + "]. current status: ["
+                + status
+                + "] (expected ["
+                + expected
+                + "])";
             throw new IllegalStateException(
                 "can't move decommission status to [" + next + "]. current status: [" + status + "] (expected [" + expected + "])"
             );
