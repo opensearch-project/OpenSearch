@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.action.admin.cluster.shards.routing.wrr.put;
+package org.opensearch.action.admin.cluster.shards.routing.weighted.put;
 
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRequestValidationException;
@@ -15,7 +15,7 @@ import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeA
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
-import org.opensearch.cluster.routing.WRRShardRoutingService;
+import org.opensearch.cluster.routing.WeightedRoutingService;
 import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
@@ -35,35 +35,35 @@ import static org.opensearch.action.ValidateActions.addValidationError;
  *
  * @opensearch.internal
  */
-public class TransportPutWRRWeightsAction extends TransportClusterManagerNodeAction<
-    ClusterPutWRRWeightsRequest,
-    ClusterPutWRRWeightsResponse> {
+public class TransportPutWeightedRoutingAction extends TransportClusterManagerNodeAction<
+    ClusterPutWeightedRoutingRequest,
+    ClusterPutWeightedRoutingResponse> {
 
-    private final WRRShardRoutingService wrrShardRoutingService;
+    private final WeightedRoutingService weightedRoutingService;
 
     private volatile List<String> awarenessAttributes;
 
     @Inject
-    public TransportPutWRRWeightsAction(
+    public TransportPutWeightedRoutingAction(
         Settings settings,
         ClusterSettings clusterSettings,
         TransportService transportService,
         ClusterService clusterService,
-        WRRShardRoutingService wrrShardRoutingService,
+        WeightedRoutingService weightedRoutingService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
-            ClusterPutWRRWeightsAction.NAME,
+            ClusterPutWeightedRoutingAction.NAME,
             transportService,
             clusterService,
             threadPool,
             actionFilters,
-            ClusterPutWRRWeightsRequest::new,
+            ClusterPutWeightedRoutingRequest::new,
             indexNameExpressionResolver
         );
-        this.wrrShardRoutingService = wrrShardRoutingService;
+        this.weightedRoutingService = weightedRoutingService;
         this.awarenessAttributes = AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(
             AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING,
@@ -85,23 +85,23 @@ public class TransportPutWRRWeightsAction extends TransportClusterManagerNodeAct
     }
 
     @Override
-    protected ClusterPutWRRWeightsResponse read(StreamInput in) throws IOException {
-        return new ClusterPutWRRWeightsResponse(in);
+    protected ClusterPutWeightedRoutingResponse read(StreamInput in) throws IOException {
+        return new ClusterPutWeightedRoutingResponse(in);
     }
 
     @Override
     protected void clusterManagerOperation(
-        ClusterPutWRRWeightsRequest request,
+        ClusterPutWeightedRoutingRequest request,
         ClusterState state,
-        ActionListener<ClusterPutWRRWeightsResponse> listener
+        ActionListener<ClusterPutWeightedRoutingResponse> listener
     ) throws Exception {
-        verifyAwarenessAttribute(request.wrrWeight().attributeName());
-        wrrShardRoutingService.registerWRRWeightsMetadata(
+        verifyAwarenessAttribute(request.weightedRouting().attributeName());
+        weightedRoutingService.registerWRRWeightsMetadata(
             request,
             ActionListener.delegateFailure(
                 listener,
                 (delegatedListener, response) -> {
-                    delegatedListener.onResponse(new ClusterPutWRRWeightsResponse(response.isAcknowledged()));
+                    delegatedListener.onResponse(new ClusterPutWeightedRoutingResponse(response.isAcknowledged()));
                 }
             )
         );
@@ -120,7 +120,7 @@ public class TransportPutWRRWeightsAction extends TransportClusterManagerNodeAct
     }
 
     @Override
-    protected ClusterBlockException checkBlock(ClusterPutWRRWeightsRequest request, ClusterState state) {
+    protected ClusterBlockException checkBlock(ClusterPutWeightedRoutingRequest request, ClusterState state) {
         return null;
     }
 

@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.action.admin.cluster.shards.routing.wrr.put;
+package org.opensearch.action.admin.cluster.shards.routing.weighted.put;
 
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.common.io.stream.StreamInput;
@@ -19,12 +19,12 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public class ClusterPutWRRWeightsResponse extends AcknowledgedResponse implements ToXContentObject {
-    public ClusterPutWRRWeightsResponse(boolean acknowledged) {
+public class ClusterPutWeightedRoutingResponse extends AcknowledgedResponse implements ToXContentObject {
+    public ClusterPutWeightedRoutingResponse(boolean acknowledged) {
         super(acknowledged);
     }
 
-    public ClusterPutWRRWeightsResponse(StreamInput in) throws IOException {
+    public ClusterPutWeightedRoutingResponse(StreamInput in) throws IOException {
         super(in);
     }
 }

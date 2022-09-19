@@ -7,4 +7,4 @@
  */
 
 /** add/update weighted-round robin shard routing weights. */
-package org.opensearch.action.admin.cluster.shards.routing.wrr.put;
+package org.opensearch.action.admin.cluster.shards.routing.weighted.put;

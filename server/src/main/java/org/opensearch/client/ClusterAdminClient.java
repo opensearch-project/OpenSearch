@@ -86,9 +86,9 @@ import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRespons
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsRequestBuilder;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
-import org.opensearch.action.admin.cluster.shards.routing.wrr.put.ClusterPutWRRWeightsRequest;
-import org.opensearch.action.admin.cluster.shards.routing.wrr.put.ClusterPutWRRWeightsRequestBuilder;
-import org.opensearch.action.admin.cluster.shards.routing.wrr.put.ClusterPutWRRWeightsResponse;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingRequest;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingRequestBuilder;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingResponse;
 import org.opensearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequest;
 import org.opensearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequestBuilder;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
@@ -793,16 +793,16 @@ public interface ClusterAdminClient extends OpenSearchClient {
     /**
      * Updates weights for weighted round-robin search routing policy.
      */
-    ActionFuture<ClusterPutWRRWeightsResponse> putWRRWeights(ClusterPutWRRWeightsRequest request);
+    ActionFuture<ClusterPutWeightedRoutingResponse> putWRRWeights(ClusterPutWeightedRoutingRequest request);
 
     /**
      * Updates weights for weighted round-robin search routing policy.
      */
-    void putWRRWeights(ClusterPutWRRWeightsRequest request, ActionListener<ClusterPutWRRWeightsResponse> listener);
+    void putWRRWeights(ClusterPutWeightedRoutingRequest request, ActionListener<ClusterPutWeightedRoutingResponse> listener);
 
     /**
      * Updates weights for weighted round-robin search routing policy.
      */
-    ClusterPutWRRWeightsRequestBuilder prepareWRRWeights();
+    ClusterPutWeightedRoutingRequestBuilder prepareWRRWeights();
 
 }

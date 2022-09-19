@@ -10,7 +10,7 @@ package org.opensearch.rest.action.admin.cluster;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.action.admin.cluster.shards.routing.wrr.put.ClusterPutWRRWeightsRequest;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingRequest;
 import org.opensearch.client.Requests;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.rest.BaseRestHandler;
@@ -29,9 +29,9 @@ import static org.opensearch.rest.RestRequest.Method.PUT;
  * @opensearch.api
  *
  */
-public class RestClusterPutWRRWeightsAction extends BaseRestHandler {
+public class RestClusterPutWeightedRoutingAction extends BaseRestHandler {
 
-    private static final Logger logger = LogManager.getLogger(RestClusterPutWRRWeightsAction.class);
+    private static final Logger logger = LogManager.getLogger(RestClusterPutWeightedRoutingAction.class);
 
     @Override
     public List<Route> routes() {
@@ -45,12 +45,12 @@ public class RestClusterPutWRRWeightsAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        ClusterPutWRRWeightsRequest putWRRWeightsRequest = createRequest(request);
+        ClusterPutWeightedRoutingRequest putWRRWeightsRequest = createRequest(request);
         return channel -> client.admin().cluster().putWRRWeights(putWRRWeightsRequest, new RestToXContentListener<>(channel));
     }
 
-    public static ClusterPutWRRWeightsRequest createRequest(RestRequest request) throws IOException {
-        ClusterPutWRRWeightsRequest putWRRWeightsRequest = Requests.putWRRWeightsRequest();
+    public static ClusterPutWeightedRoutingRequest createRequest(RestRequest request) throws IOException {
+        ClusterPutWeightedRoutingRequest putWRRWeightsRequest = Requests.putWRRWeightsRequest();
         String attributeName = null;
         if (request.hasParam("attribute")) {
             attributeName = request.param("attribute");
