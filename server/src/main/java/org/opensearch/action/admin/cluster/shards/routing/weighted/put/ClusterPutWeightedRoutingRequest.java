@@ -100,8 +100,10 @@ public class ClusterPutWeightedRoutingRequest extends ClusterManagerNodeRequest<
                     attrWeight = Double.parseDouble(parser.text());
                     weights.put(attrValue, attrWeight);
                 } else {
-                    throw new OpenSearchParseException("failed to parse weighted routing request attribute [{}], " +
-                        "unknown type", attrWeight);
+                    throw new OpenSearchParseException(
+                        "failed to parse weighted routing request attribute [{}], " + "unknown type",
+                        attrWeight
+                    );
                 }
             }
             this.weightedRouting = new WeightedRouting(this.attributeName, weights);

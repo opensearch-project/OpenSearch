@@ -8,6 +8,7 @@
 
 package org.opensearch.rest.action.admin.cluster;
 
+import com.fasterxml.jackson.core.JsonParseException;
 import org.junit.Before;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingRequest;
@@ -50,13 +51,13 @@ public class RestClusterPutWeightedRoutingActionTests extends RestActionTestCase
         assertThrows(OpenSearchParseException.class, () -> RestClusterPutWeightedRoutingAction.createRequest(restRequest));
     }
 
-    // public void testCreateRequest_MalformedRequestBody() throws IOException {
-    // Map<String, String> params = new HashMap<>();
-    //
-    // String req = "{\"us-east-1c\" : \"1\", \"us-east-1d\":\"1\", \"us-east-1a\":\"0\"}";
-    // RestRequest restRequest = buildRestRequest(req);
-    // assertThrows(JsonParseException.class, () -> RestClusterPutWeightedRoutingAction.createRequest(restRequest));
-    // }
+    public void testCreateRequest_MalformedRequestBody() throws IOException {
+        Map<String, String> params = new HashMap<>();
+
+        String req = "{\"us-east-1c\" : \1\", \"us-east-1d\":\"1\", \"us-east-1a\":\"0\"}";
+        RestRequest restRequest = buildRestRequest(req);
+        assertThrows(JsonParseException.class, () -> RestClusterPutWeightedRoutingAction.createRequest(restRequest));
+    }
 
     public void testCreateRequest_EmptyRequestBody() throws IOException {
         String req = "{}";

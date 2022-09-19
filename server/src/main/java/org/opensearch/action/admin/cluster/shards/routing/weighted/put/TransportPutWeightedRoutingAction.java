@@ -96,7 +96,7 @@ public class TransportPutWeightedRoutingAction extends TransportClusterManagerNo
         ActionListener<ClusterPutWeightedRoutingResponse> listener
     ) throws Exception {
         verifyAwarenessAttribute(request.weightedRouting().attributeName());
-        weightedRoutingService.registerWRRWeightsMetadata(
+        weightedRoutingService.registerWeightedRoutingMetadata(
             request,
             ActionListener.delegateFailure(
                 listener,
@@ -112,7 +112,7 @@ public class TransportPutWeightedRoutingAction extends TransportClusterManagerNo
         if (!getAwarenessAttributes().contains(attributeName) || !attributeName.equalsIgnoreCase("zone")) {
             ActionRequestValidationException validationException = null;
             validationException = addValidationError(
-                "invalid awareness attribute " + attributeName + " requested for " + "updating wrr weights",
+                "invalid awareness attribute " + attributeName + " requested for " + "updating weighted routing " + "weights",
                 validationException
             );
             throw validationException;

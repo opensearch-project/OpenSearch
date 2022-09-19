@@ -30,7 +30,7 @@ import org.opensearch.threadpool.ThreadPool;
 import java.io.IOException;
 
 /**
- * * Service responsible for updating cluster state metadata with wrr weights
+ * * Service responsible for updating cluster state metadata with weighted routing weights
  */
 public class WeightedRoutingService extends AbstractLifecycleComponent implements ClusterStateApplier {
     private static final Logger logger = LogManager.getLogger(WeightedRoutingService.class);
@@ -45,54 +45,54 @@ public class WeightedRoutingService extends AbstractLifecycleComponent implement
         this.threadPool = threadPool;
     }
 
-    public void registerWRRWeightsMetadata(
+    public void registerWeightedRoutingMetadata(
         final ClusterPutWeightedRoutingRequest request,
         final ActionListener<ClusterStateUpdateResponse> listener
     ) {
-        final WeightedRoutingMetadata newWRRWeightsMetadata = new WeightedRoutingMetadata(request.weightedRouting());
-        clusterService.submitStateUpdateTask("update_wrr_weights", new ClusterStateUpdateTask(Priority.URGENT) {
+        final WeightedRoutingMetadata newWeightedRoutingMetadata = new WeightedRoutingMetadata(request.weightedRouting());
+        clusterService.submitStateUpdateTask("update_weighted_routing", new ClusterStateUpdateTask(Priority.URGENT) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 Metadata metadata = currentState.metadata();
                 Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
-                WeightedRoutingMetadata wrrWeights = metadata.custom(WeightedRoutingMetadata.TYPE);
-                if (wrrWeights == null) {
-                    logger.info("put wrr weights [{}]", request.weightedRouting());
-                    wrrWeights = new WeightedRoutingMetadata(request.weightedRouting());
+                WeightedRoutingMetadata weightedRoutingMetadata = metadata.custom(WeightedRoutingMetadata.TYPE);
+                if (weightedRoutingMetadata == null) {
+                    logger.info("put weighted routing weights in metadata [{}]", request.weightedRouting());
+                    weightedRoutingMetadata = new WeightedRoutingMetadata(request.weightedRouting());
                 } else {
                     WeightedRoutingMetadata changedMetadata = new WeightedRoutingMetadata(new WeightedRouting(null, null));
-                    if (!checkIfSameWeightsInMetadata(newWRRWeightsMetadata, wrrWeights)) {
-                        logger.info("updated wrr weights [{}] in metadata", request.weightedRouting());
-                        changedMetadata.setWeightedRouting(newWRRWeightsMetadata.getWeightedRouting());
+                    if (!checkIfSameWeightsInMetadata(newWeightedRoutingMetadata, weightedRoutingMetadata)) {
+                        logger.info("updated weighted routing weights [{}] in metadata", request.weightedRouting());
+                        changedMetadata.setWeightedRouting(newWeightedRoutingMetadata.getWeightedRouting());
                     } else {
                         return currentState;
                     }
-                    wrrWeights = new WeightedRoutingMetadata(changedMetadata.getWeightedRouting());
+                    weightedRoutingMetadata = new WeightedRoutingMetadata(changedMetadata.getWeightedRouting());
                 }
-                mdBuilder.putCustom(WeightedRoutingMetadata.TYPE, wrrWeights);
-                logger.info("building cluster state with wrr weights [{}]", request.weightedRouting());
+                mdBuilder.putCustom(WeightedRoutingMetadata.TYPE, weightedRoutingMetadata);
+                logger.info("building cluster state with weighted routing weights [{}]", request.weightedRouting());
                 return ClusterState.builder(currentState).metadata(mdBuilder).build();
             }
 
             @Override
             public void onFailure(String source, Exception e) {
-                logger.warn(() -> new ParameterizedMessage("failed to update cluster state for wrr weights [{}]", e));
+                logger.warn(() -> new ParameterizedMessage("failed to update cluster state for weighted routing " + "weights [{}]", e));
                 listener.onFailure(e);
             }
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                logger.info("Cluster wrr weights metadata change is processed by all the nodes");
+                logger.info("cluster weighted routing weights metadata change is processed by all the nodes");
                 listener.onResponse(new ClusterStateUpdateResponse(true));
             }
         });
     }
 
     private boolean checkIfSameWeightsInMetadata(
-        WeightedRoutingMetadata newWRRWeightsMetadata,
-        WeightedRoutingMetadata oldWRRWeightsMetadata
+        WeightedRoutingMetadata newWeightedroutingMetadata,
+        WeightedRoutingMetadata oldWeightedRoutingMetadata
     ) {
-        if (newWRRWeightsMetadata.getWeightedRouting().equals(oldWRRWeightsMetadata.getWeightedRouting())) {
+        if (newWeightedroutingMetadata.getWeightedRouting().equals(oldWeightedRoutingMetadata.getWeightedRouting())) {
             return true;
         }
         return false;

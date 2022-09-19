@@ -40,24 +40,24 @@ public class RestClusterPutWeightedRoutingAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "put_wrr_weights_action";
+        return "put_weighted_routing_action";
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        ClusterPutWeightedRoutingRequest putWRRWeightsRequest = createRequest(request);
-        return channel -> client.admin().cluster().putWRRWeights(putWRRWeightsRequest, new RestToXContentListener<>(channel));
+        ClusterPutWeightedRoutingRequest putWeightedRoutingRequest = createRequest(request);
+        return channel -> client.admin().cluster().putWeightedRouting(putWeightedRoutingRequest, new RestToXContentListener<>(channel));
     }
 
     public static ClusterPutWeightedRoutingRequest createRequest(RestRequest request) throws IOException {
-        ClusterPutWeightedRoutingRequest putWRRWeightsRequest = Requests.putWeightedRoutingRequest();
+        ClusterPutWeightedRoutingRequest putWeightedRoutingRequest = Requests.putWeightedRoutingRequest();
         String attributeName = null;
         if (request.hasParam("attribute")) {
             attributeName = request.param("attribute");
         }
-        putWRRWeightsRequest.attributeName(attributeName);
-        request.applyContentParser(p -> putWRRWeightsRequest.source(p.mapStrings()));
-        return putWRRWeightsRequest;
+        putWeightedRoutingRequest.attributeName(attributeName);
+        request.applyContentParser(p -> putWeightedRoutingRequest.source(p.mapStrings()));
+        return putWeightedRoutingRequest;
     }
 
 }

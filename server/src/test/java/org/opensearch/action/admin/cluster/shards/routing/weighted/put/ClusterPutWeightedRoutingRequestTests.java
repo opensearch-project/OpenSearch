@@ -18,7 +18,7 @@ import java.util.Map;
 
 public class ClusterPutWeightedRoutingRequestTests extends OpenSearchTestCase {
 
-    public void testSetWRRWeight() {
+    public void testSetWeightedRoutingWeight() {
         String reqString = "{\"us-east-1c\" : \"0\", \"us-east-1b\":\"1\",\"us-east-1a\":\"1\"}";
         ClusterPutWeightedRoutingRequest request = new ClusterPutWeightedRoutingRequest();
         Map<String, Double> weights = Map.of("us-east-1a", 1.0, "us-east-1b", 1.0, "us-east-1c", 0.0);

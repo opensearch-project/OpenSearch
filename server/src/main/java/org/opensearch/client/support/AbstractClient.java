@@ -1269,17 +1269,20 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public ActionFuture<ClusterPutWeightedRoutingResponse> putWRRWeights(ClusterPutWeightedRoutingRequest request) {
+        public ActionFuture<ClusterPutWeightedRoutingResponse> putWeightedRouting(ClusterPutWeightedRoutingRequest request) {
             return execute(ClusterPutWeightedRoutingAction.INSTANCE, request);
         }
 
         @Override
-        public void putWRRWeights(ClusterPutWeightedRoutingRequest request, ActionListener<ClusterPutWeightedRoutingResponse> listener) {
+        public void putWeightedRouting(
+            ClusterPutWeightedRoutingRequest request,
+            ActionListener<ClusterPutWeightedRoutingResponse> listener
+        ) {
             execute(ClusterPutWeightedRoutingAction.INSTANCE, request, listener);
         }
 
         @Override
-        public ClusterPutWeightedRoutingRequestBuilder prepareWRRWeights() {
+        public ClusterPutWeightedRoutingRequestBuilder prepareWeightedRouting() {
             return new ClusterPutWeightedRoutingRequestBuilder(this, ClusterPutWeightedRoutingAction.INSTANCE);
         }
 

@@ -798,16 +798,16 @@ public interface ClusterAdminClient extends OpenSearchClient {
     /**
      * Updates weights for weighted round-robin search routing policy.
      */
-    ActionFuture<ClusterPutWeightedRoutingResponse> putWRRWeights(ClusterPutWeightedRoutingRequest request);
+    ActionFuture<ClusterPutWeightedRoutingResponse> putWeightedRouting(ClusterPutWeightedRoutingRequest request);
 
     /**
      * Updates weights for weighted round-robin search routing policy.
      */
-    void putWRRWeights(ClusterPutWeightedRoutingRequest request, ActionListener<ClusterPutWeightedRoutingResponse> listener);
+    void putWeightedRouting(ClusterPutWeightedRoutingRequest request, ActionListener<ClusterPutWeightedRoutingResponse> listener);
 
     /**
      * Updates weights for weighted round-robin search routing policy.
      */
-    ClusterPutWeightedRoutingRequestBuilder prepareWRRWeights();
+    ClusterPutWeightedRoutingRequestBuilder prepareWeightedRouting();
 
 }

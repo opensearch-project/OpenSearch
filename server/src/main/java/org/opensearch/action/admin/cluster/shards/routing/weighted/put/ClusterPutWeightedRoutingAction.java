@@ -23,5 +23,4 @@ public final class ClusterPutWeightedRoutingAction extends ActionType<ClusterPut
     private ClusterPutWeightedRoutingAction() {
         super(NAME, ClusterPutWeightedRoutingResponse::new);
     }
-
 }
