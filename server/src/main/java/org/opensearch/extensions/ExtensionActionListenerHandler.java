@@ -29,17 +29,15 @@ public class ExtensionActionListenerHandler {
      * Handles a {@link ExtensionActionListenerOnFailureRequest}.
      *
      * @param request  The request to handle.
-     * @return A {@link ExtensionBooleanResponse} indicating success.
-     * @throws Exception if the request is not handled properly.
+     * @return A {@link ExtensionBooleanResponse} indicating success or failure.
      */
-    public ExtensionBooleanResponse handleExtensionActionListenerOnFailureRequest(ExtensionActionListenerOnFailureRequest request)
-        throws Exception {
+    public ExtensionBooleanResponse handleExtensionActionListenerOnFailureRequest(ExtensionActionListenerOnFailureRequest request) {
         try {
             listener.onFailure(new OpenSearchException(request.getFailureException()));
             return new ExtensionBooleanResponse(true);
         } catch (Exception e) {
             logger.error(e.getMessage());
-            throw e;
+            return new ExtensionBooleanResponse(false);
         }
     }
 }

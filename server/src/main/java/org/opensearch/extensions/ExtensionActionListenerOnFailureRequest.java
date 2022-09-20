@@ -18,32 +18,37 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * CLusterService Request for Action Listener onFailure
+ * ClusterService Request for Action Listener onFailure
  *
  * @opensearch.internal
  */
 public class ExtensionActionListenerOnFailureRequest extends TransportRequest {
     private static final Logger logger = LogManager.getLogger(ExtensionRequest.class);
-    private String failureException;
+    private String failureExceptionMessage;
 
-    public ExtensionActionListenerOnFailureRequest(String failureException) {
+    /**
+     *  Instantiates a request for ActionListener onFailure from an extension
+     *
+     * @param failureExceptionMessage A String that contains both the Exception type and message
+     */
+    public ExtensionActionListenerOnFailureRequest(String failureExceptionMessage) {
         super();
-        this.failureException = failureException;
+        this.failureExceptionMessage = failureExceptionMessage;
     }
 
     public ExtensionActionListenerOnFailureRequest(StreamInput in) throws IOException {
         super(in);
-        this.failureException = in.readString();
+        this.failureExceptionMessage = in.readString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(failureException);
+        out.writeString(failureExceptionMessage);
     }
 
     public String toString() {
-        return "ExtensionRequest{" + "failureException= " + failureException + " }";
+        return "ExtensionActionListenerOnFailureRequest{" + "failureExceptionMessage= " + failureExceptionMessage + " }";
     }
 
     @Override
@@ -52,16 +57,16 @@ public class ExtensionActionListenerOnFailureRequest extends TransportRequest {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ExtensionActionListenerOnFailureRequest that = (ExtensionActionListenerOnFailureRequest) o;
-        return Objects.equals(failureException, that.failureException);
+        return Objects.equals(failureExceptionMessage, that.failureExceptionMessage);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(failureException);
+        return Objects.hash(failureExceptionMessage);
     }
 
     public String getFailureException() {
-        return failureException;
+        return failureExceptionMessage;
     }
 
 }
