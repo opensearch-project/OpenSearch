@@ -716,7 +716,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
             )
         );
 
-        extensionsOrchestrator.initializeServicesAndRestHandler(restController, settingsModule, transportService, clusterService, settings);
+        extensionsOrchestrator.initializeServicesAndRestHandler(restController, settingsModule, mockTransportService, clusterService, settings);
         verify(mockTransportService, times(9)).registerRequestHandler(anyString(), anyString(), anyBoolean(), anyBoolean(), any(), any());
     }
 
