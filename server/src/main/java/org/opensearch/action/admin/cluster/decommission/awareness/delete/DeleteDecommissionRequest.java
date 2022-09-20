@@ -15,6 +15,11 @@ import org.opensearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
+/**
+ * Request for deleting decommission request.
+ *
+ * @opensearch.internal
+ */
 public class DeleteDecommissionRequest extends ClusterManagerNodeRequest<DeleteDecommissionRequest> {
 
     public DeleteDecommissionRequest() {}

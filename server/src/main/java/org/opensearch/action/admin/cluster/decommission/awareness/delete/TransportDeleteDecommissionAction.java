@@ -25,6 +25,11 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 
+/**
+ * Transport action for delete decommission.
+ *
+ * @opensearch.internal
+ */
 public class TransportDeleteDecommissionAction extends TransportClusterManagerNodeAction<
     DeleteDecommissionRequest,
     DeleteDecommissionResponse> {

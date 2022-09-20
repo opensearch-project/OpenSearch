@@ -10,6 +10,12 @@ package org.opensearch.action.admin.cluster.decommission.awareness.delete;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Transport action delete decommission.
+ *
+ * @opensearch.internal
+ */
+
 public class DeleteDecommissionAction extends ActionType<DeleteDecommissionResponse> {
     public static final DeleteDecommissionAction INSTANCE = new DeleteDecommissionAction();
     public static final String NAME = "cluster:admin/decommission/awareness/delete";
