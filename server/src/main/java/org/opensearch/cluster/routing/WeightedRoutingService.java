@@ -51,14 +51,14 @@ public class WeightedRoutingService extends AbstractLifecycleComponent {
             public ClusterState execute(ClusterState currentState) {
                 Metadata metadata = currentState.metadata();
                 Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
-                WeightedRoutingMetadata weightedRoutingMetadata = metadata.custom(WeightedRoutingMetadata.TYPE);
+                WeightedRoutingMetadata weightedRoutingMetadata = metadata.weightedRoutingMetadata();
                 if (weightedRoutingMetadata == null) {
-                    logger.info("put weighted routing weights in metadata [{}]", request.weightedRouting());
+                    logger.info("putting weighted routing weights in metadata [{}]", request.weightedRouting());
                     weightedRoutingMetadata = new WeightedRoutingMetadata(request.weightedRouting());
                 } else {
                     WeightedRoutingMetadata changedMetadata = new WeightedRoutingMetadata(new WeightedRouting(null, null));
                     if (!checkIfSameWeightsInMetadata(newWeightedRoutingMetadata, weightedRoutingMetadata)) {
-                        logger.info("updated weighted routing weights [{}] in metadata", request.weightedRouting());
+                        logger.info("updating weighted routing weights [{}] in metadata", request.weightedRouting());
                         changedMetadata.setWeightedRouting(newWeightedRoutingMetadata.getWeightedRouting());
                     } else {
                         return currentState;
