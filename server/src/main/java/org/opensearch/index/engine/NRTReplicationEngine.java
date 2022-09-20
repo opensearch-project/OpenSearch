@@ -54,6 +54,10 @@ public class NRTReplicationEngine extends Engine {
     private final LocalCheckpointTracker localCheckpointTracker;
     private final WriteOnlyTranslogManager translogManager;
 
+    private volatile long lastReceivedGen = SequenceNumbers.NO_OPS_PERFORMED;
+
+    private static final int SI_COUNTER_INCREMENT = 10;
+
     public NRTReplicationEngine(EngineConfig engineConfig) {
         super(engineConfig);
         store.incRef();
@@ -118,14 +122,16 @@ public class NRTReplicationEngine extends Engine {
 
     public synchronized void updateSegments(final SegmentInfos infos, long seqNo) throws IOException {
         // Update the current infos reference on the Engine's reader.
+        final long incomingGeneration = infos.getGeneration();
         readerManager.updateSegments(infos);
 
-        // only update the persistedSeqNo and "lastCommitted" infos reference if the incoming segments have a higher
-        // generation. We can still refresh with incoming SegmentInfos that are not part of a commit point.
-        if (infos.getGeneration() > lastCommittedSegmentInfos.getGeneration()) {
-            this.lastCommittedSegmentInfos = infos;
+        // Commit and roll the xlog when we receive a different generation than what was last received.
+        // lower/higher gens are possible from a new primary that was just elected.
+        if (incomingGeneration != lastReceivedGen) {
+            commitSegmentInfos();
             translogManager.rollTranslogGeneration();
         }
+        lastReceivedGen = incomingGeneration;
         localCheckpointTracker.fastForwardProcessedSeqNo(seqNo);
     }
 
@@ -139,11 +145,14 @@ public class NRTReplicationEngine extends Engine {
      *
      * @throws IOException - When there is an IO error committing the SegmentInfos.
      */
-    public void commitSegmentInfos() throws IOException {
-        // TODO: This method should wait for replication events to finalize.
-        final SegmentInfos latestSegmentInfos = getLatestSegmentInfos();
-        store.commitSegmentInfos(latestSegmentInfos, localCheckpointTracker.getMaxSeqNo(), localCheckpointTracker.getProcessedCheckpoint());
+    private void commitSegmentInfos(SegmentInfos infos) throws IOException {
+        store.commitSegmentInfos(infos, localCheckpointTracker.getMaxSeqNo(), localCheckpointTracker.getProcessedCheckpoint());
+        this.lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
         translogManager.syncTranslog();
+    }
+
+    protected void commitSegmentInfos() throws IOException {
+        commitSegmentInfos(getLatestSegmentInfos());
     }
 
     @Override
@@ -345,6 +354,15 @@ public class NRTReplicationEngine extends Engine {
             assert rwl.isWriteLockedByCurrentThread() || failEngineLock.isHeldByCurrentThread()
                 : "Either the write lock must be held or the engine must be currently be failing itself";
             try {
+                final SegmentInfos latestSegmentInfos = getLatestSegmentInfos();
+                /*
+                 This is a workaround solution which decreases the chances of conflict on replica nodes when same file is copied
+                 from two different primaries during failover. Increasing counter helps in avoiding this conflict as counter is
+                 used to generate new segment file names. The ideal solution is to identify the counter from previous primary.
+                 */
+                latestSegmentInfos.counter = latestSegmentInfos.counter + SI_COUNTER_INCREMENT;
+                latestSegmentInfos.changed();
+                commitSegmentInfos(latestSegmentInfos);
                 IOUtils.close(readerManager, translogManager, store::decRef);
             } catch (Exception e) {
                 logger.warn("failed to close engine", e);

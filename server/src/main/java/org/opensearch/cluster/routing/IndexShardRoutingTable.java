@@ -85,6 +85,9 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     private volatile Map<AttributesKey, AttributesRoutings> activeShardsByAttributes = emptyMap();
     private volatile Map<AttributesKey, AttributesRoutings> initializingShardsByAttributes = emptyMap();
     private final Object shardsByAttributeMutex = new Object();
+    private final Object shardsByWeightMutex = new Object();
+    private volatile Map<WeightedRoutingKey, List<ShardRouting>> activeShardsByWeight = emptyMap();
+    private volatile Map<WeightedRoutingKey, List<ShardRouting>> initializingShardsByWeight = emptyMap();
 
     /**
      * The initializing list, including ones that are initializing on a target node because of relocation.
@@ -233,6 +236,10 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         return this.assignedShards;
     }
 
+    public Map<WeightedRoutingKey, List<ShardRouting>> getActiveShardsByWeight() {
+        return activeShardsByWeight;
+    }
+
     public ShardIterator shardsRandomIt() {
         return new PlainShardIterator(shardId, shuffler.shuffle(shards));
     }
@@ -290,6 +297,73 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         List<ShardRouting> rankedInitializingShards = rankShardsAndUpdateStats(allInitializingShards, collector, nodeSearchCounts);
         ordered.addAll(rankedInitializingShards);
         return new PlainShardIterator(shardId, ordered);
+    }
+
+    /**
+     * Returns an iterator over active and initializing shards, shards are ordered by weighted
+     * round-robin scheduling policy.
+     *
+     * @param weightedRouting entity
+     * @param nodes           discovered nodes in the cluster
+     * @return an iterator over active and initializing shards, ordered by weighted round-robin
+     * scheduling policy. Making sure that initializing shards are the last to iterate through.
+     */
+    public ShardIterator activeInitializingShardsWeightedIt(WeightedRouting weightedRouting, DiscoveryNodes nodes, double defaultWeight) {
+        final int seed = shuffler.nextSeed();
+        List<ShardRouting> ordered = new ArrayList<>();
+        List<ShardRouting> orderedActiveShards = getActiveShardsByWeight(weightedRouting, nodes, defaultWeight);
+        ordered.addAll(shuffler.shuffle(orderedActiveShards, seed));
+        if (!allInitializingShards.isEmpty()) {
+            List<ShardRouting> orderedInitializingShards = getInitializingShardsByWeight(weightedRouting, nodes, defaultWeight);
+            ordered.addAll(orderedInitializingShards);
+        }
+        return new PlainShardIterator(shardId, ordered);
+    }
+
+    /**
+     * Returns a list containing shard routings ordered using weighted round-robin scheduling.
+     */
+    private List<ShardRouting> shardsOrderedByWeight(
+        List<ShardRouting> shards,
+        WeightedRouting weightedRouting,
+        DiscoveryNodes nodes,
+        double defaultWeight
+    ) {
+        WeightedRoundRobin<ShardRouting> weightedRoundRobin = new WeightedRoundRobin<>(
+            calculateShardWeight(shards, weightedRouting, nodes, defaultWeight)
+        );
+        List<WeightedRoundRobin.Entity<ShardRouting>> shardsOrderedbyWeight = weightedRoundRobin.orderEntities();
+        List<ShardRouting> orderedShardRouting = new ArrayList<>(activeShards.size());
+        if (shardsOrderedbyWeight != null) {
+            for (WeightedRoundRobin.Entity<ShardRouting> shardRouting : shardsOrderedbyWeight) {
+                orderedShardRouting.add(shardRouting.getTarget());
+            }
+        }
+        return orderedShardRouting;
+    }
+
+    /**
+     * Returns a list containing shard routing and associated weight. This function iterates through all the shards and
+     * uses weighted routing to find weight for the corresponding shard. This is fed to weighted round-robin scheduling
+     * to order shards by weight.
+     */
+    private List<WeightedRoundRobin.Entity<ShardRouting>> calculateShardWeight(
+        List<ShardRouting> shards,
+        WeightedRouting weightedRouting,
+        DiscoveryNodes nodes,
+        double defaultWeight
+    ) {
+        List<WeightedRoundRobin.Entity<ShardRouting>> shardsWithWeights = new ArrayList<>();
+        for (ShardRouting shard : shards) {
+            DiscoveryNode node = nodes.get(shard.currentNodeId());
+            if (node != null) {
+                String attVal = node.getAttributes().get(weightedRouting.attributeName());
+                // If weight for a zone is not defined, considering it as 1 by default
+                Double weight = weightedRouting.weights().getOrDefault(attVal, defaultWeight);
+                shardsWithWeights.add(new WeightedRoundRobin.Entity<>(weight, shard));
+            }
+        }
+        return shardsWithWeights;
     }
 
     private static Set<String> getAllNodeIds(final List<ShardRouting> shards) {
@@ -696,6 +770,66 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
             }
         }
         return count;
+    }
+
+    /**
+     * Key for WeightedRouting Shard Iterator
+     *
+     * @opensearch.internal
+     */
+    public static class WeightedRoutingKey {
+        private final WeightedRouting weightedRouting;
+
+        public WeightedRoutingKey(WeightedRouting weightedRouting) {
+            this.weightedRouting = weightedRouting;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            WeightedRoutingKey key = (WeightedRoutingKey) o;
+            if (!weightedRouting.equals(key.weightedRouting)) return false;
+            return true;
+        }
+
+        @Override
+        public int hashCode() {
+            int result = weightedRouting.hashCode();
+            return result;
+        }
+    }
+
+    /**
+     * *
+     * Gets active shard routing from memory if available, else calculates and put it in memory.
+     */
+    private List<ShardRouting> getActiveShardsByWeight(WeightedRouting weightedRouting, DiscoveryNodes nodes, double defaultWeight) {
+        WeightedRoutingKey key = new WeightedRoutingKey(weightedRouting);
+        List<ShardRouting> shardRoutings = activeShardsByWeight.get(key);
+        if (shardRoutings == null) {
+            synchronized (shardsByWeightMutex) {
+                shardRoutings = shardsOrderedByWeight(activeShards, weightedRouting, nodes, defaultWeight);
+                activeShardsByWeight = new MapBuilder().put(key, shardRoutings).immutableMap();
+            }
+        }
+        return shardRoutings;
+    }
+
+    /**
+     * *
+     * Gets initializing shard routing from memory if available, else calculates and put it in memory.
+     */
+    private List<ShardRouting> getInitializingShardsByWeight(WeightedRouting weightedRouting, DiscoveryNodes nodes, double defaultWeight) {
+        WeightedRoutingKey key = new WeightedRoutingKey(weightedRouting);
+        List<ShardRouting> shardRoutings = initializingShardsByWeight.get(key);
+        if (shardRoutings == null) {
+            synchronized (shardsByWeightMutex) {
+                shardRoutings = shardsOrderedByWeight(activeShards, weightedRouting, nodes, defaultWeight);
+                initializingShardsByWeight = new MapBuilder().put(key, shardRoutings).immutableMap();
+            }
+        }
+        return shardRoutings;
     }
 
     /**

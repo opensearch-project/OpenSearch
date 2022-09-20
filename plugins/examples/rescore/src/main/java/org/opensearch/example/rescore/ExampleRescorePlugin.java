@@ -39,7 +39,16 @@ import java.util.List;
 
 import static java.util.Collections.singletonList;
 
+/**
+ * Example plugin that implements custom rescore behavior.
+ */
 public class ExampleRescorePlugin extends Plugin implements SearchPlugin {
+
+    /**
+     * Instantiate this object.
+     */
+    public ExampleRescorePlugin() {}
+
     @Override
     public List<RescorerSpec<?>> getRescorers() {
         return singletonList(
