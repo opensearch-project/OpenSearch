@@ -32,9 +32,4 @@ public class DeleteDecommissionRequest extends ClusterManagerNodeRequest<DeleteD
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
     }
-
-    @Override
-    public String toString() {
-        return "DeleteDecommissionRequest";
-    }
 }

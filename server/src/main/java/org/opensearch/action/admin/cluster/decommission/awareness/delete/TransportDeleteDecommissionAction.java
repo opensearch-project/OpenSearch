@@ -66,7 +66,7 @@ public class TransportDeleteDecommissionAction extends TransportClusterManagerNo
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         DeleteDecommissionRequest request,
         ClusterState state,
         ActionListener<DeleteDecommissionResponse> listener

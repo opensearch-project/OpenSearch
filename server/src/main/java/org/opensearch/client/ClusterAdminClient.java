@@ -796,17 +796,17 @@ public interface ClusterAdminClient extends OpenSearchClient {
     ActionFuture<AcknowledgedResponse> deleteDanglingIndex(DeleteDanglingIndexRequest request);
 
     /**
-     * Decommission a node
+     * Deletes the decommission metadata.
      */
     ActionFuture<DeleteDecommissionResponse> deleteDecommission(DeleteDecommissionRequest request);
 
     /**
-     * Decommission a node
+     * Deletes the decommission metadata.
      */
     void deleteDecommission(DeleteDecommissionRequest request, ActionListener<DeleteDecommissionResponse> listener);
 
     /**
-     * Decommission a node
+     * Deletes the decommission metadata.
      */
     DeleteDecommissionRequestBuilder prepareDeleteDecommission();
 }
