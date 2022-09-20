@@ -780,6 +780,7 @@ public class Node implements Closeable {
              */
             this.extensionsOrchestrator.initializeServicesAndRestHandler(
                 restController,
+                settingsModule,
                 transportService,
                 clusterService,
                 environment.settings()
