@@ -13,9 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingRequest;
-import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.ClusterStateApplier;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
 import org.opensearch.cluster.metadata.Metadata;
@@ -32,7 +30,7 @@ import java.io.IOException;
 /**
  * * Service responsible for updating cluster state metadata with weighted routing weights
  */
-public class WeightedRoutingService extends AbstractLifecycleComponent implements ClusterStateApplier {
+public class WeightedRoutingService extends AbstractLifecycleComponent {
     private static final Logger logger = LogManager.getLogger(WeightedRoutingService.class);
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
@@ -97,14 +95,17 @@ public class WeightedRoutingService extends AbstractLifecycleComponent implement
     }
 
     @Override
-    public void applyClusterState(ClusterChangedEvent event) {}
+    protected void doStart() {
+
+    }
 
     @Override
-    protected void doStart() {}
+    protected void doStop() {
+
+    }
 
     @Override
-    protected void doStop() {}
+    protected void doClose() throws IOException {
 
-    @Override
-    protected void doClose() throws IOException {}
+    }
 }
