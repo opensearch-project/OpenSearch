@@ -444,7 +444,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
 
         ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
 
-        extensionsOrchestrator.initializeServicesAndRestHandler(restController, transportService, clusterService);
+        extensionsOrchestrator.initializeServicesAndRestHandler(restController, settingsModule, transportService, clusterService);
 
         ExtensionActionListenerOnFailureRequest listenerFailureRequest = new ExtensionActionListenerOnFailureRequest("Test failure");
 
