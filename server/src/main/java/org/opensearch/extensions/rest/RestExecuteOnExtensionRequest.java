@@ -10,6 +10,7 @@ package org.opensearch.extensions.rest;
 
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.identity.PrincipalIdentifierToken;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestRequest.Method;
 import org.opensearch.transport.TransportRequest;
@@ -27,9 +28,12 @@ public class RestExecuteOnExtensionRequest extends TransportRequest {
     private Method method;
     private String uri;
 
-    public RestExecuteOnExtensionRequest(Method method, String uri) {
+    private PrincipalIdentifierToken requestIssuerIdentity;
+
+    public RestExecuteOnExtensionRequest(Method method, String uri, PrincipalIdentifierToken requesterIdentifier) {
         this.method = method;
         this.uri = uri;
+        this.requestIssuerIdentity = requesterIdentifier;
     }
 
     public RestExecuteOnExtensionRequest(StreamInput in) throws IOException {
@@ -40,6 +44,7 @@ public class RestExecuteOnExtensionRequest extends TransportRequest {
             throw new IOException(e);
         }
         uri = in.readString();
+        requestIssuerIdentity = in.readNamedWriteable(PrincipalIdentifierToken.class);
     }
 
     @Override
@@ -47,6 +52,7 @@ public class RestExecuteOnExtensionRequest extends TransportRequest {
         super.writeTo(out);
         out.writeString(method.name());
         out.writeString(uri);
+        out.writeNamedWriteable(requestIssuerIdentity);
     }
 
     public Method getMethod() {
@@ -57,9 +63,19 @@ public class RestExecuteOnExtensionRequest extends TransportRequest {
         return uri;
     }
 
+    public PrincipalIdentifierToken getRequestIssuerIdentity() {
+        return requestIssuerIdentity;
+    }
+
     @Override
     public String toString() {
-        return "RestExecuteOnExtensionRequest{method=" + method + ", uri=" + uri + "}";
+        return "RestExecuteOnExtensionRequest{method="
+            + method
+            + ", uri="
+            + uri
+            + ", requester = "
+            + requestIssuerIdentity.getToken()
+            + "}";
     }
 
     @Override
@@ -67,11 +83,13 @@ public class RestExecuteOnExtensionRequest extends TransportRequest {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
         RestExecuteOnExtensionRequest that = (RestExecuteOnExtensionRequest) obj;
-        return Objects.equals(method, that.method) && Objects.equals(uri, that.uri);
+        return Objects.equals(method, that.method)
+            && Objects.equals(uri, that.uri)
+            && Objects.equals(requestIssuerIdentity, that.requestIssuerIdentity);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(method, uri);
+        return Objects.hash(method, uri, requestIssuerIdentity);
     }
 }
