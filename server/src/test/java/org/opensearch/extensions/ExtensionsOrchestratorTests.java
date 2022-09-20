@@ -175,8 +175,6 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
     }
 
     public void testExtensionsDiscovery() throws Exception {
-        Path extensionDir = createTempDir();
-
         Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
 
         ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
@@ -234,8 +232,6 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
     }
 
     public void testNonUniqueExtensionsDiscovery() throws Exception {
-        Path extensionDir = createTempDir();
-
         List<String> nonUniqueYmlLines = extensionsYmlLines.stream()
             .map(s -> s.replace("uniqueid2", "uniqueid1"))
             .collect(Collectors.toList());
@@ -302,8 +298,6 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
     }
 
     public void testEmptyExtensionsFile() throws Exception {
-        Path extensionDir = createTempDir();
-
         List<String> emptyExtensionsYmlLines = Arrays.asList();
         Files.write(extensionDir.resolve("extensions.yml"), emptyExtensionsYmlLines, StandardCharsets.UTF_8);
 
@@ -313,8 +307,6 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
     }
 
     public void testExtensionsInitialize() throws Exception {
-        Path extensionDir = createTempDir();
-
         Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
 
         ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
@@ -353,9 +345,6 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
     }
 
     public void testHandleRegisterRestActionsRequest() throws Exception {
-
-        Path extensionDir = createTempDir();
-
         Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
 
         ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
@@ -373,9 +362,6 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
     }
 
     public void testHandleRegisterRestActionsRequestWithInvalidMethod() throws Exception {
-
-        Path extensionDir = createTempDir();
-
         ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
 
         extensionsOrchestrator.initializeServicesAndRestHandler(restController, transportService, clusterService);
@@ -389,9 +375,6 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
     }
 
     public void testHandleRegisterRestActionsRequestWithInvalidUri() throws Exception {
-
-        Path extensionDir = createTempDir();
-
         ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
 
         extensionsOrchestrator.initializeServicesAndRestHandler(restController, transportService, clusterService);
@@ -426,8 +409,6 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
     }
 
     public void testHandleActionListenerOnFailureRequest() throws Exception {
-
-        Path extensionDir = createTempDir();
 
         Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
 
