@@ -19,9 +19,11 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Added missing javadocs for `:distribution:tools` modules ([#4483](https://github.com/opensearch-project/OpenSearch/pull/4483))
 - Add BWC version 2.3.1 ([#4513](https://github.com/opensearch-project/OpenSearch/pull/4513))
 - [Segment Replication] Add snapshot and restore tests for segment replication feature ([#3993](https://github.com/opensearch-project/OpenSearch/pull/3993))
+- Principal Identity for Opensearch requests to/from extensions ([#4299](https://github.com/opensearch-project/OpenSearch/pull/4299))
 
 ### Dependencies
 - Bumps `reactive-streams` from 1.0.3 to 1.0.4
+
 
 ### Dependencies
 - Bumps `org.gradle.test-retry` from 1.4.0 to 1.4.1

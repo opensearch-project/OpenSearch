@@ -8,15 +8,20 @@
 
 package org.opensearch.extensions.rest;
 
+import org.opensearch.identity.ExtensionTokenProcessor;
+import org.opensearch.identity.PrincipalIdentifierToken;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamInput;
 import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestRequest.Method;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.charset.StandardCharsets;
+import java.security.Principal;
 import java.util.List;
 import java.util.Map;
 
@@ -25,19 +30,41 @@ public class RestExecuteOnExtensionTests extends OpenSearchTestCase {
     public void testRestExecuteOnExtensionRequest() throws Exception {
         Method expectedMethod = Method.GET;
         String expectedUri = "/test/uri";
-        RestExecuteOnExtensionRequest request = new RestExecuteOnExtensionRequest(expectedMethod, expectedUri);
+        String extensionUniqueId1 = "ext_1";
+        Principal userPrincipal = () -> "user1";
+        ExtensionTokenProcessor extensionTokenProcessor = new ExtensionTokenProcessor(extensionUniqueId1);
+        PrincipalIdentifierToken expectedRequestIssuerIdentity = extensionTokenProcessor.generateToken(userPrincipal);
+        NamedWriteableRegistry registry = new NamedWriteableRegistry(
+            org.opensearch.common.collect.List.of(
+                new NamedWriteableRegistry.Entry(
+                    PrincipalIdentifierToken.class,
+                    PrincipalIdentifierToken.NAME,
+                    PrincipalIdentifierToken::new
+                )
+            )
+        );
+
+        RestExecuteOnExtensionRequest request = new RestExecuteOnExtensionRequest(
+            expectedMethod,
+            expectedUri,
+            expectedRequestIssuerIdentity
+        );
 
         assertEquals(expectedMethod, request.getMethod());
         assertEquals(expectedUri, request.getUri());
+        assertEquals(expectedRequestIssuerIdentity, request.getRequestIssuerIdentity());
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             request.writeTo(out);
             out.flush();
             try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
-                request = new RestExecuteOnExtensionRequest(in);
+                try (NamedWriteableAwareStreamInput nameWritableAwareIn = new NamedWriteableAwareStreamInput(in, registry)) {
+                    request = new RestExecuteOnExtensionRequest(nameWritableAwareIn);
+                }
 
                 assertEquals(expectedMethod, request.getMethod());
                 assertEquals(expectedUri, request.getUri());
+                assertEquals(expectedRequestIssuerIdentity, request.getRequestIssuerIdentity());
             }
         }
     }

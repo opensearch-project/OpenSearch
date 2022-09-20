@@ -52,6 +52,7 @@ import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.http.HttpServerTransport;
+import org.opensearch.identity.PrincipalIdentifierToken;
 import org.opensearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.plugins.NetworkPlugin;
@@ -126,6 +127,11 @@ public final class NetworkModule {
         namedWriteables.add(new NamedWriteableRegistry.Entry(Task.Status.class, ReplicationTask.Status.NAME, ReplicationTask.Status::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(Task.Status.class, RawTaskStatus.NAME, RawTaskStatus::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(Task.Status.class, ResyncTask.Status.NAME, ResyncTask.Status::new));
+        // Adding extensions request identifier token to this registry to enable serialization/deserialization of token for extensions
+        // request
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(PrincipalIdentifierToken.class, PrincipalIdentifierToken.NAME, PrincipalIdentifierToken::new)
+        );
     }
 
     private final Map<String, Supplier<Transport>> transportFactories = new HashMap<>();

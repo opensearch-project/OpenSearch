@@ -14,6 +14,8 @@ import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.extensions.DiscoveryExtension;
 import org.opensearch.extensions.ExtensionsOrchestrator;
+import org.opensearch.identity.ExtensionTokenProcessor;
+import org.opensearch.identity.PrincipalIdentifierToken;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestRequest;
@@ -26,6 +28,7 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.security.Principal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -45,6 +48,13 @@ public class RestSendToExtensionAction extends BaseRestHandler {
     private static final String SEND_TO_EXTENSION_ACTION = "send_to_extension_action";
     private static final Logger logger = LogManager.getLogger(RestSendToExtensionAction.class);
     private static final String CONSUMED_PARAMS_KEY = "extension.consumed.parameters";
+    // To replace with user identity see https://github.com/opensearch-project/OpenSearch/pull/4247
+    private static final Principal DEFAULT_PRINCIPAL = new Principal() {
+        @Override
+        public String getName() {
+            return "OpenSearchUser";
+        }
+    };
 
     private final List<Route> routes;
     private final String uriPrefix;
@@ -153,12 +163,15 @@ public class RestSendToExtensionAction extends BaseRestHandler {
             }
         };
         try {
+            final ExtensionTokenProcessor extensionTokenProcessor = new ExtensionTokenProcessor(discoveryExtension.getId());
+            final PrincipalIdentifierToken requestIssuerIdentity = extensionTokenProcessor.generateToken(DEFAULT_PRINCIPAL);
+
             transportService.sendRequest(
                 discoveryExtension,
                 ExtensionsOrchestrator.REQUEST_REST_EXECUTE_ON_EXTENSION_ACTION,
                 // HERE BE DRAGONS - DO NOT INCLUDE HEADERS
                 // SEE https://github.com/opensearch-project/OpenSearch/issues/4429
-                new RestExecuteOnExtensionRequest(method, uri),
+                new RestExecuteOnExtensionRequest(method, uri, requestIssuerIdentity),
                 restExecuteOnExtensionResponseHandler
             );
             try {
@@ -171,7 +184,6 @@ public class RestSendToExtensionAction extends BaseRestHandler {
         } catch (Exception e) {
             logger.info("Failed to send REST Actions to extension " + discoveryExtension.getName(), e);
         }
-
         BytesRestResponse restResponse = new BytesRestResponse(
             restExecuteOnExtensionResponse.getStatus(),
             restExecuteOnExtensionResponse.getContentType(),
