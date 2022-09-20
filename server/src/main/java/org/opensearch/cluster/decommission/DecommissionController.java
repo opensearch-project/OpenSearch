@@ -10,6 +10,7 @@ package org.opensearch.cluster.decommission;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
@@ -172,6 +173,8 @@ public class DecommissionController {
             final NodeRemovalClusterStateTaskExecutor.Task task = new NodeRemovalClusterStateTaskExecutor.Task(discoveryNode, reason);
             nodesDecommissionTasks.put(task, nodeRemovalExecutor);
         });
+
+        logger.info("submitting state update task to remove [{}] nodes due to decommissioning", nodesToBeDecommissioned.toString());
         clusterService.submitStateUpdateTasks(
             "node-decommissioned",
             nodesDecommissionTasks,
@@ -205,10 +208,10 @@ public class DecommissionController {
 
             @Override
             public void onTimeout(TimeValue timeout) {
-                logger.info("timed out while waiting for removal of decommissioned nodes [{}]", nodesToBeDecommissioned.toString());
+                logger.info("timed out [{}] while waiting for removal of decommissioned nodes [{}]", timeout.toString(), nodesToBeDecommissioned.toString());
                 nodesRemovedListener.onFailure(
                     new OpenSearchTimeoutException(
-                        "timed out [{}] while waiting for removal of decommissioned nodes [{}] to take effect",
+                        "timed out [{}] while waiting for removal of decommissioned nodes [{}]",
                         timeout.toString(),
                         nodesToBeDecommissioned.toString()
                     )
@@ -225,13 +228,12 @@ public class DecommissionController {
 
     /**
      * This method updates the status in the currently registered metadata.
-     * This method also validates the status with its previous state before executing the request
      *
      * @param decommissionStatus status to update decommission metadata with
      * @param listener listener for response and failure
      */
     public void updateMetadataWithDecommissionStatus(DecommissionStatus decommissionStatus, ActionListener<DecommissionStatus> listener) {
-        clusterService.submitStateUpdateTask(decommissionStatus.status(), new ClusterStateUpdateTask(Priority.URGENT) {
+        clusterService.submitStateUpdateTask("update-decommission-status", new ClusterStateUpdateTask(Priority.URGENT) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 DecommissionAttributeMetadata decommissionAttributeMetadata = currentState.metadata().decommissionAttributeMetadata();
@@ -256,6 +258,8 @@ public class DecommissionController {
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 DecommissionAttributeMetadata decommissionAttributeMetadata = newState.metadata().decommissionAttributeMetadata();
+                assert decommissionAttributeMetadata!=null;
+                assert decommissionAttributeMetadata.status().equals(decommissionStatus);
                 listener.onResponse(decommissionAttributeMetadata.status());
             }
         });
