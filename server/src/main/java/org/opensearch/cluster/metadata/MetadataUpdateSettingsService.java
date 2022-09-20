@@ -37,6 +37,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
+import org.opensearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
 import org.opensearch.action.admin.indices.settings.put.UpdateSettingsClusterStateUpdateRequest;
 import org.opensearch.action.admin.indices.upgrade.post.UpgradeSettingsClusterStateUpdateRequest;
 import org.opensearch.cluster.AckedClusterStateUpdateTask;
@@ -47,6 +48,7 @@ import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
+import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.ValidationException;
@@ -164,7 +166,7 @@ public class MetadataUpdateSettingsService {
 
                 @Override
                 public String getClusterManagerThrottlingKey() {
-                    return "update-settings";
+                    return ClusterManagerTaskThrottler.getThrottlingKey(TransportUpdateSettingsAction.class);
                 }
 
                 @Override

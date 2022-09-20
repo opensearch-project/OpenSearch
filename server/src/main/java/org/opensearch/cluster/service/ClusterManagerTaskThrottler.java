@@ -11,6 +11,11 @@ package org.opensearch.cluster.service;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.Version;
+import org.opensearch.action.admin.indices.create.TransportCreateIndexAction;
+import org.opensearch.action.admin.indices.delete.TransportDeleteIndexAction;
+import org.opensearch.action.admin.indices.mapping.put.TransportPutMappingAction;
+import org.opensearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterStateTaskExecutor;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
@@ -42,6 +47,17 @@ public class ClusterManagerTaskThrottler implements TaskBatcherListener {
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
+
+
+    public static Map< Class < ? extends TransportClusterManagerNodeAction>, String> THROTTLING_TASK_KEYS=
+        new ConcurrentHashMap<>() {
+        {
+            put(TransportPutMappingAction.class, "put-mapping");
+            put(TransportUpdateSettingsAction.class, "update-settings");
+            put(TransportCreateIndexAction.class, "create-index");
+            put(TransportDeleteIndexAction.class, "delete-index");
+        }
+    };
 
     /**
      * To configure more task for throttling, override getClusterManagerThrottlingKey method with task name in task executor.
@@ -104,6 +120,19 @@ public class ClusterManagerTaskThrottler implements TaskBatcherListener {
         this.clusterManagerTaskThrottlerListener = clusterManagerTaskThrottlerListener;
         tasksCount = new ConcurrentHashMap<>(128); // setting initial capacity so each task will land in different segment
         tasksThreshold = new ConcurrentHashMap<>(128); // setting initial capacity so each task will land in different segment
+        validateThrottlingTaskKeys();
+    }
+
+    // need to validate if same key is not mapped against multiple actions.
+    void validateThrottlingTaskKeys() {
+        // Checking for duplicates in value
+        if(new HashSet(THROTTLING_TASK_KEYS.values()).size() != THROTTLING_TASK_KEYS.values().size()) {
+            throw new IllegalArgumentException("Duplicate throttling keys are configured ");
+        }
+    }
+
+    public static String getThrottlingKey(Class transportActionClass) {
+        return THROTTLING_TASK_KEYS.get(transportActionClass);
     }
 
     void validateSetting(final Settings settings) {

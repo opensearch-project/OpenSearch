@@ -37,12 +37,14 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingClusterStateUpdateRequest;
+import org.opensearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.opensearch.cluster.AckedClusterStateTaskListener;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateTaskConfig;
 import org.opensearch.cluster.ClusterStateTaskExecutor;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
@@ -248,7 +250,7 @@ public class MetadataMappingService {
 
         @Override
         public String getClusterManagerThrottlingKey() {
-            return "put-mapping";
+            return ClusterManagerTaskThrottler.getThrottlingKey(TransportPutMappingAction.class);
         }
 
         private ClusterState applyRequest(
