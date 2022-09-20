@@ -123,14 +123,12 @@ public class ClusterPutWeightedRoutingRequest extends ClusterManagerNodeRequest<
             validationException = addValidationError("Weights are missing", validationException);
         }
         int countValueWithZeroWeights = 0;
-        double weight;
         try {
-            for (Object value : weightedRouting.weights().values()) {
+            for (Double value : weightedRouting.weights().values()) {
                 if (value == null) {
                     validationException = addValidationError(("Weight is null"), validationException);
-                } else {
-                    weight = Double.parseDouble(value.toString());
-                    countValueWithZeroWeights = (weight == 0) ? countValueWithZeroWeights + 1 : countValueWithZeroWeights;
+                } else if (value == 0) {
+                    countValueWithZeroWeights++;
                 }
             }
         } catch (NumberFormatException e) {
