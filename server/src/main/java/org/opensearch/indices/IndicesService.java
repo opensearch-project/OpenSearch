@@ -132,7 +132,6 @@ import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.shard.IndexingOperationListener;
 import org.opensearch.index.shard.IndexingStats;
 import org.opensearch.index.shard.ShardId;
-import org.opensearch.index.store.RemoteDirectoryFactory;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
@@ -267,8 +266,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final Set<Index> danglingIndicesToWrite = Sets.newConcurrentHashSet();
     private final boolean nodeWriteDanglingIndicesInfo;
     private final ValuesSourceRegistry valuesSourceRegistry;
-    private final RemoteDirectoryFactory remoteDirectoryFactory;
-    private final Supplier<RepositoriesService> repositoriesServiceSupplier;
+    private final IndexStorePlugin.RemoteDirectoryFactory remoteDirectoryFactory;
 
     @Override
     protected void doStart() {
@@ -297,8 +295,7 @@ public class IndicesService extends AbstractLifecycleComponent
         Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories,
         ValuesSourceRegistry valuesSourceRegistry,
         Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
-        RemoteDirectoryFactory remoteDirectoryFactory,
-        Supplier<RepositoriesService> repositoriesServiceSupplier
+        IndexStorePlugin.RemoteDirectoryFactory remoteDirectoryFactory
     ) {
         this.settings = settings;
         this.threadPool = threadPool;

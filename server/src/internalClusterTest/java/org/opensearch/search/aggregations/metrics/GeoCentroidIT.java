@@ -35,15 +35,11 @@ package org.opensearch.search.aggregations.metrics;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.search.aggregations.InternalAggregation;
-import org.opensearch.search.aggregations.bucket.geogrid.GeoGrid;
 import org.opensearch.search.aggregations.bucket.global.Global;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
-import java.util.List;
-
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.search.aggregations.AggregationBuilders.geoCentroid;
-import static org.opensearch.search.aggregations.AggregationBuilders.geohashGrid;
 import static org.opensearch.search.aggregations.AggregationBuilders.global;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.closeTo;
@@ -167,34 +163,5 @@ public class GeoCentroidIT extends AbstractGeoTestCase {
         assertThat(centroid.lat(), closeTo(multiCentroid.lat(), GEOHASH_TOLERANCE));
         assertThat(centroid.lon(), closeTo(multiCentroid.lon(), GEOHASH_TOLERANCE));
         assertEquals(2 * numDocs, geoCentroid.count());
-    }
-
-    public void testSingleValueFieldAsSubAggToGeohashGrid() throws Exception {
-        SearchResponse response = client().prepareSearch(HIGH_CARD_IDX_NAME)
-            .addAggregation(
-                geohashGrid("geoGrid").field(SINGLE_VALUED_FIELD_NAME).subAggregation(geoCentroid(aggName).field(SINGLE_VALUED_FIELD_NAME))
-            )
-            .get();
-        assertSearchResponse(response);
-
-        GeoGrid grid = response.getAggregations().get("geoGrid");
-        assertThat(grid, notNullValue());
-        assertThat(grid.getName(), equalTo("geoGrid"));
-        List<? extends GeoGrid.Bucket> buckets = grid.getBuckets();
-        for (GeoGrid.Bucket cell : buckets) {
-            String geohash = cell.getKeyAsString();
-            GeoPoint expectedCentroid = expectedCentroidsForGeoHash.get(geohash);
-            GeoCentroid centroidAgg = cell.getAggregations().get(aggName);
-            assertThat(
-                "Geohash " + geohash + " has wrong centroid latitude ",
-                expectedCentroid.lat(),
-                closeTo(centroidAgg.centroid().lat(), GEOHASH_TOLERANCE)
-            );
-            assertThat(
-                "Geohash " + geohash + " has wrong centroid longitude",
-                expectedCentroid.lon(),
-                closeTo(centroidAgg.centroid().lon(), GEOHASH_TOLERANCE)
-            );
-        }
     }
 }

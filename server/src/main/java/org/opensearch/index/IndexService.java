@@ -515,7 +515,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
             Store remoteStore = null;
             if (this.indexSettings.isRemoteStoreEnabled()) {
-                Directory remoteDirectory = remoteDirectoryFactory.newDirectory("clusterUUID", this.indexSettings, path);
+                Directory remoteDirectory = remoteDirectoryFactory.newDirectory(
+                    this.indexSettings.getRemoteStoreRepository(),
+                    this.indexSettings,
+                    path
+                );
                 remoteStore = new Store(shardId, this.indexSettings, remoteDirectory, lock, Store.OnClose.EMPTY);
             }
 

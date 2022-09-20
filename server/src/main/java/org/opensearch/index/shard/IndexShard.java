@@ -48,8 +48,6 @@ import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.UsageTrackingQueryCachingPolicy;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.util.SetOnce;
 import org.apache.lucene.util.ThreadInterruptedException;
 import org.opensearch.Assertions;
@@ -165,8 +163,8 @@ import org.opensearch.indices.recovery.RecoveryFailedException;
 import org.opensearch.indices.recovery.RecoveryListener;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
-import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
+import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.rest.RestStatus;
@@ -205,6 +203,7 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static org.opensearch.index.seqno.RetentionLeaseActions.RETAIN_ALL;
+import static org.opensearch.index.seqno.SequenceNumbers.MAX_SEQ_NO;
 import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 /**
@@ -625,7 +624,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             if (indexSettings.isSegRepEnabled()) {
                                 // this Shard's engine was read only, we need to update its engine before restoring local history from xlog.
                                 assert newRouting.primary() && currentRouting.primary() == false;
-                                promoteNRTReplicaToPrimary();
+                                resetEngineToGlobalCheckpoint();
                             }
                             replicationTracker.activatePrimaryMode(getLocalCheckpoint());
                             ensurePeerRecoveryRetentionLeasesExist();
@@ -1706,13 +1705,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @return a sequence number that an operation-based peer recovery can start with.
      * This is the first operation after the local checkpoint of the safe commit if exists.
      */
-    public long recoverLocallyUpToGlobalCheckpoint() {
-        assert Thread.holdsLock(mutex) == false : "recover locally under mutex";
-        if (state != IndexShardState.RECOVERING) {
-            throw new IndexShardNotRecoveringException(shardId, state);
-        }
-        recoveryState.validateCurrentStage(RecoveryState.Stage.INDEX);
-        assert routingEntry().recoverySource().getType() == RecoverySource.Type.PEER : "not a peer recovery [" + routingEntry() + "]";
+    private long recoverLocallyUpToGlobalCheckpoint() {
+        validateLocalRecoveryState();
         final Optional<SequenceNumbers.CommitInfo> safeCommit;
         final long globalCheckpoint;
         try {
@@ -1793,6 +1787,54 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             );
             return UNASSIGNED_SEQ_NO;
         }
+    }
+
+    public long recoverLocallyAndFetchStartSeqNo(boolean localTranslog) {
+        if (localTranslog) {
+            return recoverLocallyUpToGlobalCheckpoint();
+        } else {
+            return recoverLocallyUptoLastCommit();
+        }
+    }
+
+    /**
+     * The method figures out the sequence number basis the last commit.
+     *
+     * @return the starting sequence number from which the recovery should start.
+     */
+    private long recoverLocallyUptoLastCommit() {
+        assert isRemoteTranslogEnabled() : "Remote translog store is not enabled";
+        long seqNo;
+        validateLocalRecoveryState();
+
+        try {
+            seqNo = Long.parseLong(store.readLastCommittedSegmentsInfo().getUserData().get(MAX_SEQ_NO));
+        } catch (org.apache.lucene.index.IndexNotFoundException e) {
+            logger.error("skip local recovery as no index commit found", e);
+            return UNASSIGNED_SEQ_NO;
+        } catch (Exception e) {
+            logger.error("skip local recovery as failed to find the safe commit", e);
+            return UNASSIGNED_SEQ_NO;
+        }
+
+        try {
+            maybeCheckIndex();
+            recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
+            recoveryState.getTranslog().totalLocal(0);
+        } catch (Exception e) {
+            logger.error("check index failed during fetch seqNo", e);
+            return UNASSIGNED_SEQ_NO;
+        }
+        return seqNo;
+    }
+
+    private void validateLocalRecoveryState() {
+        assert Thread.holdsLock(mutex) == false : "recover locally under mutex";
+        if (state != IndexShardState.RECOVERING) {
+            throw new IndexShardNotRecoveringException(shardId, state);
+        }
+        recoveryState.validateCurrentStage(RecoveryState.Stage.INDEX);
+        assert routingEntry().recoverySource().getType() == RecoverySource.Type.PEER : "not a peer recovery [" + routingEntry() + "]";
     }
 
     public void trimOperationOfPreviousPrimaryTerms(long aboveSeqNo) {
@@ -2001,7 +2043,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private boolean assertSequenceNumbersInCommit() throws IOException {
         final Map<String, String> userData = SegmentInfos.readLatestCommit(store.directory()).getUserData();
         assert userData.containsKey(SequenceNumbers.LOCAL_CHECKPOINT_KEY) : "commit point doesn't contains a local checkpoint";
-        assert userData.containsKey(SequenceNumbers.MAX_SEQ_NO) : "commit point doesn't contains a maximum sequence number";
+        assert userData.containsKey(MAX_SEQ_NO) : "commit point doesn't contains a maximum sequence number";
         assert userData.containsKey(Engine.HISTORY_UUID_KEY) : "commit point doesn't contains a history uuid";
         assert userData.get(Engine.HISTORY_UUID_KEY).equals(getHistoryUUID()) : "commit point history uuid ["
             + userData.get(Engine.HISTORY_UUID_KEY)
@@ -2358,6 +2400,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public Translog.Snapshot getHistoryOperations(String reason, long startingSeqNo, long endSeqNo, boolean accurateCount)
         throws IOException {
         return getEngine().newChangesSnapshot(reason, startingSeqNo, endSeqNo, true, accurateCount);
+    }
+
+    /**
+     * Creates a new history snapshot from the translog instead of the lucene index. Required for cross cluster replication.
+     * Use the recommended {@link #getHistoryOperations(String, long, long, boolean)} method for other cases.
+     * This method should only be invoked if Segment Replication or Remote Store is not enabled.
+     */
+    public Translog.Snapshot getHistoryOperationsFromTranslog(long startingSeqNo, long endSeqNo) throws IOException {
+        assert (indexSettings.isSegRepEnabled() || indexSettings.isRemoteStoreEnabled()) == false
+            : "unsupported operation for segment replication enabled indices or remote store backed indices";
+        return getEngine().translogManager().newChangesSnapshot(startingSeqNo, endSeqNo, true);
     }
 
     /**
@@ -3229,8 +3282,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final List<ReferenceManager.RefreshListener> internalRefreshListener = new ArrayList<>();
         internalRefreshListener.add(new RefreshMetricUpdater(refreshMetric));
         if (isRemoteStoreEnabled()) {
-            Directory remoteDirectory = ((FilterDirectory) ((FilterDirectory) remoteStore.directory()).getDelegate()).getDelegate();
-            internalRefreshListener.add(new RemoteStoreRefreshListener(store.directory(), remoteDirectory));
+            internalRefreshListener.add(new RemoteStoreRefreshListener(this));
         }
         if (this.checkpointPublisher != null && indexSettings.isSegRepEnabled() && shardRouting.primary()) {
             internalRefreshListener.add(new CheckpointRefreshListener(this, this.checkpointPublisher));
@@ -3266,6 +3318,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private boolean isRemoteStoreEnabled() {
         return (remoteStore != null && shardRouting.primary());
+    }
+
+    public boolean isRemoteTranslogEnabled() {
+        return indexSettings() != null && indexSettings().isRemoteTranslogStoreEnabled();
     }
 
     /**
@@ -3561,7 +3617,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             currentGlobalCheckpoint,
                             maxSeqNo
                         );
-                        if (currentGlobalCheckpoint < maxSeqNo) {
+                        // With Segment Replication enabled, we never want to reset a replica's engine unless
+                        // it is promoted to primary.
+                        if (currentGlobalCheckpoint < maxSeqNo && indexSettings.isSegRepEnabled() == false) {
                             resetEngineToGlobalCheckpoint();
                         } else {
                             getEngine().translogManager().rollTranslogGeneration();
@@ -4123,27 +4181,5 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public GatedCloseable<SegmentInfos> getSegmentInfosSnapshot() {
         return getEngine().getSegmentInfosSnapshot();
-    }
-
-    /**
-     * With segment replication enabled - prepare the shard's engine to be promoted as the new primary.
-     *
-     * If this shard is currently using a replication engine, this method:
-     * 1. Invokes {@link NRTReplicationEngine#commitSegmentInfos()} to ensure the engine can be reopened as writeable from the latest refresh point.
-     * InternalEngine opens its IndexWriter from an on-disk commit point, but this replica may have recently synced from a primary's refresh point, meaning it has documents searchable in its in-memory SegmentInfos
-     * that are not part of a commit point.  This ensures that those documents are made part of a commit and do not need to be reindexed after promotion.
-     * 2. Invokes resetEngineToGlobalCheckpoint - This call performs the engine swap, opening up as a writeable engine and replays any operations in the xlog. The operations indexed from xlog here will be
-     * any ack'd writes that were not copied to this replica before promotion.
-     */
-    private void promoteNRTReplicaToPrimary() {
-        assert shardRouting.primary() && indexSettings.isSegRepEnabled();
-        getReplicationEngine().ifPresentOrElse(engine -> {
-            try {
-                engine.commitSegmentInfos();
-                resetEngineToGlobalCheckpoint();
-            } catch (IOException e) {
-                throw new EngineException(shardId, "Unable to update  replica to writeable engine, failing shard", e);
-            }
-        }, () -> { throw new EngineException(shardId, "Expected replica engine to be of type NRTReplicationEngine"); });
     }
 }

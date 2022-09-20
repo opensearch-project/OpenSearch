@@ -66,7 +66,7 @@ import java.util.function.ToLongFunction;
  *
  * @opensearch.internal
  */
-class LongValuesSource extends SingleDimensionValuesSource<Long> {
+public class LongValuesSource extends SingleDimensionValuesSource<Long> {
     private final BigArrays bigArrays;
     private final CheckedFunction<LeafReaderContext, SortedNumericDocValues, IOException> docValuesFunc;
     private final LongUnaryOperator rounding;
@@ -76,7 +76,7 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
     private long currentValue;
     private boolean missingCurrentValue;
 
-    LongValuesSource(
+    public LongValuesSource(
         BigArrays bigArrays,
         MappedFieldType fieldType,
         CheckedFunction<LeafReaderContext, SortedNumericDocValues, IOException> docValuesFunc,
@@ -165,7 +165,7 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
     }
 
     @Override
-    void setAfter(Comparable value) {
+    protected void setAfter(Comparable value) {
         if (missingBucket && value == null) {
             afterValue = null;
         } else {
