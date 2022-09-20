@@ -34,6 +34,7 @@ package org.opensearch.cluster.routing;
 
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.opensearch.common.Nullable;
@@ -75,9 +76,17 @@ public class OperationRouting {
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
+    public static final Setting<Double> WEIGHTED_ROUTING_DEFAULT_WEIGHT = Setting.doubleSetting(
+        "cluster.routing.weighted.default_weight",
+        1.0,
+        1.0,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
     private volatile List<String> awarenessAttributes;
     private volatile boolean useAdaptiveReplicaSelection;
     private volatile boolean ignoreAwarenessAttr;
+    private volatile double weightedRoutingDefaultWeight;
 
     public OperationRouting(Settings settings, ClusterSettings clusterSettings) {
         // whether to ignore awareness attributes when routing requests
@@ -88,8 +97,10 @@ public class OperationRouting {
             this::setAwarenessAttributes
         );
         this.useAdaptiveReplicaSelection = USE_ADAPTIVE_REPLICA_SELECTION_SETTING.get(settings);
+        this.weightedRoutingDefaultWeight = WEIGHTED_ROUTING_DEFAULT_WEIGHT.get(settings);
         clusterSettings.addSettingsUpdateConsumer(USE_ADAPTIVE_REPLICA_SELECTION_SETTING, this::setUseAdaptiveReplicaSelection);
         clusterSettings.addSettingsUpdateConsumer(IGNORE_AWARENESS_ATTRIBUTES_SETTING, this::setIgnoreAwarenessAttributes);
+        clusterSettings.addSettingsUpdateConsumer(WEIGHTED_ROUTING_DEFAULT_WEIGHT, this::setWeightedRoutingDefaultWeight);
     }
 
     void setUseAdaptiveReplicaSelection(boolean useAdaptiveReplicaSelection) {
@@ -98,6 +109,10 @@ public class OperationRouting {
 
     void setIgnoreAwarenessAttributes(boolean ignoreAwarenessAttributes) {
         this.ignoreAwarenessAttr = ignoreAwarenessAttributes;
+    }
+
+    void setWeightedRoutingDefaultWeight(double weightedRoutingDefaultWeight) {
+        this.weightedRoutingDefaultWeight = weightedRoutingDefaultWeight;
     }
 
     public boolean isIgnoreAwarenessAttr() {
@@ -114,6 +129,10 @@ public class OperationRouting {
 
     public boolean ignoreAwarenessAttributes() {
         return this.awarenessAttributes.isEmpty() || this.ignoreAwarenessAttr;
+    }
+
+    public double getWeightedRoutingDefaultWeight() {
+        return this.weightedRoutingDefaultWeight;
     }
 
     public ShardIterator indexShards(ClusterState clusterState, String index, String id, @Nullable String routing) {
@@ -133,7 +152,8 @@ public class OperationRouting {
             clusterState.nodes(),
             preference,
             null,
-            null
+            null,
+            clusterState.getMetadata().weightedRoutingMetadata()
         );
     }
 
@@ -145,7 +165,8 @@ public class OperationRouting {
             clusterState.nodes(),
             preference,
             null,
-            null
+            null,
+            clusterState.metadata().weightedRoutingMetadata()
         );
     }
 
@@ -175,7 +196,8 @@ public class OperationRouting {
                 clusterState.nodes(),
                 preference,
                 collectorService,
-                nodeCounts
+                nodeCounts,
+                clusterState.metadata().weightedRoutingMetadata()
             );
             if (iterator != null) {
                 set.add(iterator);
@@ -225,10 +247,11 @@ public class OperationRouting {
         DiscoveryNodes nodes,
         @Nullable String preference,
         @Nullable ResponseCollectorService collectorService,
-        @Nullable Map<String, Long> nodeCounts
+        @Nullable Map<String, Long> nodeCounts,
+        @Nullable WeightedRoutingMetadata weightedRoutingMetadata
     ) {
         if (preference == null || preference.isEmpty()) {
-            return shardRoutings(indexShard, nodes, collectorService, nodeCounts);
+            return shardRoutings(indexShard, nodes, collectorService, nodeCounts, weightedRoutingMetadata);
         }
         if (preference.charAt(0) == '_') {
             Preference preferenceType = Preference.parse(preference);
@@ -255,7 +278,7 @@ public class OperationRouting {
                 }
                 // no more preference
                 if (index == -1 || index == preference.length() - 1) {
-                    return shardRoutings(indexShard, nodes, collectorService, nodeCounts);
+                    return shardRoutings(indexShard, nodes, collectorService, nodeCounts, weightedRoutingMetadata);
                 } else {
                     // update the preference and continue
                     preference = preference.substring(index + 1);
@@ -298,9 +321,16 @@ public class OperationRouting {
         IndexShardRoutingTable indexShard,
         DiscoveryNodes nodes,
         @Nullable ResponseCollectorService collectorService,
-        @Nullable Map<String, Long> nodeCounts
+        @Nullable Map<String, Long> nodeCounts,
+        @Nullable WeightedRoutingMetadata weightedRoutingMetadata
     ) {
-        if (ignoreAwarenessAttributes()) {
+        if (weightedRoutingMetadata != null) {
+            return indexShard.activeInitializingShardsWeightedIt(
+                weightedRoutingMetadata.getWeightedRouting(),
+                nodes,
+                getWeightedRoutingDefaultWeight()
+            );
+        } else if (ignoreAwarenessAttributes()) {
             if (useAdaptiveReplicaSelection) {
                 return indexShard.activeInitializingShardsRankedIt(collectorService, nodeCounts);
             } else {
