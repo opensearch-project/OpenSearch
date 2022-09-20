@@ -69,7 +69,7 @@ dependencies {
   // Adobe PDF
   api "org.apache.pdfbox:pdfbox:${versions.pdfbox}"
   api "org.apache.pdfbox:fontbox:${versions.pdfbox}"
-  api "org.apache.pdfbox:jempbox:1.8.16"
+  api "org.apache.pdfbox:jempbox:1.8.17"
   api "commons-logging:commons-logging:${versions.commonslogging}"
   api "org.bouncycastle:bcmail-jdk15on:${versions.bouncycastle}"
   api "org.bouncycastle:bcprov-jdk15on:${versions.bouncycastle}"
