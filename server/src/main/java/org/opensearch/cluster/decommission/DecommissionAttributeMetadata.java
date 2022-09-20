@@ -35,7 +35,7 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
     public static final String TYPE = "decommissionedAttribute";
 
     private final DecommissionAttribute decommissionAttribute;
-    private final DecommissionStatus status;
+    private DecommissionStatus status;
     public static final String attributeType = "awareness";
 
     /**
@@ -50,12 +50,12 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
     }
 
     /**
-     * Constructs new decommission attribute metadata with status as {@link DecommissionStatus#DECOMMISSION_INIT}
+     * Constructs new decommission attribute metadata with status as {@link DecommissionStatus#INIT}
      *
      * @param decommissionAttribute attribute details
      */
     public DecommissionAttributeMetadata(DecommissionAttribute decommissionAttribute) {
-        this(decommissionAttribute, DecommissionStatus.DECOMMISSION_INIT);
+        this(decommissionAttribute, DecommissionStatus.INIT);
     }
 
     /**
@@ -77,12 +77,46 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
     }
 
     /**
-     * Creates a new instance that has the given decommission attribute moved to the given @{@link DecommissionStatus}
-     * @param status status to be updated with
-     * @return new instance with updated status
+     * Returns instance of the metadata with updated status
+     * @param newStatus status to be updated with
+     * @return instance with valid status
      */
-    public DecommissionAttributeMetadata withUpdatedStatus(DecommissionStatus status) {
-        return new DecommissionAttributeMetadata(decommissionAttribute(), status);
+    // synchronized is strictly speaking not needed (this is called by a single thread), but just to be safe
+    public synchronized DecommissionAttributeMetadata setUpdatedStatus(DecommissionStatus newStatus) {
+        // We don't expect that INIT will be new status, as it is registered only when starting the decommission action
+        switch (newStatus) {
+            case IN_PROGRESS:
+                validateAndSetStatus(DecommissionStatus.INIT, newStatus);
+                break;
+            case SUCCESSFUL:
+                validateAndSetStatus(DecommissionStatus.IN_PROGRESS, newStatus);
+                break;
+            case FAILED:
+                // we don't need to validate here and directly update status to FAILED
+                this.status = newStatus;
+                break;
+            default:
+                throw new IllegalArgumentException(
+                        "illegal decommission status [" + newStatus.status() + "] requested for updating metadata"
+                );
+        }
+        return this;
+    }
+
+    protected void validateAndSetStatus(DecommissionStatus expected, DecommissionStatus next) {
+        if (status.equals(expected) == false) {
+            assert false : "can't move decommission status to ["
+                    + next
+                    + "]. current status: ["
+                    + status
+                    + "] (expected ["
+                    + expected
+                    + "])";
+            throw new IllegalStateException(
+                    "can't move decommission status to [" + next + "]. current status: [" + status + "] (expected [" + expected + "])"
+            );
+        }
+        status = next;
     }
 
     @Override
@@ -111,7 +145,7 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_2_3_0;
+        return Version.V_3_0_0;
     }
 
     public DecommissionAttributeMetadata(StreamInput in) throws IOException {

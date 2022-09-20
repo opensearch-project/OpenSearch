@@ -51,6 +51,7 @@ import org.opensearch.cluster.NamedDiffableValueSerializer;
 import org.opensearch.cluster.block.ClusterBlock;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.coordination.CoordinationMetadata;
+import org.opensearch.cluster.decommission.DecommissionAttributeMetadata;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
@@ -795,6 +796,10 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             .orElse(Collections.emptyMap());
     }
 
+    public DecommissionAttributeMetadata decommissionAttributeMetadata() {
+        return custom(DecommissionAttributeMetadata.TYPE);
+    }
+
     public ImmutableOpenMap<String, Custom> customs() {
         return this.customs;
     }
@@ -1183,10 +1188,10 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                     return indexMetadata;
                 }
                 throw new IndexNotFoundException(
-                    index,
-                    new IllegalStateException(
-                        "index uuid doesn't match expected: [" + index.getUUID() + "] but got: [" + indexMetadata.getIndexUUID() + "]"
-                    )
+                        index,
+                        new IllegalStateException(
+                                "index uuid doesn't match expected: [" + index.getUUID() + "] but got: [" + indexMetadata.getIndexUUID() + "]"
+                        )
                 );
             }
             throw new IndexNotFoundException(index);
@@ -1334,6 +1339,15 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         public IndexGraveyard indexGraveyard() {
             IndexGraveyard graveyard = (IndexGraveyard) getCustom(IndexGraveyard.TYPE);
             return graveyard;
+        }
+
+        public Builder decommissionAttributeMetadata(final DecommissionAttributeMetadata decommissionAttributeMetadata) {
+            putCustom(DecommissionAttributeMetadata.TYPE, decommissionAttributeMetadata);
+            return this;
+        }
+
+        public DecommissionAttributeMetadata decommissionAttributeMetadata() {
+            return (DecommissionAttributeMetadata) getCustom(DecommissionAttributeMetadata.TYPE);
         }
 
         public Builder updateSettings(Settings settings, String... indices) {

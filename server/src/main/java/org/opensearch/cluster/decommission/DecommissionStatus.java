@@ -9,33 +9,25 @@
 package org.opensearch.cluster.decommission;
 
 /**
- * An enumeration of the states during decommissioning and recommissioning.
+ * An enumeration of the states during decommissioning
  */
 public enum DecommissionStatus {
     /**
-     * Decommission process is initiated
+     * Decommission process is initiated, and to-be-decommissioned leader is excluded from voting config
      */
-    DECOMMISSION_INIT("decommission_init"),
+    INIT("init"),
     /**
-     * Decommission process has started, decommissioned nodes should be weighed away
+     * Decommission process has started, decommissioned nodes should be removed
      */
-    DECOMMISSION_IN_PROGRESS("decommission_in_progress"),
+    IN_PROGRESS("in_progress"),
     /**
-     * Decommissioning awareness attribute completed
+     * Decommission action completed
      */
-    DECOMMISSION_SUCCESSFUL("decommission_successful"),
+    SUCCESSFUL("successful"),
     /**
      * Decommission request failed
      */
-    DECOMMISSION_FAILED("decommission_failed"),
-    /**
-     * Recommission request received, recommissioning process has started
-     */
-    RECOMMISSION_IN_PROGRESS("recommission_in_progress"),
-    /**
-     * Recommission request failed. No nodes should fail to join the cluster with decommission exception
-     */
-    RECOMMISSION_FAILED("recommission_failed");
+    FAILED("failed");
 
     private final String status;
 
@@ -62,18 +54,14 @@ public enum DecommissionStatus {
         if (status == null) {
             throw new IllegalArgumentException("decommission status cannot be null");
         }
-        if (status.equals(DECOMMISSION_INIT.status())) {
-            return DECOMMISSION_INIT;
-        } else if (status.equals(DECOMMISSION_IN_PROGRESS.status())) {
-            return DECOMMISSION_IN_PROGRESS;
-        } else if (status.equals(DECOMMISSION_SUCCESSFUL.status())) {
-            return DECOMMISSION_SUCCESSFUL;
-        } else if (status.equals(DECOMMISSION_FAILED.status())) {
-            return DECOMMISSION_FAILED;
-        } else if (status.equals(RECOMMISSION_IN_PROGRESS.status())) {
-            return RECOMMISSION_IN_PROGRESS;
-        } else if (status.equals(RECOMMISSION_FAILED.status())) {
-            return RECOMMISSION_FAILED;
+        if (status.equals(INIT.status())) {
+            return INIT;
+        } else if (status.equals(IN_PROGRESS.status())) {
+            return IN_PROGRESS;
+        } else if (status.equals(SUCCESSFUL.status())) {
+            return SUCCESSFUL;
+        } else if (status.equals(FAILED.status())) {
+            return FAILED;
         }
         throw new IllegalStateException("Decommission status [" + status + "] not recognized.");
     }
