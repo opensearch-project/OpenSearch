@@ -316,28 +316,6 @@ public class DecommissionService {
                             }
                         }
                 );
-
-//                decommissionController.handleNodesDecommissionRequest(
-//                        filterNodesWithDecommissionAttribute(clusterService.getClusterApplierService().state(), decommissionAttribute, false),
-//                        awarenessValues,
-//                        "nodes-decommissioned");
-                // execute nodes decommissioning
-//                decommissionController.removeDecommissionedNodes(
-//                        filterNodesWithDecommissionAttribute(clusterService.getClusterApplierService().state(), decommissionAttribute, false),
-//                        "nodes-decommissioned",
-//                        TimeValue.timeValueSeconds(120L),
-//                        new ActionListener<Void>() {
-//                            @Override
-//                            public void onResponse(Void unused) {
-//                                clearVotingConfigExclusionAndUpdateStatus(true, true);
-//                            }
-//
-//                            @Override
-//                            public void onFailure(Exception e) {
-//                                clearVotingConfigExclusionAndUpdateStatus(false, false);
-//                            }
-//                        }
-//                );
             }
 
             @Override
