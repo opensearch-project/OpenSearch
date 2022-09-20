@@ -55,7 +55,7 @@ public class GeoShapeFieldMapperTests extends FieldMapperTestCase2<GeoShapeField
 
     @Override
     protected Set<String> unsupportedProperties() {
-        return org.opensearch.common.collect.Set.of("analyzer", "similarity", "doc_values", "store");
+        return org.opensearch.common.collect.Set.of("analyzer", "similarity", "store");
     }
 
     @Override
@@ -117,7 +117,7 @@ public class GeoShapeFieldMapperTests extends FieldMapperTestCase2<GeoShapeField
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
         GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
         assertThat(geoShapeFieldMapper.fieldType().orientation(), equalTo(GeoShapeFieldMapper.Defaults.ORIENTATION.value()));
-        assertThat(geoShapeFieldMapper.fieldType().hasDocValues(), equalTo(false));
+        assertThat(geoShapeFieldMapper.fieldType().hasDocValues(), equalTo(true));
     }
 
     /**
@@ -246,7 +246,7 @@ public class GeoShapeFieldMapperTests extends FieldMapperTestCase2<GeoShapeField
             b.endArray();
         }));
         assertThat(document.docs(), hasSize(1));
-        assertThat(document.docs().get(0).getFields("field").length, equalTo(2));
+        assertThat(document.docs().get(0).getFields("field").length, equalTo(4));
     }
 
     @Override
