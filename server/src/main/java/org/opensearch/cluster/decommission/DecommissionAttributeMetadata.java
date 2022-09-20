@@ -83,6 +83,10 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
      */
     // synchronized is strictly speaking not needed (this is called by a single thread), but just to be safe
     public synchronized DecommissionAttributeMetadata setUpdatedStatus(DecommissionStatus newStatus) {
+        // if the current status is the expected status already, we return the same instance
+        if (newStatus.equals(status)) {
+            return this;
+        }
         // We don't expect that INIT will be new status, as it is registered only when starting the decommission action
         switch (newStatus) {
             case IN_PROGRESS:
