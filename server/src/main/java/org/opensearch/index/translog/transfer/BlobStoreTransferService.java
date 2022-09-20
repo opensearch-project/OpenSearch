@@ -17,8 +17,8 @@ import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.concurrent.ExecutorService;
 
 /**
@@ -47,14 +47,9 @@ public class BlobStoreTransferService implements TransferService {
         assert remoteTransferPath instanceof BlobPath;
         BlobPath blobPath = (BlobPath) remoteTransferPath;
         executorService.execute(ActionRunnable.wrap(listener, l -> {
-            try {
+            try (InputStream inputStream = fileSnapshot.inputStream()) {
                 blobStore.blobContainer(blobPath)
-                    .writeBlobAtomic(
-                        fileSnapshot.getName(),
-                        new ByteArrayInputStream(fileSnapshot.getContent()),
-                        fileSnapshot.getContentLength(),
-                        true
-                    );
+                    .writeBlobAtomic(fileSnapshot.getName(), inputStream, fileSnapshot.getContentLength(), true);
                 l.onResponse(fileSnapshot);
             } catch (Exception e) {
                 logger.error(() -> new ParameterizedMessage("Failed to upload blob {}", fileSnapshot.getName()), e);
@@ -67,14 +62,8 @@ public class BlobStoreTransferService implements TransferService {
     public void uploadBlob(final TransferFileSnapshot fileSnapshot, Iterable<String> remoteTransferPath) throws IOException {
         assert remoteTransferPath instanceof BlobPath;
         BlobPath blobPath = (BlobPath) remoteTransferPath;
-        try {
-            blobStore.blobContainer(blobPath)
-                .writeBlobAtomic(
-                    fileSnapshot.getName(),
-                    new ByteArrayInputStream(fileSnapshot.getContent()),
-                    fileSnapshot.getContentLength(),
-                    true
-                );
+        try (InputStream inputStream = fileSnapshot.inputStream()) {
+            blobStore.blobContainer(blobPath).writeBlobAtomic(fileSnapshot.getName(), inputStream, fileSnapshot.getContentLength(), true);
         } catch (Exception ex) {
             logger.error(() -> new ParameterizedMessage("Failed to upload blob {}", fileSnapshot.getName()), ex);
             throw ex;

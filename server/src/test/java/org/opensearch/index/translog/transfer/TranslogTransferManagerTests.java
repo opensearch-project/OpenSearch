@@ -102,11 +102,13 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
                     return Set.of(
                         new CheckpointFileSnapshot(
                             primaryTerm,
+                            generation,
                             minTranslogGeneration,
                             createTempFile(Translog.TRANSLOG_FILE_PREFIX + generation, Translog.CHECKPOINT_SUFFIX)
                         ),
                         new CheckpointFileSnapshot(
                             primaryTerm,
+                            generation,
                             minTranslogGeneration,
                             createTempFile(Translog.TRANSLOG_FILE_PREFIX + (generation - 1), Translog.CHECKPOINT_SUFFIX)
                         )

@@ -8,10 +8,12 @@
 
 package org.opensearch.index.translog.transfer;
 
+import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.store.DataOutput;
+import org.apache.lucene.store.OutputStreamIndexOutput;
 import org.apache.lucene.util.SetOnce;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -25,7 +27,7 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
-public class TranslogTransferMetadata implements Writeable {
+public class TranslogTransferMetadata {
 
     private final long primaryTerm;
 
@@ -37,9 +39,15 @@ public class TranslogTransferMetadata implements Writeable {
 
     private final int count;
 
-    private final SetOnce<Map<String, Object>> generationToPrimaryTermMapper = new SetOnce<>();
+    private final SetOnce<Map<String, String>> generationToPrimaryTermMapper = new SetOnce<>();
 
     private static final String METADATA_SEPARATOR = "__";
+
+    private static final int BUFFER_SIZE = 4096;
+
+    private static final int CURRENT_VERSION = 1;
+
+    private static final String METADATA_CODEC = "md";
 
     public TranslogTransferMetadata(long primaryTerm, long generation, long minTranslogGeneration, int count) {
         this.primaryTerm = primaryTerm;
@@ -47,16 +55,6 @@ public class TranslogTransferMetadata implements Writeable {
         this.minTranslogGeneration = minTranslogGeneration;
         this.timeStamp = System.currentTimeMillis();
         this.count = count;
-    }
-
-    TranslogTransferMetadata(StreamInput in) throws IOException {
-        this.primaryTerm = in.readLong();
-        this.generation = in.readLong();
-        this.minTranslogGeneration = in.readLong();
-        this.count = in.readInt();
-        this.timeStamp = in.readLong();
-        this.generationToPrimaryTermMapper.set(in.readMap());
-
     }
 
     public long getPrimaryTerm() {
@@ -75,15 +73,33 @@ public class TranslogTransferMetadata implements Writeable {
         return count;
     }
 
-    public void setGenerationToPrimaryTermMapper(Map<String, Object> generationToPrimaryTermMap) {
+    public void setGenerationToPrimaryTermMapper(Map<String, String> generationToPrimaryTermMap) {
         generationToPrimaryTermMapper.set(generationToPrimaryTermMap);
     }
 
-    public String getMetadataFileName() {
+    public String getFileName() {
         return String.join(
             METADATA_SEPARATOR,
             Arrays.asList(String.valueOf(primaryTerm), String.valueOf(generation), String.valueOf(timeStamp))
         );
+    }
+
+    public byte[] createMetadataBytes() throws IOException {
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            try (
+                OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput(
+                    "translog transfer metadata " + primaryTerm,
+                    getFileName(),
+                    output,
+                    BUFFER_SIZE
+                )
+            ) {
+                CodecUtil.writeHeader(indexOutput, METADATA_CODEC, CURRENT_VERSION);
+                write(indexOutput);
+                CodecUtil.writeFooter(indexOutput);
+            }
+            return BytesReference.toBytes(output.bytes());
+        }
     }
 
     @Override
@@ -101,12 +117,11 @@ public class TranslogTransferMetadata implements Writeable {
             && Objects.equals(this.timeStamp, other.timeStamp);
     }
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
+    private void write(DataOutput out) throws IOException {
         out.writeLong(primaryTerm);
         out.writeLong(generation);
         out.writeLong(minTranslogGeneration);
         out.writeLong(timeStamp);
-        out.writeMap(generationToPrimaryTermMapper.get());
+        out.writeMapOfStrings(generationToPrimaryTermMapper.get());
     }
 }

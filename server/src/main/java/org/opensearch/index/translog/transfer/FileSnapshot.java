@@ -9,49 +9,47 @@
 package org.opensearch.index.translog.transfer;
 
 import org.opensearch.common.Nullable;
+import org.opensearch.common.io.stream.BytesStreamInput;
+import org.opensearch.common.io.stream.InputStreamStreamInput;
+import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.index.translog.BufferedChecksumStreamInput;
 
-import java.io.ByteArrayInputStream;
+import java.io.Closeable;
 import java.io.IOException;
-import java.nio.file.Files;
+import java.io.InputStream;
+import java.nio.channels.Channels;
+import java.nio.channels.FileChannel;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.Objects;
-import java.util.zip.CRC32;
-import java.util.zip.CheckedInputStream;
 
 /**
  * Snapshot of a single file that gets transferred
  *
  * @opensearch.internal
  */
-public class FileSnapshot {
+public class FileSnapshot implements Closeable {
 
-    private final long checksum;
-    private final byte[] content;
     private final String name;
-    private final long contentLength;
+    @Nullable
+    private final FileChannel fileChannel;
     @Nullable
     private Path path;
+    @Nullable
+    private byte[] content;
 
     public FileSnapshot(Path path) throws IOException {
         Objects.requireNonNull(path);
-        this.name = path.getFileName().toString();
+        this.name = path.toString();
         this.path = path;
-        try (CheckedInputStream stream = new CheckedInputStream(Files.newInputStream(path), new CRC32())) {
-            this.content = stream.readAllBytes();
-            this.checksum = stream.getChecksum().getValue();
-            this.contentLength = content.length;
-        }
+        this.fileChannel = FileChannel.open(path, StandardOpenOption.READ);
     }
 
     public FileSnapshot(String name, byte[] content) throws IOException {
-        Objects.requireNonNull(content);
         Objects.requireNonNull(name);
         this.name = name;
-        try (CheckedInputStream stream = new CheckedInputStream(new ByteArrayInputStream(content), new CRC32())) {
-            this.content = stream.readAllBytes();
-            this.checksum = stream.getChecksum().getValue();
-            this.contentLength = content.length;
-        }
+        this.content = content;
+        this.fileChannel = null;
     }
 
     public Path getPath() {
@@ -62,21 +60,22 @@ public class FileSnapshot {
         return name;
     }
 
-    public byte[] getContent() {
-        return content;
+    public long getContentLength() throws IOException {
+        return fileChannel == null ? fileChannel.size() : content.length;
     }
 
-    public long getChecksum() {
-        return checksum;
-    }
-
-    public long getContentLength() {
-        return contentLength;
+    public InputStream inputStream() throws IOException {
+        return fileChannel != null
+            ? new BufferedChecksumStreamInput(
+                new InputStreamStreamInput(Channels.newInputStream(fileChannel), fileChannel.size()),
+                path.toString()
+            )
+            : new BufferedChecksumStreamInput(new BytesStreamInput(content), name);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, path, checksum, contentLength);
+        return Objects.hash(name, content, path);
     }
 
     @Override
@@ -85,9 +84,8 @@ public class FileSnapshot {
         if (o == null || getClass() != o.getClass()) return false;
         FileSnapshot other = (FileSnapshot) o;
         return Objects.equals(this.name, other.name)
-            && Objects.equals(this.path, other.path)
-            && Objects.equals(this.checksum, other.checksum)
-            && Objects.equals(this.contentLength, other.contentLength);
+            && Objects.equals(this.content, other.content)
+            && Objects.equals(this.path, other.path);
     }
 
     @Override
@@ -96,12 +94,13 @@ public class FileSnapshot {
             .append(name)
             .append(", path = ")
             .append(path.toUri())
-            .append(", checksum = ")
-            .append(checksum)
-            .append(", contentLength = ")
-            .append(contentLength)
             .append("]")
             .toString();
+    }
+
+    @Override
+    public void close() throws IOException {
+        IOUtils.close(fileChannel);
     }
 
     public static class TransferFileSnapshot extends FileSnapshot {
@@ -171,11 +170,18 @@ public class FileSnapshot {
 
     public static class CheckpointFileSnapshot extends TransferFileSnapshot {
 
+        private final long generation;
+
         private final long minTranslogGeneration;
 
-        public CheckpointFileSnapshot(long primaryTerm, long minTranslogGeneration, Path path) throws IOException {
+        public CheckpointFileSnapshot(long primaryTerm, long generation, long minTranslogGeneration, Path path) throws IOException {
             super(path, primaryTerm);
             this.minTranslogGeneration = minTranslogGeneration;
+            this.generation = generation;
+        }
+
+        public long getGeneration() {
+            return generation;
         }
 
         public long getMinTranslogGeneration() {
@@ -184,7 +190,7 @@ public class FileSnapshot {
 
         @Override
         public int hashCode() {
-            return Objects.hash(minTranslogGeneration, super.hashCode());
+            return Objects.hash(generation, minTranslogGeneration, super.hashCode());
         }
 
         @Override
@@ -193,7 +199,8 @@ public class FileSnapshot {
                 if (this == o) return true;
                 if (getClass() != o.getClass()) return false;
                 CheckpointFileSnapshot other = (CheckpointFileSnapshot) o;
-                return Objects.equals(this.minTranslogGeneration, other.minTranslogGeneration);
+                return Objects.equals(this.minTranslogGeneration, other.minTranslogGeneration)
+                    && Objects.equals(this.generation, other.generation);
             }
             return false;
         }

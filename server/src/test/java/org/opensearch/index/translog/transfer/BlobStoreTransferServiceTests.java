@@ -66,7 +66,6 @@ public class BlobStoreTransferServiceTests extends OpenSearchTestCase {
             public void onResponse(FileSnapshot.TransferFileSnapshot fileSnapshot) {
                 assert succeeded.compareAndSet(false, true);
                 assertEquals(transferFileSnapshot.getPrimaryTerm(), fileSnapshot.getPrimaryTerm());
-                assertEquals(transferFileSnapshot.getChecksum(), fileSnapshot.getChecksum());
                 assertEquals(transferFileSnapshot.getName(), fileSnapshot.getName());
             }
 

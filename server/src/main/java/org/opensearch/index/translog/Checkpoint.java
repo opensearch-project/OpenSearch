@@ -266,6 +266,10 @@ final public class Checkpoint {
         return minTranslogGeneration;
     }
 
+    public long getGeneration() {
+        return generation;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

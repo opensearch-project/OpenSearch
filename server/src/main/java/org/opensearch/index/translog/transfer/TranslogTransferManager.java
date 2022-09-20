@@ -14,10 +14,9 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.common.blobstore.BlobPath;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.index.translog.transfer.listener.FileTransferListener;
 import org.opensearch.index.translog.transfer.listener.TranslogTransferListener;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -132,16 +131,12 @@ public class TranslogTransferManager {
             );
         TranslogTransferMetadata translogTransferMetadata = transferSnapshot.getTranslogTransferMetadata();
         translogTransferMetadata.setGenerationToPrimaryTermMapper(new HashMap<>(generationPrimaryTermMap));
-        TransferFileSnapshot fileSnapshot;
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            translogTransferMetadata.writeTo(output);
-            fileSnapshot = new TransferFileSnapshot(
-                translogTransferMetadata.getMetadataFileName(),
-                BytesReference.toBytes(output.bytes()),
-                -1
-            );
+        TransferFileSnapshot fileSnapshot = new TransferFileSnapshot(
+            translogTransferMetadata.getFileName(),
+            translogTransferMetadata.createMetadataBytes(),
+            translogTransferMetadata.getPrimaryTerm()
+        );
 
-        }
         return fileSnapshot;
     }
 }
