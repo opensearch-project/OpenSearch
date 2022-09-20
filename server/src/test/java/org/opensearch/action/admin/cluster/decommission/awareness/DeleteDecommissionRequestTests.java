@@ -9,6 +9,8 @@
 package org.opensearch.action.admin.cluster.decommission.awareness;
 
 import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionRequest;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -18,7 +20,13 @@ public class DeleteDecommissionRequestTests extends OpenSearchTestCase {
     public void testSerialization() throws IOException {
         final DeleteDecommissionRequest originalRequest = new DeleteDecommissionRequest();
 
-        final DeleteDecommissionRequest deserialized = copyWriteable(originalRequest, writableRegistry(), DeleteDecommissionRequest::new);
-        assertEquals(deserialized, originalRequest);
+        final DeleteDecommissionRequest cloneRequest;
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            originalRequest.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                cloneRequest = new DeleteDecommissionRequest(in);
+            }
+        }
+        assertEquals(cloneRequest.clusterManagerNodeTimeout(), originalRequest.clusterManagerNodeTimeout());
     }
 }
