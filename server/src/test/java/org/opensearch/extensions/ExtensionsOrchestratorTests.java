@@ -420,19 +420,28 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         ExtensionRequest localNodeRequest = new ExtensionRequest(ExtensionsOrchestrator.RequestType.REQUEST_EXTENSION_LOCAL_NODE);
         assertEquals(LocalNodeResponse.class, extensionsOrchestrator.handleExtensionRequest(localNodeRequest).getClass());
 
-        ExtensionActionListenerOnFailureRequest listenerFailureRequest = new ExtensionActionListenerOnFailureRequest(
-            ExtensionsOrchestrator.RequestType.REQUEST_EXTENSION_ACTION_LISTENER_ON_FAILURE,
-            "Test failure"
-        );
-        assertEquals(
-            ExtensionBooleanResponse.class,
-            extensionsOrchestrator.handleExtensionActionListenerOnFailureRequest(listenerFailureRequest).getClass()
-        );
-        assertEquals("Test failure", extensionsOrchestrator.listener.getExceptionList().get(0).getMessage());
-
         ExtensionRequest exceptionRequest = new ExtensionRequest(ExtensionsOrchestrator.RequestType.GET_SETTINGS);
         Exception exception = expectThrows(Exception.class, () -> extensionsOrchestrator.handleExtensionRequest(exceptionRequest));
         assertEquals("Handler not present for the provided request", exception.getMessage());
+    }
+
+    public void testHandleActionListenerOnFailureRequest() throws Exception {
+
+        Path extensionDir = createTempDir();
+
+        Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
+
+        ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
+
+        extensionsOrchestrator.initializeServicesAndRestHandler(restController, transportService, clusterService);
+
+        ExtensionActionListenerOnFailureRequest listenerFailureRequest = new ExtensionActionListenerOnFailureRequest("Test failure");
+
+        assertEquals(
+            ExtensionBooleanResponse.class,
+            extensionsOrchestrator.listenerHandler.handleExtensionActionListenerOnFailureRequest(listenerFailureRequest).getClass()
+        );
+        assertEquals("Test failure", extensionsOrchestrator.listener.getExceptionList().get(0).getMessage());
     }
 
     public void testRegisterHandler() throws Exception {

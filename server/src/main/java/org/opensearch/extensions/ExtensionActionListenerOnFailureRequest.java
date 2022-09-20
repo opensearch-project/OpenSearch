@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -21,13 +22,12 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
-public class ExtensionActionListenerOnFailureRequest extends ExtensionRequest {
+public class ExtensionActionListenerOnFailureRequest extends TransportRequest {
     private static final Logger logger = LogManager.getLogger(ExtensionRequest.class);
-    private ExtensionsOrchestrator.RequestType requestType;
     private String failureException;
 
-    public ExtensionActionListenerOnFailureRequest(ExtensionsOrchestrator.RequestType requestType, String failureException) {
-        super(requestType);
+    public ExtensionActionListenerOnFailureRequest(String failureException) {
+        super();
         this.failureException = failureException;
     }
 
@@ -42,12 +42,8 @@ public class ExtensionActionListenerOnFailureRequest extends ExtensionRequest {
         out.writeString(failureException);
     }
 
-    public ExtensionsOrchestrator.RequestType getRequestType() {
-        return this.requestType;
-    }
-
     public String toString() {
-        return "ExtensionRequest{" + "requestType=" + requestType + ", failureException=" + "}";
+        return "ExtensionRequest{" + "failureException= " + failureException + " }";
     }
 
     @Override
@@ -56,12 +52,12 @@ public class ExtensionActionListenerOnFailureRequest extends ExtensionRequest {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ExtensionActionListenerOnFailureRequest that = (ExtensionActionListenerOnFailureRequest) o;
-        return Objects.equals(requestType, that.requestType);
+        return Objects.equals(failureException, that.failureException);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(requestType);
+        return Objects.hash(failureException);
     }
 
     public String getFailureException() {

@@ -24,7 +24,6 @@ import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
@@ -115,6 +114,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     ClusterService clusterService;
     ExtensionNamedWriteableRegistry namedWriteableRegistry;
     ExtensionActionListener<ExtensionBooleanResponse> listener;
+    ExtensionActionListenerHandler listenerHandler;
 
     /**
      * Instantiate a new ExtensionsOrchestrator object to handle requests and responses from extensions. This is called during Node bootstrap.
@@ -154,6 +154,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         ClusterService clusterService
     ) {
         this.restActionsRequestHandler = new RestActionsRequestHandler(restController, extensionIdMap, transportService);
+        this.listenerHandler = new ExtensionActionListenerHandler(listener);
         this.transportService = transportService;
         this.clusterService = clusterService;
         registerRequestHandler();
@@ -198,7 +199,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             false,
             false,
             ExtensionActionListenerOnFailureRequest::new,
-            ((request, channel, task) -> channel.sendResponse(handleExtensionActionListenerOnFailureRequest(request)))
+            ((request, channel, task) -> channel.sendResponse(listenerHandler.handleExtensionActionListenerOnFailureRequest(request)))
         );
         transportService.registerRequestHandler(
             REQUEST_EXTENSION_REGISTER_TRANSPORT_ACTIONS,
@@ -350,17 +351,6 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
                 return clusterSettingsResponse;
             default:
                 throw new IllegalArgumentException("Handler not present for the provided request");
-        }
-    }
-
-    public ExtensionBooleanResponse handleExtensionActionListenerOnFailureRequest(ExtensionActionListenerOnFailureRequest request)
-        throws Exception {
-        try {
-            listener.onFailure(new OpenSearchException(request.getFailureException()));
-            return new ExtensionBooleanResponse(true);
-        } catch (Exception e) {
-            logger.error(e.getMessage());
-            throw e;
         }
     }
 
