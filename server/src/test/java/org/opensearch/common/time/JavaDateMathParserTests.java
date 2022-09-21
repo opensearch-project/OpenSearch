@@ -123,6 +123,16 @@ public class JavaDateMathParserTests extends OpenSearchTestCase {
         assertDateMathEquals(formatter.toDateMathParser(), "2015", "2014-12-29T23:59:59.999Z", 0, true, ZoneOffset.UTC);
     }
 
+    public void testDayOfYear() {
+        DateFormatter formatter = DateFormatter.forPattern("yyyy-DDD'T'HH:mm:ss.SSS");
+        assertDateMathEquals(formatter.toDateMathParser(), "2022-104T14:08:31.355", "2022-104T14:08:31.355", 0, true, ZoneOffset.UTC);
+    }
+
+    public void testDayOfYearWithMissingFields() {
+        DateFormatter formatter = DateFormatter.forPattern("yyyy[-DDD'T'HH:mm:ss.SSS]");
+        assertDateMathEquals(formatter.toDateMathParser(), "2022", "2022-01-01T23:59:59.999Z", 0, true, ZoneOffset.UTC);
+    }
+
     public void testBasicDates() {
         assertDateMathEquals("2014-05-30", "2014-05-30T00:00:00.000");
         assertDateMathEquals("2014-05-30T20", "2014-05-30T20:00:00.000");
