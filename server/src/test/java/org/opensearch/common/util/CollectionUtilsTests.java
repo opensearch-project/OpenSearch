@@ -201,4 +201,11 @@ public class CollectionUtilsTests extends OpenSearchTestCase {
         }
 
     }
+
+    public void testIsEmpty() {
+        assertTrue(CollectionUtils.isEmpty(new ArrayList<>()));
+        final List<Integer> list = null;
+        assertTrue(CollectionUtils.isEmpty(list));
+        assertFalse(CollectionUtils.isEmpty(Collections.singletonList(5)));
+    }
 }
