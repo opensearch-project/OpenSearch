@@ -55,6 +55,7 @@ public class NodesStatsRequestTests extends OpenSearchTestCase {
         request.indices(randomFrom(CommonStatsFlags.ALL));
         String[] metrics = randomSubsetOf(NodesStatsRequest.Metric.allMetrics()).toArray(new String[0]);
         request.addMetrics(metrics);
+        request.addRestActionsFilters(generateRandomStringArray(3, 5, false, false));
         NodesStatsRequest deserializedRequest = roundTripRequest(request);
         assertRequestsEqual(request, deserializedRequest);
     }
@@ -103,6 +104,7 @@ public class NodesStatsRequestTests extends OpenSearchTestCase {
 
         assertThat(request.indices().getFlags(), equalTo(CommonStatsFlags.ALL.getFlags()));
         assertThat(request.requestedMetrics(), equalTo(NodesStatsRequest.Metric.allMetrics()));
+        assertEquals(request.getRestActionsFilters().size(), 0);
     }
 
     /**
@@ -114,6 +116,7 @@ public class NodesStatsRequestTests extends OpenSearchTestCase {
 
         assertThat(request.indices().getFlags(), equalTo(CommonStatsFlags.NONE.getFlags()));
         assertThat(request.requestedMetrics(), empty());
+        assertEquals(request.getRestActionsFilters().size(), 0);
     }
 
     /**
@@ -159,5 +162,6 @@ public class NodesStatsRequestTests extends OpenSearchTestCase {
     private static void assertRequestsEqual(NodesStatsRequest request1, NodesStatsRequest request2) {
         assertThat(request1.indices().getFlags(), equalTo(request2.indices().getFlags()));
         assertThat(request1.requestedMetrics(), equalTo(request2.requestedMetrics()));
+        assertEquals(request1.getRestActionsFilters(), request2.getRestActionsFilters());
     }
 }

@@ -51,6 +51,7 @@ import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.monitor.MonitorService;
 import org.opensearch.plugins.PluginsService;
+import org.opensearch.rest.RestActionsStatusCountService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.aggregations.support.AggregationUsageService;
 import org.opensearch.search.backpressure.SearchBackpressureService;
@@ -59,6 +60,7 @@ import org.opensearch.transport.TransportService;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -83,6 +85,7 @@ public class NodeService implements Closeable {
     private final IndexingPressureService indexingPressureService;
     private final AggregationUsageService aggregationUsageService;
     private final SearchBackpressureService searchBackpressureService;
+    private final RestActionsStatusCountService restActionsStatusCountService;
 
     private final Discovery discovery;
 
@@ -104,7 +107,8 @@ public class NodeService implements Closeable {
         SearchTransportService searchTransportService,
         IndexingPressureService indexingPressureService,
         AggregationUsageService aggregationUsageService,
-        SearchBackpressureService searchBackpressureService
+        SearchBackpressureService searchBackpressureService,
+        RestActionsStatusCountService restActionsStatusCountService
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -123,6 +127,7 @@ public class NodeService implements Closeable {
         this.indexingPressureService = indexingPressureService;
         this.aggregationUsageService = aggregationUsageService;
         this.searchBackpressureService = searchBackpressureService;
+        this.restActionsStatusCountService = restActionsStatusCountService;
         clusterService.addStateApplier(ingestService);
     }
 
@@ -174,7 +179,9 @@ public class NodeService implements Closeable {
         boolean scriptCache,
         boolean indexingPressure,
         boolean shardIndexingPressure,
-        boolean searchBackpressure
+        boolean searchBackpressure,
+        boolean restActions,
+        Set<String> restActionsFilters
     ) {
         // for indices stats we want to include previous allocated shards stats as well (it will
         // only be applied to the sensible ones to use, like refresh/merge/flush/indexing stats)
@@ -197,7 +204,8 @@ public class NodeService implements Closeable {
             scriptCache ? scriptService.cacheStats() : null,
             indexingPressure ? this.indexingPressureService.nodeStats() : null,
             shardIndexingPressure ? this.indexingPressureService.shardStats(indices) : null,
-            searchBackpressure ? this.searchBackpressureService.nodeStats() : null
+            searchBackpressure ? this.searchBackpressureService.nodeStats() : null,
+            restActions ? this.restActionsStatusCountService.stats(restActionsFilters) : null
         );
     }
 
@@ -220,6 +228,7 @@ public class NodeService implements Closeable {
 
     /**
      * Wait for the node to be effectively closed.
+     *
      * @see IndicesService#awaitClose(long, TimeUnit)
      */
     public boolean awaitClose(long timeout, TimeUnit timeUnit) throws InterruptedException {

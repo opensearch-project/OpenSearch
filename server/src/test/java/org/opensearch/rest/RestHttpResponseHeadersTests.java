@@ -104,7 +104,15 @@ public class RestHttpResponseHeadersTests extends OpenSearchTestCase {
 
         final Settings settings = Settings.EMPTY;
         UsageService usageService = new UsageService();
-        RestController restController = new RestController(Collections.emptySet(), null, null, circuitBreakerService, usageService);
+        RestActionsStatusCountService restActionsStatusCountService = new RestActionsStatusCountService();
+        RestController restController = new RestController(
+            Collections.emptySet(),
+            null,
+            null,
+            circuitBreakerService,
+            usageService,
+            restActionsStatusCountService
+        );
 
         // A basic RestHandler handles requests to the endpoint
         RestHandler restHandler = new RestHandler() {

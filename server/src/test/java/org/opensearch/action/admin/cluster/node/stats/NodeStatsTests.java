@@ -710,6 +710,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
             scriptCacheStats,
             null,
             null,
+            null,
             null
         );
     }

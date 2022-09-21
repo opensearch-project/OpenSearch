@@ -32,6 +32,7 @@
 
 package org.opensearch.rest.action.admin.cluster;
 
+import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.test.OpenSearchTestCase;
@@ -40,7 +41,9 @@ import org.opensearch.test.rest.FakeRestRequest;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.object.HasToString.hasToString;
@@ -166,4 +169,29 @@ public class RestNodesStatsActionTests extends OpenSearchTestCase {
         );
     }
 
+    public void testRestActionsMetricWithFilterOnAllRequest() throws IOException {
+        final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_nodes/stats")
+            .withParams(Map.of("metric", "_all", "rest_actions_filters", "action_a, action_b"))
+            .build();
+
+        expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, mock(NodeClient.class)));
+    }
+
+    public void testRestActionsFilterWithoutRestActionsMetricRequest() throws IOException {
+        final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_nodes/stats")
+            .withParams(
+                Map.of(
+                    "metric",
+                    randomValueOtherThan(
+                        NodesStatsRequest.Metric.REST_ACTIONS,
+                        () -> randomFrom(RestNodesStatsAction.METRICS.keySet().stream().collect(Collectors.toUnmodifiableList()))
+                    ).toString(),
+                    "rest_actions_filters",
+                    "action_a, action_b"
+                )
+            )
+            .build();
+
+        expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, mock(NodeClient.class)));
+    }
 }
