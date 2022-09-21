@@ -2586,7 +2586,9 @@ public final class InternalTestCluster extends TestCluster {
                     false,
                     false,
                     false,
-                    false
+                    false,
+                    false,
+                    null
                 );
                 assertThat(
                     "Fielddata size must be 0 on node: " + stats.getNode(),

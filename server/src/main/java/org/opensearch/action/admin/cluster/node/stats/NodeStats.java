@@ -119,6 +119,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
     @Nullable
     private ShardIndexingPressureStats shardIndexingPressureStats;
 
+    @Nullable
+    private RestActionsStats restActionsStats;
+
     public NodeStats(StreamInput in) throws IOException {
         super(in);
         timestamp = in.readVLong();
@@ -152,6 +155,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         }
         if (in.getVersion().onOrAfter(Version.V_1_2_0)) {
             shardIndexingPressureStats = in.readOptionalWriteable(ShardIndexingPressureStats::new);
+            restActionsStats = in.readOptionalWriteable(RestActionsStats::new);
         } else {
             shardIndexingPressureStats = null;
         }
@@ -176,7 +180,8 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         @Nullable AdaptiveSelectionStats adaptiveSelectionStats,
         @Nullable ScriptCacheStats scriptCacheStats,
         @Nullable IndexingPressureStats indexingPressureStats,
-        @Nullable ShardIndexingPressureStats shardIndexingPressureStats
+        @Nullable ShardIndexingPressureStats shardIndexingPressureStats,
+        @Nullable RestActionsStats restActionsStats
     ) {
         super(node);
         this.timestamp = timestamp;
@@ -196,6 +201,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         this.scriptCacheStats = scriptCacheStats;
         this.indexingPressureStats = indexingPressureStats;
         this.shardIndexingPressureStats = shardIndexingPressureStats;
+        this.restActionsStats = restActionsStats;
     }
 
     public long getTimestamp() {
@@ -305,6 +311,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         return shardIndexingPressureStats;
     }
 
+    @Nullable
+    public RestActionsStats getRestActionsStats(){return restActionsStats;}
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -335,6 +344,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         }
         if (out.getVersion().onOrAfter(Version.V_1_2_0)) {
             out.writeOptionalWriteable(shardIndexingPressureStats);
+            out.writeOptionalWriteable(restActionsStats);
         }
     }
 
@@ -407,6 +417,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         }
         if (getShardIndexingPressureStats() != null) {
             getShardIndexingPressureStats().toXContent(builder, params);
+        }
+        if(getRestActionsStats() != null){
+            getRestActionsStats().toXContent(builder,params);
         }
         return builder;
     }

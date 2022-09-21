@@ -38,11 +38,7 @@ import org.opensearch.action.support.nodes.BaseNodesRequest;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.SortedSet;
-import java.util.TreeSet;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -54,6 +50,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
 
     private CommonStatsFlags indices = new CommonStatsFlags();
     private final Set<String> requestedMetrics = new HashSet<>();
+    private final Set<String> restActionsFilters = new HashSet<>();
 
     public NodesStatsRequest() {
         super((String[]) null);
@@ -79,6 +76,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
             optionallyAddMetric(in.readBoolean(), Metric.ADAPTIVE_SELECTION.metricName());
         } else {
             requestedMetrics.addAll(in.readStringList());
+            restActionsFilters.addAll(in.readStringList());
         }
     }
 
@@ -96,6 +94,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
     public NodesStatsRequest all() {
         this.indices.all();
         this.requestedMetrics.addAll(Metric.allMetrics());
+        this.clearRestActionsFilters();
         return this;
     }
 
@@ -105,6 +104,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
     public NodesStatsRequest clear() {
         this.indices.clear();
         this.requestedMetrics.clear();
+        this.clearRestActionsFilters();
         return this;
     }
 
@@ -196,6 +196,20 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         }
     }
 
+    public void addRestActionsFilters(String... filters){
+        if(null == filters || filters.length < 1) return;
+        Arrays.stream(filters).forEach(restActionsFilters::add);
+    }
+
+    public void clearRestActionsFilters(){
+        if(null == restActionsFilters || restActionsFilters.isEmpty()) return;
+        restActionsFilters.clear();
+    }
+
+    public Set<String> getRestActionsFilters(){
+        return Collections.unmodifiableSet(restActionsFilters);
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -215,6 +229,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
             out.writeBoolean(Metric.ADAPTIVE_SELECTION.containedIn(requestedMetrics));
         } else {
             out.writeStringArray(requestedMetrics.toArray(new String[0]));
+            out.writeStringArray(restActionsFilters.toArray(new String[0]));
         }
     }
 
@@ -237,7 +252,8 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         ADAPTIVE_SELECTION("adaptive_selection"),
         SCRIPT_CACHE("script_cache"),
         INDEXING_PRESSURE("indexing_pressure"),
-        SHARD_INDEXING_PRESSURE("shard_indexing_pressure");
+        SHARD_INDEXING_PRESSURE("shard_indexing_pressure"),
+        REST_ACTIONS("rest_actions");
 
         private String metricName;
 

@@ -118,7 +118,9 @@ public class TransportNodesStatsAction extends TransportNodesAction<
             NodesStatsRequest.Metric.ADAPTIVE_SELECTION.containedIn(metrics),
             NodesStatsRequest.Metric.SCRIPT_CACHE.containedIn(metrics),
             NodesStatsRequest.Metric.INDEXING_PRESSURE.containedIn(metrics),
-            NodesStatsRequest.Metric.SHARD_INDEXING_PRESSURE.containedIn(metrics)
+            NodesStatsRequest.Metric.SHARD_INDEXING_PRESSURE.containedIn(metrics),
+            NodesStatsRequest.Metric.REST_ACTIONS.containedIn(metrics),
+            request.getRestActionsFilters()
         );
     }
 

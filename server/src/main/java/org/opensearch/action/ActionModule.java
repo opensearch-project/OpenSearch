@@ -283,6 +283,7 @@ import org.opensearch.persistent.StartPersistentTaskAction;
 import org.opensearch.persistent.UpdatePersistentTaskStatusAction;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.ActionPlugin.ActionHandler;
+import org.opensearch.rest.RestActionsService;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
 import org.opensearch.rest.RestHeaderDefinition;
@@ -468,7 +469,8 @@ public class ActionModule extends AbstractModule {
         NodeClient nodeClient,
         CircuitBreakerService circuitBreakerService,
         UsageService usageService,
-        SystemIndices systemIndices
+        SystemIndices systemIndices,
+        RestActionsService restActionsService
     ) {
         this.settings = settings;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -503,7 +505,7 @@ public class ActionModule extends AbstractModule {
             actionPlugins.stream().flatMap(p -> p.indicesAliasesRequestValidators().stream()).collect(Collectors.toList())
         );
 
-        restController = new RestController(headers, restWrapper, nodeClient, circuitBreakerService, usageService);
+        restController = new RestController(headers, restWrapper, nodeClient, circuitBreakerService, usageService, restActionsService);
     }
 
     public Map<String, ActionHandler<?, ?>> getActions() {

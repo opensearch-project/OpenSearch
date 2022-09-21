@@ -43,6 +43,7 @@ import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.rest.RestActionsService;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.search.AbstractSearchTestCase;
@@ -72,7 +73,8 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
     private static NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
 
     private static UsageService usageService = new UsageService();
-    private static RestController controller = new RestController(emptySet(), null, client, new NoneCircuitBreakerService(), usageService);
+    private static RestActionsService restActionsService = new RestActionsService();
+    private static RestController controller = new RestController(emptySet(), null, client, new NoneCircuitBreakerService(), usageService, restActionsService);
     private static RestValidateQueryAction action = new RestValidateQueryAction();
 
     /**
