@@ -1189,8 +1189,10 @@ public class StoreTests extends OpenSearchTestCase {
 
         // we want to ensure commitMetadata files are preserved after calling cleanup
         for (String existingFile : store.directory().listAll()) {
-            assertTrue(commitMetadata.contains(existingFile));
-            assertFalse(additionalSegments.contains(existingFile));
+            if (!IndexWriter.WRITE_LOCK_NAME.equals(existingFile)) {
+                assertTrue(commitMetadata.contains(existingFile));
+                assertFalse(additionalSegments.contains(existingFile));
+            }
         }
         deleteContent(store.directory());
         IOUtils.close(store);
