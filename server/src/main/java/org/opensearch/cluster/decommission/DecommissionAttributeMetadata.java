@@ -107,7 +107,7 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
         return this;
     }
 
-    protected void validateAndSetStatus(DecommissionStatus expected, DecommissionStatus next) {
+    private void validateAndSetStatus(DecommissionStatus expected, DecommissionStatus next) {
         if (status.equals(expected) == false) {
             assert false : "can't move decommission status to ["
                 + next
