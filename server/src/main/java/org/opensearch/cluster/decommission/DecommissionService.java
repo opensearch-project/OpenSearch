@@ -151,7 +151,11 @@ public class DecommissionService {
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 DecommissionAttributeMetadata decommissionAttributeMetadata = newState.metadata().decommissionAttributeMetadata();
                 assert decommissionAttribute.equals(decommissionAttributeMetadata.decommissionAttribute());
-                logger.info("registered decommission metadata for attribute [{}] with status [{}]", decommissionAttributeMetadata.decommissionAttribute(), decommissionAttributeMetadata.status());
+                logger.info(
+                    "registered decommission metadata for attribute [{}] with status [{}]",
+                    decommissionAttributeMetadata.decommissionAttribute(),
+                    decommissionAttributeMetadata.status()
+                );
                 decommissionClusterManagerNodes(decommissionAttributeMetadata.decommissionAttribute(), listener);
             }
         });
@@ -162,10 +166,14 @@ public class DecommissionService {
         ActionListener<ClusterStateUpdateResponse> listener
     ) {
         ClusterState state = clusterService.getClusterApplierService().state();
-        // since here metadata is already registered with INIT, we can guarantee that no new node with decommission attribute can further join the cluster
+        // since here metadata is already registered with INIT, we can guarantee that no new node with decommission attribute can further
+        // join the cluster
         // and hence in further request lifecycle we are sure that no new to-be-decommission leader will join the cluster
         Set<DiscoveryNode> clusterManagerNodesToBeDecommissioned = filterNodesWithDecommissionAttribute(state, decommissionAttribute, true);
-        logger.info("resolved cluster manager eligible nodes [{}] that should be removed from Voting Configuration", clusterManagerNodesToBeDecommissioned.toString());
+        logger.info(
+            "resolved cluster manager eligible nodes [{}] that should be removed from Voting Configuration",
+            clusterManagerNodesToBeDecommissioned.toString()
+        );
 
         // remove all 'to-be-decommissioned' cluster manager eligible nodes from voting config
         Set<String> nodeIdsToBeExcluded = clusterManagerNodesToBeDecommissioned.stream()
@@ -195,7 +203,8 @@ public class DecommissionService {
                     } else {
                         logger.info("will attempt to fail decommissioned nodes as local node is eligible to process the request");
                         // we are good here to send the response now as the request is processed by an eligible active leader
-                        // and to-be-decommissioned cluster manager is no more part of Voting Configuration and no more to-be-decommission nodes can be part of Voting Config
+                        // and to-be-decommissioned cluster manager is no more part of Voting Configuration and no more to-be-decommission
+                        // nodes can be part of Voting Config
                         listener.onResponse(new ClusterStateUpdateResponse(true));
                         failDecommissionedNodes(clusterService.getClusterApplierService().state());
                     }
@@ -282,7 +291,10 @@ public class DecommissionService {
                 @Override
                 public void onFailure(Exception e) {
                     logger.error(
-                        new ParameterizedMessage("failure in removing to-be-decommissioned cluster manager eligible nodes [{}] from voting config", nodeIdsToBeExcluded.toString()),
+                        new ParameterizedMessage(
+                            "failure in removing to-be-decommissioned cluster manager eligible nodes [{}] from voting config",
+                            nodeIdsToBeExcluded.toString()
+                        ),
                         e
                     );
                     exclusionListener.onFailure(e);

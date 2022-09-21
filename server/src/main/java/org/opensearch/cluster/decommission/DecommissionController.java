@@ -10,7 +10,6 @@ package org.opensearch.cluster.decommission;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
@@ -208,7 +207,11 @@ public class DecommissionController {
 
             @Override
             public void onTimeout(TimeValue timeout) {
-                logger.info("timed out [{}] while waiting for removal of decommissioned nodes [{}]", timeout.toString(), nodesToBeDecommissioned.toString());
+                logger.info(
+                    "timed out [{}] while waiting for removal of decommissioned nodes [{}]",
+                    timeout.toString(),
+                    nodesToBeDecommissioned.toString()
+                );
                 nodesRemovedListener.onFailure(
                     new OpenSearchTimeoutException(
                         "timed out [{}] while waiting for removal of decommissioned nodes [{}]",
@@ -258,7 +261,7 @@ public class DecommissionController {
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 DecommissionAttributeMetadata decommissionAttributeMetadata = newState.metadata().decommissionAttributeMetadata();
-                assert decommissionAttributeMetadata!=null;
+                assert decommissionAttributeMetadata != null;
                 assert decommissionAttributeMetadata.status().equals(decommissionStatus);
                 listener.onResponse(decommissionAttributeMetadata.status());
             }
