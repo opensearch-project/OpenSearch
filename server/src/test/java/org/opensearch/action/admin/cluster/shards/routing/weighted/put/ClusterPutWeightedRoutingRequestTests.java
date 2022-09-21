@@ -25,7 +25,7 @@ public class ClusterPutWeightedRoutingRequestTests extends OpenSearchTestCase {
         WeightedRouting weightedRouting = new WeightedRouting("zone", weights);
         request.attributeName("zone");
         request.setWeightedRouting(new BytesArray(reqString), XContentType.JSON);
-        assertEquals(request.weightedRouting(), weightedRouting);
+        assertEquals(request.getWeightedRouting(), weightedRouting);
     }
 
     public void testValidate_ValuesAreProper() {

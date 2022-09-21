@@ -45,20 +45,20 @@ public class WeightedRoutingService extends AbstractLifecycleComponent {
         final ClusterPutWeightedRoutingRequest request,
         final ActionListener<ClusterStateUpdateResponse> listener
     ) {
-        final WeightedRoutingMetadata newWeightedRoutingMetadata = new WeightedRoutingMetadata(request.weightedRouting());
+        final WeightedRoutingMetadata newWeightedRoutingMetadata = new WeightedRoutingMetadata(request.getWeightedRouting());
         clusterService.submitStateUpdateTask("update_weighted_routing", new ClusterStateUpdateTask(Priority.URGENT) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 Metadata metadata = currentState.metadata();
                 Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
-                WeightedRoutingMetadata weightedRoutingMetadata = metadata.weightedRoutingMetadata();
+                WeightedRoutingMetadata weightedRoutingMetadata = metadata.custom(WeightedRoutingMetadata.TYPE);
                 if (weightedRoutingMetadata == null) {
-                    logger.info("putting weighted routing weights in metadata [{}]", request.weightedRouting());
-                    weightedRoutingMetadata = new WeightedRoutingMetadata(request.weightedRouting());
+                    logger.info("put weighted routing weights in metadata [{}]", request.getWeightedRouting());
+                    weightedRoutingMetadata = new WeightedRoutingMetadata(request.getWeightedRouting());
                 } else {
                     WeightedRoutingMetadata changedMetadata = new WeightedRoutingMetadata(new WeightedRouting(null, null));
                     if (!checkIfSameWeightsInMetadata(newWeightedRoutingMetadata, weightedRoutingMetadata)) {
-                        logger.info("updating weighted routing weights [{}] in metadata", request.weightedRouting());
+                        logger.info("updated weighted routing weights [{}] in metadata", request.getWeightedRouting());
                         changedMetadata.setWeightedRouting(newWeightedRoutingMetadata.getWeightedRouting());
                     } else {
                         return currentState;
@@ -66,7 +66,7 @@ public class WeightedRoutingService extends AbstractLifecycleComponent {
                     weightedRoutingMetadata = new WeightedRoutingMetadata(changedMetadata.getWeightedRouting());
                 }
                 mdBuilder.putCustom(WeightedRoutingMetadata.TYPE, weightedRoutingMetadata);
-                logger.info("building cluster state with weighted routing weights [{}]", request.weightedRouting());
+                logger.info("building cluster state with weighted routing weights [{}]", request.getWeightedRouting());
                 return ClusterState.builder(currentState).metadata(mdBuilder).build();
             }
 
@@ -85,27 +85,21 @@ public class WeightedRoutingService extends AbstractLifecycleComponent {
     }
 
     private boolean checkIfSameWeightsInMetadata(
-        WeightedRoutingMetadata newWeightedroutingMetadata,
+        WeightedRoutingMetadata newWeightedRoutingMetadata,
         WeightedRoutingMetadata oldWeightedRoutingMetadata
     ) {
-        if (newWeightedroutingMetadata.getWeightedRouting().equals(oldWeightedRoutingMetadata.getWeightedRouting())) {
+        if (newWeightedRoutingMetadata.getWeightedRouting().equals(oldWeightedRoutingMetadata.getWeightedRouting())) {
             return true;
         }
         return false;
     }
 
     @Override
-    protected void doStart() {
-
-    }
+    protected void doStart() {}
 
     @Override
-    protected void doStop() {
-
-    }
+    protected void doStop() {}
 
     @Override
-    protected void doClose() throws IOException {
-
-    }
+    protected void doClose() throws IOException {}
 }

@@ -37,11 +37,11 @@ public class RestClusterPutWeightedRoutingActionTests extends RestActionTestCase
         String req = "{\"us-east-1c\" : \"1\", \"us-east-1d\":\"1.0\", \"us-east-1a\":\"0.0\"}";
         RestRequest restRequest = buildRestRequest(req);
         ClusterPutWeightedRoutingRequest clusterPutWeightedRoutingRequest = RestClusterPutWeightedRoutingAction.createRequest(restRequest);
-        assertEquals("zone", clusterPutWeightedRoutingRequest.weightedRouting().attributeName());
-        assertNotNull(clusterPutWeightedRoutingRequest.weightedRouting().weights());
-        assertEquals("1.0", clusterPutWeightedRoutingRequest.weightedRouting().weights().get("us-east-1c").toString());
-        assertEquals("1.0", clusterPutWeightedRoutingRequest.weightedRouting().weights().get("us-east-1d").toString());
-        assertEquals("0.0", clusterPutWeightedRoutingRequest.weightedRouting().weights().get("us-east-1a").toString());
+        assertEquals("zone", clusterPutWeightedRoutingRequest.getWeightedRouting().attributeName());
+        assertNotNull(clusterPutWeightedRoutingRequest.getWeightedRouting().weights());
+        assertEquals("1.0", clusterPutWeightedRoutingRequest.getWeightedRouting().weights().get("us-east-1c").toString());
+        assertEquals("1.0", clusterPutWeightedRoutingRequest.getWeightedRouting().weights().get("us-east-1d").toString());
+        assertEquals("0.0", clusterPutWeightedRoutingRequest.getWeightedRouting().weights().get("us-east-1a").toString());
     }
 
     public void testCreateRequest_UnsupportedRequestBody() throws IOException {

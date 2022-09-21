@@ -26,7 +26,7 @@ public class ClusterPutWeightedRoutingRequestBuilder extends ClusterManagerNodeO
     }
 
     public ClusterPutWeightedRoutingRequestBuilder setWeightedRouting(WeightedRouting weightedRouting) {
-        request.weightedRouting(weightedRouting);
+        request.setWeightedRouting(weightedRouting);
         return this;
     }
 
