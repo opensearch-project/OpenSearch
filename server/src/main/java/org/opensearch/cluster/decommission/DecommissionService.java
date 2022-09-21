@@ -49,11 +49,11 @@ import static org.opensearch.cluster.routing.allocation.decider.AwarenessAllocat
  * the service makes the best attempt to perform the following task -
  * <ul>
  * <li>Initiates nodes decommissioning by adding custom metadata with the attribute and state as {@link DecommissionStatus#INIT}</li>
- * <li>Remove cluster-manager eligible nodes from voting config </li>
- * <li>Triggers weigh away for nodes having given awareness attribute to drain. This marks the decommission status as {@link DecommissionStatus#IN_PROGRESS}</li>
- * <li>Once weighed away, the service triggers nodes decommission</li>
+ * <li>Remove to-be-decommissioned cluster-manager eligible nodes from voting config and wait for its abdication if it is active leader</li>
+ * <li>Triggers weigh away for nodes having given awareness attribute to drain.</li>
+ * <li>Once weighed away, the service triggers nodes decommission. This marks the decommission status as {@link DecommissionStatus#IN_PROGRESS}</li>
  * <li>Once the decommission is successful, the service clears the voting config and marks the status as {@link DecommissionStatus#SUCCESSFUL}</li>
- * <li>If service fails at any step, it would mark the status as {@link DecommissionStatus#FAILED}</li>
+ * <li>If service fails at any step, it makes best attempt to mark the status as {@link DecommissionStatus#FAILED} and to clear voting config exclusion</li>
  * </ul>
  *
  * @opensearch.internal
@@ -110,8 +110,7 @@ public class DecommissionService {
 
     /**
      * Starts the new decommission request and registers the metadata with status as {@link DecommissionStatus#INIT}
-     * or the last known status if not {@link DecommissionStatus#FAILED}
-     * Once the status is updated, it tries to exclude to-be-decommissioned cluster manager nodes from Voting Configuration
+     * Once the status is updated, it tries to exclude to-be-decommissioned cluster manager eligible nodes from Voting Configuration
      *
      * @param decommissionAttribute register decommission attribute in the metadata request
      * @param listener register decommission listener
@@ -120,7 +119,7 @@ public class DecommissionService {
         final DecommissionAttribute decommissionAttribute,
         final ActionListener<ClusterStateUpdateResponse> listener
     ) {
-        // register the metadata with status as DECOMMISSION_INIT as first step
+        // register the metadata with status as INIT as first step
         clusterService.submitStateUpdateTask("decommission [" + decommissionAttribute + "]", new ClusterStateUpdateTask(Priority.URGENT) {
             @Override
             public ClusterState execute(ClusterState currentState) {
@@ -152,6 +151,7 @@ public class DecommissionService {
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 DecommissionAttributeMetadata decommissionAttributeMetadata = newState.metadata().decommissionAttributeMetadata();
                 assert decommissionAttribute.equals(decommissionAttributeMetadata.decommissionAttribute());
+                logger.info("registered decommission metadata for attribute [{}] with status [{}]", decommissionAttributeMetadata.decommissionAttribute(), decommissionAttributeMetadata.status());
                 decommissionClusterManagerNodes(decommissionAttributeMetadata.decommissionAttribute(), listener);
             }
         });
@@ -162,7 +162,22 @@ public class DecommissionService {
         ActionListener<ClusterStateUpdateResponse> listener
     ) {
         ClusterState state = clusterService.getClusterApplierService().state();
+        // since here metadata is already registered with INIT, we can guarantee that no new node with decommission attribute can further join the cluster
+        // and hence in further request lifecycle we are sure that no new to-be-decommission leader will join the cluster
         Set<DiscoveryNode> clusterManagerNodesToBeDecommissioned = filterNodesWithDecommissionAttribute(state, decommissionAttribute, true);
+        logger.info("resolved cluster manager eligible nodes [{}] that should be removed from Voting Configuration", clusterManagerNodesToBeDecommissioned.toString());
+
+        // remove all 'to-be-decommissioned' cluster manager eligible nodes from voting config
+        Set<String> nodeIdsToBeExcluded = clusterManagerNodesToBeDecommissioned.stream()
+            .map(DiscoveryNode::getId)
+            .collect(Collectors.toSet());
+
+        final Predicate<ClusterState> allNodesRemovedAndAbdicated = clusterState -> {
+            final Set<String> votingConfigNodeIds = clusterState.getLastCommittedConfiguration().getNodeIds();
+            return nodeIdsToBeExcluded.stream().noneMatch(votingConfigNodeIds::contains)
+                && nodeIdsToBeExcluded.contains(clusterState.nodes().getClusterManagerNodeId()) == false;
+        };
+
         ActionListener<Void> exclusionListener = new ActionListener<Void>() {
             @Override
             public void onResponse(Void unused) {
@@ -180,7 +195,7 @@ public class DecommissionService {
                     } else {
                         logger.info("will attempt to fail decommissioned nodes as local node is eligible to process the request");
                         // we are good here to send the response now as the request is processed by an eligible active leader
-                        // and to-be-decommissioned cluster manager is no more part of Voting Configuration
+                        // and to-be-decommissioned cluster manager is no more part of Voting Configuration and no more to-be-decommission nodes can be part of Voting Config
                         listener.onResponse(new ClusterStateUpdateResponse(true));
                         failDecommissionedNodes(clusterService.getClusterApplierService().state());
                     }
@@ -209,19 +224,10 @@ public class DecommissionService {
             }
         };
 
-        // remove all 'to-be-decommissioned' cluster manager eligible nodes from voting config
-        Set<String> nodeIdsToBeExcluded = clusterManagerNodesToBeDecommissioned.stream()
-            .map(DiscoveryNode::getId)
-            .collect(Collectors.toSet());
-
-        final Predicate<ClusterState> allNodesRemovedAndAbdicated = clusterState -> {
-            final Set<String> votingConfigNodeIds = clusterState.getLastCommittedConfiguration().getNodeIds();
-            return nodeIdsToBeExcluded.stream().noneMatch(votingConfigNodeIds::contains)
-                && nodeIdsToBeExcluded.contains(clusterState.nodes().getClusterManagerNodeId()) == false;
-        };
-        if (allNodesRemovedAndAbdicated.test(clusterService.getClusterApplierService().state())) {
+        if (allNodesRemovedAndAbdicated.test(state)) {
             exclusionListener.onResponse(null);
         } else {
+            logger.debug("sending transport request to remove nodes [{}] from voting config", nodeIdsToBeExcluded.toString());
             // send a transport request to exclude to-be-decommissioned cluster manager eligible nodes from voting config
             decommissionController.excludeDecommissionedNodesFromVotingConfig(nodeIdsToBeExcluded, new ActionListener<Void>() {
                 @Override
@@ -232,7 +238,7 @@ public class DecommissionService {
                     );
                     final ClusterStateObserver abdicationObserver = new ClusterStateObserver(
                         clusterService,
-                        TimeValue.timeValueSeconds(30L),
+                        TimeValue.timeValueSeconds(60L),
                         logger,
                         threadPool.getThreadContext()
                     );
@@ -264,17 +270,19 @@ public class DecommissionService {
                     };
                     // In case the cluster state is already processed even before this code is executed
                     // therefore testing first before attaching the listener
-                    if (allNodesRemovedAndAbdicated.test(clusterService.getClusterApplierService().state())) {
-                        abdicationListener.onNewClusterState(clusterService.getClusterApplierService().state());
+                    ClusterState currentState = clusterService.getClusterApplierService().state();
+                    if (allNodesRemovedAndAbdicated.test(currentState)) {
+                        abdicationListener.onNewClusterState(currentState);
                     } else {
+                        logger.debug("waiting to abdicate to-be-decommissioned leader");
                         abdicationObserver.waitForNextChange(abdicationListener, allNodesRemovedAndAbdicated);
                     }
                 }
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.debug(
-                        new ParameterizedMessage("failure in removing decommissioned cluster manager eligible nodes from voting config"),
+                    logger.error(
+                        new ParameterizedMessage("failure in removing to-be-decommissioned cluster manager eligible nodes [{}] from voting config", nodeIdsToBeExcluded.toString()),
                         e
                     );
                     exclusionListener.onFailure(e);
