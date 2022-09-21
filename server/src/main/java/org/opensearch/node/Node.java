@@ -45,6 +45,7 @@ import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.indices.replication.SegmentReplicationSourceService;
 import org.opensearch.search.backpressure.SearchBackpressureService;
 import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
+import org.opensearch.rest.RestActionsStatusCountService;
 import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.threadpool.RunnableTaskExecutionListener;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
@@ -728,6 +729,7 @@ public class Node implements Closeable {
                 )
                 .collect(Collectors.toList());
 
+            RestActionsStatusCountService restActionsStatusCountService = new RestActionsStatusCountService();
             ActionModule actionModule = new ActionModule(
                 settings,
                 clusterModule.getIndexNameExpressionResolver(),
@@ -739,7 +741,8 @@ public class Node implements Closeable {
                 client,
                 circuitBreakerService,
                 usageService,
-                systemIndices
+                systemIndices,
+                restActionsStatusCountService
             );
             modules.add(actionModule);
 
@@ -904,7 +907,8 @@ public class Node implements Closeable {
                 searchTransportService,
                 indexingPressureService,
                 searchModule.getValuesSourceRegistry().getUsageService(),
-                searchBackpressureService
+                searchBackpressureService,
+                restActionsStatusCountService
             );
 
             final SearchService searchService = newSearchService(

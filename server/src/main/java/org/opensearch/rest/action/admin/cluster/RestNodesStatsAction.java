@@ -121,6 +121,16 @@ public class RestNodesStatsAction extends BaseRestHandler {
                     )
                 );
             }
+            if (request.hasParam("rest_actions_filters")) {
+                throw new IllegalArgumentException(
+                    String.format(
+                        Locale.ROOT,
+                        "request [%s] contains rest actions filters [%s] but all stats requested",
+                        request.path(),
+                        request.param("rest_actions_filters")
+                    )
+                );
+            }
             nodesStatsRequest.all();
             nodesStatsRequest.indices(CommonStatsFlags.ALL);
         } else if (metrics.contains("_all")) {
@@ -185,6 +195,19 @@ public class RestNodesStatsAction extends BaseRestHandler {
                     )
                 );
             }
+            if (metrics.contains("rest_actions") && request.hasParam("rest_actions_filters")) {
+                nodesStatsRequest.addRestActionsFilters(request.paramAsStringArray("rest_actions_filters", null));
+            } else if (request.hasParam("rest_actions_filters")) {
+                throw new IllegalArgumentException(
+                    String.format(
+                        Locale.ROOT,
+                        "request [%s] contains invalid query parameters [%s]",
+                        request.path(),
+                        request.hasParam("rest_actions_filters")
+                    )
+                );
+            }
+
         }
 
         if (nodesStatsRequest.indices().isSet(Flag.FieldData) && (request.hasParam("fields") || request.hasParam("fielddata_fields"))) {

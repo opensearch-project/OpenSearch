@@ -107,16 +107,20 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
     private final CircuitBreakerService circuitBreakerService;
 
-    /** Rest headers that are copied to internal requests made during a rest request. */
+    /**
+     * Rest headers that are copied to internal requests made during a rest request.
+     */
     private final Set<RestHeaderDefinition> headersToCopy;
     private final UsageService usageService;
+    private final RestActionsStatusCountService restActionsStatusCountService;
 
     public RestController(
         Set<RestHeaderDefinition> headersToCopy,
         UnaryOperator<RestHandler> handlerWrapper,
         NodeClient client,
         CircuitBreakerService circuitBreakerService,
-        UsageService usageService
+        UsageService usageService,
+        RestActionsStatusCountService restActionsStatusCountService
     ) {
         this.headersToCopy = headersToCopy;
         this.usageService = usageService;
@@ -131,14 +135,15 @@ public class RestController implements HttpServerTransport.Dispatcher {
             "/favicon.ico",
             (request, channel, clnt) -> channel.sendResponse(new BytesRestResponse(RestStatus.OK, "image/x-icon", FAVICON_RESPONSE))
         );
+        this.restActionsStatusCountService = restActionsStatusCountService;
     }
 
     /**
      * Registers a REST handler to be executed when the provided {@code method} and {@code path} match the request.
      *
-     * @param method GET, POST, etc.
-     * @param path Path to handle (e.g., "/{index}/{type}/_bulk")
-     * @param handler The handler to actually execute
+     * @param method             GET, POST, etc.
+     * @param path               Path to handle (e.g., "/{index}/{type}/_bulk")
+     * @param handler            The handler to actually execute
      * @param deprecationMessage The message to log and send as a header in the response
      */
     protected void registerAsDeprecatedHandler(RestRequest.Method method, String path, RestHandler handler, String deprecationMessage) {
@@ -165,11 +170,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * Deprecated REST handlers without a direct replacement should be deprecated directly using {@link #registerAsDeprecatedHandler}
      * and a specific message.
      *
-     * @param method GET, POST, etc.
-     * @param path Path to handle (e.g., "/_forcemerge")
-     * @param handler The handler to actually execute
+     * @param method           GET, POST, etc.
+     * @param path             Path to handle (e.g., "/_forcemerge")
+     * @param handler          The handler to actually execute
      * @param deprecatedMethod GET, POST, etc.
-     * @param deprecatedPath <em>Deprecated</em> path to handle (e.g., "/_optimize")
+     * @param deprecatedPath   <em>Deprecated</em> path to handle (e.g., "/_optimize")
      */
     protected void registerWithDeprecatedHandler(
         RestRequest.Method method,
@@ -196,13 +201,14 @@ public class RestController implements HttpServerTransport.Dispatcher {
     /**
      * Registers a REST handler to be executed when one of the provided methods and path match the request.
      *
-     * @param path Path to handle (e.g., "/{index}/{type}/_bulk")
+     * @param path    Path to handle (e.g., "/{index}/{type}/_bulk")
      * @param handler The handler to actually execute
-     * @param method GET, POST, etc.
+     * @param method  GET, POST, etc.
      */
     protected void registerHandler(RestRequest.Method method, String path, RestHandler handler) {
         if (handler instanceof BaseRestHandler) {
             usageService.addRestHandler((BaseRestHandler) handler);
+            restActionsStatusCountService.addRestHandler((BaseRestHandler) handler);
         }
         registerHandlerNoWrap(method, path, handlerWrapper.apply(handler));
     }
@@ -297,7 +303,13 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(contentLength);
             }
             // iff we could reserve bytes for the request we need to send the response also over this channel
-            responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength);
+            responseChannel = new ResourceHandlingHttpChannel(
+                channel,
+                circuitBreakerService,
+                contentLength,
+                handler,
+                restActionsStatusCountService
+            );
             // TODO: Count requests double in the circuit breaker if they need copying?
             if (handler.allowsUnsafeBuffers() == false) {
                 request.ensureSafeBuffers();
@@ -525,11 +537,21 @@ public class RestController implements HttpServerTransport.Dispatcher {
         private final CircuitBreakerService circuitBreakerService;
         private final int contentLength;
         private final AtomicBoolean closed = new AtomicBoolean();
+        private final RestHandler restHandler;
+        private final RestActionsStatusCountService restActionsStatusCountService;
 
-        ResourceHandlingHttpChannel(RestChannel delegate, CircuitBreakerService circuitBreakerService, int contentLength) {
+        ResourceHandlingHttpChannel(
+            RestChannel delegate,
+            CircuitBreakerService circuitBreakerService,
+            int contentLength,
+            RestHandler restHandler,
+            RestActionsStatusCountService restActionsStatusCountService
+        ) {
             this.delegate = delegate;
             this.circuitBreakerService = circuitBreakerService;
             this.contentLength = contentLength;
+            this.restHandler = restHandler;
+            this.restActionsStatusCountService = restActionsStatusCountService;
         }
 
         @Override
@@ -572,6 +594,10 @@ public class RestController implements HttpServerTransport.Dispatcher {
         public void sendResponse(RestResponse response) {
             close();
             delegate.sendResponse(response);
+            if (restHandler instanceof BaseRestHandler) restActionsStatusCountService.putStatus(
+                ((BaseRestHandler) restHandler).getName(),
+                response.status()
+            );
         }
 
         private void close() {
