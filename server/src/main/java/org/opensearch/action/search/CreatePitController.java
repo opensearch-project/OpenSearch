@@ -214,7 +214,7 @@ public class CreatePitController {
                             "Create pit update phase for PIT ID ["
                                 + searchResponse.pointInTimeId()
                                 + "] failed because node["
-                                + node
+                                + entry.getValue().getNode()
                                 + "] "
                                 + "not found"
                         )

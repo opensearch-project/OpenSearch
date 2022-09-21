@@ -100,13 +100,13 @@ public class PitSegmentsRequest extends BroadcastRequest<PitSegmentsRequest> {
                     if (token == XContentParser.Token.START_ARRAY) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             if (token.isValue() == false) {
-                                throw new IllegalArgumentException("pit_id array element should only contain pit_id");
+                                throw new IllegalArgumentException("pit_id array element should only contain PIT identifier");
                             }
                             pitIds.add(parser.text());
                         }
                     } else {
                         if (token.isValue() == false) {
-                            throw new IllegalArgumentException("pit_id element should only contain pit_id");
+                            throw new IllegalArgumentException("pit_id element should only contain PIT identifier");
                         }
                         pitIds.add(parser.text());
                     }
