@@ -94,7 +94,7 @@ public class TransportPutWeightedRoutingAction extends TransportClusterManagerNo
         ClusterState state,
         ActionListener<ClusterPutWeightedRoutingResponse> listener
     ) throws Exception {
-        verifyAwarenessAttribute(request.weightedRouting().attributeName());
+        verifyAwarenessAttribute(request.getWeightedRouting().attributeName());
         weightedRoutingService.registerWeightedRoutingMetadata(
             request,
             ActionListener.delegateFailure(

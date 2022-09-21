@@ -25,11 +25,11 @@ public class ClusterPutWeightedRoutingRequestTests extends OpenSearchTestCase {
         WeightedRouting weightedRouting = new WeightedRouting("zone", weights);
         request.attributeName("zone");
         request.setWeightedRouting(new BytesArray(reqString), XContentType.JSON);
-        assertEquals(request.weightedRouting(), weightedRouting);
+        assertEquals(request.getWeightedRouting(), weightedRouting);
     }
 
     public void testValidate_ValuesAreProper() {
-        String reqString = "{\"us-east-1c\" : \"1\", \"us-east-1b\":0,\"us-east-1a\":\"1\"}";
+        String reqString = "{\"us-east-1c\" : \"1\", \"us-east-1b\":\"0\",\"us-east-1a\":\"1\"}";
         ClusterPutWeightedRoutingRequest request = new ClusterPutWeightedRoutingRequest();
         request.attributeName("zone");
         request.setWeightedRouting(new BytesArray(reqString), XContentType.JSON);
