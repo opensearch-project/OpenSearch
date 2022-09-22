@@ -45,7 +45,7 @@ import java.util.Objects;
 /**
  * Base implementation of geogrid aggs
  *
- * @opensearch.internal
+ * @opensearch.api
  */
 public abstract class InternalGeoGridBucket<B extends InternalGeoGridBucket> extends InternalMultiBucketAggregation.InternalBucket
     implements
@@ -80,7 +80,7 @@ public abstract class InternalGeoGridBucket<B extends InternalGeoGridBucket> ext
         aggregations.writeTo(out);
     }
 
-    long hashAsLong() {
+    public long hashAsLong() {
         return hashAsLong;
     }
 

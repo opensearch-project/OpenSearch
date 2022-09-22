@@ -55,7 +55,7 @@ import java.util.Map;
 /**
  * Aggregates data expressed as longs (for efficiency's sake) but formats results as aggregation-specific strings.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
 public abstract class GeoGridAggregator<T extends InternalGeoGrid> extends BucketsAggregator {
 
@@ -64,7 +64,7 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid> extends Bucke
     protected final ValuesSource.Numeric valuesSource;
     protected final LongKeyedBucketOrds bucketOrds;
 
-    GeoGridAggregator(
+    protected GeoGridAggregator(
         String name,
         AggregatorFactories factories,
         ValuesSource.Numeric valuesSource,
@@ -118,14 +118,14 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid> extends Bucke
         };
     }
 
-    abstract T buildAggregation(String name, int requiredSize, List<InternalGeoGridBucket> buckets, Map<String, Object> metadata);
+    protected abstract T buildAggregation(String name, int requiredSize, List<InternalGeoGridBucket> buckets, Map<String, Object> metadata);
 
     /**
      * This method is used to return a re-usable instance of the bucket when building
      * the aggregation.
      * @return a new {@link InternalGeoGridBucket} implementation with empty parameters
      */
-    abstract InternalGeoGridBucket newEmptyBucket();
+    protected abstract InternalGeoGridBucket newEmptyBucket();
 
     @Override
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
