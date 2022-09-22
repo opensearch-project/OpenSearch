@@ -664,7 +664,9 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
             extensionNode,
             componentSettings
         );
-        TransportResponse response = extensionsOrchestrator.handleAddSettingsUpdateConsumerRequest(addSettingsUpdateConsumerRequest);
+        TransportResponse response = extensionsOrchestrator.addSettingsUpdateConsumerRequestHandler.handleAddSettingsUpdateConsumerRequest(
+            addSettingsUpdateConsumerRequest
+        );
         assertEquals(ExtensionBooleanResponse.class, response.getClass());
         // Should fail as component settings are not registered within cluster settings
         assertEquals(false, ((ExtensionBooleanResponse) response).getStatus());

@@ -33,14 +33,11 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.io.FileSystemUtils;
 import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.settings.WriteableSetting;
 import org.opensearch.common.settings.SettingsModule;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.discovery.InitializeExtensionsRequest;
 import org.opensearch.discovery.InitializeExtensionsResponse;
-import org.opensearch.env.EnvironmentSettingsResponse;
 import org.opensearch.extensions.ExtensionsSettings.Extension;
 import org.opensearch.extensions.rest.RegisterRestActionsRequest;
 import org.opensearch.extensions.rest.RestActionsRequestHandler;
@@ -126,7 +123,8 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     ClusterService clusterService;
     ExtensionNamedWriteableRegistry namedWriteableRegistry;
     ExtensionActionListener<ExtensionBooleanResponse> listener;
-    Settings initialEnvironmentSettings;
+    EnvironmentSettingsRequestHandler environmentSettingsRequestHandler;
+    AddSettingsUpdateConsumerRequestHandler addSettingsUpdateConsumerRequestHandler;
 
     /**
      * Instantiate a new ExtensionsOrchestrator object to handle requests and responses from extensions. This is called during Node bootstrap.
@@ -144,7 +142,6 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         this.clusterService = null;
         this.namedWriteableRegistry = null;
         this.listener = new ExtensionActionListener<ExtensionBooleanResponse>();
-        this.initialEnvironmentSettings = null;
 
         /*
          * Now Discover extensions
@@ -174,7 +171,12 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         this.customSettingsRequestHandler = new CustomSettingsRequestHandler(settingsModule);
         this.transportService = transportService;
         this.clusterService = clusterService;
-        this.initialEnvironmentSettings = initialEnvironmentSettings;
+        this.environmentSettingsRequestHandler = new EnvironmentSettingsRequestHandler(initialEnvironmentSettings);
+        this.addSettingsUpdateConsumerRequestHandler = new AddSettingsUpdateConsumerRequestHandler(
+            clusterService,
+            transportService,
+            REQUEST_EXTENSION_UPDATE_SETTINGS
+        );
         registerRequestHandler();
     }
 
@@ -233,7 +235,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             false,
             false,
             EnvironmentSettingsRequest::new,
-            ((request, channel, task) -> channel.sendResponse(handleEnvironmentSettingsRequest(request)))
+            ((request, channel, task) -> channel.sendResponse(environmentSettingsRequestHandler.handleEnvironmentSettingsRequest(request)))
         );
         transportService.registerRequestHandler(
             REQUEST_EXTENSION_ADD_SETTINGS_UPDATE_CONSUMER,
@@ -241,7 +243,9 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             false,
             false,
             AddSettingsUpdateConsumerRequest::new,
-            ((request, channel, task) -> channel.sendResponse(handleAddSettingsUpdateConsumerRequest(request)))
+            ((request, channel, task) -> channel.sendResponse(
+                addSettingsUpdateConsumerRequestHandler.handleAddSettingsUpdateConsumerRequest(request)
+            ))
         );
         transportService.registerRequestHandler(
             REQUEST_EXTENSION_REGISTER_TRANSPORT_ACTIONS,
@@ -387,58 +391,6 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
          * and add support for NodeClient to recognise these actions when making transport calls.
          */
         return new ExtensionBooleanResponse(true);
-    }
-
-    /**
-     * Handles a {@link EnvironmentSettingsRequest}.
-     *
-     * @param environmentSettingsRequest  The request to handle.
-     * @return  A {@link EnvironmentSettingsResponse}
-     * @throws Exception if the request is not handled properly.
-     */
-    TransportResponse handleEnvironmentSettingsRequest(EnvironmentSettingsRequest environmentSettingsRequest) throws Exception {
-        return new EnvironmentSettingsResponse(this.initialEnvironmentSettings, environmentSettingsRequest.getComponentSettings());
-    }
-
-    /**
-     * Handles a {@link AddSettingsUpdateConsumerRequest}.
-     *
-     * @param addSettingsUpdateConsumerRequest  The request to handle.
-     * @return  A {@link ExtensionBooleanResponse} indicating success.
-     * @throws Exception if the request is not handled properly.
-     */
-    TransportResponse handleAddSettingsUpdateConsumerRequest(AddSettingsUpdateConsumerRequest addSettingsUpdateConsumerRequest)
-        throws Exception {
-
-        boolean status = true;
-        List<WriteableSetting> extensionComponentSettings = addSettingsUpdateConsumerRequest.getComponentSettings();
-        DiscoveryExtension extensionNode = addSettingsUpdateConsumerRequest.getExtensionNode();
-
-        try {
-            for (WriteableSetting extensionComponentSetting : extensionComponentSettings) {
-
-                // Extract setting and type from writeable setting
-                Setting<?> setting = extensionComponentSetting.getSetting();
-                WriteableSetting.SettingType settingType = extensionComponentSetting.getType();
-
-                // Register setting update consumer with callback method to extension
-                this.clusterService.getClusterSettings().addSettingsUpdateConsumer(setting, (data) -> {
-                    logger.info("Sending extension request type: " + REQUEST_EXTENSION_UPDATE_SETTINGS);
-                    UpdateSettingsResponseHandler updateSettingsResponseHandler = new UpdateSettingsResponseHandler();
-                    transportService.sendRequest(
-                        extensionNode,
-                        REQUEST_EXTENSION_UPDATE_SETTINGS,
-                        new UpdateSettingsRequest(settingType, setting, data),
-                        updateSettingsResponseHandler
-                    );
-                });
-            }
-        } catch (IllegalArgumentException e) {
-            logger.error(e.toString());
-            status = false;
-        }
-
-        return new ExtensionBooleanResponse(status);
     }
 
     /**
