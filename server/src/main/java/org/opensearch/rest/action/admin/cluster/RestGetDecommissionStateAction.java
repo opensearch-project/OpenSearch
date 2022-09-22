@@ -35,7 +35,7 @@ public class RestGetDecommissionStateAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "get_decommission_action";
+        return "get_decommission_state_action";
     }
 
     @Override
