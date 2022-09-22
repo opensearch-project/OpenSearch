@@ -9,7 +9,7 @@
 package org.opensearch.rest.action.admin.cluster;
 
 import org.junit.Before;
-import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionRequest;
+import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionStateRequest;
 import org.opensearch.rest.RestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.test.rest.FakeRestRequest;
@@ -17,13 +17,13 @@ import org.opensearch.test.rest.RestActionTestCase;
 
 import java.util.List;
 
-public class RestDeleteDecommissionActionTests extends RestActionTestCase {
+public class RestDeleteDecommissionStateActionTests extends RestActionTestCase {
 
-    private RestDeleteDecommissionAction action;
+    private RestDeleteDecommissionStateAction action;
 
     @Before
     public void setupAction() {
-        action = new RestDeleteDecommissionAction();
+        action = new RestDeleteDecommissionStateAction();
         controller().registerHandler(action);
     }
 
@@ -35,7 +35,7 @@ public class RestDeleteDecommissionActionTests extends RestActionTestCase {
     }
 
     public void testCreateRequest() {
-        DeleteDecommissionRequest request = action.createRequest();
+        DeleteDecommissionStateRequest request = action.createRequest();
         assertNotNull(request);
     }
 

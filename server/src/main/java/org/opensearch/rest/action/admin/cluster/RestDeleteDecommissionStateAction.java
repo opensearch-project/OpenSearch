@@ -8,7 +8,7 @@
 
 package org.opensearch.rest.action.admin.cluster;
 
-import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionRequest;
+import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionStateRequest;
 import org.opensearch.client.Requests;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.rest.BaseRestHandler;
@@ -26,7 +26,7 @@ import static org.opensearch.rest.RestRequest.Method.DELETE;
  *
  * @opensearch.api
  */
-public class RestDeleteDecommissionAction extends BaseRestHandler {
+public class RestDeleteDecommissionStateAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
@@ -35,16 +35,16 @@ public class RestDeleteDecommissionAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "delete_decommission_action";
+        return "delete_decommission_state_action";
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        DeleteDecommissionRequest deleteDecommissionRequest = createRequest();
-        return channel -> client.admin().cluster().deleteDecommission(deleteDecommissionRequest, new RestToXContentListener<>(channel));
+        DeleteDecommissionStateRequest deleteDecommissionStateRequest = createRequest();
+        return channel -> client.admin().cluster().deleteDecommission(deleteDecommissionStateRequest, new RestToXContentListener<>(channel));
     }
 
-    DeleteDecommissionRequest createRequest() {
+    DeleteDecommissionStateRequest createRequest() {
         return Requests.deleteDecommissionRequest();
     }
 }

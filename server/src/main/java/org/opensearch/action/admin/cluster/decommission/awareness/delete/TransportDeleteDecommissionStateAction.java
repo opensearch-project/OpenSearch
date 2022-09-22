@@ -30,14 +30,14 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public class TransportDeleteDecommissionAction extends TransportClusterManagerNodeAction<
-    DeleteDecommissionRequest,
-    DeleteDecommissionResponse> {
+public class TransportDeleteDecommissionStateAction extends TransportClusterManagerNodeAction<
+        DeleteDecommissionStateRequest,
+        DeleteDecommissionStateResponse> {
 
-    private static final Logger logger = LogManager.getLogger(TransportDeleteDecommissionAction.class);
+    private static final Logger logger = LogManager.getLogger(TransportDeleteDecommissionStateAction.class);
 
     @Inject
-    public TransportDeleteDecommissionAction(
+    public TransportDeleteDecommissionStateAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
@@ -50,7 +50,7 @@ public class TransportDeleteDecommissionAction extends TransportClusterManagerNo
             clusterService,
             threadPool,
             actionFilters,
-            DeleteDecommissionRequest::new,
+            DeleteDecommissionStateRequest::new,
             indexNameExpressionResolver
         );
     }
@@ -61,23 +61,23 @@ public class TransportDeleteDecommissionAction extends TransportClusterManagerNo
     }
 
     @Override
-    protected DeleteDecommissionResponse read(StreamInput in) throws IOException {
-        return new DeleteDecommissionResponse(in);
+    protected DeleteDecommissionStateResponse read(StreamInput in) throws IOException {
+        return new DeleteDecommissionStateResponse(in);
     }
 
     @Override
-    protected ClusterBlockException checkBlock(DeleteDecommissionRequest request, ClusterState state) {
+    protected ClusterBlockException checkBlock(DeleteDecommissionStateRequest request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
     @Override
     protected void clusterManagerOperation(
-        DeleteDecommissionRequest request,
+        DeleteDecommissionStateRequest request,
         ClusterState state,
-        ActionListener<DeleteDecommissionResponse> listener
+        ActionListener<DeleteDecommissionStateResponse> listener
     ) {
         // TODO: Enable when service class change is merged
         logger.info("Received delete decommission Request");
-        listener.onResponse(new DeleteDecommissionResponse(true));
+        listener.onResponse(new DeleteDecommissionStateResponse(true));
     }
 }

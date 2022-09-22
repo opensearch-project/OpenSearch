@@ -16,12 +16,12 @@ import org.opensearch.client.OpenSearchClient;
  *
  * @opensearch.internal
  */
-public class DeleteDecommissionRequestBuilder extends ClusterManagerNodeOperationRequestBuilder<
-    DeleteDecommissionRequest,
-    DeleteDecommissionResponse,
-    DeleteDecommissionRequestBuilder> {
+public class DeleteDecommissionStateRequestBuilder extends ClusterManagerNodeOperationRequestBuilder<
+        DeleteDecommissionStateRequest,
+        DeleteDecommissionStateResponse,
+        DeleteDecommissionStateRequestBuilder> {
 
-    public DeleteDecommissionRequestBuilder(OpenSearchClient client, DeleteDecommissionStateAction action) {
-        super(client, action, new DeleteDecommissionRequest());
+    public DeleteDecommissionStateRequestBuilder(OpenSearchClient client, DeleteDecommissionStateAction action) {
+        super(client, action, new DeleteDecommissionStateRequest());
     }
 }

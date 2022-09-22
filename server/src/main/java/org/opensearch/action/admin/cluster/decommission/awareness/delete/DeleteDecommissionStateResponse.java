@@ -8,29 +8,26 @@
 
 package org.opensearch.action.admin.cluster.decommission.awareness.delete;
 
-import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
+import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.xcontent.ToXContentObject;
 
 import java.io.IOException;
 
 /**
- * Request for deleting decommission request.
+ * Response returned after deletion of decommission request.
  *
  * @opensearch.internal
  */
-public class DeleteDecommissionRequest extends ClusterManagerNodeRequest<DeleteDecommissionRequest> {
+public class DeleteDecommissionStateResponse extends AcknowledgedResponse implements ToXContentObject {
 
-    public DeleteDecommissionRequest() {}
-
-    public DeleteDecommissionRequest(StreamInput in) throws IOException {
+    public DeleteDecommissionStateResponse(StreamInput in) throws IOException {
         super(in);
     }
 
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
+    public DeleteDecommissionStateResponse(boolean acknowledged) {
+        super(acknowledged);
     }
 
     @Override

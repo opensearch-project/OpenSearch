@@ -44,9 +44,9 @@ import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainRe
 import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainRequestBuilder;
 import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
 import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionStateAction;
-import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionRequest;
-import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionRequestBuilder;
-import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionResponse;
+import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionStateRequest;
+import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionStateRequestBuilder;
+import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionStateResponse;
 import org.opensearch.action.admin.cluster.health.ClusterHealthAction;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
@@ -1269,18 +1269,18 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public ActionFuture<DeleteDecommissionResponse> deleteDecommission(DeleteDecommissionRequest request) {
+        public ActionFuture<DeleteDecommissionStateResponse> deleteDecommission(DeleteDecommissionStateRequest request) {
             return execute(DeleteDecommissionStateAction.INSTANCE, request);
         }
 
         @Override
-        public void deleteDecommission(DeleteDecommissionRequest request, ActionListener<DeleteDecommissionResponse> listener) {
+        public void deleteDecommission(DeleteDecommissionStateRequest request, ActionListener<DeleteDecommissionStateResponse> listener) {
             execute(DeleteDecommissionStateAction.INSTANCE, request, listener);
         }
 
         @Override
-        public DeleteDecommissionRequestBuilder prepareDeleteDecommission() {
-            return new DeleteDecommissionRequestBuilder(this, DeleteDecommissionStateAction.INSTANCE);
+        public DeleteDecommissionStateRequestBuilder prepareDeleteDecommission() {
+            return new DeleteDecommissionStateRequestBuilder(this, DeleteDecommissionStateAction.INSTANCE);
         }
 
         @Override

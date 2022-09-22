@@ -8,23 +8,23 @@
 
 package org.opensearch.action.admin.cluster.decommission.awareness;
 
-import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionRequest;
+import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionStateRequest;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
-public class DeleteDecommissionRequestTests extends OpenSearchTestCase {
+public class DeleteDecommissionStateRequestTests extends OpenSearchTestCase {
 
     public void testSerialization() throws IOException {
-        final DeleteDecommissionRequest originalRequest = new DeleteDecommissionRequest();
+        final DeleteDecommissionStateRequest originalRequest = new DeleteDecommissionStateRequest();
 
-        final DeleteDecommissionRequest cloneRequest;
+        final DeleteDecommissionStateRequest cloneRequest;
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             originalRequest.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
-                cloneRequest = new DeleteDecommissionRequest(in);
+                cloneRequest = new DeleteDecommissionStateRequest(in);
             }
         }
         assertEquals(cloneRequest.clusterManagerNodeTimeout(), originalRequest.clusterManagerNodeTimeout());

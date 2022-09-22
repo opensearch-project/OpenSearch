@@ -37,9 +37,9 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
 import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainRequestBuilder;
 import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
-import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionRequest;
-import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionRequestBuilder;
-import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionResponse;
+import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionStateRequest;
+import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionStateRequestBuilder;
+import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionStateResponse;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -798,15 +798,15 @@ public interface ClusterAdminClient extends OpenSearchClient {
     /**
      * Deletes the decommission metadata.
      */
-    ActionFuture<DeleteDecommissionResponse> deleteDecommission(DeleteDecommissionRequest request);
+    ActionFuture<DeleteDecommissionStateResponse> deleteDecommission(DeleteDecommissionStateRequest request);
 
     /**
      * Deletes the decommission metadata.
      */
-    void deleteDecommission(DeleteDecommissionRequest request, ActionListener<DeleteDecommissionResponse> listener);
+    void deleteDecommission(DeleteDecommissionStateRequest request, ActionListener<DeleteDecommissionStateResponse> listener);
 
     /**
      * Deletes the decommission metadata.
      */
-    DeleteDecommissionRequestBuilder prepareDeleteDecommission();
+    DeleteDecommissionStateRequestBuilder prepareDeleteDecommission();
 }
