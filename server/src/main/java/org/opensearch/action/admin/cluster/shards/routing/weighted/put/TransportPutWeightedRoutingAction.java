@@ -110,8 +110,9 @@ public class TransportPutWeightedRoutingAction extends TransportClusterManagerNo
         // Currently, only zone is supported
         if (!getAwarenessAttributes().contains(attributeName) || !attributeName.equalsIgnoreCase("zone")) {
             ActionRequestValidationException validationException = null;
+
             validationException = addValidationError(
-                "invalid awareness attribute " + attributeName + " requested for " + "updating weighted routing " + "weights",
+                String.format("invalid awareness attribute %s requested for updating weighted routing", attributeName),
                 validationException
             );
             throw validationException;
