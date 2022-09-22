@@ -16,11 +16,11 @@ import org.opensearch.action.ActionType;
  * @opensearch.internal
  */
 
-public class DeleteDecommissionAction extends ActionType<DeleteDecommissionResponse> {
-    public static final DeleteDecommissionAction INSTANCE = new DeleteDecommissionAction();
+public class DeleteDecommissionStateAction extends ActionType<DeleteDecommissionResponse> {
+    public static final DeleteDecommissionStateAction INSTANCE = new DeleteDecommissionStateAction();
     public static final String NAME = "cluster:admin/decommission/awareness/delete";
 
-    private DeleteDecommissionAction() {
+    private DeleteDecommissionStateAction() {
         super(NAME, DeleteDecommissionResponse::new);
     }
 }

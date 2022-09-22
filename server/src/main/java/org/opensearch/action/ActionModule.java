@@ -40,7 +40,7 @@ import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusio
 import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
 import org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.opensearch.action.admin.cluster.configuration.TransportClearVotingConfigExclusionsAction;
-import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionAction;
+import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionStateAction;
 import org.opensearch.action.admin.cluster.decommission.awareness.delete.TransportDeleteDecommissionAction;
 import org.opensearch.action.admin.cluster.health.ClusterHealthAction;
 import org.opensearch.action.admin.cluster.health.TransportClusterHealthAction;
@@ -565,7 +565,7 @@ public class ActionModule extends AbstractModule {
         actions.register(CloneSnapshotAction.INSTANCE, TransportCloneSnapshotAction.class);
         actions.register(RestoreSnapshotAction.INSTANCE, TransportRestoreSnapshotAction.class);
         actions.register(SnapshotsStatusAction.INSTANCE, TransportSnapshotsStatusAction.class);
-        actions.register(DeleteDecommissionAction.INSTANCE, TransportDeleteDecommissionAction.class);
+        actions.register(DeleteDecommissionStateAction.INSTANCE, TransportDeleteDecommissionAction.class);
 
         actions.register(IndicesStatsAction.INSTANCE, TransportIndicesStatsAction.class);
         actions.register(IndicesSegmentsAction.INSTANCE, TransportIndicesSegmentsAction.class);

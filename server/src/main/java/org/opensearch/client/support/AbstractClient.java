@@ -43,7 +43,7 @@ import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainAc
 import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
 import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainRequestBuilder;
 import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
-import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionAction;
+import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionStateAction;
 import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionRequest;
 import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionRequestBuilder;
 import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionResponse;
@@ -1270,17 +1270,17 @@ public abstract class AbstractClient implements Client {
 
         @Override
         public ActionFuture<DeleteDecommissionResponse> deleteDecommission(DeleteDecommissionRequest request) {
-            return execute(DeleteDecommissionAction.INSTANCE, request);
+            return execute(DeleteDecommissionStateAction.INSTANCE, request);
         }
 
         @Override
         public void deleteDecommission(DeleteDecommissionRequest request, ActionListener<DeleteDecommissionResponse> listener) {
-            execute(DeleteDecommissionAction.INSTANCE, request, listener);
+            execute(DeleteDecommissionStateAction.INSTANCE, request, listener);
         }
 
         @Override
         public DeleteDecommissionRequestBuilder prepareDeleteDecommission() {
-            return new DeleteDecommissionRequestBuilder(this, DeleteDecommissionAction.INSTANCE);
+            return new DeleteDecommissionRequestBuilder(this, DeleteDecommissionStateAction.INSTANCE);
         }
 
         @Override

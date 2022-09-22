@@ -45,7 +45,7 @@ public class TransportDeleteDecommissionAction extends TransportClusterManagerNo
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
-            DeleteDecommissionAction.NAME,
+            DeleteDecommissionStateAction.NAME,
             transportService,
             clusterService,
             threadPool,

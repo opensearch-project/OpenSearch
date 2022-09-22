@@ -21,7 +21,7 @@ public class DeleteDecommissionRequestBuilder extends ClusterManagerNodeOperatio
     DeleteDecommissionResponse,
     DeleteDecommissionRequestBuilder> {
 
-    public DeleteDecommissionRequestBuilder(OpenSearchClient client, DeleteDecommissionAction action) {
+    public DeleteDecommissionRequestBuilder(OpenSearchClient client, DeleteDecommissionStateAction action) {
         super(client, action, new DeleteDecommissionRequest());
     }
 }
