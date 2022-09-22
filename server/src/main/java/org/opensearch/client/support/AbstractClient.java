@@ -1274,7 +1274,10 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public void deleteDecommissionState(DeleteDecommissionStateRequest request, ActionListener<DeleteDecommissionStateResponse> listener) {
+        public void deleteDecommissionState(
+            DeleteDecommissionStateRequest request,
+            ActionListener<DeleteDecommissionStateResponse> listener
+        ) {
             execute(DeleteDecommissionStateAction.INSTANCE, request, listener);
         }
 

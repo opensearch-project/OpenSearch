@@ -41,7 +41,9 @@ public class RestDeleteDecommissionStateAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         DeleteDecommissionStateRequest deleteDecommissionStateRequest = createRequest();
-        return channel -> client.admin().cluster().deleteDecommissionState(deleteDecommissionStateRequest, new RestToXContentListener<>(channel));
+        return channel -> client.admin()
+            .cluster()
+            .deleteDecommissionState(deleteDecommissionStateRequest, new RestToXContentListener<>(channel));
     }
 
     DeleteDecommissionStateRequest createRequest() {

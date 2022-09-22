@@ -31,8 +31,8 @@ import java.io.IOException;
  * @opensearch.internal
  */
 public class TransportDeleteDecommissionStateAction extends TransportClusterManagerNodeAction<
-        DeleteDecommissionStateRequest,
-        DeleteDecommissionStateResponse> {
+    DeleteDecommissionStateRequest,
+    DeleteDecommissionStateResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportDeleteDecommissionStateAction.class);
 

@@ -17,9 +17,9 @@ import org.opensearch.client.OpenSearchClient;
  * @opensearch.internal
  */
 public class DeleteDecommissionStateRequestBuilder extends ClusterManagerNodeOperationRequestBuilder<
-        DeleteDecommissionStateRequest,
-        DeleteDecommissionStateResponse,
-        DeleteDecommissionStateRequestBuilder> {
+    DeleteDecommissionStateRequest,
+    DeleteDecommissionStateResponse,
+    DeleteDecommissionStateRequestBuilder> {
 
     public DeleteDecommissionStateRequestBuilder(OpenSearchClient client, DeleteDecommissionStateAction action) {
         super(client, action, new DeleteDecommissionStateRequest());
