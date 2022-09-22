@@ -548,7 +548,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         );
 
         EnvironmentSettingsRequest environmentSettingsRequest = new EnvironmentSettingsRequest(componentSettings);
-        TransportResponse response = extensionsOrchestrator.handleEnvironmentSettingsRequest(environmentSettingsRequest);
+        TransportResponse response = extensionsOrchestrator.environmentSettingsRequestHandler.handleEnvironmentSettingsRequest(environmentSettingsRequest);
 
         assertEquals(EnvironmentSettingsResponse.class, response.getClass());
         assertEquals(componentSettings.size(), ((EnvironmentSettingsResponse) response).getComponentSettingValues().size());
