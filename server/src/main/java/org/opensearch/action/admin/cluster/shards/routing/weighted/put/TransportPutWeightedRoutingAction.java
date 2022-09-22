@@ -27,6 +27,7 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
 
@@ -112,7 +113,7 @@ public class TransportPutWeightedRoutingAction extends TransportClusterManagerNo
             ActionRequestValidationException validationException = null;
 
             validationException = addValidationError(
-                String.format("invalid awareness attribute %s requested for updating weighted routing", attributeName),
+                String.format(Locale.ROOT, "invalid awareness attribute %s requested for updating weighted routing", attributeName),
                 validationException
             );
             throw validationException;
