@@ -48,6 +48,7 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.ActionPlugin.ActionHandler;
 
+import org.opensearch.rest.RestActionsService;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
@@ -137,7 +138,7 @@ public class ActionModuleTests extends OpenSearchTestCase {
             null,
             usageService,
             null,
-            null
+            new RestActionsService()
         );
         actionModule.initRestHandlers(null);
         // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
@@ -194,7 +195,7 @@ public class ActionModuleTests extends OpenSearchTestCase {
                 null,
                 usageService,
                 null,
-                null
+                new RestActionsService()
             );
             Exception e = expectThrows(IllegalArgumentException.class, () -> actionModule.initRestHandlers(null));
             assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/] for method: GET"));
@@ -244,7 +245,7 @@ public class ActionModuleTests extends OpenSearchTestCase {
                 null,
                 usageService,
                 null,
-                null
+                new RestActionsService()
             );
             actionModule.initRestHandlers(null);
             // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
