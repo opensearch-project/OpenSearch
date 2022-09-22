@@ -783,7 +783,8 @@ public class Node implements Closeable {
                 settingsModule,
                 transportService,
                 clusterService,
-                environment.settings()
+                environment.settings(),
+                client
             );
             final GatewayMetaState gatewayMetaState = new GatewayMetaState();
             final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
@@ -932,6 +933,7 @@ public class Node implements Closeable {
                 b.bind(Client.class).toInstance(client);
                 b.bind(NodeClient.class).toInstance(client);
                 b.bind(Environment.class).toInstance(this.environment);
+                b.bind(ExtensionsOrchestrator.class).toInstance(this.extensionsOrchestrator);
                 b.bind(ThreadPool.class).toInstance(threadPool);
                 b.bind(NodeEnvironment.class).toInstance(nodeEnvironment);
                 b.bind(ResourceWatcherService.class).toInstance(resourceWatcherService);
