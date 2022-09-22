@@ -1269,17 +1269,17 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public ActionFuture<DeleteDecommissionStateResponse> deleteDecommission(DeleteDecommissionStateRequest request) {
+        public ActionFuture<DeleteDecommissionStateResponse> deleteDecommissionState(DeleteDecommissionStateRequest request) {
             return execute(DeleteDecommissionStateAction.INSTANCE, request);
         }
 
         @Override
-        public void deleteDecommission(DeleteDecommissionStateRequest request, ActionListener<DeleteDecommissionStateResponse> listener) {
+        public void deleteDecommissionState(DeleteDecommissionStateRequest request, ActionListener<DeleteDecommissionStateResponse> listener) {
             execute(DeleteDecommissionStateAction.INSTANCE, request, listener);
         }
 
         @Override
-        public DeleteDecommissionStateRequestBuilder prepareDeleteDecommission() {
+        public DeleteDecommissionStateRequestBuilder prepareDeleteDecommissionRequest() {
             return new DeleteDecommissionStateRequestBuilder(this, DeleteDecommissionStateAction.INSTANCE);
         }
 

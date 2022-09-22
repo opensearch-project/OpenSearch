@@ -798,15 +798,15 @@ public interface ClusterAdminClient extends OpenSearchClient {
     /**
      * Deletes the decommission metadata.
      */
-    ActionFuture<DeleteDecommissionStateResponse> deleteDecommission(DeleteDecommissionStateRequest request);
+    ActionFuture<DeleteDecommissionStateResponse> deleteDecommissionState(DeleteDecommissionStateRequest request);
 
     /**
      * Deletes the decommission metadata.
      */
-    void deleteDecommission(DeleteDecommissionStateRequest request, ActionListener<DeleteDecommissionStateResponse> listener);
+    void deleteDecommissionState(DeleteDecommissionStateRequest request, ActionListener<DeleteDecommissionStateResponse> listener);
 
     /**
      * Deletes the decommission metadata.
      */
-    DeleteDecommissionStateRequestBuilder prepareDeleteDecommission();
+    DeleteDecommissionStateRequestBuilder prepareDeleteDecommissionRequest();
 }

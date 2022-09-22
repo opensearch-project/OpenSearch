@@ -543,7 +543,7 @@ public class Requests {
     /**
      * Creates a new delete decommission request.
      */
-    public static DeleteDecommissionStateRequest deleteDecommissionRequest() {
+    public static DeleteDecommissionStateRequest deleteDecommissionStateRequest() {
         return new DeleteDecommissionStateRequest();
     }
 
