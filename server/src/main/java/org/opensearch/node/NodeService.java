@@ -176,7 +176,8 @@ public class NodeService implements Closeable {
         boolean indexingPressure,
         boolean shardIndexingPressure,
         boolean restActions,
-        Set<String> restActionsFilters) {
+        Set<String> restActionsFilters
+    ) {
         // for indices stats we want to include previous allocated shards stats as well (it will
         // only be applied to the sensible ones to use, like refresh/merge/flush/indexing stats)
         return new NodeStats(

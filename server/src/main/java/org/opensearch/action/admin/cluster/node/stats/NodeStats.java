@@ -312,7 +312,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
     }
 
     @Nullable
-    public RestActionsStats getRestActionsStats(){return restActionsStats;}
+    public RestActionsStats getRestActionsStats() {
+        return restActionsStats;
+    }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
@@ -418,8 +420,8 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         if (getShardIndexingPressureStats() != null) {
             getShardIndexingPressureStats().toXContent(builder, params);
         }
-        if(getRestActionsStats() != null){
-            getRestActionsStats().toXContent(builder,params);
+        if (getRestActionsStats() != null) {
+            getRestActionsStats().toXContent(builder, params);
         }
         return builder;
     }

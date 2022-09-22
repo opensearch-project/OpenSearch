@@ -49,10 +49,9 @@ public class RestActionsServiceTests extends OpenSearchTestCase {
         );
     }
 
-
     public void testRestActionsServiceWithoutFilters() {
         RestActionsService service = new RestActionsService();
-        //adding handlers and it's response status to service
+        // adding handlers and it's response status to service
         addHandlerAndStatus(service, handlerStatusMaps);
         RestActionsStats stats = service.stats(null);
         final Map<String, Map<Integer, Integer>> handlerStatusCount = stats.getRestActionsStatusCount();
@@ -71,7 +70,7 @@ public class RestActionsServiceTests extends OpenSearchTestCase {
 
     public void testRestActionsServiceWithFilters() {
         final RestActionsService service = new RestActionsService();
-        //adding handlers and it's response status to service
+        // adding handlers and it's response status to service
         addHandlerAndStatus(service, handlerStatusMaps);
         RestActionsStats stats = service.stats(Set.of("handler_a", "handler_d"));
         final Map<String, Map<Integer, Integer>> handlerStatusCount = stats.getRestActionsStatusCount();
@@ -106,10 +105,8 @@ public class RestActionsServiceTests extends OpenSearchTestCase {
         }
     }
 
-
     private static void addHandlerAndStatus(final RestActionsService service, final List<HandlerStatusMap> handlerStatusMaps) {
-        handlerStatusMaps.stream().forEach(entry ->
-        {
+        handlerStatusMaps.stream().forEach(entry -> {
             service.addRestHandler(new MockRestHandler(entry.getHandler()));
             service.putStatus(entry.getHandler(), entry.getStatus());
         });
@@ -117,6 +114,7 @@ public class RestActionsServiceTests extends OpenSearchTestCase {
 
     private static final class MockRestHandler extends BaseRestHandler {
         private String name;
+
         protected MockRestHandler(String name) {
             this.name = name;
         }
@@ -128,8 +126,7 @@ public class RestActionsServiceTests extends OpenSearchTestCase {
 
         @Override
         protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-            return channel -> {
-            };
+            return channel -> {};
         }
     }
 }

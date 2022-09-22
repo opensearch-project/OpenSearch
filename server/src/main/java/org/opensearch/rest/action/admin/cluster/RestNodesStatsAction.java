@@ -121,7 +121,7 @@ public class RestNodesStatsAction extends BaseRestHandler {
                     )
                 );
             }
-            if(request.hasParam("rest_actions_filters")){
+            if (request.hasParam("rest_actions_filters")) {
                 throw new IllegalArgumentException(
                     String.format(
                         Locale.ROOT,

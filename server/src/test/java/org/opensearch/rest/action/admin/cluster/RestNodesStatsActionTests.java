@@ -33,7 +33,6 @@
 package org.opensearch.rest.action.admin.cluster;
 
 import org.opensearch.client.node.NodeClient;
-import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.FakeRestRequest;
@@ -168,21 +167,26 @@ public class RestNodesStatsActionTests extends OpenSearchTestCase {
         );
     }
 
-    public void testRestActionsMetricWithFilterOnAllRequest() throws IOException{
-        final RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-            .withPath("/_nodes/stats")
+    public void testRestActionsMetricWithFilterOnAllRequest() throws IOException {
+        final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_nodes/stats")
             .withParams(Map.of("metric", "_all", "rest_actions_filters", "action_a, action_b"))
             .build();
 
-        expectThrows(IllegalArgumentException.class, ()-> action.prepareRequest(request, mock(NodeClient.class)));
+        expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, mock(NodeClient.class)));
     }
 
-    public void testRestActionsFilterWithoutRestActionsMetricRequest() throws IOException{
-        final RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-            .withPath("/_nodes/stats")
-            .withParams(Map.of("metric", randomSubsetOf(1, RestNodesStatsAction.METRICS.keySet()).get(0), "rest_actions_filters", "action_a, action_b"))
+    public void testRestActionsFilterWithoutRestActionsMetricRequest() throws IOException {
+        final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_nodes/stats")
+            .withParams(
+                Map.of(
+                    "metric",
+                    randomSubsetOf(1, RestNodesStatsAction.METRICS.keySet()).get(0),
+                    "rest_actions_filters",
+                    "action_a, action_b"
+                )
+            )
             .build();
 
-        expectThrows(IllegalArgumentException.class, ()-> action.prepareRequest(request, mock(NodeClient.class)));
+        expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, mock(NodeClient.class)));
     }
 }

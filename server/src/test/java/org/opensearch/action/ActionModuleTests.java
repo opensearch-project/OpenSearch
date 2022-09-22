@@ -48,7 +48,10 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.ActionPlugin.ActionHandler;
 
-import org.opensearch.rest.*;
+import org.opensearch.rest.RestChannel;
+import org.opensearch.rest.RestController;
+import org.opensearch.rest.RestHandler;
+import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestRequest.Method;
 import org.opensearch.rest.action.RestMainAction;
 import org.opensearch.tasks.Task;

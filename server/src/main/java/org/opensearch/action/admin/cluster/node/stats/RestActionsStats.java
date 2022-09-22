@@ -13,10 +13,11 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.xcontent.ToXContentFragment;
 import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Collections;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -27,6 +28,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class RestActionsStats implements Writeable, ToXContentFragment {
     private Map<String, Map<Integer, Integer>> restActionsStatusCount;
     private Map<Integer, Integer> restActionsStatusTotalCount;
+
     public RestActionsStats(StreamInput in) throws IOException {
         int totalCount = in.readInt();
         restActionsStatusTotalCount = new TreeMap<>();
@@ -88,11 +90,12 @@ public class RestActionsStats implements Writeable, ToXContentFragment {
         }
     }
 
-    //Added for jUnits
-    public Map<String, Map<Integer, Integer>> getRestActionsStatusCount(){
+    // Added for jUnits
+    public Map<String, Map<Integer, Integer>> getRestActionsStatusCount() {
         return Collections.unmodifiableMap(restActionsStatusCount);
     }
-    public Map<Integer, Integer> getRestActionsStatusTotalCount(){
+
+    public Map<Integer, Integer> getRestActionsStatusTotalCount() {
         return Collections.unmodifiableMap(restActionsStatusTotalCount);
     }
 }

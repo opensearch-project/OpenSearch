@@ -303,9 +303,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(contentLength);
             }
             // iff we could reserve bytes for the request we need to send the response also over this channel
-            responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength
-                , handler, restActionsService
-            );
+            responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength, handler, restActionsService);
             // TODO: Count requests double in the circuit breaker if they need copying?
             if (handler.allowsUnsafeBuffers() == false) {
                 request.ensureSafeBuffers();
@@ -536,8 +534,12 @@ public class RestController implements HttpServerTransport.Dispatcher {
         private final RestHandler restHandler;
         private final RestActionsService restActionsService;
 
-        ResourceHandlingHttpChannel(RestChannel delegate, CircuitBreakerService circuitBreakerService, int contentLength
-            , RestHandler restHandler, RestActionsService restActionsService
+        ResourceHandlingHttpChannel(
+            RestChannel delegate,
+            CircuitBreakerService circuitBreakerService,
+            int contentLength,
+            RestHandler restHandler,
+            RestActionsService restActionsService
         ) {
             this.delegate = delegate;
             this.circuitBreakerService = circuitBreakerService;
@@ -586,8 +588,10 @@ public class RestController implements HttpServerTransport.Dispatcher {
         public void sendResponse(RestResponse response) {
             close();
             delegate.sendResponse(response);
-            if (restHandler instanceof BaseRestHandler)
-                restActionsService.putStatus(((BaseRestHandler) restHandler).getName(), response.status());
+            if (restHandler instanceof BaseRestHandler) restActionsService.putStatus(
+                ((BaseRestHandler) restHandler).getName(),
+                response.status()
+            );
         }
 
         private void close() {

@@ -112,8 +112,7 @@ public class RestControllerTests extends OpenSearchTestCase {
 
         HttpServerTransport httpServerTransport = new TestHttpServerTransport();
         client = new NoOpNodeClient(this.getTestName());
-        restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService, restActionsService
-        );
+        restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService, restActionsService);
         restController.registerHandler(
             RestRequest.Method.GET,
             "/",
@@ -140,7 +139,14 @@ public class RestControllerTests extends OpenSearchTestCase {
         Set<RestHeaderDefinition> headers = new HashSet<>(
             Arrays.asList(new RestHeaderDefinition("header.1", true), new RestHeaderDefinition("header.2", true))
         );
-        final RestController restController = new RestController(headers, null, null, circuitBreakerService, usageService, restActionsService);
+        final RestController restController = new RestController(
+            headers,
+            null,
+            null,
+            circuitBreakerService,
+            usageService,
+            restActionsService
+        );
         Map<String, List<String>> restHeaders = new HashMap<>();
         restHeaders.put("header.1", Collections.singletonList("true"));
         restHeaders.put("header.2", Collections.singletonList("true"));
@@ -176,7 +182,14 @@ public class RestControllerTests extends OpenSearchTestCase {
         Set<RestHeaderDefinition> headers = new HashSet<>(
             Arrays.asList(new RestHeaderDefinition("header.1", true), new RestHeaderDefinition("header.2", false))
         );
-        final RestController restController = new RestController(headers, null, null, circuitBreakerService, usageService, restActionsService);
+        final RestController restController = new RestController(
+            headers,
+            null,
+            null,
+            circuitBreakerService,
+            usageService,
+            restActionsService
+        );
         Map<String, List<String>> restHeaders = new HashMap<>();
         restHeaders.put("header.1", Collections.singletonList("boo"));
         restHeaders.put("header.2", Arrays.asList("foo", "bar"));
@@ -191,7 +204,14 @@ public class RestControllerTests extends OpenSearchTestCase {
         Set<RestHeaderDefinition> headers = new HashSet<>(
             Arrays.asList(new RestHeaderDefinition("header.1", true), new RestHeaderDefinition("header.2", false))
         );
-        final RestController restController = new RestController(headers, null, client, circuitBreakerService, usageService, restActionsService);
+        final RestController restController = new RestController(
+            headers,
+            null,
+            client,
+            circuitBreakerService,
+            usageService,
+            restActionsService
+        );
         Map<String, List<String>> restHeaders = new HashMap<>();
         restHeaders.put("header.1", Collections.singletonList("boo"));
         restHeaders.put("header.2", Arrays.asList("foo", "foo"));

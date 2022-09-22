@@ -55,7 +55,7 @@ public class NodesStatsRequestTests extends OpenSearchTestCase {
         request.indices(randomFrom(CommonStatsFlags.ALL));
         String[] metrics = randomSubsetOf(NodesStatsRequest.Metric.allMetrics()).toArray(new String[0]);
         request.addMetrics(metrics);
-        request.addRestActionsFilters(generateRandomStringArray(3, 5,false, false));
+        request.addRestActionsFilters(generateRandomStringArray(3, 5, false, false));
         NodesStatsRequest deserializedRequest = roundTripRequest(request);
         assertRequestsEqual(request, deserializedRequest);
     }

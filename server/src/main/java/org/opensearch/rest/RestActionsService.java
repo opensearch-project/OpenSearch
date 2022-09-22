@@ -10,7 +10,11 @@ package org.opensearch.rest;
 
 import org.opensearch.action.admin.cluster.node.stats.RestActionsStats;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
@@ -34,14 +38,12 @@ public class RestActionsService {
 
     private Map<Integer, Integer> getRestActionsStatusTotalCount(Map<String, Map<Integer, Integer>> mapHandlerStatusCount) {
         final Map<Integer, Integer> totalStatusCount = new TreeMap<>();
-        mapHandlerStatusCount.entrySet().stream().flatMap(entry -> entry.getValue().entrySet().stream()).
-            forEach(entry -> {
-                    Integer count = totalStatusCount.get(entry.getKey());
-                    if (null == count) count = 0;
-                    count += entry.getValue();
-                    totalStatusCount.put(entry.getKey(), count);
-                }
-            );
+        mapHandlerStatusCount.entrySet().stream().flatMap(entry -> entry.getValue().entrySet().stream()).forEach(entry -> {
+            Integer count = totalStatusCount.get(entry.getKey());
+            if (null == count) count = 0;
+            count += entry.getValue();
+            totalStatusCount.put(entry.getKey(), count);
+        });
         return totalStatusCount;
     }
 
@@ -66,8 +68,10 @@ public class RestActionsService {
     }
 
     private Map<String, Map<Integer, Integer>> getRestActionsStatusCount(Set<String> restActionFilters) {
-        if (null == restActionFilters || restActionFilters.isEmpty())
-            return handlers.entrySet().stream().filter(entry -> entry.getValue().size() > 0).collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
+        if (null == restActionFilters || restActionFilters.isEmpty()) return handlers.entrySet()
+            .stream()
+            .filter(entry -> entry.getValue().size() > 0)
+            .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
 
         Map<String, Map<Integer, Integer>> restActionStatusCount = new ConcurrentHashMap<>();
         for (String action : restActionFilters) {

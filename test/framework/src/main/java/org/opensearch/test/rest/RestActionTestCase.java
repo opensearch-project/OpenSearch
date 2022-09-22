@@ -66,7 +66,14 @@ public abstract class RestActionTestCase extends OpenSearchTestCase {
     @Before
     public void setUpController() {
         verifyingClient = new VerifyingClient(this.getTestName());
-        controller = new RestController(Collections.emptySet(), null, verifyingClient, new NoneCircuitBreakerService(), new UsageService(), new RestActionsService());
+        controller = new RestController(
+            Collections.emptySet(),
+            null,
+            verifyingClient,
+            new NoneCircuitBreakerService(),
+            new UsageService(),
+            new RestActionsService()
+        );
     }
 
     @After

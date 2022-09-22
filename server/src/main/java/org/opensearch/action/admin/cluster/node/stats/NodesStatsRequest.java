@@ -38,7 +38,12 @@ import org.opensearch.action.support.nodes.BaseNodesRequest;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import java.io.IOException;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 /**
@@ -196,17 +201,17 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         }
     }
 
-    public void addRestActionsFilters(String... filters){
-        if(null == filters || filters.length < 1) return;
+    public void addRestActionsFilters(String... filters) {
+        if (null == filters || filters.length < 1) return;
         Arrays.stream(filters).forEach(restActionsFilters::add);
     }
 
-    public void clearRestActionsFilters(){
-        if(null == restActionsFilters || restActionsFilters.isEmpty()) return;
+    public void clearRestActionsFilters() {
+        if (null == restActionsFilters || restActionsFilters.isEmpty()) return;
         restActionsFilters.clear();
     }
 
-    public Set<String> getRestActionsFilters(){
+    public Set<String> getRestActionsFilters() {
         return Collections.unmodifiableSet(restActionsFilters);
     }
 

@@ -74,7 +74,14 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
 
     private static UsageService usageService = new UsageService();
     private static RestActionsService restActionsService = new RestActionsService();
-    private static RestController controller = new RestController(emptySet(), null, client, new NoneCircuitBreakerService(), usageService, restActionsService);
+    private static RestController controller = new RestController(
+        emptySet(),
+        null,
+        client,
+        new NoneCircuitBreakerService(),
+        usageService,
+        restActionsService
+    );
     private static RestValidateQueryAction action = new RestValidateQueryAction();
 
     /**
