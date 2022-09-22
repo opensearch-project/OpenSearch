@@ -299,7 +299,7 @@ public class EvilLoggerTests extends OpenSearchTestCase {
         // the first message is a warning for unsupported configuration files
         assertLogLine(events.get(0), Level.WARN, location, "\\[" + nodeName + "\\] Some logging configurations have "
                 + "%marker but don't have %node_name. We will automatically add %node_name to the pattern to ease the "
-                + "migration for users who customize log4j2.properties but will stop this behavior in 7.0. You should "
+                + "migration for users who customize log4j2.properties but will stop this behavior in 3.0. You should "
                 + "manually replace `%node_name` with `\\[%node_name\\]%marker ` in these locations:");
         if (Constants.WINDOWS) {
             assertThat(events.get(1), endsWith("no_node_name\\log4j2.properties"));
