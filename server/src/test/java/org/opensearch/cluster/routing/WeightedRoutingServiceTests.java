@@ -92,7 +92,7 @@ public class WeightedRoutingServiceTests extends OpenSearchTestCase {
         transportService.start();
         transportService.acceptIncomingRequests();
 
-        this.weightedRoutingService = new WeightedRoutingService(clusterService, threadPool);
+        this.weightedRoutingService = new WeightedRoutingService(clusterService, threadPool, settingsBuilder.build(), clusterSettings);
         client = new NodeClient(Settings.EMPTY, threadPool);
     }
 

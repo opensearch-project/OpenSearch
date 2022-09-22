@@ -27,6 +27,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.WeightedRouting;
+import org.opensearch.cluster.routing.WeightedRoutingService;
 import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
@@ -51,6 +52,7 @@ public class TransportGetWeightedRoutingActionTests extends OpenSearchTestCase {
     private ThreadPool threadPool;
     private ClusterService clusterService;
     private TransportService transportService;
+    private WeightedRoutingService weightedRoutingService;
     private TransportGetWeightedRoutingAction transportGetWeightedRoutingAction;
     private ClusterSettings clusterSettings;
     NodeClient client;
@@ -98,11 +100,12 @@ public class TransportGetWeightedRoutingActionTests extends OpenSearchTestCase {
         transportService.start();
         transportService.acceptIncomingRequests();
 
+        this.weightedRoutingService = new WeightedRoutingService(clusterService, threadPool, settingsBuilder.build(), clusterSettings);
+
         this.transportGetWeightedRoutingAction = new TransportGetWeightedRoutingAction(
-            settingsBuilder.build(),
-            clusterSettings,
             transportService,
             clusterService,
+            weightedRoutingService,
             threadPool,
             new ActionFilters(emptySet()),
             mock(IndexNameExpressionResolver.class)
