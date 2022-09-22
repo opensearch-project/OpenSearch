@@ -27,6 +27,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
+import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterSettingsResponse;
 import org.opensearch.cluster.LocalNodeResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -39,6 +40,10 @@ import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.discovery.InitializeExtensionsRequest;
 import org.opensearch.discovery.InitializeExtensionsResponse;
 import org.opensearch.extensions.ExtensionsSettings.Extension;
+import org.opensearch.extensions.action.ExtensionActionRequest;
+import org.opensearch.extensions.action.ExtensionActionResponse;
+import org.opensearch.extensions.action.ExtensionActions;
+import org.opensearch.extensions.action.TransportActionRequestFromExtension;
 import org.opensearch.extensions.rest.RegisterRestActionsRequest;
 import org.opensearch.extensions.rest.RestActionsRequestHandler;
 import org.opensearch.extensions.settings.CustomSettingsRequestHandler;
@@ -83,6 +88,8 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     public static final String REQUEST_OPENSEARCH_PARSE_NAMED_WRITEABLE = "internal:discovery/parsenamedwriteable";
     public static final String REQUEST_EXTENSION_ACTION_LISTENER_ON_FAILURE = "internal:extensions/actionlisteneronfailure";
     public static final String REQUEST_REST_EXECUTE_ON_EXTENSION_ACTION = "internal:extensions/restexecuteonextensiontaction";
+    public static final String REQUEST_EXTENSION_HANDLE_TRANSPORT_ACTION = "internal:extensions/handle-transportaction";
+    public static final String TRANSPORT_ACTION_REQUEST_FROM_EXTENSION = "internal:extensions/request-transportaction-from-extension";
 
     private static final Logger logger = LogManager.getLogger(ExtensionsOrchestrator.class);
 
@@ -113,6 +120,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     }
 
     private final Path extensionsPath;
+    ExtensionActions extensionActions;
     // A list of initialized extensions, a subset of the values of map below which includes all extensions
     List<DiscoveryExtension> extensionsInitializedList;
     // A map of extension uniqueId to full extension details used for node transport here and in the RestActionsRequestHandler
@@ -125,6 +133,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     ExtensionActionListener<ExtensionBooleanResponse> listener;
     EnvironmentSettingsRequestHandler environmentSettingsRequestHandler;
     AddSettingsUpdateConsumerRequestHandler addSettingsUpdateConsumerRequestHandler;
+    NodeClient client;
 
     /**
      * Instantiate a new ExtensionsOrchestrator object to handle requests and responses from extensions. This is called during Node bootstrap.
@@ -142,6 +151,8 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         this.clusterService = null;
         this.namedWriteableRegistry = null;
         this.listener = new ExtensionActionListener<ExtensionBooleanResponse>();
+        this.client = null;
+        this.extensionActions = null;
 
         /*
          * Now Discover extensions
@@ -155,17 +166,19 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
      * Lists/maps of extensions have already been initialized but not yet populated.
      *
      * @param restController  The RestController on which to register Rest Actions.
-     * @param settingsModule
+     * @param settingsModule  The module which manages settings for OpenSearch.
      * @param transportService  The Node's transport service.
      * @param clusterService  The Node's cluster service.
      * @param initialEnvironmentSettings The finalized view of settings for the Environment
+     * @param client The client used to make transport requests
      */
     public void initializeServicesAndRestHandler(
         RestController restController,
         SettingsModule settingsModule,
         TransportService transportService,
         ClusterService clusterService,
-        Settings initialEnvironmentSettings
+        Settings initialEnvironmentSettings,
+        NodeClient client
     ) {
         this.restActionsRequestHandler = new RestActionsRequestHandler(restController, extensionIdMap, transportService);
         this.customSettingsRequestHandler = new CustomSettingsRequestHandler(settingsModule);
@@ -177,7 +190,13 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             transportService,
             REQUEST_EXTENSION_UPDATE_SETTINGS
         );
+        this.client = client;
+        this.extensionActions = new ExtensionActions(extensionIdMap, transportService, client);
         registerRequestHandler();
+    }
+
+    public ExtensionActionResponse handleTransportRequest(ExtensionActionRequest request) {
+        return extensionActions.sendTransportRequestToExtension(request);
     }
 
     private void registerRequestHandler() {
@@ -253,7 +272,15 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             false,
             false,
             RegisterTransportActionsRequest::new,
-            ((request, channel, task) -> channel.sendResponse(handleRegisterTransportActionsRequest(request)))
+            ((request, channel, task) -> channel.sendResponse(extensionActions.handleRegisterTransportActionsRequest(request)))
+        );
+        transportService.registerRequestHandler(
+            TRANSPORT_ACTION_REQUEST_FROM_EXTENSION,
+            ThreadPool.Names.GENERIC,
+            false,
+            false,
+            TransportActionRequestFromExtension::new,
+            ((request, channel, task) -> channel.sendResponse(extensionActions.handleTransportActionRequestFromExtension(request)))
         );
     }
 
@@ -375,22 +402,6 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         } catch (Exception e) {
             logger.error(e.toString());
         }
-    }
-
-    /**
-     * Handles a {@link RegisterTransportActionsRequest}.
-     *
-     * @param transportActionsRequest  The request to handle.
-     * @return  A {@link ExtensionBooleanResponse} indicating success.
-     * @throws Exception if the request is not handled properly.
-     */
-    TransportResponse handleRegisterTransportActionsRequest(RegisterTransportActionsRequest transportActionsRequest) throws Exception {
-        /*
-         * TODO: https://github.com/opensearch-project/opensearch-sdk-java/issues/107
-         * Register these new Transport Actions with ActionModule
-         * and add support for NodeClient to recognise these actions when making transport calls.
-         */
-        return new ExtensionBooleanResponse(true);
     }
 
     /**

@@ -23,14 +23,17 @@ import java.util.Objects;
  * @opensearch.internal
  */
 public class RegisterTransportActionsRequest extends TransportRequest {
+    private String uniqueId;
     private Map<String, Class> transportActions;
 
-    public RegisterTransportActionsRequest(Map<String, Class> transportActions) {
+    public RegisterTransportActionsRequest(String uniqueId, Map<String, Class> transportActions) {
+        this.uniqueId = uniqueId;
         this.transportActions = new HashMap<>(transportActions);
     }
 
     public RegisterTransportActionsRequest(StreamInput in) throws IOException {
         super(in);
+        this.uniqueId = in.readString();
         Map<String, Class> actions = new HashMap<>();
         int actionCount = in.readVInt();
         for (int i = 0; i < actionCount; i++) {
@@ -45,6 +48,10 @@ public class RegisterTransportActionsRequest extends TransportRequest {
         this.transportActions = actions;
     }
 
+    public String getUniqueId() {
+        return uniqueId;
+    }
+
     public Map<String, Class> getTransportActions() {
         return transportActions;
     }
@@ -52,6 +59,7 @@ public class RegisterTransportActionsRequest extends TransportRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        out.writeString(uniqueId);
         out.writeVInt(this.transportActions.size());
         for (Map.Entry<String, Class> action : transportActions.entrySet()) {
             out.writeString(action.getKey());
@@ -61,7 +69,7 @@ public class RegisterTransportActionsRequest extends TransportRequest {
 
     @Override
     public String toString() {
-        return "TransportActionsRequest{actions=" + transportActions + "}";
+        return "TransportActionsRequest{ uniqueId=" + uniqueId + ", actions=" + transportActions + "}";
     }
 
     @Override
@@ -69,11 +77,11 @@ public class RegisterTransportActionsRequest extends TransportRequest {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
         RegisterTransportActionsRequest that = (RegisterTransportActionsRequest) obj;
-        return Objects.equals(transportActions, that.transportActions);
+        return Objects.equals(uniqueId, that.uniqueId) && Objects.equals(transportActions, that.transportActions);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(transportActions);
+        return Objects.hash(uniqueId, transportActions);
     }
 }
