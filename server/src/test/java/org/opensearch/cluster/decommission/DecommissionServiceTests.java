@@ -18,10 +18,19 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
+import org.opensearch.transport.TransportService;
+
+import java.util.Map;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 public class DecommissionServiceTests extends OpenSearchTestCase {
 
     private final TestThreadPool threadPool = new TestThreadPool(DecommissionServiceTests.class.getName());
+
+    private final TransportService mockTransportService = mock(TransportService.class);
 
     @After
     public void terminateThreadPool() {
@@ -30,11 +39,14 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
 
     public void testClearDecommissionAttribute() {
         final ClusterSettings settings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        DecommissionService service = new DecommissionService(new ClusterService(Settings.EMPTY, settings, threadPool));
+        DecommissionService service = new DecommissionService(
+                Settings.EMPTY,
+                new ClusterService(Settings.EMPTY, settings, threadPool),
+                mockTransportService);
         DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "zone-2");
         DecommissionAttributeMetadata decommissionAttributeMetadata = new DecommissionAttributeMetadata(
             decommissionAttribute,
-            DecommissionStatus.DECOMMISSION_SUCCESSFUL
+            DecommissionStatus.SUCCESSFUL
         );
         ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
             .metadata(Metadata.builder().putCustom(DecommissionAttributeMetadata.TYPE, decommissionAttributeMetadata).build())
@@ -45,5 +57,17 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
 
         // Decommission Attribute should be removed.
         assertNull(metadata);
+    }
+
+    public void testSetWeightForZone() {
+        final ClusterSettings settings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        DecommissionService service = new DecommissionService(
+                Settings.EMPTY,
+                new ClusterService(Settings.EMPTY, settings, threadPool),
+                mockTransportService);
+
+        Map<String, String> weights = Map.of("us-east-1a", "1", "us-east-1b", "1", "us-east-1c", "1");
+        service.setWeightForZone(weights);
+        verify(mockTransportService).sendRequest(any(), any(), any(), any());
     }
 }
