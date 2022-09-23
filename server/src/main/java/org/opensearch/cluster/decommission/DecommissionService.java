@@ -64,10 +64,7 @@ public class DecommissionService {
     private volatile Map<String, List<String>> forcedAwarenessAttributes;
 
     @Inject
-    public DecommissionService(
-            Settings settings,
-            ClusterService clusterService,
-            TransportService transportService) {
+    public DecommissionService(Settings settings, ClusterService clusterService, TransportService transportService) {
         this.clusterService = clusterService;
         this.transportService = transportService;
         setForcedAwarenessAttributes(CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.get(settings));
@@ -106,9 +103,7 @@ public class DecommissionService {
                 // Set the weights back to 1 for all the zones
                 List<String> zones = forcedAwarenessAttributes.get("zone");
                 Map<String, String> weights = new HashMap<>();
-                zones.forEach(zone -> {
-                    weights.put(zone, "1");
-                });
+                zones.forEach(zone -> { weights.put(zone, "1"); });
                 setWeightForZone(weights);
             }
         });
@@ -130,31 +125,31 @@ public class DecommissionService {
         clusterWeightRequest.setWeightedRouting(weights);
 
         transportService.sendRequest(
-                transportService.getLocalNode(),
-                ClusterPutWeightedRoutingAction.NAME,
-                clusterWeightRequest,
-                new TransportResponseHandler<ClusterPutWeightedRoutingResponse>() {
-                    @Override
-                    public void handleResponse(ClusterPutWeightedRoutingResponse response) {
-                        logger.info("Weights are successfully set.", response.isAcknowledged());
-                    }
+            transportService.getLocalNode(),
+            ClusterPutWeightedRoutingAction.NAME,
+            clusterWeightRequest,
+            new TransportResponseHandler<ClusterPutWeightedRoutingResponse>() {
+                @Override
+                public void handleResponse(ClusterPutWeightedRoutingResponse response) {
+                    logger.info("Weights are successfully set.", response.isAcknowledged());
+                }
 
-                    @Override
-                    public void handleException(TransportException exp) {
-                        // Logging a warn message on failure. Should we do Retry? If weights are not set should we fail?
-                        logger.warn("Exception occurred while setting weights.Exception Messages - [{}]",
-                                exp.unwrapCause().getMessage());
-                    }
+                @Override
+                public void handleException(TransportException exp) {
+                    // Logging a warn message on failure. Should we do Retry? If weights are not set should we fail?
+                    logger.warn("Exception occurred while setting weights.Exception Messages - [{}]", exp.unwrapCause().getMessage());
+                }
 
-                    @Override
-                    public String executor() {
-                        return ThreadPool.Names.SAME;
-                    }
+                @Override
+                public String executor() {
+                    return ThreadPool.Names.SAME;
+                }
 
-                    @Override
-                    public ClusterPutWeightedRoutingResponse read(StreamInput in) throws IOException {
-                        return new ClusterPutWeightedRoutingResponse(in);
-                    }
-                });
+                @Override
+                public ClusterPutWeightedRoutingResponse read(StreamInput in) throws IOException {
+                    return new ClusterPutWeightedRoutingResponse(in);
+                }
+            }
+        );
     }
 }

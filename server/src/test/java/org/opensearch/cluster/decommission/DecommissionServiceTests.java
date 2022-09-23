@@ -40,9 +40,10 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
     public void testClearDecommissionAttribute() {
         final ClusterSettings settings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         DecommissionService service = new DecommissionService(
-                Settings.EMPTY,
-                new ClusterService(Settings.EMPTY, settings, threadPool),
-                mockTransportService);
+            Settings.EMPTY,
+            new ClusterService(Settings.EMPTY, settings, threadPool),
+            mockTransportService
+        );
         DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "zone-2");
         DecommissionAttributeMetadata decommissionAttributeMetadata = new DecommissionAttributeMetadata(
             decommissionAttribute,
@@ -62,9 +63,10 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
     public void testSetWeightForZone() {
         final ClusterSettings settings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         DecommissionService service = new DecommissionService(
-                Settings.EMPTY,
-                new ClusterService(Settings.EMPTY, settings, threadPool),
-                mockTransportService);
+            Settings.EMPTY,
+            new ClusterService(Settings.EMPTY, settings, threadPool),
+            mockTransportService
+        );
 
         Map<String, String> weights = Map.of("us-east-1a", "1", "us-east-1b", "1", "us-east-1c", "1");
         service.setWeightForZone(weights);

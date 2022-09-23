@@ -78,12 +78,12 @@ public class ClusterPutWeightedRoutingRequest extends ClusterManagerNodeRequest<
 
     public void setWeightedRouting(BytesReference source, XContentType contentType) {
         try (
-                XContentParser parser = XContentHelper.createParser(
-                        NamedXContentRegistry.EMPTY,
-                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                        source,
-                        contentType
-                )
+            XContentParser parser = XContentHelper.createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                source,
+                contentType
+            )
         ) {
             String attrValue = null;
             Map<String, Double> weights = new HashMap<>();
@@ -99,8 +99,8 @@ public class ClusterPutWeightedRoutingRequest extends ClusterManagerNodeRequest<
                     weights.put(attrValue, attrWeight);
                 } else {
                     throw new OpenSearchParseException(
-                            "failed to parse weighted routing request attribute [{}], " + "unknown type",
-                            attrWeight
+                        "failed to parse weighted routing request attribute [{}], " + "unknown type",
+                        attrWeight
                     );
                 }
             }
