@@ -136,6 +136,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         "     customFolderName: fakeFolder2",
         "     hasNativeController: true"
     );
+    private DiscoveryExtension extensionNode;
 
     @Before
     public void setup() throws Exception {
@@ -176,6 +177,27 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         clusterService = createClusterService(threadPool);
 
         extensionDir = createTempDir();
+
+        extensionNode = new DiscoveryExtension(
+            "firstExtension",
+            "uniqueid1",
+            "uniqueid1",
+            "myIndependentPluginHost1",
+            "127.0.0.0",
+            new TransportAddress(InetAddress.getByName("127.0.0.0"), 9300),
+            new HashMap<String, String>(),
+            Version.fromString("3.0.0"),
+            new PluginInfo(
+                "firstExtension",
+                "Fake description 1",
+                "0.0.7",
+                Version.fromString("3.0.0"),
+                "14",
+                "fakeClass1",
+                new ArrayList<String>(),
+                false
+            )
+        );
     }
 
     @Override
@@ -567,27 +589,6 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
         extensionsOrchestrator.initializeServicesAndRestHandler(restController, settingsModule, transportService, clusterService, settings);
 
-        DiscoveryExtension extensionNode = new DiscoveryExtension(
-            "firstExtension",
-            "uniqueid1",
-            "uniqueid1",
-            "myIndependentPluginHost1",
-            "127.0.0.0",
-            new TransportAddress(InetAddress.getByName("127.0.0.0"), 9300),
-            new HashMap<String, String>(),
-            Version.fromString("3.0.0"),
-            new PluginInfo(
-                "firstExtension",
-                "Fake description 1",
-                "0.0.7",
-                Version.fromString("3.0.0"),
-                "14",
-                "fakeClass1",
-                new ArrayList<String>(),
-                false
-            )
-        );
-
         List<Setting<?>> componentSettings = List.of(
             Setting.boolSetting("falseSetting", false, Property.IndexScope, Property.NodeScope),
             Setting.simpleString("fooSetting", "foo", Property.Dynamic)
@@ -635,27 +636,6 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
 
         extensionsOrchestrator.initializeServicesAndRestHandler(restController, settingsModule, transportService, clusterService, settings);
-
-        DiscoveryExtension extensionNode = new DiscoveryExtension(
-            "firstExtension",
-            "uniqueid1",
-            "uniqueid1",
-            "myIndependentPluginHost1",
-            "127.0.0.0",
-            new TransportAddress(InetAddress.getByName("127.0.0.0"), 9300),
-            new HashMap<String, String>(),
-            Version.fromString("3.0.0"),
-            new PluginInfo(
-                "firstExtension",
-                "Fake description 1",
-                "0.0.7",
-                Version.fromString("3.0.0"),
-                "14",
-                "fakeClass1",
-                new ArrayList<String>(),
-                false
-            )
-        );
 
         List<Setting<?>> componentSettings = List.of(
             Setting.boolSetting("falseSetting", false, Property.Dynamic),
