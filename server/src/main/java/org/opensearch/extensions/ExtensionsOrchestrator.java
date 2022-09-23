@@ -73,6 +73,9 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     public static final String REQUEST_EXTENSION_CLUSTER_STATE = "internal:discovery/clusterstate";
     public static final String REQUEST_EXTENSION_LOCAL_NODE = "internal:discovery/localnode";
     public static final String REQUEST_EXTENSION_CLUSTER_SETTINGS = "internal:discovery/clustersettings";
+    public static final String REQUEST_EXTENSION_ENVIRONMENT_SETTINGS = "internal:discovery/enviornmentsettings";
+    public static final String REQUEST_EXTENSION_ADD_SETTINGS_UPDATE_CONSUMER = "internal:discovery/addsettingsupdateconsumer";
+    public static final String REQUEST_EXTENSION_UPDATE_SETTINGS = "internal:discovery/updatesettings";
     public static final String REQUEST_EXTENSION_REGISTER_CUSTOM_SETTINGS = "internal:discovery/registercustomsettings";
     public static final String REQUEST_EXTENSION_REGISTER_REST_ACTIONS = "internal:discovery/registerrestactions";
     public static final String REQUEST_EXTENSION_REGISTER_TRANSPORT_ACTIONS = "internal:discovery/registertransportactions";
@@ -120,6 +123,8 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     ClusterService clusterService;
     ExtensionNamedWriteableRegistry namedWriteableRegistry;
     ExtensionActionListener<ExtensionBooleanResponse> listener;
+    EnvironmentSettingsRequestHandler environmentSettingsRequestHandler;
+    AddSettingsUpdateConsumerRequestHandler addSettingsUpdateConsumerRequestHandler;
 
     /**
      * Instantiate a new ExtensionsOrchestrator object to handle requests and responses from extensions. This is called during Node bootstrap.
@@ -146,24 +151,32 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     }
 
     /**
-     * Initializes the {@link RestActionsRequestHandler}, {@link TransportService} and {@link ClusterService}. This is called during Node bootstrap.
+     * Initializes the {@link RestActionsRequestHandler}, {@link TransportService}, {@link ClusterService} and environment settings. This is called during Node bootstrap.
      * Lists/maps of extensions have already been initialized but not yet populated.
      *
      * @param restController  The RestController on which to register Rest Actions.
      * @param settingsModule
      * @param transportService  The Node's transport service.
      * @param clusterService  The Node's cluster service.
+     * @param initialEnvironmentSettings The finalized view of settings for the Environment
      */
     public void initializeServicesAndRestHandler(
         RestController restController,
         SettingsModule settingsModule,
         TransportService transportService,
-        ClusterService clusterService
+        ClusterService clusterService,
+        Settings initialEnvironmentSettings
     ) {
         this.restActionsRequestHandler = new RestActionsRequestHandler(restController, extensionIdMap, transportService);
         this.customSettingsRequestHandler = new CustomSettingsRequestHandler(settingsModule);
         this.transportService = transportService;
         this.clusterService = clusterService;
+        this.environmentSettingsRequestHandler = new EnvironmentSettingsRequestHandler(initialEnvironmentSettings);
+        this.addSettingsUpdateConsumerRequestHandler = new AddSettingsUpdateConsumerRequestHandler(
+            clusterService,
+            transportService,
+            REQUEST_EXTENSION_UPDATE_SETTINGS
+        );
         registerRequestHandler();
     }
 
@@ -215,6 +228,24 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             false,
             ExtensionRequest::new,
             ((request, channel, task) -> channel.sendResponse(handleExtensionRequest(request)))
+        );
+        transportService.registerRequestHandler(
+            REQUEST_EXTENSION_ENVIRONMENT_SETTINGS,
+            ThreadPool.Names.GENERIC,
+            false,
+            false,
+            EnvironmentSettingsRequest::new,
+            ((request, channel, task) -> channel.sendResponse(environmentSettingsRequestHandler.handleEnvironmentSettingsRequest(request)))
+        );
+        transportService.registerRequestHandler(
+            REQUEST_EXTENSION_ADD_SETTINGS_UPDATE_CONSUMER,
+            ThreadPool.Names.GENERIC,
+            false,
+            false,
+            AddSettingsUpdateConsumerRequest::new,
+            ((request, channel, task) -> channel.sendResponse(
+                addSettingsUpdateConsumerRequestHandler.handleAddSettingsUpdateConsumerRequest(request)
+            ))
         );
         transportService.registerRequestHandler(
             REQUEST_EXTENSION_REGISTER_TRANSPORT_ACTIONS,
@@ -347,6 +378,22 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     }
 
     /**
+     * Handles a {@link RegisterTransportActionsRequest}.
+     *
+     * @param transportActionsRequest  The request to handle.
+     * @return  A {@link ExtensionBooleanResponse} indicating success.
+     * @throws Exception if the request is not handled properly.
+     */
+    TransportResponse handleRegisterTransportActionsRequest(RegisterTransportActionsRequest transportActionsRequest) throws Exception {
+        /*
+         * TODO: https://github.com/opensearch-project/opensearch-sdk-java/issues/107
+         * Register these new Transport Actions with ActionModule
+         * and add support for NodeClient to recognise these actions when making transport calls.
+         */
+        return new ExtensionBooleanResponse(true);
+    }
+
+    /**
      * Handles an {@link ExtensionRequest}.
      *
      * @param extensionRequest  The request to handle, of a type defined in the {@link RequestType} enum.
@@ -376,22 +423,6 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             logger.error(e.getMessage());
             throw e;
         }
-    }
-
-    /**
-     * Handles a {@link RegisterTransportActionsRequest}.
-     *
-     * @param transportActionsRequest  The request to handle.
-     * @return  A {@link ExtensionBooleanResponse} indicating success.
-     * @throws Exception if the request is not handled properly.
-     */
-    TransportResponse handleRegisterTransportActionsRequest(RegisterTransportActionsRequest transportActionsRequest) throws Exception {
-        /*
-         * TODO: https://github.com/opensearch-project/opensearch-sdk-java/issues/107
-         * Register these new Transport Actions with ActionModule
-         * and add support for NodeClient to recognise these actions when making transport calls.
-         */
-        return new ExtensionBooleanResponse(true);
     }
 
     public void onIndexModule(IndexModule indexModule) throws UnknownHostException {
