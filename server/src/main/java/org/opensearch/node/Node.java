@@ -429,6 +429,8 @@ public class Node implements Closeable {
                 .collect(Collectors.toSet());
             DiscoveryNode.setAdditionalRoles(additionalRoles);
 
+            DiscoveryNode.setDeprecatedMasterRole();
+
             /*
              * Create the environment based on the finalized view of the settings. This is to ensure that components get the same setting
              * values, no matter they ask for them from.
