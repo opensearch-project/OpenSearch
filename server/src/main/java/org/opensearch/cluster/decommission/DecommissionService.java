@@ -130,7 +130,7 @@ public class DecommissionService {
             new TransportResponseHandler<ClusterPutWeightedRoutingResponse>() {
                 @Override
                 public void handleResponse(ClusterPutWeightedRoutingResponse response) {
-                    logger.info("Weights are successfully set.", response.isAcknowledged());
+                    logger.info("Weights are successfully set. [{}]", response.isAcknowledged());
                 }
 
                 @Override
