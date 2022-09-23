@@ -37,10 +37,21 @@ import org.opensearch.search.suggest.SuggestionSearchContext;
 
 import java.util.Map;
 
+/**
+ * The suggestion context for this custom suggestion.
+ */
 public class CustomSuggestionContext extends SuggestionSearchContext.SuggestionContext {
 
+    /**
+     * Options for this context.
+     */
     public Map<String, Object> options;
 
+    /**
+     * Instantiate this objecct from the given QueryShardContext and options.
+     * @param context the QueryShardContext
+     * @param options Options for this suggestion context.
+     */
     public CustomSuggestionContext(QueryShardContext context, Map<String, Object> options) {
         super(new CustomSuggester(), context);
         this.options = options;

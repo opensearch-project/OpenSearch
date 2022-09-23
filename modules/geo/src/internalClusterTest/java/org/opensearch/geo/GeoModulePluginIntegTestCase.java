@@ -21,6 +21,9 @@ import java.util.Collections;
  * for the test cluster on which integration tests are running.
  */
 public abstract class GeoModulePluginIntegTestCase extends OpenSearchIntegTestCase {
+
+    protected static final double GEOHASH_TOLERANCE = 1E-5D;
+
     /**
      * Returns a collection of plugins that should be loaded on each node for doing the integration tests. As this
      * geo plugin is not getting packaged in a zip, we need to load it before the tests run.

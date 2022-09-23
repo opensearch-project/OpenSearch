@@ -46,9 +46,14 @@ import static org.opensearch.rest.RestRequest.Method.GET;
 import static org.opensearch.rest.RestRequest.Method.POST;
 
 /**
- * Example of adding a cat action with a plugin.
+ * Example of adding a cat REST action with a plugin.
  */
 public class ExampleCatAction extends AbstractCatAction {
+
+    /**
+     * Instantiate this class.
+     */
+    public ExampleCatAction() {}
 
     @Override
     public List<Route> routes() {
@@ -82,6 +87,11 @@ public class ExampleCatAction extends AbstractCatAction {
         sb.append(documentation());
     }
 
+    /**
+     * Documents this REST action.
+     *
+     * @return Syntax documentation.
+     */
     public static String documentation() {
         return "/_cat/example\n";
     }
