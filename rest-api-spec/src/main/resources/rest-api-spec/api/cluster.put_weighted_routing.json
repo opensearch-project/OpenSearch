@@ -1,8 +1,8 @@
 {
   "cluster.put_weighted_routing": {
     "documentation": {
-      "url": "http://TBA",
-      "description": "TBA"
+      "url": "https://opensearch.org/docs/latest/opensearch/rest-api/weighted-routing/put",
+      "description": "Updates weighted shard routing weights"
     },
     "stability": "stable",
     "url": {
