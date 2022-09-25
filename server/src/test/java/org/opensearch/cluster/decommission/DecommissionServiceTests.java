@@ -26,6 +26,7 @@ import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDeci
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransport;
 import org.opensearch.threadpool.TestThreadPool;
@@ -133,7 +134,7 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
                 countDownLatch.countDown();
             }
         };
-        decommissionService.startDecommissionAction(decommissionAttribute, listener);
+        decommissionService.startDecommissionAction(decommissionAttribute, listener, TimeValue.timeValueSeconds(30));
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
     }
 
@@ -160,7 +161,7 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
                 countDownLatch.countDown();
             }
         };
-        decommissionService.startDecommissionAction(decommissionAttribute, listener);
+        decommissionService.startDecommissionAction(decommissionAttribute, listener, TimeValue.timeValueSeconds(30));
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
     }
 
@@ -197,7 +198,7 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
                 countDownLatch.countDown();
             }
         };
-        decommissionService.startDecommissionAction(new DecommissionAttribute("zone", "zone_2"), listener);
+        decommissionService.startDecommissionAction(new DecommissionAttribute("zone", "zone_2"), listener, TimeValue.timeValueSeconds(30));
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
     }
 
