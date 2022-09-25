@@ -26,7 +26,6 @@ import static org.opensearch.rest.RestRequest.Method.DELETE;
  * Rest action for deleting PIT contexts
  */
 public class RestDeletePitAction extends BaseRestHandler {
-
     @Override
     public String getName() {
         return "delete_pit_action";
