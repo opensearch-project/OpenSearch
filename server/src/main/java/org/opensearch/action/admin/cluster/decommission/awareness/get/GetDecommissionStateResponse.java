@@ -19,6 +19,7 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Objects;
 
 import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -136,7 +137,7 @@ public class GetDecommissionStateResponse extends ActionResponse implements ToXC
                             "failed to parse status of decommissioning, expected string but found unknown type"
                         );
                     }
-                    status = DecommissionStatus.fromString(parser.text());
+                    status = DecommissionStatus.fromString(parser.text().toLowerCase(Locale.ROOT));
                 } else {
                     throw new OpenSearchParseException(
                         "unknown field found [{}], failed to parse the decommission attribute",
