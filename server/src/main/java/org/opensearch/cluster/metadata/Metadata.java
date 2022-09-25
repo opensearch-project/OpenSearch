@@ -1188,10 +1188,10 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                     return indexMetadata;
                 }
                 throw new IndexNotFoundException(
-                        index,
-                        new IllegalStateException(
-                                "index uuid doesn't match expected: [" + index.getUUID() + "] but got: [" + indexMetadata.getIndexUUID() + "]"
-                        )
+                    index,
+                    new IllegalStateException(
+                        "index uuid doesn't match expected: [" + index.getUUID() + "] but got: [" + indexMetadata.getIndexUUID() + "]"
+                    )
                 );
             }
             throw new IndexNotFoundException(index);
