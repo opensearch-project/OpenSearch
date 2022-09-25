@@ -54,7 +54,7 @@ public class TransportDecommissionAction extends TransportClusterManagerNodeActi
             DecommissionRequest::new,
             indexNameExpressionResolver
         );
-         this.decommissionService = decommissionService;
+        this.decommissionService = decommissionService;
     }
 
     @Override

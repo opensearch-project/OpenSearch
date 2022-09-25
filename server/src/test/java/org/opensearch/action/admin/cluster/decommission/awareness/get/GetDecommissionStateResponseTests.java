@@ -18,7 +18,7 @@ import java.io.IOException;
 public class GetDecommissionStateResponseTests extends AbstractXContentTestCase<GetDecommissionStateResponse> {
     @Override
     protected GetDecommissionStateResponse createTestInstance() {
-        DecommissionStatus status = DecommissionStatus.fromValue((byte) randomIntBetween(0, 5));
+        DecommissionStatus status = randomFrom(DecommissionStatus.values());
         String attributeName = randomAlphaOfLength(10);
         String attributeValue = randomAlphaOfLength(10);
         DecommissionAttribute decommissionAttribute = new DecommissionAttribute(attributeName, attributeValue);
