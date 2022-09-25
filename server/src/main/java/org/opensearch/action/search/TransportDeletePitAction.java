@@ -11,7 +11,6 @@ package org.opensearch.action.search;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
-import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.tasks.Task;
@@ -28,9 +27,6 @@ import java.util.stream.Collectors;
  */
 public class TransportDeletePitAction extends HandledTransportAction<DeletePitRequest, DeletePitResponse> {
     private final NamedWriteableRegistry namedWriteableRegistry;
-    private TransportSearchAction transportSearchAction;
-    private final ClusterService clusterService;
-    private final SearchTransportService searchTransportService;
     private final PitService pitService;
 
     @Inject
@@ -38,16 +34,10 @@ public class TransportDeletePitAction extends HandledTransportAction<DeletePitRe
         TransportService transportService,
         ActionFilters actionFilters,
         NamedWriteableRegistry namedWriteableRegistry,
-        TransportSearchAction transportSearchAction,
-        ClusterService clusterService,
-        SearchTransportService searchTransportService,
         PitService pitService
     ) {
         super(DeletePitAction.NAME, transportService, actionFilters, DeletePitRequest::new);
         this.namedWriteableRegistry = namedWriteableRegistry;
-        this.transportSearchAction = transportSearchAction;
-        this.clusterService = clusterService;
-        this.searchTransportService = searchTransportService;
         this.pitService = pitService;
     }
 
@@ -57,11 +47,7 @@ public class TransportDeletePitAction extends HandledTransportAction<DeletePitRe
     @Override
     protected void doExecute(Task task, DeletePitRequest request, ActionListener<DeletePitResponse> listener) {
         List<String> pitIds = request.getPitIds();
-        // when security plugin intercepts the request, if PITs are not present in the cluster the PIT IDs in request will be empty
-        // and in this case return empty response
-        if (pitIds.isEmpty()) {
-            listener.onResponse(new DeletePitResponse(new ArrayList<>()));
-        } else if (pitIds.size() == 1 && "_all".equals(pitIds.get(0))) {
+        if (pitIds.size() == 1 && "_all".equals(pitIds.get(0))) {
             deleteAllPits(listener);
         } else {
             deletePits(listener, request);

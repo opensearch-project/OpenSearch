@@ -63,6 +63,7 @@ import org.opensearch.action.search.CreatePitRequest;
 import org.opensearch.action.search.CreatePitResponse;
 import org.opensearch.action.search.DeletePitRequest;
 import org.opensearch.action.search.DeletePitResponse;
+import org.opensearch.action.search.GetAllPitNodesResponse;
 import org.opensearch.action.search.MultiSearchRequest;
 import org.opensearch.action.search.MultiSearchResponse;
 import org.opensearch.action.search.SearchRequest;
@@ -1363,6 +1364,40 @@ public class RestHighLevelClient implements Closeable {
             (request) -> RequestConverters.deleteAllPits(),
             options,
             DeletePitResponse::fromXContent,
+            listener,
+            emptySet()
+        );
+    }
+
+    /**
+     * Get all point in time searches using list all PITs API
+     *
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     */
+    public final GetAllPitNodesResponse getAllPits(RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(
+            new MainRequest(),
+            (request) -> RequestConverters.getAllPits(),
+            options,
+            GetAllPitNodesResponse::fromXContent,
+            emptySet()
+        );
+    }
+
+    /**
+     * Asynchronously get all point in time searches using list all PITs API
+     *
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @return the response
+     */
+    public final Cancellable getAllPitsAsync(RequestOptions options, ActionListener<GetAllPitNodesResponse> listener) {
+        return performRequestAsyncAndParseEntity(
+            new MainRequest(),
+            (request) -> RequestConverters.getAllPits(),
+            options,
+            GetAllPitNodesResponse::fromXContent,
             listener,
             emptySet()
         );

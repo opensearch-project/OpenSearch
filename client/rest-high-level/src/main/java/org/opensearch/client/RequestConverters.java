@@ -498,6 +498,10 @@ final class RequestConverters {
         return new Request(HttpDelete.METHOD_NAME, "/_search/point_in_time/_all");
     }
 
+    static Request getAllPits() {
+        return new Request(HttpGet.METHOD_NAME, "/_search/point_in_time/_all");
+    }
+
     static Request multiSearch(MultiSearchRequest multiSearchRequest) throws IOException {
         Request request = new Request(HttpPost.METHOD_NAME, "/_msearch");
 
