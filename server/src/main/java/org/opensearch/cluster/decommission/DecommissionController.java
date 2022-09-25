@@ -290,11 +290,11 @@ public class DecommissionController {
         checkHttpStatsForDecommissionedNodes(nodesToBeDecommissioned, reason, timeout, timeoutForNodeDecommission, nodesRemovedListener);
     }
 
-    private void setWeightForDecommissionedZone(List<String> zones) {
+    void setWeightForDecommissionedZone(List<String> zones) {
         ClusterState clusterState = clusterService.getClusterApplierService().state();
 
         DecommissionAttributeMetadata decommissionAttributeMetadata = clusterState.metadata().custom(DecommissionAttributeMetadata.TYPE);
-        assert decommissionAttributeMetadata.status().equals(DecommissionStatus.INIT)
+        assert decommissionAttributeMetadata.status().equals(DecommissionStatus.IN_PROGRESS)
             : "unexpected status encountered while decommissioning nodes";
         DecommissionAttribute decommissionAttribute = decommissionAttributeMetadata.decommissionAttribute();
 
@@ -341,7 +341,7 @@ public class DecommissionController {
         );
     }
 
-    public void checkHttpStatsForDecommissionedNodes(
+    void checkHttpStatsForDecommissionedNodes(
         Set<DiscoveryNode> decommissionedNodes,
         String reason,
         TimeValue timeout,

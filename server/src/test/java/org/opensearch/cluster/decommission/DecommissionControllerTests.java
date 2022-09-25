@@ -10,11 +10,15 @@ package org.opensearch.cluster.decommission;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Test;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.opensearch.action.admin.cluster.configuration.TransportClearVotingConfigExclusionsAction;
+import org.opensearch.action.admin.cluster.shards.routing.wrr.put.ClusterPutWRRWeightsRequest;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
@@ -28,6 +32,7 @@ import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.collect.List;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -36,6 +41,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransport;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
 import java.util.Arrays;
@@ -266,6 +272,84 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
         ClusterState newState = clusterService.getClusterApplierService().state();
         DecommissionAttributeMetadata decommissionAttributeMetadata = newState.metadata().decommissionAttributeMetadata();
         assertEquals(decommissionAttributeMetadata.status(), DecommissionStatus.SUCCESSFUL);
+    }
+
+    public void testSetWeightsForDecommission() {
+        TransportService mockTransportService = Mockito.mock(TransportService.class);
+        Mockito.when(mockTransportService.getLocalNode()).thenReturn(Mockito.mock(DiscoveryNode.class));
+        decommissionController = new DecommissionController(clusterService, mockTransportService, allocationService, threadPool);
+
+        DecommissionAttributeMetadata oldMetadata = new DecommissionAttributeMetadata(
+            new DecommissionAttribute("zone", "zone-1"),
+            DecommissionStatus.IN_PROGRESS
+        );
+        ClusterState state = clusterService.state();
+        Metadata metadata = state.metadata();
+        Metadata.Builder mdBuilder = Metadata.builder(metadata);
+        mdBuilder.decommissionAttributeMetadata(oldMetadata);
+        state = ClusterState.builder(state).metadata(mdBuilder).build();
+        setState(clusterService, state);
+
+        decommissionController.setWeightForDecommissionedZone(List.of("zone-1", "zone-2", "zone-3"));
+        ArgumentCaptor<ClusterPutWRRWeightsRequest> clusterPutWRRWeightsRequestArgumentCaptor = ArgumentCaptor.forClass(
+            ClusterPutWRRWeightsRequest.class
+        );
+        Mockito.verify(mockTransportService)
+            .sendRequest(
+                Mockito.any(DiscoveryNode.class),
+                Mockito.anyString(),
+                clusterPutWRRWeightsRequestArgumentCaptor.capture(),
+                Mockito.any(TransportResponseHandler.class)
+            );
+
+        ClusterPutWRRWeightsRequest request = clusterPutWRRWeightsRequestArgumentCaptor.getValue();
+        assertEquals("0", request.wrrWeight().weights().get("zone-1"));
+        assertEquals("1", request.wrrWeight().weights().get("zone-2"));
+        assertEquals("1", request.wrrWeight().weights().get("zone-3"));
+    }
+
+    @Test(expected = AssertionError.class)
+    public void testSetWeightsForDecommissionForDecommissionInit() {
+        TransportService mockTransportService = Mockito.mock(TransportService.class);
+        Mockito.when(mockTransportService.getLocalNode()).thenReturn(Mockito.mock(DiscoveryNode.class));
+        decommissionController = new DecommissionController(clusterService, mockTransportService, allocationService, threadPool);
+
+        DecommissionAttributeMetadata oldMetadata = new DecommissionAttributeMetadata(
+            new DecommissionAttribute("zone", "zone-1"),
+            DecommissionStatus.INIT
+        );
+        ClusterState state = clusterService.state();
+        Metadata metadata = state.metadata();
+        Metadata.Builder mdBuilder = Metadata.builder(metadata);
+        mdBuilder.decommissionAttributeMetadata(oldMetadata);
+        state = ClusterState.builder(state).metadata(mdBuilder).build();
+        setState(clusterService, state);
+
+        decommissionController.setWeightForDecommissionedZone(List.of("zone-1", "zone-2", "zone-3"));
+    }
+
+    public void testCheckHttpStatsForDecommissionedNodes() {
+        TransportService mockTransportService = Mockito.mock(TransportService.class);
+        ThreadPool mockThreadPool = Mockito.mock(ThreadPool.class);
+        Mockito.when(mockTransportService.getThreadPool()).thenReturn(mockThreadPool);
+        Mockito.when(mockTransportService.getLocalNode()).thenReturn(Mockito.mock(DiscoveryNode.class));
+        decommissionController = new DecommissionController(clusterService, mockTransportService, allocationService, threadPool);
+
+        DiscoveryNode node1 = Mockito.mock(DiscoveryNode.class);
+        DiscoveryNode node2 = Mockito.mock(DiscoveryNode.class);
+
+        ActionListener listener = Mockito.mock(ActionListener.class);
+
+        String reason = "Node is Decommissioned";
+        decommissionController.checkHttpStatsForDecommissionedNodes(
+            Set.of(node1, node2),
+            reason,
+            TimeValue.timeValueSeconds(30),
+            TimeValue.timeValueSeconds(60),
+            listener
+        );
+
+        Mockito.verify(mockThreadPool).schedule(Mockito.any(Runnable.class), Mockito.any(TimeValue.class), Mockito.anyString());
     }
 
     private static class AdjustConfigurationForExclusions implements ClusterStateObserver.Listener {
