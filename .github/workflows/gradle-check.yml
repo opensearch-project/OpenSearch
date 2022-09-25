@@ -8,8 +8,15 @@ on:
   pull_request_target:
     types: [opened, synchronize, reopened]
 
+permissions:
+  contents: read # to fetch code (actions/checkout)
+
 jobs:
   gradle-check:
+    permissions:
+      contents: read # to fetch code (actions/checkout)
+      pull-requests: write # to create or update comment (peter-evans/create-or-update-comment)
+
     runs-on: ubuntu-latest
     timeout-minutes: 130
     steps:
