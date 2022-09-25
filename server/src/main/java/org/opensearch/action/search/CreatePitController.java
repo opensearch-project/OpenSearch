@@ -99,6 +99,11 @@ public class CreatePitController {
             Collections.emptyMap()
         );
         /**
+         * This is needed for cross cluster functionality to work with PITs and current ccsMinimizeRoundTrips is
+         * not supported for point in time
+         */
+        searchRequest.setCcsMinimizeRoundtrips(false);
+        /**
          * Phase 1 of create PIT
          */
         executeCreatePit(searchTask, searchRequest, createPitListener);
@@ -193,6 +198,29 @@ public class CreatePitController {
             );
             for (Map.Entry<ShardId, SearchContextIdForNode> entry : contextId.shards().entrySet()) {
                 DiscoveryNode node = nodelookup.apply(entry.getValue().getClusterAlias(), entry.getValue().getNode());
+                if (node == null) {
+                    node = this.clusterService.state().getNodes().get(entry.getValue().getNode());
+                }
+                if (node == null) {
+                    logger.error(
+                        () -> new ParameterizedMessage(
+                            "Create pit update phase for PIT ID [{}] failed " + "because node [{}] not found",
+                            searchResponse.pointInTimeId(),
+                            entry.getValue().getNode()
+                        )
+                    );
+                    groupedActionListener.onFailure(
+                        new OpenSearchException(
+                            "Create pit update phase for PIT ID ["
+                                + searchResponse.pointInTimeId()
+                                + "] failed because node["
+                                + entry.getValue().getNode()
+                                + "] "
+                                + "not found"
+                        )
+                    );
+                    return;
+                }
                 try {
                     final Transport.Connection connection = searchTransportService.getConnection(entry.getValue().getClusterAlias(), node);
                     searchTransportService.updatePitContext(
@@ -206,11 +234,12 @@ public class CreatePitController {
                         groupedActionListener
                     );
                 } catch (Exception e) {
+                    String nodeName = node.getName();
                     logger.error(
                         () -> new ParameterizedMessage(
                             "Create pit update phase failed for PIT ID [{}] on node [{}]",
                             searchResponse.pointInTimeId(),
-                            node
+                            nodeName
                         ),
                         e
                     );

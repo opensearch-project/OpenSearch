@@ -1,7 +1,7 @@
 "Create PIT, Search with PIT ID and Delete":
   - skip:
-      version: " - 2.2.99"
-      reason: "mode to be introduced later than 2.3"
+      version: " - 2.3.99"
+      reason: "mode to be introduced later than 2.4"
   - do:
       indices.create:
         index: test_pit
@@ -80,6 +80,12 @@
   - length: {hits.hits:      1    }
 
   - do:
+      get_all_pits: {}
+
+  - match: {pits.0.pit_id: $pit_id}
+  - match: {pits.0.keep_alive: 82800000 }
+
+  - do:
       delete_pit:
         body:
           "pit_id": [$pit_id]
@@ -90,8 +96,8 @@
 ---
 "Delete all":
   - skip:
-      version: " - 2.2.99"
-      reason: "mode to be introduced later than 2.3"
+      version: " - 2.3.99"
+      reason: "mode to be introduced later than 2.4"
   - do:
       indices.create:
         index: test_pit
@@ -118,6 +124,12 @@
 
   - set: {pit_id: pit_id}
   - match:   { _shards.failed: 0}
+
+  - do:
+      get_all_pits: {}
+
+  - match: {pits.0.pit_id: $pit_id}
+  - match: {pits.0.keep_alive: 82800000 }
 
   - do:
       delete_all_pits: {}
