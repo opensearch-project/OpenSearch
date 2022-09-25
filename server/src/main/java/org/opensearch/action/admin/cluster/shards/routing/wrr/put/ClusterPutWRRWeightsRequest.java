@@ -80,12 +80,12 @@ public class ClusterPutWRRWeightsRequest extends ClusterManagerNodeRequest<Clust
 
     public void setWRRWeight(BytesReference source, XContentType contentType) {
         try (
-                XContentParser parser = XContentHelper.createParser(
-                        NamedXContentRegistry.EMPTY,
-                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                        source,
-                        contentType
-                )
+            XContentParser parser = XContentHelper.createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                source,
+                contentType
+            )
         ) {
             String attrValue = null;
             Map<String, Object> weights = new HashMap<>();
