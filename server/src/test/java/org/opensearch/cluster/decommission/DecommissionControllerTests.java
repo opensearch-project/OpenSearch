@@ -86,12 +86,12 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
         setState(clusterService, builder);
         final MockTransport transport = new MockTransport();
         transportService = transport.createTransportService(
-                Settings.EMPTY,
-                threadPool,
-                TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                boundTransportAddress -> clusterService.state().nodes().get("node1"),
-                null,
-                emptySet()
+            Settings.EMPTY,
+            threadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            boundTransportAddress -> clusterService.state().nodes().get("node1"),
+            null,
+            emptySet()
         );
 
         final Settings.Builder nodeSettingsBuilder = Settings.builder();
@@ -99,21 +99,21 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
         clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
         new TransportAddVotingConfigExclusionsAction(
-                nodeSettings,
-                clusterSettings,
-                transportService,
-                clusterService,
-                threadPool,
-                new ActionFilters(emptySet()),
-                new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY))
+            nodeSettings,
+            clusterSettings,
+            transportService,
+            clusterService,
+            threadPool,
+            new ActionFilters(emptySet()),
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY))
         ); // registers action
 
         new TransportClearVotingConfigExclusionsAction(
-                transportService,
-                clusterService,
-                threadPool,
-                new ActionFilters(emptySet()),
-                new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY))
+            transportService,
+            clusterService,
+            threadPool,
+            new ActionFilters(emptySet()),
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY))
         ); // registers action
 
         transportService.start();
@@ -178,26 +178,26 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
         nodesToBeRemoved.add(clusterService.state().nodes().get("node15"));
 
         decommissionController.removeDecommissionedNodes(
-                nodesToBeRemoved,
-                "unit-test",
-                TimeValue.timeValueSeconds(30L),
-                new ActionListener<Void>() {
-                    @Override
-                    public void onResponse(Void unused) {
-                        countDownLatch.countDown();
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        fail("there shouldn't have been any failure");
-                    }
+            nodesToBeRemoved,
+            "unit-test",
+            TimeValue.timeValueSeconds(30L),
+            new ActionListener<Void>() {
+                @Override
+                public void onResponse(Void unused) {
+                    countDownLatch.countDown();
                 }
+
+                @Override
+                public void onFailure(Exception e) {
+                    fail("there shouldn't have been any failure");
+                }
+            }
         );
 
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
         // test all 5 nodes removed and cluster has 10 nodes
         Set<DiscoveryNode> nodes = StreamSupport.stream(clusterService.getClusterApplierService().state().nodes().spliterator(), false)
-                .collect(Collectors.toSet());
+            .collect(Collectors.toSet());
         assertEquals(nodes.size(), 10);
         // test no nodes part of zone-3
         for (DiscoveryNode node : nodes) {
@@ -214,22 +214,22 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
         nodesToBeRemoved.add(clusterService.state().nodes().get("node14"));
         nodesToBeRemoved.add(clusterService.state().nodes().get("node15"));
         decommissionController.removeDecommissionedNodes(
-                nodesToBeRemoved,
-                "unit-test-timeout",
-                TimeValue.timeValueMillis(2),
-                new ActionListener<Void>() {
-                    @Override
-                    public void onResponse(Void unused) {
-                        fail("response shouldn't have been called");
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        assertThat(e, instanceOf(OpenSearchTimeoutException.class));
-                        assertThat(e.getMessage(), containsString("waiting for removal of decommissioned nodes"));
-                        countDownLatch.countDown();
-                    }
+            nodesToBeRemoved,
+            "unit-test-timeout",
+            TimeValue.timeValueMillis(2),
+            new ActionListener<Void>() {
+                @Override
+                public void onResponse(Void unused) {
+                    fail("response shouldn't have been called");
                 }
+
+                @Override
+                public void onFailure(Exception e) {
+                    assertThat(e, instanceOf(OpenSearchTimeoutException.class));
+                    assertThat(e.getMessage(), containsString("waiting for removal of decommissioned nodes"));
+                    countDownLatch.countDown();
+                }
+            }
         );
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
     }
@@ -237,8 +237,8 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
     public void testSuccessfulDecommissionStatusMetadataUpdate() throws InterruptedException {
         final CountDownLatch countDownLatch = new CountDownLatch(1);
         DecommissionAttributeMetadata oldMetadata = new DecommissionAttributeMetadata(
-                new DecommissionAttribute("zone", "zone-1"),
-                DecommissionStatus.IN_PROGRESS
+            new DecommissionAttribute("zone", "zone-1"),
+            DecommissionStatus.IN_PROGRESS
         );
         ClusterState state = clusterService.state();
         Metadata metadata = state.metadata();
@@ -248,19 +248,19 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
         setState(clusterService, state);
 
         decommissionController.updateMetadataWithDecommissionStatus(
-                DecommissionStatus.SUCCESSFUL,
-                new ActionListener<DecommissionStatus>() {
-                    @Override
-                    public void onResponse(DecommissionStatus status) {
-                        assertEquals(DecommissionStatus.SUCCESSFUL, status);
-                        countDownLatch.countDown();
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        fail("decommission status update failed");
-                    }
+            DecommissionStatus.SUCCESSFUL,
+            new ActionListener<DecommissionStatus>() {
+                @Override
+                public void onResponse(DecommissionStatus status) {
+                    assertEquals(DecommissionStatus.SUCCESSFUL, status);
+                    countDownLatch.countDown();
                 }
+
+                @Override
+                public void onFailure(Exception e) {
+                    fail("decommission status update failed");
+                }
+            }
         );
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
         ClusterState newState = clusterService.getClusterApplierService().state();
@@ -286,16 +286,16 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
                     currentState.nodes().forEach(n -> votingNodeIds.add(n.getId()));
                     currentState.getVotingConfigExclusions().forEach(t -> votingNodeIds.remove(t.getNodeId()));
                     final CoordinationMetadata.VotingConfiguration votingConfiguration = new CoordinationMetadata.VotingConfiguration(
-                            votingNodeIds
+                        votingNodeIds
                     );
                     return builder(currentState).metadata(
-                            Metadata.builder(currentState.metadata())
-                                    .coordinationMetadata(
-                                            CoordinationMetadata.builder(currentState.coordinationMetadata())
-                                                    .lastAcceptedConfiguration(votingConfiguration)
-                                                    .lastCommittedConfiguration(votingConfiguration)
-                                                    .build()
-                                    )
+                        Metadata.builder(currentState.metadata())
+                            .coordinationMetadata(
+                                CoordinationMetadata.builder(currentState.coordinationMetadata())
+                                    .lastAcceptedConfiguration(votingConfiguration)
+                                    .lastCommittedConfiguration(votingConfiguration)
+                                    .build()
+                            )
                     ).build();
                 }
 
@@ -339,18 +339,18 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
 
     private ClusterState setThreeNodesInVotingConfig(ClusterState clusterState) {
         final CoordinationMetadata.VotingConfiguration votingConfiguration = CoordinationMetadata.VotingConfiguration.of(
-                clusterState.nodes().get("node1"),
-                clusterState.nodes().get("node6"),
-                clusterState.nodes().get("node11")
+            clusterState.nodes().get("node1"),
+            clusterState.nodes().get("node6"),
+            clusterState.nodes().get("node11")
         );
 
         Metadata.Builder builder = Metadata.builder()
-                .coordinationMetadata(
-                        CoordinationMetadata.builder()
-                                .lastAcceptedConfiguration(votingConfiguration)
-                                .lastCommittedConfiguration(votingConfiguration)
-                                .build()
-                );
+            .coordinationMetadata(
+                CoordinationMetadata.builder()
+                    .lastAcceptedConfiguration(votingConfiguration)
+                    .lastCommittedConfiguration(votingConfiguration)
+                    .build()
+            );
         clusterState = ClusterState.builder(clusterState).metadata(builder).build();
         return clusterState;
     }
@@ -360,6 +360,6 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
     }
 
     final private static Set<DiscoveryNodeRole> CLUSTER_MANAGER_DATA_ROLE = Collections.unmodifiableSet(
-            new HashSet<>(Arrays.asList(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, DiscoveryNodeRole.DATA_ROLE))
+        new HashSet<>(Arrays.asList(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, DiscoveryNodeRole.DATA_ROLE))
     );
 }

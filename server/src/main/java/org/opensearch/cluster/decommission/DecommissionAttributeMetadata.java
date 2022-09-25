@@ -83,6 +83,10 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
      */
     // synchronized is strictly speaking not needed (this is called by a single thread), but just to be safe
     public synchronized DecommissionAttributeMetadata setUpdatedStatus(DecommissionStatus newStatus) {
+        // if the current status is the expected status already, we return the same instance
+        if (newStatus.equals(status)) {
+            return this;
+        }
         // We don't expect that INIT will be new status, as it is registered only when starting the decommission action
         switch (newStatus) {
             case IN_PROGRESS:
@@ -97,23 +101,23 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
                 break;
             default:
                 throw new IllegalArgumentException(
-                        "illegal decommission status [" + newStatus.status() + "] requested for updating metadata"
+                    "illegal decommission status [" + newStatus.status() + "] requested for updating metadata"
                 );
         }
         return this;
     }
 
-    protected void validateAndSetStatus(DecommissionStatus expected, DecommissionStatus next) {
+    private void validateAndSetStatus(DecommissionStatus expected, DecommissionStatus next) {
         if (status.equals(expected) == false) {
             assert false : "can't move decommission status to ["
-                    + next
-                    + "]. current status: ["
-                    + status
-                    + "] (expected ["
-                    + expected
-                    + "])";
+                + next
+                + "]. current status: ["
+                + status
+                + "] (expected ["
+                + expected
+                + "])";
             throw new IllegalStateException(
-                    "can't move decommission status to [" + next + "]. current status: [" + status + "] (expected [" + expected + "])"
+                "can't move decommission status to [" + next + "]. current status: [" + status + "] (expected [" + expected + "])"
             );
         }
         status = next;
@@ -176,8 +180,8 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
                 if (attributeType.equals(currentFieldName)) {
                     if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
                         throw new OpenSearchParseException(
-                                "failed to parse decommission attribute type [{}], expected object",
-                                attributeType
+                            "failed to parse decommission attribute type [{}], expected object",
+                            attributeType
                         );
                     }
                     token = parser.nextToken();
@@ -190,8 +194,8 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
                                 value = parser.text();
                             } else {
                                 throw new OpenSearchParseException(
-                                        "failed to parse attribute [{}], expected string for attribute value",
-                                        fieldName
+                                    "failed to parse attribute [{}], expected string for attribute value",
+                                    fieldName
                                 );
                             }
                             decommissionAttribute = new DecommissionAttribute(fieldName, value);
@@ -205,14 +209,14 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
                 } else if ("status".equals(currentFieldName)) {
                     if (parser.nextToken() != XContentParser.Token.VALUE_STRING) {
                         throw new OpenSearchParseException(
-                                "failed to parse status of decommissioning, expected string but found unknown type"
+                            "failed to parse status of decommissioning, expected string but found unknown type"
                         );
                     }
                     status = DecommissionStatus.fromString(parser.text());
                 } else {
                     throw new OpenSearchParseException(
-                            "unknown field found [{}], failed to parse the decommission attribute",
-                            currentFieldName
+                        "unknown field found [{}], failed to parse the decommission attribute",
+                        currentFieldName
                     );
                 }
             }
@@ -242,11 +246,11 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
      * @param params                serialization parameters
      */
     public static void toXContent(
-            DecommissionAttribute decommissionAttribute,
-            DecommissionStatus status,
-            String attributeType,
-            XContentBuilder builder,
-            ToXContent.Params params
+        DecommissionAttribute decommissionAttribute,
+        DecommissionStatus status,
+        String attributeType,
+        XContentBuilder builder,
+        ToXContent.Params params
     ) throws IOException {
         builder.startObject(attributeType);
         builder.field(decommissionAttribute.attributeName(), decommissionAttribute.attributeValue());
