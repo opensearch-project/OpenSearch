@@ -32,6 +32,8 @@ import org.opensearch.index.IndexService;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -75,7 +77,7 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
         ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, request);
         CreatePitResponse pitResponse = execute.get();
         PitTestsUtil.assertUsingGetAllPits(client(), pitResponse.getId(), pitResponse.getCreationTime());
-        assertSegments(false, client());
+        assertSegments(false, client(), pitResponse.getId());
         client().prepareIndex("index").setId("2").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
         SearchResponse searchResponse = client().prepareSearch("index")
             .setSize(2)
@@ -105,7 +107,7 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
         ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, request);
         CreatePitResponse response = execute.get();
         PitTestsUtil.assertUsingGetAllPits(client(), response.getId(), response.getCreationTime());
-        assertSegments(false, client());
+        assertSegments(false, client(), response.getId());
         assertEquals(4, response.getSuccessfulShards());
         assertEquals(4, service.getActiveContexts());
 
@@ -126,7 +128,7 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
         ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, request);
         CreatePitResponse pitResponse = execute.get();
         PitTestsUtil.assertUsingGetAllPits(client(), pitResponse.getId(), pitResponse.getCreationTime());
-        assertSegments(false, client());
+        assertSegments(false, client(), pitResponse.getId());
         client().prepareIndex("index").setId("2").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
         SearchResponse searchResponse = client().prepareSearch("index")
             .setSize(2)
@@ -228,7 +230,7 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
         ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, request);
         CreatePitResponse pitResponse = execute.get();
         PitTestsUtil.assertUsingGetAllPits(client(), pitResponse.getId(), pitResponse.getCreationTime());
-        assertSegments(false, client());
+        assertSegments(false, client(), pitResponse.getId());
         SearchService service = getInstanceFromNode(SearchService.class);
         assertEquals(2, service.getActiveContexts());
         validatePitStats("index", 1, 0, 0);
@@ -295,14 +297,16 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
         CreatePitRequest request = new CreatePitRequest(TimeValue.timeValueDays(1), true);
         request.setIndices(new String[] { "index" });
         SearchService service = getInstanceFromNode(SearchService.class);
+        List<String> pitIds = new ArrayList<>();
 
         try {
             for (int i = 0; i < 1000; i++) {
-                client().execute(CreatePitAction.INSTANCE, request).get();
+                CreatePitResponse cpr = client().execute(CreatePitAction.INSTANCE, request).actionGet();
+                if (cpr.getId() != null) pitIds.add(cpr.getId());
             }
         } catch (Exception ex) {
             assertTrue(
-                ex.getMessage()
+                ((SearchPhaseExecutionException) ex).getDetailedMessage()
                     .contains(
                         "Trying to create too many Point In Time contexts. "
                             + "Must be less than or equal to: ["
@@ -315,7 +319,7 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
         final int maxPitContexts = SearchService.MAX_OPEN_PIT_CONTEXT.get(Settings.EMPTY);
         validatePitStats("index", maxPitContexts, 0, 0);
         // deleteall
-        DeletePitRequest deletePITRequest = new DeletePitRequest("_all");
+        DeletePitRequest deletePITRequest = new DeletePitRequest(pitIds.toArray(new String[pitIds.size()]));
 
         /**
          * When we invoke delete again, returns success after clearing the remaining readers. Asserting reader context
@@ -567,7 +571,7 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
         ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, request);
         CreatePitResponse pitResponse = execute.get();
         PitTestsUtil.assertUsingGetAllPits(client(), pitResponse.getId(), pitResponse.getCreationTime());
-        assertSegments(false, client());
+        assertSegments(false, client(), pitResponse.getId());
         Thread[] threads = new Thread[5];
         CountDownLatch latch = new CountDownLatch(threads.length);
 
@@ -603,7 +607,6 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
         validatePitStats("index", 0, 1, 0);
         validatePitStats("index", 0, 1, 1);
         PitTestsUtil.assertGetAllPitsEmpty(client());
-        assertSegments(true, client());
     }
 
     public void validatePitStats(String index, long expectedPitCurrent, long expectedPitCount, int shardId) throws ExecutionException,
