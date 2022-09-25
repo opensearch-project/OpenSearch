@@ -117,7 +117,8 @@ public class DecommissionService {
      */
     public void startDecommissionAction(
         final DecommissionAttribute decommissionAttribute,
-        final ActionListener<ClusterStateUpdateResponse> listener
+        final ActionListener<ClusterStateUpdateResponse> listener,
+        final TimeValue timeOutForNodeDecommission
     ) {
         // register the metadata with status as INIT as first step
         clusterService.submitStateUpdateTask("decommission [" + decommissionAttribute + "]", new ClusterStateUpdateTask(Priority.URGENT) {
@@ -156,14 +157,19 @@ public class DecommissionService {
                     decommissionAttributeMetadata.decommissionAttribute(),
                     decommissionAttributeMetadata.status()
                 );
-                decommissionClusterManagerNodes(decommissionAttributeMetadata.decommissionAttribute(), listener);
+                decommissionClusterManagerNodes(
+                    decommissionAttributeMetadata.decommissionAttribute(),
+                    listener,
+                    timeOutForNodeDecommission
+                );
             }
         });
     }
 
     private synchronized void decommissionClusterManagerNodes(
         final DecommissionAttribute decommissionAttribute,
-        ActionListener<ClusterStateUpdateResponse> listener
+        ActionListener<ClusterStateUpdateResponse> listener,
+        TimeValue timeOutForNodeDecommission
     ) {
         ClusterState state = clusterService.getClusterApplierService().state();
         // since here metadata is already registered with INIT, we can guarantee that no new node with decommission attribute can further
@@ -206,7 +212,7 @@ public class DecommissionService {
                         // and to-be-decommissioned cluster manager is no more part of Voting Configuration and no more to-be-decommission
                         // nodes can be part of Voting Config
                         listener.onResponse(new ClusterStateUpdateResponse(true));
-                        failDecommissionedNodes(clusterService.getClusterApplierService().state());
+                        failDecommissionedNodes(clusterService.getClusterApplierService().state(), timeOutForNodeDecommission);
                     }
                 } else {
                     // explicitly calling listener.onFailure with NotClusterManagerException as the local node is not the cluster manager
@@ -303,19 +309,26 @@ public class DecommissionService {
         }
     }
 
-    private void failDecommissionedNodes(ClusterState state) {
+    private void failDecommissionedNodes(ClusterState state, TimeValue timeOutForNodeDecommission) {
         // this method ensures no matter what, we always exit from this function after clearing the voting config exclusion
         DecommissionAttributeMetadata decommissionAttributeMetadata = state.metadata().decommissionAttributeMetadata();
         DecommissionAttribute decommissionAttribute = decommissionAttributeMetadata.decommissionAttribute();
+
+        // Awareness values refers to all zones in the cluster
+        List<String> awarenessValues = forcedAwarenessAttributes.get(decommissionAttribute.attributeName());
+
         decommissionController.updateMetadataWithDecommissionStatus(DecommissionStatus.IN_PROGRESS, new ActionListener<>() {
             @Override
             public void onResponse(DecommissionStatus status) {
                 logger.info("updated the decommission status to [{}]", status);
                 // execute nodes decommissioning
-                decommissionController.removeDecommissionedNodes(
+
+                decommissionController.handleNodesDecommissionRequest(
                     filterNodesWithDecommissionAttribute(clusterService.getClusterApplierService().state(), decommissionAttribute, false),
+                    awarenessValues,
                     "nodes-decommissioned",
                     TimeValue.timeValueSeconds(120L),
+                    timeOutForNodeDecommission,
                     new ActionListener<Void>() {
                         @Override
                         public void onResponse(Void unused) {

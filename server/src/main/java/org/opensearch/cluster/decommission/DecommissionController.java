@@ -18,6 +18,13 @@ import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusio
 import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
 import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsRequest;
 import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsResponse;
+import org.opensearch.action.admin.cluster.node.stats.NodeStats;
+import org.opensearch.action.admin.cluster.node.stats.NodesStatsAction;
+import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
+import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.opensearch.action.admin.cluster.shards.routing.wrr.put.ClusterPutWRRWeightsAction;
+import org.opensearch.action.admin.cluster.shards.routing.wrr.put.ClusterPutWRRWeightsRequest;
+import org.opensearch.action.admin.cluster.shards.routing.wrr.put.ClusterPutWRRWeightsResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.ClusterStateTaskConfig;
@@ -32,6 +39,7 @@ import org.opensearch.common.Priority;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.http.HttpStats;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponseHandler;
@@ -39,7 +47,9 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -266,5 +276,160 @@ public class DecommissionController {
                 listener.onResponse(decommissionAttributeMetadata.status());
             }
         });
+    }
+
+    public void handleNodesDecommissionRequest(
+        Set<DiscoveryNode> nodesToBeDecommissioned,
+        List<String> zones,
+        String reason,
+        TimeValue timeout,
+        TimeValue timeoutForNodeDecommission,
+        ActionListener<Void> nodesRemovedListener
+    ) {
+        setWeightForDecommissionedZone(zones);
+        checkHttpStatsForDecommissionedNodes(nodesToBeDecommissioned, reason, timeout, timeoutForNodeDecommission, nodesRemovedListener);
+    }
+
+    private void setWeightForDecommissionedZone(List<String> zones) {
+        ClusterState clusterState = clusterService.getClusterApplierService().state();
+
+        DecommissionAttributeMetadata decommissionAttributeMetadata = clusterState.metadata().custom(DecommissionAttributeMetadata.TYPE);
+        assert decommissionAttributeMetadata.status().equals(DecommissionStatus.INIT)
+            : "unexpected status encountered while decommissioning nodes";
+        DecommissionAttribute decommissionAttribute = decommissionAttributeMetadata.decommissionAttribute();
+
+        Map<String, String> weights = new HashMap<>();
+        zones.forEach(zone -> {
+            if (zone.equalsIgnoreCase(decommissionAttribute.attributeValue())) {
+                weights.put(zone, "0");
+            } else {
+                weights.put(zone, "1");
+            }
+        });
+
+        // WRR API will validate invalid weights
+        final ClusterPutWRRWeightsRequest clusterWeightRequest = new ClusterPutWRRWeightsRequest();
+        clusterWeightRequest.attributeName("zone");
+        clusterWeightRequest.setWRRWeight(weights);
+
+        transportService.sendRequest(
+            transportService.getLocalNode(),
+            ClusterPutWRRWeightsAction.NAME,
+            clusterWeightRequest,
+            new TransportResponseHandler<ClusterPutWRRWeightsResponse>() {
+                @Override
+                public void handleResponse(ClusterPutWRRWeightsResponse response) {
+                    logger.info("Weights are successfully set.");
+                }
+
+                @Override
+                public void handleException(TransportException exp) {
+                    // Logging warn message on failure. Should we do Retry? If weights are not set should we fail?
+                    logger.warn("Exception occurred while setting weights.Exception Messages - [{}]", exp.unwrapCause().getMessage());
+                }
+
+                @Override
+                public String executor() {
+                    return ThreadPool.Names.SAME;
+                }
+
+                @Override
+                public ClusterPutWRRWeightsResponse read(StreamInput in) throws IOException {
+                    return new ClusterPutWRRWeightsResponse(in);
+                }
+            }
+        );
+    }
+
+    public void checkHttpStatsForDecommissionedNodes(
+        Set<DiscoveryNode> decommissionedNodes,
+        String reason,
+        TimeValue timeout,
+        TimeValue timeoutForNodeDecommission,
+        ActionListener<Void> listener
+    ) {
+
+        if (timeoutForNodeDecommission.getSeconds() > 0) {
+            // Wait for timeout to happen. Log the active connection before decommissioning of nodes.
+            scheduleDecommissionNodesRequestCheck(decommissionedNodes, reason, timeout, listener, timeoutForNodeDecommission);
+        } else {
+            getActiveRequestCountOnDecommissionNodes(decommissionedNodes);
+            removeDecommissionedNodes(decommissionedNodes, reason, timeout, listener);
+        }
+    }
+
+    private void logActiveConnections(NodesStatsResponse nodesStatsResponse) {
+        Map<String, Long> nodeActiveConnectionMap = new HashMap<>();
+        List<NodeStats> responseNodes = nodesStatsResponse.getNodes();
+        for (int i = 0; i < responseNodes.size(); i++) {
+            HttpStats httpStats = responseNodes.get(i).getHttp();
+            DiscoveryNode node = responseNodes.get(i).getNode();
+            nodeActiveConnectionMap.put(node.getId(), httpStats.getServerOpen());
+        }
+        logger.info("Decommissioning node with connections : [{}]", nodeActiveConnectionMap);
+    }
+
+    private void scheduleDecommissionNodesRequestCheck(
+        Set<DiscoveryNode> decommissionedNodes,
+        String reason,
+        TimeValue timeout,
+        ActionListener<Void> nodesRemovedListener,
+        TimeValue timeoutForNodeDecommission
+    ) {
+        transportService.getThreadPool().schedule(new Runnable() {
+            @Override
+            public void run() {
+                // Check for active connections.
+                getActiveRequestCountOnDecommissionNodes(decommissionedNodes);
+                removeDecommissionedNodes(decommissionedNodes, reason, timeout, nodesRemovedListener);
+            }
+
+            @Override
+            public String toString() {
+                return "";
+            }
+        }, timeoutForNodeDecommission, org.opensearch.threadpool.ThreadPool.Names.SAME);
+    }
+
+    private void getActiveRequestCountOnDecommissionNodes(Set<DiscoveryNode> decommissionedNodes) {
+        if (decommissionedNodes == null || decommissionedNodes.isEmpty()) {
+            return;
+        }
+        String[] nodes = decommissionedNodes.stream().map(DiscoveryNode::getId).toArray(String[]::new);
+
+        if (nodes.length == 0) {
+            return;
+        }
+
+        final NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(nodes);
+        nodesStatsRequest.clear();
+        nodesStatsRequest.addMetric(NodesStatsRequest.Metric.HTTP.metricName());
+
+        transportService.sendRequest(
+            transportService.getLocalNode(),
+            NodesStatsAction.NAME,
+            nodesStatsRequest,
+            new TransportResponseHandler<NodesStatsResponse>() {
+                @Override
+                public void handleResponse(NodesStatsResponse response) {
+                    logActiveConnections(response);
+                }
+
+                @Override
+                public void handleException(TransportException exp) {
+                    logger.warn("Failure occurred while dumping connection for decommission nodes. [{}]", exp);
+                }
+
+                @Override
+                public String executor() {
+                    return ThreadPool.Names.SAME;
+                }
+
+                @Override
+                public NodesStatsResponse read(StreamInput in) throws IOException {
+                    return new NodesStatsResponse(in);
+                }
+            }
+        );
     }
 }
