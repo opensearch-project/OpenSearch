@@ -15,6 +15,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.decommission.DecommissionAttribute;
+import org.opensearch.cluster.decommission.DecommissionAttributeMetadata;
 import org.opensearch.cluster.decommission.DecommissionStatus;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
@@ -70,22 +71,13 @@ public class TransportGetDecommissionStateAction extends TransportClusterManager
         ClusterState state,
         ActionListener<GetDecommissionStateResponse> listener
     ) throws Exception {
-        Metadata metadata = state.metadata();
-        // DecommissionAttributeMetadata decommissionedAttributes = metadata.custom(DecommissionAttributeMetadata.TYPE);
-        // TODO - update once service layer changes are merged
-        // <<<<<<< HEAD
-        listener.onResponse(
-            new GetDecommissionStateResponse(new DecommissionAttribute("zone", "zone-1"), DecommissionStatus.DECOMMISSIONED)
-        );
-        // =======
-        // if (decommissionedAttributes!=null) {
-        // listener.onResponse(new GetDecommissionStateResponse(decommissionedAttributes.decommissionAttribute(),
-        // decommissionedAttributes.status()));
-        // }
-        // else {
-        // listener.onResponse(new GetDecommissionStateResponse());
-        // }
-        // >>>>>>> 1025b6e3e3e (Fix GET without PUT)
+        DecommissionAttributeMetadata decommissionAttributeMetadata = state.metadata().decommissionAttributeMetadata();
+        if (decommissionAttributeMetadata != null) {
+            listener.onResponse(new GetDecommissionStateResponse(decommissionAttributeMetadata.decommissionAttribute(),
+                decommissionAttributeMetadata.status()));
+        } else {
+            listener.onResponse(new GetDecommissionStateResponse());
+        }
     }
 
     @Override

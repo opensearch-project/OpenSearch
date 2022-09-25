@@ -34,6 +34,10 @@ public class GetDecommissionStateResponse extends ActionResponse implements ToXC
     private final DecommissionAttribute decommissionedAttribute;
     private final DecommissionStatus status;
 
+    GetDecommissionStateResponse() {
+        this(null, null);
+    }
+
     GetDecommissionStateResponse(DecommissionAttribute decommissionedAttribute, DecommissionStatus status) {
         this.decommissionedAttribute = decommissionedAttribute;
         this.status = status;
@@ -120,7 +124,7 @@ public class GetDecommissionStateResponse extends ActionResponse implements ToXC
                                 );
                             }
                             decommissionAttribute = new DecommissionAttribute(fieldName, value);
-                            token = parser.nextToken();
+                            parser.nextToken();
                         } else {
                             throw new OpenSearchParseException("failed to parse attribute type [{}], unexpected type", attributeType);
                         }
