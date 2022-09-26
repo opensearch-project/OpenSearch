@@ -161,7 +161,6 @@ public abstract class PeerFinder {
         return localNodeDecommissioned;
     }
 
-
     public void activate(final DiscoveryNodes lastAcceptedNodes) {
         logger.trace("activating with {}", lastAcceptedNodes);
 

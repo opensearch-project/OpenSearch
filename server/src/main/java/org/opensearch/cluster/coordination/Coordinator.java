@@ -1452,7 +1452,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                             return;
                         }
 
-                        if(peerFinder.localNodeDecommissioned()) {
+                        if (peerFinder.localNodeDecommissioned()) {
                             logger.debug("skip prevoting as local node is decommissioned");
                             return;
                         }
