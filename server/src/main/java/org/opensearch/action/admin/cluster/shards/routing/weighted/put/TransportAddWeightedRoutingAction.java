@@ -109,8 +109,7 @@ public class TransportAddWeightedRoutingAction extends TransportClusterManagerNo
     }
 
     private void verifyAwarenessAttribute(String attributeName) {
-        // Currently, only zone is supported
-        if (!getAwarenessAttributes().contains(attributeName) || !attributeName.equalsIgnoreCase("zone")) {
+        if (getAwarenessAttributes().contains(attributeName) == false) {
             ActionRequestValidationException validationException = null;
 
             validationException = addValidationError(
