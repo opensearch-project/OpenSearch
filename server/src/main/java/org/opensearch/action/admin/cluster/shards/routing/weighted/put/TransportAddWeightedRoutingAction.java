@@ -14,6 +14,7 @@ import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
+import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.routing.WeightedRoutingService;
 import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
@@ -122,7 +123,7 @@ public class TransportAddWeightedRoutingAction extends TransportClusterManagerNo
 
     @Override
     protected ClusterBlockException checkBlock(ClusterPutWeightedRoutingRequest request, ClusterState state) {
-        return null;
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
 }

@@ -555,7 +555,7 @@ public class Requests {
      *
      * @return update weight request
      */
-    public static ClusterPutWeightedRoutingRequest putWeightedRoutingRequest() {
-        return new ClusterPutWeightedRoutingRequest();
+    public static ClusterPutWeightedRoutingRequest putWeightedRoutingRequest(String attributeName) {
+        return new ClusterPutWeightedRoutingRequest(attributeName);
     }
 }

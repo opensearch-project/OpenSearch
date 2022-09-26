@@ -43,6 +43,8 @@ public class ClusterPutWeightedRoutingRequest extends ClusterManagerNodeRequest<
     private WeightedRouting weightedRouting;
     private String attributeName;
 
+    public ClusterPutWeightedRoutingRequest() {}
+
     public WeightedRouting getWeightedRouting() {
         return weightedRouting;
     }
@@ -61,7 +63,9 @@ public class ClusterPutWeightedRoutingRequest extends ClusterManagerNodeRequest<
         weightedRouting = new WeightedRouting(in);
     }
 
-    public ClusterPutWeightedRoutingRequest() {}
+    public ClusterPutWeightedRoutingRequest(String attributeName) {
+        this.attributeName = attributeName;
+    }
 
     public void setWeightedRouting(Map<String, String> source) {
         try {

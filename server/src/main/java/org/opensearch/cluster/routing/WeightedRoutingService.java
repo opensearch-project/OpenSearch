@@ -20,17 +20,14 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
-import org.opensearch.common.component.AbstractLifecycleComponent;
 import org.opensearch.common.inject.Inject;
 
 import org.opensearch.threadpool.ThreadPool;
 
-import java.io.IOException;
-
 /**
  * * Service responsible for updating cluster state metadata with weighted routing weights
  */
-public class WeightedRoutingService extends AbstractLifecycleComponent {
+public class WeightedRoutingService {
     private static final Logger logger = LogManager.getLogger(WeightedRoutingService.class);
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
@@ -70,13 +67,13 @@ public class WeightedRoutingService extends AbstractLifecycleComponent {
 
             @Override
             public void onFailure(String source, Exception e) {
-                logger.warn(() -> new ParameterizedMessage("failed to update cluster state for weighted routing " + "weights [{}]", e));
+                logger.warn(() -> new ParameterizedMessage("failed to update cluster state for weighted routing weights [{}]", e));
                 listener.onFailure(e);
             }
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                logger.info("cluster weighted routing weights metadata change is processed by all the nodes");
+                logger.debug("cluster weighted routing weights metadata change is processed by all the nodes");
                 listener.onResponse(new ClusterStateUpdateResponse(true));
             }
         });
@@ -88,13 +85,4 @@ public class WeightedRoutingService extends AbstractLifecycleComponent {
     ) {
         return newWeightedRoutingMetadata.getWeightedRouting().equals(oldWeightedRoutingMetadata.getWeightedRouting());
     }
-
-    @Override
-    protected void doStart() {}
-
-    @Override
-    protected void doStop() {}
-
-    @Override
-    protected void doClose() throws IOException {}
 }
