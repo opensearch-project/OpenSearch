@@ -1626,6 +1626,12 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
             UnsupportedWeightedRoutingStateException::new,
             167,
             V_2_5_0
+        ),
+        INDEX_CREATE_BLOCK_EXCEPTION(
+            org.opensearch.cluster.block.IndexCreateBlockException.class,
+            org.opensearch.cluster.block.IndexCreateBlockException::new,
+            165,
+            UNKNOWN_VERSION_ADDED
         );
 
         final Class<? extends OpenSearchException> exceptionClass;
