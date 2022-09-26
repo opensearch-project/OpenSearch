@@ -204,6 +204,13 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
         return new ClusterBlockException(global(level));
     }
 
+    public IndexCreateBlockException createIndexBlockedException(ClusterBlockLevel level) {
+        if (global(level).isEmpty()) {
+            return null;
+        }
+        return new IndexCreateBlockException(global(level));
+    }
+
     public void indexBlockedRaiseException(ClusterBlockLevel level, String index) throws ClusterBlockException {
         ClusterBlockException blockException = indexBlockedException(level, index);
         if (blockException != null) {
