@@ -36,13 +36,4 @@ public class DecommissionRequestBuilder extends ClusterManagerNodeOperationReque
         request.setDecommissionAttribute(decommissionAttribute);
         return this;
     }
-
-    /**
-     * @param timeout time out for the request
-     * @return current object
-     */
-    public DecommissionRequestBuilder setTimeout(TimeValue timeout) {
-        request.setTimeout(timeout);
-        return this;
-    }
 }

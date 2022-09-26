@@ -41,9 +41,6 @@ public class RestGetDecommissionStateAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         GetDecommissionStateRequest getDecommissionStateRequest = Requests.getDecommissionStateRequest();
-        getDecommissionStateRequest.clusterManagerNodeTimeout(
-            request.paramAsTime("cluster_manager_timeout", getDecommissionStateRequest.clusterManagerNodeTimeout())
-        );
         return channel -> client.admin().cluster().getDecommission(getDecommissionStateRequest, new RestToXContentListener<>(channel));
     }
 }

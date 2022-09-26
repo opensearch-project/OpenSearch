@@ -30,8 +30,6 @@ import static org.opensearch.rest.RestRequest.Method.PUT;
  */
 public class RestDecommissionAction extends BaseRestHandler {
 
-    private static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(300L);
-
     @Override
     public List<Route> routes() {
         return singletonList(new Route(PUT, "/_cluster/decommission/awareness/{awareness_attribute_name}/{awareness_attribute_value}"));
@@ -59,7 +57,6 @@ public class RestDecommissionAction extends BaseRestHandler {
         if (request.hasParam("awareness_attribute_value")) {
             attributeValue = request.param("awareness_attribute_value");
         }
-        return decommissionRequest.setDecommissionAttribute(new DecommissionAttribute(attributeName, attributeValue))
-            .setTimeout(TimeValue.parseTimeValue(request.param("timeout"), DEFAULT_TIMEOUT, getClass().getSimpleName() + ".timeout"));
+        return decommissionRequest.setDecommissionAttribute(new DecommissionAttribute(attributeName, attributeValue));
     }
 }

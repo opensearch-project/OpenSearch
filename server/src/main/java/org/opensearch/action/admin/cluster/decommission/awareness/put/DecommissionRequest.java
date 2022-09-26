@@ -29,26 +29,22 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionRequest> {
 
     private DecommissionAttribute decommissionAttribute;
-    private TimeValue timeout;
 
     public DecommissionRequest() {}
 
-    public DecommissionRequest(DecommissionAttribute decommissionAttribute, TimeValue timeout) {
+    public DecommissionRequest(DecommissionAttribute decommissionAttribute) {
         this.decommissionAttribute = decommissionAttribute;
-        this.timeout = timeout;
     }
 
     public DecommissionRequest(StreamInput in) throws IOException {
         super(in);
         decommissionAttribute = new DecommissionAttribute(in);
-        timeout = in.readTimeValue();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         decommissionAttribute.writeTo(out);
-        out.writeTimeValue(timeout);
     }
 
     /**
@@ -63,25 +59,10 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
     }
 
     /**
-     * Sets the timeout for the request
-     *
-     * @param timeout time out for the request
-     * @return this request
-     */
-    public DecommissionRequest setTimeout(TimeValue timeout) {
-        this.timeout = timeout;
-        return this;
-    }
-
-    /**
      * @return Returns the decommission attribute key-value
      */
     public DecommissionAttribute getDecommissionAttribute() {
         return this.decommissionAttribute;
-    }
-
-    public TimeValue getTimeout() {
-        return this.timeout;
     }
 
     @Override
@@ -98,6 +79,8 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
 
     @Override
     public String toString() {
-        return "DecommissionRequest{" + "decommissionAttribute=" + decommissionAttribute + ", timeout=" + timeout + '}';
+        return "DecommissionRequest{" +
+            "decommissionAttribute=" + decommissionAttribute +
+            '}';
     }
 }

@@ -799,17 +799,17 @@ public interface ClusterAdminClient extends OpenSearchClient {
     ActionFuture<AcknowledgedResponse> deleteDanglingIndex(DeleteDanglingIndexRequest request);
 
     /**
-     * Decommission a node
+     * Decommission awareness attribute
      */
     ActionFuture<DecommissionResponse> decommission(DecommissionRequest request);
 
     /**
-     * Decommission a node
+     * Decommission awareness attribute
      */
     void decommission(DecommissionRequest request, ActionListener<DecommissionResponse> listener);
 
     /**
-     * Decommission a node
+     * Decommission awareness attribute
      */
     DecommissionRequestBuilder prepareDecommission(DecommissionRequest request);
 
