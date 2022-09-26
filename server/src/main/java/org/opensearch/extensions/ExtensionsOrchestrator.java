@@ -156,7 +156,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
      * Lists/maps of extensions have already been initialized but not yet populated.
      *
      * @param restController  The RestController on which to register Rest Actions.
-     * @param settingsModule The Node's settings module.
+     * @param settingsModule The module that binds the provided settings to interface
      * @param transportService  The Node's transport service.
      * @param clusterService  The Node's cluster service.
      * @param initialEnvironmentSettings The finalized view of settings for the Environment
