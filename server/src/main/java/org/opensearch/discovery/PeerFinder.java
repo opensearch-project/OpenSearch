@@ -84,6 +84,14 @@ public abstract class PeerFinder {
         Setting.Property.NodeScope
     );
 
+    // the time between attempts to find all peers when node is in decommissioned state, default set to 3 minutes
+    public static final Setting<TimeValue> DISCOVERY_FIND_PEERS_INTERVAL_DURING_DECOMMISSION_SETTING = Setting.timeSetting(
+        "discovery.find_peers_interval_during_decommission",
+        TimeValue.timeValueMinutes(3L),
+        TimeValue.timeValueMillis(1000),
+        Setting.Property.NodeScope
+    );
+
     public static final Setting<TimeValue> DISCOVERY_REQUEST_PEERS_TIMEOUT_SETTING = Setting.timeSetting(
         "discovery.request_peers_timeout",
         TimeValue.timeValueMillis(3000),
@@ -91,7 +99,8 @@ public abstract class PeerFinder {
         Setting.Property.NodeScope
     );
 
-    private final TimeValue findPeersInterval;
+    private final Settings settings;
+    private TimeValue findPeersInterval;
     private final TimeValue requestPeersTimeout;
 
     private final Object mutex = new Object();
@@ -101,6 +110,7 @@ public abstract class PeerFinder {
 
     private volatile long currentTerm;
     private boolean active;
+    private boolean localNodeDecommissioned = false;
     private DiscoveryNodes lastAcceptedNodes;
     private final Map<TransportAddress, Peer> peersByAddress = new LinkedHashMap<>();
     private Optional<DiscoveryNode> leader = Optional.empty();
@@ -112,6 +122,7 @@ public abstract class PeerFinder {
         TransportAddressConnector transportAddressConnector,
         ConfiguredHostsResolver configuredHostsResolver
     ) {
+        this.settings = settings;
         findPeersInterval = DISCOVERY_FIND_PEERS_INTERVAL_SETTING.get(settings);
         requestPeersTimeout = DISCOVERY_REQUEST_PEERS_TIMEOUT_SETTING.get(settings);
         this.transportService = transportService;
@@ -127,6 +138,29 @@ public abstract class PeerFinder {
             (request, channel, task) -> channel.sendResponse(handlePeersRequest(request))
         );
     }
+
+    public ActionListener<Void> nodeCommissionedListener() {
+        return new ActionListener<Void>() {
+            @Override
+            public void onResponse(Void unused) {
+                localNodeDecommissioned = false;
+                findPeersInterval = DISCOVERY_FIND_PEERS_INTERVAL_SETTING.get(settings);
+                logger.info("updated findPeersInterval to [{}] as node is commissioned", findPeersInterval);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                localNodeDecommissioned = true;
+                findPeersInterval = DISCOVERY_FIND_PEERS_INTERVAL_DURING_DECOMMISSION_SETTING.get(settings);
+                logger.info("updated findPeersInterval to [{}] as node is decommissioned", findPeersInterval);
+            }
+        };
+    }
+
+    public boolean localNodeDecommissioned() {
+        return localNodeDecommissioned;
+    }
+
 
     public void activate(final DiscoveryNodes lastAcceptedNodes) {
         logger.trace("activating with {}", lastAcceptedNodes);

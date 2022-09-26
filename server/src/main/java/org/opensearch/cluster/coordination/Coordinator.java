@@ -208,19 +208,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.onJoinValidators = JoinTaskExecutor.addBuiltInJoinValidators(onJoinValidators);
         this.singleNodeDiscovery = DiscoveryModule.isSingleNodeDiscovery(settings);
         this.electionStrategy = electionStrategy;
-        this.joinHelper = new JoinHelper(
-            settings,
-            allocationService,
-            clusterManagerService,
-            transportService,
-            this::getCurrentTerm,
-            this::getStateForClusterManagerService,
-            this::handleJoinRequest,
-            this::joinLeaderInTerm,
-            this.onJoinValidators,
-            rerouteService,
-            nodeHealthService
-        );
         this.persistedStateSupplier = persistedStateSupplier;
         this.noClusterManagerBlockService = new NoClusterManagerBlockService(settings, clusterSettings);
         this.lastKnownLeader = Optional.empty();
@@ -243,6 +230,20 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             transportService,
             new HandshakingTransportAddressConnector(settings, transportService),
             configuredHostsResolver
+        );
+        this.joinHelper = new JoinHelper(
+            settings,
+            allocationService,
+            clusterManagerService,
+            transportService,
+            this::getCurrentTerm,
+            this::getStateForClusterManagerService,
+            this::handleJoinRequest,
+            this::joinLeaderInTerm,
+            this.onJoinValidators,
+            rerouteService,
+            nodeHealthService,
+            peerFinder.nodeCommissionedListener()
         );
         this.publicationHandler = new PublicationTransportHandler(
             transportService,
@@ -1448,6 +1449,11 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                         final StatusInfo statusInfo = nodeHealthService.getHealth();
                         if (statusInfo.getStatus() == UNHEALTHY) {
                             logger.debug("skip prevoting as local node is unhealthy: [{}]", statusInfo.getInfo());
+                            return;
+                        }
+
+                        if(peerFinder.localNodeDecommissioned()) {
+                            logger.debug("skip prevoting as local node is decommissioned");
                             return;
                         }
 
