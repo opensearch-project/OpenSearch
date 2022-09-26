@@ -44,7 +44,7 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public class InternalGeoTileGridBucket extends InternalGeoGridBucket<InternalGeoTileGridBucket> {
+public class InternalGeoTileGridBucket extends BaseGeoGridBucket<InternalGeoTileGridBucket> {
     InternalGeoTileGridBucket(long hashAsLong, long docCount, InternalAggregations aggregations) {
         super(hashAsLong, docCount, aggregations);
     }

@@ -43,7 +43,7 @@ public class GeoTileGridTests extends GeoGridTestCase<InternalGeoTileGridBucket,
     protected InternalGeoTileGrid createInternalGeoGrid(
         String name,
         int size,
-        List<InternalGeoGridBucket> buckets,
+        List<BaseGeoGridBucket> buckets,
         Map<String, Object> metadata
     ) {
         return new InternalGeoTileGrid(name, size, buckets, metadata);

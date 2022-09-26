@@ -47,7 +47,7 @@ import java.util.Map;
  */
 public class InternalGeoHashGrid extends InternalGeoGrid<InternalGeoHashGridBucket> {
 
-    InternalGeoHashGrid(String name, int requiredSize, List<InternalGeoGridBucket> buckets, Map<String, Object> metadata) {
+    InternalGeoHashGrid(String name, int requiredSize, List<BaseGeoGridBucket> buckets, Map<String, Object> metadata) {
         super(name, requiredSize, buckets, metadata);
     }
 
@@ -56,12 +56,12 @@ public class InternalGeoHashGrid extends InternalGeoGrid<InternalGeoHashGridBuck
     }
 
     @Override
-    public InternalGeoGrid create(List<InternalGeoGridBucket> buckets) {
+    public InternalGeoGrid create(List<BaseGeoGridBucket> buckets) {
         return new InternalGeoHashGrid(name, requiredSize, buckets, metadata);
     }
 
     @Override
-    public InternalGeoGridBucket createBucket(InternalAggregations aggregations, InternalGeoGridBucket prototype) {
+    public BaseGeoGridBucket createBucket(InternalAggregations aggregations, BaseGeoGridBucket prototype) {
         return new InternalGeoHashGridBucket(prototype.hashAsLong, prototype.docCount, aggregations);
     }
 

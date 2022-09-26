@@ -68,7 +68,7 @@ public class GeoTileGridAggregator extends GeoGridAggregator<InternalGeoTileGrid
     protected InternalGeoTileGrid buildAggregation(
         String name,
         int requiredSize,
-        List<InternalGeoGridBucket> buckets,
+        List<BaseGeoGridBucket> buckets,
         Map<String, Object> metadata
     ) {
         return new InternalGeoTileGrid(name, requiredSize, buckets, metadata);
@@ -80,7 +80,7 @@ public class GeoTileGridAggregator extends GeoGridAggregator<InternalGeoTileGrid
     }
 
     @Override
-    protected InternalGeoGridBucket newEmptyBucket() {
+    protected BaseGeoGridBucket newEmptyBucket() {
         return new InternalGeoTileGridBucket(0, 0, null);
     }
 }

@@ -43,7 +43,7 @@ public class GeoHashGridTests extends GeoGridTestCase<InternalGeoHashGridBucket,
     protected InternalGeoHashGrid createInternalGeoGrid(
         String name,
         int size,
-        List<InternalGeoGridBucket> buckets,
+        List<BaseGeoGridBucket> buckets,
         Map<String, Object> metadata
     ) {
         return new InternalGeoHashGrid(name, size, buckets, metadata);

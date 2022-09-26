@@ -73,7 +73,7 @@ import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket> extends AggregatorTestCase {
+public abstract class GeoGridAggregatorTestCase<T extends BaseGeoGridBucket> extends AggregatorTestCase {
 
     private static final String FIELD_NAME = "location";
     protected static final double GEOHASH_TOLERANCE = 1E-5D;
@@ -203,7 +203,7 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
             for (StringTerms.Bucket tb : terms.getBuckets()) {
                 InternalGeoGrid<?> gg = tb.getAggregations().get("gg");
                 Map<String, Long> sub = new TreeMap<>();
-                for (InternalGeoGridBucket<?> ggb : gg.getBuckets()) {
+                for (BaseGeoGridBucket<?> ggb : gg.getBuckets()) {
                     sub.put(ggb.getKeyAsString(), ggb.getDocCount());
                 }
                 actual.put(tb.getKeyAsString(), sub);
