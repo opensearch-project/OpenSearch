@@ -323,7 +323,10 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
         state = ClusterState.builder(state).metadata(mdBuilder).build();
         setState(clusterService, state);
 
-        expectThrows(AssertionError.class, () -> decommissionController.setWeightForDecommissionedZone(List.of("zone-1", "zone-2", "zone-3")));
+        expectThrows(
+            AssertionError.class,
+            () -> decommissionController.setWeightForDecommissionedZone(List.of("zone-1", "zone-2", "zone-3"))
+        );
     }
 
     public void testCheckHttpStatsForDecommissionedNodes() {
