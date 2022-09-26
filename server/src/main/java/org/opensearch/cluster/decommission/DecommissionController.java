@@ -278,23 +278,11 @@ public class DecommissionController {
         });
     }
 
-    public void handleNodesDecommissionRequest(
-        Set<DiscoveryNode> nodesToBeDecommissioned,
-        List<String> zones,
-        String reason,
-        TimeValue timeout,
-        TimeValue timeoutForNodeDecommission,
-        ActionListener<Void> nodesRemovedListener
-    ) {
-        setWeightForDecommissionedZone(zones);
-        checkHttpStatsForDecommissionedNodes(nodesToBeDecommissioned, reason, timeout, timeoutForNodeDecommission, nodesRemovedListener);
-    }
-
-    void setWeightForDecommissionedZone(List<String> zones) {
+    void setWeightForDecommissionedZone(List<String> zones, ActionListener<ClusterPutWRRWeightsResponse> listener) {
         ClusterState clusterState = clusterService.getClusterApplierService().state();
 
         DecommissionAttributeMetadata decommissionAttributeMetadata = clusterState.metadata().custom(DecommissionAttributeMetadata.TYPE);
-        assert decommissionAttributeMetadata.status().equals(DecommissionStatus.IN_PROGRESS)
+        assert decommissionAttributeMetadata.status().equals(DecommissionStatus.WEIGH_AWAY)
             : "unexpected status encountered while decommissioning nodes";
         DecommissionAttribute decommissionAttribute = decommissionAttributeMetadata.decommissionAttribute();
 
@@ -320,12 +308,14 @@ public class DecommissionController {
                 @Override
                 public void handleResponse(ClusterPutWRRWeightsResponse response) {
                     logger.info("Weights are successfully set.");
+                    listener.onResponse(response);
                 }
 
                 @Override
                 public void handleException(TransportException exp) {
                     // Logging warn message on failure. Should we do Retry? If weights are not set should we fail?
                     logger.warn("Exception occurred while setting weights.Exception Messages - [{}]", exp.unwrapCause().getMessage());
+                    listener.onFailure(exp);
                 }
 
                 @Override
@@ -341,7 +331,7 @@ public class DecommissionController {
         );
     }
 
-    void checkHttpStatsForDecommissionedNodes(
+    void handleNodesDecommissionRequest(
         Set<DiscoveryNode> decommissionedNodes,
         String reason,
         TimeValue timeout,

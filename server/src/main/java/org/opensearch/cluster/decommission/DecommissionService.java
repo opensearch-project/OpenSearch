@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.action.ActionListener;
+import org.opensearch.action.admin.cluster.shards.routing.wrr.put.ClusterPutWRRWeightsResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.ClusterStateUpdateTask;
@@ -212,7 +213,10 @@ public class DecommissionService {
                         // and to-be-decommissioned cluster manager is no more part of Voting Configuration and no more to-be-decommission
                         // nodes can be part of Voting Config
                         listener.onResponse(new ClusterStateUpdateResponse(true));
-                        failDecommissionedNodes(clusterService.getClusterApplierService().state(), timeOutForNodeDecommission);
+
+                        weighAwayDecommissionedZone(state, timeOutForNodeDecommission);
+                        // decommissionController.setWeightForDecommissionedZone();
+                        // failDecommissionedNodes(clusterService.getClusterApplierService().state(), timeOutForNodeDecommission);
                     }
                 } else {
                     // explicitly calling listener.onFailure with NotClusterManagerException as the local node is not the cluster manager
@@ -309,13 +313,54 @@ public class DecommissionService {
         }
     }
 
-    private void failDecommissionedNodes(ClusterState state, TimeValue timeOutForNodeDecommission) {
+    private void weighAwayDecommissionedZone(ClusterState state, TimeValue timeOutForNodeDecommission) {
         // this method ensures no matter what, we always exit from this function after clearing the voting config exclusion
         DecommissionAttributeMetadata decommissionAttributeMetadata = state.metadata().decommissionAttributeMetadata();
         DecommissionAttribute decommissionAttribute = decommissionAttributeMetadata.decommissionAttribute();
 
         // Awareness values refers to all zones in the cluster
         List<String> awarenessValues = forcedAwarenessAttributes.get(decommissionAttribute.attributeName());
+
+        decommissionController.updateMetadataWithDecommissionStatus(DecommissionStatus.WEIGH_AWAY, new ActionListener<>() {
+            @Override
+            public void onResponse(DecommissionStatus status) {
+                logger.info("updated the decommission status to [{}]", status);
+                // set the weights
+
+                decommissionController.setWeightForDecommissionedZone(awarenessValues, new ActionListener<>() {
+                    @Override
+                    public void onResponse(ClusterPutWRRWeightsResponse response) {
+                        clearVotingConfigExclusionAndUpdateStatus(true, true);
+                        failDecommissionedNodes(state, timeOutForNodeDecommission);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        clearVotingConfigExclusionAndUpdateStatus(false, false);
+                    }
+                });
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.error(
+                    () -> new ParameterizedMessage(
+                        "failed to update decommission status for attribute [{}] to [{}]",
+                        decommissionAttribute.toString(),
+                        DecommissionStatus.WEIGH_AWAY
+                    ),
+                    e
+                );
+                // since we are not able to update the status, we will clear the voting config exclusion we have set earlier
+                clearVotingConfigExclusionAndUpdateStatus(false, false);
+            }
+        });
+    }
+
+    private void failDecommissionedNodes(ClusterState state, TimeValue timeOutForNodeDecommission) {
+        // this method ensures no matter what, we always exit from this function after clearing the voting config exclusion
+        DecommissionAttributeMetadata decommissionAttributeMetadata = state.metadata().decommissionAttributeMetadata();
+        DecommissionAttribute decommissionAttribute = decommissionAttributeMetadata.decommissionAttribute();
 
         decommissionController.updateMetadataWithDecommissionStatus(DecommissionStatus.IN_PROGRESS, new ActionListener<>() {
             @Override
@@ -325,7 +370,6 @@ public class DecommissionService {
 
                 decommissionController.handleNodesDecommissionRequest(
                     filterNodesWithDecommissionAttribute(clusterService.getClusterApplierService().state(), decommissionAttribute, false),
-                    awarenessValues,
                     "nodes-decommissioned",
                     TimeValue.timeValueSeconds(120L),
                     timeOutForNodeDecommission,
@@ -441,6 +485,7 @@ public class DecommissionService {
                     case INIT:
                     case FAILED:
                         break;
+                    case WEIGH_AWAY:
                     case IN_PROGRESS:
                     case SUCCESSFUL:
                         msg = "same request is already in status [" + decommissionAttributeMetadata.status() + "]";
@@ -458,6 +503,7 @@ public class DecommissionService {
                             + decommissionAttributeMetadata.decommissionAttribute().toString()
                             + "] already successfully decommissioned, recommission before triggering another decommission";
                         break;
+                    case WEIGH_AWAY:
                     case IN_PROGRESS:
                     case INIT:
                         // it means the decommission has been initiated or is inflight. In that case, will fail new request

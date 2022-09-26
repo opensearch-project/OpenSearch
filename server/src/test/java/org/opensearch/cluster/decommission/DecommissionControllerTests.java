@@ -289,7 +289,7 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
         state = ClusterState.builder(state).metadata(mdBuilder).build();
         setState(clusterService, state);
 
-        decommissionController.setWeightForDecommissionedZone(List.of("zone-1", "zone-2", "zone-3"));
+        decommissionController.setWeightForDecommissionedZone(List.of("zone-1", "zone-2", "zone-3"), Mockito.mock(ActionListener.class));
         ArgumentCaptor<ClusterPutWRRWeightsRequest> clusterPutWRRWeightsRequestArgumentCaptor = ArgumentCaptor.forClass(
             ClusterPutWRRWeightsRequest.class
         );
@@ -325,7 +325,10 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
 
         expectThrows(
             AssertionError.class,
-            () -> decommissionController.setWeightForDecommissionedZone(List.of("zone-1", "zone-2", "zone-3"))
+            () -> decommissionController.setWeightForDecommissionedZone(
+                List.of("zone-1", "zone-2", "zone-3"),
+                Mockito.mock(ActionListener.class)
+            )
         );
     }
 
@@ -342,7 +345,7 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
         ActionListener listener = Mockito.mock(ActionListener.class);
 
         String reason = "Node is Decommissioned";
-        decommissionController.checkHttpStatsForDecommissionedNodes(
+        decommissionController.handleNodesDecommissionRequest(
             Set.of(node1, node2),
             reason,
             TimeValue.timeValueSeconds(30),
