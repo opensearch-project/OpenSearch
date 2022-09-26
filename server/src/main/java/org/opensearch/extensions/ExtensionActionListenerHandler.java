@@ -19,9 +19,9 @@ import org.opensearch.OpenSearchException;
 public class ExtensionActionListenerHandler {
 
     private static final Logger logger = LogManager.getLogger(ExtensionActionListener.class);
-    private ExtensionActionListener<ExtensionBooleanResponse> listener;
+    private ExtensionActionListener listener;
 
-    public ExtensionActionListenerHandler(ExtensionActionListener<ExtensionBooleanResponse> listener) {
+    public ExtensionActionListenerHandler(ExtensionActionListener listener) {
         this.listener = listener;
     }
 

@@ -119,7 +119,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     TransportService transportService;
     ClusterService clusterService;
     ExtensionNamedWriteableRegistry namedWriteableRegistry;
-    ExtensionActionListener<ExtensionBooleanResponse> listener;
+    ExtensionActionListener listener;
     ExtensionActionListenerHandler listenerHandler;
 
     /**
@@ -137,7 +137,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         this.extensionIdMap = new HashMap<String, DiscoveryExtension>();
         this.clusterService = null;
         this.namedWriteableRegistry = null;
-        this.listener = new ExtensionActionListener<ExtensionBooleanResponse>();
+        this.listener = new ExtensionActionListener();
 
         /*
          * Now Discover extensions
