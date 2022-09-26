@@ -183,7 +183,8 @@ public class DecommissionService {
         final Predicate<ClusterState> allNodesRemovedAndAbdicated = clusterState -> {
             final Set<String> votingConfigNodeIds = clusterState.getLastCommittedConfiguration().getNodeIds();
             return nodeIdsToBeExcluded.stream().noneMatch(votingConfigNodeIds::contains)
-                && nodeIdsToBeExcluded.contains(clusterState.nodes().getClusterManagerNodeId()) == false;
+                && nodeIdsToBeExcluded.contains(clusterState.nodes().getClusterManagerNodeId()) == false
+                && clusterState.nodes().getClusterManagerNodeId() != null;
         };
 
         ActionListener<Void> exclusionListener = new ActionListener<Void>() {
