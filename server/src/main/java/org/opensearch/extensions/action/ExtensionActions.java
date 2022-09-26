@@ -69,7 +69,7 @@ public class ExtensionActions {
         /*
          * We are proxying the transport Actions through ExtensionMainAction, so we really dont need to register dynamic actions for now.
          */
-        logger.debug("Register Transport Actions request recieved ", transportActionsRequest);
+        logger.debug("Register Transport Actions request recieved {}", transportActionsRequest);
         DiscoveryExtension extension = extensionIdMap.get(transportActionsRequest.getUniqueId());
         for (String action : transportActionsRequest.getTransportActions().keySet()) {
             registerAction(action, extension);

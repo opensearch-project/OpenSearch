@@ -21,7 +21,7 @@ public class RegisterTransportActionsRequestTests extends OpenSearchTestCase {
 
     @Before
     public void setup() {
-        this.originalRequest = new RegisterTransportActionsRequest(Map.of("testAction", Map.class));
+        this.originalRequest = new RegisterTransportActionsRequest("extension-uniqueId", Map.of("testAction", Map.class));
     }
 
     public void testRegisterTransportActionsRequest() throws IOException {
