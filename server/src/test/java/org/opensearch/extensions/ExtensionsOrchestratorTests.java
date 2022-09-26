@@ -266,12 +266,13 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
     }
 
     public void testNonUniqueExtensionsDiscovery() throws Exception {
+        Path emptyExtensionDir = createTempDir();
         List<String> nonUniqueYmlLines = extensionsYmlLines.stream()
             .map(s -> s.replace("uniqueid2", "uniqueid1"))
             .collect(Collectors.toList());
-        Files.write(extensionDir.resolve("extensions.yml"), nonUniqueYmlLines, StandardCharsets.UTF_8);
+        Files.write(emptyExtensionDir.resolve("extensions.yml"), nonUniqueYmlLines, StandardCharsets.UTF_8);
 
-        ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
+        ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, emptyExtensionDir);
 
         List<DiscoveryExtension> expectedExtensionsList = new ArrayList<DiscoveryExtension>();
 
@@ -332,12 +333,13 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
     }
 
     public void testEmptyExtensionsFile() throws Exception {
+        Path emptyExtensionDir = createTempDir();
         List<String> emptyExtensionsYmlLines = Arrays.asList();
-        Files.write(extensionDir.resolve("extensions.yml"), emptyExtensionsYmlLines, StandardCharsets.UTF_8);
+        Files.write(emptyExtensionDir.resolve("extensions.yml"), emptyExtensionsYmlLines, StandardCharsets.UTF_8);
 
         Settings settings = Settings.builder().build();
 
-        expectThrows(IOException.class, () -> new ExtensionsOrchestrator(settings, extensionDir));
+        expectThrows(IOException.class, () -> new ExtensionsOrchestrator(settings, emptyExtensionDir));
     }
 
     public void testExtensionsInitialize() throws Exception {
