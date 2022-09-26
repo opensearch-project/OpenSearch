@@ -12,7 +12,6 @@ import org.opensearch.action.ActionType;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.cluster.decommission.DecommissionAttribute;
-import org.opensearch.common.unit.TimeValue;
 
 /**
  * Register decommission request builder

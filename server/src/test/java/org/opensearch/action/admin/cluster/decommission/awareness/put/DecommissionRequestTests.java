@@ -10,7 +10,6 @@ package org.opensearch.action.admin.cluster.decommission.awareness.put;
 
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.cluster.decommission.DecommissionAttribute;
-import org.opensearch.common.unit.TimeValue;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
