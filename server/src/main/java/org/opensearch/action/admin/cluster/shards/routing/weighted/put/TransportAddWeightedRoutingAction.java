@@ -36,7 +36,7 @@ import static org.opensearch.action.ValidateActions.addValidationError;
  *
  * @opensearch.internal
  */
-public class TransportPutWeightedRoutingAction extends TransportClusterManagerNodeAction<
+public class TransportAddWeightedRoutingAction extends TransportClusterManagerNodeAction<
     ClusterPutWeightedRoutingRequest,
     ClusterPutWeightedRoutingResponse> {
 
@@ -44,7 +44,7 @@ public class TransportPutWeightedRoutingAction extends TransportClusterManagerNo
     private volatile List<String> awarenessAttributes;
 
     @Inject
-    public TransportPutWeightedRoutingAction(
+    public TransportAddWeightedRoutingAction(
         Settings settings,
         ClusterSettings clusterSettings,
         TransportService transportService,
