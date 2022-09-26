@@ -22,6 +22,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Added missing javadocs for `:example-plugins` modules ([#4540](https://github.com/opensearch-project/OpenSearch/pull/4540))
 ### Dependencies
 - Bumps `log4j-core` from 2.18.0 to 2.19.0
+- Bumps `reactor-netty-http` from 1.0.18 to 1.0.23
 
 
 ### Dependencies
