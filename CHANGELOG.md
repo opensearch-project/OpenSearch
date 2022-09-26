@@ -102,6 +102,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
  - Adding ActionListener onFailure to ExtensionsOrchestrator ([#61](https://github.com/opensearch-project/opensearch-sdk/issues/61))
  - Adding create component extension point support for AD ([#4517](https://github.com/opensearch-project/OpenSearch/pull/4517))
  - Add getSettings support for AD([#4519](https://github.com/opensearch-project/OpenSearch/pull/4519))
+ - Fixed javadoc warning for build failure([#4581](https://github.com/opensearch-project/OpenSearch/pull/4581))
 
 ## [2.x]
 ### Added
