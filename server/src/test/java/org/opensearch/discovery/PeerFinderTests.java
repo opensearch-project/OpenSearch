@@ -807,6 +807,14 @@ public class PeerFinderTests extends OpenSearchTestCase {
         assertFoundPeers(rebootedOtherNode);
     }
 
+    public void testNodeCommissioning() {
+        peerFinder.nodeCommissionedListener().onFailure(new Exception("unit-test"));
+        assertTrue(peerFinder.localNodeDecommissioned());
+
+        peerFinder.nodeCommissionedListener().onResponse(null);
+        assertFalse(peerFinder.localNodeDecommissioned());
+    }
+
     private void respondToRequests(Function<DiscoveryNode, PeersResponse> responseFactory) {
         final CapturedRequest[] capturedRequests = capturingTransport.getCapturedRequestsAndClear();
         for (final CapturedRequest capturedRequest : capturedRequests) {
