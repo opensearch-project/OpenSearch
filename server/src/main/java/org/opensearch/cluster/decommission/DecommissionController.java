@@ -288,7 +288,7 @@ public class DecommissionController {
 
         Map<String, String> weights = new HashMap<>();
         zones.forEach(zone -> {
-            if (zone.equalsIgnoreCase(decommissionAttribute.attributeName())) {
+            if (zone.equalsIgnoreCase(decommissionAttribute.attributeValue())) {
                 weights.put(zone, "0");
             } else {
                 weights.put(zone, "1");
@@ -297,7 +297,7 @@ public class DecommissionController {
 
         // WRR API will validate invalid weights
         final ClusterPutWRRWeightsRequest clusterWeightRequest = new ClusterPutWRRWeightsRequest();
-        clusterWeightRequest.attributeName(decommissionAttribute.attributeValue());
+        clusterWeightRequest.attributeName(decommissionAttribute.attributeName());
         clusterWeightRequest.setWRRWeight(weights);
 
         transportService.sendRequest(

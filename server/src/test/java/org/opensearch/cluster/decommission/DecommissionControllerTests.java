@@ -280,7 +280,7 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
 
         DecommissionAttributeMetadata oldMetadata = new DecommissionAttributeMetadata(
             new DecommissionAttribute("zone", "zone-1"),
-            DecommissionStatus.IN_PROGRESS
+            DecommissionStatus.WEIGH_AWAY
         );
         ClusterState state = clusterService.state();
         Metadata metadata = state.metadata();
