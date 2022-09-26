@@ -47,11 +47,15 @@ import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterSettingsResponse;
 import org.opensearch.cluster.LocalNodeResponse;
+import org.opensearch.env.EnvironmentSettingsResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.PathUtils;
+import org.opensearch.common.io.stream.BytesStreamInput;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.InputStreamStreamInput;
 import org.opensearch.common.io.stream.NamedWriteable;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
@@ -61,8 +65,10 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.settings.SettingsModule;
+import org.opensearch.common.settings.WriteableSetting;
 import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.common.settings.WriteableSetting.SettingType;
+import org.opensearch.common.settings.SettingsModule;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.util.concurrent.ThreadContext;
@@ -130,6 +136,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         "     customFolderName: fakeFolder2",
         "     hasNativeController: true"
     );
+    private DiscoveryExtension extensionNode;
 
     @Before
     public void setup() throws Exception {
@@ -170,6 +177,27 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         clusterService = createClusterService(threadPool);
 
         extensionDir = createTempDir();
+
+        extensionNode = new DiscoveryExtension(
+            "firstExtension",
+            "uniqueid1",
+            "uniqueid1",
+            "myIndependentPluginHost1",
+            "127.0.0.0",
+            new TransportAddress(InetAddress.getByName("127.0.0.0"), 9300),
+            new HashMap<String, String>(),
+            Version.fromString("3.0.0"),
+            new PluginInfo(
+                "firstExtension",
+                "Fake description 1",
+                "0.0.7",
+                Version.fromString("3.0.0"),
+                "14",
+                "fakeClass1",
+                new ArrayList<String>(),
+                false
+            )
+        );
     }
 
     @Override
@@ -319,7 +347,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
 
         transportService.start();
         transportService.acceptIncomingRequests();
-        extensionsOrchestrator.initializeServicesAndRestHandler(restController, settingsModule, transportService, clusterService);
+        extensionsOrchestrator.initializeServicesAndRestHandler(restController, settingsModule, transportService, clusterService, settings);
 
         try (MockLogAppender mockLogAppender = MockLogAppender.createForLoggers(LogManager.getLogger(ExtensionsOrchestrator.class))) {
 
@@ -355,7 +383,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
 
         ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
 
-        extensionsOrchestrator.initializeServicesAndRestHandler(restController, settingsModule, transportService, clusterService);
+        extensionsOrchestrator.initializeServicesAndRestHandler(restController, settingsModule, transportService, clusterService, settings);
         String uniqueIdStr = "uniqueid1";
         List<String> actionsList = List.of("GET /foo", "PUT /bar", "POST /baz");
         RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(uniqueIdStr, actionsList);
@@ -375,7 +403,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
 
         ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
 
-        extensionsOrchestrator.initializeServicesAndRestHandler(restController, settingsModule, transportService, clusterService);
+        extensionsOrchestrator.initializeServicesAndRestHandler(restController, settingsModule, transportService, clusterService, settings);
         String uniqueIdStr = "uniqueid1";
         List<Setting<?>> settingsList = List.of(
             Setting.boolSetting("index.falseSetting", false, Property.IndexScope, Property.Dynamic),
@@ -394,7 +422,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
     public void testHandleRegisterRestActionsRequestWithInvalidMethod() throws Exception {
         ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
 
-        extensionsOrchestrator.initializeServicesAndRestHandler(restController, settingsModule, transportService, clusterService);
+        extensionsOrchestrator.initializeServicesAndRestHandler(restController, settingsModule, transportService, clusterService, settings);
         String uniqueIdStr = "uniqueid1";
         List<String> actionsList = List.of("FOO /foo", "PUT /bar", "POST /baz");
         RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(uniqueIdStr, actionsList);
@@ -407,7 +435,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
     public void testHandleRegisterRestActionsRequestWithInvalidUri() throws Exception {
         ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
 
-        extensionsOrchestrator.initializeServicesAndRestHandler(restController, settingsModule, transportService, clusterService);
+        extensionsOrchestrator.initializeServicesAndRestHandler(restController, settingsModule, transportService, clusterService, settings);
         String uniqueIdStr = "uniqueid1";
         List<String> actionsList = List.of("GET", "PUT /bar", "POST /baz");
         RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(uniqueIdStr, actionsList);
@@ -421,7 +449,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
 
         ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
 
-        extensionsOrchestrator.initializeServicesAndRestHandler(restController, settingsModule, transportService, clusterService);
+        extensionsOrchestrator.initializeServicesAndRestHandler(restController, settingsModule, transportService, clusterService, settings);
         ExtensionRequest clusterStateRequest = new ExtensionRequest(ExtensionsOrchestrator.RequestType.REQUEST_EXTENSION_CLUSTER_STATE);
         assertEquals(ClusterStateResponse.class, extensionsOrchestrator.handleExtensionRequest(clusterStateRequest).getClass());
 
@@ -444,7 +472,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
 
         ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
 
-        extensionsOrchestrator.initializeServicesAndRestHandler(restController, settingsModule, transportService, clusterService);
+        extensionsOrchestrator.initializeServicesAndRestHandler(restController, settingsModule, transportService, clusterService, settings);
 
         ExtensionActionListenerOnFailureRequest listenerFailureRequest = new ExtensionActionListenerOnFailureRequest("Test failure");
 
@@ -453,6 +481,200 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
             extensionsOrchestrator.listenerHandler.handleExtensionActionListenerOnFailureRequest(listenerFailureRequest).getClass()
         );
         assertEquals("Test failure", extensionsOrchestrator.listener.getExceptionList().get(0).getMessage());
+    }
+
+    public void testEnvironmentSettingsRequest() throws Exception {
+
+        Path extensionDir = createTempDir();
+        Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
+        ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
+        extensionsOrchestrator.initializeServicesAndRestHandler(restController, settingsModule, transportService, clusterService, settings);
+
+        List<Setting<?>> componentSettings = List.of(
+            Setting.boolSetting("falseSetting", false, Property.IndexScope, Property.NodeScope),
+            Setting.simpleString("fooSetting", "foo", Property.Dynamic)
+        );
+
+        // Test EnvironmentSettingsRequest arg constructor
+        EnvironmentSettingsRequest environmentSettingsRequest = new EnvironmentSettingsRequest(componentSettings);
+        List<Setting<?>> requestComponentSettings = environmentSettingsRequest.getComponentSettings();
+        assertEquals(componentSettings.size(), requestComponentSettings.size());
+        assertTrue(requestComponentSettings.containsAll(componentSettings));
+        assertTrue(componentSettings.containsAll(requestComponentSettings));
+
+        // Test EnvironmentSettingsRequest StreamInput constructor
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            environmentSettingsRequest.writeTo(out);
+            out.flush();
+            try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
+                environmentSettingsRequest = new EnvironmentSettingsRequest(in);
+                requestComponentSettings = environmentSettingsRequest.getComponentSettings();
+                assertEquals(componentSettings.size(), requestComponentSettings.size());
+                assertTrue(requestComponentSettings.containsAll(componentSettings));
+                assertTrue(componentSettings.containsAll(requestComponentSettings));
+            }
+        }
+
+    }
+
+    public void testEnvironmentSettingsResponse() throws Exception {
+
+        List<Setting<?>> componentSettings = List.of(
+            Setting.boolSetting("falseSetting", false, Property.IndexScope, Property.NodeScope),
+            Setting.simpleString("fooSetting", "foo", Property.Dynamic)
+        );
+
+        // Test EnvironmentSettingsResponse arg constructor
+        EnvironmentSettingsResponse environmentSettingsResponse = new EnvironmentSettingsResponse(settings, componentSettings);
+        assertEquals(componentSettings.size(), environmentSettingsResponse.getComponentSettingValues().size());
+
+        List<Setting<?>> responseSettings = new ArrayList<>();
+        responseSettings.addAll(environmentSettingsResponse.getComponentSettingValues().keySet());
+        assertTrue(responseSettings.containsAll(componentSettings));
+        assertTrue(componentSettings.containsAll(responseSettings));
+
+        // Test EnvironmentSettingsResponse StreamInput constrcutor
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            environmentSettingsResponse.writeTo(out);
+            out.flush();
+            try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
+
+                environmentSettingsResponse = new EnvironmentSettingsResponse(in);
+                assertEquals(componentSettings.size(), environmentSettingsResponse.getComponentSettingValues().size());
+
+                responseSettings = new ArrayList<>();
+                responseSettings.addAll(environmentSettingsResponse.getComponentSettingValues().keySet());
+                assertTrue(responseSettings.containsAll(componentSettings));
+                assertTrue(componentSettings.containsAll(responseSettings));
+            }
+        }
+    }
+
+    public void testHandleEnvironmentSettingsRequest() throws Exception {
+
+        Path extensionDir = createTempDir();
+        Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
+        ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
+        extensionsOrchestrator.initializeServicesAndRestHandler(restController, settingsModule, transportService, clusterService, settings);
+
+        List<Setting<?>> componentSettings = List.of(
+            Setting.boolSetting("falseSetting", false, Property.Dynamic),
+            Setting.boolSetting("trueSetting", true, Property.Dynamic)
+        );
+
+        EnvironmentSettingsRequest environmentSettingsRequest = new EnvironmentSettingsRequest(componentSettings);
+        TransportResponse response = extensionsOrchestrator.environmentSettingsRequestHandler.handleEnvironmentSettingsRequest(
+            environmentSettingsRequest
+        );
+
+        assertEquals(EnvironmentSettingsResponse.class, response.getClass());
+        assertEquals(componentSettings.size(), ((EnvironmentSettingsResponse) response).getComponentSettingValues().size());
+
+        List<Setting<?>> responseSettings = new ArrayList<>();
+        responseSettings.addAll(((EnvironmentSettingsResponse) response).getComponentSettingValues().keySet());
+        assertTrue(responseSettings.containsAll(componentSettings));
+        assertTrue(componentSettings.containsAll(responseSettings));
+    }
+
+    public void testAddSettingsUpdateConsumerRequest() throws Exception {
+        Path extensionDir = createTempDir();
+        Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
+        ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
+        extensionsOrchestrator.initializeServicesAndRestHandler(restController, settingsModule, transportService, clusterService, settings);
+
+        List<Setting<?>> componentSettings = List.of(
+            Setting.boolSetting("falseSetting", false, Property.IndexScope, Property.NodeScope),
+            Setting.simpleString("fooSetting", "foo", Property.Dynamic)
+        );
+
+        // Test AddSettingsUpdateConsumerRequest arg constructor
+        AddSettingsUpdateConsumerRequest addSettingsUpdateConsumerRequest = new AddSettingsUpdateConsumerRequest(
+            extensionNode,
+            componentSettings
+        );
+        assertEquals(extensionNode, addSettingsUpdateConsumerRequest.getExtensionNode());
+        assertEquals(componentSettings.size(), addSettingsUpdateConsumerRequest.getComponentSettings().size());
+
+        List<Setting<?>> requestComponentSettings = new ArrayList<>();
+        for (WriteableSetting writeableSetting : addSettingsUpdateConsumerRequest.getComponentSettings()) {
+            requestComponentSettings.add(writeableSetting.getSetting());
+        }
+        assertTrue(requestComponentSettings.containsAll(componentSettings));
+        assertTrue(componentSettings.containsAll(requestComponentSettings));
+
+        // Test AddSettingsUpdateConsumerRequest StreamInput constructor
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            addSettingsUpdateConsumerRequest.writeTo(out);
+            out.flush();
+            try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
+                addSettingsUpdateConsumerRequest = new AddSettingsUpdateConsumerRequest(in);
+                assertEquals(extensionNode, addSettingsUpdateConsumerRequest.getExtensionNode());
+                assertEquals(componentSettings.size(), addSettingsUpdateConsumerRequest.getComponentSettings().size());
+
+                requestComponentSettings = new ArrayList<>();
+                for (WriteableSetting writeableSetting : addSettingsUpdateConsumerRequest.getComponentSettings()) {
+                    requestComponentSettings.add(writeableSetting.getSetting());
+                }
+                assertTrue(requestComponentSettings.containsAll(componentSettings));
+                assertTrue(componentSettings.containsAll(requestComponentSettings));
+            }
+        }
+
+    }
+
+    public void testHandleAddSettingsUpdateConsumerRequest() throws Exception {
+
+        Path extensionDir = createTempDir();
+        Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
+        ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
+
+        extensionsOrchestrator.initializeServicesAndRestHandler(restController, settingsModule, transportService, clusterService, settings);
+
+        List<Setting<?>> componentSettings = List.of(
+            Setting.boolSetting("falseSetting", false, Property.Dynamic),
+            Setting.boolSetting("trueSetting", true, Property.Dynamic)
+        );
+
+        AddSettingsUpdateConsumerRequest addSettingsUpdateConsumerRequest = new AddSettingsUpdateConsumerRequest(
+            extensionNode,
+            componentSettings
+        );
+        TransportResponse response = extensionsOrchestrator.addSettingsUpdateConsumerRequestHandler.handleAddSettingsUpdateConsumerRequest(
+            addSettingsUpdateConsumerRequest
+        );
+        assertEquals(ExtensionBooleanResponse.class, response.getClass());
+        // Should fail as component settings are not registered within cluster settings
+        assertEquals(false, ((ExtensionBooleanResponse) response).getStatus());
+    }
+
+    public void testUpdateSettingsRequest() throws Exception {
+        Path extensionDir = createTempDir();
+        Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
+        ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
+        extensionsOrchestrator.initializeServicesAndRestHandler(restController, settingsModule, transportService, clusterService, settings);
+
+        Setting<?> componentSetting = Setting.boolSetting("falseSetting", false, Property.Dynamic);
+        SettingType settingType = SettingType.Boolean;
+        boolean data = true;
+
+        // Test UpdateSettingRequest arg constructor
+        UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(settingType, componentSetting, data);
+        assertEquals(componentSetting, updateSettingsRequest.getComponentSetting());
+        assertEquals(settingType, updateSettingsRequest.getSettingType());
+        assertEquals(data, updateSettingsRequest.getData());
+
+        // Test UpdateSettingRequest StreamInput constructor
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            updateSettingsRequest.writeTo(out);
+            out.flush();
+            try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
+                updateSettingsRequest = new UpdateSettingsRequest(in);
+                assertEquals(componentSetting, updateSettingsRequest.getComponentSetting());
+                assertEquals(settingType, updateSettingsRequest.getSettingType());
+                assertEquals(data, updateSettingsRequest.getData());
+            }
+        }
+
     }
 
     public void testRegisterHandler() throws Exception {
@@ -471,8 +693,14 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
             )
         );
 
-        extensionsOrchestrator.initializeServicesAndRestHandler(restController, settingsModule, mockTransportService, clusterService);
-        verify(mockTransportService, times(7)).registerRequestHandler(anyString(), anyString(), anyBoolean(), anyBoolean(), any(), any());
+        extensionsOrchestrator.initializeServicesAndRestHandler(
+            restController,
+            settingsModule,
+            mockTransportService,
+            clusterService,
+            settings
+        );
+        verify(mockTransportService, times(9)).registerRequestHandler(anyString(), anyString(), anyBoolean(), anyBoolean(), any(), any());
     }
 
     private static class Example implements NamedWriteable {
@@ -518,7 +746,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
         transportService.start();
         transportService.acceptIncomingRequests();
-        extensionsOrchestrator.initializeServicesAndRestHandler(restController, settingsModule, transportService, clusterService);
+        extensionsOrchestrator.initializeServicesAndRestHandler(restController, settingsModule, transportService, clusterService, settings);
 
         try (
             MockLogAppender mockLogAppender = MockLogAppender.createForLoggers(
@@ -546,7 +774,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
         transportService.start();
         transportService.acceptIncomingRequests();
-        extensionsOrchestrator.initializeServicesAndRestHandler(restController, settingsModule, transportService, clusterService);
+        extensionsOrchestrator.initializeServicesAndRestHandler(restController, settingsModule, transportService, clusterService, settings);
 
         List<DiscoveryExtension> extensionsList = new ArrayList<>(extensionsOrchestrator.extensionIdMap.values());
         DiscoveryNode extensionNode = extensionsList.get(0);
@@ -599,7 +827,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
         transportService.start();
         transportService.acceptIncomingRequests();
-        extensionsOrchestrator.initializeServicesAndRestHandler(restController, settingsModule, transportService, clusterService);
+        extensionsOrchestrator.initializeServicesAndRestHandler(restController, settingsModule, transportService, clusterService, settings);
 
         String requestType = ExtensionsOrchestrator.REQUEST_OPENSEARCH_PARSE_NAMED_WRITEABLE;
         List<DiscoveryExtension> extensionsList = new ArrayList<>(extensionsOrchestrator.extensionIdMap.values());
@@ -643,7 +871,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
 
         transportService.start();
         transportService.acceptIncomingRequests();
-        extensionsOrchestrator.initializeServicesAndRestHandler(restController, settingsModule, transportService, clusterService);
+        extensionsOrchestrator.initializeServicesAndRestHandler(restController, settingsModule, transportService, clusterService, settings);
 
         Environment environment = TestEnvironment.newEnvironment(settings);
         AnalysisRegistry emptyAnalysisRegistry = new AnalysisRegistry(
