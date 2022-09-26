@@ -15,12 +15,12 @@ import org.opensearch.action.ActionType;
  *
  * @opensearch.internal
  */
-public final class ClusterPutWeightedRoutingAction extends ActionType<ClusterPutWeightedRoutingResponse> {
+public final class ClusterAddWeightedRoutingAction extends ActionType<ClusterPutWeightedRoutingResponse> {
 
-    public static final ClusterPutWeightedRoutingAction INSTANCE = new ClusterPutWeightedRoutingAction();
+    public static final ClusterAddWeightedRoutingAction INSTANCE = new ClusterAddWeightedRoutingAction();
     public static final String NAME = "cluster:admin/routing/awareness/weights/put";
 
-    private ClusterPutWeightedRoutingAction() {
+    private ClusterAddWeightedRoutingAction() {
         super(NAME, ClusterPutWeightedRoutingResponse::new);
     }
 }

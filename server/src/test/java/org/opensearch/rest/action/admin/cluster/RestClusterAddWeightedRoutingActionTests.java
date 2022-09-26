@@ -24,7 +24,7 @@ import java.util.Map;
 
 import static java.util.Collections.singletonMap;
 
-public class RestClusterPutWeightedRoutingActionTests extends RestActionTestCase {
+public class RestClusterAddWeightedRoutingActionTests extends RestActionTestCase {
     private RestClusterPutWeightedRoutingAction action;
 
     @Before

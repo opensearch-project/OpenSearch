@@ -55,7 +55,7 @@ public class TransportAddWeightedRoutingAction extends TransportClusterManagerNo
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
-            ClusterPutWeightedRoutingAction.NAME,
+            ClusterAddWeightedRoutingAction.NAME,
             transportService,
             clusterService,
             threadPool,

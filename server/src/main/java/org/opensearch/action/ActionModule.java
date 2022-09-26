@@ -79,7 +79,7 @@ import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
 import org.opensearch.action.admin.cluster.settings.TransportClusterUpdateSettingsAction;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsAction;
 import org.opensearch.action.admin.cluster.shards.TransportClusterSearchShardsAction;
-import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingAction;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterAddWeightedRoutingAction;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.put.TransportAddWeightedRoutingAction;
 import org.opensearch.action.admin.cluster.snapshots.clone.CloneSnapshotAction;
 import org.opensearch.action.admin.cluster.snapshots.clone.TransportCloneSnapshotAction;
@@ -566,7 +566,7 @@ public class ActionModule extends AbstractModule {
         actions.register(RestoreSnapshotAction.INSTANCE, TransportRestoreSnapshotAction.class);
         actions.register(SnapshotsStatusAction.INSTANCE, TransportSnapshotsStatusAction.class);
 
-        actions.register(ClusterPutWeightedRoutingAction.INSTANCE, TransportAddWeightedRoutingAction.class);
+        actions.register(ClusterAddWeightedRoutingAction.INSTANCE, TransportAddWeightedRoutingAction.class);
         actions.register(IndicesStatsAction.INSTANCE, TransportIndicesStatsAction.class);
         actions.register(IndicesSegmentsAction.INSTANCE, TransportIndicesSegmentsAction.class);
         actions.register(IndicesShardStoresAction.INSTANCE, TransportIndicesShardStoresAction.class);

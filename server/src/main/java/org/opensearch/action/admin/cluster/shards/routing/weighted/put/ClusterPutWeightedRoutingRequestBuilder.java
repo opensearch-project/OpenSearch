@@ -21,7 +21,7 @@ public class ClusterPutWeightedRoutingRequestBuilder extends ClusterManagerNodeO
     ClusterPutWeightedRoutingRequest,
     ClusterPutWeightedRoutingResponse,
     ClusterPutWeightedRoutingRequestBuilder> {
-    public ClusterPutWeightedRoutingRequestBuilder(OpenSearchClient client, ClusterPutWeightedRoutingAction action) {
+    public ClusterPutWeightedRoutingRequestBuilder(OpenSearchClient client, ClusterAddWeightedRoutingAction action) {
         super(client, action, new ClusterPutWeightedRoutingRequest());
     }
 

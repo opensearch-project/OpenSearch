@@ -110,7 +110,7 @@ import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsAction;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsRequestBuilder;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
-import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingAction;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterAddWeightedRoutingAction;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingRequest;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingRequestBuilder;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingResponse;
@@ -1270,7 +1270,7 @@ public abstract class AbstractClient implements Client {
 
         @Override
         public ActionFuture<ClusterPutWeightedRoutingResponse> putWeightedRouting(ClusterPutWeightedRoutingRequest request) {
-            return execute(ClusterPutWeightedRoutingAction.INSTANCE, request);
+            return execute(ClusterAddWeightedRoutingAction.INSTANCE, request);
         }
 
         @Override
@@ -1278,12 +1278,12 @@ public abstract class AbstractClient implements Client {
             ClusterPutWeightedRoutingRequest request,
             ActionListener<ClusterPutWeightedRoutingResponse> listener
         ) {
-            execute(ClusterPutWeightedRoutingAction.INSTANCE, request, listener);
+            execute(ClusterAddWeightedRoutingAction.INSTANCE, request, listener);
         }
 
         @Override
         public ClusterPutWeightedRoutingRequestBuilder prepareWeightedRouting() {
-            return new ClusterPutWeightedRoutingRequestBuilder(this, ClusterPutWeightedRoutingAction.INSTANCE);
+            return new ClusterPutWeightedRoutingRequestBuilder(this, ClusterAddWeightedRoutingAction.INSTANCE);
         }
 
         @Override
