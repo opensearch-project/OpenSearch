@@ -10,7 +10,6 @@ package org.opensearch.cluster.decommission;
 
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.opensearch.OpenSearchTimeoutException;
@@ -308,7 +307,6 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
         assertEquals("1", request.wrrWeight().weights().get("zone-3"));
     }
 
-    @Test(expected = AssertionError.class)
     public void testSetWeightsForDecommissionForDecommissionInit() {
         TransportService mockTransportService = Mockito.mock(TransportService.class);
         Mockito.when(mockTransportService.getLocalNode()).thenReturn(Mockito.mock(DiscoveryNode.class));
@@ -325,7 +323,7 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
         state = ClusterState.builder(state).metadata(mdBuilder).build();
         setState(clusterService, state);
 
-        decommissionController.setWeightForDecommissionedZone(List.of("zone-1", "zone-2", "zone-3"));
+        expectThrows(AssertionError.class, () -> decommissionController.setWeightForDecommissionedZone(List.of("zone-1", "zone-2", "zone-3")));
     }
 
     public void testCheckHttpStatsForDecommissionedNodes() {
