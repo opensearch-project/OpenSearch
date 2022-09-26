@@ -383,11 +383,6 @@ public class DecommissionController {
                 getActiveRequestCountOnDecommissionNodes(decommissionedNodes);
                 removeDecommissionedNodes(decommissionedNodes, reason, timeout, nodesRemovedListener);
             }
-
-            @Override
-            public String toString() {
-                return "";
-            }
         }, timeoutForNodeDecommission, org.opensearch.threadpool.ThreadPool.Names.SAME);
     }
 
@@ -395,8 +390,8 @@ public class DecommissionController {
         if (decommissionedNodes == null || decommissionedNodes.isEmpty()) {
             return;
         }
-        String[] nodes = decommissionedNodes.stream().map(DiscoveryNode::getId).toArray(String[]::new);
 
+        String[] nodes = decommissionedNodes.stream().map(DiscoveryNode::getId).toArray(String[]::new);
         if (nodes.length == 0) {
             return;
         }
