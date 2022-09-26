@@ -25,29 +25,20 @@ import java.util.Objects;
 public class ExtensionRequest extends TransportRequest {
     private static final Logger logger = LogManager.getLogger(ExtensionRequest.class);
     private ExtensionsOrchestrator.RequestType requestType;
-    private String failureException;
 
     public ExtensionRequest(ExtensionsOrchestrator.RequestType requestType) {
         this.requestType = requestType;
-        this.failureException = "";
     }
 
     public ExtensionRequest(StreamInput in) throws IOException {
         super(in);
         this.requestType = in.readEnum(ExtensionsOrchestrator.RequestType.class);
-        this.failureException = in.readOptionalString();
-    }
-
-    public ExtensionRequest(ExtensionsOrchestrator.RequestType requestType, String failureException) {
-        this.requestType = requestType;
-        this.failureException = failureException;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeEnum(requestType);
-        out.writeOptionalString(failureException);
     }
 
     public ExtensionsOrchestrator.RequestType getRequestType() {
@@ -60,7 +51,6 @@ public class ExtensionRequest extends TransportRequest {
 
     @Override
     public boolean equals(Object o) {
-
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ExtensionRequest that = (ExtensionRequest) o;
@@ -71,9 +61,4 @@ public class ExtensionRequest extends TransportRequest {
     public int hashCode() {
         return Objects.hash(requestType);
     }
-
-    public String getFailureException() {
-        return failureException;
-    }
-
 }

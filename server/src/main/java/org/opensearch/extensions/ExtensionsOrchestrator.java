@@ -122,7 +122,8 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     TransportService transportService;
     ClusterService clusterService;
     ExtensionNamedWriteableRegistry namedWriteableRegistry;
-    ExtensionActionListener<ExtensionBooleanResponse> listener;
+    ExtensionActionListener listener;
+    ExtensionActionListenerHandler listenerHandler;
     EnvironmentSettingsRequestHandler environmentSettingsRequestHandler;
     AddSettingsUpdateConsumerRequestHandler addSettingsUpdateConsumerRequestHandler;
 
@@ -141,7 +142,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         this.extensionIdMap = new HashMap<String, DiscoveryExtension>();
         this.clusterService = null;
         this.namedWriteableRegistry = null;
-        this.listener = new ExtensionActionListener<ExtensionBooleanResponse>();
+        this.listener = new ExtensionActionListener();
 
         /*
          * Now Discover extensions
@@ -168,6 +169,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         Settings initialEnvironmentSettings
     ) {
         this.restActionsRequestHandler = new RestActionsRequestHandler(restController, extensionIdMap, transportService);
+        this.listenerHandler = new ExtensionActionListenerHandler(listener);
         this.customSettingsRequestHandler = new CustomSettingsRequestHandler(settingsModule);
         this.transportService = transportService;
         this.clusterService = clusterService;
@@ -226,8 +228,8 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             ThreadPool.Names.GENERIC,
             false,
             false,
-            ExtensionRequest::new,
-            ((request, channel, task) -> channel.sendResponse(handleExtensionRequest(request)))
+            ExtensionActionListenerOnFailureRequest::new,
+            ((request, channel, task) -> channel.sendResponse(listenerHandler.handleExtensionActionListenerOnFailureRequest(request)))
         );
         transportService.registerRequestHandler(
             REQUEST_EXTENSION_ENVIRONMENT_SETTINGS,
@@ -408,20 +410,8 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
                 return new LocalNodeResponse(clusterService);
             case REQUEST_EXTENSION_CLUSTER_SETTINGS:
                 return new ClusterSettingsResponse(clusterService);
-            case REQUEST_EXTENSION_ACTION_LISTENER_ON_FAILURE:
-                return handleExtensionActionListenerOnFailureRequest(extensionRequest.getFailureException());
             default:
-                throw new Exception("Handler not present for the provided request");
-        }
-    }
-
-    private ExtensionBooleanResponse handleExtensionActionListenerOnFailureRequest(String failureException) throws Exception {
-        try {
-            listener.onFailure(new Exception(failureException));
-            return new ExtensionBooleanResponse(true);
-        } catch (Exception e) {
-            logger.error(e.getMessage());
-            throw e;
+                throw new IllegalArgumentException("Handler not present for the provided request");
         }
     }
 
