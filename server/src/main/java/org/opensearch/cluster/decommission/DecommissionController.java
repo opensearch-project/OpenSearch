@@ -288,7 +288,7 @@ public class DecommissionController {
 
         Map<String, String> weights = new HashMap<>();
         zones.forEach(zone -> {
-            if (zone.equalsIgnoreCase(decommissionAttribute.attributeValue())) {
+            if (zone.equalsIgnoreCase(decommissionAttribute.attributeName())) {
                 weights.put(zone, "0");
             } else {
                 weights.put(zone, "1");
@@ -297,7 +297,7 @@ public class DecommissionController {
 
         // WRR API will validate invalid weights
         final ClusterPutWRRWeightsRequest clusterWeightRequest = new ClusterPutWRRWeightsRequest();
-        clusterWeightRequest.attributeName("zone");
+        clusterWeightRequest.attributeName(decommissionAttribute.attributeValue());
         clusterWeightRequest.setWRRWeight(weights);
 
         transportService.sendRequest(
@@ -335,13 +335,13 @@ public class DecommissionController {
         Set<DiscoveryNode> decommissionedNodes,
         String reason,
         TimeValue timeout,
-        TimeValue timeoutForNodeDecommission,
+        TimeValue timeoutForNodeDraining,
         ActionListener<Void> listener
     ) {
 
-        if (timeoutForNodeDecommission.getSeconds() > 0) {
+        if (timeoutForNodeDraining.getSeconds() > 0) {
             // Wait for timeout to happen. Log the active connection before decommissioning of nodes.
-            scheduleDecommissionNodesRequestCheck(decommissionedNodes, reason, timeout, listener, timeoutForNodeDecommission);
+            scheduleDecommissionNodesRequestCheck(decommissionedNodes, reason, timeout, listener, timeoutForNodeDraining);
         } else {
             getActiveRequestCountOnDecommissionNodes(decommissionedNodes);
             removeDecommissionedNodes(decommissionedNodes, reason, timeout, listener);
@@ -364,7 +364,7 @@ public class DecommissionController {
         String reason,
         TimeValue timeout,
         ActionListener<Void> nodesRemovedListener,
-        TimeValue timeoutForNodeDecommission
+        TimeValue timeoutForNodeDraining
     ) {
         transportService.getThreadPool().schedule(new Runnable() {
             @Override
@@ -373,7 +373,7 @@ public class DecommissionController {
                 getActiveRequestCountOnDecommissionNodes(decommissionedNodes);
                 removeDecommissionedNodes(decommissionedNodes, reason, timeout, nodesRemovedListener);
             }
-        }, timeoutForNodeDecommission, org.opensearch.threadpool.ThreadPool.Names.SAME);
+        }, timeoutForNodeDraining, org.opensearch.threadpool.ThreadPool.Names.SAME);
     }
 
     private void getActiveRequestCountOnDecommissionNodes(Set<DiscoveryNode> decommissionedNodes) {

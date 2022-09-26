@@ -119,7 +119,7 @@ public class DecommissionService {
     public void startDecommissionAction(
         final DecommissionAttribute decommissionAttribute,
         final ActionListener<ClusterStateUpdateResponse> listener,
-        final TimeValue timeOutForNodeDecommission
+        final TimeValue timeOutForNodeDraining
     ) {
         // register the metadata with status as INIT as first step
         clusterService.submitStateUpdateTask("decommission [" + decommissionAttribute + "]", new ClusterStateUpdateTask(Priority.URGENT) {
@@ -158,11 +158,7 @@ public class DecommissionService {
                     decommissionAttributeMetadata.decommissionAttribute(),
                     decommissionAttributeMetadata.status()
                 );
-                decommissionClusterManagerNodes(
-                    decommissionAttributeMetadata.decommissionAttribute(),
-                    listener,
-                    timeOutForNodeDecommission
-                );
+                decommissionClusterManagerNodes(decommissionAttributeMetadata.decommissionAttribute(), listener, timeOutForNodeDraining);
             }
         });
     }
@@ -170,7 +166,7 @@ public class DecommissionService {
     private synchronized void decommissionClusterManagerNodes(
         final DecommissionAttribute decommissionAttribute,
         ActionListener<ClusterStateUpdateResponse> listener,
-        TimeValue timeOutForNodeDecommission
+        TimeValue timeOutForNodeDraining
     ) {
         ClusterState state = clusterService.getClusterApplierService().state();
         // since here metadata is already registered with INIT, we can guarantee that no new node with decommission attribute can further
@@ -214,7 +210,7 @@ public class DecommissionService {
                         // nodes can be part of Voting Config
                         listener.onResponse(new ClusterStateUpdateResponse(true));
 
-                        weighAwayDecommissionedZone(state, timeOutForNodeDecommission);
+                        weighAwayDecommissionedZone(state, timeOutForNodeDraining);
                         // decommissionController.setWeightForDecommissionedZone();
                         // failDecommissionedNodes(clusterService.getClusterApplierService().state(), timeOutForNodeDecommission);
                     }
@@ -313,7 +309,7 @@ public class DecommissionService {
         }
     }
 
-    private void weighAwayDecommissionedZone(ClusterState state, TimeValue timeOutForNodeDecommission) {
+    private void weighAwayDecommissionedZone(ClusterState state, TimeValue timeOutForNodeDraining) {
         // this method ensures no matter what, we always exit from this function after clearing the voting config exclusion
         DecommissionAttributeMetadata decommissionAttributeMetadata = state.metadata().decommissionAttributeMetadata();
         DecommissionAttribute decommissionAttribute = decommissionAttributeMetadata.decommissionAttribute();
@@ -331,7 +327,7 @@ public class DecommissionService {
                     @Override
                     public void onResponse(ClusterPutWRRWeightsResponse response) {
                         clearVotingConfigExclusionAndUpdateStatus(true, true);
-                        failDecommissionedNodes(state, timeOutForNodeDecommission);
+                        failDecommissionedNodes(state, timeOutForNodeDraining);
                     }
 
                     @Override
@@ -357,7 +353,7 @@ public class DecommissionService {
         });
     }
 
-    private void failDecommissionedNodes(ClusterState state, TimeValue timeOutForNodeDecommission) {
+    private void failDecommissionedNodes(ClusterState state, TimeValue timeOutForNodeDraining) {
         // this method ensures no matter what, we always exit from this function after clearing the voting config exclusion
         DecommissionAttributeMetadata decommissionAttributeMetadata = state.metadata().decommissionAttributeMetadata();
         DecommissionAttribute decommissionAttribute = decommissionAttributeMetadata.decommissionAttribute();
@@ -372,7 +368,7 @@ public class DecommissionService {
                     filterNodesWithDecommissionAttribute(clusterService.getClusterApplierService().state(), decommissionAttribute, false),
                     "nodes-decommissioned",
                     TimeValue.timeValueSeconds(120L),
-                    timeOutForNodeDecommission,
+                    timeOutForNodeDraining,
                     new ActionListener<Void>() {
                         @Override
                         public void onResponse(Void unused) {
