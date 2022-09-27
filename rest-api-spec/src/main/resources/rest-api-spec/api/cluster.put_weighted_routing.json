@@ -1,0 +1,25 @@
+{
+  "cluster.put_weighted_routing": {
+    "documentation": {
+      "url": "https://opensearch.org/docs/latest/opensearch/rest-api/weighted-routing/put",
+      "description": "Updates weighted shard routing weights"
+    },
+    "stability": "stable",
+    "url": {
+      "paths": [
+        {
+          "path": "/_cluster/routing/awareness/{attribute}/weights",
+          "methods": [
+            "PUT"
+          ],
+          "parts": {
+            "attribute": {
+              "type": "string",
+              "description": "Awareness attribute name"
+            }
+          }
+        }
+      ]
+    }
+  }
+}
