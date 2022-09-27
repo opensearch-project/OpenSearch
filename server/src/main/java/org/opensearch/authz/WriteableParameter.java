@@ -19,7 +19,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * Wrapper for {@link CheckableParameter} with {@link #writeTo(StreamOutput)} implementation dependent on the parameter type.
  *
- * @opensearch.internal
+ * @opensearch.experimental
  */
 public class WriteableParameter implements Writeable {
 

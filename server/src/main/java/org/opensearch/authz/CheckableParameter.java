@@ -40,7 +40,7 @@ import java.io.IOException;
 /**
  * Parameter in an {@link AuthorizationRequest}
  *
- * @opensearch.internal
+ * @opensearch.experimental
  */
 public class CheckableParameter<T> {
 
