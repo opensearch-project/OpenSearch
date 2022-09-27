@@ -77,6 +77,7 @@ import static org.opensearch.indices.cluster.IndicesClusterStateService.Allocate
 public class MetadataMappingService {
 
     private static final Logger logger = LogManager.getLogger(MetadataMappingService.class);
+    private static final String PUT_MAPPING_CLUSTER_MANAGER_TASK_KEY = "put-mapping";
 
     private final ClusterService clusterService;
     private final IndicesService indicesService;
@@ -88,6 +89,11 @@ public class MetadataMappingService {
     public MetadataMappingService(ClusterService clusterService, IndicesService indicesService) {
         this.clusterService = clusterService;
         this.indicesService = indicesService;
+
+        /*
+         * Task will get retried from { @link TransportClusterManagerNodeAction}
+         */
+        ClusterManagerTaskThrottler.registerThrottlingKey(PUT_MAPPING_CLUSTER_MANAGER_TASK_KEY, true);
     }
 
     static class RefreshTask {
@@ -250,7 +256,7 @@ public class MetadataMappingService {
 
         @Override
         public String getClusterManagerThrottlingKey() {
-            return ClusterManagerTaskThrottler.getThrottlingKey(TransportPutMappingAction.class);
+            return PUT_MAPPING_CLUSTER_MANAGER_TASK_KEY;
         }
 
         private ClusterState applyRequest(

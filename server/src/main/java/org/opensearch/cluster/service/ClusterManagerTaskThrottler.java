@@ -49,15 +49,7 @@ public class ClusterManagerTaskThrottler implements TaskBatcherListener {
     );
 
 
-    public static Map< Class < ? extends TransportClusterManagerNodeAction>, String> THROTTLING_TASK_KEYS=
-        new ConcurrentHashMap<>() {
-        {
-            put(TransportPutMappingAction.class, "put-mapping");
-            put(TransportUpdateSettingsAction.class, "update-settings");
-            put(TransportCreateIndexAction.class, "create-index");
-            put(TransportDeleteIndexAction.class, "delete-index");
-        }
-    };
+    public static Map<String, Boolean> THROTTLING_TASK_KEYS = new ConcurrentHashMap<>();
 
     /**
      * To configure more task for throttling, override getClusterManagerThrottlingKey method with task name in task executor.
@@ -131,8 +123,11 @@ public class ClusterManagerTaskThrottler implements TaskBatcherListener {
         }
     }
 
-    public static String getThrottlingKey(Class transportActionClass) {
-        return THROTTLING_TASK_KEYS.get(transportActionClass);
+    public static void registerThrottlingKey(String throttlingKey, boolean retryableOnDataNode) {
+        if(THROTTLING_TASK_KEYS.containsKey(throttlingKey)) {
+            throw new IllegalArgumentException("Duplicate throttling keys are configured ");
+        }
+        THROTTLING_TASK_KEYS.put(throttlingKey, retryableOnDataNode);
     }
 
     void validateSetting(final Settings settings) {
@@ -144,8 +139,11 @@ public class ClusterManagerTaskThrottler implements TaskBatcherListener {
         }
         Map<String, Settings> groups = settings.getAsGroups();
         for (String key : groups.keySet()) {
-            if (!CONFIGURED_TASK_FOR_THROTTLING.contains(key)) {
+            if (!THROTTLING_TASK_KEYS.containsKey(key)) {
                 throw new IllegalArgumentException("Cluster manager task throttling is not configured for given task type: " + key);
+            }
+            if (!THROTTLING_TASK_KEYS.get(key)) {
+                throw new IllegalArgumentException("Data node doesn't perform retries for Cluster manager task throttling for given task type: " + key);
             }
             int threshold = groups.get(key).getAsInt("value", MIN_THRESHOLD_VALUE);
             if (threshold < MIN_THRESHOLD_VALUE) {

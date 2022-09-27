@@ -70,6 +70,7 @@ import java.util.Set;
 public class MetadataDeleteIndexService {
 
     private static final Logger logger = LogManager.getLogger(MetadataDeleteIndexService.class);
+    private static final String DELETE_INDEX_CLUSTER_MANAGER_TASK_KEY = "delete-index";
 
     private final Settings settings;
     private final ClusterService clusterService;
@@ -81,6 +82,11 @@ public class MetadataDeleteIndexService {
         this.settings = settings;
         this.clusterService = clusterService;
         this.allocationService = allocationService;
+
+        /*
+         * Task will get retried from { @link TransportClusterManagerNodeAction}
+         */
+        ClusterManagerTaskThrottler.registerThrottlingKey(DELETE_INDEX_CLUSTER_MANAGER_TASK_KEY, true);
     }
 
     public void deleteIndices(
@@ -102,7 +108,7 @@ public class MetadataDeleteIndexService {
 
                 @Override
                 public String getClusterManagerThrottlingKey() {
-                    return ClusterManagerTaskThrottler.getThrottlingKey(TransportDeleteIndexAction.class);
+                    return DELETE_INDEX_CLUSTER_MANAGER_TASK_KEY;
                 }
 
                 @Override

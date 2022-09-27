@@ -82,6 +82,7 @@ import static org.opensearch.index.IndexSettings.same;
  */
 public class MetadataUpdateSettingsService {
     private static final Logger logger = LogManager.getLogger(MetadataUpdateSettingsService.class);
+    private static final String UPDATE_SETTING_CLUSTER_MANAGER_TASK_KEY = "update-setting";
 
     private final ClusterService clusterService;
 
@@ -111,6 +112,11 @@ public class MetadataUpdateSettingsService {
         this.indicesService = indicesService;
         this.shardLimitValidator = shardLimitValidator;
         this.awarenessReplicaBalance = awarenessReplicaBalance;
+
+        /*
+         * Task will get retried from { @link TransportClusterManagerNodeAction}
+         */
+        ClusterManagerTaskThrottler.registerThrottlingKey(UPDATE_SETTING_CLUSTER_MANAGER_TASK_KEY, true);
     }
 
     public void updateSettings(
@@ -166,7 +172,7 @@ public class MetadataUpdateSettingsService {
 
                 @Override
                 public String getClusterManagerThrottlingKey() {
-                    return ClusterManagerTaskThrottler.getThrottlingKey(TransportUpdateSettingsAction.class);
+                    return UPDATE_SETTING_CLUSTER_MANAGER_TASK_KEY;
                 }
 
                 @Override

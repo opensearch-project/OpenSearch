@@ -135,6 +135,7 @@ public class MetadataCreateIndexService {
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(MetadataCreateIndexService.class);
 
     public static final int MAX_INDEX_NAME_BYTES = 255;
+    private static final String CREATE_INDEX_CLUSTER_MANAGER_TASK_KEY = "create-index";
 
     private final Settings settings;
     private final ClusterService clusterService;
@@ -179,6 +180,11 @@ public class MetadataCreateIndexService {
         this.forbidPrivateIndexSettings = forbidPrivateIndexSettings;
         this.shardLimitValidator = shardLimitValidator;
         this.awarenessReplicaBalance = awarenessReplicaBalance;
+
+        /*
+         * Task will get retried from { @link TransportClusterManagerNodeAction}
+         */
+        ClusterManagerTaskThrottler.registerThrottlingKey(CREATE_INDEX_CLUSTER_MANAGER_TASK_KEY, true);
     }
 
     /**
@@ -330,7 +336,7 @@ public class MetadataCreateIndexService {
 
                 @Override
                 public String getClusterManagerThrottlingKey() {
-                    return ClusterManagerTaskThrottler.getThrottlingKey(TransportCreateIndexAction.class);
+                    return CREATE_INDEX_CLUSTER_MANAGER_TASK_KEY;
                 }
 
                 @Override
