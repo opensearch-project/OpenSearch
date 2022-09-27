@@ -326,12 +326,13 @@ public class DecommissionService {
                 decommissionController.setWeightForDecommissionedZone(awarenessValues, new ActionListener<>() {
                     @Override
                     public void onResponse(ClusterPutWRRWeightsResponse response) {
-                        clearVotingConfigExclusionAndUpdateStatus(true, true);
-                        failDecommissionedNodes(state, timeOutForNodeDraining);
+                        // Schedule the node decommission process after the weights are successfully set.
+                        scheduleNodesDecommissionOnTimeout(state, timeOutForNodeDraining);
                     }
 
                     @Override
                     public void onFailure(Exception e) {
+                        // Weights not successfully set. Fail the decommissioning process.
                         clearVotingConfigExclusionAndUpdateStatus(false, false);
                     }
                 });
@@ -353,22 +354,38 @@ public class DecommissionService {
         });
     }
 
-    private void failDecommissionedNodes(ClusterState state, TimeValue timeOutForNodeDraining) {
+    void scheduleNodesDecommissionOnTimeout(ClusterState state, TimeValue timeoutForNodeDraining) {
         // this method ensures no matter what, we always exit from this function after clearing the voting config exclusion
         DecommissionAttributeMetadata decommissionAttributeMetadata = state.metadata().decommissionAttributeMetadata();
         DecommissionAttribute decommissionAttribute = decommissionAttributeMetadata.decommissionAttribute();
 
+        Set<DiscoveryNode> decommissionedNodes = filterNodesWithDecommissionAttribute(
+            clusterService.getClusterApplierService().state(),
+            decommissionAttribute,
+            false
+        );
+        // Wait for timeout to happen. Log the active connection before decommissioning of nodes.
+        transportService.getThreadPool().schedule(() -> {
+            // Log active connections.
+            decommissionController.getActiveRequestCountOnDecommissionNodes(decommissionedNodes);
+            // Call to fail the decommission nodes
+            failDecommissionedNodes(state, decommissionAttribute);
+        }, timeoutForNodeDraining, org.opensearch.threadpool.ThreadPool.Names.SAME);
+    }
+
+    private void failDecommissionedNodes(ClusterState state, DecommissionAttribute decommissionAttribute) {
+
+        // Weighing away is complete. We have allowed the nodes to be drained. Let's move decommission status to IN_PROGRESS.
         decommissionController.updateMetadataWithDecommissionStatus(DecommissionStatus.IN_PROGRESS, new ActionListener<>() {
             @Override
             public void onResponse(DecommissionStatus status) {
                 logger.info("updated the decommission status to [{}]", status);
                 // execute nodes decommissioning
 
-                decommissionController.handleNodesDecommissionRequest(
+                decommissionController.removeDecommissionedNodes(
                     filterNodesWithDecommissionAttribute(clusterService.getClusterApplierService().state(), decommissionAttribute, false),
                     "nodes-decommissioned",
                     TimeValue.timeValueSeconds(120L),
-                    timeOutForNodeDraining,
                     new ActionListener<Void>() {
                         @Override
                         public void onResponse(Void unused) {

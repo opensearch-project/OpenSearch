@@ -11,6 +11,7 @@ package org.opensearch.cluster.decommission;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.Mockito;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterName;
@@ -200,6 +201,39 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
         };
         decommissionService.startDecommissionAction(new DecommissionAttribute("zone", "zone_2"), listener, TimeValue.timeValueSeconds(30));
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
+    }
+
+    public void testCheckHttpStatsForDecommissionedNodes() {
+        final Settings.Builder nodeSettingsBuilder = Settings.builder()
+            .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(), "zone")
+            .put("cluster.routing.allocation.awareness.force.zone.values", "zone_1,zone_2,zone_3");
+
+        DecommissionStatus oldStatus = randomFrom(DecommissionStatus.SUCCESSFUL, DecommissionStatus.IN_PROGRESS, DecommissionStatus.INIT);
+        DecommissionAttributeMetadata oldMetadata = new DecommissionAttributeMetadata(
+            new DecommissionAttribute("zone", "zone_1"),
+            oldStatus
+        );
+        final ClusterState.Builder builder = builder(clusterService.state());
+        setState(
+            clusterService,
+            builder.metadata(Metadata.builder(clusterService.state().metadata()).decommissionAttributeMetadata(oldMetadata).build())
+        );
+        TransportService mockTransportService = Mockito.mock(TransportService.class);
+        ThreadPool mockThreadPool = Mockito.mock(ThreadPool.class);
+        Mockito.when(mockTransportService.getThreadPool()).thenReturn(mockThreadPool);
+        Mockito.when(mockTransportService.getLocalNode()).thenReturn(Mockito.mock(DiscoveryNode.class));
+        decommissionService = new DecommissionService(
+            nodeSettingsBuilder.build(),
+            clusterSettings,
+            clusterService,
+            mockTransportService,
+            threadPool,
+            allocationService
+        );
+
+        decommissionService.scheduleNodesDecommissionOnTimeout(clusterService.state(), TimeValue.timeValueSeconds(0));
+
+        Mockito.verify(mockThreadPool).schedule(Mockito.any(Runnable.class), Mockito.any(TimeValue.class), Mockito.anyString());
     }
 
     private ClusterState addDataNodes(ClusterState clusterState, String zone, String... nodeIds) {

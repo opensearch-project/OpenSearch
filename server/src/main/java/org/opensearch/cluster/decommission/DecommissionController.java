@@ -331,24 +331,6 @@ public class DecommissionController {
         );
     }
 
-    void handleNodesDecommissionRequest(
-        Set<DiscoveryNode> decommissionedNodes,
-        String reason,
-        TimeValue timeout,
-        TimeValue timeoutForNodeDraining,
-        ActionListener<Void> listener
-    ) {
-        // Wait for timeout to happen. Log the active connection before decommissioning of nodes.
-        transportService.getThreadPool().schedule(new Runnable() {
-            @Override
-            public void run() {
-                // Check for active connections.
-                getActiveRequestCountOnDecommissionNodes(decommissionedNodes);
-                removeDecommissionedNodes(decommissionedNodes, reason, timeout, listener);
-            }
-        }, timeoutForNodeDraining, org.opensearch.threadpool.ThreadPool.Names.SAME);
-    }
-
     private void logActiveConnections(NodesStatsResponse nodesStatsResponse) {
         Map<String, Long> nodeActiveConnectionMap = new HashMap<>();
         List<NodeStats> responseNodes = nodesStatsResponse.getNodes();
@@ -360,7 +342,7 @@ public class DecommissionController {
         logger.info("Decommissioning node with connections : [{}]", nodeActiveConnectionMap);
     }
 
-    private void getActiveRequestCountOnDecommissionNodes(Set<DiscoveryNode> decommissionedNodes) {
+    void getActiveRequestCountOnDecommissionNodes(Set<DiscoveryNode> decommissionedNodes) {
         if (decommissionedNodes == null || decommissionedNodes.isEmpty()) {
             return;
         }

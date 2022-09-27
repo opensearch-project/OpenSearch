@@ -332,30 +332,6 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
         );
     }
 
-    public void testCheckHttpStatsForDecommissionedNodes() {
-        TransportService mockTransportService = Mockito.mock(TransportService.class);
-        ThreadPool mockThreadPool = Mockito.mock(ThreadPool.class);
-        Mockito.when(mockTransportService.getThreadPool()).thenReturn(mockThreadPool);
-        Mockito.when(mockTransportService.getLocalNode()).thenReturn(Mockito.mock(DiscoveryNode.class));
-        decommissionController = new DecommissionController(clusterService, mockTransportService, allocationService, threadPool);
-
-        DiscoveryNode node1 = Mockito.mock(DiscoveryNode.class);
-        DiscoveryNode node2 = Mockito.mock(DiscoveryNode.class);
-
-        ActionListener listener = Mockito.mock(ActionListener.class);
-
-        String reason = "Node is Decommissioned";
-        decommissionController.handleNodesDecommissionRequest(
-            Set.of(node1, node2),
-            reason,
-            TimeValue.timeValueSeconds(30),
-            TimeValue.timeValueSeconds(60),
-            listener
-        );
-
-        Mockito.verify(mockThreadPool).schedule(Mockito.any(Runnable.class), Mockito.any(TimeValue.class), Mockito.anyString());
-    }
-
     private static class AdjustConfigurationForExclusions implements ClusterStateObserver.Listener {
 
         final CountDownLatch doneLatch;
