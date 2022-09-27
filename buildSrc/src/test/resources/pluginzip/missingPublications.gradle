@@ -13,9 +13,9 @@ tasks.register('bundlePlugin', Zip.class) {
   from layout.projectDirectory.file('sample-plugin-source.txt')
 }
 
-publishing {
-  publications {
-    pluginZip(MavenPublication) {
-    }
-  }
-}
+//publishing {
+//  publications {
+//    pluginZip(MavenPublication) {
+//    }
+//  }
+//}
