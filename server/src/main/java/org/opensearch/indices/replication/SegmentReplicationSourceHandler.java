@@ -58,6 +58,8 @@ class SegmentReplicationSourceHandler {
     private final DiscoveryNode targetNode;
     private final String allocationId;
 
+    private final FileChunkWriter writer;
+
     /**
      * Constructor.
      *
@@ -96,6 +98,7 @@ class SegmentReplicationSourceHandler {
         );
         this.allocationId = allocationId;
         this.copyState = copyState;
+        this.writer = writer;
     }
 
     /**
@@ -186,9 +189,10 @@ class SegmentReplicationSourceHandler {
     }
 
     /**
-     * Cancels the recovery and interrupts all eligible threads.
+     * Cancels the replication and interrupts all eligible threads.
      */
     public void cancel(String reason) {
+        writer.cancel();
         cancellableThreads.cancel(reason);
     }
 

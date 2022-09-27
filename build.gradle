@@ -264,6 +264,12 @@ tasks.register("branchConsistency") {
 allprojects {
   // configure compiler options
   tasks.withType(JavaCompile).configureEach { JavaCompile compile ->
+    options.fork = true
+
+    configure(options.forkOptions) {
+      memoryMaximumSize = project.property('options.forkOptions.memoryMaximumSize')
+    }
+
     // See please https://bugs.openjdk.java.net/browse/JDK-8209058
     if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_11) {
       compile.options.compilerArgs << '-Werror'
@@ -389,6 +395,10 @@ allprojects {
 // the dependency is added.
 gradle.projectsEvaluated {
   allprojects {
+    project.tasks.withType(JavaForkOptions) {
+      maxHeapSize project.property('options.forkOptions.memoryMaximumSize')
+    }
+
     if (project.path == ':test:framework') {
       // :test:framework:test cannot run before and after :server:test
       return

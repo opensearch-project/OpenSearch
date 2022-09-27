@@ -258,7 +258,7 @@ public class LogConfigurator {
                 .warn(
                     "Some logging configurations have %marker but don't have %node_name. "
                         + "We will automatically add %node_name to the pattern to ease the migration for users who customize "
-                        + "log4j2.properties but will stop this behavior in 7.0. You should manually replace `%node_name` with "
+                        + "log4j2.properties but will stop this behavior in 3.0. You should manually replace `%node_name` with "
                         + "`[%node_name]%marker ` in these locations:\n  {}",
                     deprecatedLocationsString
                 );

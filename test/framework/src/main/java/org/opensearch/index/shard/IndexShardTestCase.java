@@ -133,10 +133,12 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -1198,13 +1200,9 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 try {
                     final CopyState copyState = new CopyState(ReplicationCheckpoint.empty(primaryShard.shardId), primaryShard);
                     listener.onResponse(
-                        new CheckpointInfoResponse(
-                            copyState.getCheckpoint(),
-                            copyState.getMetadataSnapshot(),
-                            copyState.getInfosBytes(),
-                            copyState.getPendingDeleteFiles()
-                        )
+                        new CheckpointInfoResponse(copyState.getCheckpoint(), copyState.getMetadataMap(), copyState.getInfosBytes())
                     );
+                    copyState.decRef();
                 } catch (IOException e) {
                     logger.error("Unexpected error computing CopyState", e);
                     Assert.fail("Failed to compute copyState");
@@ -1253,10 +1251,10 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         List<IndexShard> replicaShards
     ) throws IOException, InterruptedException {
         final CountDownLatch countDownLatch = new CountDownLatch(replicaShards.size());
-        Store.MetadataSnapshot primaryMetadata;
+        Map<String, StoreFileMetadata> primaryMetadata;
         try (final GatedCloseable<SegmentInfos> segmentInfosSnapshot = primaryShard.getSegmentInfosSnapshot()) {
             final SegmentInfos primarySegmentInfos = segmentInfosSnapshot.get();
-            primaryMetadata = primaryShard.store().getMetadata(primarySegmentInfos);
+            primaryMetadata = primaryShard.store().getSegmentMetadataMap(primarySegmentInfos);
         }
         List<SegmentReplicationTarget> ids = new ArrayList<>();
         for (IndexShard replica : replicaShards) {
@@ -1268,12 +1266,11 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                     public void onReplicationDone(SegmentReplicationState state) {
                         try (final GatedCloseable<SegmentInfos> snapshot = replica.getSegmentInfosSnapshot()) {
                             final SegmentInfos replicaInfos = snapshot.get();
-                            final Store.MetadataSnapshot replicaMetadata = replica.store().getMetadata(replicaInfos);
-                            final Store.RecoveryDiff recoveryDiff = primaryMetadata.recoveryDiff(replicaMetadata);
+                            final Map<String, StoreFileMetadata> replicaMetadata = replica.store().getSegmentMetadataMap(replicaInfos);
+                            final Store.RecoveryDiff recoveryDiff = Store.segmentReplicationDiff(primaryMetadata, replicaMetadata);
                             assertTrue(recoveryDiff.missing.isEmpty());
                             assertTrue(recoveryDiff.different.isEmpty());
                             assertEquals(recoveryDiff.identical.size(), primaryMetadata.size());
-                            assertEquals(primaryMetadata.getCommitUserData(), replicaMetadata.getCommitUserData());
                         } catch (Exception e) {
                             throw ExceptionsHelper.convertToRuntime(e);
                         } finally {
