@@ -22,6 +22,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Dependencies
 - Bumps `reactive-streams` from 1.0.3 to 1.0.4
+- Permissions check API ([#4516](https://github.com/opensearch-project/OpenSearch/pull/4516))
 
 ### Dependencies
 - Bumps `org.gradle.test-retry` from 1.4.0 to 1.4.1
