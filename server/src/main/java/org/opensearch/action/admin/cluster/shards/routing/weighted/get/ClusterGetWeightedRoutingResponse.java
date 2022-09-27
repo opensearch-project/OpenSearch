@@ -35,7 +35,7 @@ public class ClusterGetWeightedRoutingResponse extends ActionResponse implements
     private String localNodeWeight;
     private static final String NODE_WEIGHT = "node_weight";
 
-    public Object getLocalNodeWeight() {
+    public String getLocalNodeWeight() {
         return localNodeWeight;
     }
 
