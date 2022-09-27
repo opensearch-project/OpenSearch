@@ -28,6 +28,7 @@ import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
@@ -42,6 +43,8 @@ public class ClusterPutWeightedRoutingRequest extends ClusterManagerNodeRequest<
 
     private WeightedRouting weightedRouting;
     private String attributeName;
+
+    public ClusterPutWeightedRoutingRequest() {}
 
     public WeightedRouting getWeightedRouting() {
         return weightedRouting;
@@ -61,7 +64,9 @@ public class ClusterPutWeightedRoutingRequest extends ClusterManagerNodeRequest<
         weightedRouting = new WeightedRouting(in);
     }
 
-    public ClusterPutWeightedRoutingRequest() {}
+    public ClusterPutWeightedRoutingRequest(String attributeName) {
+        this.attributeName = attributeName;
+    }
 
     public void setWeightedRouting(Map<String, String> source) {
         try {
@@ -135,7 +140,10 @@ public class ClusterPutWeightedRoutingRequest extends ClusterManagerNodeRequest<
             validationException = addValidationError(("Weight is not a number"), validationException);
         }
         if (countValueWithZeroWeights > 1) {
-            validationException = addValidationError(("More than one value has weight set as 0 "), validationException);
+            validationException = addValidationError(
+                (String.format(Locale.ROOT, "More than one [%d] value has weight set as 0", countValueWithZeroWeights)),
+                validationException
+            );
         }
         return validationException;
     }

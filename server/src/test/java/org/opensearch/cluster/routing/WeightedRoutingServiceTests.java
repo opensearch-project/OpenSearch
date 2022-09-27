@@ -12,7 +12,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
-import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingAction;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterAddWeightedRoutingAction;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingRequestBuilder;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterName;
@@ -179,7 +179,7 @@ public class WeightedRoutingServiceTests extends OpenSearchTestCase {
 
         ClusterPutWeightedRoutingRequestBuilder request = new ClusterPutWeightedRoutingRequestBuilder(
             client,
-            ClusterPutWeightedRoutingAction.INSTANCE
+            ClusterAddWeightedRoutingAction.INSTANCE
         );
         WeightedRouting updatedWeightedRouting = new WeightedRouting("zone", Map.of("zone_A", 1.0, "zone_B", 0.0, "zone_C", 0.0));
         request.setWeightedRouting(updatedWeightedRouting);
@@ -210,7 +210,7 @@ public class WeightedRoutingServiceTests extends OpenSearchTestCase {
 
         ClusterPutWeightedRoutingRequestBuilder request = new ClusterPutWeightedRoutingRequestBuilder(
             client,
-            ClusterPutWeightedRoutingAction.INSTANCE
+            ClusterAddWeightedRoutingAction.INSTANCE
         );
         WeightedRouting updatedWeightedRouting = new WeightedRouting("zone", weights);
         request.setWeightedRouting(updatedWeightedRouting);

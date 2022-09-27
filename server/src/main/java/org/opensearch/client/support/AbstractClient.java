@@ -114,7 +114,7 @@ import org.opensearch.action.admin.cluster.shards.routing.weighted.get.ClusterGe
 import org.opensearch.action.admin.cluster.shards.routing.weighted.get.ClusterGetWeightedRoutingRequest;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.get.ClusterGetWeightedRoutingRequestBuilder;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.get.ClusterGetWeightedRoutingResponse;
-import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingAction;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterAddWeightedRoutingAction;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingRequest;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingRequestBuilder;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingResponse;
@@ -343,10 +343,13 @@ import org.opensearch.action.search.CreatePitResponse;
 import org.opensearch.action.search.DeletePitAction;
 import org.opensearch.action.search.DeletePitRequest;
 import org.opensearch.action.search.DeletePitResponse;
+import org.opensearch.action.search.GetAllPitNodesRequest;
+import org.opensearch.action.search.GetAllPitNodesResponse;
 import org.opensearch.action.search.MultiSearchAction;
 import org.opensearch.action.search.MultiSearchRequest;
 import org.opensearch.action.search.MultiSearchRequestBuilder;
 import org.opensearch.action.search.MultiSearchResponse;
+import org.opensearch.action.search.GetAllPitsAction;
 import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchRequestBuilder;
@@ -601,6 +604,11 @@ public abstract class AbstractClient implements Client {
     @Override
     public void deletePits(final DeletePitRequest deletePITRequest, final ActionListener<DeletePitResponse> listener) {
         execute(DeletePitAction.INSTANCE, deletePITRequest, listener);
+    }
+
+    @Override
+    public void getAllPits(final GetAllPitNodesRequest getAllPitNodesRequest, final ActionListener<GetAllPitNodesResponse> listener) {
+        execute(GetAllPitsAction.INSTANCE, getAllPitNodesRequest, listener);
     }
 
     @Override
@@ -1274,7 +1282,7 @@ public abstract class AbstractClient implements Client {
 
         @Override
         public ActionFuture<ClusterPutWeightedRoutingResponse> putWeightedRouting(ClusterPutWeightedRoutingRequest request) {
-            return execute(ClusterPutWeightedRoutingAction.INSTANCE, request);
+            return execute(ClusterAddWeightedRoutingAction.INSTANCE, request);
         }
 
         @Override
@@ -1282,12 +1290,12 @@ public abstract class AbstractClient implements Client {
             ClusterPutWeightedRoutingRequest request,
             ActionListener<ClusterPutWeightedRoutingResponse> listener
         ) {
-            execute(ClusterPutWeightedRoutingAction.INSTANCE, request, listener);
+            execute(ClusterAddWeightedRoutingAction.INSTANCE, request, listener);
         }
 
         @Override
         public ClusterPutWeightedRoutingRequestBuilder prepareWeightedRouting() {
-            return new ClusterPutWeightedRoutingRequestBuilder(this, ClusterPutWeightedRoutingAction.INSTANCE);
+            return new ClusterPutWeightedRoutingRequestBuilder(this, ClusterAddWeightedRoutingAction.INSTANCE);
         }
 
         @Override

@@ -22,14 +22,12 @@ import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
 import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
-import org.opensearch.common.component.AbstractLifecycleComponent;
 import org.opensearch.common.inject.Inject;
 
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.threadpool.ThreadPool;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 
@@ -38,7 +36,7 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 /**
  * * Service responsible for updating cluster state metadata with weighted routing weights
  */
-public class WeightedRoutingService extends AbstractLifecycleComponent {
+public class WeightedRoutingService {
     private static final Logger logger = LogManager.getLogger(WeightedRoutingService.class);
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
@@ -75,14 +73,12 @@ public class WeightedRoutingService extends AbstractLifecycleComponent {
                     logger.info("put weighted routing weights in metadata [{}]", request.getWeightedRouting());
                     weightedRoutingMetadata = new WeightedRoutingMetadata(request.getWeightedRouting());
                 } else {
-                    WeightedRoutingMetadata changedMetadata = new WeightedRoutingMetadata(new WeightedRouting(null, null));
                     if (!checkIfSameWeightsInMetadata(newWeightedRoutingMetadata, weightedRoutingMetadata)) {
                         logger.info("updated weighted routing weights [{}] in metadata", request.getWeightedRouting());
-                        changedMetadata.setWeightedRouting(newWeightedRoutingMetadata.getWeightedRouting());
+                        weightedRoutingMetadata = new WeightedRoutingMetadata(newWeightedRoutingMetadata.getWeightedRouting());
                     } else {
                         return currentState;
                     }
-                    weightedRoutingMetadata = new WeightedRoutingMetadata(changedMetadata.getWeightedRouting());
                 }
                 mdBuilder.putCustom(WeightedRoutingMetadata.TYPE, weightedRoutingMetadata);
                 logger.info("building cluster state with weighted routing weights [{}]", request.getWeightedRouting());
@@ -91,13 +87,13 @@ public class WeightedRoutingService extends AbstractLifecycleComponent {
 
             @Override
             public void onFailure(String source, Exception e) {
-                logger.warn(() -> new ParameterizedMessage("failed to update cluster state for weighted routing " + "weights [{}]", e));
+                logger.warn(() -> new ParameterizedMessage("failed to update cluster state for weighted routing weights [{}]", e));
                 listener.onFailure(e);
             }
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                logger.info("cluster weighted routing weights metadata change is processed by all the nodes");
+                logger.debug("cluster weighted routing weights metadata change is processed by all the nodes");
                 listener.onResponse(new ClusterStateUpdateResponse(true));
             }
         });
@@ -107,10 +103,7 @@ public class WeightedRoutingService extends AbstractLifecycleComponent {
         WeightedRoutingMetadata newWeightedRoutingMetadata,
         WeightedRoutingMetadata oldWeightedRoutingMetadata
     ) {
-        if (newWeightedRoutingMetadata.getWeightedRouting().equals(oldWeightedRoutingMetadata.getWeightedRouting())) {
-            return true;
-        }
-        return false;
+        return newWeightedRoutingMetadata.getWeightedRouting().equals(oldWeightedRoutingMetadata.getWeightedRouting());
     }
 
     List<String> getAwarenessAttributes() {
@@ -122,8 +115,7 @@ public class WeightedRoutingService extends AbstractLifecycleComponent {
     }
 
     public void verifyAwarenessAttribute(String attributeName) {
-        // Currently, only zone is supported
-        if (!getAwarenessAttributes().contains(attributeName) || !attributeName.equalsIgnoreCase("zone")) {
+        if (getAwarenessAttributes().contains(attributeName) == false) {
             ActionRequestValidationException validationException = null;
 
             validationException = addValidationError(
@@ -133,13 +125,4 @@ public class WeightedRoutingService extends AbstractLifecycleComponent {
             throw validationException;
         }
     }
-
-    @Override
-    protected void doStart() {}
-
-    @Override
-    protected void doStop() {}
-
-    @Override
-    protected void doClose() throws IOException {}
 }

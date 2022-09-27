@@ -20,18 +20,16 @@ public class ClusterPutWeightedRoutingRequestTests extends OpenSearchTestCase {
 
     public void testSetWeightedRoutingWeight() {
         String reqString = "{\"us-east-1c\" : \"0\", \"us-east-1b\":\"1\",\"us-east-1a\":\"1\"}";
-        ClusterPutWeightedRoutingRequest request = new ClusterPutWeightedRoutingRequest();
+        ClusterPutWeightedRoutingRequest request = new ClusterPutWeightedRoutingRequest("zone");
         Map<String, Double> weights = Map.of("us-east-1a", 1.0, "us-east-1b", 1.0, "us-east-1c", 0.0);
         WeightedRouting weightedRouting = new WeightedRouting("zone", weights);
-        request.attributeName("zone");
         request.setWeightedRouting(new BytesArray(reqString), XContentType.JSON);
         assertEquals(request.getWeightedRouting(), weightedRouting);
     }
 
     public void testValidate_ValuesAreProper() {
         String reqString = "{\"us-east-1c\" : \"1\", \"us-east-1b\":\"0\",\"us-east-1a\":\"1\"}";
-        ClusterPutWeightedRoutingRequest request = new ClusterPutWeightedRoutingRequest();
-        request.attributeName("zone");
+        ClusterPutWeightedRoutingRequest request = new ClusterPutWeightedRoutingRequest("zone");
         request.setWeightedRouting(new BytesArray(reqString), XContentType.JSON);
         ActionRequestValidationException actionRequestValidationException = request.validate();
         assertNull(actionRequestValidationException);
@@ -39,18 +37,16 @@ public class ClusterPutWeightedRoutingRequestTests extends OpenSearchTestCase {
 
     public void testValidate_TwoZonesWithZeroWeight() {
         String reqString = "{\"us-east-1c\" : \"0\", \"us-east-1b\":\"0\",\"us-east-1a\":\"1\"}";
-        ClusterPutWeightedRoutingRequest request = new ClusterPutWeightedRoutingRequest();
-        request.attributeName("zone");
+        ClusterPutWeightedRoutingRequest request = new ClusterPutWeightedRoutingRequest("zone");
         request.setWeightedRouting(new BytesArray(reqString), XContentType.JSON);
         ActionRequestValidationException actionRequestValidationException = request.validate();
         assertNotNull(actionRequestValidationException);
-        assertTrue(actionRequestValidationException.getMessage().contains("More than one value has weight set as 0"));
+        assertTrue(actionRequestValidationException.getMessage().contains("More than one [2] value has weight set as " + "0"));
     }
 
     public void testValidate_MissingWeights() {
         String reqString = "{}";
-        ClusterPutWeightedRoutingRequest request = new ClusterPutWeightedRoutingRequest();
-        request.attributeName("zone");
+        ClusterPutWeightedRoutingRequest request = new ClusterPutWeightedRoutingRequest("zone");
         request.setWeightedRouting(new BytesArray(reqString), XContentType.JSON);
         ActionRequestValidationException actionRequestValidationException = request.validate();
         assertNotNull(actionRequestValidationException);
