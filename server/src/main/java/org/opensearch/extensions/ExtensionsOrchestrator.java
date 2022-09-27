@@ -25,7 +25,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.Version;
-import org.opensearch.action.ActionResponse;
 import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.client.node.NodeClient;
@@ -168,11 +167,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
      * Lists/maps of extensions have already been initialized but not yet populated.
      *
      * @param restController  The RestController on which to register Rest Actions.
-<<<<<<< HEAD
      * @param settingsModule The module that binds the provided settings to interface
-=======
-     * @param settingsModule  The module which manages settings for OpenSearch.
->>>>>>> ed27c4ee257 (Adding Transport Actions support for extensions)
      * @param transportService  The Node's transport service.
      * @param clusterService  The Node's cluster service.
      * @param initialEnvironmentSettings The finalized view of settings for the Environment
