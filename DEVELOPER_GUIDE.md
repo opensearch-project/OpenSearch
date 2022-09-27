@@ -2,7 +2,7 @@
   - [How this branch will be used](#how-this-branch-will-be-used)
     - [Who is doing this work?](#who-is-doing-this-work)
     - [Processes](#processes)
-    - [End of life](#end-of-life)
+    - [Decommission this feature branch](#decommission-this-feature-branch)
   - [Getting Started](#getting-started)
     - [Git Clone OpenSearch Repo](#git-clone-opensearch-repo)
     - [Install Prerequisites](#install-prerequisites)
@@ -82,9 +82,9 @@ Most of the work will be centralized around new systems in the `server` director
 * Merge from main, this will be done weekly, @peternied to own
 * Merge into feature/extension, this should be done on demand as extension specific functionality is required. Handled on a case by case basis.  
 
-### End of life
+### Decommission this feature branch
 
-This branch will be EOL when the relevant functionality has been merged into main, the contributors to this branch will make the call and then delete it when this phase of the project can migrate to the primary codebase.
+This branch will no longer be used for development in favor of development directly on main when the relevant functionality has been merged into main, the contributors to this branch will make the call and then delete it when this phase of the project can migrate to the primary codebase.  This might happen all at once or happen several times to allow for experimentation.
 
 ## Getting Started
 
