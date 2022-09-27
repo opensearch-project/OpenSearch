@@ -99,10 +99,17 @@ public enum FieldData {
     }
 
     /**
-     * Return a {@link SortedNumericDoubleValues} that doesn't contain any value.
+     * Return a {@link MultiGeoPointValues} that doesn't contain any value.
      */
     public static MultiGeoPointValues emptyMultiGeoPoints() {
         return singleton(emptyGeoPoint());
+    }
+
+    /**
+     * Return a {@link GeoShapeValue} that doesn't contain any value.
+     */
+    public static GeoShapeValue emptyGeoShape() {
+        return new GeoShapeValue.EmptyGeoShapeValue();
     }
 
     /**
@@ -139,6 +146,19 @@ public enum FieldData {
             @Override
             public boolean advanceExact(int doc) throws IOException {
                 return pointValues.advanceExact(doc);
+            }
+        };
+    }
+
+    /**
+     * Returns a {@link DocValueBits} representing all documents from <code>shapeValues</code> that have
+     * a value.
+     */
+    public static DocValueBits docsWithValue(final GeoShapeValue shapeValues) {
+        return new DocValueBits() {
+            @Override
+            public boolean advanceExact(int doc) throws IOException {
+                return shapeValues.advanceExact(doc);
             }
         };
     }
@@ -404,6 +424,31 @@ public enum FieldData {
                 for (int i = 0, count = values.docValueCount(); i < count; ++i) {
                     list.add(values.nextValue().toString());
                 }
+            }
+        });
+    }
+
+    /**
+     * Return a {@link String} representation of the provided values. That is
+     * typically used for scripts or for the `map` execution mode of terms aggs.
+     * NOTE: this is very slow!
+     */
+    public static SortedBinaryDocValues toString(final GeoShapeValue geoShapeValue) {
+        return toString(new ToStringValues() {
+
+            /**
+             * Advance this instance to the given document id
+             * @return true if there is a value for this document
+             */
+            @Override
+            public boolean advanceExact(int doc) throws IOException {
+                return geoShapeValue.advanceExact(doc);
+            }
+
+            /** Fill the list of charsequences with the list of values for the current document. */
+            @Override
+            public void get(List<CharSequence> list) throws IOException {
+                list.add(geoShapeValue.nextValue().toString());
             }
         });
     }
