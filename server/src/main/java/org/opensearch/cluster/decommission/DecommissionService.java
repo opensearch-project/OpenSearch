@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.action.ActionListener;
+import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionRequest;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
@@ -113,14 +114,14 @@ public class DecommissionService {
      * Starts the new decommission request and registers the metadata with status as {@link DecommissionStatus#INIT}
      * Once the status is updated, it tries to exclude to-be-decommissioned cluster manager eligible nodes from Voting Configuration
      *
-     * @param decommissionAttribute register decommission attribute in the metadata request
+     * @param decommissionRequest The decommission request.
      * @param listener register decommission listener
      */
     public void startDecommissionAction(
-        final DecommissionAttribute decommissionAttribute,
-        final ActionListener<ClusterStateUpdateResponse> listener,
-        final TimeValue timeOutForNodeDraining
+        final DecommissionRequest decommissionRequest,
+        final ActionListener<ClusterStateUpdateResponse> listener
     ) {
+        DecommissionAttribute decommissionAttribute = decommissionRequest.getDecommissionAttribute();
         // register the metadata with status as INIT as first step
         clusterService.submitStateUpdateTask("decommission [" + decommissionAttribute + "]", new ClusterStateUpdateTask(Priority.URGENT) {
             @Override
@@ -158,16 +159,16 @@ public class DecommissionService {
                     decommissionAttributeMetadata.decommissionAttribute(),
                     decommissionAttributeMetadata.status()
                 );
-                decommissionClusterManagerNodes(decommissionAttributeMetadata.decommissionAttribute(), listener, timeOutForNodeDraining);
+                decommissionClusterManagerNodes(decommissionRequest, listener);
             }
         });
     }
 
     private synchronized void decommissionClusterManagerNodes(
-        final DecommissionAttribute decommissionAttribute,
-        ActionListener<ClusterStateUpdateResponse> listener,
-        TimeValue timeOutForNodeDraining
+        final DecommissionRequest decommissionRequest,
+        ActionListener<ClusterStateUpdateResponse> listener
     ) {
+        DecommissionAttribute decommissionAttribute = decommissionRequest.getDecommissionAttribute();
         ClusterState state = clusterService.getClusterApplierService().state();
         // since here metadata is already registered with INIT, we can guarantee that no new node with decommission attribute can further
         // join the cluster
@@ -210,7 +211,7 @@ public class DecommissionService {
                         // nodes can be part of Voting Config
                         listener.onResponse(new ClusterStateUpdateResponse(true));
 
-                        weighAwayDecommissionedZone(state, timeOutForNodeDraining);
+                        weighAwayDecommissionedZone(state, decommissionRequest);
                         // decommissionController.setWeightForDecommissionedZone();
                         // failDecommissionedNodes(clusterService.getClusterApplierService().state(), timeOutForNodeDecommission);
                     }
@@ -309,7 +310,7 @@ public class DecommissionService {
         }
     }
 
-    private void weighAwayDecommissionedZone(ClusterState state, TimeValue timeOutForNodeDraining) {
+    private void weighAwayDecommissionedZone(ClusterState state, DecommissionRequest decommissionRequest) {
         // this method ensures no matter what, we always exit from this function after clearing the voting config exclusion
         DecommissionAttributeMetadata decommissionAttributeMetadata = state.metadata().decommissionAttributeMetadata();
         DecommissionAttribute decommissionAttribute = decommissionAttributeMetadata.decommissionAttribute();
@@ -327,7 +328,7 @@ public class DecommissionService {
                     @Override
                     public void onResponse(ClusterPutWeightedRoutingResponse response) {
                         // Schedule the node decommission process after the weights are successfully set.
-                        scheduleNodesDecommissionOnTimeout(state, timeOutForNodeDraining);
+                        scheduleNodesDecommissionOnTimeout(state, decommissionRequest.getDrainingTimeout());
                     }
 
                     @Override

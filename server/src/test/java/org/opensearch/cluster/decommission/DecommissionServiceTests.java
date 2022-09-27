@@ -14,6 +14,7 @@ import org.junit.Before;
 import org.mockito.Mockito;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
+import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionRequest;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
@@ -122,6 +123,7 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
     public void testDecommissioningNotStartedForInvalidAttributeName() throws InterruptedException {
         final CountDownLatch countDownLatch = new CountDownLatch(1);
         DecommissionAttribute decommissionAttribute = new DecommissionAttribute("rack", "rack-a");
+        DecommissionRequest decommissionRequest = new DecommissionRequest(decommissionAttribute, TimeValue.timeValueSeconds(30));
         ActionListener<ClusterStateUpdateResponse> listener = new ActionListener<ClusterStateUpdateResponse>() {
             @Override
             public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {
@@ -135,7 +137,7 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
                 countDownLatch.countDown();
             }
         };
-        decommissionService.startDecommissionAction(decommissionAttribute, listener, TimeValue.timeValueSeconds(30));
+        decommissionService.startDecommissionAction(decommissionRequest, listener);
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
     }
 
@@ -143,6 +145,7 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
     public void testDecommissioningNotStartedForInvalidAttributeValue() throws InterruptedException {
         final CountDownLatch countDownLatch = new CountDownLatch(1);
         DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "rack-a");
+        DecommissionRequest decommissionRequest = new DecommissionRequest(decommissionAttribute, TimeValue.timeValueSeconds(30));
         ActionListener<ClusterStateUpdateResponse> listener = new ActionListener<ClusterStateUpdateResponse>() {
             @Override
             public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {
@@ -162,7 +165,7 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
                 countDownLatch.countDown();
             }
         };
-        decommissionService.startDecommissionAction(decommissionAttribute, listener, TimeValue.timeValueSeconds(30));
+        decommissionService.startDecommissionAction(decommissionRequest, listener);
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
     }
 
@@ -199,7 +202,9 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
                 countDownLatch.countDown();
             }
         };
-        decommissionService.startDecommissionAction(new DecommissionAttribute("zone", "zone_2"), listener, TimeValue.timeValueSeconds(30));
+        DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "zone_2");
+        DecommissionRequest decommissionRequest = new DecommissionRequest(decommissionAttribute, TimeValue.timeValueSeconds(30));
+        decommissionService.startDecommissionAction(decommissionRequest, listener);
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
     }
 
