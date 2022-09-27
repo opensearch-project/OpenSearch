@@ -203,7 +203,7 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
     }
 
-    public void testCheckHttpStatsForDecommissionedNodes() {
+    public void testScheduleNodesDecommissionOnTimeout() {
         final Settings.Builder nodeSettingsBuilder = Settings.builder()
             .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(), "zone")
             .put("cluster.routing.allocation.awareness.force.zone.values", "zone_1,zone_2,zone_3");

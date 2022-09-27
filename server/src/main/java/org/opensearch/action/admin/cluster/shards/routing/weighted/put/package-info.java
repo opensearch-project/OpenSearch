@@ -9,4 +9,4 @@
 /**
  * WRR Weights request objects.
  */
-package org.opensearch.action.admin.cluster.shards.routing.wrr.put;
+package org.opensearch.action.admin.cluster.shards.routing.weighted.put;

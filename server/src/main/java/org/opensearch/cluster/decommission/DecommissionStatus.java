@@ -17,9 +17,9 @@ public enum DecommissionStatus {
      */
     INIT("init"),
     /**
-     * Decommission process is initiated, and the zone is being weighed away.
+     * Decommission process is initiated, and the zone is being drained.
      */
-    WEIGH_AWAY("weigh_away"),
+    DRAINING("draining"),
 
     /**
      * Decommission process has started, decommissioned nodes should be removed
@@ -61,8 +61,8 @@ public enum DecommissionStatus {
         }
         if (status.equals(INIT.status())) {
             return INIT;
-        } else if (status.equals(WEIGH_AWAY.status())) {
-            return WEIGH_AWAY;
+        } else if (status.equals(DRAINING.status())) {
+            return DRAINING;
         } else if (status.equals(IN_PROGRESS.status())) {
             return IN_PROGRESS;
         } else if (status.equals(SUCCESSFUL.status())) {

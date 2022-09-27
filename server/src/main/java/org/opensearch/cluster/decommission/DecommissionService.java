@@ -13,7 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.action.ActionListener;
-import org.opensearch.action.admin.cluster.shards.routing.wrr.put.ClusterPutWRRWeightsResponse;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.ClusterStateUpdateTask;
@@ -317,15 +317,15 @@ public class DecommissionService {
         // Awareness values refers to all zones in the cluster
         List<String> awarenessValues = forcedAwarenessAttributes.get(decommissionAttribute.attributeName());
 
-        decommissionController.updateMetadataWithDecommissionStatus(DecommissionStatus.WEIGH_AWAY, new ActionListener<>() {
+        decommissionController.updateMetadataWithDecommissionStatus(DecommissionStatus.DRAINING, new ActionListener<>() {
             @Override
             public void onResponse(DecommissionStatus status) {
                 logger.info("updated the decommission status to [{}]", status);
                 // set the weights
 
-                decommissionController.setWeightForDecommissionedZone(awarenessValues, new ActionListener<>() {
+                decommissionController.setWeight(awarenessValues, new ActionListener<>() {
                     @Override
-                    public void onResponse(ClusterPutWRRWeightsResponse response) {
+                    public void onResponse(ClusterPutWeightedRoutingResponse response) {
                         // Schedule the node decommission process after the weights are successfully set.
                         scheduleNodesDecommissionOnTimeout(state, timeOutForNodeDraining);
                     }
@@ -344,7 +344,7 @@ public class DecommissionService {
                     () -> new ParameterizedMessage(
                         "failed to update decommission status for attribute [{}] to [{}]",
                         decommissionAttribute.toString(),
-                        DecommissionStatus.WEIGH_AWAY
+                        DecommissionStatus.DRAINING
                     ),
                     e
                 );
@@ -498,7 +498,7 @@ public class DecommissionService {
                     case INIT:
                     case FAILED:
                         break;
-                    case WEIGH_AWAY:
+                    case DRAINING:
                     case IN_PROGRESS:
                     case SUCCESSFUL:
                         msg = "same request is already in status [" + decommissionAttributeMetadata.status() + "]";
@@ -516,7 +516,7 @@ public class DecommissionService {
                             + decommissionAttributeMetadata.decommissionAttribute().toString()
                             + "] already successfully decommissioned, recommission before triggering another decommission";
                         break;
-                    case WEIGH_AWAY:
+                    case DRAINING:
                     case IN_PROGRESS:
                     case INIT:
                         // it means the decommission has been initiated or is inflight. In that case, will fail new request

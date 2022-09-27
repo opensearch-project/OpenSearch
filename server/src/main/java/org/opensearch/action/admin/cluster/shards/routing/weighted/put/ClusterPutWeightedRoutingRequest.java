@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.action.admin.cluster.shards.routing.wrr.put;
+package org.opensearch.action.admin.cluster.shards.routing.weighted.put;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -14,7 +14,7 @@ import org.opensearch.OpenSearchGenerationException;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
-import org.opensearch.cluster.routing.WRRWeights;
+import org.opensearch.cluster.routing.WeightedRouting;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -28,6 +28,7 @@ import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
@@ -37,18 +38,20 @@ import static org.opensearch.action.ValidateActions.addValidationError;
  *
  * @opensearch.internal
  */
-public class ClusterPutWRRWeightsRequest extends ClusterManagerNodeRequest<ClusterPutWRRWeightsRequest> {
-    private static final Logger logger = LogManager.getLogger(ClusterPutWRRWeightsRequest.class);
+public class ClusterPutWeightedRoutingRequest extends ClusterManagerNodeRequest<ClusterPutWeightedRoutingRequest> {
+    private static final Logger logger = LogManager.getLogger(ClusterPutWeightedRoutingRequest.class);
 
-    private WRRWeights wrrWeight;
+    private WeightedRouting weightedRouting;
     private String attributeName;
 
-    public WRRWeights wrrWeight() {
-        return wrrWeight;
+    public ClusterPutWeightedRoutingRequest() {}
+
+    public WeightedRouting getWeightedRouting() {
+        return weightedRouting;
     }
 
-    public ClusterPutWRRWeightsRequest wrrWeight(WRRWeights wrrWeight) {
-        this.wrrWeight = wrrWeight;
+    public ClusterPutWeightedRoutingRequest setWeightedRouting(WeightedRouting weightedRouting) {
+        this.weightedRouting = weightedRouting;
         return this;
     }
 
@@ -56,29 +59,29 @@ public class ClusterPutWRRWeightsRequest extends ClusterManagerNodeRequest<Clust
         this.attributeName = attributeName;
     }
 
-    public ClusterPutWRRWeightsRequest(StreamInput in) throws IOException {
+    public ClusterPutWeightedRoutingRequest(StreamInput in) throws IOException {
         super(in);
-        wrrWeight = new WRRWeights(in);
+        weightedRouting = new WeightedRouting(in);
     }
 
-    public ClusterPutWRRWeightsRequest() {
-
+    public ClusterPutWeightedRoutingRequest(String attributeName) {
+        this.attributeName = attributeName;
     }
 
-    public void setWRRWeight(Map<String, String> source) {
+    public void setWeightedRouting(Map<String, String> source) {
         try {
             if (source.isEmpty()) {
                 throw new OpenSearchParseException(("Empty request body"));
             }
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.map(source);
-            setWRRWeight(BytesReference.bytes(builder), builder.contentType());
+            setWeightedRouting(BytesReference.bytes(builder), builder.contentType());
         } catch (IOException e) {
             throw new OpenSearchGenerationException("Failed to generate [" + source + "]", e);
         }
     }
 
-    public void setWRRWeight(BytesReference source, XContentType contentType) {
+    public void setWeightedRouting(BytesReference source, XContentType contentType) {
         try (
             XContentParser parser = XContentHelper.createParser(
                 NamedXContentRegistry.EMPTY,
@@ -88,8 +91,8 @@ public class ClusterPutWRRWeightsRequest extends ClusterManagerNodeRequest<Clust
             )
         ) {
             String attrValue = null;
-            Map<String, Object> weights = new HashMap<>();
-            Object attrWeight = null;
+            Map<String, Double> weights = new HashMap<>();
+            Double attrWeight = null;
             XContentParser.Token token;
             // move to the first alias
             parser.nextToken();
@@ -97,48 +100,53 @@ public class ClusterPutWRRWeightsRequest extends ClusterManagerNodeRequest<Clust
                 if (token == XContentParser.Token.FIELD_NAME) {
                     attrValue = parser.currentName();
                 } else if (token == XContentParser.Token.VALUE_STRING) {
-                    attrWeight = parser.text();
+                    attrWeight = Double.parseDouble(parser.text());
                     weights.put(attrValue, attrWeight);
                 } else {
-                    throw new OpenSearchParseException("failed to parse wrr request attribute [{}], unknown type", attrWeight);
+                    throw new OpenSearchParseException(
+                        "failed to parse weighted routing request attribute [{}], " + "unknown type",
+                        attrWeight
+                    );
                 }
             }
-            this.wrrWeight = new WRRWeights(this.attributeName, weights);
+            this.weightedRouting = new WeightedRouting(this.attributeName, weights);
         } catch (IOException e) {
-            logger.error("error while parsing put wrr weights request object", e);
+            logger.error("error while parsing put for weighted routing request object", e);
         }
     }
 
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (wrrWeight == null) {
-            validationException = addValidationError("WRRWeights object is null", validationException);
+        if (weightedRouting == null) {
+            validationException = addValidationError("Weighted routing request object is null", validationException);
         }
-        if (wrrWeight.attributeName() == null || wrrWeight.attributeName().isEmpty()) {
+        if (weightedRouting.attributeName() == null || weightedRouting.attributeName().isEmpty()) {
             validationException = addValidationError("Attribute name is missing", validationException);
         }
-        if (wrrWeight.weights() == null || wrrWeight.weights().isEmpty()) {
+        if (weightedRouting.weights() == null || weightedRouting.weights().isEmpty()) {
             validationException = addValidationError("Weights are missing", validationException);
         }
         int countValueWithZeroWeights = 0;
-        int weight;
+        double weight;
         try {
-            for (Object value : wrrWeight.weights().values()) {
+            for (Object value : weightedRouting.weights().values()) {
                 if (value == null) {
                     validationException = addValidationError(("Weight is null"), validationException);
                 } else {
-                    weight = Integer.parseInt(value.toString());
+                    weight = Double.parseDouble(value.toString());
                     countValueWithZeroWeights = (weight == 0) ? countValueWithZeroWeights + 1 : countValueWithZeroWeights;
                 }
             }
         } catch (NumberFormatException e) {
-            validationException = addValidationError(("Weight is non-integer"), validationException);
+            validationException = addValidationError(("Weight is not a number"), validationException);
         }
         if (countValueWithZeroWeights > 1) {
-            validationException = addValidationError(("More than one value has weight set as 0 "), validationException);
+            validationException = addValidationError(
+                (String.format(Locale.ROOT, "More than one [%d] value has weight set as 0", countValueWithZeroWeights)),
+                validationException
+            );
         }
-
         return validationException;
     }
 
@@ -146,19 +154,20 @@ public class ClusterPutWRRWeightsRequest extends ClusterManagerNodeRequest<Clust
      * @param source weights definition from request body
      * @return this request
      */
-    public ClusterPutWRRWeightsRequest source(Map<String, String> source) {
-        setWRRWeight(source);
+    public ClusterPutWeightedRoutingRequest source(Map<String, String> source) {
+        setWeightedRouting(source);
         return this;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        wrrWeight.writeTo(out);
+        weightedRouting.writeTo(out);
     }
 
     @Override
     public String toString() {
-        return "ClusterPutWRRWeightsRequest{" + "wrrWeight= " + wrrWeight.toString() + "}";
+        return "ClusterPutWeightedRoutingRequest{" + "weightedRouting= " + weightedRouting.toString() + "}";
     }
+
 }

@@ -17,7 +17,7 @@ import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.opensearch.action.admin.cluster.configuration.TransportClearVotingConfigExclusionsAction;
-import org.opensearch.action.admin.cluster.shards.routing.wrr.put.ClusterPutWRRWeightsRequest;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingRequest;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
@@ -280,7 +280,7 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
 
         DecommissionAttributeMetadata oldMetadata = new DecommissionAttributeMetadata(
             new DecommissionAttribute("zone", "zone-1"),
-            DecommissionStatus.WEIGH_AWAY
+            DecommissionStatus.DRAINING
         );
         ClusterState state = clusterService.state();
         Metadata metadata = state.metadata();
@@ -289,9 +289,9 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
         state = ClusterState.builder(state).metadata(mdBuilder).build();
         setState(clusterService, state);
 
-        decommissionController.setWeightForDecommissionedZone(List.of("zone-1", "zone-2", "zone-3"), Mockito.mock(ActionListener.class));
-        ArgumentCaptor<ClusterPutWRRWeightsRequest> clusterPutWRRWeightsRequestArgumentCaptor = ArgumentCaptor.forClass(
-            ClusterPutWRRWeightsRequest.class
+        decommissionController.setWeight(List.of("zone-1", "zone-2", "zone-3"), Mockito.mock(ActionListener.class));
+        ArgumentCaptor<ClusterPutWeightedRoutingRequest> clusterPutWRRWeightsRequestArgumentCaptor = ArgumentCaptor.forClass(
+            ClusterPutWeightedRoutingRequest.class
         );
         Mockito.verify(mockTransportService)
             .sendRequest(
@@ -301,10 +301,10 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
                 Mockito.any(TransportResponseHandler.class)
             );
 
-        ClusterPutWRRWeightsRequest request = clusterPutWRRWeightsRequestArgumentCaptor.getValue();
-        assertEquals("0", request.wrrWeight().weights().get("zone-1"));
-        assertEquals("1", request.wrrWeight().weights().get("zone-2"));
-        assertEquals("1", request.wrrWeight().weights().get("zone-3"));
+        ClusterPutWeightedRoutingRequest request = clusterPutWRRWeightsRequestArgumentCaptor.getValue();
+        assertEquals(0.0, request.getWeightedRouting().weights().get("zone-1"), 0.0);
+        assertEquals(1.0, request.getWeightedRouting().weights().get("zone-2"), 0.0);
+        assertEquals(1.0, request.getWeightedRouting().weights().get("zone-3"), 0.0);
     }
 
     public void testSetWeightsForDecommissionForDecommissionInit() {
@@ -325,10 +325,7 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
 
         expectThrows(
             AssertionError.class,
-            () -> decommissionController.setWeightForDecommissionedZone(
-                List.of("zone-1", "zone-2", "zone-3"),
-                Mockito.mock(ActionListener.class)
-            )
+            () -> decommissionController.setWeight(List.of("zone-1", "zone-2", "zone-3"), Mockito.mock(ActionListener.class))
         );
     }
 
