@@ -338,14 +338,15 @@ public class DecommissionController {
         TimeValue timeoutForNodeDraining,
         ActionListener<Void> listener
     ) {
-
-        if (timeoutForNodeDraining.getSeconds() > 0) {
-            // Wait for timeout to happen. Log the active connection before decommissioning of nodes.
-            scheduleDecommissionNodesRequestCheck(decommissionedNodes, reason, timeout, listener, timeoutForNodeDraining);
-        } else {
-            getActiveRequestCountOnDecommissionNodes(decommissionedNodes);
-            removeDecommissionedNodes(decommissionedNodes, reason, timeout, listener);
-        }
+        // Wait for timeout to happen. Log the active connection before decommissioning of nodes.
+        transportService.getThreadPool().schedule(new Runnable() {
+            @Override
+            public void run() {
+                // Check for active connections.
+                getActiveRequestCountOnDecommissionNodes(decommissionedNodes);
+                removeDecommissionedNodes(decommissionedNodes, reason, timeout, listener);
+            }
+        }, timeoutForNodeDraining, org.opensearch.threadpool.ThreadPool.Names.SAME);
     }
 
     private void logActiveConnections(NodesStatsResponse nodesStatsResponse) {
@@ -357,23 +358,6 @@ public class DecommissionController {
             nodeActiveConnectionMap.put(node.getId(), httpStats.getServerOpen());
         }
         logger.info("Decommissioning node with connections : [{}]", nodeActiveConnectionMap);
-    }
-
-    private void scheduleDecommissionNodesRequestCheck(
-        Set<DiscoveryNode> decommissionedNodes,
-        String reason,
-        TimeValue timeout,
-        ActionListener<Void> nodesRemovedListener,
-        TimeValue timeoutForNodeDraining
-    ) {
-        transportService.getThreadPool().schedule(new Runnable() {
-            @Override
-            public void run() {
-                // Check for active connections.
-                getActiveRequestCountOnDecommissionNodes(decommissionedNodes);
-                removeDecommissionedNodes(decommissionedNodes, reason, timeout, nodesRemovedListener);
-            }
-        }, timeoutForNodeDraining, org.opensearch.threadpool.ThreadPool.Names.SAME);
     }
 
     private void getActiveRequestCountOnDecommissionNodes(Set<DiscoveryNode> decommissionedNodes) {
