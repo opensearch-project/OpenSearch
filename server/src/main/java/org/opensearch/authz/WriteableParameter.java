@@ -96,28 +96,24 @@ public class WriteableParameter implements Writeable {
     }
 
     @SuppressWarnings("unchecked")
-    private CheckableParameter<?> createParameter(
-        ParameterType type,
-        String key,
-        Object value
-    ) {
+    private CheckableParameter<?> createParameter(ParameterType type, String key, Object value) {
         switch (type) {
             case Boolean:
-                return new CheckableParameter<>(key, (Boolean)value, Boolean.class);
+                return new CheckableParameter<>(key, (Boolean) value, Boolean.class);
             case Integer:
-                return new CheckableParameter<>(key, (Integer)value, Integer.class);
+                return new CheckableParameter<>(key, (Integer) value, Integer.class);
             case Long:
-                return new CheckableParameter<>(key, (Long)value, Long.class);
+                return new CheckableParameter<>(key, (Long) value, Long.class);
             case Float:
-                return new CheckableParameter<>(key, (Float)value, Float.class);
+                return new CheckableParameter<>(key, (Float) value, Float.class);
             case Double:
-                return new CheckableParameter<>(key, (Double)value, Double.class);
+                return new CheckableParameter<>(key, (Double) value, Double.class);
             case String:
-                return new CheckableParameter<>(key, (String)value, String.class);
+                return new CheckableParameter<>(key, (String) value, String.class);
             case TimeValue:
-                return new CheckableParameter<>(key, (TimeValue)value, TimeValue.class);
+                return new CheckableParameter<>(key, (TimeValue) value, TimeValue.class);
             case ByteSizeValue:
-                return new CheckableParameter<>(key, (ByteSizeValue)value, ByteSizeValue.class);
+                return new CheckableParameter<>(key, (ByteSizeValue) value, ByteSizeValue.class);
             default:
                 // This Should Never Happen (TM)
                 throw new UnsupportedOperationException("A ParameterType has been added to the enum and not handled here.");

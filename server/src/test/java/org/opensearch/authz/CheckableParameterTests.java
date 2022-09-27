@@ -10,16 +10,9 @@ package org.opensearch.authz;
 
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
 
 public class CheckableParameterTests extends OpenSearchTestCase {
     public void testWriteCheckableParameterToStream() throws IOException {

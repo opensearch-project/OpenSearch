@@ -29,7 +29,11 @@ public class AuthorizationRequest extends TransportRequest {
     private String permissionId;
     private Map<String, CheckableParameter> params;
 
-    public AuthorizationRequest(PrincipalIdentifierToken requestIssuerIdentity, String permissionId, Map<String, CheckableParameter> params) {
+    public AuthorizationRequest(
+        PrincipalIdentifierToken requestIssuerIdentity,
+        String permissionId,
+        Map<String, CheckableParameter> params
+    ) {
         this.requestIssuerIdentity = requestIssuerIdentity;
         this.permissionId = permissionId;
         this.params = params;
@@ -77,7 +81,13 @@ public class AuthorizationRequest extends TransportRequest {
 
     @Override
     public String toString() {
-        return "AuthorizationRequest{requestIssuerIdentity=" + requestIssuerIdentity + ", permissionId=" + permissionId + ", params=" + params + "}";
+        return "AuthorizationRequest{requestIssuerIdentity="
+            + requestIssuerIdentity
+            + ", permissionId="
+            + permissionId
+            + ", params="
+            + params
+            + "}";
     }
 
     @Override

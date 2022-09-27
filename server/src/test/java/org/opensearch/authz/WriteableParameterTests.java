@@ -32,7 +32,7 @@ public class WriteableParameterTests extends OpenSearchTestCase {
                 assertEquals(WriteableParameter.ParameterType.Boolean, wpIn.getType());
                 CheckableParameter checkableParameter = wpIn.getParameter();
                 assertEquals("booleanParam", checkableParameter.getKey());
-                assertTrue((Boolean)checkableParameter.getValue());
+                assertTrue((Boolean) checkableParameter.getValue());
             }
         }
     }
@@ -49,7 +49,7 @@ public class WriteableParameterTests extends OpenSearchTestCase {
                 assertEquals(WriteableParameter.ParameterType.Integer, wpIn.getType());
                 CheckableParameter checkableParameter = wpIn.getParameter();
                 assertEquals("integerParam", checkableParameter.getKey());
-                assertEquals(Integer.valueOf(1), (Integer)checkableParameter.getValue());
+                assertEquals(Integer.valueOf(1), (Integer) checkableParameter.getValue());
             }
         }
     }
@@ -66,13 +66,13 @@ public class WriteableParameterTests extends OpenSearchTestCase {
                 assertEquals(WriteableParameter.ParameterType.Long, wpIn.getType());
                 CheckableParameter checkableParameter = wpIn.getParameter();
                 assertEquals("longParam", checkableParameter.getKey());
-                assertTrue(1l == (Long)checkableParameter.getValue());
+                assertTrue(1l == (Long) checkableParameter.getValue());
             }
         }
     }
 
     public void testFloatParameter() throws IOException {
-        WriteableParameter wp = new WriteableParameter(new CheckableParameter<>("floatParam", (float)1.0, Float.class));
+        WriteableParameter wp = new WriteableParameter(new CheckableParameter<>("floatParam", (float) 1.0, Float.class));
         assertEquals(WriteableParameter.ParameterType.Float, wp.getType());
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             wp.writeTo(out);
@@ -83,7 +83,7 @@ public class WriteableParameterTests extends OpenSearchTestCase {
                 assertEquals(WriteableParameter.ParameterType.Float, wpIn.getType());
                 CheckableParameter checkableParameter = wpIn.getParameter();
                 assertEquals("floatParam", checkableParameter.getKey());
-                assertTrue((float)1.0 == (Float)checkableParameter.getValue());
+                assertTrue((float) 1.0 == (Float) checkableParameter.getValue());
             }
         }
     }
@@ -100,7 +100,7 @@ public class WriteableParameterTests extends OpenSearchTestCase {
                 assertEquals(WriteableParameter.ParameterType.Double, wpIn.getType());
                 CheckableParameter checkableParameter = wpIn.getParameter();
                 assertEquals("doubleParam", checkableParameter.getKey());
-                assertTrue(1.0 == (Double)checkableParameter.getValue());
+                assertTrue(1.0 == (Double) checkableParameter.getValue());
             }
         }
     }
@@ -117,7 +117,7 @@ public class WriteableParameterTests extends OpenSearchTestCase {
                 assertEquals(WriteableParameter.ParameterType.String, wpIn.getType());
                 CheckableParameter checkableParameter = wpIn.getParameter();
                 assertEquals("stringParam", checkableParameter.getKey());
-                assertEquals("test", (String)checkableParameter.getValue());
+                assertEquals("test", (String) checkableParameter.getValue());
             }
         }
     }
@@ -134,15 +134,20 @@ public class WriteableParameterTests extends OpenSearchTestCase {
                 assertEquals(WriteableParameter.ParameterType.TimeValue, wpIn.getType());
                 CheckableParameter checkableParameter = wpIn.getParameter();
                 assertEquals("timeValueParam", checkableParameter.getKey());
-                assertEquals(TimeValue.ZERO, (TimeValue)checkableParameter.getValue());
+                assertEquals(TimeValue.ZERO, (TimeValue) checkableParameter.getValue());
             }
         }
     }
 
     public void testExceptionHandling() throws SecurityException, IllegalArgumentException {
-        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> {
-            WriteableParameter wp = new WriteableParameter(new CheckableParameter<List>("unsupportedParam", new ArrayList<>(), List.class));
-        });
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> {
+                WriteableParameter wp = new WriteableParameter(
+                    new CheckableParameter<List>("unsupportedParam", new ArrayList<>(), List.class)
+                );
+            }
+        );
         assertTrue(iae.getMessage().contains("No enum constant"));
     }
 }
