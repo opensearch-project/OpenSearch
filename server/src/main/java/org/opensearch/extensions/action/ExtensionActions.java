@@ -18,6 +18,7 @@ import org.opensearch.extensions.ExtensionBooleanResponse;
 import org.opensearch.extensions.ExtensionsOrchestrator;
 import org.opensearch.extensions.RegisterTransportActionsRequest;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.ActionNotFoundTransportException;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportResponseHandler;
@@ -28,6 +29,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 /**
  * This class manages TransportActions for extensions
@@ -71,13 +73,19 @@ public class ExtensionActions {
          */
         logger.debug("Register Transport Actions request recieved {}", transportActionsRequest);
         DiscoveryExtension extension = extensionIdMap.get(transportActionsRequest.getUniqueId());
-        for (String action : transportActionsRequest.getTransportActions().keySet()) {
-            registerAction(action, extension);
+        try {
+            for (String action : transportActionsRequest.getTransportActions().keySet()) {
+                registerAction(action, extension);
+            }
+        } catch (Exception e) {
+            logger.error("Could not register Transport Action " + e);
+            return new ExtensionBooleanResponse(false);
         }
         return new ExtensionBooleanResponse(true);
     }
 
-    public TransportResponse handleTransportActionRequestFromExtension(TransportActionRequestFromExtension request) {
+    public TransportResponse handleTransportActionRequestFromExtension(TransportActionRequestFromExtension request)
+        throws InterruptedException {
         DiscoveryExtension extension = extensionIdMap.get(request.getUniqueId());
         final CountDownLatch inProgressLatch = new CountDownLatch(1);
         final TransportActionResponseToExtension response = new TransportActionResponseToExtension(new byte[0]);
@@ -100,11 +108,15 @@ public class ExtensionActions {
                 }
             }
         );
+        inProgressLatch.await(5, TimeUnit.SECONDS);
         return response;
     }
 
-    public ExtensionActionResponse sendTransportRequestToExtension(ExtensionActionRequest request) {
+    public ExtensionActionResponse sendTransportRequestToExtension(ExtensionActionRequest request) throws InterruptedException {
         DiscoveryExtension extension = actionsMap.get(request.getAction());
+        if (extension == null) {
+            throw new ActionNotFoundTransportException(request.getAction());
+        }
         final CountDownLatch inProgressLatch = new CountDownLatch(1);
         final ExtensionActionResponse extensionActionResponse = new ExtensionActionResponse(new byte[0]);
         final TransportResponseHandler<ExtensionActionResponse> extensionActionResponseTransportResponseHandler =
@@ -144,6 +156,7 @@ public class ExtensionActions {
         } catch (Exception e) {
             logger.info("Failed to send transport action to extension " + extension.getName(), e);
         }
+        inProgressLatch.await(5, TimeUnit.SECONDS);
         return extensionActionResponse;
     }
 }

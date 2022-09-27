@@ -22,11 +22,11 @@ import java.io.IOException;
 public class ExtensionActionResponse extends ActionResponse {
     private byte[] responseBytes;
 
-    ExtensionActionResponse(byte[] responseBytes) {
+    public ExtensionActionResponse(byte[] responseBytes) {
         this.responseBytes = responseBytes;
     }
 
-    ExtensionActionResponse(StreamInput in) throws IOException {
+    public ExtensionActionResponse(StreamInput in) throws IOException {
         super(in);
         responseBytes = in.readByteArray();
     }

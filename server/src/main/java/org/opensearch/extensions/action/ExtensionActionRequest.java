@@ -16,9 +16,10 @@ import org.opensearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 
 /**
- * This class enables Extension to make a transport request
+ * This class translates Extension transport request to ActionRequest
+ * which is internally used to make transport action call.
  *
- * @opensearch.api
+ * @opensearch.internal
  */
 public class ExtensionActionRequest extends ActionRequest {
     private final String action;

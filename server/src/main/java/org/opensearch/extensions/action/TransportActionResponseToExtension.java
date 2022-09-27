@@ -22,7 +22,7 @@ import java.io.IOException;
 public class TransportActionResponseToExtension extends TransportResponse {
     private byte[] responseBytes;
 
-    TransportActionResponseToExtension(byte[] responseBytes) {
+    public TransportActionResponseToExtension(byte[] responseBytes) {
         this.responseBytes = responseBytes;
     }
 
@@ -32,6 +32,10 @@ public class TransportActionResponseToExtension extends TransportResponse {
 
     public void setResponseBytes(byte[] responseBytes) {
         this.responseBytes = responseBytes;
+    }
+
+    public byte[] getResponseBytes() {
+        return responseBytes;
     }
 
     @Override

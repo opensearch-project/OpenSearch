@@ -46,6 +46,10 @@ public class ExtensionTransportAction extends HandledTransportAction<ExtensionAc
 
     @Override
     protected void doExecute(Task task, ExtensionActionRequest request, ActionListener<ExtensionActionResponse> listener) {
-        listener.onResponse(extensionsOrchestrator.handleTransportRequest(request));
+        try {
+            listener.onResponse(extensionsOrchestrator.handleTransportRequest(request));
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 }

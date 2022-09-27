@@ -35,6 +35,14 @@ public class ExtensionHandleTransportRequest extends TransportRequest {
         this.requestBytes = in.readByteArray();
     }
 
+    public String getAction() {
+        return this.action;
+    }
+
+    public byte[] getRequestBytes() {
+        return this.requestBytes;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);

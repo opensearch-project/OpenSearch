@@ -32,6 +32,7 @@ public class TransportActionRequestFromExtension extends TransportRequest {
     }
 
     public TransportActionRequestFromExtension(StreamInput in) throws IOException {
+        super(in);
         this.action = in.readString();
         this.requestBytes = in.readByteArray();
         this.uniqueId = in.readString();

@@ -197,7 +197,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         registerRequestHandler();
     }
 
-    public ExtensionActionResponse handleTransportRequest(ExtensionActionRequest request) {
+    public ExtensionActionResponse handleTransportRequest(ExtensionActionRequest request) throws InterruptedException {
         return extensionActions.sendTransportRequestToExtension(request);
     }
 
