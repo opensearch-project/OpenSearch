@@ -20,7 +20,7 @@ import org.opensearch.action.admin.indices.analyze.AnalyzeAction.Response;
  *
  * @opensearch.internal
  */
-public class ExtensionActionListener<ExtensionBooleanResponse> implements ActionListener<Response> {
+public class ExtensionActionListener implements ActionListener<Response> {
 
     private static final Logger logger = LogManager.getLogger(ExtensionActionListener.class);
     private ArrayList<Exception> exceptionList;

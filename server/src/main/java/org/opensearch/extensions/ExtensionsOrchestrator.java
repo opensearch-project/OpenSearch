@@ -25,6 +25,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.Version;
+import org.opensearch.action.ActionResponse;
 import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.client.node.NodeClient;
@@ -130,7 +131,8 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     TransportService transportService;
     ClusterService clusterService;
     ExtensionNamedWriteableRegistry namedWriteableRegistry;
-    ExtensionActionListener<ExtensionBooleanResponse> listener;
+    ExtensionActionListener listener;
+    ExtensionActionListenerHandler listenerHandler;
     EnvironmentSettingsRequestHandler environmentSettingsRequestHandler;
     AddSettingsUpdateConsumerRequestHandler addSettingsUpdateConsumerRequestHandler;
     NodeClient client;
@@ -150,7 +152,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         this.extensionIdMap = new HashMap<String, DiscoveryExtension>();
         this.clusterService = null;
         this.namedWriteableRegistry = null;
-        this.listener = new ExtensionActionListener<ExtensionBooleanResponse>();
+        this.listener = new ExtensionActionListener();
         this.client = null;
         this.extensionActions = null;
 
@@ -166,7 +168,11 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
      * Lists/maps of extensions have already been initialized but not yet populated.
      *
      * @param restController  The RestController on which to register Rest Actions.
+<<<<<<< HEAD
      * @param settingsModule The module that binds the provided settings to interface
+=======
+     * @param settingsModule  The module which manages settings for OpenSearch.
+>>>>>>> ed27c4ee257 (Adding Transport Actions support for extensions)
      * @param transportService  The Node's transport service.
      * @param clusterService  The Node's cluster service.
      * @param initialEnvironmentSettings The finalized view of settings for the Environment
@@ -181,6 +187,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         NodeClient client
     ) {
         this.restActionsRequestHandler = new RestActionsRequestHandler(restController, extensionIdMap, transportService);
+        this.listenerHandler = new ExtensionActionListenerHandler(listener);
         this.customSettingsRequestHandler = new CustomSettingsRequestHandler(settingsModule);
         this.transportService = transportService;
         this.clusterService = clusterService;
@@ -245,8 +252,8 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             ThreadPool.Names.GENERIC,
             false,
             false,
-            ExtensionRequest::new,
-            ((request, channel, task) -> channel.sendResponse(handleExtensionRequest(request)))
+            ExtensionActionListenerOnFailureRequest::new,
+            ((request, channel, task) -> channel.sendResponse(listenerHandler.handleExtensionActionListenerOnFailureRequest(request)))
         );
         transportService.registerRequestHandler(
             REQUEST_EXTENSION_ENVIRONMENT_SETTINGS,
@@ -419,20 +426,8 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
                 return new LocalNodeResponse(clusterService);
             case REQUEST_EXTENSION_CLUSTER_SETTINGS:
                 return new ClusterSettingsResponse(clusterService);
-            case REQUEST_EXTENSION_ACTION_LISTENER_ON_FAILURE:
-                return handleExtensionActionListenerOnFailureRequest(extensionRequest.getFailureException());
             default:
-                throw new Exception("Handler not present for the provided request");
-        }
-    }
-
-    private ExtensionBooleanResponse handleExtensionActionListenerOnFailureRequest(String failureException) throws Exception {
-        try {
-            listener.onFailure(new Exception(failureException));
-            return new ExtensionBooleanResponse(true);
-        } catch (Exception e) {
-            logger.error(e.getMessage());
-            throw e;
+                throw new IllegalArgumentException("Handler not present for the provided request");
         }
     }
 
