@@ -17,7 +17,6 @@ import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeR
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
-import org.opensearch.cluster.metadata.Metadata;
 
 import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -86,8 +85,7 @@ public class TransportGetWeightedRoutingAction extends TransportClusterManagerNo
         final ActionListener<ClusterGetWeightedRoutingResponse> listener
     ) throws IOException {
         weightedRoutingService.verifyAwarenessAttribute(request.getAwarenessAttribute());
-        Metadata metadata = state.metadata();
-        WeightedRoutingMetadata weightedRoutingMetadata = metadata.custom(WeightedRoutingMetadata.TYPE);
+        WeightedRoutingMetadata weightedRoutingMetadata = state.metadata().custom(WeightedRoutingMetadata.TYPE);
         ClusterGetWeightedRoutingResponse clusterGetWeightedRoutingResponse = new ClusterGetWeightedRoutingResponse();
         String weight = null;
         if (weightedRoutingMetadata != null && weightedRoutingMetadata.getWeightedRouting() != null) {

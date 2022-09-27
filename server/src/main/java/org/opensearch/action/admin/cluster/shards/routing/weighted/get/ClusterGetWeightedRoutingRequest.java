@@ -40,7 +40,6 @@ public class ClusterGetWeightedRoutingRequest extends ClusterManagerNodeReadRequ
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-
         super.writeTo(out);
         out.writeString(awarenessAttribute);
     }

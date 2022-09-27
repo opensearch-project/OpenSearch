@@ -105,7 +105,6 @@ public class ClusterGetWeightedRoutingResponse extends ActionResponse implements
             } else {
                 throw new OpenSearchParseException("failed to parse weighted routing response");
             }
-
         }
         WeightedRouting weightedRouting = new WeightedRouting("", weights);
         return new ClusterGetWeightedRoutingResponse(localNodeWeight, weightedRouting);

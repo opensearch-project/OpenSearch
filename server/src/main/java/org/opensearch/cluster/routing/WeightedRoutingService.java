@@ -117,7 +117,6 @@ public class WeightedRoutingService {
     public void verifyAwarenessAttribute(String attributeName) {
         if (getAwarenessAttributes().contains(attributeName) == false) {
             ActionRequestValidationException validationException = null;
-
             validationException = addValidationError(
                 String.format(Locale.ROOT, "invalid awareness attribute %s requested for updating weighted routing", attributeName),
                 validationException
