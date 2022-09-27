@@ -13,6 +13,8 @@ import java.util.Objects;
 
 /**
  * Create a principal from a string
+ * 
+ * @opensearch.experimental
  */
 class StringPrincipal implements Principal {
 

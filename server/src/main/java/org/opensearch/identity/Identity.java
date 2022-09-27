@@ -10,6 +10,8 @@ package org.opensearch.identity;
 
 /**
  * Application wide access for identity systems
+ * 
+ * @opensearch.experimental
  */
 public final class Identity {
     private static AuthenticationManager AUTH_MANAGER = null;

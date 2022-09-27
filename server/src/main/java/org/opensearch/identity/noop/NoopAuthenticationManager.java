@@ -8,6 +8,7 @@
 
 package org.opensearch.identity.noop;
 
+import org.opensearch.identity.AccessTokenVendor;
 import org.opensearch.identity.AuthenticationManager;
 import org.opensearch.identity.Subject;
 
@@ -15,6 +16,8 @@ import org.opensearch.identity.Subject;
  * Implementation of authentication manager that does not enforce authentication
  *
  * This class and related classes in this package will not return nulls or fail permissions checks
+ * 
+ * @opensearch.internal
  */
 public class NoopAuthenticationManager implements AuthenticationManager {
 
@@ -23,4 +26,8 @@ public class NoopAuthenticationManager implements AuthenticationManager {
         return new NoopSubject();
     }
 
+    @Override
+    public AccessTokenVendor getAccessTokenVender() {
+        return null;
+    }
 }
