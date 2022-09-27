@@ -15,12 +15,15 @@ import org.opensearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
+import static org.opensearch.action.ValidateActions.addValidationError;
+
 /**
  * Request to get weights for weighted round-robin search routing policy.
  *
  * @opensearch.internal
  */
 public class ClusterGetWeightedRoutingRequest extends ClusterManagerNodeReadRequest<ClusterGetWeightedRoutingRequest> {
+
     String awarenessAttribute;
 
     public String getAwarenessAttribute() {
@@ -28,6 +31,10 @@ public class ClusterGetWeightedRoutingRequest extends ClusterManagerNodeReadRequ
     }
 
     public void setAwarenessAttribute(String awarenessAttribute) {
+        this.awarenessAttribute = awarenessAttribute;
+    }
+
+    public ClusterGetWeightedRoutingRequest(String awarenessAttribute) {
         this.awarenessAttribute = awarenessAttribute;
     }
 
@@ -46,6 +53,10 @@ public class ClusterGetWeightedRoutingRequest extends ClusterManagerNodeReadRequ
 
     @Override
     public ActionRequestValidationException validate() {
-        return null;
+        ActionRequestValidationException validationException = null;
+        if (awarenessAttribute == null || awarenessAttribute.isEmpty()) {
+            validationException = addValidationError("Awareness attribute is missing", validationException);
+        }
+        return validationException;
     }
 }
