@@ -30,7 +30,7 @@
  * GitHub history for details.
  */
 
-package org.opensearch.authz;
+package org.opensearch.identity.authz;
 
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -71,6 +71,7 @@ public class CheckableParameter<T> {
         String key = in.readString();
         String className = in.readString();
         Object value = in.readGenericValue();
+        // Potential performance improvement for Class.forName(...) - https://stackoverflow.com/q/18231991/533057
         return new CheckableParameter(key, value, Class.forName(className));
     }
 
@@ -82,6 +83,6 @@ public class CheckableParameter<T> {
 
     @Override
     public String toString() {
-        return "CheckableParameter{key=" + key + ", value=" + value + "}";
+        return "CheckableParameter{key=" + key + ", value=" + value + ", type=" + type + "}";
     }
 }

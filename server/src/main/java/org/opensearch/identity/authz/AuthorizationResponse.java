@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.authz;
+package org.opensearch.identity.authz;
 
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -20,28 +20,28 @@ import java.io.IOException;
  * @opensearch.experimental
  */
 public class AuthorizationResponse extends TransportResponse {
-    private String response;
+    private String message;
 
     private AuthorizationStatus authStatus;
 
-    public AuthorizationResponse(String response, AuthorizationStatus authStatus) {
-        this.response = response;
+    public AuthorizationResponse(String message, AuthorizationStatus authStatus) {
+        this.message = message;
         this.authStatus = authStatus;
     }
 
     public AuthorizationResponse(StreamInput in) throws IOException {
-        response = in.readString();
+        message = in.readString();
         authStatus = in.readEnum(AuthorizationStatus.class);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(response);
+        out.writeString(message);
         out.writeEnum(authStatus);
     }
 
-    public String getResponse() {
-        return response;
+    public String getMessage() {
+        return message;
     }
 
     public AuthorizationStatus getAuthStatus() {

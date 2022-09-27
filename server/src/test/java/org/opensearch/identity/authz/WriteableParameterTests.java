@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.authz;
+package org.opensearch.identity.authz;
 
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamInput;

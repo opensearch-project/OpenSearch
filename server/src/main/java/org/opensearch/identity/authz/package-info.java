@@ -6,14 +6,9 @@
  * compatible open source license.
  */
 
-package org.opensearch.authz;
-
 /**
- * Status code for an AuthorizationResponse
+ * Holds classes related to the authorization of actions
  *
  * @opensearch.experimental
  */
-public enum AuthorizationStatus {
-    GRANTED,
-    DENIED
-}
+package org.opensearch.identity.authz;
