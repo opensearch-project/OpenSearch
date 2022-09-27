@@ -208,6 +208,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
     public void tearDown() throws Exception {
         super.tearDown();
         transportService.close();
+        client.close();
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
     }
 
