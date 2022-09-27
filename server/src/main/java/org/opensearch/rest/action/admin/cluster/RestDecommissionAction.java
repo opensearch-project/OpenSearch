@@ -46,16 +46,9 @@ public class RestDecommissionAction extends BaseRestHandler {
     }
 
     DecommissionRequest createRequest(RestRequest request) throws IOException {
-        String attributeName = null;
-        String attributeValue = null;
         DecommissionRequest decommissionRequest = Requests.decommissionRequest();
-        if (request.hasParam("awareness_attribute_name")) {
-            attributeName = request.param("awareness_attribute_name");
-        }
-
-        if (request.hasParam("awareness_attribute_value")) {
-            attributeValue = request.param("awareness_attribute_value");
-        }
+        String attributeName = request.param("awareness_attribute_name");
+        String attributeValue = request.param("awareness_attribute_value");
         return decommissionRequest.setDecommissionAttribute(new DecommissionAttribute(attributeName, attributeValue));
     }
 }
