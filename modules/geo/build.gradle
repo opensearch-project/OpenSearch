@@ -40,6 +40,7 @@ restResources {
     includeCore '_common', 'indices', 'index', 'search', 'bulk'
   }
 }
+
 artifacts {
   restTests(project.file('src/yamlRestTest/resources/rest-api-spec/test'))
 }
