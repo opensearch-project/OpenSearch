@@ -37,6 +37,9 @@ public class RegisterTransportActionsRequestTests extends OpenSearchTestCase {
     }
 
     public void testToString() {
-        assertEquals(originalRequest.toString(), "TransportActionsRequest{actions={testAction=class org.opensearch.common.collect.Map}}");
+        assertEquals(
+            originalRequest.toString(),
+            "TransportActionsRequest{uniqueId=extension-uniqueId, actions={testAction=class org.opensearch.common.collect.Map}}"
+        );
     }
 }

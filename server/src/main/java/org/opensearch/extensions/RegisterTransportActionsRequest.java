@@ -69,7 +69,7 @@ public class RegisterTransportActionsRequest extends TransportRequest {
 
     @Override
     public String toString() {
-        return "TransportActionsRequest{ uniqueId=" + uniqueId + ", actions=" + transportActions + "}";
+        return "TransportActionsRequest{uniqueId=" + uniqueId + ", actions=" + transportActions + "}";
     }
 
     @Override
