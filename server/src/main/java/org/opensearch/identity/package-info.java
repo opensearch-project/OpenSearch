@@ -6,5 +6,9 @@
  * compatible open source license.
  */
 
-/** Core classes responsible for handling identity in OpenSearch */
+/**
+ * Core classes responsible for handling identity in OpenSearch
+ *
+ * @opensearch.internal
+ */
 package org.opensearch.identity;

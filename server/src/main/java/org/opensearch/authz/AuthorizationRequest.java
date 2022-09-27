@@ -10,6 +10,7 @@ package org.opensearch.authz;
 
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.identity.PrincipalIdentifierToken;
 import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;
