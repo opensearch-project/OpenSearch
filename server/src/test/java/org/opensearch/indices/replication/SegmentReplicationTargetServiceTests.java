@@ -15,6 +15,7 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
@@ -29,6 +30,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.doAnswer;
@@ -37,6 +39,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.eq;
+import static org.opensearch.indices.replication.SegmentReplicationState.Stage.CANCELLED;
 
 public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
 
@@ -49,6 +52,8 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
     private ReplicationCheckpoint initialCheckpoint;
     private ReplicationCheckpoint aheadCheckpoint;
 
+    private ReplicationCheckpoint newPrimaryCheckpoint;
+
     @Override
     public void setUp() throws Exception {
         super.setUp();
@@ -57,7 +62,7 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
             .put("node.name", SegmentReplicationTargetServiceTests.class.getSimpleName())
             .build();
         final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        primaryShard = newStartedShard(true);
+        primaryShard = newStartedShard(true, settings);
         replicaShard = newShard(false, settings, new NRTReplicationEngineFactory());
         recoverReplica(replicaShard, primaryShard, true);
         checkpoint = new ReplicationCheckpoint(replicaShard.shardId(), 0L, 0L, 0L, 0L);
@@ -70,6 +75,13 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         aheadCheckpoint = new ReplicationCheckpoint(
             initialCheckpoint.getShardId(),
             initialCheckpoint.getPrimaryTerm(),
+            initialCheckpoint.getSegmentsGen(),
+            initialCheckpoint.getSeqNo(),
+            initialCheckpoint.getSegmentInfosVersion() + 1
+        );
+        newPrimaryCheckpoint = new ReplicationCheckpoint(
+            initialCheckpoint.getShardId(),
+            initialCheckpoint.getPrimaryTerm() + 1,
             initialCheckpoint.getSegmentsGen(),
             initialCheckpoint.getSeqNo(),
             initialCheckpoint.getSegmentInfosVersion() + 1
@@ -160,7 +172,7 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         // Create a spy of Target Service so that we can verify invocation of startReplication call with specific checkpoint on it.
         SegmentReplicationTargetService serviceSpy = spy(sut);
         final SegmentReplicationTarget target = new SegmentReplicationTarget(
-            checkpoint,
+            initialCheckpoint,
             replicaShard,
             replicationSource,
             mock(SegmentReplicationTargetService.SegmentReplicationListener.class)
@@ -185,7 +197,46 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
 
         // wait for the new checkpoint to arrive, before the listener completes.
         latch.await(30, TimeUnit.SECONDS);
+        verify(targetSpy, times(0)).cancel(any());
         verify(serviceSpy, times(0)).startReplication(eq(aheadCheckpoint), eq(replicaShard), any());
+    }
+
+    public void testOnNewCheckpointFromNewPrimaryCancelOngoingReplication() throws IOException, InterruptedException {
+        // Create a spy of Target Service so that we can verify invocation of startReplication call with specific checkpoint on it.
+        SegmentReplicationTargetService serviceSpy = spy(sut);
+        // Create a Mockito spy of target to stub response of few method calls.
+        final SegmentReplicationTarget targetSpy = spy(
+            new SegmentReplicationTarget(
+                initialCheckpoint,
+                replicaShard,
+                replicationSource,
+                mock(SegmentReplicationTargetService.SegmentReplicationListener.class)
+            )
+        );
+
+        CountDownLatch latch = new CountDownLatch(1);
+        // Mocking response when startReplication is called on targetSpy we send a new checkpoint to serviceSpy and later reduce countdown
+        // of latch.
+        doAnswer(invocation -> {
+            // short circuit loop on new checkpoint request
+            doReturn(null).when(serviceSpy).startReplication(eq(newPrimaryCheckpoint), eq(replicaShard), any());
+            // a new checkpoint arrives before we've completed.
+            serviceSpy.onNewCheckpoint(newPrimaryCheckpoint, replicaShard);
+            try {
+                invocation.callRealMethod();
+            } catch (CancellableThreads.ExecutionCancelledException e) {
+                latch.countDown();
+            }
+            return null;
+        }).when(targetSpy).startReplication(any());
+
+        // start replication. This adds the target to on-ongoing replication collection
+        serviceSpy.startReplication(targetSpy);
+        latch.await();
+        // wait for the new checkpoint to arrive, before the listener completes.
+        assertEquals(CANCELLED, targetSpy.state().getStage());
+        verify(targetSpy, times(1)).cancel("Cancelling stuck target after new primary");
+        verify(serviceSpy, times(1)).startReplication(eq(newPrimaryCheckpoint), eq(replicaShard), any());
     }
 
     public void testNewCheckpointBehindCurrentCheckpoint() {

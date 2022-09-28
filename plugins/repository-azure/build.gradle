@@ -44,9 +44,9 @@ opensearchplugin {
 }
 
 dependencies {
-  api 'com.azure:azure-core:1.27.0'
-  api 'com.azure:azure-storage-common:12.16.0'
-  api 'com.azure:azure-core-http-netty:1.12.0'
+  api 'com.azure:azure-core:1.31.0'
+  api 'com.azure:azure-storage-common:12.18.0'
+  api 'com.azure:azure-core-http-netty:1.12.4'
   api "io.netty:netty-codec-dns:${versions.netty}"
   api "io.netty:netty-codec-socks:${versions.netty}"
   api "io.netty:netty-codec-http2:${versions.netty}"
@@ -55,10 +55,10 @@ dependencies {
   api "io.netty:netty-transport-native-unix-common:${versions.netty}"
   implementation project(':modules:transport-netty4')
   api 'com.azure:azure-storage-blob:12.16.1'
-  api 'org.reactivestreams:reactive-streams:1.0.3'
-  api 'io.projectreactor:reactor-core:3.4.18'
+  api 'org.reactivestreams:reactive-streams:1.0.4'
+  api 'io.projectreactor:reactor-core:3.4.23'
   api 'io.projectreactor.netty:reactor-netty:1.0.18'
-  api 'io.projectreactor.netty:reactor-netty-core:1.0.19'
+  api 'io.projectreactor.netty:reactor-netty-core:1.0.22'
   api 'io.projectreactor.netty:reactor-netty-http:1.0.18'
   api "org.slf4j:slf4j-api:${versions.slf4j}"
   api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
@@ -137,7 +137,7 @@ thirdPartyAudit {
     'javax.xml.bind.annotation.XmlAccessOrder',
     'javax.xml.bind.annotation.XmlAccessType',
     'javax.xml.bind.annotation.XmlAccessorOrder',
-    'javax.xml.bind.annotation.XmlAccessorType', 
+    'javax.xml.bind.annotation.XmlAccessorType',
     'javax.xml.bind.annotation.XmlAttribute',
     'javax.xml.bind.annotation.XmlElement',
     'javax.xml.bind.annotation.XmlElement$DEFAULT',

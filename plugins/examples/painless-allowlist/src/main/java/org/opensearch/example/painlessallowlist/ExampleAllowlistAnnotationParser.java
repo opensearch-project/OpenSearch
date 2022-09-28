@@ -36,13 +36,17 @@ import org.opensearch.painless.spi.annotation.AllowlistAnnotationParser;
 
 import java.util.Map;
 
+/**
+ * A singleton class to parse Allowlist Annotations.
+ */
 public class ExampleAllowlistAnnotationParser implements AllowlistAnnotationParser {
 
+    /**
+     * The singleton instance of this class.
+     */
     public static final ExampleAllowlistAnnotationParser INSTANCE = new ExampleAllowlistAnnotationParser();
 
-    private ExampleAllowlistAnnotationParser() {
-
-    }
+    private ExampleAllowlistAnnotationParser() {}
 
     @Override
     public Object parse(Map<String, String> arguments) {

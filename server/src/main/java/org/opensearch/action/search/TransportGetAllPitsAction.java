@@ -22,9 +22,44 @@ public class TransportGetAllPitsAction extends HandledTransportAction<GetAllPitN
     private final PitService pitService;
 
     @Inject
-    public TransportGetAllPitsAction(ActionFilters actionFilters, TransportService transportService, PitService pitService) {
-        super(GetAllPitsAction.NAME, transportService, actionFilters, in -> new GetAllPitNodesRequest(in));
-        this.pitService = pitService;
+    public TransportGetAllPitsAction(
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        SearchService searchService
+    ) {
+        super(
+            GetAllPitsAction.NAME,
+            threadPool,
+            clusterService,
+            transportService,
+            actionFilters,
+            GetAllPitNodesRequest::new,
+            GetAllPitNodeRequest::new,
+            ThreadPool.Names.SAME,
+            GetAllPitNodeResponse.class
+        );
+        this.searchService = searchService;
+    }
+
+    @Override
+    protected GetAllPitNodesResponse newResponse(
+        GetAllPitNodesRequest request,
+        List<GetAllPitNodeResponse> getAllPitNodeResponses,
+        List<FailedNodeException> failures
+    ) {
+        return new GetAllPitNodesResponse(clusterService.getClusterName(), getAllPitNodeResponses, failures);
+    }
+
+    @Override
+    protected GetAllPitNodeRequest newNodeRequest(GetAllPitNodesRequest request) {
+        return new GetAllPitNodeRequest();
+    }
+
+    @Override
+    protected GetAllPitNodeResponse newNodeResponse(StreamInput in) throws IOException {
+        return new GetAllPitNodeResponse(in);
     }
 
     protected void doExecute(Task task, GetAllPitNodesRequest request, ActionListener<GetAllPitNodesResponse> listener) {

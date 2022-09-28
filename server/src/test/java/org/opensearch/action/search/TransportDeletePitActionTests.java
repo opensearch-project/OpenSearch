@@ -172,9 +172,6 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                     transportService,
                     actionFilters,
                     namedWriteableRegistry,
-                    transportSearchAction,
-                    clusterServiceMock,
-                    searchTransportService,
                     pitService
                 );
                 DeletePitRequest deletePITRequest = new DeletePitRequest(pitId);
@@ -250,9 +247,6 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                     transportService,
                     actionFilters,
                     namedWriteableRegistry,
-                    transportSearchAction,
-                    clusterServiceMock,
-                    searchTransportService,
                     pitService
                 );
                 DeletePitRequest deletePITRequest = new DeletePitRequest("_all");
@@ -319,9 +313,6 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                     transportService,
                     actionFilters,
                     namedWriteableRegistry,
-                    transportSearchAction,
-                    clusterServiceMock,
-                    searchTransportService,
                     pitService
                 );
                 DeletePitRequest deletePITRequest = new DeletePitRequest(pitId);
@@ -378,9 +369,6 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                     transportService,
                     actionFilters,
                     namedWriteableRegistry,
-                    transportSearchAction,
-                    clusterServiceMock,
-                    searchTransportService,
                     pitService
                 );
                 DeletePitRequest deletePITRequest = new DeletePitRequest(pitId);
@@ -446,9 +434,6 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                     transportService,
                     actionFilters,
                     namedWriteableRegistry,
-                    transportSearchAction,
-                    clusterServiceMock,
-                    searchTransportService,
                     pitService
                 );
                 DeletePitRequest deletePITRequest = new DeletePitRequest(pitId);
@@ -526,9 +511,6 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                     transportService,
                     actionFilters,
                     namedWriteableRegistry,
-                    transportSearchAction,
-                    clusterServiceMock,
-                    searchTransportService,
                     pitService
                 );
                 DeletePitRequest deletePITRequest = new DeletePitRequest("_all");
@@ -602,9 +584,6 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                     transportService,
                     actionFilters,
                     namedWriteableRegistry,
-                    transportSearchAction,
-                    clusterServiceMock,
-                    searchTransportService,
                     pitService
                 );
                 DeletePitRequest deletePITRequest = new DeletePitRequest("_all");
@@ -682,9 +661,6 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                     transportService,
                     actionFilters,
                     namedWriteableRegistry,
-                    transportSearchAction,
-                    clusterServiceMock,
-                    searchTransportService,
                     pitService
                 );
                 DeletePitRequest deletePITRequest = new DeletePitRequest("_all");

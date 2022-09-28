@@ -9,30 +9,31 @@ package org.opensearch.gradle.pluginzip;
 
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
-import org.gradle.api.logging.Logger;
-import org.gradle.api.logging.Logging;
 import org.gradle.api.publish.PublishingExtension;
 import org.gradle.api.publish.maven.MavenPublication;
-import org.gradle.api.publish.maven.plugins.MavenPublishPlugin;
 
 import java.nio.file.Path;
 import org.gradle.api.Task;
+import org.gradle.api.publish.maven.plugins.MavenPublishPlugin;
 
 public class Publish implements Plugin<Project> {
 
-    private static final Logger LOGGER = Logging.getLogger(Publish.class);
-
-    public final static String EXTENSION_NAME = "zipmavensettings";
+    // public final static String PLUGIN_ZIP_PUBLISH_POM_TASK = "generatePomFileForPluginZipPublication";
     public final static String PUBLICATION_NAME = "pluginZip";
     public final static String STAGING_REPO = "zipStaging";
-    public final static String PLUGIN_ZIP_PUBLISH_POM_TASK = "generatePomFileForPluginZipPublication";
-    public final static String LOCALMAVEN = "publishToMavenLocal";
     public final static String LOCAL_STAGING_REPO_PATH = "/build/local-staging-repo";
-    public String zipDistributionLocation = "/build/distributions/";
+    // TODO: Does the path ^^ need to use platform dependant file separators ?
 
-    public static void configMaven(Project project) {
+    private boolean isZipPublicationPresent(Project project) {
+        PublishingExtension pe = project.getExtensions().findByType(PublishingExtension.class);
+        if (pe == null) {
+            return false;
+        }
+        return pe.getPublications().findByName(PUBLICATION_NAME) != null;
+    }
+
+    private void addLocalMavenRepo(Project project) {
         final Path buildDirectory = project.getRootDir().toPath();
-        project.getPluginManager().apply(MavenPublishPlugin.class);
         project.getExtensions().configure(PublishingExtension.class, publishing -> {
             publishing.repositories(repositories -> {
                 repositories.maven(maven -> {
@@ -40,11 +41,15 @@ public class Publish implements Plugin<Project> {
                     maven.setUrl(buildDirectory.toString() + LOCAL_STAGING_REPO_PATH);
                 });
             });
+        });
+    }
+
+    private void addZipArtifact(Project project) {
+        project.getExtensions().configure(PublishingExtension.class, publishing -> {
             publishing.publications(publications -> {
                 MavenPublication mavenZip = (MavenPublication) publications.findByName(PUBLICATION_NAME);
-
-                if (mavenZip == null) {
-                    mavenZip = publications.create(PUBLICATION_NAME, MavenPublication.class);
+                if (mavenZip != null) {
+                    mavenZip.artifact(project.getTasks().named("bundlePlugin"));
                 }
 
                 String groupId = mavenZip.getGroupId();
@@ -64,28 +69,26 @@ public class Publish implements Plugin<Project> {
         });
     }
 
-    static String getProperty(String name, Project project) {
-        if (project.hasProperty(name)) {
-            Object property = project.property(name);
-            if (property != null) {
-                return property.toString();
-            }
-        }
-        return null;
-    }
-
     @Override
     public void apply(Project project) {
+        project.getPluginManager().apply("nebula.maven-base-publish");
+        project.getPluginManager().apply(MavenPublishPlugin.class);
         project.afterEvaluate(evaluatedProject -> {
-            configMaven(project);
-            Task validatePluginZipPom = project.getTasks().findByName("validatePluginZipPom");
-            if (validatePluginZipPom != null) {
-                project.getTasks().getByName("validatePluginZipPom").dependsOn("generatePomFileForNebulaPublication");
-            }
-            Task publishPluginZipPublicationToZipStagingRepository = project.getTasks()
-                .findByName("publishPluginZipPublicationToZipStagingRepository");
-            if (publishPluginZipPublicationToZipStagingRepository != null) {
-                publishPluginZipPublicationToZipStagingRepository.dependsOn("generatePomFileForNebulaPublication");
+            if (isZipPublicationPresent(project)) {
+                addLocalMavenRepo(project);
+                addZipArtifact(project);
+                Task validatePluginZipPom = project.getTasks().findByName("validatePluginZipPom");
+                if (validatePluginZipPom != null) {
+                    validatePluginZipPom.dependsOn("generatePomFileForNebulaPublication");
+                }
+                Task publishPluginZipPublicationToZipStagingRepository = project.getTasks()
+                    .findByName("publishPluginZipPublicationToZipStagingRepository");
+                if (publishPluginZipPublicationToZipStagingRepository != null) {
+                    publishPluginZipPublicationToZipStagingRepository.dependsOn("generatePomFileForNebulaPublication");
+                }
+            } else {
+                project.getLogger()
+                    .warn(String.format("Plugin 'opensearch.pluginzip' is applied but no '%s' publication is defined.", PUBLICATION_NAME));
             }
         });
     }

@@ -1196,6 +1196,66 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(replica);
     }
 
+    public void testGetChangesSnapshotThrowsAssertForSegRep() throws IOException {
+        final ShardId shardId = new ShardId("index", "_na_", 0);
+        final ShardRouting shardRouting = TestShardRouting.newShardRouting(
+            shardId,
+            randomAlphaOfLength(8),
+            true,
+            ShardRoutingState.INITIALIZING,
+            RecoverySource.EmptyStoreRecoverySource.INSTANCE
+        );
+        final Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT.toString())
+            .build();
+        final IndexMetadata.Builder indexMetadata = IndexMetadata.builder(shardRouting.getIndexName()).settings(settings).primaryTerm(0, 1);
+        final AtomicBoolean synced = new AtomicBoolean();
+        final IndexShard primaryShard = newShard(
+            shardRouting,
+            indexMetadata.build(),
+            null,
+            new InternalEngineFactory(),
+            () -> synced.set(true),
+            RetentionLeaseSyncer.EMPTY,
+            null
+        );
+        expectThrows(AssertionError.class, () -> primaryShard.getHistoryOperationsFromTranslog(0, 1));
+        closeShard(primaryShard, false);
+    }
+
+    public void testGetChangesSnapshotThrowsAssertForRemoteStore() throws IOException {
+        final ShardId shardId = new ShardId("index", "_na_", 0);
+        final ShardRouting shardRouting = TestShardRouting.newShardRouting(
+            shardId,
+            randomAlphaOfLength(8),
+            true,
+            ShardRoutingState.INITIALIZING,
+            RecoverySource.EmptyStoreRecoverySource.INSTANCE
+        );
+        final Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+            .build();
+        final IndexMetadata.Builder indexMetadata = IndexMetadata.builder(shardRouting.getIndexName()).settings(settings).primaryTerm(0, 1);
+        final AtomicBoolean synced = new AtomicBoolean();
+        final IndexShard primaryShard = newShard(
+            shardRouting,
+            indexMetadata.build(),
+            null,
+            new InternalEngineFactory(),
+            () -> synced.set(true),
+            RetentionLeaseSyncer.EMPTY,
+            null
+        );
+        expectThrows(AssertionError.class, () -> primaryShard.getHistoryOperationsFromTranslog(0, 1));
+        closeShard(primaryShard, false);
+    }
+
     public void testGlobalCheckpointSync() throws IOException {
         // create the primary shard with a callback that sets a boolean when the global checkpoint sync is invoked
         final ShardId shardId = new ShardId("index", "_na_", 0);

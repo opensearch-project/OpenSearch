@@ -79,6 +79,8 @@ import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
 import org.opensearch.action.admin.cluster.settings.TransportClusterUpdateSettingsAction;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsAction;
 import org.opensearch.action.admin.cluster.shards.TransportClusterSearchShardsAction;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterAddWeightedRoutingAction;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.put.TransportAddWeightedRoutingAction;
 import org.opensearch.action.admin.cluster.snapshots.clone.CloneSnapshotAction;
 import org.opensearch.action.admin.cluster.snapshots.clone.TransportCloneSnapshotAction;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotAction;
@@ -238,9 +240,8 @@ import org.opensearch.action.main.TransportMainAction;
 import org.opensearch.action.search.ClearScrollAction;
 import org.opensearch.action.search.CreatePitAction;
 import org.opensearch.action.search.DeletePitAction;
-import org.opensearch.action.search.GetAllPitsAction;
 import org.opensearch.action.search.MultiSearchAction;
-import org.opensearch.action.search.NodesGetAllPitsAction;
+import org.opensearch.action.search.GetAllPitsAction;
 import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.search.SearchScrollAction;
 import org.opensearch.action.search.TransportClearScrollAction;
@@ -296,6 +297,7 @@ import org.opensearch.rest.action.admin.cluster.RestCloneSnapshotAction;
 import org.opensearch.rest.action.admin.cluster.RestClusterAllocationExplainAction;
 import org.opensearch.rest.action.admin.cluster.RestClusterGetSettingsAction;
 import org.opensearch.rest.action.admin.cluster.RestClusterHealthAction;
+import org.opensearch.rest.action.admin.cluster.RestClusterPutWeightedRoutingAction;
 import org.opensearch.rest.action.admin.cluster.RestClusterRerouteAction;
 import org.opensearch.rest.action.admin.cluster.RestClusterSearchShardsAction;
 import org.opensearch.rest.action.admin.cluster.RestClusterStateAction;
@@ -385,6 +387,7 @@ import org.opensearch.rest.action.cat.RestIndicesAction;
 import org.opensearch.rest.action.cat.RestClusterManagerAction;
 import org.opensearch.rest.action.cat.RestNodeAttrsAction;
 import org.opensearch.rest.action.cat.RestNodesAction;
+import org.opensearch.rest.action.cat.RestPitSegmentsAction;
 import org.opensearch.rest.action.cat.RestPluginsAction;
 import org.opensearch.rest.action.cat.RestRepositoriesAction;
 import org.opensearch.rest.action.cat.RestSegmentsAction;
@@ -413,6 +416,7 @@ import org.opensearch.rest.action.search.RestCountAction;
 import org.opensearch.rest.action.search.RestCreatePitAction;
 import org.opensearch.rest.action.search.RestDeletePitAction;
 import org.opensearch.rest.action.search.RestExplainAction;
+import org.opensearch.rest.action.search.RestGetAllPitsAction;
 import org.opensearch.rest.action.search.RestMultiSearchAction;
 import org.opensearch.rest.action.search.RestSearchAction;
 import org.opensearch.rest.action.search.RestSearchScrollAction;
@@ -563,6 +567,7 @@ public class ActionModule extends AbstractModule {
         actions.register(RestoreSnapshotAction.INSTANCE, TransportRestoreSnapshotAction.class);
         actions.register(SnapshotsStatusAction.INSTANCE, TransportSnapshotsStatusAction.class);
 
+        actions.register(ClusterAddWeightedRoutingAction.INSTANCE, TransportAddWeightedRoutingAction.class);
         actions.register(IndicesStatsAction.INSTANCE, TransportIndicesStatsAction.class);
         actions.register(IndicesSegmentsAction.INSTANCE, TransportIndicesSegmentsAction.class);
         actions.register(IndicesShardStoresAction.INSTANCE, TransportIndicesShardStoresAction.class);
@@ -675,10 +680,9 @@ public class ActionModule extends AbstractModule {
 
         // point in time actions
         actions.register(CreatePitAction.INSTANCE, TransportCreatePitAction.class);
-        actions.register(GetAllPitsAction.INSTANCE, TransportGetAllPitsAction.class);
         actions.register(DeletePitAction.INSTANCE, TransportDeletePitAction.class);
         actions.register(PitSegmentsAction.INSTANCE, TransportPitSegmentsAction.class);
-        actions.register(NodesGetAllPitsAction.INSTANCE, TransportNodesGetAllPitsAction.class);
+        actions.register(GetAllPitsAction.INSTANCE, TransportGetAllPitsAction.class);
 
         // Remote Store
         actions.register(RestoreRemoteStoreAction.INSTANCE, TransportRestoreRemoteStoreAction.class);
@@ -745,6 +749,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestCloseIndexAction());
         registerHandler.accept(new RestOpenIndexAction());
         registerHandler.accept(new RestAddIndexBlockAction());
+        registerHandler.accept(new RestClusterPutWeightedRoutingAction());
 
         registerHandler.accept(new RestUpdateSettingsAction());
         registerHandler.accept(new RestGetSettingsAction());
@@ -858,6 +863,8 @@ public class ActionModule extends AbstractModule {
         // Point in time API
         registerHandler.accept(new RestCreatePitAction());
         registerHandler.accept(new RestDeletePitAction());
+        registerHandler.accept(new RestGetAllPitsAction(nodesInCluster));
+        registerHandler.accept(new RestPitSegmentsAction(nodesInCluster));
 
         for (ActionPlugin plugin : actionPlugins) {
             for (RestHandler handler : plugin.getRestHandlers(

@@ -39,6 +39,7 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.index.IndexNotFoundException;
@@ -80,6 +81,7 @@ import org.opensearch.index.engine.Engine;
 import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.index.seqno.RetentionLease;
 import org.opensearch.index.shard.ShardId;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadata;
 import org.opensearch.test.DummyShardLock;
 import org.opensearch.test.IndexSettingsModule;
@@ -93,6 +95,7 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -121,6 +124,12 @@ public class StoreTests extends OpenSearchTestCase {
         "index",
         Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT).build()
     );
+
+    IndexSettings SEGMENT_REPLICATION_INDEX_SETTINGS = new IndexSettings(
+        INDEX_SETTINGS.getIndexMetadata(),
+        Settings.builder().put(INDEX_SETTINGS.getSettings()).put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).build()
+    );
+
     private static final Version MIN_SUPPORTED_LUCENE_VERSION = org.opensearch.Version.CURRENT
         .minimumIndexCompatibilityVersion().luceneVersion;
 
@@ -1150,12 +1159,115 @@ public class StoreTests extends OpenSearchTestCase {
         store.close();
     }
 
-    public void testcleanupAndPreserveLatestCommitPoint() throws IOException {
+    public void testCleanupAndPreserveLatestCommitPoint() throws IOException {
         final ShardId shardId = new ShardId("index", "_na_", 1);
-        Store store = new Store(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), new DummyShardLock(shardId));
+        Store store = new Store(
+            shardId,
+            SEGMENT_REPLICATION_INDEX_SETTINGS,
+            StoreTests.newDirectory(random()),
+            new DummyShardLock(shardId)
+        );
+        commitRandomDocs(store);
+
+        Store.MetadataSnapshot commitMetadata = store.getMetadata();
+
+        // index more docs but only IW.flush, this will create additional files we'll clean up.
+        final IndexWriter writer = indexRandomDocs(store);
+        writer.flush();
+        writer.close();
+
+        final List<String> additionalSegments = new ArrayList<>();
+        for (String file : store.directory().listAll()) {
+            if (commitMetadata.contains(file) == false) {
+                additionalSegments.add(file);
+            }
+        }
+        assertFalse(additionalSegments.isEmpty());
+
+        // clean up everything not in the latest commit point.
+        store.cleanupAndPreserveLatestCommitPoint("test", store.readLastCommittedSegmentsInfo());
+
+        // we want to ensure commitMetadata files are preserved after calling cleanup
+        for (String existingFile : store.directory().listAll()) {
+            if (!IndexWriter.WRITE_LOCK_NAME.equals(existingFile)) {
+                assertTrue(commitMetadata.contains(existingFile));
+                assertFalse(additionalSegments.contains(existingFile));
+            }
+        }
+        deleteContent(store.directory());
+        IOUtils.close(store);
+    }
+
+    public void testGetSegmentMetadataMap() throws IOException {
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        Store store = new Store(
+            shardId,
+            SEGMENT_REPLICATION_INDEX_SETTINGS,
+            new NIOFSDirectory(createTempDir()),
+            new DummyShardLock(shardId)
+        );
+        store.createEmpty(Version.LATEST);
+        final Map<String, StoreFileMetadata> metadataSnapshot = store.getSegmentMetadataMap(store.readLastCommittedSegmentsInfo());
+        // no docs indexed only _N file exists.
+        assertTrue(metadataSnapshot.isEmpty());
+
+        // commit some docs to create a commit point.
+        commitRandomDocs(store);
+
+        final Map<String, StoreFileMetadata> snapshotAfterCommit = store.getSegmentMetadataMap(store.readLastCommittedSegmentsInfo());
+        assertFalse(snapshotAfterCommit.isEmpty());
+        assertFalse(snapshotAfterCommit.keySet().stream().anyMatch((name) -> name.startsWith(IndexFileNames.SEGMENTS)));
+        store.close();
+    }
+
+    public void testSegmentReplicationDiff() {
+        final String segmentName = "_0.si";
+        final StoreFileMetadata SEGMENT_FILE = new StoreFileMetadata(segmentName, 1L, "0", Version.LATEST);
+        // source has file target is missing.
+        Store.RecoveryDiff diff = Store.segmentReplicationDiff(Map.of(segmentName, SEGMENT_FILE), Collections.emptyMap());
+        assertEquals(List.of(SEGMENT_FILE), diff.missing);
+        assertTrue(diff.different.isEmpty());
+        assertTrue(diff.identical.isEmpty());
+
+        // target has file not on source.
+        diff = Store.segmentReplicationDiff(Collections.emptyMap(), Map.of(segmentName, SEGMENT_FILE));
+        assertTrue(diff.missing.isEmpty());
+        assertTrue(diff.different.isEmpty());
+        assertTrue(diff.identical.isEmpty());
+
+        // source and target have identical file.
+        diff = Store.segmentReplicationDiff(Map.of(segmentName, SEGMENT_FILE), Map.of(segmentName, SEGMENT_FILE));
+        assertTrue(diff.missing.isEmpty());
+        assertTrue(diff.different.isEmpty());
+        assertEquals(List.of(SEGMENT_FILE), diff.identical);
+
+        // source has diff copy of same file as target.
+        StoreFileMetadata SOURCE_DIFF_FILE = new StoreFileMetadata(segmentName, 1L, "abc", Version.LATEST);
+        diff = Store.segmentReplicationDiff(Map.of(segmentName, SOURCE_DIFF_FILE), Map.of(segmentName, SEGMENT_FILE));
+        assertTrue(diff.missing.isEmpty());
+        assertEquals(List.of(SOURCE_DIFF_FILE), diff.different);
+        assertTrue(diff.identical.isEmpty());
+
+        // ignore _N files if included in source map.
+        final String segmentsFile = IndexFileNames.SEGMENTS.concat("_2");
+        StoreFileMetadata SEGMENTS_FILE = new StoreFileMetadata(segmentsFile, 1L, "abc", Version.LATEST);
+        diff = Store.segmentReplicationDiff(Map.of(segmentsFile, SEGMENTS_FILE), Collections.emptyMap());
+        assertTrue(diff.missing.isEmpty());
+        assertTrue(diff.different.isEmpty());
+        assertTrue(diff.identical.isEmpty());
+    }
+
+    private void commitRandomDocs(Store store) throws IOException {
+        IndexWriter writer = indexRandomDocs(store);
+        writer.commit();
+        writer.close();
+    }
+
+    private IndexWriter indexRandomDocs(Store store) throws IOException {
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig(random(), new MockAnalyzer(random())).setCodec(
             TestUtil.getDefaultCodec()
         );
+        indexWriterConfig.setCommitOnClose(false);
         indexWriterConfig.setIndexDeletionPolicy(NoDeletionPolicy.INSTANCE);
         IndexWriter writer = new IndexWriter(store.directory(), indexWriterConfig);
         int docs = 1 + random().nextInt(100);
@@ -1171,21 +1283,6 @@ public class StoreTests extends OpenSearchTestCase {
         );
         doc.add(new SortedDocValuesField("dv", new BytesRef(TestUtil.randomRealisticUnicodeString(random()))));
         writer.addDocument(doc);
-        writer.commit();
-        writer.close();
-
-        Store.MetadataSnapshot commitMetadata = store.getMetadata();
-
-        Store.MetadataSnapshot refreshMetadata = Store.MetadataSnapshot.EMPTY;
-
-        store.cleanupAndPreserveLatestCommitPoint("test", refreshMetadata);
-
-        // we want to ensure commitMetadata files are preserved after calling cleanup
-        for (String existingFile : store.directory().listAll()) {
-            assert (commitMetadata.contains(existingFile) == true);
-        }
-
-        deleteContent(store.directory());
-        IOUtils.close(store);
+        return writer;
     }
 }
