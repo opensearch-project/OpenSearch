@@ -209,6 +209,20 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.onJoinValidators = JoinTaskExecutor.addBuiltInJoinValidators(onJoinValidators);
         this.singleNodeDiscovery = DiscoveryModule.isSingleNodeDiscovery(settings);
         this.electionStrategy = electionStrategy;
+        this.joinHelper = new JoinHelper(
+            settings,
+            allocationService,
+            clusterManagerService,
+            transportService,
+            this::getCurrentTerm,
+            this::getStateForClusterManagerService,
+            this::handleJoinRequest,
+            this::joinLeaderInTerm,
+            this.onJoinValidators,
+            rerouteService,
+            nodeHealthService,
+            this::nodeCommissioned
+        );
         this.persistedStateSupplier = persistedStateSupplier;
         this.noClusterManagerBlockService = new NoClusterManagerBlockService(settings, clusterSettings);
         this.lastKnownLeader = Optional.empty();
@@ -231,20 +245,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             transportService,
             new HandshakingTransportAddressConnector(settings, transportService),
             configuredHostsResolver
-        );
-        this.joinHelper = new JoinHelper(
-            settings,
-            allocationService,
-            clusterManagerService,
-            transportService,
-            this::getCurrentTerm,
-            this::getStateForClusterManagerService,
-            this::handleJoinRequest,
-            this::joinLeaderInTerm,
-            this.onJoinValidators,
-            rerouteService,
-            nodeHealthService,
-            this::nodeCommissioned
         );
         this.publicationHandler = new PublicationTransportHandler(
             transportService,

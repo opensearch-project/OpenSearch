@@ -139,7 +139,7 @@ public abstract class PeerFinder {
         );
     }
 
-    public void setFindPeersInterval(boolean localNodeCommissioned) {
+    public synchronized void setFindPeersInterval(boolean localNodeCommissioned) {
         this.localNodeCommissioned = localNodeCommissioned;
         findPeersInterval = localNodeCommissioned ? DISCOVERY_FIND_PEERS_INTERVAL_SETTING.get(settings) :
             DISCOVERY_FIND_PEERS_INTERVAL_DURING_DECOMMISSION_SETTING.get(settings);
