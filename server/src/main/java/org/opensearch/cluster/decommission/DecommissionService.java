@@ -323,20 +323,7 @@ public class DecommissionService {
             public void onResponse(DecommissionStatus status) {
                 logger.info("updated the decommission status to [{}]", status);
                 // set the weights
-
-                decommissionController.setWeight(awarenessValues, new ActionListener<>() {
-                    @Override
-                    public void onResponse(ClusterPutWeightedRoutingResponse response) {
-                        // Schedule the node decommission process after the weights are successfully set.
-                        scheduleNodesDecommissionOnTimeout(state, decommissionRequest.getDrainingTimeout());
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        // Weights not successfully set. Fail the decommissioning process.
-                        clearVotingConfigExclusionAndUpdateStatus(false, false);
-                    }
-                });
+                setWeightsForAwarenessAttribute(awarenessValues, state, decommissionRequest);
             }
 
             @Override
@@ -350,6 +337,38 @@ public class DecommissionService {
                     e
                 );
                 // since we are not able to update the status, we will clear the voting config exclusion we have set earlier
+                clearVotingConfigExclusionAndUpdateStatus(false, false);
+            }
+        });
+    }
+
+    void setWeightsForAwarenessAttribute(List<String> awarenessValues, ClusterState state, DecommissionRequest decommissionRequest) {
+        ClusterState clusterState = clusterService.getClusterApplierService().state();
+
+        DecommissionAttributeMetadata decommissionAttributeMetadata = clusterState.metadata().decommissionAttributeMetadata();
+        assert decommissionAttributeMetadata.status().equals(DecommissionStatus.DRAINING)
+            : "unexpected status encountered while decommissioning nodes";
+        DecommissionAttribute decommissionAttribute = decommissionAttributeMetadata.decommissionAttribute();
+
+        Map<String, Double> weights = new HashMap<>();
+        awarenessValues.forEach(awarenessValue -> {
+            if (awarenessValue.equalsIgnoreCase(decommissionAttribute.attributeValue())) {
+                weights.put(awarenessValue, Double.valueOf(0.0));
+            } else {
+                weights.put(awarenessValue, Double.valueOf(1.0));
+            }
+        });
+
+        decommissionController.setWeights(decommissionAttribute.attributeName(), weights, new ActionListener<>() {
+            @Override
+            public void onResponse(ClusterPutWeightedRoutingResponse response) {
+                // Schedule the node decommission process after the weights are successfully set.
+                scheduleNodesDecommissionOnTimeout(state, decommissionRequest.getDrainingTimeout());
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                // Weights not successfully set. Fail the decommissioning process.
                 clearVotingConfigExclusionAndUpdateStatus(false, false);
             }
         });

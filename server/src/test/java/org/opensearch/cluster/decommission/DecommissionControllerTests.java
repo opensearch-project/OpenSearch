@@ -31,7 +31,6 @@ import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.collect.List;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -278,18 +277,9 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
         Mockito.when(mockTransportService.getLocalNode()).thenReturn(Mockito.mock(DiscoveryNode.class));
         decommissionController = new DecommissionController(clusterService, mockTransportService, allocationService, threadPool);
 
-        DecommissionAttributeMetadata oldMetadata = new DecommissionAttributeMetadata(
-            new DecommissionAttribute("zone", "zone-1"),
-            DecommissionStatus.DRAINING
-        );
-        ClusterState state = clusterService.state();
-        Metadata metadata = state.metadata();
-        Metadata.Builder mdBuilder = Metadata.builder(metadata);
-        mdBuilder.decommissionAttributeMetadata(oldMetadata);
-        state = ClusterState.builder(state).metadata(mdBuilder).build();
-        setState(clusterService, state);
+        Map<String, Double> weights = Map.of("zone-1", 0.0, "zone-2", 1.0, "zone-3", 1.0);
 
-        decommissionController.setWeight(List.of("zone-1", "zone-2", "zone-3"), Mockito.mock(ActionListener.class));
+        decommissionController.setWeights("zone", weights, Mockito.mock(ActionListener.class));
         ArgumentCaptor<ClusterPutWeightedRoutingRequest> clusterPutWRRWeightsRequestArgumentCaptor = ArgumentCaptor.forClass(
             ClusterPutWeightedRoutingRequest.class
         );
@@ -305,28 +295,6 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
         assertEquals(0.0, request.getWeightedRouting().weights().get("zone-1"), 0.0);
         assertEquals(1.0, request.getWeightedRouting().weights().get("zone-2"), 0.0);
         assertEquals(1.0, request.getWeightedRouting().weights().get("zone-3"), 0.0);
-    }
-
-    public void testSetWeightsForDecommissionForDecommissionInit() {
-        TransportService mockTransportService = Mockito.mock(TransportService.class);
-        Mockito.when(mockTransportService.getLocalNode()).thenReturn(Mockito.mock(DiscoveryNode.class));
-        decommissionController = new DecommissionController(clusterService, mockTransportService, allocationService, threadPool);
-
-        DecommissionAttributeMetadata oldMetadata = new DecommissionAttributeMetadata(
-            new DecommissionAttribute("zone", "zone-1"),
-            DecommissionStatus.INIT
-        );
-        ClusterState state = clusterService.state();
-        Metadata metadata = state.metadata();
-        Metadata.Builder mdBuilder = Metadata.builder(metadata);
-        mdBuilder.decommissionAttributeMetadata(oldMetadata);
-        state = ClusterState.builder(state).metadata(mdBuilder).build();
-        setState(clusterService, state);
-
-        expectThrows(
-            AssertionError.class,
-            () -> decommissionController.setWeight(List.of("zone-1", "zone-2", "zone-3"), Mockito.mock(ActionListener.class))
-        );
     }
 
     private static class AdjustConfigurationForExclusions implements ClusterStateObserver.Listener {

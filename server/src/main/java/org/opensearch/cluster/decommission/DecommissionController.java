@@ -279,27 +279,11 @@ public class DecommissionController {
         });
     }
 
-    void setWeight(List<String> awarenessValues, ActionListener<ClusterPutWeightedRoutingResponse> listener) {
-        ClusterState clusterState = clusterService.getClusterApplierService().state();
-
-        DecommissionAttributeMetadata decommissionAttributeMetadata = clusterState.metadata().decommissionAttributeMetadata();
-        assert decommissionAttributeMetadata.status().equals(DecommissionStatus.DRAINING)
-            : "unexpected status encountered while decommissioning nodes";
-        DecommissionAttribute decommissionAttribute = decommissionAttributeMetadata.decommissionAttribute();
-
-        Map<String, Double> weights = new HashMap<>();
-        awarenessValues.forEach(awarenessValue -> {
-            if (awarenessValue.equalsIgnoreCase(decommissionAttribute.attributeValue())) {
-                weights.put(awarenessValue, Double.valueOf(0.0));
-            } else {
-                weights.put(awarenessValue, Double.valueOf(1.0));
-            }
-        });
-
+    void setWeights(String awarenessAttribute, Map<String, Double> weights, ActionListener<ClusterPutWeightedRoutingResponse> listener) {
         // WRR API will validate invalid weights
         final ClusterPutWeightedRoutingRequest clusterWeightRequest = new ClusterPutWeightedRoutingRequest();
-        clusterWeightRequest.attributeName(decommissionAttribute.attributeName());
-        clusterWeightRequest.setWeightedRouting(new WeightedRouting(decommissionAttribute.attributeName(), weights));
+        clusterWeightRequest.attributeName(awarenessAttribute);
+        clusterWeightRequest.setWeightedRouting(new WeightedRouting(awarenessAttribute, weights));
 
         transportService.sendRequest(
             transportService.getLocalNode(),

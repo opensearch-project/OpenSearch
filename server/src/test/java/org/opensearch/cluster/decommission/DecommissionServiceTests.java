@@ -11,10 +11,12 @@ package org.opensearch.cluster.decommission;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionRequest;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingRequest;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
@@ -33,10 +35,12 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransport;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -206,6 +210,75 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
         DecommissionRequest decommissionRequest = new DecommissionRequest(decommissionAttribute, TimeValue.timeValueSeconds(30));
         decommissionService.startDecommissionAction(decommissionRequest, listener);
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
+    }
+
+    public void setWeightsForAwarenessAttributeWhenClusterStatIsInit() {
+        DecommissionAttributeMetadata oldMetadata = new DecommissionAttributeMetadata(
+            new DecommissionAttribute("zone", "zone-1"),
+            DecommissionStatus.INIT
+        );
+        ClusterState state = clusterService.state();
+        Metadata metadata = state.metadata();
+        Metadata.Builder mdBuilder = Metadata.builder(metadata);
+        mdBuilder.decommissionAttributeMetadata(oldMetadata);
+        final ClusterState newState = ClusterState.builder(state).metadata(mdBuilder).build();
+        setState(clusterService, newState);
+
+        List<String> awarenessValues = List.of("zone-1", "zone-2", "zone-3");
+
+        expectThrows(
+            AssertionError.class,
+            () -> decommissionService.setWeightsForAwarenessAttribute(awarenessValues, newState, Mockito.mock(DecommissionRequest.class))
+        );
+    }
+
+    public void testSetWeightsForAwarenessAttribute() {
+        DecommissionAttributeMetadata oldMetadata = new DecommissionAttributeMetadata(
+            new DecommissionAttribute("zone", "zone-1"),
+            DecommissionStatus.DRAINING
+        );
+        final Settings.Builder nodeSettingsBuilder = Settings.builder()
+            .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(), "zone")
+            .put("cluster.routing.allocation.awareness.force.zone.values", "zone_1,zone_2,zone_3");
+
+        TransportService mockTransportService = Mockito.mock(TransportService.class);
+        Mockito.when(mockTransportService.getLocalNode()).thenReturn(Mockito.mock(DiscoveryNode.class));
+
+        this.decommissionService = new DecommissionService(
+            Settings.EMPTY,
+            clusterSettings,
+            clusterService,
+            mockTransportService,
+            threadPool,
+            allocationService
+        );
+
+        ClusterState state = clusterService.state();
+        Metadata metadata = state.metadata();
+        Metadata.Builder mdBuilder = Metadata.builder(metadata);
+        mdBuilder.decommissionAttributeMetadata(oldMetadata);
+        final ClusterState newState = ClusterState.builder(state).metadata(mdBuilder).build();
+        setState(clusterService, newState);
+
+        List<String> awarenessValues = List.of("zone-1", "zone-2", "zone-3");
+
+        decommissionService.setWeightsForAwarenessAttribute(awarenessValues, newState, Mockito.mock(DecommissionRequest.class));
+
+        ArgumentCaptor<ClusterPutWeightedRoutingRequest> clusterPutWRRWeightsRequestArgumentCaptor = ArgumentCaptor.forClass(
+            ClusterPutWeightedRoutingRequest.class
+        );
+        Mockito.verify(mockTransportService)
+            .sendRequest(
+                Mockito.any(DiscoveryNode.class),
+                Mockito.anyString(),
+                clusterPutWRRWeightsRequestArgumentCaptor.capture(),
+                Mockito.any(TransportResponseHandler.class)
+            );
+
+        ClusterPutWeightedRoutingRequest request = clusterPutWRRWeightsRequestArgumentCaptor.getValue();
+        assertEquals(0.0, request.getWeightedRouting().weights().get("zone-1"), 0.0);
+        assertEquals(1.0, request.getWeightedRouting().weights().get("zone-2"), 0.0);
+        assertEquals(1.0, request.getWeightedRouting().weights().get("zone-3"), 0.0);
     }
 
     public void testScheduleNodesDecommissionOnTimeout() {
