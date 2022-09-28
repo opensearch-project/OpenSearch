@@ -88,9 +88,7 @@ public class MetadataMappingService {
         this.clusterService = clusterService;
         this.indicesService = indicesService;
 
-        /**
-         * Task will get retried from associated TransportClusterManagerNodeAction.
-         */
+        // Task will get retried from associated TransportClusterManagerNodeAction.
         clusterService.registerThrottlingKey(ClusterManagerThrottlingKeys.PUT_MAPPING_KEY, true);
 
     }

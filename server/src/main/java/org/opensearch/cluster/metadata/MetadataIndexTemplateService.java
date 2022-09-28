@@ -127,9 +127,7 @@ public class MetadataIndexTemplateService {
         this.indexScopedSettings = indexScopedSettings;
         this.xContentRegistry = xContentRegistry;
 
-        /**
-         * Task will get retried from associated TransportClusterManagerNodeAction.
-         */
+        // Task will get retried from associated TransportClusterManagerNodeAction.
         clusterService.registerThrottlingKey(ClusterManagerThrottlingKeys.CREATE_INDEX_TEMPLATE_KEY, true);
         clusterService.registerThrottlingKey(ClusterManagerThrottlingKeys.CREATE_INDEX_TEMPLATE_V2_KEY, true);
         clusterService.registerThrottlingKey(ClusterManagerThrottlingKeys.REMOVE_INDEX_TEMPLATE_KEY, true);

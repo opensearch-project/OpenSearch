@@ -144,9 +144,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         );
         this.threadPool = threadPool;
 
-        /**
-         * Task will get retried from associated TransportClusterManagerNodeAction.
-         */
+        // Task will get retried from associated TransportClusterManagerNodeAction.
         clusterService.registerThrottlingKey(ClusterManagerThrottlingKeys.PUT_PIPELINE_KEY, true);
         clusterService.registerThrottlingKey(ClusterManagerThrottlingKeys.DELETE_PIPELINE_KEY, true);
     }

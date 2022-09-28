@@ -101,9 +101,7 @@ public class TransportClusterRerouteAction extends TransportClusterManagerNodeAc
             indexNameExpressionResolver
         );
         this.allocationService = allocationService;
-        /**
-         * Task will get retried from associated TransportClusterManagerNodeAction.
-         */
+        // Task will get retried from associated TransportClusterManagerNodeAction.
         clusterService.registerThrottlingKey(ClusterManagerThrottlingKeys.CLUSTER_REROUTE_API_KEY, true);
     }
 

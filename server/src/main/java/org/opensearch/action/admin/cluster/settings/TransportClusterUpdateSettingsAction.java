@@ -97,11 +97,8 @@ public class TransportClusterUpdateSettingsAction extends TransportClusterManage
         this.allocationService = allocationService;
         this.clusterSettings = clusterSettings;
 
-        /**
-         * Task will get retried from associated TransportClusterManagerNodeAction.
-         */
+        // Task will get retried from associated TransportClusterManagerNodeAction.
         clusterService.registerThrottlingKey(ClusterManagerThrottlingKeys.CLUSTER_UPDATE_SETTINGS_KEY, true);
-
     }
 
     @Override

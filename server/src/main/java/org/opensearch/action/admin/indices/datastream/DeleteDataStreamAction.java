@@ -180,9 +180,7 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
         ) {
             super(NAME, transportService, clusterService, threadPool, actionFilters, Request::new, indexNameExpressionResolver);
             this.deleteIndexService = deleteIndexService;
-            /**
-             * Task will get retried from associated TransportClusterManagerNodeAction.
-             */
+            // Task will get retried from associated TransportClusterManagerNodeAction.
             clusterService.registerThrottlingKey(ClusterManagerThrottlingKeys.REMOVE_DATA_STREAM_KEY, true);
         }
 

@@ -78,9 +78,7 @@ public class TransportDeleteStoredScriptAction extends TransportClusterManagerNo
             indexNameExpressionResolver
         );
         this.scriptService = scriptService;
-        /**
-         * Task will get retried from associated TransportClusterManagerNodeAction.
-         */
+        // Task will get retried from associated TransportClusterManagerNodeAction.
         clusterService.registerThrottlingKey(ClusterManagerThrottlingKeys.DELETE_SCRIPT_KEY, true);
     }
 

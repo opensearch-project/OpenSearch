@@ -101,9 +101,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
             this.createIndexService = createIndexService;
             this.metadataCreateDataStreamService = metadataCreateDataStreamService;
 
-            /**
-             * Task will get retried from associated TransportClusterManagerNodeAction.
-             */
+            // Task will get retried from associated TransportClusterManagerNodeAction.
             clusterService.registerThrottlingKey(ClusterManagerThrottlingKeys.AUTO_CREATE_KEY, true);
         }
 

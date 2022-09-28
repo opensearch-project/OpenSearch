@@ -103,9 +103,7 @@ public class TransportDeleteDanglingIndexAction extends TransportClusterManagerN
         );
         this.settings = settings;
         this.nodeClient = nodeClient;
-        /**
-         * Task will get retried from associated TransportClusterManagerNodeAction.
-         */
+        // Task will get retried from associated TransportClusterManagerNodeAction.
         clusterService.registerThrottlingKey(ClusterManagerThrottlingKeys.DELETE_DANGLING_INDEX_KEY, true);
 
     }

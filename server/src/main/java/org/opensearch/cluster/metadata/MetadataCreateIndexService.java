@@ -179,9 +179,7 @@ public class MetadataCreateIndexService {
         this.shardLimitValidator = shardLimitValidator;
         this.awarenessReplicaBalance = awarenessReplicaBalance;
 
-        /**
-         * Task will get retried from associated TransportClusterManagerNodeAction.
-         */
+        // Task will get retried from associated TransportClusterManagerNodeAction.
         clusterService.registerThrottlingKey(ClusterManagerThrottlingKeys.CREATE_INDEX_KEY, true);
     }
 

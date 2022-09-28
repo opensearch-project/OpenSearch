@@ -81,9 +81,7 @@ public class MetadataDeleteIndexService {
         this.clusterService = clusterService;
         this.allocationService = allocationService;
 
-        /**
-         * Task will get retried from associated TransportClusterManagerNodeAction.
-         */
+        // Task will get retried from associated TransportClusterManagerNodeAction.
         clusterService.registerThrottlingKey(ClusterManagerThrottlingKeys.DELETE_INDEX_KEY, true);
 
     }

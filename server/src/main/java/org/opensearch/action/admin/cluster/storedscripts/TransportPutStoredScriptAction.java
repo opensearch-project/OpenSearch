@@ -78,9 +78,7 @@ public class TransportPutStoredScriptAction extends TransportClusterManagerNodeA
             indexNameExpressionResolver
         );
         this.scriptService = scriptService;
-        /**
-         * Task will get retried from associated TransportClusterManagerNodeAction.
-         */
+        // Task will get retried from associated TransportClusterManagerNodeAction.
         clusterService.registerThrottlingKey(ClusterManagerThrottlingKeys.PUT_SCRIPT_KEY, true);
     }
 

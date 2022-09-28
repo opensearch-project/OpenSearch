@@ -138,9 +138,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             REPOSITORIES_STATS_ARCHIVE_MAX_ARCHIVED_STATS.get(settings),
             threadPool::relativeTimeInMillis
         );
-        /**
-         * Task will get retried from associated TransportClusterManagerNodeAction.
-         */
+        // Task will get retried from associated TransportClusterManagerNodeAction.
         clusterService.registerThrottlingKey(ClusterManagerThrottlingKeys.PUT_REPOSITORY_KEY, true);
         clusterService.registerThrottlingKey(ClusterManagerThrottlingKeys.DELETE_REPOSITORY_KEY, true);
     }

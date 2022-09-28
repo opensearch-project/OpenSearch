@@ -101,9 +101,7 @@ public class TransportRolloverAction extends TransportClusterManagerNodeAction<R
         this.rolloverService = rolloverService;
         this.client = client;
         this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
-        /**
-         * Task will get retried from associated TransportClusterManagerNodeAction.
-         */
+        // Task will get retried from associated TransportClusterManagerNodeAction.
         clusterService.registerThrottlingKey(ClusterManagerThrottlingKeys.ROLLOVER_INDEX_KEY, true);
     }
 

@@ -94,9 +94,7 @@ public class MetadataIndexAliasesService {
         this.deleteIndexService = deleteIndexService;
         this.xContentRegistry = xContentRegistry;
 
-        /**
-         * Task will get retried from associated TransportClusterManagerNodeAction.
-         */
+        // Task will get retried from associated TransportClusterManagerNodeAction.
         clusterService.registerThrottlingKey(ClusterManagerThrottlingKeys.INDEX_ALIASES_KEY, true);
 
     }

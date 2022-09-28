@@ -100,9 +100,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(CLUSTER_TASKS_ALLOCATION_RECHECK_INTERVAL_SETTING, this::setRecheckInterval);
 
-        /**
-         * Task will get retried from associated TransportClusterManagerNodeAction.
-         */
+        // Task will get retried from associated TransportClusterManagerNodeAction.
         clusterService.registerThrottlingKey(ClusterManagerThrottlingKeys.CREATE_PERSISTENT_TASK_KEY, true);
         clusterService.registerThrottlingKey(ClusterManagerThrottlingKeys.FINISH_PERSISTENT_TASK_KEY, true);
         clusterService.registerThrottlingKey(ClusterManagerThrottlingKeys.REMOVE_PERSISTENT_TASK_KEY, true);

@@ -84,9 +84,7 @@ public class MetadataCreateDataStreamService {
         this.clusterService = clusterService;
         this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
         this.metadataCreateIndexService = metadataCreateIndexService;
-        /**
-         * Task will get retried from associated TransportClusterManagerNodeAction.
-         */
+        // Task will get retried from associated TransportClusterManagerNodeAction.
         clusterService.registerThrottlingKey(ClusterManagerThrottlingKeys.CREATE_DATA_STREAM_KEY, true);
     }
 

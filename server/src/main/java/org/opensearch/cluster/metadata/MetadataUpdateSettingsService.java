@@ -111,9 +111,7 @@ public class MetadataUpdateSettingsService {
         this.shardLimitValidator = shardLimitValidator;
         this.awarenessReplicaBalance = awarenessReplicaBalance;
 
-        /**
-         * Task will get retried from associated TransportClusterManagerNodeAction.
-         */
+        // Task will get retried from associated TransportClusterManagerNodeAction.
         clusterService.registerThrottlingKey(ClusterManagerThrottlingKeys.UPDATE_SETTINGS_KEY, true);
     }
 

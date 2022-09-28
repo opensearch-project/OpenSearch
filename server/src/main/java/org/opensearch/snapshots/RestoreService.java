@@ -199,9 +199,7 @@ public class RestoreService implements ClusterStateApplier {
         this.clusterSettings = clusterService.getClusterSettings();
         this.shardLimitValidator = shardLimitValidator;
 
-        /**
-         * Task will get retried from associated TransportClusterManagerNodeAction.
-         */
+        // Task will get retried from associated TransportClusterManagerNodeAction.
         clusterService.registerThrottlingKey(ClusterManagerThrottlingKeys.RESTORE_SNAPSHOT_KEY, true);
     }
 

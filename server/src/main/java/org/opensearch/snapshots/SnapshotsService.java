@@ -244,9 +244,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 .addSettingsUpdateConsumer(MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING, i -> maxConcurrentOperations = i);
         }
 
-        /**
-         * Task will get retried from associated TransportClusterManagerNodeAction.
-         */
+        // Task will get retried from associated TransportClusterManagerNodeAction.
         clusterService.registerThrottlingKey(ClusterManagerThrottlingKeys.UPDATE_SNAPSHOT_STATE_KEY, true);
         clusterService.registerThrottlingKey(ClusterManagerThrottlingKeys.CREATE_SNAPSHOT_KEY, true);
         clusterService.registerThrottlingKey(ClusterManagerThrottlingKeys.DELETE_SNAPSHOT_KEY, true);
