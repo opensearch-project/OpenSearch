@@ -1,7 +1,7 @@
 "Create PIT, Search with PIT ID and Delete":
   - skip:
-      version: " - 2.2.99"
-      reason: "mode to be introduced later than 2.3"
+      version: " - 2.3.99"
+      reason: "mode to be introduced later than 2.4"
   - do:
       indices.create:
         index: test_pit
@@ -90,8 +90,8 @@
 ---
 "Delete all":
   - skip:
-      version: " - 2.2.99"
-      reason: "mode to be introduced later than 2.3"
+      version: " - 2.3.99"
+      reason: "mode to be introduced later than 2.4"
   - do:
       indices.create:
         index: test_pit
