@@ -11,6 +11,7 @@ package org.opensearch.cluster.decommission;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.Mockito;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterName;
@@ -41,6 +42,8 @@ import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonMap;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.opensearch.cluster.ClusterState.builder;
 import static org.opensearch.cluster.OpenSearchAllocationTestCase.createAllocationService;
 import static org.opensearch.test.ClusterServiceUtils.createClusterService;
@@ -199,6 +202,55 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
         };
         decommissionService.startDecommissionAction(new DecommissionAttribute("zone", "zone_2"), listener);
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
+    }
+
+    public void testDeleteDecommissionState() {
+        TransportService mockTransportService = mock(TransportService.class);
+
+        final Settings.Builder nodeSettingsBuilder = Settings.builder()
+            .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(), "zone")
+            .put("cluster.routing.allocation.awareness.force.zone.values", "zone_1,zone_2,zone_3");
+
+        this.decommissionService = new DecommissionService(
+            nodeSettingsBuilder.build(),
+            clusterSettings,
+            clusterService,
+            mockTransportService,
+            threadPool,
+            allocationService
+        );
+        DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "zone-2");
+        DecommissionAttributeMetadata decommissionAttributeMetadata = new DecommissionAttributeMetadata(
+            decommissionAttribute,
+            DecommissionStatus.SUCCESSFUL
+        );
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
+            .metadata(Metadata.builder().putCustom(DecommissionAttributeMetadata.TYPE, decommissionAttributeMetadata).build())
+            .build();
+        setState(clusterService, clusterState);
+
+        this.decommissionService.deleteDecommissionState(Mockito.mock(ActionListener.class));
+
+        // Decommission Attribute should be removed.
+        verify(mockTransportService).sendRequest(Mockito.any(), Mockito.anyString(), Mockito.any(), Mockito.any());
+    }
+
+    public void testClearClusterDecommissionState() {
+        DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "zone-2");
+        DecommissionAttributeMetadata decommissionAttributeMetadata = new DecommissionAttributeMetadata(
+            decommissionAttribute,
+            DecommissionStatus.SUCCESSFUL
+        );
+        ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
+            .metadata(Metadata.builder().putCustom(DecommissionAttributeMetadata.TYPE, decommissionAttributeMetadata).build())
+            .build();
+
+        final ClusterState newClusterState = this.decommissionService.clearDecommissionClusterState(clusterState);
+        DecommissionAttributeMetadata metadata = newClusterState.metadata().custom(DecommissionAttributeMetadata.TYPE);
+
+        // Decommission Attribute should be removed.
+        assertNull(metadata);
     }
 
     private ClusterState addDataNodes(ClusterState clusterState, String zone, String... nodeIds) {

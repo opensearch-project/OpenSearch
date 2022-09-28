@@ -18,6 +18,9 @@ import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusio
 import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
 import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsRequest;
 import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsResponse;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterAddWeightedRoutingAction;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingRequest;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.ClusterStateTaskConfig;
@@ -26,6 +29,7 @@ import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.coordination.NodeRemovalClusterStateTaskExecutor;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.routing.WeightedRouting;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
@@ -266,5 +270,42 @@ public class DecommissionController {
                 listener.onResponse(decommissionAttributeMetadata.status());
             }
         });
+    }
+
+    void setWeights(String awarenessAttribute, Map<String, Double> weights, ActionListener<ClusterPutWeightedRoutingResponse> listener) {
+        // WRR API will validate invalid weights
+        final ClusterPutWeightedRoutingRequest clusterWeightRequest = new ClusterPutWeightedRoutingRequest();
+        clusterWeightRequest.attributeName(awarenessAttribute);
+        clusterWeightRequest.setWeightedRouting(new WeightedRouting(awarenessAttribute, weights));
+
+        transportService.sendRequest(
+            transportService.getLocalNode(),
+            ClusterAddWeightedRoutingAction.NAME,
+            clusterWeightRequest,
+            new TransportResponseHandler<ClusterPutWeightedRoutingResponse>() {
+                @Override
+                public void handleResponse(ClusterPutWeightedRoutingResponse response) {
+                    logger.info("Weights are successfully set.");
+                    listener.onResponse(response);
+                }
+
+                @Override
+                public void handleException(TransportException exp) {
+                    // Logging warn message on failure. Should we do Retry? If weights are not set should we fail?
+                    logger.warn("Exception occurred while setting weights.Exception Messages - [{}]", exp.unwrapCause().getMessage());
+                    listener.onFailure(exp);
+                }
+
+                @Override
+                public String executor() {
+                    return ThreadPool.Names.SAME;
+                }
+
+                @Override
+                public ClusterPutWeightedRoutingResponse read(StreamInput in) throws IOException {
+                    return new ClusterPutWeightedRoutingResponse(in);
+                }
+            }
+        );
     }
 }
