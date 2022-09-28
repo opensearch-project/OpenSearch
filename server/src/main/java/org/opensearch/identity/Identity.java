@@ -10,7 +10,7 @@ package org.opensearch.identity;
 
 /**
  * Application wide access for identity systems
- * 
+ *
  * @opensearch.experimental
  */
 public final class Identity {

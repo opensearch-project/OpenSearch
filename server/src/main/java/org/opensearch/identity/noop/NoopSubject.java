@@ -12,7 +12,6 @@ import java.security.Principal;
 import java.util.Objects;
 
 import org.opensearch.identity.Subject;
-import org.opensearch.identity.AccessToken;
 import org.opensearch.identity.AuthenticationToken;
 import org.opensearch.identity.Principals;
 

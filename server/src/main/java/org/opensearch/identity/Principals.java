@@ -12,7 +12,7 @@ import java.security.Principal;
 
 /**
  * Available OpenSearch internal principals
- * 
+ *
  * @opensearch.experimental
  */
 public enum Principals {
