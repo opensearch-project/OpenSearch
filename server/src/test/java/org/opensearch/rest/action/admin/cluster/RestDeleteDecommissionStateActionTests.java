@@ -38,10 +38,4 @@ public class RestDeleteDecommissionStateActionTests extends RestActionTestCase {
         DeleteDecommissionStateRequest request = action.createRequest();
         assertNotNull(request);
     }
-
-    private FakeRestRequest buildRestRequest() {
-        return new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.DELETE)
-            .withPath("/_cluster/decommission/awareness")
-            .build();
-    }
 }
