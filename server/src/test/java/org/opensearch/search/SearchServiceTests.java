@@ -46,6 +46,8 @@ import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchType;
+import org.opensearch.action.search.UpdatePitContextRequest;
+import org.opensearch.action.search.UpdatePitContextResponse;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.WriteRequest;
@@ -1406,7 +1408,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         createIndex("index");
         SearchService searchService = getInstanceFromNode(SearchService.class);
         PlainActionFuture<ShardSearchContextId> future = new PlainActionFuture<>();
-        searchService.openReaderContext(new ShardId(resolveIndex("index"), 0), TimeValue.timeValueMinutes(between(1, 10)), future);
+        searchService.createPitReaderContext(new ShardId(resolveIndex("index"), 0), TimeValue.timeValueMinutes(between(1, 10)), future);
         future.actionGet();
         assertThat(searchService.getActiveContexts(), equalTo(1));
         assertTrue(searchService.freeReaderContext(future.actionGet()));
@@ -1421,5 +1423,101 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
             randomNonNegativeLong(),
             false
         );
+    }
+
+    public void testPitContextMaxKeepAlive() {
+        createIndex("index");
+        SearchService searchService = getInstanceFromNode(SearchService.class);
+        PlainActionFuture<ShardSearchContextId> future = new PlainActionFuture<>();
+
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> {
+            searchService.createPitReaderContext(new ShardId(resolveIndex("index"), 0), TimeValue.timeValueHours(25), future);
+            future.actionGet();
+        });
+        assertEquals(
+            "Keep alive for request (1d) is too large. "
+                + "It must be less than ("
+                + SearchService.MAX_PIT_KEEPALIVE_SETTING.get(Settings.EMPTY)
+                + "). "
+                + "This limit can be set by changing the ["
+                + SearchService.MAX_PIT_KEEPALIVE_SETTING.getKey()
+                + "] cluster level setting.",
+            ex.getMessage()
+        );
+        assertThat(searchService.getActiveContexts(), equalTo(0));
+    }
+
+    public void testUpdatePitId() {
+        createIndex("index");
+        SearchService searchService = getInstanceFromNode(SearchService.class);
+        PlainActionFuture<ShardSearchContextId> future = new PlainActionFuture<>();
+        searchService.createPitReaderContext(new ShardId(resolveIndex("index"), 0), TimeValue.timeValueMinutes(between(1, 10)), future);
+        ShardSearchContextId id = future.actionGet();
+        PlainActionFuture<UpdatePitContextResponse> updateFuture = new PlainActionFuture<>();
+        UpdatePitContextRequest updateRequest = new UpdatePitContextRequest(
+            id,
+            "pitId",
+            TimeValue.timeValueMinutes(between(1, 10)).millis(),
+            System.currentTimeMillis()
+        );
+        searchService.updatePitIdAndKeepAlive(updateRequest, updateFuture);
+        UpdatePitContextResponse updateResponse = updateFuture.actionGet();
+        assertTrue(updateResponse.getPitId().equalsIgnoreCase("pitId"));
+        assertTrue(updateResponse.getCreationTime() == updateRequest.getCreationTime());
+        assertTrue(updateResponse.getKeepAlive() == updateRequest.getKeepAlive());
+        assertTrue(updateResponse.getPitId().equalsIgnoreCase("pitId"));
+        assertThat(searchService.getActiveContexts(), equalTo(1));
+        assertTrue(searchService.freeReaderContext(future.actionGet()));
+    }
+
+    public void testUpdatePitIdMaxKeepAlive() {
+        createIndex("index");
+        SearchService searchService = getInstanceFromNode(SearchService.class);
+        PlainActionFuture<ShardSearchContextId> future = new PlainActionFuture<>();
+        searchService.createPitReaderContext(new ShardId(resolveIndex("index"), 0), TimeValue.timeValueMinutes(between(1, 10)), future);
+        ShardSearchContextId id = future.actionGet();
+
+        UpdatePitContextRequest updateRequest = new UpdatePitContextRequest(
+            id,
+            "pitId",
+            TimeValue.timeValueHours(25).millis(),
+            System.currentTimeMillis()
+        );
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> {
+            PlainActionFuture<UpdatePitContextResponse> updateFuture = new PlainActionFuture<>();
+            searchService.updatePitIdAndKeepAlive(updateRequest, updateFuture);
+        });
+
+        assertEquals(
+            "Keep alive for request (1d) is too large. "
+                + "It must be less than ("
+                + SearchService.MAX_PIT_KEEPALIVE_SETTING.get(Settings.EMPTY)
+                + "). "
+                + "This limit can be set by changing the ["
+                + SearchService.MAX_PIT_KEEPALIVE_SETTING.getKey()
+                + "] cluster level setting.",
+            ex.getMessage()
+        );
+        assertThat(searchService.getActiveContexts(), equalTo(1));
+        assertTrue(searchService.freeReaderContext(future.actionGet()));
+    }
+
+    public void testUpdatePitIdWithInvalidReaderId() {
+        SearchService searchService = getInstanceFromNode(SearchService.class);
+        ShardSearchContextId id = new ShardSearchContextId("session", 9);
+
+        UpdatePitContextRequest updateRequest = new UpdatePitContextRequest(
+            id,
+            "pitId",
+            TimeValue.timeValueHours(23).millis(),
+            System.currentTimeMillis()
+        );
+        SearchContextMissingException ex = expectThrows(SearchContextMissingException.class, () -> {
+            PlainActionFuture<UpdatePitContextResponse> updateFuture = new PlainActionFuture<>();
+            searchService.updatePitIdAndKeepAlive(updateRequest, updateFuture);
+        });
+
+        assertEquals("No search context found for id [" + id.getId() + "]", ex.getMessage());
+        assertThat(searchService.getActiveContexts(), equalTo(0));
     }
 }

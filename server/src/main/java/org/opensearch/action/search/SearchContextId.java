@@ -116,7 +116,7 @@ public class SearchContextId {
             }
             return new SearchContextId(Collections.unmodifiableMap(shards), Collections.unmodifiableMap(aliasFilters));
         } catch (IOException e) {
-            throw new IllegalArgumentException(e);
+            throw new IllegalArgumentException("invalid id: [" + id + "]", e);
         }
     }
 
