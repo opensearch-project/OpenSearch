@@ -146,7 +146,10 @@ class JavaDateFormatter implements DateFormatter {
      * <code>DateFormatters</code>.
      * This means that we need to also have multiple RoundUp parsers.
      */
-    private List<DateTimeFormatter> createRoundUpParser(String format, BiConsumer<DateTimeFormatterBuilder, DateTimeFormatter> roundupParserConsumer) {
+    private List<DateTimeFormatter> createRoundUpParser(
+        String format,
+        BiConsumer<DateTimeFormatterBuilder, DateTimeFormatter> roundupParserConsumer
+    ) {
         if (format.contains("||") == false) {
             List<DateTimeFormatter> roundUpParsers = new ArrayList<>();
             for (DateTimeFormatter parser : this.parsers) {
