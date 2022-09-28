@@ -43,9 +43,6 @@ import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainAc
 import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
 import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainRequestBuilder;
 import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
-import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionAction;
-import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionRequest;
-import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionResponse;
 import org.opensearch.action.admin.cluster.health.ClusterHealthAction;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
@@ -113,6 +110,10 @@ import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsAction;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsRequestBuilder;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterAddWeightedRoutingAction;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingRequest;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingRequestBuilder;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingResponse;
 import org.opensearch.action.admin.cluster.snapshots.clone.CloneSnapshotAction;
 import org.opensearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequest;
 import org.opensearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequestBuilder;
@@ -1276,6 +1277,24 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
+        public ActionFuture<ClusterPutWeightedRoutingResponse> putWeightedRouting(ClusterPutWeightedRoutingRequest request) {
+            return execute(ClusterAddWeightedRoutingAction.INSTANCE, request);
+        }
+
+        @Override
+        public void putWeightedRouting(
+            ClusterPutWeightedRoutingRequest request,
+            ActionListener<ClusterPutWeightedRoutingResponse> listener
+        ) {
+            execute(ClusterAddWeightedRoutingAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public ClusterPutWeightedRoutingRequestBuilder prepareWeightedRouting() {
+            return new ClusterPutWeightedRoutingRequestBuilder(this, ClusterAddWeightedRoutingAction.INSTANCE);
+        }
+
+        @Override
         public void deleteDanglingIndex(DeleteDanglingIndexRequest request, ActionListener<AcknowledgedResponse> listener) {
             execute(DeleteDanglingIndexAction.INSTANCE, request, listener);
         }
@@ -1324,11 +1343,6 @@ public abstract class AbstractClient implements Client {
         @Override
         public DeleteStoredScriptRequestBuilder prepareDeleteStoredScript(String id) {
             return prepareDeleteStoredScript().setId(id);
-        }
-
-        @Override
-        public void decommission(DecommissionRequest request, ActionListener<DecommissionResponse> listener) {
-            execute(DecommissionAction.INSTANCE, request, listener);
         }
     }
 
