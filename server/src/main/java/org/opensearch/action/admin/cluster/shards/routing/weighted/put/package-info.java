@@ -6,7 +6,5 @@
  * compatible open source license.
  */
 
-/**
- * WRR PUT API request/response.
- */
+/** add/update weighted-round robin shard routing weights. */
 package org.opensearch.action.admin.cluster.shards.routing.weighted.put;

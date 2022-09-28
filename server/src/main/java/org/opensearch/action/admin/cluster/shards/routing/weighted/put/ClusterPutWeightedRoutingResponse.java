@@ -10,7 +10,6 @@ package org.opensearch.action.admin.cluster.shards.routing.weighted.put;
 
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.xcontent.ToXContentObject;
 
 import java.io.IOException;
 
@@ -19,7 +18,7 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public class ClusterPutWeightedRoutingResponse extends AcknowledgedResponse implements ToXContentObject {
+public class ClusterPutWeightedRoutingResponse extends AcknowledgedResponse {
     public ClusterPutWeightedRoutingResponse(boolean acknowledged) {
         super(acknowledged);
     }
