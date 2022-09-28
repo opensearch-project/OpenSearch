@@ -28,7 +28,7 @@ import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedT
  * Create point in time response with point in time id and shard success / failures
  */
 public class CreatePitResponse extends ActionResponse implements StatusToXContentObject {
-    private static final ParseField ID = new ParseField("id");
+    private static final ParseField ID = new ParseField("pit_id");
     private static final ParseField CREATION_TIME = new ParseField("creation_time");
 
     // point in time id
