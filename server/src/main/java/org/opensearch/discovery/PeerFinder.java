@@ -144,7 +144,8 @@ public abstract class PeerFinder {
         findPeersInterval = localNodeCommissioned
             ? DISCOVERY_FIND_PEERS_INTERVAL_SETTING.get(settings)
             : DISCOVERY_FIND_PEERS_INTERVAL_DURING_DECOMMISSION_SETTING.get(settings);
-        logger.info("setting findPeersInterval to [{}] as node commission status = [{}] for local node [{}]",
+        logger.info(
+            "setting findPeersInterval to [{}] as node commission status = [{}] for local node [{}]",
             findPeersInterval,
             localNodeCommissioned,
             transportService.getLocalNode()
