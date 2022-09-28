@@ -43,52 +43,8 @@ public class ClusterManagerTaskThrottler implements TaskBatcherListener {
         Setting.Property.NodeScope
     );
 
-    public static Map<String, Boolean> THROTTLING_TASK_KEYS = new ConcurrentHashMap<>();
+    protected Map<String, Boolean> THROTTLING_TASK_KEYS = new ConcurrentHashMap<>();
 
-    /**
-     * To configure more task for throttling, override getClusterManagerThrottlingKey method with task name in task executor.
-     * Verify that throttled tasks would be retry.
-     *
-     * Added retry mechanism in TransportClusterManagerNodeAction so it would be retried for customer generated tasks.
-     */
-    public static Set<String> CONFIGURED_TASK_FOR_THROTTLING = Collections.unmodifiableSet(
-        new HashSet<>(
-            Arrays.asList(
-                "update-settings",
-                "cluster-update-settings",
-                "create-index",
-                "auto-create",
-                "delete-index",
-                "delete-dangling-index",
-                "create-data-stream",
-                "remove-data-stream",
-                "rollover-index",
-                "index-aliases",
-                "put-mapping",
-                "create-index-template",
-                "remove-index-template",
-                "create-component-template",
-                "remove-component-template",
-                "create-index-template-v2",
-                "remove-index-template-v2",
-                "put-pipeline",
-                "delete-pipeline",
-                "create-persistent-task",
-                "finish-persistent-task",
-                "remove-persistent-task",
-                "update-task-state",
-                "put-script",
-                "delete-script",
-                "put_repository",
-                "delete_repository",
-                "create-snapshot",
-                "delete-snapshot",
-                "update-snapshot-state",
-                "restore_snapshot",
-                "cluster-reroute-api"
-            )
-        )
-    );
     private final int MIN_THRESHOLD_VALUE = -1; // Disabled throttling
     private final ClusterManagerTaskThrottlerListener clusterManagerTaskThrottlerListener;
 
@@ -108,7 +64,14 @@ public class ClusterManagerTaskThrottler implements TaskBatcherListener {
         tasksThreshold = new ConcurrentHashMap<>(128); // setting initial capacity so each task will land in different segment
     }
 
-    // need to validate if same key is not mapped against multiple actions.
+    /**
+     * To configure more task for throttling, override getClusterManagerThrottlingKey method with task name in task executor.
+     * Verify that throttled tasks would be retry.
+     *
+     * Added retry mechanism in TransportClusterManagerNodeAction so it would be retried for customer generated tasks.
+     *
+     * If tasks are not getting retried then we can register with false flag, so user wont be able to configure threshold limits for it.
+     */
     protected void registerThrottlingKey(String throttlingKey, boolean retryableOnDataNode) {
         if (THROTTLING_TASK_KEYS.containsKey(throttlingKey)) {
             throw new IllegalArgumentException("Duplicate throttling keys are configured ");
