@@ -75,6 +75,7 @@ import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.routing.allocation.AllocationService;
+import org.opensearch.cluster.service.ClusterManagerThrottlingKeys;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.UUIDs;
@@ -197,6 +198,11 @@ public class RestoreService implements ClusterStateApplier {
         }
         this.clusterSettings = clusterService.getClusterSettings();
         this.shardLimitValidator = shardLimitValidator;
+
+        /**
+         * Task will get retried from associated TransportClusterManagerNodeAction.
+         */
+        clusterService.registerThrottlingKey(ClusterManagerThrottlingKeys.RESTORE_SNAPSHOT_KEY, true);
     }
 
     /**
@@ -390,7 +396,7 @@ public class RestoreService implements ClusterStateApplier {
 
                     @Override
                     public String getClusterManagerThrottlingKey() {
-                        return "restore_snapshot";
+                        return ClusterManagerThrottlingKeys.RESTORE_SNAPSHOT_KEY;
                     }
 
                     @Override

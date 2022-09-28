@@ -292,6 +292,16 @@ public class ClusterService extends AbstractLifecycleComponent {
     }
 
     /**
+     * Functionality for register task type for cluster manager throttling.
+     *
+     * @param throttlingKey task key which needs to be registered for throttling.
+     * @param retryableOnDataNode has data retry mechanism for throttling exception
+     */
+    public void registerThrottlingKey(String throttlingKey, boolean retryableOnDataNode) {
+        clusterManagerService.registerThrottlingKey(throttlingKey, retryableOnDataNode);
+    }
+
+    /**
      * Submits a cluster state update task; unlike {@link #submitStateUpdateTask(String, Object, ClusterStateTaskConfig,
      * ClusterStateTaskExecutor, ClusterStateTaskListener)}, submitted updates will not be batched.
      *

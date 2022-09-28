@@ -37,14 +37,13 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingClusterStateUpdateRequest;
-import org.opensearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.opensearch.cluster.AckedClusterStateTaskListener;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateTaskConfig;
 import org.opensearch.cluster.ClusterStateTaskExecutor;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
+import org.opensearch.cluster.service.ClusterManagerThrottlingKeys;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
@@ -77,7 +76,6 @@ import static org.opensearch.indices.cluster.IndicesClusterStateService.Allocate
 public class MetadataMappingService {
 
     private static final Logger logger = LogManager.getLogger(MetadataMappingService.class);
-    private static final String PUT_MAPPING_CLUSTER_MANAGER_TASK_KEY = "put-mapping";
 
     private final ClusterService clusterService;
     private final IndicesService indicesService;
@@ -90,10 +88,11 @@ public class MetadataMappingService {
         this.clusterService = clusterService;
         this.indicesService = indicesService;
 
-        /*
-         * Task will get retried from { @link TransportClusterManagerNodeAction}
+        /**
+         * Task will get retried from associated TransportClusterManagerNodeAction.
          */
-        ClusterManagerTaskThrottler.registerThrottlingKey(PUT_MAPPING_CLUSTER_MANAGER_TASK_KEY, true);
+        clusterService.registerThrottlingKey(ClusterManagerThrottlingKeys.PUT_MAPPING_KEY, true);
+
     }
 
     static class RefreshTask {
@@ -256,7 +255,7 @@ public class MetadataMappingService {
 
         @Override
         public String getClusterManagerThrottlingKey() {
-            return PUT_MAPPING_CLUSTER_MANAGER_TASK_KEY;
+            return ClusterManagerThrottlingKeys.PUT_MAPPING_KEY;
         }
 
         private ClusterState applyRequest(

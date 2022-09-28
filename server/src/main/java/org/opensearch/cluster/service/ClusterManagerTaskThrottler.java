@@ -11,11 +11,6 @@ package org.opensearch.cluster.service;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.Version;
-import org.opensearch.action.admin.indices.create.TransportCreateIndexAction;
-import org.opensearch.action.admin.indices.delete.TransportDeleteIndexAction;
-import org.opensearch.action.admin.indices.mapping.put.TransportPutMappingAction;
-import org.opensearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
-import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterStateTaskExecutor;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
@@ -47,7 +42,6 @@ public class ClusterManagerTaskThrottler implements TaskBatcherListener {
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
-
 
     public static Map<String, Boolean> THROTTLING_TASK_KEYS = new ConcurrentHashMap<>();
 
@@ -112,19 +106,11 @@ public class ClusterManagerTaskThrottler implements TaskBatcherListener {
         this.clusterManagerTaskThrottlerListener = clusterManagerTaskThrottlerListener;
         tasksCount = new ConcurrentHashMap<>(128); // setting initial capacity so each task will land in different segment
         tasksThreshold = new ConcurrentHashMap<>(128); // setting initial capacity so each task will land in different segment
-        validateThrottlingTaskKeys();
     }
 
     // need to validate if same key is not mapped against multiple actions.
-    void validateThrottlingTaskKeys() {
-        // Checking for duplicates in value
-        if(new HashSet(THROTTLING_TASK_KEYS.values()).size() != THROTTLING_TASK_KEYS.values().size()) {
-            throw new IllegalArgumentException("Duplicate throttling keys are configured ");
-        }
-    }
-
-    public static void registerThrottlingKey(String throttlingKey, boolean retryableOnDataNode) {
-        if(THROTTLING_TASK_KEYS.containsKey(throttlingKey)) {
+    protected void registerThrottlingKey(String throttlingKey, boolean retryableOnDataNode) {
+        if (THROTTLING_TASK_KEYS.containsKey(throttlingKey)) {
             throw new IllegalArgumentException("Duplicate throttling keys are configured ");
         }
         THROTTLING_TASK_KEYS.put(throttlingKey, retryableOnDataNode);
@@ -143,7 +129,9 @@ public class ClusterManagerTaskThrottler implements TaskBatcherListener {
                 throw new IllegalArgumentException("Cluster manager task throttling is not configured for given task type: " + key);
             }
             if (!THROTTLING_TASK_KEYS.get(key)) {
-                throw new IllegalArgumentException("Data node doesn't perform retries for Cluster manager task throttling for given task type: " + key);
+                throw new IllegalArgumentException(
+                    "Data node doesn't perform retries for Cluster manager task throttling for given task type: " + key
+                );
             }
             int threshold = groups.get(key).getAsInt("value", MIN_THRESHOLD_VALUE);
             if (threshold < MIN_THRESHOLD_VALUE) {

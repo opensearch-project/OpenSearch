@@ -39,6 +39,7 @@ import org.opensearch.cluster.AckedClusterStateUpdateTask;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
 import org.opensearch.cluster.metadata.AliasAction.NewAliasValidator;
+import org.opensearch.cluster.service.ClusterManagerThrottlingKeys;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.Strings;
@@ -92,6 +93,12 @@ public class MetadataIndexAliasesService {
         this.aliasValidator = aliasValidator;
         this.deleteIndexService = deleteIndexService;
         this.xContentRegistry = xContentRegistry;
+
+        /**
+         * Task will get retried from associated TransportClusterManagerNodeAction.
+         */
+        clusterService.registerThrottlingKey(ClusterManagerThrottlingKeys.INDEX_ALIASES_KEY, true);
+
     }
 
     public void indicesAliases(
@@ -108,7 +115,7 @@ public class MetadataIndexAliasesService {
 
                 @Override
                 public String getClusterManagerThrottlingKey() {
-                    return "index-aliases";
+                    return ClusterManagerThrottlingKeys.INDEX_ALIASES_KEY;
                 }
 
                 @Override

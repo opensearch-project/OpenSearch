@@ -54,6 +54,7 @@ import org.opensearch.cluster.routing.allocation.RoutingExplanations;
 import org.opensearch.cluster.routing.allocation.command.AbstractAllocateAllocationCommand;
 import org.opensearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
 import org.opensearch.cluster.routing.allocation.command.AllocationCommand;
+import org.opensearch.cluster.service.ClusterManagerThrottlingKeys;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.Strings;
@@ -100,6 +101,10 @@ public class TransportClusterRerouteAction extends TransportClusterManagerNodeAc
             indexNameExpressionResolver
         );
         this.allocationService = allocationService;
+        /**
+         * Task will get retried from associated TransportClusterManagerNodeAction.
+         */
+        clusterService.registerThrottlingKey(ClusterManagerThrottlingKeys.CLUSTER_REROUTE_API_KEY, true);
     }
 
     @Override
@@ -243,7 +248,7 @@ public class TransportClusterRerouteAction extends TransportClusterManagerNodeAc
 
         @Override
         public String getClusterManagerThrottlingKey() {
-            return "cluster-reroute-api";
+            return ClusterManagerThrottlingKeys.CLUSTER_REROUTE_API_KEY;
         }
 
         @Override

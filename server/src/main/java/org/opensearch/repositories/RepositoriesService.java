@@ -53,6 +53,7 @@ import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
+import org.opensearch.cluster.service.ClusterManagerThrottlingKeys;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Strings;
 import org.opensearch.common.component.AbstractLifecycleComponent;
@@ -137,6 +138,11 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             REPOSITORIES_STATS_ARCHIVE_MAX_ARCHIVED_STATS.get(settings),
             threadPool::relativeTimeInMillis
         );
+        /**
+         * Task will get retried from associated TransportClusterManagerNodeAction.
+         */
+        clusterService.registerThrottlingKey(ClusterManagerThrottlingKeys.PUT_REPOSITORY_KEY, true);
+        clusterService.registerThrottlingKey(ClusterManagerThrottlingKeys.DELETE_REPOSITORY_KEY, true);
     }
 
     /**
@@ -231,7 +237,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
                 @Override
                 public String getClusterManagerThrottlingKey() {
-                    return "put_repository";
+                    return ClusterManagerThrottlingKeys.PUT_REPOSITORY_KEY;
                 }
 
                 @Override
@@ -297,7 +303,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
                 @Override
                 public String getClusterManagerThrottlingKey() {
-                    return "delete_repository";
+                    return ClusterManagerThrottlingKeys.DELETE_REPOSITORY_KEY;
                 }
 
                 @Override

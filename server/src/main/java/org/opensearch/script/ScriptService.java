@@ -45,6 +45,7 @@ import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateApplier;
 import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.service.ClusterManagerThrottlingKeys;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Strings;
 import org.opensearch.common.settings.ClusterSettings;
@@ -607,7 +608,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
 
                 @Override
                 public String getClusterManagerThrottlingKey() {
-                    return "put-script";
+                    return ClusterManagerThrottlingKeys.PUT_SCRIPT_KEY;
                 }
             }
         );
@@ -638,7 +639,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
 
                 @Override
                 public String getClusterManagerThrottlingKey() {
-                    return "delete-script";
+                    return ClusterManagerThrottlingKeys.DELETE_SCRIPT_KEY;
                 }
             }
         );

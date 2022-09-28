@@ -50,6 +50,7 @@ import org.opensearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.opensearch.cluster.metadata.MetadataCreateDataStreamService.CreateDataStreamClusterStateUpdateRequest;
 import org.opensearch.cluster.metadata.MetadataCreateIndexService;
 import org.opensearch.cluster.metadata.MetadataIndexTemplateService;
+import org.opensearch.cluster.service.ClusterManagerThrottlingKeys;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.inject.Inject;
@@ -99,6 +100,11 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
             this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
             this.createIndexService = createIndexService;
             this.metadataCreateDataStreamService = metadataCreateDataStreamService;
+
+            /**
+             * Task will get retried from associated TransportClusterManagerNodeAction.
+             */
+            clusterService.registerThrottlingKey(ClusterManagerThrottlingKeys.AUTO_CREATE_KEY, true);
         }
 
         @Override
@@ -144,7 +150,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
 
                     @Override
                     public String getClusterManagerThrottlingKey() {
-                        return "auto-create";
+                        return ClusterManagerThrottlingKeys.AUTO_CREATE_KEY;
                     }
 
                     @Override

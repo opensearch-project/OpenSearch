@@ -77,6 +77,7 @@ import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.service.ClusterManagerThrottlingKeys;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
@@ -242,6 +243,13 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             clusterService.getClusterSettings()
                 .addSettingsUpdateConsumer(MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING, i -> maxConcurrentOperations = i);
         }
+
+        /**
+         * Task will get retried from associated TransportClusterManagerNodeAction.
+         */
+        clusterService.registerThrottlingKey(ClusterManagerThrottlingKeys.UPDATE_SNAPSHOT_STATE_KEY, true);
+        clusterService.registerThrottlingKey(ClusterManagerThrottlingKeys.CREATE_SNAPSHOT_KEY, true);
+        clusterService.registerThrottlingKey(ClusterManagerThrottlingKeys.DELETE_SNAPSHOT_KEY, true);
     }
 
     /**
@@ -534,7 +542,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public String getClusterManagerThrottlingKey() {
-                return "create-snapshot";
+                return ClusterManagerThrottlingKeys.CREATE_SNAPSHOT_KEY;
             }
 
             @Override
@@ -2285,7 +2293,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public String getClusterManagerThrottlingKey() {
-                return "delete-snapshot";
+                return ClusterManagerThrottlingKeys.DELETE_SNAPSHOT_KEY;
             }
 
             @Override
@@ -3257,7 +3265,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
         @Override
         public String getClusterManagerThrottlingKey() {
-            return "update-snapshot-state";
+            return ClusterManagerThrottlingKeys.UPDATE_SNAPSHOT_STATE_KEY;
         }
     };
 

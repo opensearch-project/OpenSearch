@@ -43,7 +43,6 @@ import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
-import org.opensearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.opensearch.action.admin.indices.shrink.ResizeType;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.ActiveShardsObserver;
@@ -61,7 +60,7 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
-import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
+import org.opensearch.cluster.service.ClusterManagerThrottlingKeys;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
@@ -135,7 +134,6 @@ public class MetadataCreateIndexService {
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(MetadataCreateIndexService.class);
 
     public static final int MAX_INDEX_NAME_BYTES = 255;
-    private static final String CREATE_INDEX_CLUSTER_MANAGER_TASK_KEY = "create-index";
 
     private final Settings settings;
     private final ClusterService clusterService;
@@ -181,10 +179,10 @@ public class MetadataCreateIndexService {
         this.shardLimitValidator = shardLimitValidator;
         this.awarenessReplicaBalance = awarenessReplicaBalance;
 
-        /*
-         * Task will get retried from { @link TransportClusterManagerNodeAction}
+        /**
+         * Task will get retried from associated TransportClusterManagerNodeAction.
          */
-        ClusterManagerTaskThrottler.registerThrottlingKey(CREATE_INDEX_CLUSTER_MANAGER_TASK_KEY, true);
+        clusterService.registerThrottlingKey(ClusterManagerThrottlingKeys.CREATE_INDEX_KEY, true);
     }
 
     /**
@@ -336,7 +334,7 @@ public class MetadataCreateIndexService {
 
                 @Override
                 public String getClusterManagerThrottlingKey() {
-                    return CREATE_INDEX_CLUSTER_MANAGER_TASK_KEY;
+                    return ClusterManagerThrottlingKeys.CREATE_INDEX_KEY;
                 }
 
                 @Override

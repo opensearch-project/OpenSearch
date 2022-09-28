@@ -47,6 +47,7 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.allocation.AllocationService;
+import org.opensearch.cluster.service.ClusterManagerThrottlingKeys;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
@@ -95,6 +96,12 @@ public class TransportClusterUpdateSettingsAction extends TransportClusterManage
         );
         this.allocationService = allocationService;
         this.clusterSettings = clusterSettings;
+
+        /**
+         * Task will get retried from associated TransportClusterManagerNodeAction.
+         */
+        clusterService.registerThrottlingKey(ClusterManagerThrottlingKeys.CLUSTER_UPDATE_SETTINGS_KEY, true);
+
     }
 
     @Override
@@ -138,7 +145,7 @@ public class TransportClusterUpdateSettingsAction extends TransportClusterManage
 
                 @Override
                 public String getClusterManagerThrottlingKey() {
-                    return "cluster-update-settings";
+                    return ClusterManagerThrottlingKeys.CLUSTER_UPDATE_SETTINGS_KEY;
                 }
 
                 @Override

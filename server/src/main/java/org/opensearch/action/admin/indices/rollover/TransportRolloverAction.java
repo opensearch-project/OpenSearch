@@ -49,6 +49,7 @@ import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.service.ClusterManagerThrottlingKeys;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.inject.Inject;
@@ -100,6 +101,10 @@ public class TransportRolloverAction extends TransportClusterManagerNodeAction<R
         this.rolloverService = rolloverService;
         this.client = client;
         this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
+        /**
+         * Task will get retried from associated TransportClusterManagerNodeAction.
+         */
+        clusterService.registerThrottlingKey(ClusterManagerThrottlingKeys.ROLLOVER_INDEX_KEY, true);
     }
 
     @Override
@@ -206,7 +211,7 @@ public class TransportRolloverAction extends TransportClusterManagerNodeAction<R
 
                             @Override
                             public String getClusterManagerThrottlingKey() {
-                                return "rollover-index";
+                                return ClusterManagerThrottlingKeys.ROLLOVER_INDEX_KEY;
                             }
 
                             @Override

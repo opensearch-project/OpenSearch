@@ -935,6 +935,16 @@ public class MasterService extends AbstractLifecycleComponent {
     }
 
     /**
+     * Functionality for register task type for cluster manager throttling.
+     *
+     * @param throttlingKey task key which needs to be registered for throttling.
+     * @param retryableOnDataNode has data retry mechanism for throttling exception
+     */
+    public void registerThrottlingKey(String throttlingKey, boolean retryableOnDataNode) {
+        clusterManagerTaskThrottler.registerThrottlingKey(throttlingKey, retryableOnDataNode);
+    }
+
+    /**
      * Submits a batch of cluster state update tasks; submitted updates are guaranteed to be processed together,
      * potentially with more tasks of the same executor.
      *

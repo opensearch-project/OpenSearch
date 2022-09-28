@@ -36,7 +36,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.delete.DeleteIndexClusterStateUpdateRequest;
-import org.opensearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.opensearch.cluster.AckedClusterStateUpdateTask;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.RestoreInProgress;
@@ -44,7 +43,7 @@ import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.allocation.AllocationService;
-import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
+import org.opensearch.cluster.service.ClusterManagerThrottlingKeys;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.collect.ImmutableOpenMap;
@@ -70,7 +69,6 @@ import java.util.Set;
 public class MetadataDeleteIndexService {
 
     private static final Logger logger = LogManager.getLogger(MetadataDeleteIndexService.class);
-    private static final String DELETE_INDEX_CLUSTER_MANAGER_TASK_KEY = "delete-index";
 
     private final Settings settings;
     private final ClusterService clusterService;
@@ -83,10 +81,11 @@ public class MetadataDeleteIndexService {
         this.clusterService = clusterService;
         this.allocationService = allocationService;
 
-        /*
-         * Task will get retried from { @link TransportClusterManagerNodeAction}
+        /**
+         * Task will get retried from associated TransportClusterManagerNodeAction.
          */
-        ClusterManagerTaskThrottler.registerThrottlingKey(DELETE_INDEX_CLUSTER_MANAGER_TASK_KEY, true);
+        clusterService.registerThrottlingKey(ClusterManagerThrottlingKeys.DELETE_INDEX_KEY, true);
+
     }
 
     public void deleteIndices(
@@ -108,7 +107,7 @@ public class MetadataDeleteIndexService {
 
                 @Override
                 public String getClusterManagerThrottlingKey() {
-                    return DELETE_INDEX_CLUSTER_MANAGER_TASK_KEY;
+                    return ClusterManagerThrottlingKeys.DELETE_INDEX_KEY;
                 }
 
                 @Override

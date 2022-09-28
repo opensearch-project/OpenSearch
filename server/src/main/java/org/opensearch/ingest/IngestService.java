@@ -56,6 +56,7 @@ import org.opensearch.cluster.metadata.IndexTemplateMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.MetadataIndexTemplateService;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.service.ClusterManagerThrottlingKeys;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.regex.Regex;
@@ -141,8 +142,13 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 threadPool.generic()::execute
             )
         );
-
         this.threadPool = threadPool;
+
+        /**
+         * Task will get retried from associated TransportClusterManagerNodeAction.
+         */
+        clusterService.registerThrottlingKey(ClusterManagerThrottlingKeys.PUT_PIPELINE_KEY, true);
+        clusterService.registerThrottlingKey(ClusterManagerThrottlingKeys.DELETE_PIPELINE_KEY, true);
     }
 
     private static Map<String, Processor.Factory> processorFactories(List<IngestPlugin> ingestPlugins, Processor.Parameters parameters) {
@@ -294,7 +300,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
                 @Override
                 public String getClusterManagerThrottlingKey() {
-                    return "delete-pipeline";
+                    return ClusterManagerThrottlingKeys.DELETE_PIPELINE_KEY;
                 }
             }
         );
@@ -393,7 +399,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
                 @Override
                 public String getClusterManagerThrottlingKey() {
-                    return "put-pipeline";
+                    return ClusterManagerThrottlingKeys.PUT_PIPELINE_KEY;
                 }
             }
         );

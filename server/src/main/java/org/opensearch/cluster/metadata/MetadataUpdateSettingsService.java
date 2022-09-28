@@ -37,7 +37,6 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
-import org.opensearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
 import org.opensearch.action.admin.indices.settings.put.UpdateSettingsClusterStateUpdateRequest;
 import org.opensearch.action.admin.indices.upgrade.post.UpgradeSettingsClusterStateUpdateRequest;
 import org.opensearch.cluster.AckedClusterStateUpdateTask;
@@ -48,7 +47,7 @@ import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
-import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
+import org.opensearch.cluster.service.ClusterManagerThrottlingKeys;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.ValidationException;
@@ -82,7 +81,6 @@ import static org.opensearch.index.IndexSettings.same;
  */
 public class MetadataUpdateSettingsService {
     private static final Logger logger = LogManager.getLogger(MetadataUpdateSettingsService.class);
-    private static final String UPDATE_SETTING_CLUSTER_MANAGER_TASK_KEY = "update-setting";
 
     private final ClusterService clusterService;
 
@@ -113,10 +111,10 @@ public class MetadataUpdateSettingsService {
         this.shardLimitValidator = shardLimitValidator;
         this.awarenessReplicaBalance = awarenessReplicaBalance;
 
-        /*
-         * Task will get retried from { @link TransportClusterManagerNodeAction}
+        /**
+         * Task will get retried from associated TransportClusterManagerNodeAction.
          */
-        ClusterManagerTaskThrottler.registerThrottlingKey(UPDATE_SETTING_CLUSTER_MANAGER_TASK_KEY, true);
+        clusterService.registerThrottlingKey(ClusterManagerThrottlingKeys.UPDATE_SETTINGS_KEY, true);
     }
 
     public void updateSettings(
@@ -172,7 +170,7 @@ public class MetadataUpdateSettingsService {
 
                 @Override
                 public String getClusterManagerThrottlingKey() {
-                    return UPDATE_SETTING_CLUSTER_MANAGER_TASK_KEY;
+                    return ClusterManagerThrottlingKeys.UPDATE_SETTINGS_KEY;
                 }
 
                 @Override
