@@ -93,7 +93,7 @@ public class JoinHelperTests extends OpenSearchTestCase {
             Collections.emptyList(),
             (s, p, r) -> {},
             () -> new StatusInfo(HEALTHY, "info"),
-            mock(ActionListener.class)
+            nodeCommissioned -> {}
         );
         transportService.start();
 
@@ -234,7 +234,7 @@ public class JoinHelperTests extends OpenSearchTestCase {
             Collections.emptyList(),
             (s, p, r) -> {},
             null,
-            mock(ActionListener.class)
+            nodeCommissioned -> {}
         ); // registers request handler
         transportService.start();
         transportService.acceptIncomingRequests();
@@ -289,7 +289,7 @@ public class JoinHelperTests extends OpenSearchTestCase {
             Collections.emptyList(),
             (s, p, r) -> {},
             () -> nodeHealthServiceStatus.get(),
-            mock(ActionListener.class)
+            nodeCommissioned -> {}
         );
         transportService.start();
 

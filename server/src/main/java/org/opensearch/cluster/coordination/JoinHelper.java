@@ -80,6 +80,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -114,13 +115,13 @@ public class JoinHelper {
 
     private final TimeValue joinTimeout; // only used for Zen1 joining
     private final NodeHealthService nodeHealthService;
-    private final ActionListener<Void> nodeCommissionedListener;
 
     private final Set<Tuple<DiscoveryNode, JoinRequest>> pendingOutgoingJoins = Collections.synchronizedSet(new HashSet<>());
 
     private final AtomicReference<FailedJoinAttempt> lastFailedJoinAttempt = new AtomicReference<>();
 
     private final Supplier<JoinTaskExecutor> joinTaskExecutorGenerator;
+    private final Consumer<Boolean> nodeCommissioned;
 
     JoinHelper(
         Settings settings,
@@ -134,13 +135,13 @@ public class JoinHelper {
         Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators,
         RerouteService rerouteService,
         NodeHealthService nodeHealthService,
-        ActionListener<Void> nodeCommissionedListener
+        Consumer<Boolean> nodeCommissioned
     ) {
         this.clusterManagerService = clusterManagerService;
         this.transportService = transportService;
         this.nodeHealthService = nodeHealthService;
         this.joinTimeout = JOIN_TIMEOUT_SETTING.get(settings);
-        this.nodeCommissionedListener = nodeCommissionedListener;
+        this.nodeCommissioned = nodeCommissioned;
         this.joinTaskExecutorGenerator = () -> new JoinTaskExecutor(settings, allocationService, logger, rerouteService, transportService) {
 
             private final long term = currentTermSupplier.getAsLong();
@@ -347,7 +348,7 @@ public class JoinHelper {
                         pendingOutgoingJoins.remove(dedupKey);
                         logger.debug("successfully joined {} with {}", destination, joinRequest);
                         lastFailedJoinAttempt.set(null);
-                        nodeCommissionedListener.onResponse(null);
+                        nodeCommissioned.accept(true);
                         onCompletion.run();
                     }
 
@@ -360,7 +361,7 @@ public class JoinHelper {
                         lastFailedJoinAttempt.set(attempt);
                         if (exp instanceof RemoteTransportException && (exp.getCause() instanceof NodeDecommissionedException)) {
                             logger.info("local node is decommissioned. Will not be able to join the cluster");
-                            nodeCommissionedListener.onFailure(exp);
+                            nodeCommissioned.accept(false);
                         }
                         onCompletion.run();
                     }

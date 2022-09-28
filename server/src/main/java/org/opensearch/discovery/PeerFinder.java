@@ -110,7 +110,7 @@ public abstract class PeerFinder {
 
     private volatile long currentTerm;
     private boolean active;
-    private boolean localNodeDecommissioned = false;
+    private boolean localNodeCommissioned = true;
     private DiscoveryNodes lastAcceptedNodes;
     private final Map<TransportAddress, Peer> peersByAddress = new LinkedHashMap<>();
     private Optional<DiscoveryNode> leader = Optional.empty();
@@ -139,26 +139,15 @@ public abstract class PeerFinder {
         );
     }
 
-    public ActionListener<Void> nodeCommissionedListener() {
-        return new ActionListener<Void>() {
-            @Override
-            public void onResponse(Void unused) {
-                localNodeDecommissioned = false;
-                findPeersInterval = DISCOVERY_FIND_PEERS_INTERVAL_SETTING.get(settings);
-                logger.info("updated findPeersInterval to [{}] as node is commissioned", findPeersInterval);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                localNodeDecommissioned = true;
-                findPeersInterval = DISCOVERY_FIND_PEERS_INTERVAL_DURING_DECOMMISSION_SETTING.get(settings);
-                logger.info("updated findPeersInterval to [{}] as node is decommissioned", findPeersInterval);
-            }
-        };
+    public void setFindPeersInterval(boolean localNodeCommissioned) {
+        this.localNodeCommissioned = localNodeCommissioned;
+        findPeersInterval = localNodeCommissioned ? DISCOVERY_FIND_PEERS_INTERVAL_SETTING.get(settings) :
+            DISCOVERY_FIND_PEERS_INTERVAL_DURING_DECOMMISSION_SETTING.get(settings);
+        logger.info("setting findPeersInterval to [{}] as node commission status = [{}]", findPeersInterval, localNodeCommissioned);
     }
 
-    public boolean localNodeDecommissioned() {
-        return localNodeDecommissioned;
+    public boolean localNodeCommissioned() {
+        return localNodeCommissioned;
     }
 
     public void activate(final DiscoveryNodes lastAcceptedNodes) {

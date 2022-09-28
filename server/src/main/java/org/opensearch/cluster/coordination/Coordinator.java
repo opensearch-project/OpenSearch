@@ -99,6 +99,7 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -243,7 +244,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             this.onJoinValidators,
             rerouteService,
             nodeHealthService,
-            peerFinder.nodeCommissionedListener()
+            this::nodeCommissioned
         );
         this.publicationHandler = new PublicationTransportHandler(
             transportService,
@@ -284,6 +285,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         );
         this.nodeHealthService = nodeHealthService;
     }
+
+
 
     private ClusterFormationState getClusterFormationState() {
         return new ClusterFormationState(
@@ -1426,6 +1429,10 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         }
     }
 
+    private void nodeCommissioned(boolean localNodeCommissioned) {
+        peerFinder.setFindPeersInterval(localNodeCommissioned);
+    }
+
     private void startElectionScheduler() {
         assert electionScheduler == null : electionScheduler;
 
@@ -1452,7 +1459,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                             return;
                         }
 
-                        if (peerFinder.localNodeDecommissioned()) {
+                        if (peerFinder.localNodeCommissioned() == false) {
                             logger.debug("skip prevoting as local node is decommissioned");
                             return;
                         }
