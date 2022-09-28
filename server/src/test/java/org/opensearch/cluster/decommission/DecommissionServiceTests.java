@@ -228,7 +228,7 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
 
         expectThrows(
             AssertionError.class,
-            () -> decommissionService.setWeightsForAwarenessAttribute(awarenessValues, newState, Mockito.mock(DecommissionRequest.class))
+            () -> decommissionService.setRoutingWeightsToAwarenessAttribute(awarenessValues, Mockito.mock(DecommissionRequest.class))
         );
     }
 
@@ -262,7 +262,7 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
 
         List<String> awarenessValues = List.of("zone-1", "zone-2", "zone-3");
 
-        decommissionService.setWeightsForAwarenessAttribute(awarenessValues, newState, Mockito.mock(DecommissionRequest.class));
+        decommissionService.setRoutingWeightsToAwarenessAttribute(awarenessValues, Mockito.mock(DecommissionRequest.class));
 
         ArgumentCaptor<ClusterPutWeightedRoutingRequest> clusterPutWRRWeightsRequestArgumentCaptor = ArgumentCaptor.forClass(
             ClusterPutWeightedRoutingRequest.class
@@ -309,7 +309,7 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
             allocationService
         );
 
-        decommissionService.scheduleNodesDecommissionOnTimeout(clusterService.state(), TimeValue.timeValueSeconds(0));
+        decommissionService.scheduleNodesDecommissionOnTimeout(TimeValue.timeValueSeconds(0));
 
         Mockito.verify(mockThreadPool).schedule(Mockito.any(Runnable.class), Mockito.any(TimeValue.class), Mockito.anyString());
     }

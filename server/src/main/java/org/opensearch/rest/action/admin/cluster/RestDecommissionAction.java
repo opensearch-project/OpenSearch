@@ -12,7 +12,6 @@ import org.opensearch.action.admin.cluster.decommission.awareness.put.Decommissi
 import org.opensearch.client.Requests;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.decommission.DecommissionAttribute;
-import org.opensearch.common.unit.TimeValue;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
@@ -29,9 +28,6 @@ import static org.opensearch.rest.RestRequest.Method.PUT;
  * @opensearch.api
  */
 public class RestDecommissionAction extends BaseRestHandler {
-
-    // default value for draining timeout.
-    private static final TimeValue DEFAULT_DRAINING_TIMEOUT = TimeValue.timeValueSeconds(300L);
 
     @Override
     public List<Route> routes() {
@@ -61,6 +57,8 @@ public class RestDecommissionAction extends BaseRestHandler {
             attributeValue = request.param("awareness_attribute_value");
         }
         decommissionRequest.setDecommissionAttribute(new DecommissionAttribute(attributeName, attributeValue));
-        return decommissionRequest.setDrainingTimeout(request.paramAsTime("draining_timeout", DEFAULT_DRAINING_TIMEOUT));
+        return decommissionRequest.setDrainingTimeout(
+            request.paramAsTime("draining_timeout", DecommissionRequest.DEFAULT_NODE_DRAINING_TIMEOUT)
+        );
     }
 }

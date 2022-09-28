@@ -211,7 +211,7 @@ public class DecommissionService {
                         // nodes can be part of Voting Config
                         listener.onResponse(new ClusterStateUpdateResponse(true));
 
-                        weighAwayDecommissionedZone(state, decommissionRequest);
+                        drainNodesWithDecommissionedAttribute(state, decommissionRequest);
                         // decommissionController.setWeightForDecommissionedZone();
                         // failDecommissionedNodes(clusterService.getClusterApplierService().state(), timeOutForNodeDecommission);
                     }
@@ -310,7 +310,7 @@ public class DecommissionService {
         }
     }
 
-    private void weighAwayDecommissionedZone(ClusterState state, DecommissionRequest decommissionRequest) {
+    private void drainNodesWithDecommissionedAttribute(ClusterState state, DecommissionRequest decommissionRequest) {
         // this method ensures no matter what, we always exit from this function after clearing the voting config exclusion
         DecommissionAttributeMetadata decommissionAttributeMetadata = state.metadata().decommissionAttributeMetadata();
         DecommissionAttribute decommissionAttribute = decommissionAttributeMetadata.decommissionAttribute();
@@ -323,7 +323,7 @@ public class DecommissionService {
             public void onResponse(DecommissionStatus status) {
                 logger.info("updated the decommission status to [{}]", status);
                 // set the weights
-                setWeightsForAwarenessAttribute(awarenessValues, state, decommissionRequest);
+                setRoutingWeightsToAwarenessAttribute(awarenessValues, decommissionRequest);
             }
 
             @Override
@@ -342,16 +342,16 @@ public class DecommissionService {
         });
     }
 
-    void setWeightsForAwarenessAttribute(List<String> awarenessValues, ClusterState state, DecommissionRequest decommissionRequest) {
-        ClusterState clusterState = clusterService.getClusterApplierService().state();
+    void setRoutingWeightsToAwarenessAttribute(List<String> awarenessAttributeValues, DecommissionRequest decommissionRequest) {
+        ClusterState state = clusterService.getClusterApplierService().state();
 
-        DecommissionAttributeMetadata decommissionAttributeMetadata = clusterState.metadata().decommissionAttributeMetadata();
+        DecommissionAttributeMetadata decommissionAttributeMetadata = state.metadata().decommissionAttributeMetadata();
         assert decommissionAttributeMetadata.status().equals(DecommissionStatus.DRAINING)
             : "unexpected status encountered while decommissioning nodes";
         DecommissionAttribute decommissionAttribute = decommissionAttributeMetadata.decommissionAttribute();
 
         Map<String, Double> weights = new HashMap<>();
-        awarenessValues.forEach(awarenessValue -> {
+        awarenessAttributeValues.forEach(awarenessValue -> {
             if (awarenessValue.equalsIgnoreCase(decommissionAttribute.attributeValue())) {
                 weights.put(awarenessValue, Double.valueOf(0.0));
             } else {
@@ -359,11 +359,11 @@ public class DecommissionService {
             }
         });
 
-        decommissionController.setWeights(decommissionAttribute.attributeName(), weights, new ActionListener<>() {
+        decommissionController.setRoutingWeight(decommissionAttribute.attributeName(), weights, new ActionListener<>() {
             @Override
             public void onResponse(ClusterPutWeightedRoutingResponse response) {
                 // Schedule the node decommission process after the weights are successfully set.
-                scheduleNodesDecommissionOnTimeout(state, decommissionRequest.getDrainingTimeout());
+                scheduleNodesDecommissionOnTimeout(decommissionRequest.getDrainingTimeout());
             }
 
             @Override
@@ -374,22 +374,19 @@ public class DecommissionService {
         });
     }
 
-    void scheduleNodesDecommissionOnTimeout(ClusterState state, TimeValue timeoutForNodeDraining) {
+    void scheduleNodesDecommissionOnTimeout(TimeValue timeoutForNodeDraining) {
+        ClusterState state = clusterService.getClusterApplierService().state();
         // this method ensures no matter what, we always exit from this function after clearing the voting config exclusion
         DecommissionAttributeMetadata decommissionAttributeMetadata = state.metadata().decommissionAttributeMetadata();
         DecommissionAttribute decommissionAttribute = decommissionAttributeMetadata.decommissionAttribute();
 
-        Set<DiscoveryNode> decommissionedNodes = filterNodesWithDecommissionAttribute(
-            clusterService.getClusterApplierService().state(),
-            decommissionAttribute,
-            false
-        );
+        Set<DiscoveryNode> decommissionedNodes = filterNodesWithDecommissionAttribute(state, decommissionAttribute, false);
         // Wait for timeout to happen. Log the active connection before decommissioning of nodes.
         transportService.getThreadPool().schedule(() -> {
             // Log active connections.
             decommissionController.getActiveRequestCountOnDecommissionNodes(decommissionedNodes);
             // Call to fail the decommission nodes
-            failDecommissionedNodes(state, decommissionAttribute);
+            failDecommissionedNodes(clusterService.getClusterApplierService().state(), decommissionAttribute);
         }, timeoutForNodeDraining, org.opensearch.threadpool.ThreadPool.Names.SAME);
     }
 

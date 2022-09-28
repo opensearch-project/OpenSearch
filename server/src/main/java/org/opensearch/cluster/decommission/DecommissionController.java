@@ -279,27 +279,31 @@ public class DecommissionController {
         });
     }
 
-    void setWeights(String awarenessAttribute, Map<String, Double> weights, ActionListener<ClusterPutWeightedRoutingResponse> listener) {
+    void setRoutingWeight(
+        String awarenessAttributeName,
+        Map<String, Double> weights,
+        ActionListener<ClusterPutWeightedRoutingResponse> listener
+    ) {
         // WRR API will validate invalid weights
-        final ClusterPutWeightedRoutingRequest clusterWeightRequest = new ClusterPutWeightedRoutingRequest();
-        clusterWeightRequest.attributeName(awarenessAttribute);
-        clusterWeightRequest.setWeightedRouting(new WeightedRouting(awarenessAttribute, weights));
+        final ClusterPutWeightedRoutingRequest clusterPutRoutingWeightRequest = new ClusterPutWeightedRoutingRequest();
+        clusterPutRoutingWeightRequest.attributeName(awarenessAttributeName);
+        clusterPutRoutingWeightRequest.setWeightedRouting(new WeightedRouting(awarenessAttributeName, weights));
 
         transportService.sendRequest(
             transportService.getLocalNode(),
             ClusterAddWeightedRoutingAction.NAME,
-            clusterWeightRequest,
+            clusterPutRoutingWeightRequest,
             new TransportResponseHandler<ClusterPutWeightedRoutingResponse>() {
                 @Override
                 public void handleResponse(ClusterPutWeightedRoutingResponse response) {
-                    logger.info("Weights are successfully set.");
+                    logger.info("Weights are successfully set. [{}]", clusterPutRoutingWeightRequest.getWeightedRouting().weights());
                     listener.onResponse(response);
                 }
 
                 @Override
                 public void handleException(TransportException exp) {
                     // Logging warn message on failure. Should we do Retry? If weights are not set should we fail?
-                    logger.warn("Exception occurred while setting weights.Exception Messages - [{}]", exp.unwrapCause().getMessage());
+                    logger.error("Exception occurred while setting weights.Exception Messages - [{}]", exp.unwrapCause().getMessage());
                     listener.onFailure(exp);
                 }
 
