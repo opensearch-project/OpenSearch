@@ -13,6 +13,7 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilter;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.PlainActionFuture;
+import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.Metadata;
@@ -62,6 +63,7 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
     ClusterService clusterServiceMock = null;
     Settings settings = Settings.builder().put("node.name", TransportMultiSearchActionTests.class.getSimpleName()).build();
     private ThreadPool threadPool = new ThreadPool(settings);
+    NodeClient client = new NodeClient(settings, threadPool);
 
     @Override
     public void tearDown() throws Exception {
@@ -165,7 +167,7 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                         return new SearchAsyncActionTests.MockConnection(node);
                     }
                 };
-                PitService pitService = new PitService(clusterServiceMock, searchTransportService, transportService);
+                PitService pitService = new PitService(clusterServiceMock, searchTransportService, transportService, client);
                 TransportDeletePitAction action = new TransportDeletePitAction(
                     transportService,
                     actionFilters,
@@ -229,7 +231,7 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                         return new SearchAsyncActionTests.MockConnection(node);
                     }
                 };
-                PitService pitService = new PitService(clusterServiceMock, searchTransportService, transportService) {
+                PitService pitService = new PitService(clusterServiceMock, searchTransportService, transportService, client) {
                     @Override
                     public void getAllPits(ActionListener<GetAllPitNodesResponse> getAllPitsListener) {
                         ListPitInfo listPitInfo = new ListPitInfo(getPitId(), 0, 0);
@@ -312,7 +314,7 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                         return new SearchAsyncActionTests.MockConnection(node);
                     }
                 };
-                PitService pitService = new PitService(clusterServiceMock, searchTransportService, transportService);
+                PitService pitService = new PitService(clusterServiceMock, searchTransportService, transportService, client);
                 TransportDeletePitAction action = new TransportDeletePitAction(
                     transportService,
                     actionFilters,
@@ -371,7 +373,7 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                         return new SearchAsyncActionTests.MockConnection(node);
                     }
                 };
-                PitService pitService = new PitService(clusterServiceMock, searchTransportService, transportService);
+                PitService pitService = new PitService(clusterServiceMock, searchTransportService, transportService, client);
                 TransportDeletePitAction action = new TransportDeletePitAction(
                     transportService,
                     actionFilters,
@@ -439,7 +441,7 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                         return new SearchAsyncActionTests.MockConnection(node);
                     }
                 };
-                PitService pitService = new PitService(clusterServiceMock, searchTransportService, transportService);
+                PitService pitService = new PitService(clusterServiceMock, searchTransportService, transportService, client);
                 TransportDeletePitAction action = new TransportDeletePitAction(
                     transportService,
                     actionFilters,
@@ -505,7 +507,7 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                         return new SearchAsyncActionTests.MockConnection(node);
                     }
                 };
-                PitService pitService = new PitService(clusterServiceMock, searchTransportService, transportService) {
+                PitService pitService = new PitService(clusterServiceMock, searchTransportService, transportService, client) {
                     @Override
                     public void getAllPits(ActionListener<GetAllPitNodesResponse> getAllPitsListener) {
                         ListPitInfo listPitInfo = new ListPitInfo(getPitId(), 0, 0);
@@ -581,7 +583,7 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                         return new SearchAsyncActionTests.MockConnection(node);
                     }
                 };
-                PitService pitService = new PitService(clusterServiceMock, searchTransportService, transportService) {
+                PitService pitService = new PitService(clusterServiceMock, searchTransportService, transportService, client) {
                     @Override
                     public void getAllPits(ActionListener<GetAllPitNodesResponse> getAllPitsListener) {
                         ListPitInfo listPitInfo = new ListPitInfo(getPitId(), 0, 0);
@@ -661,7 +663,7 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                         return new SearchAsyncActionTests.MockConnection(node);
                     }
                 };
-                PitService pitService = new PitService(clusterServiceMock, searchTransportService, transportService) {
+                PitService pitService = new PitService(clusterServiceMock, searchTransportService, transportService, client) {
                     @Override
                     public void getAllPits(ActionListener<GetAllPitNodesResponse> getAllPitsListener) {
                         ListPitInfo listPitInfo = new ListPitInfo(getPitId(), 0, 0);

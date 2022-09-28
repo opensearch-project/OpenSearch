@@ -65,11 +65,11 @@ public class DeletePitInfo extends TransportResponse implements Writeable, ToXCo
 
     static {
         PARSER.declareBoolean(constructorArg(), new ParseField("successful"));
-        PARSER.declareString(constructorArg(), new ParseField("pitId"));
+        PARSER.declareString(constructorArg(), new ParseField("pit_id"));
     }
 
     private static final ParseField SUCCESSFUL = new ParseField("successful");
-    private static final ParseField PIT_ID = new ParseField("pitId");
+    private static final ParseField PIT_ID = new ParseField("pit_id");
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
