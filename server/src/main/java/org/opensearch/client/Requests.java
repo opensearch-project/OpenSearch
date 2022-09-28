@@ -559,4 +559,13 @@ public class Requests {
     public static ClusterPutWeightedRoutingRequest putWeightedRoutingRequest(String attributeName) {
         return new ClusterPutWeightedRoutingRequest(attributeName);
     }
+
+    /**
+     * Creates a new decommission request.
+     *
+     * @return returns put decommission request
+     */
+    public static DecommissionRequest decommissionRequest() {
+        return new DecommissionRequest();
+    }
 }
