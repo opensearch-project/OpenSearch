@@ -805,4 +805,9 @@ public interface ClusterAdminClient extends OpenSearchClient {
      */
     void putWeightedRouting(ClusterPutWeightedRoutingRequest request, ActionListener<ClusterPutWeightedRoutingResponse> listener);
 
+    /**
+     * Updates weights for weighted round-robin search routing policy.
+     */
+    ClusterPutWeightedRoutingRequestBuilder prepareWeightedRouting();
+
 }
