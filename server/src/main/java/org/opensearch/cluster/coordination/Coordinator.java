@@ -99,7 +99,6 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -285,8 +284,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         );
         this.nodeHealthService = nodeHealthService;
     }
-
-
 
     private ClusterFormationState getClusterFormationState() {
         return new ClusterFormationState(
