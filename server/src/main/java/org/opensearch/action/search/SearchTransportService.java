@@ -218,16 +218,6 @@ public class SearchTransportService {
         );
     }
 
-    public void sendFreeAllPitContexts(Transport.Connection connection, final ActionListener<DeletePitResponse> listener) {
-        transportService.sendRequest(
-            connection,
-            FREE_ALL_PIT_CONTEXTS_ACTION_NAME,
-            TransportRequest.Empty.INSTANCE,
-            TransportRequestOptions.EMPTY,
-            new ActionListenerResponseHandler<>(listener, DeletePitResponse::new)
-        );
-    }
-
     public void sendExecuteDfs(
         Transport.Connection connection,
         final ShardSearchRequest request,
@@ -527,14 +517,6 @@ public class SearchTransportService {
             (request, channel, task) -> { channel.sendResponse(searchService.freeReaderContextsIfFound(request.getContextIds())); }
         );
         TransportActionProxy.registerProxyAction(transportService, FREE_PIT_CONTEXT_ACTION_NAME, DeletePitResponse::new);
-
-        transportService.registerRequestHandler(
-            FREE_ALL_PIT_CONTEXTS_ACTION_NAME,
-            ThreadPool.Names.SAME,
-            TransportRequest.Empty::new,
-            (request, channel, task) -> { channel.sendResponse(searchService.freeAllPitContexts()); }
-        );
-        TransportActionProxy.registerProxyAction(transportService, FREE_ALL_PIT_CONTEXTS_ACTION_NAME, DeletePitResponse::new);
 
         transportService.registerRequestHandler(
             FREE_CONTEXT_ACTION_NAME,

@@ -181,7 +181,6 @@ public class DeletePitMultiNodeTests extends OpenSearchIntegTestCase {
                     DeletePitResponse deletePITResponse = execute.get();
                     for (DeletePitInfo deletePitInfo : deletePITResponse.getDeletePitResults()) {
                         assertTrue(pitIds.contains(deletePitInfo.getPitId()));
-                        assertFalse(deletePitInfo.isSuccessful());
                     }
                 } catch (Exception e) {
                     throw new AssertionError(e);
@@ -205,9 +204,9 @@ public class DeletePitMultiNodeTests extends OpenSearchIntegTestCase {
     }
 
     public void testDeleteAllPitsWhileNodeDrop() throws Exception {
-        createPitOnIndex("index");
         createIndex("index1", Settings.builder().put("index.number_of_shards", 5).put("index.number_of_replicas", 1).build());
         client().prepareIndex("index1").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).execute().get();
+        createPitOnIndex("index1");
         ensureGreen();
         DeletePitRequest deletePITRequest = new DeletePitRequest("_all");
         internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
@@ -218,7 +217,6 @@ public class DeletePitMultiNodeTests extends OpenSearchIntegTestCase {
                     DeletePitResponse deletePITResponse = execute.get();
                     for (DeletePitInfo deletePitInfo : deletePITResponse.getDeletePitResults()) {
                         assertThat(deletePitInfo.getPitId(), not(blankOrNullString()));
-                        assertFalse(deletePitInfo.isSuccessful());
                     }
                 } catch (Exception e) {
                     assertTrue(e.getMessage().contains("Node not connected"));
@@ -226,18 +224,14 @@ public class DeletePitMultiNodeTests extends OpenSearchIntegTestCase {
                 return super.onNodeStopped(nodeName);
             }
         });
-
         ensureGreen();
         /**
-         * When we invoke delete again, returns success after clearing the remaining readers. Asserting reader context
-         * not found exceptions don't result in failures ( as deletion in one node is successful )
+         * When we invoke delete again, returns success as all readers are cleared. (Delete all on node which is Up and
+         * once the node restarts, all active contexts are cleared in the node )
          */
         ActionFuture<DeletePitResponse> execute = client().execute(DeletePitAction.INSTANCE, deletePITRequest);
         DeletePitResponse deletePITResponse = execute.get();
-        for (DeletePitInfo deletePitInfo : deletePITResponse.getDeletePitResults()) {
-            assertThat(deletePitInfo.getPitId(), not(blankOrNullString()));
-            assertTrue(deletePitInfo.isSuccessful());
-        }
+        assertEquals(0, deletePITResponse.getDeletePitResults().size());
         client().admin().indices().prepareDelete("index1").get();
     }
 

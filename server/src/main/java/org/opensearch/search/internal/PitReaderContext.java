@@ -61,7 +61,7 @@ public class PitReaderContext extends ReaderContext {
     }
 
     public long getCreationTime() {
-        return this.creationTime.get();
+        return this.creationTime.get() == null ? 0 : this.creationTime.get();
     }
 
     public void setCreationTime(final long creationTime) {

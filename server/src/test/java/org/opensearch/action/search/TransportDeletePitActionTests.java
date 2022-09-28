@@ -7,13 +7,13 @@
  */
 package org.opensearch.action.search;
 
-import org.apache.lucene.search.TotalHits;
 import org.junit.Before;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilter;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.PlainActionFuture;
+import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -25,10 +25,6 @@ import org.opensearch.index.query.IdsQueryBuilder;
 import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.TermQueryBuilder;
-import org.opensearch.search.SearchHit;
-import org.opensearch.search.SearchHits;
-import org.opensearch.search.aggregations.InternalAggregations;
-import org.opensearch.search.internal.InternalSearchResponse;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskId;
 import org.opensearch.test.OpenSearchTestCase;
@@ -109,15 +105,6 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
             new TaskId(randomLong() + ":" + randomLong()),
             Collections.emptyMap()
         );
-        InternalSearchResponse response = new InternalSearchResponse(
-            new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
-            InternalAggregations.EMPTY,
-            null,
-            null,
-            false,
-            null,
-            1
-        );
 
         clusterServiceMock = mock(ClusterService.class);
         ClusterState state = mock(ClusterState.class);
@@ -178,7 +165,7 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                         return new SearchAsyncActionTests.MockConnection(node);
                     }
                 };
-                PitService pitService = new PitService(clusterServiceMock, searchTransportService);
+                PitService pitService = new PitService(clusterServiceMock, searchTransportService, transportService);
                 TransportDeletePitAction action = new TransportDeletePitAction(
                     transportService,
                     actionFilters,
@@ -224,7 +211,11 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                 transportService.start();
                 transportService.acceptIncomingRequests();
                 SearchTransportService searchTransportService = new SearchTransportService(transportService, null) {
-                    public void sendFreeAllPitContexts(Transport.Connection connection, final ActionListener<DeletePitResponse> listener) {
+                    public void sendFreePITContexts(
+                        Transport.Connection connection,
+                        List<PitSearchContextIdForNode> contextIds,
+                        final ActionListener<DeletePitResponse> listener
+                    ) {
                         deleteNodesInvoked.add(connection.getNode());
                         DeletePitInfo deletePitInfo = new DeletePitInfo(true, "pitId");
                         List<DeletePitInfo> deletePitInfos = new ArrayList<>();
@@ -238,7 +229,21 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                         return new SearchAsyncActionTests.MockConnection(node);
                     }
                 };
-                PitService pitService = new PitService(clusterServiceMock, searchTransportService);
+                PitService pitService = new PitService(clusterServiceMock, searchTransportService, transportService) {
+                    @Override
+                    public void getAllPits(ActionListener<GetAllPitNodesResponse> getAllPitsListener) {
+                        ListPitInfo listPitInfo = new ListPitInfo(getPitId(), 0, 0);
+                        List<ListPitInfo> list = new ArrayList<>();
+                        list.add(listPitInfo);
+                        GetAllPitNodeResponse getAllPitNodeResponse = new GetAllPitNodeResponse(
+                            cluster1Transport.getLocalDiscoNode(),
+                            list
+                        );
+                        List<GetAllPitNodeResponse> nodeList = new ArrayList();
+                        nodeList.add(getAllPitNodeResponse);
+                        getAllPitsListener.onResponse(new GetAllPitNodesResponse(new ClusterName("cn"), nodeList, new ArrayList()));
+                    }
+                };
                 TransportDeletePitAction action = new TransportDeletePitAction(
                     transportService,
                     actionFilters,
@@ -307,7 +312,7 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                         return new SearchAsyncActionTests.MockConnection(node);
                     }
                 };
-                PitService pitService = new PitService(clusterServiceMock, searchTransportService);
+                PitService pitService = new PitService(clusterServiceMock, searchTransportService, transportService);
                 TransportDeletePitAction action = new TransportDeletePitAction(
                     transportService,
                     actionFilters,
@@ -366,7 +371,7 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                         return new SearchAsyncActionTests.MockConnection(node);
                     }
                 };
-                PitService pitService = new PitService(clusterServiceMock, searchTransportService);
+                PitService pitService = new PitService(clusterServiceMock, searchTransportService, transportService);
                 TransportDeletePitAction action = new TransportDeletePitAction(
                     transportService,
                     actionFilters,
@@ -434,7 +439,7 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                         return new SearchAsyncActionTests.MockConnection(node);
                     }
                 };
-                PitService pitService = new PitService(clusterServiceMock, searchTransportService);
+                PitService pitService = new PitService(clusterServiceMock, searchTransportService, transportService);
                 TransportDeletePitAction action = new TransportDeletePitAction(
                     transportService,
                     actionFilters,
@@ -480,7 +485,11 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                 transportService.acceptIncomingRequests();
                 SearchTransportService searchTransportService = new SearchTransportService(transportService, null) {
                     @Override
-                    public void sendFreeAllPitContexts(Transport.Connection connection, final ActionListener<DeletePitResponse> listener) {
+                    public void sendFreePITContexts(
+                        Transport.Connection connection,
+                        List<PitSearchContextIdForNode> contextIds,
+                        final ActionListener<DeletePitResponse> listener
+                    ) {
                         deleteNodesInvoked.add(connection.getNode());
                         if (connection.getNode().getId() == "node_3") {
                             Thread t = new Thread(() -> listener.onFailure(new Exception("node 3 down")));
@@ -496,7 +505,21 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                         return new SearchAsyncActionTests.MockConnection(node);
                     }
                 };
-                PitService pitService = new PitService(clusterServiceMock, searchTransportService);
+                PitService pitService = new PitService(clusterServiceMock, searchTransportService, transportService) {
+                    @Override
+                    public void getAllPits(ActionListener<GetAllPitNodesResponse> getAllPitsListener) {
+                        ListPitInfo listPitInfo = new ListPitInfo(getPitId(), 0, 0);
+                        List<ListPitInfo> list = new ArrayList<>();
+                        list.add(listPitInfo);
+                        GetAllPitNodeResponse getAllPitNodeResponse = new GetAllPitNodeResponse(
+                            cluster1Transport.getLocalDiscoNode(),
+                            list
+                        );
+                        List<GetAllPitNodeResponse> nodeList = new ArrayList();
+                        nodeList.add(getAllPitNodeResponse);
+                        getAllPitsListener.onResponse(new GetAllPitNodesResponse(new ClusterName("cn"), nodeList, new ArrayList()));
+                    }
+                };
                 TransportDeletePitAction action = new TransportDeletePitAction(
                     transportService,
                     actionFilters,
@@ -543,7 +566,11 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                 SearchTransportService searchTransportService = new SearchTransportService(transportService, null) {
 
                     @Override
-                    public void sendFreeAllPitContexts(Transport.Connection connection, final ActionListener<DeletePitResponse> listener) {
+                    public void sendFreePITContexts(
+                        Transport.Connection connection,
+                        List<PitSearchContextIdForNode> contextIds,
+                        final ActionListener<DeletePitResponse> listener
+                    ) {
                         deleteNodesInvoked.add(connection.getNode());
                         Thread t = new Thread(() -> listener.onFailure(new Exception("node down")));
                         t.start();
@@ -554,7 +581,21 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                         return new SearchAsyncActionTests.MockConnection(node);
                     }
                 };
-                PitService pitService = new PitService(clusterServiceMock, searchTransportService);
+                PitService pitService = new PitService(clusterServiceMock, searchTransportService, transportService) {
+                    @Override
+                    public void getAllPits(ActionListener<GetAllPitNodesResponse> getAllPitsListener) {
+                        ListPitInfo listPitInfo = new ListPitInfo(getPitId(), 0, 0);
+                        List<ListPitInfo> list = new ArrayList<>();
+                        list.add(listPitInfo);
+                        GetAllPitNodeResponse getAllPitNodeResponse = new GetAllPitNodeResponse(
+                            cluster1Transport.getLocalDiscoNode(),
+                            list
+                        );
+                        List<GetAllPitNodeResponse> nodeList = new ArrayList();
+                        nodeList.add(getAllPitNodeResponse);
+                        getAllPitsListener.onResponse(new GetAllPitNodesResponse(new ClusterName("cn"), nodeList, new ArrayList()));
+                    }
+                };
                 TransportDeletePitAction action = new TransportDeletePitAction(
                     transportService,
                     actionFilters,
@@ -600,7 +641,11 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                 transportService.acceptIncomingRequests();
                 SearchTransportService searchTransportService = new SearchTransportService(transportService, null) {
 
-                    public void sendFreeAllPitContexts(Transport.Connection connection, final ActionListener<DeletePitResponse> listener) {
+                    public void sendFreePITContexts(
+                        Transport.Connection connection,
+                        List<PitSearchContextIdForNode> contextId,
+                        final ActionListener<DeletePitResponse> listener
+                    ) {
                         deleteNodesInvoked.add(connection.getNode());
                         if (connection.getNode().getId() == "node_3") {
                             Thread t = new Thread(() -> listener.onFailure(new Exception("node 3 is down")));
@@ -616,7 +661,21 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                         return new SearchAsyncActionTests.MockConnection(node);
                     }
                 };
-                PitService pitService = new PitService(clusterServiceMock, searchTransportService);
+                PitService pitService = new PitService(clusterServiceMock, searchTransportService, transportService) {
+                    @Override
+                    public void getAllPits(ActionListener<GetAllPitNodesResponse> getAllPitsListener) {
+                        ListPitInfo listPitInfo = new ListPitInfo(getPitId(), 0, 0);
+                        List<ListPitInfo> list = new ArrayList<>();
+                        list.add(listPitInfo);
+                        GetAllPitNodeResponse getAllPitNodeResponse = new GetAllPitNodeResponse(
+                            cluster1Transport.getLocalDiscoNode(),
+                            list
+                        );
+                        List<GetAllPitNodeResponse> nodeList = new ArrayList();
+                        nodeList.add(getAllPitNodeResponse);
+                        getAllPitsListener.onResponse(new GetAllPitNodesResponse(new ClusterName("cn"), nodeList, new ArrayList()));
+                    }
+                };
                 TransportDeletePitAction action = new TransportDeletePitAction(
                     transportService,
                     actionFilters,

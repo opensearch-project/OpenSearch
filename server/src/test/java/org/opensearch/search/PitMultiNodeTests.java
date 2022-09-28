@@ -8,18 +8,27 @@
 
 package org.opensearch.search;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.opensearch.action.ActionFuture;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.LatchedActionListener;
+import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
+import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.action.search.CreatePitAction;
 import org.opensearch.action.search.CreatePitRequest;
 import org.opensearch.action.search.CreatePitResponse;
 import org.opensearch.action.search.DeletePitAction;
 import org.opensearch.action.search.DeletePitRequest;
 import org.opensearch.action.search.DeletePitResponse;
+import org.opensearch.action.search.GetAllPitNodesRequest;
+import org.opensearch.action.search.GetAllPitNodesResponse;
+import org.opensearch.action.search.GetAllPitsAction;
+import org.opensearch.action.search.PitTestsUtil;
 import org.opensearch.action.search.SearchResponse;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.search.builder.PointInTimeBuilder;
@@ -30,12 +39,14 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
@@ -45,7 +56,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
  * Multi node integration tests for PIT creation and search operation with PIT ID.
  */
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, numDataNodes = 2)
-public class CreatePitMultiNodeTests extends OpenSearchIntegTestCase {
+public class PitMultiNodeTests extends OpenSearchIntegTestCase {
 
     @Before
     public void setupIndex() throws ExecutionException, InterruptedException {
@@ -70,6 +81,7 @@ public class CreatePitMultiNodeTests extends OpenSearchIntegTestCase {
             .get();
         assertEquals(2, searchResponse.getSuccessfulShards());
         assertEquals(2, searchResponse.getTotalShards());
+        PitTestsUtil.assertUsingGetAllPits(client(), pitResponse.getId(), pitResponse.getCreationTime());
     }
 
     public void testCreatePitWhileNodeDropWithAllowPartialCreationFalse() throws Exception {
@@ -95,6 +107,7 @@ public class CreatePitMultiNodeTests extends OpenSearchIntegTestCase {
             public Settings onNodeStopped(String nodeName) throws Exception {
                 ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, request);
                 CreatePitResponse pitResponse = execute.get();
+                PitTestsUtil.assertUsingGetAllPits(client(), pitResponse.getId(), pitResponse.getCreationTime());
                 assertEquals(1, pitResponse.getSuccessfulShards());
                 assertEquals(2, pitResponse.getTotalShards());
                 SearchResponse searchResponse = client().prepareSearch("index")
@@ -124,6 +137,7 @@ public class CreatePitMultiNodeTests extends OpenSearchIntegTestCase {
                 assertEquals(1, searchResponse.getFailedShards());
                 assertEquals(0, searchResponse.getSkippedShards());
                 assertEquals(2, searchResponse.getTotalShards());
+                PitTestsUtil.assertUsingGetAllPits(client(), pitResponse.getId(), pitResponse.getCreationTime());
                 return super.onNodeStopped(nodeName);
             }
         });
@@ -264,7 +278,7 @@ public class CreatePitMultiNodeTests extends OpenSearchIntegTestCase {
         AtomicInteger numSuccess = new AtomicInteger();
         TestThreadPool testThreadPool = null;
         try {
-            testThreadPool = new TestThreadPool(CreatePitMultiNodeTests.class.getName());
+            testThreadPool = new TestThreadPool(PitMultiNodeTests.class.getName());
             int concurrentRuns = randomIntBetween(20, 50);
 
             List<Runnable> operationThreads = new ArrayList<>();
@@ -312,4 +326,132 @@ public class CreatePitMultiNodeTests extends OpenSearchIntegTestCase {
             ThreadPool.terminate(testThreadPool, 500, TimeUnit.MILLISECONDS);
         }
     }
+
+    public void testGetAllPits() throws Exception {
+        client().admin().indices().prepareCreate("index1").get();
+        CreatePitRequest request = new CreatePitRequest(TimeValue.timeValueDays(1), true);
+        request.setIndices(new String[] { "index", "index1" });
+        ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, request);
+        CreatePitResponse pitResponse = execute.get();
+        CreatePitResponse pitResponse1 = client().execute(CreatePitAction.INSTANCE, request).get();
+        CreatePitResponse pitResponse2 = client().execute(CreatePitAction.INSTANCE, request).get();
+        final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
+        clusterStateRequest.local(false);
+        clusterStateRequest.clear().nodes(true).routingTable(true).indices("*");
+        ClusterStateResponse clusterStateResponse = client().admin().cluster().state(clusterStateRequest).get();
+        final List<DiscoveryNode> nodes = new LinkedList<>();
+        for (ObjectCursor<DiscoveryNode> cursor : clusterStateResponse.getState().nodes().getDataNodes().values()) {
+            DiscoveryNode node = cursor.value;
+            nodes.add(node);
+        }
+        DiscoveryNode[] disNodesArr = new DiscoveryNode[nodes.size()];
+        nodes.toArray(disNodesArr);
+        GetAllPitNodesRequest getAllPITNodesRequest = new GetAllPitNodesRequest(disNodesArr);
+        ActionFuture<GetAllPitNodesResponse> execute1 = client().execute(GetAllPitsAction.INSTANCE, getAllPITNodesRequest);
+        GetAllPitNodesResponse getPitResponse = execute1.get();
+        assertEquals(3, getPitResponse.getPitInfos().size());
+        List<String> resultPitIds = getPitResponse.getPitInfos().stream().map(p -> p.getPitId()).collect(Collectors.toList());
+        // asserting that we get all unique PIT IDs
+        Assert.assertTrue(resultPitIds.contains(pitResponse.getId()));
+        Assert.assertTrue(resultPitIds.contains(pitResponse1.getId()));
+        Assert.assertTrue(resultPitIds.contains(pitResponse2.getId()));
+        client().admin().indices().prepareDelete("index1").get();
+    }
+
+    public void testGetAllPitsDuringNodeDrop() throws Exception {
+        CreatePitRequest request = new CreatePitRequest(TimeValue.timeValueDays(1), true);
+        request.setIndices(new String[] { "index" });
+        ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, request);
+        CreatePitResponse pitResponse = execute.get();
+        GetAllPitNodesRequest getAllPITNodesRequest = new GetAllPitNodesRequest(getDiscoveryNodes());
+        internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
+            @Override
+            public Settings onNodeStopped(String nodeName) throws Exception {
+                ActionFuture<GetAllPitNodesResponse> execute1 = client().execute(GetAllPitsAction.INSTANCE, getAllPITNodesRequest);
+                GetAllPitNodesResponse getPitResponse = execute1.get();
+                // we still get a pit id from the data node which is up
+                assertEquals(1, getPitResponse.getPitInfos().size());
+                // failure for node drop
+                assertEquals(1, getPitResponse.failures().size());
+                assertTrue(getPitResponse.failures().get(0).getMessage().contains("Failed node"));
+                return super.onNodeStopped(nodeName);
+            }
+        });
+    }
+
+    private DiscoveryNode[] getDiscoveryNodes() throws ExecutionException, InterruptedException {
+        final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
+        clusterStateRequest.local(false);
+        clusterStateRequest.clear().nodes(true).routingTable(true).indices("*");
+        ClusterStateResponse clusterStateResponse = client().admin().cluster().state(clusterStateRequest).get();
+        final List<DiscoveryNode> nodes = new LinkedList<>();
+        for (ObjectCursor<DiscoveryNode> cursor : clusterStateResponse.getState().nodes().getDataNodes().values()) {
+            DiscoveryNode node = cursor.value;
+            nodes.add(node);
+        }
+        DiscoveryNode[] disNodesArr = new DiscoveryNode[nodes.size()];
+        nodes.toArray(disNodesArr);
+        return disNodesArr;
+    }
+
+    public void testConcurrentGetWithDeletes() throws InterruptedException, ExecutionException {
+        CreatePitRequest createPitRequest = new CreatePitRequest(TimeValue.timeValueDays(1), true);
+        createPitRequest.setIndices(new String[] { "index" });
+        List<String> pitIds = new ArrayList<>();
+        String id = client().execute(CreatePitAction.INSTANCE, createPitRequest).get().getId();
+        pitIds.add(id);
+        DeletePitRequest deletePITRequest = new DeletePitRequest(pitIds);
+        GetAllPitNodesRequest getAllPITNodesRequest = new GetAllPitNodesRequest(getDiscoveryNodes());
+        AtomicInteger numSuccess = new AtomicInteger();
+        TestThreadPool testThreadPool = null;
+        try {
+            testThreadPool = new TestThreadPool(PitMultiNodeTests.class.getName());
+            int concurrentRuns = randomIntBetween(20, 50);
+
+            List<Runnable> operationThreads = new ArrayList<>();
+            CountDownLatch countDownLatch = new CountDownLatch(concurrentRuns);
+            long randomDeleteThread = randomLongBetween(0, concurrentRuns - 1);
+            for (int i = 0; i < concurrentRuns; i++) {
+                int currentThreadIteration = i;
+                Runnable thread = () -> {
+                    if (currentThreadIteration == randomDeleteThread) {
+                        LatchedActionListener listener = new LatchedActionListener<>(new ActionListener<GetAllPitNodesResponse>() {
+                            @Override
+                            public void onResponse(GetAllPitNodesResponse getAllPitNodesResponse) {
+                                if (getAllPitNodesResponse.failures().isEmpty()) {
+                                    numSuccess.incrementAndGet();
+                                }
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {}
+                        }, countDownLatch);
+                        client().execute(GetAllPitsAction.INSTANCE, getAllPITNodesRequest, listener);
+                    } else {
+                        LatchedActionListener listener = new LatchedActionListener<>(new ActionListener<DeletePitResponse>() {
+                            @Override
+                            public void onResponse(DeletePitResponse deletePitResponse) {
+                                if (deletePitResponse.getDeletePitResults().get(0).isSuccessful()) {
+                                    numSuccess.incrementAndGet();
+                                }
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {}
+                        }, countDownLatch);
+                        client().execute(DeletePitAction.INSTANCE, deletePITRequest, listener);
+                    }
+                };
+                operationThreads.add(thread);
+            }
+            TestThreadPool finalTestThreadPool = testThreadPool;
+            operationThreads.forEach(runnable -> finalTestThreadPool.executor("generic").execute(runnable));
+            countDownLatch.await();
+            assertEquals(concurrentRuns, numSuccess.get());
+
+        } finally {
+            ThreadPool.terminate(testThreadPool, 500, TimeUnit.MILLISECONDS);
+        }
+    }
+
 }

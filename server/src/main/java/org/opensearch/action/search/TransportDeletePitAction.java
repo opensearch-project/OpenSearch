@@ -11,18 +11,17 @@ package org.opensearch.action.search;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
-import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.tasks.Task;
-import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Transport action for deleting point in time searches - supports deleting list and all point in time searches
@@ -83,19 +82,22 @@ public class TransportDeletePitAction extends HandledTransportAction<DeletePitRe
     }
 
     /**
-     * Delete all active PIT reader contexts
+     * Delete all active PIT reader contexts leveraging list all PITs
+     *
+     * For Cross cluster PITs :
+     * - mixed cluster PITs ( PIT comprising local and remote ) will be fully deleted. Since there will atleast be
+     * one reader context with PIT ID present in local cluster, 'Get all PITs' will retrieve the PIT ID with which
+     * we can completely delete the PIT contexts in both local and remote cluster.
+     * - fully remote PITs will not be deleted as 'Get all PITs' operates on local cluster only and no PIT info can
+     * be retrieved when it's fully remote.
      */
     private void deleteAllPits(ActionListener<DeletePitResponse> listener) {
-        // TODO: Use list all PITs to delete all PITs in case of remote cluster use case
-        int size = clusterService.state().getNodes().getSize();
-        ActionListener groupedActionListener = pitService.getDeletePitGroupedListener(listener, size);
-        for (final DiscoveryNode node : clusterService.state().getNodes()) {
-            try {
-                Transport.Connection connection = searchTransportService.getConnection(null, node);
-                searchTransportService.sendFreeAllPitContexts(connection, groupedActionListener);
-            } catch (Exception e) {
-                groupedActionListener.onFailure(e);
-            }
-        }
+        // Get all PITs and execute delete operation for the PITs.
+        pitService.getAllPits(ActionListener.wrap(getAllPitNodesResponse -> {
+            DeletePitRequest deletePitRequest = new DeletePitRequest(
+                getAllPitNodesResponse.getPitInfos().stream().map(r -> r.getPitId()).collect(Collectors.toList())
+            );
+            deletePits(listener, deletePitRequest);
+        }, listener::onFailure));
     }
 }
