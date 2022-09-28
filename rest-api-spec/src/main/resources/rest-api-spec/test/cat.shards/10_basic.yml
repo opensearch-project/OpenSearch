@@ -1,14 +1,14 @@
 ---
 "Help":
   - skip:
-      version: " - 2.2.99"
-      reason:  point in time stats were added in 2.3.0
+      version: " - 2.3.99"
+      reason:  point in time stats were added in 2.4.0
       features: node_selector
   - do:
       cat.shards:
         help: true
       node_selector:
-        version: "2.3.0 - "
+        version: "2.4.0 - "
 
   - match:
       $body: |
@@ -88,16 +88,16 @@
                     path.state                       .+   \n
                $/
 ---
-"Help before - 2.3.0":
+"Help before - 2.4.0":
   - skip:
-      version: "2.3.0 - "
-      reason:  point in time stats were added in 2.3.0
+      version: "2.4.0 - "
+      reason:  point in time stats were added in 2.4.0
       features: node_selector
   - do:
       cat.shards:
         help: true
       node_selector:
-        version: " - 2.2.99"
+        version: " - 2.3.99"
 
   - match:
       $body: |
