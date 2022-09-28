@@ -51,21 +51,18 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 class JavaDateFormatter implements DateFormatter {
 
     // base fields which should be used for default parsing, when we round up for date math
-    private static final Map<TemporalField, Long> ROUND_UP_BASE_FIELDS = new HashMap<>(6);
-
+    private static final Map<TemporalField, Long> ROUND_UP_GENERIC_BASE_FIELDS = new HashMap<>(4);
     {
-        ROUND_UP_BASE_FIELDS.put(ChronoField.MONTH_OF_YEAR, 1L);
-        ROUND_UP_BASE_FIELDS.put(ChronoField.DAY_OF_MONTH, 1L);
-        ROUND_UP_BASE_FIELDS.put(ChronoField.HOUR_OF_DAY, 23L);
-        ROUND_UP_BASE_FIELDS.put(ChronoField.MINUTE_OF_HOUR, 59L);
-        ROUND_UP_BASE_FIELDS.put(ChronoField.SECOND_OF_MINUTE, 59L);
-        ROUND_UP_BASE_FIELDS.put(ChronoField.NANO_OF_SECOND, 999_999_999L);
+        ROUND_UP_GENERIC_BASE_FIELDS.put(ChronoField.HOUR_OF_DAY, 23L);
+        ROUND_UP_GENERIC_BASE_FIELDS.put(ChronoField.MINUTE_OF_HOUR, 59L);
+        ROUND_UP_GENERIC_BASE_FIELDS.put(ChronoField.SECOND_OF_MINUTE, 59L);
+        ROUND_UP_GENERIC_BASE_FIELDS.put(ChronoField.NANO_OF_SECOND, 999_999_999L);
     }
 
     private final String format;
@@ -96,14 +93,25 @@ class JavaDateFormatter implements DateFormatter {
 
     // named formatters use default roundUpParser
     JavaDateFormatter(String format, DateTimeFormatter printer, DateTimeFormatter... parsers) {
-        this(format, printer, builder -> ROUND_UP_BASE_FIELDS.forEach(builder::parseDefaulting), parsers);
+        this(format, printer, ROUND_UP_BASE_FIELDS, parsers);
     }
+
+    private static final BiConsumer<DateTimeFormatterBuilder, DateTimeFormatter> ROUND_UP_BASE_FIELDS = (builder, parser) -> {
+        String parserString = parser.toString();
+        if (parserString.contains(ChronoField.DAY_OF_YEAR.toString())) {
+            builder.parseDefaulting(ChronoField.DAY_OF_YEAR, 1L);
+        } else {
+            builder.parseDefaulting(ChronoField.MONTH_OF_YEAR, 1L);
+            builder.parseDefaulting(ChronoField.DAY_OF_MONTH, 1L);
+        }
+        ROUND_UP_GENERIC_BASE_FIELDS.forEach(builder::parseDefaulting);
+    };
 
     // subclasses override roundUpParser
     JavaDateFormatter(
         String format,
         DateTimeFormatter printer,
-        Consumer<DateTimeFormatterBuilder> roundupParserConsumer,
+        BiConsumer<DateTimeFormatterBuilder, DateTimeFormatter> roundupParserConsumer,
         DateTimeFormatter... parsers
     ) {
         if (printer == null) {
@@ -138,13 +146,16 @@ class JavaDateFormatter implements DateFormatter {
      * <code>DateFormatters</code>.
      * This means that we need to also have multiple RoundUp parsers.
      */
-    private List<DateTimeFormatter> createRoundUpParser(String format, Consumer<DateTimeFormatterBuilder> roundupParserConsumer) {
+    private List<DateTimeFormatter> createRoundUpParser(
+        String format,
+        BiConsumer<DateTimeFormatterBuilder, DateTimeFormatter> roundupParserConsumer
+    ) {
         if (format.contains("||") == false) {
             List<DateTimeFormatter> roundUpParsers = new ArrayList<>();
             for (DateTimeFormatter parser : this.parsers) {
                 DateTimeFormatterBuilder builder = new DateTimeFormatterBuilder();
                 builder.append(parser);
-                roundupParserConsumer.accept(builder);
+                roundupParserConsumer.accept(builder, parser);
                 roundUpParsers.add(builder.toFormatter(locale()));
             }
             return roundUpParsers;
