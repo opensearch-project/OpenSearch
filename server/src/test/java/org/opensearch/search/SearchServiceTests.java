@@ -41,6 +41,9 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.search.ClearScrollRequest;
+import org.opensearch.action.search.DeletePitResponse;
+import org.opensearch.action.search.PitSearchContextIdForNode;
+import org.opensearch.action.search.SearchContextIdForNode;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
@@ -1423,6 +1426,42 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
             randomNonNegativeLong(),
             false
         );
+    }
+
+    public void testDeletePitReaderContext() {
+        createIndex("index");
+        SearchService searchService = getInstanceFromNode(SearchService.class);
+        PlainActionFuture<ShardSearchContextId> future = new PlainActionFuture<>();
+        searchService.createPitReaderContext(new ShardId(resolveIndex("index"), 0), TimeValue.timeValueMinutes(between(1, 10)), future);
+        List<PitSearchContextIdForNode> contextIds = new ArrayList<>();
+        ShardSearchContextId shardSearchContextId = future.actionGet();
+        PitSearchContextIdForNode pitSearchContextIdForNode = new PitSearchContextIdForNode(
+            "1",
+            new SearchContextIdForNode(null, "node1", shardSearchContextId)
+        );
+        contextIds.add(pitSearchContextIdForNode);
+
+        assertThat(searchService.getActiveContexts(), equalTo(1));
+        DeletePitResponse deletePitResponse = searchService.freeReaderContextsIfFound(contextIds);
+        assertTrue(deletePitResponse.getDeletePitResults().get(0).isSuccessful());
+        // assert true for reader context not found
+        deletePitResponse = searchService.freeReaderContextsIfFound(contextIds);
+        assertTrue(deletePitResponse.getDeletePitResults().get(0).isSuccessful());
+        // adding this assert to showcase behavior difference
+        assertFalse(searchService.freeReaderContext(future.actionGet()));
+    }
+
+    public void testDeleteAllPitReaderContexts() {
+        createIndex("index");
+        SearchService searchService = getInstanceFromNode(SearchService.class);
+        PlainActionFuture<ShardSearchContextId> future = new PlainActionFuture<>();
+        searchService.createPitReaderContext(new ShardId(resolveIndex("index"), 0), TimeValue.timeValueMinutes(between(1, 10)), future);
+        future.actionGet();
+        searchService.createPitReaderContext(new ShardId(resolveIndex("index"), 0), TimeValue.timeValueMinutes(between(1, 10)), future);
+        future.actionGet();
+        assertThat(searchService.getActiveContexts(), equalTo(2));
+        searchService.freeAllPitContexts();
+        assertThat(searchService.getActiveContexts(), equalTo(0));
     }
 
     public void testPitContextMaxKeepAlive() {

@@ -11,17 +11,31 @@ package org.opensearch.search;
 import org.junit.After;
 import org.junit.Before;
 import org.opensearch.action.ActionFuture;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.LatchedActionListener;
 import org.opensearch.action.search.CreatePitAction;
 import org.opensearch.action.search.CreatePitRequest;
 import org.opensearch.action.search.CreatePitResponse;
+import org.opensearch.action.search.DeletePitAction;
+import org.opensearch.action.search.DeletePitRequest;
+import org.opensearch.action.search.DeletePitResponse;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.search.builder.PointInTimeBuilder;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.threadpool.TestThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
@@ -198,5 +212,104 @@ public class CreatePitMultiNodeTests extends OpenSearchIntegTestCase {
                 .setPersistentSettings(Settings.builder().putNull("*"))
                 .setTransientSettings(Settings.builder().putNull("*"))
         );
+    }
+
+    public void testConcurrentCreates() throws InterruptedException {
+        CreatePitRequest createPitRequest = new CreatePitRequest(TimeValue.timeValueDays(1), true);
+        createPitRequest.setIndices(new String[] { "index" });
+
+        int concurrentRuns = randomIntBetween(20, 50);
+        AtomicInteger numSuccess = new AtomicInteger();
+        TestThreadPool testThreadPool = null;
+        try {
+            testThreadPool = new TestThreadPool(DeletePitMultiNodeTests.class.getName());
+            List<Runnable> operationThreads = new ArrayList<>();
+            CountDownLatch countDownLatch = new CountDownLatch(concurrentRuns);
+            Set<String> createSet = new HashSet<>();
+            for (int i = 0; i < concurrentRuns; i++) {
+                Runnable thread = () -> {
+                    logger.info("Triggering pit create --->");
+                    LatchedActionListener listener = new LatchedActionListener<>(new ActionListener<CreatePitResponse>() {
+                        @Override
+                        public void onResponse(CreatePitResponse createPitResponse) {
+                            if (createSet.add(createPitResponse.getId())) {
+                                numSuccess.incrementAndGet();
+                            }
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {}
+                    }, countDownLatch);
+                    client().execute(CreatePitAction.INSTANCE, createPitRequest, listener);
+                };
+                operationThreads.add(thread);
+            }
+            TestThreadPool finalTestThreadPool = testThreadPool;
+            operationThreads.forEach(runnable -> finalTestThreadPool.executor("generic").execute(runnable));
+            countDownLatch.await();
+            assertEquals(concurrentRuns, numSuccess.get());
+        } finally {
+            ThreadPool.terminate(testThreadPool, 500, TimeUnit.MILLISECONDS);
+        }
+    }
+
+    public void testConcurrentCreatesWithDeletes() throws InterruptedException, ExecutionException {
+        CreatePitRequest createPitRequest = new CreatePitRequest(TimeValue.timeValueDays(1), true);
+        createPitRequest.setIndices(new String[] { "index" });
+        List<String> pitIds = new ArrayList<>();
+        String id = client().execute(CreatePitAction.INSTANCE, createPitRequest).get().getId();
+        pitIds.add(id);
+        DeletePitRequest deletePITRequest = new DeletePitRequest(pitIds);
+        Set<String> createSet = new HashSet<>();
+        AtomicInteger numSuccess = new AtomicInteger();
+        TestThreadPool testThreadPool = null;
+        try {
+            testThreadPool = new TestThreadPool(CreatePitMultiNodeTests.class.getName());
+            int concurrentRuns = randomIntBetween(20, 50);
+
+            List<Runnable> operationThreads = new ArrayList<>();
+            CountDownLatch countDownLatch = new CountDownLatch(concurrentRuns);
+            long randomDeleteThread = randomLongBetween(0, concurrentRuns - 1);
+            for (int i = 0; i < concurrentRuns; i++) {
+                int currentThreadIteration = i;
+                Runnable thread = () -> {
+                    if (currentThreadIteration == randomDeleteThread) {
+                        LatchedActionListener listener = new LatchedActionListener<>(new ActionListener<CreatePitResponse>() {
+                            @Override
+                            public void onResponse(CreatePitResponse createPitResponse) {
+                                if (createSet.add(createPitResponse.getId())) {
+                                    numSuccess.incrementAndGet();
+                                }
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {}
+                        }, countDownLatch);
+                        client().execute(CreatePitAction.INSTANCE, createPitRequest, listener);
+                    } else {
+                        LatchedActionListener listener = new LatchedActionListener<>(new ActionListener<DeletePitResponse>() {
+                            @Override
+                            public void onResponse(DeletePitResponse deletePitResponse) {
+                                if (deletePitResponse.getDeletePitResults().get(0).isSuccessful()) {
+                                    numSuccess.incrementAndGet();
+                                }
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {}
+                        }, countDownLatch);
+                        client().execute(DeletePitAction.INSTANCE, deletePITRequest, listener);
+                    }
+                };
+                operationThreads.add(thread);
+            }
+            TestThreadPool finalTestThreadPool = testThreadPool;
+            operationThreads.forEach(runnable -> finalTestThreadPool.executor("generic").execute(runnable));
+            countDownLatch.await();
+            assertEquals(concurrentRuns, numSuccess.get());
+
+        } finally {
+            ThreadPool.terminate(testThreadPool, 500, TimeUnit.MILLISECONDS);
+        }
     }
 }
