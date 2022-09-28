@@ -50,11 +50,11 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public abstract class GeoGridTestCase<B extends BaseGeoGridBucket, T extends InternalGeoGrid<B>> extends
-    InternalMultiBucketAggregationTestCase<T> {
+public abstract class GeoGridTestCase<B extends BaseGeoGridBucket, T extends BaseGeoGrid<B>> extends InternalMultiBucketAggregationTestCase<
+    T> {
 
     /**
-     * Instantiate a {@link InternalGeoGrid}-derived class using the same parameters as constructor.
+     * Instantiate a {@link BaseGeoGrid}-derived class using the same parameters as constructor.
      */
     protected abstract T createInternalGeoGrid(String name, int size, List<BaseGeoGridBucket> buckets, Map<String, Object> metadata);
 
@@ -206,7 +206,7 @@ public abstract class GeoGridTestCase<B extends BaseGeoGridBucket, T extends Int
     }
 
     public void testCreateFromBuckets() {
-        InternalGeoGrid original = createTestInstance();
+        BaseGeoGrid original = createTestInstance();
         assertThat(original, equalTo(original.create(original.buckets)));
     }
 }

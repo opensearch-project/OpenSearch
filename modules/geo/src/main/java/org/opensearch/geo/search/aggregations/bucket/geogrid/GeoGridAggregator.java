@@ -57,7 +57,7 @@ import java.util.Map;
  *
  * @opensearch.api
  */
-public abstract class GeoGridAggregator<T extends InternalGeoGrid> extends BucketsAggregator {
+public abstract class GeoGridAggregator<T extends BaseGeoGrid> extends BucketsAggregator {
 
     protected final int requiredSize;
     protected final int shardSize;
@@ -163,7 +163,7 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid> extends Bucke
     }
 
     @Override
-    public InternalGeoGrid buildEmptyAggregation() {
+    public BaseGeoGrid buildEmptyAggregation() {
         return buildAggregation(name, requiredSize, Collections.emptyList(), metadata());
     }
 

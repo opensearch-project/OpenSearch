@@ -201,7 +201,7 @@ public abstract class GeoGridAggregatorTestCase<T extends BaseGeoGridBucket> ext
         Consumer<StringTerms> verify = (terms) -> {
             Map<String, Map<String, Long>> actual = new TreeMap<>();
             for (StringTerms.Bucket tb : terms.getBuckets()) {
-                InternalGeoGrid<?> gg = tb.getAggregations().get("gg");
+                BaseGeoGrid<?> gg = tb.getAggregations().get("gg");
                 Map<String, Long> sub = new TreeMap<>();
                 for (BaseGeoGridBucket<?> ggb : gg.getBuckets()) {
                     sub.put(ggb.getKeyAsString(), ggb.getDocCount());
@@ -299,7 +299,7 @@ public abstract class GeoGridAggregatorTestCase<T extends BaseGeoGridBucket> ext
         String field,
         int precision,
         GeoBoundingBox geoBoundingBox,
-        Consumer<InternalGeoGrid<T>> verify,
+        Consumer<BaseGeoGrid<T>> verify,
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex
     ) throws IOException {
         testCase(query, precision, geoBoundingBox, verify, buildIndex, createBuilder("_name").field(field));
@@ -309,7 +309,7 @@ public abstract class GeoGridAggregatorTestCase<T extends BaseGeoGridBucket> ext
         Query query,
         int precision,
         GeoBoundingBox geoBoundingBox,
-        Consumer<InternalGeoGrid<T>> verify,
+        Consumer<BaseGeoGrid<T>> verify,
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
         GeoGridAggregationBuilder aggregationBuilder
     ) throws IOException {
@@ -333,7 +333,7 @@ public abstract class GeoGridAggregatorTestCase<T extends BaseGeoGridBucket> ext
         aggregator.preCollection();
         indexSearcher.search(query, aggregator);
         aggregator.postCollection();
-        verify.accept((InternalGeoGrid<T>) aggregator.buildTopLevel());
+        verify.accept((BaseGeoGrid<T>) aggregator.buildTopLevel());
 
         indexReader.close();
         directory.close();

@@ -45,7 +45,7 @@ import java.util.Map;
  *
  * @opensearch.internal
  */
-public class InternalGeoTileGrid extends InternalGeoGrid<InternalGeoTileGridBucket> {
+public class InternalGeoTileGrid extends BaseGeoGrid<InternalGeoTileGridBucket> {
 
     InternalGeoTileGrid(String name, int requiredSize, List<BaseGeoGridBucket> buckets, Map<String, Object> metadata) {
         super(name, requiredSize, buckets, metadata);
@@ -56,7 +56,7 @@ public class InternalGeoTileGrid extends InternalGeoGrid<InternalGeoTileGridBuck
     }
 
     @Override
-    public InternalGeoGrid create(List<BaseGeoGridBucket> buckets) {
+    public BaseGeoGrid create(List<BaseGeoGridBucket> buckets) {
         return new InternalGeoTileGrid(name, requiredSize, buckets, metadata);
     }
 
@@ -66,7 +66,7 @@ public class InternalGeoTileGrid extends InternalGeoGrid<InternalGeoTileGridBuck
     }
 
     @Override
-    protected InternalGeoGrid create(String name, int requiredSize, List buckets, Map metadata) {
+    protected BaseGeoGrid create(String name, int requiredSize, List buckets, Map metadata) {
         return new InternalGeoTileGrid(name, requiredSize, buckets, metadata);
     }
 
