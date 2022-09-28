@@ -43,10 +43,6 @@ import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainAc
 import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
 import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainRequestBuilder;
 import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
-import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionStateAction;
-import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionStateRequest;
-import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionStateRequestBuilder;
-import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionStateResponse;
 import org.opensearch.action.admin.cluster.health.ClusterHealthAction;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
@@ -1296,24 +1292,6 @@ public abstract class AbstractClient implements Client {
         @Override
         public ClusterPutWeightedRoutingRequestBuilder prepareWeightedRouting() {
             return new ClusterPutWeightedRoutingRequestBuilder(this, ClusterAddWeightedRoutingAction.INSTANCE);
-        }
-
-        @Override
-        public ActionFuture<DeleteDecommissionStateResponse> deleteDecommissionState(DeleteDecommissionStateRequest request) {
-            return execute(DeleteDecommissionStateAction.INSTANCE, request);
-        }
-
-        @Override
-        public void deleteDecommissionState(
-            DeleteDecommissionStateRequest request,
-            ActionListener<DeleteDecommissionStateResponse> listener
-        ) {
-            execute(DeleteDecommissionStateAction.INSTANCE, request, listener);
-        }
-
-        @Override
-        public DeleteDecommissionStateRequestBuilder prepareDeleteDecommissionRequest() {
-            return new DeleteDecommissionStateRequestBuilder(this, DeleteDecommissionStateAction.INSTANCE);
         }
 
         @Override
