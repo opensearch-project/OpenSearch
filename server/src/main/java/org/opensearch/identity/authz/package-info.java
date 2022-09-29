@@ -7,8 +7,8 @@
  */
 
 /**
- * Core classes responsible for handling identity in OpenSearch
+ * Holds classes related to the authorization of actions
  *
- * @opensearch.internal
+ * @opensearch.experimental
  */
-package org.opensearch.identity;
+package org.opensearch.identity.authz;
