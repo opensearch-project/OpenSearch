@@ -31,8 +31,8 @@ import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedT
  */
 public class GetDecommissionStateResponse extends ActionResponse implements ToXContentObject {
 
-    private final DecommissionAttribute decommissionedAttribute;
-    private final DecommissionStatus status;
+    private DecommissionAttribute decommissionedAttribute;
+    private DecommissionStatus status;
 
     GetDecommissionStateResponse() {
         this(null, null);
@@ -44,28 +44,30 @@ public class GetDecommissionStateResponse extends ActionResponse implements ToXC
     }
 
     GetDecommissionStateResponse(StreamInput in) throws IOException {
+        // read decommissioned attribute and status only if it is present
         if (in.readBoolean()) {
             this.decommissionedAttribute = new DecommissionAttribute(in);
-        } else {
-            this.decommissionedAttribute = null;
         }
         if (in.readBoolean()) {
             this.status = DecommissionStatus.fromString(in.readString());
-        } else {
-            this.status = null;
         }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        boolean isNotNullDecommissionAttribute = this.decommissionedAttribute != null;
-        boolean isNotNullStatus = this.status != null;
-        out.writeBoolean(isNotNullDecommissionAttribute);
-        if (isNotNullDecommissionAttribute) {
+        // if decommissioned attribute is null, mark absence of decommissioned attribute
+        if (decommissionedAttribute == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
             decommissionedAttribute.writeTo(out);
         }
-        out.writeBoolean(isNotNullStatus);
-        if (isNotNullStatus) {
+
+        // if status is null, mark absence of status
+        if (status == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
             out.writeString(status.status());
         }
     }
