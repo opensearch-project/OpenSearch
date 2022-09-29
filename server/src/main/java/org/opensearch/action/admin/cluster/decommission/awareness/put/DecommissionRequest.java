@@ -11,6 +11,7 @@ package org.opensearch.action.admin.cluster.decommission.awareness.put;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.cluster.decommission.DecommissionAttribute;
+import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 
@@ -67,10 +68,10 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (decommissionAttribute.attributeName() == null || decommissionAttribute.attributeName().isEmpty()) {
+        if (decommissionAttribute.attributeName() == null || Strings.isEmpty(decommissionAttribute.attributeName())) {
             validationException = addValidationError("attribute name is missing", validationException);
         }
-        if (decommissionAttribute.attributeValue() == null || decommissionAttribute.attributeValue().isEmpty()) {
+        if (decommissionAttribute.attributeValue() == null || Strings.isEmpty(decommissionAttribute.attributeValue())) {
             validationException = addValidationError("attribute value is missing", validationException);
         }
         return validationException;
