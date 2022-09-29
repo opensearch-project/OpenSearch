@@ -16,8 +16,12 @@ import org.opensearch.rest.RestRequest.Method;
 import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Request to execute REST actions on extension node
@@ -31,6 +35,8 @@ public class ExtensionRestRequest extends TransportRequest {
     private Map<String, String> params;
     // The owner of this request object
     private PrincipalIdentifierToken principalIdentifierToken;
+    // Tracks consumed parameters
+    private final Set<String> consumedParams = new HashSet<>();
 
     /**
      * This object can be instantiated given method, uri, params and identifier
@@ -83,10 +89,43 @@ public class ExtensionRestRequest extends TransportRequest {
     }
 
     /**
+     * Gets the value of a parameter, consuming it in the process.
+     * @param key The parameter key
+     * @return The parameter value if it exists, or null.
+     */
+    public String param(String key) {
+        consumedParams.add(key);
+        return params.get(key);
+    }
+
+    /**
+     * Gets the value of a parameter, consuming it in the process.
+     * @param key The parameter key
+     * @param defaultValue A value to return if the parameter value doesn't exist.
+     * @return The parameter value if it exists, or the default value.
+     */
+    public String param(String key, String defaultValue) {
+        consumedParams.add(key);
+        return params.getOrDefault(key, defaultValue);
+    }
+
+    /**
+     * Gets the full map of params without consuming them.
+     * Rest Handlers should use {@link #param(String)} or {@link #param(String, String)} to get parameter values.
+     *
      * @return This REST request's params
      */
     public Map<String, String> params() {
         return params;
+    }
+
+    /**
+     * Returns parameters consumed by {@link #param(String)} or {@link #param(String, String)}.
+     *
+     * @return a list of consumed parameters.
+     */
+    public List<String> consumedParams() {
+        return new ArrayList<>(consumedParams);
     }
 
     /**
