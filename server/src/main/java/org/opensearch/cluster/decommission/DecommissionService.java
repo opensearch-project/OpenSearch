@@ -359,7 +359,7 @@ public class DecommissionService {
             }
         });
 
-        decommissionController.setRoutingWeight(decommissionAttribute.attributeName(), weights, new ActionListener<>() {
+        decommissionController.setRoutingWeights(decommissionAttribute.attributeName(), weights, new ActionListener<>() {
             @Override
             public void onResponse(ClusterPutWeightedRoutingResponse response) {
                 // Schedule the node decommission process after the weights are successfully set.

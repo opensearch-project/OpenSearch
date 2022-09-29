@@ -279,7 +279,7 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
 
         Map<String, Double> weights = Map.of("zone-1", 0.0, "zone-2", 1.0, "zone-3", 1.0);
 
-        decommissionController.setRoutingWeight("zone", weights, Mockito.mock(ActionListener.class));
+        decommissionController.setRoutingWeights("zone", weights, Mockito.mock(ActionListener.class));
         ArgumentCaptor<ClusterPutWeightedRoutingRequest> clusterPutWRRWeightsRequestArgumentCaptor = ArgumentCaptor.forClass(
             ClusterPutWeightedRoutingRequest.class
         );
