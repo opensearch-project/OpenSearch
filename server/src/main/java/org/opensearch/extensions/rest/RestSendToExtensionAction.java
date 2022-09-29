@@ -105,8 +105,10 @@ public class RestSendToExtensionAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        Method method = request.getHttpRequest().method();
-        String uri = request.getHttpRequest().uri();
+        Method method = request.method();
+        String uri = request.uri();
+        Map<String, String> params = request.params();
+
         if (uri.startsWith(uriPrefix)) {
             uri = uri.substring(uriPrefix.length());
         }
@@ -171,7 +173,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
                 ExtensionsOrchestrator.REQUEST_REST_EXECUTE_ON_EXTENSION_ACTION,
                 // HERE BE DRAGONS - DO NOT INCLUDE HEADERS
                 // SEE https://github.com/opensearch-project/OpenSearch/issues/4429
-                new RestExecuteOnExtensionRequest(method, uri, requestIssuerIdentity),
+                new RestExecuteOnExtensionRequest(method, uri, params, requestIssuerIdentity),
                 restExecuteOnExtensionResponseHandler
             );
             try {

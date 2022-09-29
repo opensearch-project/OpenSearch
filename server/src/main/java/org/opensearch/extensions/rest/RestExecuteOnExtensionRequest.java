@@ -16,6 +16,7 @@ import org.opensearch.rest.RestRequest.Method;
 import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -27,31 +28,35 @@ public class RestExecuteOnExtensionRequest extends TransportRequest {
 
     private Method method;
     private String uri;
-
+    private Map<String, String> params;
     private PrincipalIdentifierToken requestIssuerIdentity;
 
-    public RestExecuteOnExtensionRequest(Method method, String uri, PrincipalIdentifierToken requesterIdentifier) {
+    public RestExecuteOnExtensionRequest(
+        Method method,
+        String uri,
+        Map<String, String> params,
+        PrincipalIdentifierToken requesterIdentifier
+    ) {
         this.method = method;
         this.uri = uri;
+        this.params = params;
         this.requestIssuerIdentity = requesterIdentifier;
     }
 
     public RestExecuteOnExtensionRequest(StreamInput in) throws IOException {
         super(in);
-        try {
-            method = RestRequest.Method.valueOf(in.readString());
-        } catch (IllegalArgumentException e) {
-            throw new IOException(e);
-        }
+        method = in.readEnum(RestRequest.Method.class);
         uri = in.readString();
+        params = in.readMap(StreamInput::readString, StreamInput::readString);
         requestIssuerIdentity = in.readNamedWriteable(PrincipalIdentifierToken.class);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(method.name());
+        out.writeEnum(method);
         out.writeString(uri);
+        out.writeMap(params, StreamOutput::writeString, StreamOutput::writeString);
         out.writeNamedWriteable(requestIssuerIdentity);
     }
 
@@ -61,6 +66,10 @@ public class RestExecuteOnExtensionRequest extends TransportRequest {
 
     public String getUri() {
         return uri;
+    }
+
+    public Map<String, String> getParams() {
+        return params;
     }
 
     public PrincipalIdentifierToken getRequestIssuerIdentity() {
@@ -73,7 +82,9 @@ public class RestExecuteOnExtensionRequest extends TransportRequest {
             + method
             + ", uri="
             + uri
-            + ", requester = "
+            + ", params="
+            + params
+            + ", requester="
             + requestIssuerIdentity.getToken()
             + "}";
     }
@@ -85,11 +96,12 @@ public class RestExecuteOnExtensionRequest extends TransportRequest {
         RestExecuteOnExtensionRequest that = (RestExecuteOnExtensionRequest) obj;
         return Objects.equals(method, that.method)
             && Objects.equals(uri, that.uri)
+            && Objects.equals(params, that.params)
             && Objects.equals(requestIssuerIdentity, that.requestIssuerIdentity);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(method, uri, requestIssuerIdentity);
+        return Objects.hash(method, uri, params, requestIssuerIdentity);
     }
 }
