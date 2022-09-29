@@ -11,7 +11,6 @@ package org.opensearch.action.admin.cluster.decommission.awareness.delete;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.ToXContentObject;
 
 import java.io.IOException;
 
@@ -20,7 +19,7 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public class DeleteDecommissionStateResponse extends AcknowledgedResponse implements ToXContentObject {
+public class DeleteDecommissionStateResponse extends AcknowledgedResponse {
 
     public DeleteDecommissionStateResponse(StreamInput in) throws IOException {
         super(in);
