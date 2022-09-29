@@ -12,12 +12,15 @@ The following are the areas of focus to create this minimal set of functionality
 
 ### Identity Concepts
 
-[Complexity 8]
-Currently in Progress
+[Complexity 8] Flesh out the objects and methods associated with identity primitives such as Subject, Principal, tracking authorization state, communicating concepts into un-trusted ecosystems.  For additional details see
+
+- https://github.com/opensearch-project/OpenSearch/issues/3846
+- https://github.com/opensearch-project/opensearch-sdk-java/issues/37
+- https://github.com/opensearch-project/opensearch-sdk-java/issues/40
 
 ### Delegate Execution
 
-[Complexity 5]
+[Complexity 5] Allows transitioning into another Subject.  This should be possible with system subjects or interactive user sessions, the default mechanism should use access tokens that are cryptographically secured against tampering.
 
 ### Access Tokens
 
@@ -26,28 +29,28 @@ Currently in Progress
 
 ### Internal Identity Provider
 
-- [Complexity 2] In memory 
-- [Complexity 3] Persistently stored
+- [Complexity 2] Create basis in memory user store for username/password based authentication 
+- [Complexity 3] Persistently store the users across the cluster in a way that is keep consistent
  
 ### Creation of Subject
 
-[Complexity 3]
+[Complexity 3] Allow creation of subjects for system processes or by users to run on their behalf
 
 ### Authorization
 
-- [Complexity 2] Registration of permissions
+- [Complexity 2] Registration of permissions from all permissions sources in core
 - [Complexity 5] Registration of permissions for extension/plugins
-- [Complexity 2] Subject -> List of permissions
-- [Complexity 3] New permissions model
-- [Complexity 8] Permission name schema
-- [Complexity 2] Rename core permissions
-- [Complexity 8] Rename plugin permissions (OOB?)
-- [Complexity 2] Where does evaluation happen for FGAC?
-- [Complexity 2] Grant permissions to a subject
+- [Complexity 2] Have a process where from a Subject a list of permissions is generated so they can be checked
+- [Complexity 3] Design the permissions model and any potential changes.  Notability existing permissions based on action names will be on deprecation path 
+- [Complexity 8] For the new permission come up with a structured naming convention building blocks, such as {SourceName}{ResourceName}{ActionVerb} -> Ad.Detector.Create.  Additionally come up with a 'blessed' list of action verbs to prevent http methods from being used as action names.
+- [Complexity 2] With the new naming convention create updated names for all core permissions
+- [Complexity 2] Confirm evaluation of permissions for Actions happen in
+- [Complexity 2] Grant permissions to a subject, through the identity provider
 
 ### Http Basic Auth
 
 [Complexity 3]
+Support basic username/password authentication
 
 ## Out of Band
 
@@ -67,6 +70,11 @@ Might be further expanded into a generic 'resource collection'
 
 [Complexity 8]
 Roles, groups, trees, or other intermediate representations of permissions.
+
+### Rename plugin permissions (OOB?)
+
+[Complexity 8]
+Drive the renaming of permissions through all the existing plugins.
 
 ### Migration from Security Plugin
 
