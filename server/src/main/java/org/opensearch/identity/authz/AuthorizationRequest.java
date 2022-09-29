@@ -10,7 +10,6 @@ package org.opensearch.identity.authz;
 
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.identity.PrincipalIdentifierToken;
 import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;
@@ -25,23 +24,19 @@ import java.util.Objects;
  * @opensearch.experimental
  */
 public class AuthorizationRequest extends TransportRequest {
-    private PrincipalIdentifierToken requestIssuerIdentity;
     private String permissionId;
     private Map<String, CheckableParameter> params;
 
     public AuthorizationRequest(
-        PrincipalIdentifierToken requestIssuerIdentity,
         String permissionId,
         Map<String, CheckableParameter> params
     ) {
-        this.requestIssuerIdentity = requestIssuerIdentity;
         this.permissionId = permissionId;
         this.params = params;
     }
 
     public AuthorizationRequest(StreamInput in) throws IOException {
         super(in);
-        requestIssuerIdentity = in.readNamedWriteable(PrincipalIdentifierToken.class);
         permissionId = in.readString();
         if (in.readBoolean()) {
             params = in.readMap(StreamInput::readString, i -> {
@@ -58,17 +53,12 @@ public class AuthorizationRequest extends TransportRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeNamedWriteable(requestIssuerIdentity);
         out.writeString(permissionId);
         boolean hasParams = params != null;
         out.writeBoolean(hasParams);
         if (hasParams) {
             out.writeMap(params, StreamOutput::writeString, (o, s) -> CheckableParameter.writeParameterToStream(s, o));
         }
-    }
-
-    public PrincipalIdentifierToken getRequestIssuerIdentity() {
-        return requestIssuerIdentity;
     }
 
     public String getPermissionId() {
@@ -81,9 +71,7 @@ public class AuthorizationRequest extends TransportRequest {
 
     @Override
     public String toString() {
-        return "AuthorizationRequest{requestIssuerIdentity="
-            + requestIssuerIdentity
-            + ", permissionId="
+        return "AuthorizationRequest{permissionId="
             + permissionId
             + ", params="
             + params
@@ -95,11 +83,11 @@ public class AuthorizationRequest extends TransportRequest {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
         AuthorizationRequest that = (AuthorizationRequest) obj;
-        return Objects.equals(requestIssuerIdentity, that.requestIssuerIdentity) && Objects.equals(permissionId, that.permissionId);
+        return Objects.equals(permissionId, that.permissionId) && Objects.equals(params, that.params);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(requestIssuerIdentity, permissionId);
+        return Objects.hash(permissionId, params);
     }
 }
