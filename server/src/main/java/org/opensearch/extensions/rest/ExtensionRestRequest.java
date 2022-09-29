@@ -22,33 +22,41 @@ import java.util.Objects;
 /**
  * Request to execute REST actions on extension node
  *
- * @opensearch.internal
+ * @opensearch.api
  */
-public class RestExecuteOnExtensionRequest extends TransportRequest {
+public class ExtensionRestRequest extends TransportRequest {
 
     private Method method;
     private String uri;
     private Map<String, String> params;
-    private PrincipalIdentifierToken requestIssuerIdentity;
+    // The owner of this request object
+    private PrincipalIdentifierToken principalIdentifierToken;
 
-    public RestExecuteOnExtensionRequest(
-        Method method,
-        String uri,
-        Map<String, String> params,
-        PrincipalIdentifierToken requesterIdentifier
-    ) {
+    /**
+     * This object can be instantiated given method, uri, params and identifier
+     * @param method of type {@link Method}
+     * @param uri url string
+     * @param params the REST params
+     * @param principalIdentifier the owner of this request
+     */
+    public ExtensionRestRequest(Method method, String uri, Map<String, String> params, PrincipalIdentifierToken principalIdentifier) {
         this.method = method;
         this.uri = uri;
         this.params = params;
-        this.requestIssuerIdentity = requesterIdentifier;
+        this.principalIdentifierToken = principalIdentifier;
     }
 
-    public RestExecuteOnExtensionRequest(StreamInput in) throws IOException {
+    /**
+     * Instantiate this request from input stream
+     * @param in Input stream
+     * @throws IOException on failure to read the stream
+     */
+    public ExtensionRestRequest(StreamInput in) throws IOException {
         super(in);
         method = in.readEnum(RestRequest.Method.class);
         uri = in.readString();
         params = in.readMap(StreamInput::readString, StreamInput::readString);
-        requestIssuerIdentity = in.readNamedWriteable(PrincipalIdentifierToken.class);
+        principalIdentifierToken = in.readNamedWriteable(PrincipalIdentifierToken.class);
     }
 
     @Override
@@ -57,35 +65,47 @@ public class RestExecuteOnExtensionRequest extends TransportRequest {
         out.writeEnum(method);
         out.writeString(uri);
         out.writeMap(params, StreamOutput::writeString, StreamOutput::writeString);
-        out.writeNamedWriteable(requestIssuerIdentity);
+        out.writeNamedWriteable(principalIdentifierToken);
     }
 
-    public Method getMethod() {
+    /**
+     * @return This REST request {@link Method} type
+     */
+    public Method method() {
         return method;
     }
 
-    public String getUri() {
+    /**
+     * @return This REST request's uri
+     */
+    public String uri() {
         return uri;
     }
 
-    public Map<String, String> getParams() {
+    /**
+     * @return This REST request's params
+     */
+    public Map<String, String> params() {
         return params;
     }
 
+    /**
+     * @return This REST request issuer's identity token
+     */
     public PrincipalIdentifierToken getRequestIssuerIdentity() {
-        return requestIssuerIdentity;
+        return principalIdentifierToken;
     }
 
     @Override
     public String toString() {
-        return "RestExecuteOnExtensionRequest{method="
+        return "ExtensionRestRequest{method="
             + method
             + ", uri="
             + uri
             + ", params="
             + params
             + ", requester="
-            + requestIssuerIdentity.getToken()
+            + principalIdentifierToken.getToken()
             + "}";
     }
 
@@ -93,15 +113,15 @@ public class RestExecuteOnExtensionRequest extends TransportRequest {
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
-        RestExecuteOnExtensionRequest that = (RestExecuteOnExtensionRequest) obj;
+        ExtensionRestRequest that = (ExtensionRestRequest) obj;
         return Objects.equals(method, that.method)
             && Objects.equals(uri, that.uri)
             && Objects.equals(params, that.params)
-            && Objects.equals(requestIssuerIdentity, that.requestIssuerIdentity);
+            && Objects.equals(principalIdentifierToken, that.principalIdentifierToken);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(method, uri, params, requestIssuerIdentity);
+        return Objects.hash(method, uri, params, principalIdentifierToken);
     }
 }

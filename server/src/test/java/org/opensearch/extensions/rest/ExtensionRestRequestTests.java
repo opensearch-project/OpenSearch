@@ -24,12 +24,14 @@ import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.util.List;
 import java.util.Map;
+import static java.util.Map.entry;
 
-public class RestExecuteOnExtensionTests extends OpenSearchTestCase {
+public class ExtensionRestRequestTests extends OpenSearchTestCase {
 
-    public void testRestExecuteOnExtensionRequest() throws Exception {
+    public void testExecuteRestRequest() throws Exception {
         Method expectedMethod = Method.GET;
         String expectedUri = "/test/uri";
+        Map<String, String> expectedParams = Map.ofEntries(entry("foo", "bar"), entry("baz", "qux"));
         String extensionUniqueId1 = "ext_1";
         Principal userPrincipal = () -> "user1";
         ExtensionTokenProcessor extensionTokenProcessor = new ExtensionTokenProcessor(extensionUniqueId1);
@@ -44,14 +46,11 @@ public class RestExecuteOnExtensionTests extends OpenSearchTestCase {
             )
         );
 
-        RestExecuteOnExtensionRequest request = new RestExecuteOnExtensionRequest(
-            expectedMethod,
-            expectedUri,
-            expectedRequestIssuerIdentity
-        );
+        ExtensionRestRequest request = new ExtensionRestRequest(expectedMethod, expectedUri, expectedParams, expectedRequestIssuerIdentity);
 
-        assertEquals(expectedMethod, request.getMethod());
-        assertEquals(expectedUri, request.getUri());
+        assertEquals(expectedMethod, request.method());
+        assertEquals(expectedUri, request.uri());
+        assertEquals(expectedParams, request.params());
         assertEquals(expectedRequestIssuerIdentity, request.getRequestIssuerIdentity());
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
@@ -59,11 +58,12 @@ public class RestExecuteOnExtensionTests extends OpenSearchTestCase {
             out.flush();
             try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
                 try (NamedWriteableAwareStreamInput nameWritableAwareIn = new NamedWriteableAwareStreamInput(in, registry)) {
-                    request = new RestExecuteOnExtensionRequest(nameWritableAwareIn);
+                    request = new ExtensionRestRequest(nameWritableAwareIn);
                 }
 
-                assertEquals(expectedMethod, request.getMethod());
-                assertEquals(expectedUri, request.getUri());
+                assertEquals(expectedMethod, request.method());
+                assertEquals(expectedUri, request.uri());
+                assertEquals(expectedParams, request.params());
                 assertEquals(expectedRequestIssuerIdentity, request.getRequestIssuerIdentity());
             }
         }
