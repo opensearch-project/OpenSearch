@@ -78,6 +78,6 @@ public class TransportDeleteDecommissionStateAction extends TransportClusterMana
     ) {
         // TODO: Enable when service class change is merged
         logger.info("Received delete decommission Request");
-        listener.onResponse(new DeleteDecommissionStateResponse(true));
+        // TODO: Add call to decommission service method.
     }
 }
