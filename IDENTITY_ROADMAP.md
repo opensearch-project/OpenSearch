@@ -4,6 +4,10 @@ Every thing done within OpenSearch should be permissible, no matter the source. 
 
 Getting these new native concepts out to OpenSearch developers and customers quickly for feedback and iteration is our aim to achieve this.
 
+_Terminology:_
+* Subject: An individual, process, or device that causes information to flow among objects or change to the system state.
+* Principal: An application-wide identifier that is persisted
+
 ## Minimal viable system
 
 To move quickly, and provide a surface area for experimentation we are going to cut some corners.  This effort will first be within a feature branch, then be controlled via an experimental feature flag shipped with OpenSearch distribution, finally made available for adoption with backwards compatible support.
@@ -44,7 +48,7 @@ The following are the areas of focus to create this minimal set of functionality
 - [Complexity 3] Design the permissions model and any potential changes.  Notability existing permissions based on action names will be on deprecation path 
 - [Complexity 8] For the new permission come up with a structured naming convention building blocks, such as {SourceName}{ResourceName}{ActionVerb} -> Ad.Detector.Create.  Additionally come up with a 'blessed' list of action verbs to prevent http methods from being used as action names.
 - [Complexity 2] With the new naming convention create updated names for all core permissions
-- [Complexity 2] Confirm evaluation of permissions for Actions happen in
+- [Complexity 2] Confirm evaluation of permissions for Actions in core
 - [Complexity 2] Grant permissions to a subject, through the identity provider
 
 ### Http Basic Auth
