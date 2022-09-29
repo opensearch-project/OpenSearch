@@ -18,9 +18,9 @@ The following are the areas of focus to create this minimal set of functionality
 
 [Complexity 8] Flesh out the objects and methods associated with identity primitives such as Subject, Principal, tracking authorization state, communicating concepts into un-trusted ecosystems.  For additional details see
 
-- https://github.com/opensearch-project/OpenSearch/issues/3846
-- https://github.com/opensearch-project/opensearch-sdk-java/issues/37
-- https://github.com/opensearch-project/opensearch-sdk-java/issues/40
+- [OpenSearch requests should know the identity of the caller #3846](https://github.com/opensearch-project/OpenSearch/issues/3846)
+- [Add support for using User Identity in extensions #37](https://github.com/opensearch-project/opensearch-sdk-java/issues/37)
+- [Create a permissions check API for extensions to us with custom resources #40](https://github.com/opensearch-project/opensearch-sdk-java/issues/40)
 
 ### Delegate Execution
 
