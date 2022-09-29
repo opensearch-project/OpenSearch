@@ -12,12 +12,15 @@ import java.security.Principal;
 import java.util.Objects;
 
 import org.opensearch.identity.Subject;
+import org.opensearch.identity.AuthenticationToken;
 import org.opensearch.identity.Principals;
 
 /**
  * Implementation of subject that is always authenticated
  *
  * This class and related classes in this package will not return nulls or fail permissions checks
+ *
+ * @opensearch.internal
  */
 public class NoopSubject implements Subject {
 
@@ -42,5 +45,10 @@ public class NoopSubject implements Subject {
     @Override
     public String toString() {
         return "NoopSubject(principal=" + getPrincipal() + ")";
+    }
+
+    @Override
+    public void login(final AuthenticationToken token) {
+        // Noop subject is always logged in, and all authentication tokens are accepted
     }
 }

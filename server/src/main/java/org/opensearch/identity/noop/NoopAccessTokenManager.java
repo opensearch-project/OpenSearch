@@ -5,29 +5,33 @@
  * this file be licensed under the Apache-2.0 license or a
  * compatible open source license.
  */
-
 package org.opensearch.identity.noop;
 
+import org.opensearch.identity.AccessToken;
 import org.opensearch.identity.AccessTokenManager;
-import org.opensearch.identity.AuthenticationManager;
-import org.opensearch.identity.Subject;
 
 /**
- * Implementation of authentication manager that does not enforce authentication
+ * Implementation of access token manager that does not enforce authentication
  *
  * This class and related classes in this package will not return nulls or fail permissions checks
  *
  * @opensearch.internal
  */
-public class NoopAuthenticationManager implements AuthenticationManager {
+public class NoopAccessTokenManager implements AccessTokenManager {
 
     @Override
-    public Subject getSubject() {
-        return new NoopSubject();
+    public void expireAllTokens() {
+        // Tokens cannot be expired
     }
 
     @Override
-    public AccessTokenManager getAccessTokenManager() {
-        return null;
+    public AccessToken generate() {
+        return new AccessToken();
     }
+
+    @Override
+    public AccessToken refresh(final AccessToken token) {
+        return new AccessToken();
+    }
+
 }
