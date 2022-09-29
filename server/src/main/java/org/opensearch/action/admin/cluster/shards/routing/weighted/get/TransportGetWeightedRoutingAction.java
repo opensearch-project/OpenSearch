@@ -12,10 +12,12 @@ import org.opensearch.action.ActionListener;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeReadAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
+import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 
 import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
@@ -75,7 +77,7 @@ public class TransportGetWeightedRoutingAction extends TransportClusterManagerNo
 
     @Override
     protected ClusterBlockException checkBlock(ClusterGetWeightedRoutingRequest request, ClusterState state) {
-        return null;
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 
     @Override
@@ -84,24 +86,30 @@ public class TransportGetWeightedRoutingAction extends TransportClusterManagerNo
         ClusterState state,
         final ActionListener<ClusterGetWeightedRoutingResponse> listener
     ) throws IOException {
-        weightedRoutingService.verifyAwarenessAttribute(request.getAwarenessAttribute());
-        WeightedRoutingMetadata weightedRoutingMetadata = state.metadata().custom(WeightedRoutingMetadata.TYPE);
-        ClusterGetWeightedRoutingResponse clusterGetWeightedRoutingResponse = new ClusterGetWeightedRoutingResponse();
-        String weight = null;
-        if (weightedRoutingMetadata != null && weightedRoutingMetadata.getWeightedRouting() != null) {
-            WeightedRouting weightedRouting = weightedRoutingMetadata.getWeightedRouting();
-            if (request.local()) {
-                DiscoveryNode localNode = state.getNodes().getLocalNode();
-                if (localNode.getAttributes().get(request.getAwarenessAttribute()) != null) {
-                    String attrVal = localNode.getAttributes().get(request.getAwarenessAttribute());
-                    if (weightedRouting.weights().containsKey(attrVal)) {
-                        weight = weightedRouting.weights().get(attrVal).toString();
+        try {
+            weightedRoutingService.verifyAwarenessAttribute(request.getAwarenessAttribute());
+            WeightedRoutingMetadata weightedRoutingMetadata = state.metadata().custom(WeightedRoutingMetadata.TYPE);
+            ClusterGetWeightedRoutingResponse clusterGetWeightedRoutingResponse = new ClusterGetWeightedRoutingResponse();
+            String weight = null;
+            if (weightedRoutingMetadata != null && weightedRoutingMetadata.getWeightedRouting() != null) {
+                WeightedRouting weightedRouting = weightedRoutingMetadata.getWeightedRouting();
+                if (request.local()) {
+                    DiscoveryNode localNode = state.getNodes().getLocalNode();
+                    if (localNode.getAttributes().get(request.getAwarenessAttribute()) != null) {
+                        String attrVal = localNode.getAttributes().get(request.getAwarenessAttribute());
+                        if (weightedRouting.weights().containsKey(attrVal)) {
+                            weight = weightedRouting.weights().get(attrVal).toString();
+                        }
                     }
                 }
+                clusterGetWeightedRoutingResponse = new ClusterGetWeightedRoutingResponse(weight, weightedRouting);
             }
-            clusterGetWeightedRoutingResponse = new ClusterGetWeightedRoutingResponse(weight, weightedRouting);
+            listener.onResponse(clusterGetWeightedRoutingResponse);
+        } catch (ActionRequestValidationException ex) {
+            listener.onFailure(ex);
+            return;
         }
-        listener.onResponse(clusterGetWeightedRoutingResponse);
+
     }
 
 }

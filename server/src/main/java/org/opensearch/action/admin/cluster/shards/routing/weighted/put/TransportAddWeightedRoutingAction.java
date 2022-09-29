@@ -9,6 +9,7 @@
 package org.opensearch.action.admin.cluster.shards.routing.weighted.put;
 
 import org.opensearch.action.ActionListener;
+import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
@@ -72,7 +73,12 @@ public class TransportAddWeightedRoutingAction extends TransportClusterManagerNo
         ClusterState state,
         ActionListener<ClusterPutWeightedRoutingResponse> listener
     ) throws Exception {
-        weightedRoutingService.verifyAwarenessAttribute(request.getWeightedRouting().attributeName());
+        try {
+            weightedRoutingService.verifyAwarenessAttribute(request.getWeightedRouting().attributeName());
+        } catch (ActionRequestValidationException ex) {
+            listener.onFailure(ex);
+            return;
+        }
         weightedRoutingService.registerWeightedRoutingMetadata(
             request,
             ActionListener.delegateFailure(
