@@ -16,7 +16,7 @@ import java.io.IOException;
 /**
  * Parameter in an {@link AuthorizationRequest}
  *
- * CheckableParameters are parameters needed when performing an authorization request such as an resource identifier or
+ * CheckableParameters are parameters needed when performing an authorization request such as a resource identifier or
  * an index pattern.
  *
  * @opensearch.experimental
