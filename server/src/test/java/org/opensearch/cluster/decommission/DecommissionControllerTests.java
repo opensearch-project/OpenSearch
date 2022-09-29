@@ -10,11 +10,14 @@ package org.opensearch.cluster.decommission;
 
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.opensearch.action.admin.cluster.configuration.TransportClearVotingConfigExclusionsAction;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingRequest;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
@@ -36,6 +39,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransport;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
 import java.util.Arrays;
@@ -266,6 +270,31 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
         ClusterState newState = clusterService.getClusterApplierService().state();
         DecommissionAttributeMetadata decommissionAttributeMetadata = newState.metadata().decommissionAttributeMetadata();
         assertEquals(decommissionAttributeMetadata.status(), DecommissionStatus.SUCCESSFUL);
+    }
+
+    public void testSetWeightsForDecommission() {
+        TransportService mockTransportService = Mockito.mock(TransportService.class);
+        Mockito.when(mockTransportService.getLocalNode()).thenReturn(Mockito.mock(DiscoveryNode.class));
+        decommissionController = new DecommissionController(clusterService, mockTransportService, allocationService, threadPool);
+
+        Map<String, Double> weights = Map.of("zone-1", 0.0, "zone-2", 1.0, "zone-3", 1.0);
+
+        decommissionController.setRoutingWeights("zone", weights, Mockito.mock(ActionListener.class));
+        ArgumentCaptor<ClusterPutWeightedRoutingRequest> clusterPutWRRWeightsRequestArgumentCaptor = ArgumentCaptor.forClass(
+            ClusterPutWeightedRoutingRequest.class
+        );
+        Mockito.verify(mockTransportService)
+            .sendRequest(
+                Mockito.any(DiscoveryNode.class),
+                Mockito.anyString(),
+                clusterPutWRRWeightsRequestArgumentCaptor.capture(),
+                Mockito.any(TransportResponseHandler.class)
+            );
+
+        ClusterPutWeightedRoutingRequest request = clusterPutWRRWeightsRequestArgumentCaptor.getValue();
+        assertEquals(0.0, request.getWeightedRouting().weights().get("zone-1"), 0.0);
+        assertEquals(1.0, request.getWeightedRouting().weights().get("zone-2"), 0.0);
+        assertEquals(1.0, request.getWeightedRouting().weights().get("zone-3"), 0.0);
     }
 
     private static class AdjustConfigurationForExclusions implements ClusterStateObserver.Listener {

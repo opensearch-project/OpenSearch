@@ -495,7 +495,7 @@ public class DecommissionService {
         List<String> awarenessValues = forcedAwarenessAttributes.get(attributeName);
         Map<String, Double> weights = new HashMap<>();
         awarenessValues.forEach(awarenessValue -> { weights.put(awarenessValue, 1.0); });
-        decommissionController.setWeights(attributeName, weights, new ActionListener<>() {
+        decommissionController.setRoutingWeights(attributeName, weights, new ActionListener<>() {
             @Override
             public void onResponse(ClusterPutWeightedRoutingResponse clusterPutWeightedRoutingResponse) {
                 // Weights are successfully set. Let clear the decommission attribute.

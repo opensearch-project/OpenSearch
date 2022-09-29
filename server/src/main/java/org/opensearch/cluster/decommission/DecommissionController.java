@@ -272,16 +272,21 @@ public class DecommissionController {
         });
     }
 
-    void setWeights(String awarenessAttribute, Map<String, Double> weights, ActionListener<ClusterPutWeightedRoutingResponse> listener) {
+    void setRoutingWeights(
+        String awarenessAttributeName,
+        Map<String, Double> weights,
+        ActionListener<ClusterPutWeightedRoutingResponse> listener
+    ) {
         // WRR API will validate invalid weights
-        final ClusterPutWeightedRoutingRequest clusterWeightRequest = new ClusterPutWeightedRoutingRequest();
-        clusterWeightRequest.attributeName(awarenessAttribute);
-        clusterWeightRequest.setWeightedRouting(new WeightedRouting(awarenessAttribute, weights));
+        final ClusterPutWeightedRoutingRequest clusterPutRoutingWeightRequest = new ClusterPutWeightedRoutingRequest(
+            awarenessAttributeName
+        );
+        clusterPutRoutingWeightRequest.setWeightedRouting(new WeightedRouting(awarenessAttributeName, weights));
 
         transportService.sendRequest(
             transportService.getLocalNode(),
             ClusterAddWeightedRoutingAction.NAME,
-            clusterWeightRequest,
+            clusterPutRoutingWeightRequest,
             new TransportResponseHandler<ClusterPutWeightedRoutingResponse>() {
                 @Override
                 public void handleResponse(ClusterPutWeightedRoutingResponse response) {
