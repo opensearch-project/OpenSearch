@@ -20,6 +20,7 @@ import java.util.Objects;
  * Request to evaluate user privileges for actions
  *
  * This object encapsulates all that is needed to perform authorization on a request
+ * Authorization is performed on the current subject
  *
  * @opensearch.experimental
  */
