@@ -110,6 +110,10 @@ import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsAction;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsRequestBuilder;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterAddWeightedRoutingAction;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingRequest;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingRequestBuilder;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingResponse;
 import org.opensearch.action.admin.cluster.snapshots.clone.CloneSnapshotAction;
 import org.opensearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequest;
 import org.opensearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequestBuilder;
@@ -1270,6 +1274,24 @@ public abstract class AbstractClient implements Client {
         @Override
         public ActionFuture<AcknowledgedResponse> deleteDanglingIndex(DeleteDanglingIndexRequest request) {
             return execute(DeleteDanglingIndexAction.INSTANCE, request);
+        }
+
+        @Override
+        public ActionFuture<ClusterPutWeightedRoutingResponse> putWeightedRouting(ClusterPutWeightedRoutingRequest request) {
+            return execute(ClusterAddWeightedRoutingAction.INSTANCE, request);
+        }
+
+        @Override
+        public void putWeightedRouting(
+            ClusterPutWeightedRoutingRequest request,
+            ActionListener<ClusterPutWeightedRoutingResponse> listener
+        ) {
+            execute(ClusterAddWeightedRoutingAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public ClusterPutWeightedRoutingRequestBuilder prepareWeightedRouting() {
+            return new ClusterPutWeightedRoutingRequestBuilder(this, ClusterAddWeightedRoutingAction.INSTANCE);
         }
 
         @Override
