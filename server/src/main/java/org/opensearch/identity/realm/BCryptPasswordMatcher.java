@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.identity.crypto;
+package org.opensearch.identity.realm;
 
 import org.apache.shiro.authc.AuthenticationInfo;
 import org.apache.shiro.authc.AuthenticationToken;
@@ -14,6 +14,11 @@ import org.apache.shiro.authc.UsernamePasswordToken;
 import org.apache.shiro.authc.credential.CredentialsMatcher;
 import org.bouncycastle.crypto.generators.OpenBSDBCrypt;
 
+/**
+ * Password matcher for BCrypt
+ *
+ * @opensearch.experimental
+ */
 public class BCryptPasswordMatcher implements CredentialsMatcher {
 
     @Override

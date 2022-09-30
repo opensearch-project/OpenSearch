@@ -113,7 +113,7 @@ dependencies {
 
   api 'org.apache.shiro:shiro-core:1.9.1'
   // Needed for shiro
-  api 'org.slf4j:slf4j-api:1.7.32'
+  api "org.slf4j:slf4j-api:${versions.slf4j}"
   api "org.bouncycastle:bcprov-jdk15on:${versions.bouncycastle}"
   api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
   api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
