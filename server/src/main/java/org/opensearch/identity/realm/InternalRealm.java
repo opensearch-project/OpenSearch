@@ -17,17 +17,45 @@ import org.apache.shiro.authc.SimpleAuthenticationInfo;
 import org.apache.shiro.authc.UnknownAccountException;
 import org.apache.shiro.authc.UsernamePasswordToken;
 import org.apache.shiro.realm.AuthenticatingRealm;
-import org.apache.shiro.util.ByteSource;
+import org.bouncycastle.crypto.generators.OpenBSDBCrypt;
+import org.opensearch.identity.InternalSubject;
+import org.opensearch.identity.crypto.BCryptPasswordMatcher;
+
+import java.io.FileNotFoundException;
+import java.util.Map;
 
 public class InternalRealm extends AuthenticatingRealm {
+
+    public static final InternalRealm INSTANCE = new InternalRealm();
+    private static final String REALM_NAME = "internal";
+
+    private boolean isRealmInitialized = false;
+
+    public InternalRealm() {
+        super(new BCryptPasswordMatcher());
+    }
+
+    // TODO Switch this to private after debugging
+    public Map<String, InternalSubject> internalSubjects;
+
+    public void initializeInternalSubjectsStore(String pathToInternalUsersYaml) throws FileNotFoundException {
+        // TODO load this at cluster start
+        internalSubjects = InternalSubjectsStore.readInternalSubjectsAsMap(pathToInternalUsersYaml);
+        isRealmInitialized = true;
+    }
+
     @Override
     protected AuthenticationInfo doGetAuthenticationInfo(AuthenticationToken token) throws AuthenticationException {
-        if(token instanceof UsernamePasswordToken) {
+        if (!isRealmInitialized || internalSubjects == null) {
+            // nothing to do
+            return null;
+        }
+        if (token instanceof UsernamePasswordToken) {
             String username = ((UsernamePasswordToken) token).getUsername();
             final char[] password = ((UsernamePasswordToken) token).getPassword();
             // Look up the user by the provide username
-            String userRecord = "userObj";
-//            UserRecord userRecord = lookupUserRecord(username);
+            InternalSubject userRecord = internalSubjects.get(username);
+            // UserRecord userRecord = lookupUserRecord(username);
             // No record found - don't know who this is
             if (userRecord == null) {
                 throw new UnknownAccountException();
@@ -35,14 +63,14 @@ public class InternalRealm extends AuthenticatingRealm {
             // Check for other things, like a locked account, expired password, etc.
 
             // Verify the user
-            SimpleAuthenticationInfo sai = new SimpleAuthenticationInfo("test", "encrypted_password", ByteSource.Util.bytes("salt"), getName());
-            boolean successfulAuthentication = getCredentialsMatcher().doCredentialsMatch(token, sai);
+            SimpleAuthenticationInfo sai = new SimpleAuthenticationInfo(userRecord.getPrimaryPrincipal(), userRecord.getHash(), REALM_NAME);
+            boolean successfulAuthentication = OpenBSDBCrypt.checkPassword(userRecord.getHash(), password);
 
-            if(successfulAuthentication) {
+            if (successfulAuthentication) {
                 // Check for anything else that might prevent login (expired password, locked account, etc
-//                if (other problems) {
-//                    throw new CredentialsException(); // Or something more specific
-//                }
+                // if (other problems) {
+                // throw new CredentialsException(); // Or something more specific
+                // }
                 // Success!
                 return sai;
             } else {
