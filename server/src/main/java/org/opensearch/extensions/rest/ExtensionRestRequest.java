@@ -8,8 +8,10 @@
 
 package org.opensearch.extensions.rest;
 
+import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.identity.PrincipalIdentifierToken;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestRequest.Method;
@@ -33,27 +35,44 @@ public class ExtensionRestRequest extends TransportRequest {
     private Method method;
     private String uri;
     private Map<String, String> params;
+    private XContentType xContentType = null;
+    private BytesReference content;
     // The owner of this request object
     private PrincipalIdentifierToken principalIdentifierToken;
-    // Tracks consumed parameters
+
+    // Tracks consumed parameters and content
     private final Set<String> consumedParams = new HashSet<>();
+    private boolean contentConsumed = false;
 
     /**
-     * This object can be instantiated given method, uri, params and identifier
+     * This object can be instantiated given method, uri, params, content and identifier
+     *
      * @param method of type {@link Method}
      * @param uri url string
      * @param params the REST params
+     * @param xContentType the content type, or null for plain text or no content
+     * @param content the REST request content
      * @param principalIdentifier the owner of this request
      */
-    public ExtensionRestRequest(Method method, String uri, Map<String, String> params, PrincipalIdentifierToken principalIdentifier) {
+    public ExtensionRestRequest(
+        Method method,
+        String uri,
+        Map<String, String> params,
+        XContentType xContentType,
+        BytesReference content,
+        PrincipalIdentifierToken principalIdentifier
+    ) {
         this.method = method;
         this.uri = uri;
         this.params = params;
+        this.xContentType = xContentType;
+        this.content = content;
         this.principalIdentifierToken = principalIdentifier;
     }
 
     /**
      * Instantiate this request from input stream
+     *
      * @param in Input stream
      * @throws IOException on failure to read the stream
      */
@@ -62,6 +81,10 @@ public class ExtensionRestRequest extends TransportRequest {
         method = in.readEnum(RestRequest.Method.class);
         uri = in.readString();
         params = in.readMap(StreamInput::readString, StreamInput::readString);
+        if (in.readBoolean()) {
+            xContentType = in.readEnum(XContentType.class);
+        }
+        content = in.readBytesReference();
         principalIdentifierToken = in.readNamedWriteable(PrincipalIdentifierToken.class);
     }
 
@@ -71,10 +94,17 @@ public class ExtensionRestRequest extends TransportRequest {
         out.writeEnum(method);
         out.writeString(uri);
         out.writeMap(params, StreamOutput::writeString, StreamOutput::writeString);
+        out.writeBoolean(xContentType != null);
+        if (xContentType != null) {
+            out.writeEnum(xContentType);
+        }
+        out.writeBytesReference(content);
         out.writeNamedWriteable(principalIdentifierToken);
     }
 
     /**
+     * Gets the REST method
+     *
      * @return This REST request {@link Method} type
      */
     public Method method() {
@@ -82,6 +112,8 @@ public class ExtensionRestRequest extends TransportRequest {
     }
 
     /**
+     * Gets the REST uri
+     *
      * @return This REST request's uri
      */
     public String uri() {
@@ -89,7 +121,28 @@ public class ExtensionRestRequest extends TransportRequest {
     }
 
     /**
+     * Gets the full map of params without consuming them. Rest Handlers should use {@link #param(String)} or {@link #param(String, String)}
+     * to get parameter values.
+     *
+     * @return This REST request's params
+     */
+    public Map<String, String> params() {
+        return params;
+    }
+
+    /**
+     * Tests whether a parameter named {@code key} exists.
+     *
+     * @param key The parameter to test.
+     * @return True if there is a value for this parameter.
+     */
+    public boolean hasParam(String key) {
+        return params.containsKey(key);
+    }
+
+    /**
      * Gets the value of a parameter, consuming it in the process.
+     *
      * @param key The parameter key
      * @return The parameter value if it exists, or null.
      */
@@ -100,8 +153,9 @@ public class ExtensionRestRequest extends TransportRequest {
 
     /**
      * Gets the value of a parameter, consuming it in the process.
+     *
      * @param key The parameter key
-     * @param defaultValue A value to return if the parameter value doesn't exist.
+     * @param defaultValue  A value to return if the parameter value doesn't exist.
      * @return The parameter value if it exists, or the default value.
      */
     public String param(String key, String defaultValue) {
@@ -110,13 +164,22 @@ public class ExtensionRestRequest extends TransportRequest {
     }
 
     /**
-     * Gets the full map of params without consuming them.
-     * Rest Handlers should use {@link #param(String)} or {@link #param(String, String)} to get parameter values.
+     * Gets the value of a parameter as a long, consuming it in the process.
      *
-     * @return This REST request's params
+     * @param key The parameter key
+     * @param defaultValue A value to return if the parameter value doesn't exist.
+     * @return The parameter value if it exists, or the default value.
      */
-    public Map<String, String> params() {
-        return params;
+    public long paramAsLong(String key, long defaultValue) {
+        String value = param(key);
+        if (value == null) {
+            return defaultValue;
+        }
+        try {
+            return Long.parseLong(value);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Unable to parse param '" + key + "' value '" + value + "' to a long.", e);
+        }
     }
 
     /**
@@ -126,6 +189,43 @@ public class ExtensionRestRequest extends TransportRequest {
      */
     public List<String> consumedParams() {
         return new ArrayList<>(consumedParams);
+    }
+
+    /**
+     * Gets the content type, if any.
+     *
+     * @return the content type of the {@link #content()}, or null if the context is plain text or if there is no content.
+     */
+    public XContentType getXContentType() {
+        return xContentType;
+    }
+
+    /**
+     * Gets the content.
+     *
+     * @return This REST request's content
+     */
+    public BytesReference content() {
+        contentConsumed = true;
+        return content;
+    }
+
+    /**
+     * Tests whether content exists.
+     *
+     * @return True if there is non-empty content.
+     */
+    public boolean hasContent() {
+        return content.length() > 0;
+    }
+
+    /**
+     * Tests whether content has been consumed.
+     *
+     * @return True if the content was consumed.
+     */
+    public boolean isContentConsumed() {
+        return contentConsumed;
     }
 
     /**
@@ -143,6 +243,10 @@ public class ExtensionRestRequest extends TransportRequest {
             + uri
             + ", params="
             + params
+            + ", xContentType="
+            + xContentType
+            + ", contentLength="
+            + content.length()
             + ", requester="
             + principalIdentifierToken.getToken()
             + "}";
@@ -156,11 +260,13 @@ public class ExtensionRestRequest extends TransportRequest {
         return Objects.equals(method, that.method)
             && Objects.equals(uri, that.uri)
             && Objects.equals(params, that.params)
+            && Objects.equals(xContentType, that.xContentType)
+            && Objects.equals(content, that.content)
             && Objects.equals(principalIdentifierToken, that.principalIdentifierToken);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(method, uri, params, principalIdentifierToken);
+        return Objects.hash(method, uri, params, xContentType, content, principalIdentifierToken);
     }
 }

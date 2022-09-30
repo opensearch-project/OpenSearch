@@ -11,7 +11,9 @@ package org.opensearch.extensions.rest;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.extensions.DiscoveryExtension;
 import org.opensearch.extensions.ExtensionsOrchestrator;
 import org.opensearch.identity.ExtensionTokenProcessor;
@@ -48,6 +50,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
     private static final String SEND_TO_EXTENSION_ACTION = "send_to_extension_action";
     private static final Logger logger = LogManager.getLogger(RestSendToExtensionAction.class);
     private static final String CONSUMED_PARAMS_KEY = "extension.consumed.parameters";
+    private static final String CONSUMED_CONTENT_KEY = "extension.consumed.content";
     // To replace with user identity see https://github.com/opensearch-project/OpenSearch/pull/4247
     private static final Principal DEFAULT_PRINCIPAL = new Principal() {
         @Override
@@ -108,6 +111,8 @@ public class RestSendToExtensionAction extends BaseRestHandler {
         Method method = request.method();
         String uri = request.uri();
         Map<String, String> params = request.params();
+        XContentType contentType = request.getXContentType();
+        BytesReference content = request.content();
 
         if (uri.startsWith(uriPrefix)) {
             uri = uri.substring(uriPrefix.length());
@@ -136,11 +141,19 @@ public class RestSendToExtensionAction extends BaseRestHandler {
                 restExecuteOnExtensionResponse.setStatus(response.getStatus());
                 restExecuteOnExtensionResponse.setContentType(response.getContentType());
                 restExecuteOnExtensionResponse.setContent(response.getContent());
-                // Extract the consumed parameters from the header
+                // Extract the consumed parameters and content from the header
                 Map<String, List<String>> headers = response.getHeaders();
                 List<String> consumedParams = headers.get(CONSUMED_PARAMS_KEY);
                 if (consumedParams != null) {
+                    // consume each param
                     consumedParams.stream().forEach(p -> request.param(p));
+                }
+                List<String> consumedContent = headers.get(CONSUMED_CONTENT_KEY);
+                if (consumedContent != null) {
+                    // conditionally consume content
+                    if (consumedParams.stream().filter(c -> Boolean.parseBoolean(c)).count() > 0) {
+                        request.content();
+                    }
                 }
                 Map<String, List<String>> headersWithoutConsumedParams = headers.entrySet()
                     .stream()
@@ -173,7 +186,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
                 ExtensionsOrchestrator.REQUEST_REST_EXECUTE_ON_EXTENSION_ACTION,
                 // HERE BE DRAGONS - DO NOT INCLUDE HEADERS
                 // SEE https://github.com/opensearch-project/OpenSearch/issues/4429
-                new ExtensionRestRequest(method, uri, params, requestIssuerIdentity),
+                new ExtensionRestRequest(method, uri, params, contentType, content, requestIssuerIdentity),
                 restExecuteOnExtensionResponseHandler
             );
             try {

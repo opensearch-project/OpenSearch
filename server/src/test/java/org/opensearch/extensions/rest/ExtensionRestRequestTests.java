@@ -11,10 +11,12 @@ package org.opensearch.extensions.rest;
 import org.opensearch.identity.ExtensionTokenProcessor;
 import org.opensearch.identity.PrincipalIdentifierToken;
 import org.opensearch.rest.RestStatus;
+import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamInput;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestRequest.Method;
@@ -22,21 +24,36 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.charset.StandardCharsets;
 import java.security.Principal;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import static java.util.Map.entry;
 
 public class ExtensionRestRequestTests extends OpenSearchTestCase {
 
-    public void testExecuteRestRequest() throws Exception {
-        Method expectedMethod = Method.GET;
-        String expectedUri = "/test/uri";
-        Map<String, String> expectedParams = Map.ofEntries(entry("foo", "bar"), entry("baz", "qux"));
-        String extensionUniqueId1 = "ext_1";
-        Principal userPrincipal = () -> "user1";
-        ExtensionTokenProcessor extensionTokenProcessor = new ExtensionTokenProcessor(extensionUniqueId1);
-        PrincipalIdentifierToken expectedRequestIssuerIdentity = extensionTokenProcessor.generateToken(userPrincipal);
-        NamedWriteableRegistry registry = new NamedWriteableRegistry(
+    private Method expectedMethod;
+    private String expectedUri;
+    Map<String, String> expectedParams;
+    XContentType expectedContentType;
+    BytesReference expectedContent;
+    String extensionUniqueId1;
+    Principal userPrincipal;
+    ExtensionTokenProcessor extensionTokenProcessor;
+    PrincipalIdentifierToken expectedRequestIssuerIdentity;
+    NamedWriteableRegistry registry;
+
+    public void setUp() throws Exception {
+        super.setUp();
+        expectedMethod = Method.GET;
+        expectedUri = "/test/uri";
+        expectedParams = Map.ofEntries(entry("foo", "bar"), entry("baz", "42"));
+        expectedContentType = XContentType.JSON;
+        expectedContent = new BytesArray("content".getBytes(StandardCharsets.UTF_8));
+        extensionUniqueId1 = "ext_1";
+        userPrincipal = () -> "user1";
+        extensionTokenProcessor = new ExtensionTokenProcessor(extensionUniqueId1);
+        expectedRequestIssuerIdentity = extensionTokenProcessor.generateToken(userPrincipal);
+        registry = new NamedWriteableRegistry(
             org.opensearch.common.collect.List.of(
                 new NamedWriteableRegistry.Entry(
                     PrincipalIdentifierToken.class,
@@ -45,12 +62,38 @@ public class ExtensionRestRequestTests extends OpenSearchTestCase {
                 )
             )
         );
+    }
 
-        ExtensionRestRequest request = new ExtensionRestRequest(expectedMethod, expectedUri, expectedParams, expectedRequestIssuerIdentity);
+    public void testExtensionRestRequest() throws Exception {
+        ExtensionRestRequest request = new ExtensionRestRequest(
+            expectedMethod,
+            expectedUri,
+            expectedParams,
+            expectedContentType,
+            expectedContent,
+            expectedRequestIssuerIdentity
+        );
 
         assertEquals(expectedMethod, request.method());
         assertEquals(expectedUri, request.uri());
+
         assertEquals(expectedParams, request.params());
+        assertEquals(Collections.emptyList(), request.consumedParams());
+        assertTrue(request.hasParam("foo"));
+        assertFalse(request.hasParam("bar"));
+        assertEquals("bar", request.param("foo"));
+        assertEquals("baz", request.param("bar", "baz"));
+        assertEquals(42L, request.paramAsLong("baz", 0L));
+        assertEquals(0L, request.paramAsLong("bar", 0L));
+        assertTrue(request.consumedParams().contains("foo"));
+        assertTrue(request.consumedParams().contains("baz"));
+
+        assertEquals(expectedContentType, request.getXContentType());
+        assertTrue(request.hasContent());
+        assertFalse(request.isContentConsumed());
+        assertEquals(expectedContent, request.content());
+        assertTrue(request.isContentConsumed());
+
         assertEquals(expectedRequestIssuerIdentity, request.getRequestIssuerIdentity());
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
@@ -59,12 +102,82 @@ public class ExtensionRestRequestTests extends OpenSearchTestCase {
             try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
                 try (NamedWriteableAwareStreamInput nameWritableAwareIn = new NamedWriteableAwareStreamInput(in, registry)) {
                     request = new ExtensionRestRequest(nameWritableAwareIn);
+                    assertEquals(expectedMethod, request.method());
+                    assertEquals(expectedUri, request.uri());
+                    assertEquals(expectedParams, request.params());
+                    assertEquals(expectedContent, request.content());
+                    assertEquals(expectedRequestIssuerIdentity, request.getRequestIssuerIdentity());
                 }
+            }
+        }
+    }
 
-                assertEquals(expectedMethod, request.method());
-                assertEquals(expectedUri, request.uri());
-                assertEquals(expectedParams, request.params());
-                assertEquals(expectedRequestIssuerIdentity, request.getRequestIssuerIdentity());
+    public void testExtensionRestRequestWithNoContent() throws Exception {
+        ExtensionRestRequest request = new ExtensionRestRequest(
+            expectedMethod,
+            expectedUri,
+            expectedParams,
+            null,
+            new BytesArray(new byte[0]),
+            expectedRequestIssuerIdentity
+        );
+
+        assertEquals(expectedMethod, request.method());
+        assertEquals(expectedUri, request.uri());
+        assertEquals(expectedParams, request.params());
+        assertNull(request.getXContentType());
+        assertEquals(0, request.content().length());
+        assertEquals(expectedRequestIssuerIdentity, request.getRequestIssuerIdentity());
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            request.writeTo(out);
+            out.flush();
+            try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
+                try (NamedWriteableAwareStreamInput nameWritableAwareIn = new NamedWriteableAwareStreamInput(in, registry)) {
+                    request = new ExtensionRestRequest(nameWritableAwareIn);
+                    assertEquals(expectedMethod, request.method());
+                    assertEquals(expectedUri, request.uri());
+                    assertEquals(expectedParams, request.params());
+                    assertNull(request.getXContentType());
+                    assertEquals(0, request.content().length());
+                    assertEquals(expectedRequestIssuerIdentity, request.getRequestIssuerIdentity());
+                }
+            }
+        }
+    }
+
+    public void testExtensionRestRequestWithPlainTextContent() throws Exception {
+        BytesReference expectedText = new BytesArray("Plain text");
+
+        ExtensionRestRequest request = new ExtensionRestRequest(
+            expectedMethod,
+            expectedUri,
+            expectedParams,
+            null,
+            expectedText,
+            expectedRequestIssuerIdentity
+        );
+
+        assertEquals(expectedMethod, request.method());
+        assertEquals(expectedUri, request.uri());
+        assertEquals(expectedParams, request.params());
+        assertNull(request.getXContentType());
+        assertEquals(expectedText, request.content());
+        assertEquals(expectedRequestIssuerIdentity, request.getRequestIssuerIdentity());
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            request.writeTo(out);
+            out.flush();
+            try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
+                try (NamedWriteableAwareStreamInput nameWritableAwareIn = new NamedWriteableAwareStreamInput(in, registry)) {
+                    request = new ExtensionRestRequest(nameWritableAwareIn);
+                    assertEquals(expectedMethod, request.method());
+                    assertEquals(expectedUri, request.uri());
+                    assertEquals(expectedParams, request.params());
+                    assertNull(request.getXContentType());
+                    assertEquals(expectedText, request.content());
+                    assertEquals(expectedRequestIssuerIdentity, request.getRequestIssuerIdentity());
+                }
             }
         }
     }
