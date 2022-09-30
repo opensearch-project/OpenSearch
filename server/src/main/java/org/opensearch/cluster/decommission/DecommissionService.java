@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.action.ActionListener;
-import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.ClusterStateUpdateTask;
@@ -482,60 +481,35 @@ public class DecommissionService {
         };
     }
 
-    public void deleteDecommissionState(final ActionListener<ClusterStateUpdateResponse> listener) {
-        ClusterState state = clusterService.getClusterApplierService().state();
-        DecommissionAttributeMetadata decommissionAttributeMetadata = state.metadata().decommissionAttributeMetadata();
-
-        if (decommissionAttributeMetadata == null) {
-            throw new IllegalStateException("No decommission attribute found. Not a valid request");
-        }
-
-        String attributeName = decommissionAttributeMetadata.decommissionAttribute().attributeName();
-        // Set the weights back to 1 for all the zones
-        List<String> awarenessValues = forcedAwarenessAttributes.get(attributeName);
-        Map<String, Double> weights = new HashMap<>();
-        awarenessValues.forEach(awarenessValue -> { weights.put(awarenessValue, 1.0); });
-        decommissionController.setRoutingWeights(attributeName, weights, new ActionListener<>() {
-            @Override
-            public void onResponse(ClusterPutWeightedRoutingResponse clusterPutWeightedRoutingResponse) {
-                // Weights are successfully set. Let clear the decommission attribute.
-                clearDecommissionAttribute(listener);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                logger.error(() -> new ParameterizedMessage("Failed to set the weights for removing decommission."), e);
-                listener.onResponse(new ClusterStateUpdateResponse(false));
-            }
-        });
-    }
-
-    private void clearDecommissionAttribute(final ActionListener<ClusterStateUpdateResponse> listener) {
+    // TODO: Update to ActionListener<DeleteDecommissionResponse>
+    public void deleteDecommissionAttribute(final ActionListener<ClusterStateUpdateResponse> listener) {
         clusterService.submitStateUpdateTask("delete_decommission_state", new ClusterStateUpdateTask(Priority.URGENT) {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                return clearDecommissionClusterState(currentState);
+                return clearDecommissionedAttributeFromMetadata();
             }
 
             @Override
             public void onFailure(String source, Exception e) {
                 logger.error(() -> new ParameterizedMessage("Failed to clear decommission attribute."), e);
-                listener.onResponse(new ClusterStateUpdateResponse(false));
+                listener.onFailure(e);
             }
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                // Weights are set. and cluster state is processed.
+                // Cluster state Processed for deleting the decommission attribute.
+                assert newState.metadata().decommissionAttributeMetadata() == null;
                 listener.onResponse(new ClusterStateUpdateResponse(true));
             }
         });
     }
 
-    ClusterState clearDecommissionClusterState(ClusterState currentState) {
-        logger.info("Delete decommission request received");
-        Metadata metadata = currentState.metadata();
+    ClusterState clearDecommissionedAttributeFromMetadata() {
+        logger.info("Deleting the decommission attribute from cluster state");
+        ClusterState state = clusterService.getClusterApplierService().state();
+        Metadata metadata = state.metadata();
         Metadata.Builder mdBuilder = Metadata.builder(metadata);
         mdBuilder.removeCustom(DecommissionAttributeMetadata.TYPE);
-        return ClusterState.builder(currentState).metadata(mdBuilder).build();
+        return ClusterState.builder(state).metadata(mdBuilder).build();
     }
 }
