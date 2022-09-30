@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.action.ActionListener;
+import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.ClusterStateUpdateTask;
@@ -481,8 +482,23 @@ public class DecommissionService {
         };
     }
 
-    // TODO: Update to ActionListener<DeleteDecommissionResponse>
-    public void deleteDecommissionAttribute(final ActionListener<ClusterStateUpdateResponse> listener) {
+    public void deleteDecommissionAttribute(final ActionListener<AcknowledgedResponse> listener) {
+        decommissionController.clearVotingConfigExclusion(new ActionListener<Void>() {
+            @Override
+            public void onResponse(Void unused) {
+                logger.info("successfully cleared voting config exclusion for delting the decommission");
+                clusterUpdateTaskForDeletingDecommission(listener);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.debug(new ParameterizedMessage("failure in clearing voting config during delete_decommission request"), e);
+                listener.onFailure(e);
+            }
+        }, false);
+    }
+
+    void clusterUpdateTaskForDeletingDecommission(ActionListener<AcknowledgedResponse> listener) {
         clusterService.submitStateUpdateTask("delete_decommission_state", new ClusterStateUpdateTask(Priority.URGENT) {
             @Override
             public ClusterState execute(ClusterState currentState) {
@@ -499,7 +515,7 @@ public class DecommissionService {
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 // Cluster state Processed for deleting the decommission attribute.
                 assert newState.metadata().decommissionAttributeMetadata() == null;
-                listener.onResponse(new ClusterStateUpdateResponse(true));
+                listener.onResponse(new AcknowledgedResponse(true));
             }
         });
     }

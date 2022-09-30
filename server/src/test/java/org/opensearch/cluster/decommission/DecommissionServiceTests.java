@@ -11,8 +11,12 @@ package org.opensearch.cluster.decommission;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
+import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsRequest;
+import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
@@ -30,6 +34,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransport;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
 import java.util.Collections;
@@ -218,12 +223,40 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
         assertNull(metadata);
     }
 
-    public void testDeleteDecommissionAttribute() throws InterruptedException {
+    public void testDeleteDecommissionAttributeClearVotingExclusion() {
+        TransportService mockTransportService = Mockito.mock(TransportService.class);
+        Mockito.when(mockTransportService.getLocalNode()).thenReturn(Mockito.mock(DiscoveryNode.class));
+        DecommissionService decommissionService = new DecommissionService(
+            Settings.EMPTY,
+            clusterSettings,
+            clusterService,
+            mockTransportService,
+            threadPool,
+            allocationService
+        );
+        decommissionService.deleteDecommissionAttribute(Mockito.mock(ActionListener.class));
+
+        ArgumentCaptor<ClearVotingConfigExclusionsRequest> clearVotingConfigExclusionsRequestArgumentCaptor = ArgumentCaptor.forClass(
+            ClearVotingConfigExclusionsRequest.class
+        );
+        Mockito.verify(mockTransportService)
+            .sendRequest(
+                Mockito.any(DiscoveryNode.class),
+                Mockito.anyString(),
+                clearVotingConfigExclusionsRequestArgumentCaptor.capture(),
+                Mockito.any(TransportResponseHandler.class)
+            );
+
+        ClearVotingConfigExclusionsRequest request = clearVotingConfigExclusionsRequestArgumentCaptor.getValue();
+        assertFalse(request.getWaitForRemoval());
+    }
+
+    public void testClusterUpdateTaskForDeletingDecommission() throws InterruptedException {
         final CountDownLatch countDownLatch = new CountDownLatch(1);
-        ActionListener<ClusterStateUpdateResponse> listener = new ActionListener<>() {
+        ActionListener<AcknowledgedResponse> listener = new ActionListener<>() {
             @Override
-            public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {
-                assertTrue(clusterStateUpdateResponse.isAcknowledged());
+            public void onResponse(AcknowledgedResponse response) {
+                assertTrue(response.isAcknowledged());
                 assertNull(clusterService.state().metadata().decommissionAttributeMetadata());
                 countDownLatch.countDown();
             }
@@ -234,7 +267,7 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
                 countDownLatch.countDown();
             }
         };
-        decommissionService.deleteDecommissionAttribute(listener);
+        decommissionService.clusterUpdateTaskForDeletingDecommission(listener);
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
     }
 
