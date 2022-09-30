@@ -190,14 +190,14 @@ class JNANatives {
 
     /** Returns true if user is root, false if not, or if we don't know */
     static boolean definitelyRunningAsRoot() {
-        if (Constants.WINDOWS) {
-            JNAKernel32Library kernel32 = JNAKernel32Library.getInstance();
-            JNAAdvapi32Library advapi32 = JNAAdvapi32Library.getInstance();
-            Pointer process = null;
-            try {
+        try {
+            if (Constants.WINDOWS) {
+                JNAKernel32Library kernel32 = JNAKernel32Library.getInstance();
+                JNAAdvapi32Library advapi32 = JNAAdvapi32Library.getInstance();
+
                 // Fetch a pseudo handle for the current process.
                 // The pseudo handle need not be closed when it is no longer needed (calling CloseHandle is a no-op).
-                process = kernel32.GetCurrentProcess();
+                Pointer process = kernel32.GetCurrentProcess();
                 PointerByReference hToken = new PointerByReference();
                 // Fetch the process token for the current process, for which we know we have the access rights
                 if (!advapi32.OpenProcessToken(process, TOKEN_QUERY, hToken)) {
@@ -223,15 +223,11 @@ class JNANatives {
                 } finally {
                     kernel32.CloseHandle(hToken.getValue());
                 }
-            } catch (final UnsatisfiedLinkError e) {
-                return false; // don't know
             }
-        }
-        try {
-            // effective user ID of process
+            // For unix-based systems, check effective user ID of process
             return JNACLibrary.geteuid() == 0;
         } catch (UnsatisfiedLinkError e) {
-            // this will have already been logged by Kernel32Library, no need to repeat it
+            // this will have already been logged by Native Library, no need to repeat it
             return false;
         }
     }
