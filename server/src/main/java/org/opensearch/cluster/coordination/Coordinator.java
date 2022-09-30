@@ -139,6 +139,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
     private final Settings settings;
     private final boolean singleNodeDiscovery;
+    private volatile boolean localNodeCommissioned;
     private final ElectionStrategy electionStrategy;
     private final TransportService transportService;
     private final ClusterManagerService clusterManagerService;
@@ -283,6 +284,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             joinHelper::logLastFailedJoinAttempt
         );
         this.nodeHealthService = nodeHealthService;
+        this.localNodeCommissioned = true;
     }
 
     private ClusterFormationState getClusterFormationState() {
@@ -1426,7 +1428,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         }
     }
 
-    private void nodeCommissioned(boolean localNodeCommissioned) {
+    private synchronized void nodeCommissioned(boolean localNodeCommissioned) {
+        this.localNodeCommissioned = localNodeCommissioned;
         peerFinder.setFindPeersInterval(localNodeCommissioned);
     }
 
@@ -1456,7 +1459,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                             return;
                         }
 
-                        if (peerFinder.localNodeCommissioned() == false) {
+                        if (localNodeCommissioned == false) {
                             logger.debug("skip prevoting as local node is decommissioned");
                             return;
                         }

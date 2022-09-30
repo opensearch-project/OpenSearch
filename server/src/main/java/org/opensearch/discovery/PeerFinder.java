@@ -110,7 +110,6 @@ public abstract class PeerFinder {
 
     private volatile long currentTerm;
     private boolean active;
-    private boolean localNodeCommissioned = true;
     private DiscoveryNodes lastAcceptedNodes;
     private final Map<TransportAddress, Peer> peersByAddress = new LinkedHashMap<>();
     private Optional<DiscoveryNode> leader = Optional.empty();
@@ -140,7 +139,6 @@ public abstract class PeerFinder {
     }
 
     public synchronized void setFindPeersInterval(boolean localNodeCommissioned) {
-        this.localNodeCommissioned = localNodeCommissioned;
         findPeersInterval = localNodeCommissioned
             ? DISCOVERY_FIND_PEERS_INTERVAL_SETTING.get(settings)
             : DISCOVERY_FIND_PEERS_INTERVAL_DURING_DECOMMISSION_SETTING.get(settings);
@@ -150,10 +148,6 @@ public abstract class PeerFinder {
             localNodeCommissioned,
             transportService.getLocalNode()
         );
-    }
-
-    public boolean localNodeCommissioned() {
-        return localNodeCommissioned;
     }
 
     public void activate(final DiscoveryNodes lastAcceptedNodes) {
