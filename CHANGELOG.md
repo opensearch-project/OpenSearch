@@ -24,6 +24,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - [Identity] Document identity roadmap and feature branch processes ([#4583](https://github.com/opensearch-project/OpenSearch/pull/4583))
 - [Identity] Add stubs for AccessTokenManager  ([#4612](https://github.com/opensearch-project/OpenSearch/pull/4612))
 - [Identity] Permissions check API ([#4516](https://github.com/opensearch-project/OpenSearch/pull/4516))
+- [Identity] Prototype Internal IdP ([#4659](https://github.com/opensearch-project/OpenSearch/pull/4659))
 
 ### Dependencies
 - Bumps `log4j-core` from 2.18.0 to 2.19.0
