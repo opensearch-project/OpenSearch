@@ -11,7 +11,7 @@ package org.opensearch.identity.realm;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.opensearch.identity.InternalSubject;
-import org.opensearch.identity.config.DefaultObjectMapper;
+import org.opensearch.identity.DefaultObjectMapper;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -20,6 +20,9 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 
+/**
+ * @opensearch.experimental
+ */
 public class InternalSubjectsStore {
 
     public static Map<String, InternalSubject> readInternalSubjectsAsMap(String pathToInternalUsersYaml) throws FileNotFoundException {

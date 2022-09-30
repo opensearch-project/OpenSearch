@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.identity.config;
+package org.opensearch.identity;
 
 import java.io.IOException;
 import java.security.AccessController;
@@ -22,6 +22,9 @@ import com.fasterxml.jackson.databind.InjectableValues;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 
+/**
+ * @opensearch.experimental
+ */
 public class DefaultObjectMapper {
     public static final ObjectMapper objectMapper = new ObjectMapper();
     public final static ObjectMapper YAML_MAPPER = new ObjectMapper(new YAMLFactory());

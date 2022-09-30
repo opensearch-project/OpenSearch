@@ -19,11 +19,15 @@ import org.apache.shiro.authc.UsernamePasswordToken;
 import org.apache.shiro.realm.AuthenticatingRealm;
 import org.bouncycastle.crypto.generators.OpenBSDBCrypt;
 import org.opensearch.identity.InternalSubject;
-import org.opensearch.identity.crypto.BCryptPasswordMatcher;
 
 import java.io.FileNotFoundException;
 import java.util.Map;
 
+/**
+ * Internal Realm is a custom realm using the internal OpenSearch IdP
+ *
+ * @opensearch.experimental
+ */
 public class InternalRealm extends AuthenticatingRealm {
 
     public static final InternalRealm INSTANCE = new InternalRealm();
