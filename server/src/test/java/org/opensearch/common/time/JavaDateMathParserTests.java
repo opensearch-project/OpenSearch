@@ -136,6 +136,11 @@ public class JavaDateMathParserTests extends OpenSearchTestCase {
         assertDateMathEquals(formatter.toDateMathParser(), "2022", "2022-01-01T23:59:59.999Z", 0, true, ZoneOffset.UTC);
     }
 
+    public void testDayOfYear() {
+        DateFormatter formatter = DateFormatter.forPattern("yyyy[-DDD'T'HH:mm:ss.SSS]");
+        assertDateMathEquals(formatter.toDateMathParser(), "2022-104T14:08:30.293", "2022-04-14T14:08:30.293", 0, true, ZoneOffset.UTC);
+    }
+
     public void testRoundingDoesNotAffectExactDate() {
         assertDateMathEquals("2014-11-12T22:55:00.000Z", "2014-11-12T22:55:00.000Z", 0, true, null);
         assertDateMathEquals("2014-11-12T22:55:00.000Z", "2014-11-12T22:55:00.000Z", 0, false, null);
