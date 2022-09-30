@@ -26,14 +26,15 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * Request to execute REST actions on extension node
+ * Request to execute REST actions on extension node.
+ * This contains necessary portions of a {@link RestRequest} object, but does not pass the full request for security concerns.
  *
  * @opensearch.api
  */
 public class ExtensionRestRequest extends TransportRequest {
 
     private Method method;
-    private String uri;
+    private String path;
     private Map<String, String> params;
     private XContentType xContentType = null;
     private BytesReference content;
@@ -48,7 +49,7 @@ public class ExtensionRestRequest extends TransportRequest {
      * This object can be instantiated given method, uri, params, content and identifier
      *
      * @param method of type {@link Method}
-     * @param uri url string
+     * @param path the REST path string (excluding the query)
      * @param params the REST params
      * @param xContentType the content type, or null for plain text or no content
      * @param content the REST request content
@@ -56,14 +57,14 @@ public class ExtensionRestRequest extends TransportRequest {
      */
     public ExtensionRestRequest(
         Method method,
-        String uri,
+        String path,
         Map<String, String> params,
         XContentType xContentType,
         BytesReference content,
         PrincipalIdentifierToken principalIdentifier
     ) {
         this.method = method;
-        this.uri = uri;
+        this.path = path;
         this.params = params;
         this.xContentType = xContentType;
         this.content = content;
@@ -79,7 +80,7 @@ public class ExtensionRestRequest extends TransportRequest {
     public ExtensionRestRequest(StreamInput in) throws IOException {
         super(in);
         method = in.readEnum(RestRequest.Method.class);
-        uri = in.readString();
+        path = in.readString();
         params = in.readMap(StreamInput::readString, StreamInput::readString);
         if (in.readBoolean()) {
             xContentType = in.readEnum(XContentType.class);
@@ -92,7 +93,7 @@ public class ExtensionRestRequest extends TransportRequest {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeEnum(method);
-        out.writeString(uri);
+        out.writeString(path);
         out.writeMap(params, StreamOutput::writeString, StreamOutput::writeString);
         out.writeBoolean(xContentType != null);
         if (xContentType != null) {
@@ -112,12 +113,12 @@ public class ExtensionRestRequest extends TransportRequest {
     }
 
     /**
-     * Gets the REST uri
+     * Gets the REST path
      *
-     * @return This REST request's uri
+     * @return This REST request's path
      */
-    public String uri() {
-        return uri;
+    public String path() {
+        return path;
     }
 
     /**
@@ -239,8 +240,8 @@ public class ExtensionRestRequest extends TransportRequest {
     public String toString() {
         return "ExtensionRestRequest{method="
             + method
-            + ", uri="
-            + uri
+            + ", path="
+            + path
             + ", params="
             + params
             + ", xContentType="
@@ -258,7 +259,7 @@ public class ExtensionRestRequest extends TransportRequest {
         if (obj == null || getClass() != obj.getClass()) return false;
         ExtensionRestRequest that = (ExtensionRestRequest) obj;
         return Objects.equals(method, that.method)
-            && Objects.equals(uri, that.uri)
+            && Objects.equals(path, that.path)
             && Objects.equals(params, that.params)
             && Objects.equals(xContentType, that.xContentType)
             && Objects.equals(content, that.content)
@@ -267,6 +268,6 @@ public class ExtensionRestRequest extends TransportRequest {
 
     @Override
     public int hashCode() {
-        return Objects.hash(method, uri, params, xContentType, content, principalIdentifierToken);
+        return Objects.hash(method, path, params, xContentType, content, principalIdentifierToken);
     }
 }

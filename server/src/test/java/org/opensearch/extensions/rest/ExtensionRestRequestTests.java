@@ -32,7 +32,7 @@ import static java.util.Map.entry;
 public class ExtensionRestRequestTests extends OpenSearchTestCase {
 
     private Method expectedMethod;
-    private String expectedUri;
+    private String expectedPath;
     Map<String, String> expectedParams;
     XContentType expectedContentType;
     BytesReference expectedContent;
@@ -45,7 +45,7 @@ public class ExtensionRestRequestTests extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         expectedMethod = Method.GET;
-        expectedUri = "/test/uri";
+        expectedPath = "/test/uri";
         expectedParams = Map.ofEntries(entry("foo", "bar"), entry("baz", "42"));
         expectedContentType = XContentType.JSON;
         expectedContent = new BytesArray("content".getBytes(StandardCharsets.UTF_8));
@@ -67,7 +67,7 @@ public class ExtensionRestRequestTests extends OpenSearchTestCase {
     public void testExtensionRestRequest() throws Exception {
         ExtensionRestRequest request = new ExtensionRestRequest(
             expectedMethod,
-            expectedUri,
+            expectedPath,
             expectedParams,
             expectedContentType,
             expectedContent,
@@ -75,7 +75,7 @@ public class ExtensionRestRequestTests extends OpenSearchTestCase {
         );
 
         assertEquals(expectedMethod, request.method());
-        assertEquals(expectedUri, request.uri());
+        assertEquals(expectedPath, request.path());
 
         assertEquals(expectedParams, request.params());
         assertEquals(Collections.emptyList(), request.consumedParams());
@@ -103,7 +103,7 @@ public class ExtensionRestRequestTests extends OpenSearchTestCase {
                 try (NamedWriteableAwareStreamInput nameWritableAwareIn = new NamedWriteableAwareStreamInput(in, registry)) {
                     request = new ExtensionRestRequest(nameWritableAwareIn);
                     assertEquals(expectedMethod, request.method());
-                    assertEquals(expectedUri, request.uri());
+                    assertEquals(expectedPath, request.path());
                     assertEquals(expectedParams, request.params());
                     assertEquals(expectedContent, request.content());
                     assertEquals(expectedRequestIssuerIdentity, request.getRequestIssuerIdentity());
@@ -115,7 +115,7 @@ public class ExtensionRestRequestTests extends OpenSearchTestCase {
     public void testExtensionRestRequestWithNoContent() throws Exception {
         ExtensionRestRequest request = new ExtensionRestRequest(
             expectedMethod,
-            expectedUri,
+            expectedPath,
             expectedParams,
             null,
             new BytesArray(new byte[0]),
@@ -123,7 +123,7 @@ public class ExtensionRestRequestTests extends OpenSearchTestCase {
         );
 
         assertEquals(expectedMethod, request.method());
-        assertEquals(expectedUri, request.uri());
+        assertEquals(expectedPath, request.path());
         assertEquals(expectedParams, request.params());
         assertNull(request.getXContentType());
         assertEquals(0, request.content().length());
@@ -136,7 +136,7 @@ public class ExtensionRestRequestTests extends OpenSearchTestCase {
                 try (NamedWriteableAwareStreamInput nameWritableAwareIn = new NamedWriteableAwareStreamInput(in, registry)) {
                     request = new ExtensionRestRequest(nameWritableAwareIn);
                     assertEquals(expectedMethod, request.method());
-                    assertEquals(expectedUri, request.uri());
+                    assertEquals(expectedPath, request.path());
                     assertEquals(expectedParams, request.params());
                     assertNull(request.getXContentType());
                     assertEquals(0, request.content().length());
@@ -151,7 +151,7 @@ public class ExtensionRestRequestTests extends OpenSearchTestCase {
 
         ExtensionRestRequest request = new ExtensionRestRequest(
             expectedMethod,
-            expectedUri,
+            expectedPath,
             expectedParams,
             null,
             expectedText,
@@ -159,7 +159,7 @@ public class ExtensionRestRequestTests extends OpenSearchTestCase {
         );
 
         assertEquals(expectedMethod, request.method());
-        assertEquals(expectedUri, request.uri());
+        assertEquals(expectedPath, request.path());
         assertEquals(expectedParams, request.params());
         assertNull(request.getXContentType());
         assertEquals(expectedText, request.content());
@@ -172,7 +172,7 @@ public class ExtensionRestRequestTests extends OpenSearchTestCase {
                 try (NamedWriteableAwareStreamInput nameWritableAwareIn = new NamedWriteableAwareStreamInput(in, registry)) {
                     request = new ExtensionRestRequest(nameWritableAwareIn);
                     assertEquals(expectedMethod, request.method());
-                    assertEquals(expectedUri, request.uri());
+                    assertEquals(expectedPath, request.path());
                     assertEquals(expectedParams, request.params());
                     assertNull(request.getXContentType());
                     assertEquals(expectedText, request.content());

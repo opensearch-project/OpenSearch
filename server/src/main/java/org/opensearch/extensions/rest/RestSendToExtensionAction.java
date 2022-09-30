@@ -60,14 +60,14 @@ public class RestSendToExtensionAction extends BaseRestHandler {
     };
 
     private final List<Route> routes;
-    private final String uriPrefix;
+    private final String pathPrefix;
     private final DiscoveryExtension discoveryExtension;
     private final TransportService transportService;
 
     /**
      * Instantiates this object using a {@link RegisterRestActionsRequest} to populate the routes.
      *
-     * @param restActionsRequest A request encapsulating a list of Strings with the API methods and URIs.
+     * @param restActionsRequest A request encapsulating a list of Strings with the API methods and paths.
      * @param transportService The OpenSearch transport service
      * @param discoveryExtension The extension node to which to send actions
      */
@@ -76,20 +76,20 @@ public class RestSendToExtensionAction extends BaseRestHandler {
         DiscoveryExtension discoveryExtension,
         TransportService transportService
     ) {
-        this.uriPrefix = "/_extensions/_" + restActionsRequest.getUniqueId();
+        this.pathPrefix = "/_extensions/_" + restActionsRequest.getUniqueId();
         List<Route> restActionsAsRoutes = new ArrayList<>();
         for (String restAction : restActionsRequest.getRestActions()) {
             RestRequest.Method method;
-            String uri;
+            String path;
             try {
                 int delim = restAction.indexOf(' ');
                 method = RestRequest.Method.valueOf(restAction.substring(0, delim));
-                uri = uriPrefix + restAction.substring(delim).trim();
+                path = pathPrefix + restAction.substring(delim).trim();
             } catch (IndexOutOfBoundsException | IllegalArgumentException e) {
                 throw new IllegalArgumentException(restAction + " does not begin with a valid REST method");
             }
-            logger.info("Registering: " + method + " " + uri);
-            restActionsAsRoutes.add(new Route(method, uri));
+            logger.info("Registering: " + method + " " + path);
+            restActionsAsRoutes.add(new Route(method, path));
         }
         this.routes = unmodifiableList(restActionsAsRoutes);
         this.discoveryExtension = discoveryExtension;
@@ -109,15 +109,15 @@ public class RestSendToExtensionAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         Method method = request.method();
-        String uri = request.uri();
+        String path = request.path();
         Map<String, String> params = request.params();
         XContentType contentType = request.getXContentType();
         BytesReference content = request.content();
 
-        if (uri.startsWith(uriPrefix)) {
-            uri = uri.substring(uriPrefix.length());
+        if (path.startsWith(pathPrefix)) {
+            path = path.substring(pathPrefix.length());
         }
-        String message = "Forwarding the request " + method + " " + uri + " to " + discoveryExtension;
+        String message = "Forwarding the request " + method + " " + path + " to " + discoveryExtension;
         logger.info(message);
         // Initialize response. Values will be changed in the handler.
         final RestExecuteOnExtensionResponse restExecuteOnExtensionResponse = new RestExecuteOnExtensionResponse(
@@ -186,7 +186,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
                 ExtensionsOrchestrator.REQUEST_REST_EXECUTE_ON_EXTENSION_ACTION,
                 // HERE BE DRAGONS - DO NOT INCLUDE HEADERS
                 // SEE https://github.com/opensearch-project/OpenSearch/issues/4429
-                new ExtensionRestRequest(method, uri, params, contentType, content, requestIssuerIdentity),
+                new ExtensionRestRequest(method, path, params, contentType, content, requestIssuerIdentity),
                 restExecuteOnExtensionResponseHandler
             );
             try {
