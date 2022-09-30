@@ -98,6 +98,11 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
         }
     }
 
+    @Override
+    public Translog.Snapshot newChangesSnapshot(long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException {
+        return translog.newSnapshot(fromSeqNo, toSeqNo, requiredFullRange);
+    }
+
     /**
      * Performs recovery from the transaction log up to {@code recoverUpToSeqNo} (inclusive).
      * This operation will close the engine if the recovery fails.

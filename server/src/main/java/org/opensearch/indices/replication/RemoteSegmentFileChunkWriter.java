@@ -122,4 +122,9 @@ public final class RemoteSegmentFileChunkWriter implements FileChunkWriter {
             reader
         );
     }
+
+    @Override
+    public void cancel() {
+        retryableTransportClient.cancel();
+    }
 }
