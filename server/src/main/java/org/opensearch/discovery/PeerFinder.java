@@ -84,10 +84,10 @@ public abstract class PeerFinder {
         Setting.Property.NodeScope
     );
 
-    // the time between attempts to find all peers when node is in decommissioned state, default set to 3 minutes
+    // the time between attempts to find all peers when node is in decommissioned state, default set to 2 minutes
     public static final Setting<TimeValue> DISCOVERY_FIND_PEERS_INTERVAL_DURING_DECOMMISSION_SETTING = Setting.timeSetting(
         "discovery.find_peers_interval_during_decommission",
-        TimeValue.timeValueMinutes(3L),
+        TimeValue.timeValueSeconds(120L),
         TimeValue.timeValueMillis(1000),
         Setting.Property.NodeScope
     );
