@@ -43,7 +43,6 @@ import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentSubParser;
 import org.opensearch.common.xcontent.support.MapXContentParser;
 import org.opensearch.common.xcontent.support.XContentMapValues;
-import org.opensearch.geometry.Point;
 import org.opensearch.index.fielddata.FieldData;
 import org.opensearch.index.fielddata.GeoPointValues;
 import org.opensearch.index.fielddata.MultiGeoPointValues;
@@ -53,6 +52,7 @@ import org.opensearch.index.fielddata.SortingNumericDoubleValues;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 
 /**
  * Useful geo utilities
@@ -60,7 +60,8 @@ import java.util.Collections;
  * @opensearch.internal
  */
 public class GeoUtils {
-
+    private static final String ERR_MSG_INVALID_TOKEN = "token [{}] not allowed";
+    private static final String ERR_MSG_INVALID_FIELDS = "field must be either [lon|lat], [type|coordinates], or [geohash]";
     /** Maximum valid latitude in degrees. */
     public static final double MAX_LAT = 90.0;
     /** Minimum valid latitude in degrees. */
@@ -74,6 +75,9 @@ public class GeoUtils {
     public static final String LONGITUDE = "lon";
     public static final String GEOHASH = "geohash";
 
+    public static final String GEOJSON_TYPE = "type";
+    public static final String GEOJSON_TYPE_POINT = "Point";
+    public static final String GEOJSON_COORDS = "coordinates";
     /** Earth ellipsoid major axis defined by WGS 84 in meters */
     public static final double EARTH_SEMI_MAJOR_AXIS = 6378137.0;      // meters (WGS 84)
 
@@ -94,12 +98,6 @@ public class GeoUtils {
 
     /** rounding error for quantized latitude and longitude values */
     public static final double TOLERANCE = 1E-6;
-
-    public static final PointUtils POINT_PARSER;
-
-    static {
-        POINT_PARSER = new PointUtils(LONGITUDE, LATITUDE, true);
-    }
 
     /** Returns true if latitude is actually a valid latitude value.*/
     public static boolean isValidLatitude(double latitude) {
@@ -465,20 +463,18 @@ public class GeoUtils {
      * @param effectivePoint tells which point to use for GeoHash form
      * @return new {@link GeoPoint} parsed from the parse
      */
-    public static GeoPoint parseGeoPoint(XContentParser parser, GeoPoint point, final boolean ignoreZValue, EffectivePoint effectivePoint)
-        throws IOException, OpenSearchParseException {
+    public static GeoPoint parseGeoPoint(
+        final XContentParser parser,
+        final GeoPoint point,
+        final boolean ignoreZValue,
+        final EffectivePoint effectivePoint
+    ) throws IOException, OpenSearchParseException {
         switch (parser.currentToken()) {
             case START_OBJECT:
-                try (XContentSubParser subParser = new XContentSubParser(parser)) {
-                    Point pointInObject = POINT_PARSER.parseObject(subParser, ignoreZValue, effectivePoint);
-                    point.reset(pointInObject.getLat(), pointInObject.getLon());
-                }
+                parseGeoPointObject(parser, point, ignoreZValue, effectivePoint);
                 break;
             case START_ARRAY:
-                try (XContentSubParser subParser = new XContentSubParser(parser)) {
-                    Point pointInArray = POINT_PARSER.parseFromArray(subParser, ignoreZValue, "geo_point");
-                    point.reset(pointInArray.getLat(), pointInArray.getLon());
-                }
+                parseGeoPointArray(parser, point, ignoreZValue);
                 break;
             case VALUE_STRING:
                 String val = parser.text();
@@ -488,6 +484,166 @@ public class GeoUtils {
                 throw new OpenSearchParseException("geo_point expected");
         }
         return point;
+    }
+
+    private static GeoPoint parseGeoPointObject(
+        final XContentParser parser,
+        final GeoPoint point,
+        final boolean ignoreZValue,
+        final GeoUtils.EffectivePoint effectivePoint
+    ) throws IOException {
+        try (XContentSubParser subParser = new XContentSubParser(parser)) {
+            if (subParser.nextToken() != XContentParser.Token.FIELD_NAME) {
+                throw new OpenSearchParseException(ERR_MSG_INVALID_TOKEN, subParser.currentToken());
+            }
+
+            String field = subParser.currentName();
+            if (LONGITUDE.equals(field) || LATITUDE.equals(field)) {
+                parseGeoPointObjectBasicFields(subParser, point);
+            } else if (GEOHASH.equals(field)) {
+                parseGeoHashFields(subParser, point, effectivePoint);
+            } else if (GEOJSON_TYPE.equals(field) || GEOJSON_COORDS.equals(field)) {
+                parseGeoJsonFields(subParser, point, ignoreZValue);
+            } else {
+                throw new OpenSearchParseException(ERR_MSG_INVALID_FIELDS);
+            }
+
+            if (subParser.nextToken() != XContentParser.Token.END_OBJECT) {
+                throw new OpenSearchParseException(ERR_MSG_INVALID_FIELDS);
+            }
+
+            return point;
+        }
+    }
+
+    private static GeoPoint parseGeoPointObjectBasicFields(final XContentParser parser, final GeoPoint point) throws IOException {
+        HashMap<String, Double> data = new HashMap<>();
+        for (int i = 0; i < 2; i++) {
+            if (i != 0) {
+                parser.nextToken();
+            }
+
+            if (parser.currentToken() != XContentParser.Token.FIELD_NAME) {
+                break;
+            }
+
+            String field = parser.currentName();
+            if (!LONGITUDE.equals(field) && !LATITUDE.equals(field)) {
+                throw new OpenSearchParseException(ERR_MSG_INVALID_FIELDS);
+            }
+            switch (parser.nextToken()) {
+                case VALUE_NUMBER:
+                case VALUE_STRING:
+                    try {
+                        data.put(field, parser.doubleValue(true));
+                    } catch (NumberFormatException e) {
+                        throw new OpenSearchParseException("[{}] and [{}] must be valid double values", e, LONGITUDE, LATITUDE);
+                    }
+                    break;
+                default:
+                    throw new OpenSearchParseException("{} must be a number", field);
+            }
+        }
+
+        if (data.get(LONGITUDE) == null) {
+            throw new OpenSearchParseException("field [{}] missing", LONGITUDE);
+        }
+        if (data.get(LATITUDE) == null) {
+            throw new OpenSearchParseException("field [{}] missing", LATITUDE);
+        }
+
+        return point.reset(data.get(LATITUDE), data.get(LONGITUDE));
+    }
+
+    private static GeoPoint parseGeoHashFields(
+        final XContentParser parser,
+        final GeoPoint point,
+        final GeoUtils.EffectivePoint effectivePoint
+    ) throws IOException {
+        if (parser.currentToken() != XContentParser.Token.FIELD_NAME) {
+            throw new OpenSearchParseException(ERR_MSG_INVALID_TOKEN, parser.currentToken());
+        }
+
+        if (!GEOHASH.equals(parser.currentName())) {
+            throw new OpenSearchParseException(ERR_MSG_INVALID_FIELDS);
+        }
+
+        if (parser.nextToken() != XContentParser.Token.VALUE_STRING) {
+            throw new OpenSearchParseException("{} must be a string", GEOHASH);
+        }
+
+        return point.parseGeoHash(parser.text(), effectivePoint);
+    }
+
+    private static GeoPoint parseGeoJsonFields(final XContentParser parser, final GeoPoint point, final boolean ignoreZValue)
+        throws IOException {
+        boolean hasTypePoint = false;
+        boolean hasCoordinates = false;
+        for (int i = 0; i < 2; i++) {
+            if (i != 0) {
+                parser.nextToken();
+            }
+
+            if (parser.currentToken() != XContentParser.Token.FIELD_NAME) {
+                if (!hasTypePoint) {
+                    throw new OpenSearchParseException("field [{}] missing", GEOJSON_TYPE);
+                }
+                if (!hasCoordinates) {
+                    throw new OpenSearchParseException("field [{}] missing", GEOJSON_COORDS);
+                }
+            }
+
+            if (GEOJSON_TYPE.equals(parser.currentName())) {
+                if (parser.nextToken() != XContentParser.Token.VALUE_STRING) {
+                    throw new OpenSearchParseException("{} must be a string", GEOJSON_TYPE);
+                }
+
+                if (!GEOJSON_TYPE_POINT.equals(parser.text())) {
+                    throw new OpenSearchParseException("{} must be {}", GEOJSON_TYPE, GEOJSON_TYPE_POINT);
+                }
+                hasTypePoint = true;
+            } else if (GEOJSON_COORDS.equals(parser.currentName())) {
+                if (parser.nextToken() != XContentParser.Token.START_ARRAY) {
+                    throw new OpenSearchParseException("{} must be an array", GEOJSON_COORDS);
+                }
+                parseGeoPointArray(parser, point, ignoreZValue);
+                hasCoordinates = true;
+            } else {
+                throw new OpenSearchParseException(ERR_MSG_INVALID_FIELDS);
+            }
+        }
+
+        return point;
+    }
+
+    private static GeoPoint parseGeoPointArray(final XContentParser parser, final GeoPoint point, final boolean ignoreZValue)
+        throws IOException {
+        try (XContentSubParser subParser = new XContentSubParser(parser)) {
+            double x = Double.NaN;
+            double y = Double.NaN;
+
+            int element = 0;
+            while (subParser.nextToken() != XContentParser.Token.END_ARRAY) {
+                if (parser.currentToken() != XContentParser.Token.VALUE_NUMBER) {
+                    throw new OpenSearchParseException("numeric value expected");
+                }
+                element++;
+                if (element == 1) {
+                    x = parser.doubleValue();
+                } else if (element == 2) {
+                    y = parser.doubleValue();
+                } else if (element == 3) {
+                    GeoPoint.assertZValue(ignoreZValue, parser.doubleValue());
+                } else {
+                    throw new OpenSearchParseException("[geo_point] field type does not accept more than 3 values");
+                }
+            }
+
+            if (element < 2) {
+                throw new OpenSearchParseException("[geo_point] field type should have at least two dimensions");
+            }
+            return point.reset(y, x);
+        }
     }
 
     /**

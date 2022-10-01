@@ -36,11 +36,14 @@ import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.CheckedBiFunction;
 import org.opensearch.common.Explicit;
 import org.opensearch.common.ParseField;
-import org.opensearch.common.geo.GeoPoint;
+import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.geo.GeometryFormat;
 import org.opensearch.common.geo.GeometryParser;
+import org.opensearch.common.xcontent.DeprecationHandler;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.geometry.Geometry;
 import org.opensearch.geometry.Point;
@@ -57,7 +60,7 @@ import java.util.function.Supplier;
 import static org.opensearch.index.mapper.TypeParsers.parseField;
 
 /**
- * Base class for for spatial fields that only support indexing points
+ * Base class for spatial fields that only support indexing points
  *
  * @opensearch.internal
  */
@@ -284,18 +287,16 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
             if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
                 parser.nextToken();
                 if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
-                    double x = parser.doubleValue();
-                    parser.nextToken();
-                    double y = parser.doubleValue();
-                    parser.nextToken();
-                    if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
-                        GeoPoint.assertZValue(ignoreZValue, parser.doubleValue());
-                    } else if (parser.currentToken() != XContentParser.Token.END_ARRAY) {
-                        throw new OpenSearchParseException("field type does not accept > 3 dimensions");
+                    XContentBuilder xContentBuilder = reConstructArrayXContent(parser);
+                    try (
+                        XContentParser subParser = createParser(
+                            parser.getXContentRegistry(),
+                            parser.getDeprecationHandler(),
+                            xContentBuilder
+                        );
+                    ) {
+                        return Collections.singletonList(process(objectParser.apply(subParser, pointSupplier.get())));
                     }
-                    P point = pointSupplier.get();
-                    point.resetCoords(x, y);
-                    return Collections.singletonList(process(point));
                 } else {
                     ArrayList<P> points = new ArrayList<>();
                     while (parser.currentToken() != XContentParser.Token.END_ARRAY) {
@@ -305,16 +306,43 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
                     return points;
                 }
             } else if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
-                // Null value
                 if (nullValue == null) {
                     return null;
                 } else {
                     return Collections.singletonList(nullValue);
                 }
             } else {
-                // Single point
                 return Collections.singletonList(process(objectParser.apply(parser, pointSupplier.get())));
             }
+        }
+
+        private XContentParser createParser(
+            NamedXContentRegistry namedXContentRegistry,
+            DeprecationHandler deprecationHandler,
+            XContentBuilder xContentBuilder
+        ) throws IOException {
+            XContentParser subParser = xContentBuilder.contentType()
+                .xContent()
+                .createParser(namedXContentRegistry, deprecationHandler, BytesReference.bytes(xContentBuilder).streamInput());
+            subParser.nextToken();
+            return subParser;
+        }
+
+        private XContentBuilder reConstructArrayXContent(XContentParser parser) throws IOException {
+            XContentBuilder builder = XContentFactory.jsonBuilder().startArray();
+            int count = 0;
+            while (parser.currentToken() != XContentParser.Token.END_ARRAY) {
+                if (++count > 3) {
+                    break;
+                }
+                if (parser.currentToken() != XContentParser.Token.VALUE_NUMBER) {
+                    throw new OpenSearchParseException("numeric value expected");
+                }
+                builder.value(parser.doubleValue());
+                parser.nextToken();
+            }
+            builder.endArray();
+            return builder;
         }
 
         @Override

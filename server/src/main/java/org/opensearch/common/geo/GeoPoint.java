@@ -121,7 +121,7 @@ public class GeoPoint implements ToXContentFragment {
         if (vals.length > 3) {
             throw new OpenSearchParseException(
                 "failed to parse [{}], expected 2 or 3 coordinates " + "but found: [{}]",
-                vals.length,
+                value,
                 vals.length
             );
         }

@@ -35,6 +35,8 @@ package org.opensearch.index.search.geo;
 import org.apache.lucene.spatial.prefix.tree.Cell;
 import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
+import org.locationtech.spatial4j.context.SpatialContext;
+import org.locationtech.spatial4j.distance.DistanceUtils;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.geo.GeoUtils;
@@ -43,12 +45,10 @@ import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentParser.Token;
 import org.opensearch.geometry.utils.Geohash;
 import org.opensearch.test.OpenSearchTestCase;
-import org.locationtech.spatial4j.context.SpatialContext;
-import org.locationtech.spatial4j.distance.DistanceUtils;
+import org.opensearch.test.geo.RandomGeoGenerator;
 
 import java.io.IOException;
 
-import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
@@ -57,8 +57,10 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
+import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 
 public class GeoUtilsTests extends OpenSearchTestCase {
+    private static final String ERR_MSG_INVALID_FIELDS = "field must be either [lon|lat], [type|coordinates], or [geohash]";
     private static final char[] BASE_32 = {
         '0',
         '1',
@@ -626,7 +628,7 @@ public class GeoUtilsTests extends OpenSearchTestCase {
         try (XContentParser parser = createParser(json)) {
             parser.nextToken();
             Exception e = expectThrows(OpenSearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
-            assertThat(e.getMessage(), is("field must be either lon/lat, type/coordinates, or geohash"));
+            assertThat(e.getMessage(), is(ERR_MSG_INVALID_FIELDS));
         }
     }
 
@@ -638,7 +640,7 @@ public class GeoUtilsTests extends OpenSearchTestCase {
         try (XContentParser parser = createParser(json)) {
             parser.nextToken();
             Exception e = expectThrows(OpenSearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
-            assertThat(e.getMessage(), containsString("field must be either lon/lat, type/coordinates, or geohash"));
+            assertThat(e.getMessage(), containsString(ERR_MSG_INVALID_FIELDS));
         }
     }
 
@@ -695,6 +697,63 @@ public class GeoUtilsTests extends OpenSearchTestCase {
             }
             Exception e = expectThrows(OpenSearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
             assertThat(e.getMessage(), is("geo_point expected"));
+        }
+    }
+
+    public void testParserGeoPointGeoJson() throws IOException {
+        GeoPoint geoPoint = RandomGeoGenerator.randomPoint(random());
+        double[] coordinates = { geoPoint.getLon(), geoPoint.getLat() };
+        XContentBuilder json = jsonBuilder().startObject().field("type", "Point").array("coordinates", coordinates).endObject();
+        try (XContentParser parser = createParser(json)) {
+            parser.nextToken();
+            GeoPoint paredPoint = GeoUtils.parseGeoPoint(parser);
+            assertEquals(geoPoint, paredPoint);
+        }
+    }
+
+    public void testParserGeoPointGeoJsonMissingField() throws IOException {
+        GeoPoint geoPoint = RandomGeoGenerator.randomPoint(random());
+        double[] coordinates = { geoPoint.getLon(), geoPoint.getLat() };
+        XContentBuilder missingType = jsonBuilder().startObject().array("coordinates", coordinates).endObject();
+        expectParseException(missingType, "field [type] missing");
+
+        XContentBuilder missingCoordinates = jsonBuilder().startObject().field("type", "Point").endObject();
+        expectParseException(missingCoordinates, "field [coordinates] missing");
+    }
+
+    public void testParserGeoPointGeoJsonUnknownField() throws IOException {
+        GeoPoint geoPoint = RandomGeoGenerator.randomPoint(random());
+        double[] coordinates = { geoPoint.getLon(), geoPoint.getLat() };
+        XContentBuilder unknownField = jsonBuilder().startObject()
+            .field("type", "Point")
+            .array("coordinates", coordinates)
+            .field("unknown", "value")
+            .endObject();
+        expectParseException(unknownField, "field must be either [lon|lat], [type|coordinates], or [geohash]");
+    }
+
+    public void testParserGeoPointGeoJsonInvalidValue() throws IOException {
+        GeoPoint geoPoint = RandomGeoGenerator.randomPoint(random());
+        double[] coordinates = { geoPoint.getLon(), geoPoint.getLat() };
+        XContentBuilder invalidGeoJsonType = jsonBuilder().startObject()
+            .field("type", "point")
+            .array("coordinates", coordinates)
+            .endObject();
+        expectParseException(invalidGeoJsonType, "type must be Point");
+
+        String[] coordinatesInString = { String.valueOf(geoPoint.getLon()), String.valueOf(geoPoint.getLat()) };
+        XContentBuilder invalideCoordinatesType = jsonBuilder().startObject()
+            .field("type", "Point")
+            .array("coordinates", coordinatesInString)
+            .endObject();
+        expectParseException(invalideCoordinatesType, "numeric value expected");
+    }
+
+    private void expectParseException(XContentBuilder content, String errMsg) throws IOException {
+        try (XContentParser parser = createParser(content)) {
+            parser.nextToken();
+            OpenSearchParseException ex = expectThrows(OpenSearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
+            assertEquals(errMsg, ex.getMessage());
         }
     }
 
