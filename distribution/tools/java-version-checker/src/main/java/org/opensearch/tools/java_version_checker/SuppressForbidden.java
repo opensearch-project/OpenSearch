@@ -43,5 +43,10 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.CLASS)
 @Target({ ElementType.CONSTRUCTOR, ElementType.FIELD, ElementType.METHOD, ElementType.TYPE })
 public @interface SuppressForbidden {
+    /**
+     * The argument to this annotation, specifying the reason a forbidden API is being used.
+     *
+     * @return The reason the error is being suppressed.
+     */
     String reason();
 }
