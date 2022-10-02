@@ -308,11 +308,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
     public void testPreventJoinClusterWithDecommission() {
         Settings.builder().build();
         DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "zone-1");
-        DecommissionStatus decommissionStatus = randomFrom(
-            DecommissionStatus.INIT,
-            DecommissionStatus.IN_PROGRESS,
-            DecommissionStatus.SUCCESSFUL
-        );
+        DecommissionStatus decommissionStatus = randomFrom(DecommissionStatus.IN_PROGRESS, DecommissionStatus.SUCCESSFUL);
         DecommissionAttributeMetadata decommissionAttributeMetadata = new DecommissionAttributeMetadata(
             decommissionAttribute,
             decommissionStatus
@@ -325,7 +321,11 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
     public void testJoinClusterWithDifferentDecommission() {
         Settings.builder().build();
         DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "zone-1");
-        DecommissionStatus decommissionStatus = randomFrom(DecommissionStatus.values());
+        DecommissionStatus decommissionStatus = randomFrom(
+            DecommissionStatus.INIT,
+            DecommissionStatus.IN_PROGRESS,
+            DecommissionStatus.SUCCESSFUL
+        );
         DecommissionAttributeMetadata decommissionAttributeMetadata = new DecommissionAttributeMetadata(
             decommissionAttribute,
             decommissionStatus
