@@ -13,6 +13,7 @@ import org.opensearch.action.support.broadcast.BroadcastRequest;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -83,5 +84,38 @@ public class PitSegmentsRequest extends BroadcastRequest<PitSegmentsRequest> {
             validationException = addValidationError("no pit ids specified", validationException);
         }
         return validationException;
+    }
+
+    public void fromXContent(XContentParser parser) throws IOException {
+        pitIds.clear();
+        if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
+            throw new IllegalArgumentException("Malformed content, must start with an object");
+        } else {
+            XContentParser.Token token;
+            String currentFieldName = null;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                } else if ("pit_id".equals(currentFieldName)) {
+                    if (token == XContentParser.Token.START_ARRAY) {
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                            if (token.isValue() == false) {
+                                throw new IllegalArgumentException("pit_id array element should only contain PIT identifier");
+                            }
+                            pitIds.add(parser.text());
+                        }
+                    } else {
+                        if (token.isValue() == false) {
+                            throw new IllegalArgumentException("pit_id element should only contain PIT identifier");
+                        }
+                        pitIds.add(parser.text());
+                    }
+                } else {
+                    throw new IllegalArgumentException(
+                        "Unknown parameter [" + currentFieldName + "] in request body or parameter is of the wrong type[" + token + "] "
+                    );
+                }
+            }
+        }
     }
 }
