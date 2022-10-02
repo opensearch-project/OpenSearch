@@ -1,8 +1,11 @@
 # CHANGELOG
+
 Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
+
 ### Added
+
 - Add support for s390x architecture ([#4001](https://github.com/opensearch-project/OpenSearch/pull/4001))
 - Github workflow for changelog verification ([#4085](https://github.com/opensearch-project/OpenSearch/pull/4085))
 - Point in time rest layer changes for create and delete PIT API ([#4064](https://github.com/opensearch-project/OpenSearch/pull/4064))
@@ -16,14 +19,18 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Update previous release bwc version to 2.4.0 ([#4455](https://github.com/opensearch-project/OpenSearch/pull/4455))
 - 2.3.0 release notes ([#4457](https://github.com/opensearch-project/OpenSearch/pull/4457))
 - Added missing javadocs for `:distribution:tools` modules ([#4483](https://github.com/opensearch-project/OpenSearch/pull/4483))
+
 ### Dependencies
+
 - Bumps `reactive-streams` from 1.0.3 to 1.0.4
 
 ### Dependencies
+
 - Bumps `org.gradle.test-retry` from 1.4.0 to 1.4.1
 - Bumps `reactor-netty-core` from 1.0.19 to 1.0.22
 
 ### Dependencies
+
 - Bumps `com.diffplug.spotless` from 6.9.1 to 6.10.0
 - Bumps `xmlbeans` from 5.1.0 to 5.1.1
 - Bumps azure-core-http-netty from 1.12.0 to 1.12.4([#4160](https://github.com/opensearch-project/OpenSearch/pull/4160))
@@ -31,18 +38,21 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Bumps azure-storage-common from 12.16.0 to 12.18.0([#4160](https://github.com/opensearch-project/OpenSearch/pull/4160))
 
 ### Changed
+
 - Dependency updates (httpcore, mockito, slf4j, httpasyncclient, commons-codec) ([#4308](https://github.com/opensearch-project/OpenSearch/pull/4308))
 - Use RemoteSegmentStoreDirectory instead of RemoteDirectory ([#4240](https://github.com/opensearch-project/OpenSearch/pull/4240))
 - Plugin ZIP publication groupId value is configurable ([#4156](https://github.com/opensearch-project/OpenSearch/pull/4156))
 - Add index specific setting for remote repository ([#4253](https://github.com/opensearch-project/OpenSearch/pull/4253))
 - [Segment Replication] Update replicas to commit SegmentInfos instead of relying on SIS files from primary shards. ([#4402](https://github.com/opensearch-project/OpenSearch/pull/4402))
 - [CCR] Add getHistoryOperationsFromTranslog method to fetch the history snapshot from translogs ([#3948](https://github.com/opensearch-project/OpenSearch/pull/3948))
+- Improve Gradle pre-commit checks to pre-empt Jenkins build ([#4174](https://github.com/opensearch-project/OpenSearch/pull/4660))
 
 ### Deprecated
 
 ### Removed
 
 ### Fixed
+
 - `opensearch-service.bat start` and `opensearch-service.bat manager` failing to run ([#4289](https://github.com/opensearch-project/OpenSearch/pull/4289))
 - PR reference to checkout code for changelog verifier ([#4296](https://github.com/opensearch-project/OpenSearch/pull/4296))
 - `opensearch.bat` and `opensearch-service.bat install` failing to run, missing logs directory ([#4305](https://github.com/opensearch-project/OpenSearch/pull/4305))
@@ -67,10 +77,13 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Fixed the ignore_malformed setting to also ignore objects ([#4494](https://github.com/opensearch-project/OpenSearch/pull/4494))
 
 ### Security
+
 - CVE-2022-25857 org.yaml:snakeyaml DOS vulnerability ([#4341](https://github.com/opensearch-project/OpenSearch/pull/4341))
 
 ## [2.x]
+
 ### Added
+
 - Github workflow for changelog verification ([#4085](https://github.com/opensearch-project/OpenSearch/pull/4085))
 - Label configuration for dependabot PRs ([#4348](https://github.com/opensearch-project/OpenSearch/pull/4348))
 - Added RestLayer Changes for PIT stats ([#4217](https://github.com/opensearch-project/OpenSearch/pull/4217))
@@ -82,11 +95,11 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ### Removed
 
 ### Fixed
+
 - PR reference to checkout code for changelog verifier ([#4296](https://github.com/opensearch-project/OpenSearch/pull/4296))
 - Commit workflow for dependabot changelog helper ([#4331](https://github.com/opensearch-project/OpenSearch/pull/4331))
 
 ### Security
 
-
-[Unreleased]: https://github.com/opensearch-project/OpenSearch/compare/2.2.0...HEAD
+[unreleased]: https://github.com/opensearch-project/OpenSearch/compare/2.2.0...HEAD
 [2.x]: https://github.com/opensearch-project/OpenSearch/compare/2.2.0...2.x
