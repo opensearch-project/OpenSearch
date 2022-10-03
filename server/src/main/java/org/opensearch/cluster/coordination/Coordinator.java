@@ -139,6 +139,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
     private final Settings settings;
     private final boolean singleNodeDiscovery;
+    private volatile boolean localNodeCommissioned;
     private final ElectionStrategy electionStrategy;
     private final TransportService transportService;
     private final ClusterManagerService clusterManagerService;
@@ -219,7 +220,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             this::joinLeaderInTerm,
             this.onJoinValidators,
             rerouteService,
-            nodeHealthService
+            nodeHealthService,
+            this::nodeCommissioned
         );
         this.persistedStateSupplier = persistedStateSupplier;
         this.noClusterManagerBlockService = new NoClusterManagerBlockService(settings, clusterSettings);
@@ -282,6 +284,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             joinHelper::logLastFailedJoinAttempt
         );
         this.nodeHealthService = nodeHealthService;
+        this.localNodeCommissioned = true;
     }
 
     private ClusterFormationState getClusterFormationState() {
@@ -1425,6 +1428,11 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         }
     }
 
+    private synchronized void nodeCommissioned(boolean localNodeCommissioned) {
+        this.localNodeCommissioned = localNodeCommissioned;
+        peerFinder.setFindPeersInterval(localNodeCommissioned);
+    }
+
     private void startElectionScheduler() {
         assert electionScheduler == null : electionScheduler;
 
@@ -1448,6 +1456,11 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                         final StatusInfo statusInfo = nodeHealthService.getHealth();
                         if (statusInfo.getStatus() == UNHEALTHY) {
                             logger.debug("skip prevoting as local node is unhealthy: [{}]", statusInfo.getInfo());
+                            return;
+                        }
+
+                        if (localNodeCommissioned == false) {
+                            logger.debug("skip prevoting as local node is decommissioned");
                             return;
                         }
 
