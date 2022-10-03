@@ -25,6 +25,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Bumps `log4j-core` from 2.18.0 to 2.19.0
 - Bumps `reactor-netty-http` from 1.0.18 to 1.0.23
 - Bumps `jettison` from 1.5.0 to 1.5.1
+- Bumps `azure-storage-common` from 12.18.0 to 12.18.1
 
 
 ### Dependencies
