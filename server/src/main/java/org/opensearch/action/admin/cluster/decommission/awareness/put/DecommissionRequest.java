@@ -39,7 +39,6 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
 
     public DecommissionRequest(DecommissionAttribute decommissionAttribute) {
         this.decommissionAttribute = decommissionAttribute;
-        //
     }
 
     public DecommissionRequest(DecommissionAttribute decommissionAttribute, TimeValue drainingTimeout) {

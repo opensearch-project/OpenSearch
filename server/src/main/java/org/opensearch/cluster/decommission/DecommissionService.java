@@ -212,7 +212,7 @@ public class DecommissionService {
                         // nodes can be part of Voting Config
                         listener.onResponse(new DecommissionResponse(true));
 
-                        drainNodesWithDecommissionedAttribute(state, decommissionRequest);
+                        drainNodesWithDecommissionedAttribute(clusterService.getClusterApplierService().state(), decommissionRequest);
                     }
                 } else {
                     // explicitly calling listener.onFailure with NotClusterManagerException as the local node is not the cluster manager
