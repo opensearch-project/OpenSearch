@@ -32,7 +32,8 @@
 
 package org.opensearch.client;
 
-import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionStateRequest;
+import org.opensearch.action.admin.cluster.decommission.awareness.get.GetDecommissionStateRequest;
+import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
@@ -542,13 +543,6 @@ public class Requests {
     }
 
     /**
-     * Creates a new delete decommission request.
-     */
-    public static DeleteDecommissionStateRequest deleteDecommissionStateRequest() {
-        return new DeleteDecommissionStateRequest();
-    }
-
-    /**
      *  Get status of snapshots
      *
      * @param repository repository name
@@ -565,5 +559,23 @@ public class Requests {
      */
     public static ClusterPutWeightedRoutingRequest putWeightedRoutingRequest(String attributeName) {
         return new ClusterPutWeightedRoutingRequest(attributeName);
+    }
+
+    /**
+     * Creates a new decommission request.
+     *
+     * @return returns put decommission request
+     */
+    public static DecommissionRequest decommissionRequest() {
+        return new DecommissionRequest();
+    }
+
+    /**
+     * Get decommissioned attribute from metadata
+     *
+     * @return returns get decommission request
+     */
+    public static GetDecommissionStateRequest getDecommissionStateRequest() {
+        return new GetDecommissionStateRequest();
     }
 }
