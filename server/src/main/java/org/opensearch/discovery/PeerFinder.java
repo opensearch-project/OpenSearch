@@ -150,6 +150,11 @@ public abstract class PeerFinder {
         );
     }
 
+    // public for testing
+    public TimeValue getFindPeersInterval() {
+        return findPeersInterval;
+    }
+
     public void activate(final DiscoveryNodes lastAcceptedNodes) {
         logger.trace("activating with {}", lastAcceptedNodes);
 
