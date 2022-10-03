@@ -18,7 +18,6 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.IndexFormatTooNewException;
-import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.ByteBuffersIndexOutput;
 import org.apache.lucene.store.Directory;
@@ -51,7 +50,6 @@ import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.Random;
 import java.util.Arrays;
 
@@ -71,26 +69,13 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
     private ReplicationCheckpoint repCheckpoint;
     private ByteBuffersDataOutput buffer;
 
-    private static final StoreFileMetadata SEGMENTS_FILE = new StoreFileMetadata(IndexFileNames.SEGMENTS, 1L, "0", Version.LATEST);
-    private static final StoreFileMetadata SEGMENTS_FILE_DIFF = new StoreFileMetadata(
-        IndexFileNames.SEGMENTS,
-        5L,
-        "different",
-        Version.LATEST
-    );
-    private static final StoreFileMetadata PENDING_DELETE_FILE = new StoreFileMetadata("pendingDelete.del", 1L, "1", Version.LATEST);
+    private static final String SEGMENT_NAME = "_0.si";
+    private static final StoreFileMetadata SEGMENT_FILE = new StoreFileMetadata(SEGMENT_NAME, 1L, "0", Version.LATEST);
+    private static final StoreFileMetadata SEGMENT_FILE_DIFF = new StoreFileMetadata(SEGMENT_NAME, 5L, "different", Version.LATEST);
 
-    private static final Store.MetadataSnapshot SI_SNAPSHOT = new Store.MetadataSnapshot(
-        Map.of(SEGMENTS_FILE.name(), SEGMENTS_FILE),
-        null,
-        0
-    );
+    private static final Map<String, StoreFileMetadata> SI_SNAPSHOT = Map.of(SEGMENT_FILE.name(), SEGMENT_FILE);
 
-    private static final Store.MetadataSnapshot SI_SNAPSHOT_DIFFERENT = new Store.MetadataSnapshot(
-        Map.of(SEGMENTS_FILE_DIFF.name(), SEGMENTS_FILE_DIFF),
-        null,
-        0
-    );
+    private static final Map<String, StoreFileMetadata> SI_SNAPSHOT_DIFFERENT = Map.of(SEGMENT_FILE_DIFF.name(), SEGMENT_FILE_DIFF);
 
     private static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings(
         "index",
@@ -135,7 +120,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 ReplicationCheckpoint checkpoint,
                 ActionListener<CheckpointInfoResponse> listener
             ) {
-                listener.onResponse(new CheckpointInfoResponse(checkpoint, SI_SNAPSHOT, buffer.toArrayCopy(), Set.of(PENDING_DELETE_FILE)));
+                listener.onResponse(new CheckpointInfoResponse(checkpoint, SI_SNAPSHOT, buffer.toArrayCopy()));
             }
 
             @Override
@@ -146,9 +131,8 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 Store store,
                 ActionListener<GetSegmentFilesResponse> listener
             ) {
-                assertEquals(filesToFetch.size(), 2);
-                assert (filesToFetch.contains(SEGMENTS_FILE));
-                assert (filesToFetch.contains(PENDING_DELETE_FILE));
+                assertEquals(1, filesToFetch.size());
+                assert (filesToFetch.contains(SEGMENT_FILE));
                 listener.onResponse(new GetSegmentFilesResponse(filesToFetch));
             }
         };
@@ -230,7 +214,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 ReplicationCheckpoint checkpoint,
                 ActionListener<CheckpointInfoResponse> listener
             ) {
-                listener.onResponse(new CheckpointInfoResponse(checkpoint, SI_SNAPSHOT, buffer.toArrayCopy(), Set.of(PENDING_DELETE_FILE)));
+                listener.onResponse(new CheckpointInfoResponse(checkpoint, SI_SNAPSHOT, buffer.toArrayCopy()));
             }
 
             @Override
@@ -273,7 +257,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 ReplicationCheckpoint checkpoint,
                 ActionListener<CheckpointInfoResponse> listener
             ) {
-                listener.onResponse(new CheckpointInfoResponse(checkpoint, SI_SNAPSHOT, buffer.toArrayCopy(), Set.of(PENDING_DELETE_FILE)));
+                listener.onResponse(new CheckpointInfoResponse(checkpoint, SI_SNAPSHOT, buffer.toArrayCopy()));
             }
 
             @Override
@@ -318,7 +302,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 ReplicationCheckpoint checkpoint,
                 ActionListener<CheckpointInfoResponse> listener
             ) {
-                listener.onResponse(new CheckpointInfoResponse(checkpoint, SI_SNAPSHOT, buffer.toArrayCopy(), Set.of(PENDING_DELETE_FILE)));
+                listener.onResponse(new CheckpointInfoResponse(checkpoint, SI_SNAPSHOT, buffer.toArrayCopy()));
             }
 
             @Override
@@ -362,7 +346,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 ReplicationCheckpoint checkpoint,
                 ActionListener<CheckpointInfoResponse> listener
             ) {
-                listener.onResponse(new CheckpointInfoResponse(checkpoint, SI_SNAPSHOT, buffer.toArrayCopy(), Set.of(PENDING_DELETE_FILE)));
+                listener.onResponse(new CheckpointInfoResponse(checkpoint, SI_SNAPSHOT, buffer.toArrayCopy()));
             }
 
             @Override
@@ -380,7 +364,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
             SegmentReplicationTargetService.SegmentReplicationListener.class
         );
         segrepTarget = spy(new SegmentReplicationTarget(repCheckpoint, indexShard, segrepSource, segRepListener));
-        when(segrepTarget.getMetadataSnapshot()).thenReturn(SI_SNAPSHOT_DIFFERENT);
+        when(segrepTarget.getMetadataMap()).thenReturn(SI_SNAPSHOT_DIFFERENT);
         segrepTarget.startReplication(new ActionListener<Void>() {
             @Override
             public void onResponse(Void replicationResponse) {
@@ -397,7 +381,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
 
     /**
      * This tests ensures that new files generated on primary (due to delete operation) are not considered missing on replica
-     * @throws IOException
+     * @throws IOException if an indexing operation fails or segment replication fails
      */
     public void test_MissingFiles_NotCausingFailure() throws IOException {
         int docCount = 1 + random().nextInt(10);
@@ -413,9 +397,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 ReplicationCheckpoint checkpoint,
                 ActionListener<CheckpointInfoResponse> listener
             ) {
-                listener.onResponse(
-                    new CheckpointInfoResponse(checkpoint, storeMetadataSnapshots.get(1), buffer.toArrayCopy(), Set.of(PENDING_DELETE_FILE))
-                );
+                listener.onResponse(new CheckpointInfoResponse(checkpoint, storeMetadataSnapshots.get(1).asMap(), buffer.toArrayCopy()));
             }
 
             @Override
@@ -434,7 +416,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
         );
 
         segrepTarget = spy(new SegmentReplicationTarget(repCheckpoint, indexShard, segrepSource, segRepListener));
-        when(segrepTarget.getMetadataSnapshot()).thenReturn(storeMetadataSnapshots.get(0));
+        when(segrepTarget.getMetadataMap()).thenReturn(storeMetadataSnapshots.get(0).asMap());
         segrepTarget.startReplication(new ActionListener<Void>() {
             @Override
             public void onResponse(Void replicationResponse) {
@@ -453,9 +435,9 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
     /**
      * Generates a list of Store.MetadataSnapshot with two elements where second snapshot has extra files due to delete
      * operation. A list of snapshots is returned so that identical files have same checksum.
-     * @param docCount
-     * @return
-     * @throws IOException
+     * @param docCount the number of documents to index in the first snapshot
+     * @return a list of Store.MetadataSnapshot with two elements where second snapshot has extra files due to delete
+     * @throws IOException if one of the indexing operations fails
      */
     private List<Store.MetadataSnapshot> generateStoreMetadataSnapshot(int docCount) throws IOException {
         List<Document> docList = new ArrayList<>();

@@ -44,6 +44,12 @@ import static java.util.Collections.singletonList;
  * Plugin declaring a custom {@link SignificanceHeuristic}.
  */
 public class CustomSignificanceHeuristicPlugin extends Plugin implements SearchPlugin {
+
+    /**
+     * Instantiate this plugin.
+     */
+    public CustomSignificanceHeuristicPlugin() {};
+
     @Override
     public List<SignificanceHeuristicSpec<?>> getSignificanceHeuristics() {
         return singletonList(new SignificanceHeuristicSpec<>(SimpleHeuristic.NAME, SimpleHeuristic::new, SimpleHeuristic.PARSER));

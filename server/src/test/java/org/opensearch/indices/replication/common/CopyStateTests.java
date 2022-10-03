@@ -22,7 +22,6 @@ import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 
 import java.io.IOException;
-import java.util.Set;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -32,6 +31,7 @@ public class CopyStateTests extends IndexShardTestCase {
     private static final long EXPECTED_LONG_VALUE = 1L;
     private static final ShardId TEST_SHARD_ID = new ShardId("testIndex", "testUUID", 0);
     private static final StoreFileMetadata SEGMENTS_FILE = new StoreFileMetadata(IndexFileNames.SEGMENTS, 1L, "0", Version.LATEST);
+    private static final StoreFileMetadata SEGMENT_FILE = new StoreFileMetadata("_0.si", 1L, "0", Version.LATEST);
     private static final StoreFileMetadata PENDING_DELETE_FILE = new StoreFileMetadata("pendingDelete.del", 1L, "1", Version.LATEST);
 
     private static final Store.MetadataSnapshot COMMIT_SNAPSHOT = new Store.MetadataSnapshot(
@@ -41,7 +41,7 @@ public class CopyStateTests extends IndexShardTestCase {
     );
 
     private static final Store.MetadataSnapshot SI_SNAPSHOT = new Store.MetadataSnapshot(
-        Map.of(SEGMENTS_FILE.name(), SEGMENTS_FILE),
+        Map.of(SEGMENT_FILE.name(), SEGMENT_FILE),
         null,
         0
     );
@@ -61,10 +61,6 @@ public class CopyStateTests extends IndexShardTestCase {
         // version was never set so this should be zero
         assertEquals(0, checkpoint.getSegmentInfosVersion());
         assertEquals(EXPECTED_LONG_VALUE, checkpoint.getPrimaryTerm());
-
-        Set<StoreFileMetadata> pendingDeleteFiles = copyState.getPendingDeleteFiles();
-        assertEquals(1, pendingDeleteFiles.size());
-        assertTrue(pendingDeleteFiles.contains(PENDING_DELETE_FILE));
     }
 
     public static IndexShard createMockIndexShard() throws IOException {
@@ -78,7 +74,7 @@ public class CopyStateTests extends IndexShardTestCase {
 
         SegmentInfos testSegmentInfos = new SegmentInfos(Version.LATEST.major);
         when(mockShard.getSegmentInfosSnapshot()).thenReturn(new GatedCloseable<>(testSegmentInfos, () -> {}));
-        when(mockStore.getMetadata(testSegmentInfos)).thenReturn(SI_SNAPSHOT);
+        when(mockStore.getSegmentMetadataMap(testSegmentInfos)).thenReturn(SI_SNAPSHOT.asMap());
 
         IndexCommit mockIndexCommit = mock(IndexCommit.class);
         when(mockShard.acquireLastIndexCommit(false)).thenReturn(new GatedCloseable<>(mockIndexCommit, () -> {}));
