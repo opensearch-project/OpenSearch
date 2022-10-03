@@ -43,8 +43,13 @@ import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainAc
 import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
 import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainRequestBuilder;
 import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
+import org.opensearch.action.admin.cluster.decommission.awareness.get.GetDecommissionStateAction;
+import org.opensearch.action.admin.cluster.decommission.awareness.get.GetDecommissionStateRequest;
+import org.opensearch.action.admin.cluster.decommission.awareness.get.GetDecommissionStateRequestBuilder;
+import org.opensearch.action.admin.cluster.decommission.awareness.get.GetDecommissionStateResponse;
 import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionAction;
 import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionRequest;
+import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionRequestBuilder;
 import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionResponse;
 import org.opensearch.action.admin.cluster.health.ClusterHealthAction;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
@@ -1349,9 +1354,35 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
+        public ActionFuture<DecommissionResponse> decommission(DecommissionRequest request) {
+            return execute(DecommissionAction.INSTANCE, request);
+        }
+
+        @Override
         public void decommission(DecommissionRequest request, ActionListener<DecommissionResponse> listener) {
             execute(DecommissionAction.INSTANCE, request, listener);
         }
+
+        @Override
+        public DecommissionRequestBuilder prepareDecommission(DecommissionRequest request) {
+            return new DecommissionRequestBuilder(this, DecommissionAction.INSTANCE, request);
+        }
+
+        @Override
+        public ActionFuture<GetDecommissionStateResponse> getDecommission(GetDecommissionStateRequest request) {
+            return execute(GetDecommissionStateAction.INSTANCE, request);
+        }
+
+        @Override
+        public void getDecommission(GetDecommissionStateRequest request, ActionListener<GetDecommissionStateResponse> listener) {
+            execute(GetDecommissionStateAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public GetDecommissionStateRequestBuilder prepareGetDecommission() {
+            return new GetDecommissionStateRequestBuilder(this, GetDecommissionStateAction.INSTANCE);
+        }
+
     }
 
     static class IndicesAdmin implements IndicesAdminClient {
