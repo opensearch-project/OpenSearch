@@ -495,7 +495,7 @@ public class DecommissionService {
             @Override
             public void onResponse(Void unused) {
                 logger.info("successfully cleared voting config exclusion for deleting the decommission");
-                deleteDecommissionAction(listener);
+                deleteDecommissionState(listener);
             }
 
             @Override
@@ -506,7 +506,7 @@ public class DecommissionService {
         }, false);
     }
 
-    void deleteDecommissionAction(ActionListener<AcknowledgedResponse> listener) {
+    void deleteDecommissionState(ActionListener<AcknowledgedResponse> listener) {
         clusterService.submitStateUpdateTask("delete_decommission_state", new ClusterStateUpdateTask(Priority.URGENT) {
             @Override
             public ClusterState execute(ClusterState currentState) {
