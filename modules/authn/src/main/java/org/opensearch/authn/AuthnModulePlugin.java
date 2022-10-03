@@ -12,5 +12,4 @@ import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SystemIndexPlugin;
 
-public class AuthnModulePlugin extends Plugin implements SystemIndexPlugin, NetworkPlugin {
-}
+public class AuthnModulePlugin extends Plugin implements SystemIndexPlugin, NetworkPlugin {}
