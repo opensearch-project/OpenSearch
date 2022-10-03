@@ -43,7 +43,6 @@ import org.opensearch.cluster.node.DiscoveryNodes.Builder;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
-import org.opensearch.common.unit.TimeValue;
 import org.opensearch.discovery.PeerFinder.TransportAddressConnector;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.CapturingTransport;
@@ -808,7 +807,6 @@ public class PeerFinderTests extends OpenSearchTestCase {
         assertFoundPeers(rebootedOtherNode);
     }
 
-
     public void testConnectionAttemptDuringDecommissioning() {
         boolean localNodeCommissioned = randomBoolean();
         peerFinder.setFindPeersInterval(localNodeCommissioned);
@@ -831,7 +829,7 @@ public class PeerFinderTests extends OpenSearchTestCase {
         disconnectedNodes.add(otherNode);
 
         // peer discovery will be delayed now
-        if(localNodeCommissioned == false) {
+        if (localNodeCommissioned == false) {
             deterministicTaskQueue.advanceTime();
             runAllRunnableTasks();
             assertPeersNotDiscovered(newNode);
@@ -839,9 +837,9 @@ public class PeerFinderTests extends OpenSearchTestCase {
 
         final long expectedTime = CONNECTION_TIMEOUT_MILLIS + findPeersInterval;
         while (deterministicTaskQueue.getCurrentTimeMillis() < expectedTime) {
-                deterministicTaskQueue.advanceTime();
-                runAllRunnableTasks();
-            }
+            deterministicTaskQueue.advanceTime();
+            runAllRunnableTasks();
+        }
         assertFoundPeers(newNode);
     }
 
