@@ -234,7 +234,7 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
             threadPool,
             allocationService
         );
-        decommissionService.startDecommissionAction(Mockito.mock(ActionListener.class));
+        decommissionService.startRecommissionAction(Mockito.mock(ActionListener.class));
 
         ArgumentCaptor<ClearVotingConfigExclusionsRequest> clearVotingConfigExclusionsRequestArgumentCaptor = ArgumentCaptor.forClass(
             ClearVotingConfigExclusionsRequest.class

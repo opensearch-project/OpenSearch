@@ -483,7 +483,7 @@ public class DecommissionService {
         };
     }
 
-    public void startDecommissionAction(final ActionListener<AcknowledgedResponse> listener) {
+    public void startRecommissionAction(final ActionListener<AcknowledgedResponse> listener) {
         /*
          * For abandoned requests, we might not really know if it actually restored the exclusion list.
          * And can land up in cases where even after recommission, exclusions are set(which is unexpected).
