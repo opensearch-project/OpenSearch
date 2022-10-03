@@ -304,7 +304,7 @@ public class DecommissionController {
                 @Override
                 public void handleException(TransportException exp) {
                     // Logging warn message on failure. Should we do Retry? If weights are not set should we fail?
-                    logger.error("Exception occurred while setting weights.Exception Messages - [{}]", exp.unwrapCause().getMessage());
+                    logger.error("Exception occurred while setting weights.Exception Messages - [{}]", exp);
                     listener.onFailure(exp);
                 }
 

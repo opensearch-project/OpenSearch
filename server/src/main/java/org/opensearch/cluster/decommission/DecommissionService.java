@@ -314,7 +314,6 @@ public class DecommissionService {
         DecommissionAttributeMetadata decommissionAttributeMetadata = state.metadata().decommissionAttributeMetadata();
         DecommissionAttribute decommissionAttribute = decommissionAttributeMetadata.decommissionAttribute();
 
-        // Awareness values refers to all zones in the cluster
         List<String> awarenessValues = forcedAwarenessAttributes.get(decommissionAttribute.attributeName());
 
         decommissionController.updateMetadataWithDecommissionStatus(DecommissionStatus.DRAINING, new ActionListener<>() {
