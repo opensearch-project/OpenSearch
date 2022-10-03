@@ -77,7 +77,7 @@ import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
-import org.opensearch.cluster.service.ClusterManagerThrottlingKeys;
+import org.opensearch.cluster.service.ClusterManagerTaskKeys;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
@@ -199,6 +199,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     private final OngoingRepositoryOperations repositoryOperations = new OngoingRepositoryOperations();
 
+    private final String createSnapshotTaskKey;
+    private final String deleteSnapshotTaskKey;
+    private static String updateSnapshotStateTaskKey;
+
     /**
      * Setting that specifies the maximum number of allowed concurrent snapshot create and delete operations in the
      * cluster state. The number of concurrent operations in a cluster state is defined as the sum of the sizes of
@@ -244,10 +248,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 .addSettingsUpdateConsumer(MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING, i -> maxConcurrentOperations = i);
         }
 
-        // Task will get retried from associated TransportClusterManagerNodeAction.
-        clusterService.registerThrottlingKey(ClusterManagerThrottlingKeys.UPDATE_SNAPSHOT_STATE_KEY, true);
-        clusterService.registerThrottlingKey(ClusterManagerThrottlingKeys.CREATE_SNAPSHOT_KEY, true);
-        clusterService.registerThrottlingKey(ClusterManagerThrottlingKeys.DELETE_SNAPSHOT_KEY, true);
+        // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
+        createSnapshotTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.CREATE_SNAPSHOT_KEY, true);
+        deleteSnapshotTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.DELETE_SNAPSHOT_KEY, true);
+        updateSnapshotStateTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.UPDATE_SNAPSHOT_STATE_KEY, true);
     }
 
     /**
@@ -540,7 +544,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public String getClusterManagerThrottlingKey() {
-                return ClusterManagerThrottlingKeys.CREATE_SNAPSHOT_KEY;
+                return createSnapshotTaskKey;
             }
 
             @Override
@@ -2291,7 +2295,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public String getClusterManagerThrottlingKey() {
-                return ClusterManagerThrottlingKeys.DELETE_SNAPSHOT_KEY;
+                return deleteSnapshotTaskKey;
             }
 
             @Override
@@ -3263,7 +3267,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
         @Override
         public String getClusterManagerThrottlingKey() {
-            return ClusterManagerThrottlingKeys.UPDATE_SNAPSHOT_STATE_KEY;
+            return updateSnapshotStateTaskKey;
         }
     };
 

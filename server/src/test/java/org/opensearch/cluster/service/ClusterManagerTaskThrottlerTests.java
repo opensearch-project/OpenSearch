@@ -56,7 +56,7 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        clusterService.registerThrottlingKey("put-mapping", true);
+        clusterService.registerClusterManagerTask("put-mapping", true);
         localNode = new DiscoveryNode(
             "local_node",
             buildNewFakeTransportAddress(),

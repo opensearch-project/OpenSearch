@@ -54,7 +54,7 @@ import org.opensearch.cluster.metadata.IndexGraveyard;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
-import org.opensearch.cluster.service.ClusterManagerThrottlingKeys;
+import org.opensearch.cluster.service.ClusterManagerTaskKeys;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
@@ -81,6 +81,7 @@ public class TransportDeleteDanglingIndexAction extends TransportClusterManagerN
 
     private final Settings settings;
     private final NodeClient nodeClient;
+    private final String deleteDanglingIndexTaskKey;
 
     @Inject
     public TransportDeleteDanglingIndexAction(
@@ -103,9 +104,8 @@ public class TransportDeleteDanglingIndexAction extends TransportClusterManagerN
         );
         this.settings = settings;
         this.nodeClient = nodeClient;
-        // Task will get retried from associated TransportClusterManagerNodeAction.
-        clusterService.registerThrottlingKey(ClusterManagerThrottlingKeys.DELETE_DANGLING_INDEX_KEY, true);
-
+        // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
+        deleteDanglingIndexTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.DELETE_DANGLING_INDEX_KEY, true);
     }
 
     @Override
@@ -163,7 +163,7 @@ public class TransportDeleteDanglingIndexAction extends TransportClusterManagerN
 
                         @Override
                         public String getClusterManagerThrottlingKey() {
-                            return ClusterManagerThrottlingKeys.DELETE_DANGLING_INDEX_KEY;
+                            return deleteDanglingIndexTaskKey;
                         }
 
                         @Override

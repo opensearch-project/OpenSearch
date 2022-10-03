@@ -9,9 +9,9 @@
 package org.opensearch.cluster.service;
 
 /**
- * Class for maintaining all cluster manager throttling key at one place.
+ * Class for maintaining all cluster manager task key at one place.
  */
-public final class ClusterManagerThrottlingKeys {
+public final class ClusterManagerTaskKeys {
 
     public static final String CREATE_INDEX_KEY = "create-index";
     public static final String UPDATE_SETTINGS_KEY = "update-settings";

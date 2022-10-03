@@ -61,18 +61,21 @@ public class ClusterManagerTaskThrottler implements TaskBatcherListener {
     }
 
     /**
-     * To configure a new task for throttling, override getClusterManagerThrottlingKey method with task name in task executor.
-     * Verify that throttled tasks would be retry.
+     * To configure a new task for throttling,
+     * * Register task to cluster service with task key,
+     * * override getClusterManagerThrottlingKey method with above task key in task executor.
+     * * Verify that throttled tasks would be retried from data nodes
      *
-     * Added retry mechanism in TransportClusterManagerNodeAction so it would be retried for customer generated tasks.
+     * Added retry mechanism in TransportClusterManagerNodeAction, so it would be retried for customer generated tasks.
      *
-     * If tasks are not getting retried then we can register with false flag, so user wont be able to configure threshold limits for it.
+     * If tasks are not getting retried then we can register with false flag, so user won't be able to configure threshold limits for it.
      */
-    protected void registerThrottlingKey(String throttlingKey, boolean retryableOnDataNode) {
+    protected String registerThrottlingKey(String throttlingKey, boolean retryableOnDataNode) {
         if (THROTTLING_TASK_KEYS.containsKey(throttlingKey)) {
             throw new IllegalArgumentException("There is already a Throttling key registered with same name: " + throttlingKey);
         }
         THROTTLING_TASK_KEYS.put(throttlingKey, retryableOnDataNode);
+        return throttlingKey;
     }
 
     void validateSetting(final Settings settings) {

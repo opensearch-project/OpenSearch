@@ -45,7 +45,7 @@ import org.opensearch.cluster.AckedClusterStateUpdateTask;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ack.ClusterStateUpdateRequest;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
-import org.opensearch.cluster.service.ClusterManagerThrottlingKeys;
+import org.opensearch.cluster.service.ClusterManagerTaskKeys;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
@@ -75,6 +75,7 @@ public class MetadataCreateDataStreamService {
     private final ClusterService clusterService;
     private final ActiveShardsObserver activeShardsObserver;
     private final MetadataCreateIndexService metadataCreateIndexService;
+    private final String createDataStreamTaskKey;
 
     public MetadataCreateDataStreamService(
         ThreadPool threadPool,
@@ -84,8 +85,8 @@ public class MetadataCreateDataStreamService {
         this.clusterService = clusterService;
         this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
         this.metadataCreateIndexService = metadataCreateIndexService;
-        // Task will get retried from associated TransportClusterManagerNodeAction.
-        clusterService.registerThrottlingKey(ClusterManagerThrottlingKeys.CREATE_DATA_STREAM_KEY, true);
+        // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
+        createDataStreamTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.CREATE_DATA_STREAM_KEY, true);
     }
 
     public void createDataStream(CreateDataStreamClusterStateUpdateRequest request, ActionListener<AcknowledgedResponse> finalListener) {
@@ -118,7 +119,7 @@ public class MetadataCreateDataStreamService {
 
                 @Override
                 public String getClusterManagerThrottlingKey() {
-                    return ClusterManagerThrottlingKeys.CREATE_DATA_STREAM_KEY;
+                    return createDataStreamTaskKey;
                 }
 
                 @Override

@@ -47,7 +47,7 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.allocation.AllocationService;
-import org.opensearch.cluster.service.ClusterManagerThrottlingKeys;
+import org.opensearch.cluster.service.ClusterManagerTaskKeys;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
@@ -74,6 +74,8 @@ public class TransportClusterUpdateSettingsAction extends TransportClusterManage
 
     private final ClusterSettings clusterSettings;
 
+    private final String clusterUpdateSettingTaskKey;
+
     @Inject
     public TransportClusterUpdateSettingsAction(
         TransportService transportService,
@@ -97,8 +99,9 @@ public class TransportClusterUpdateSettingsAction extends TransportClusterManage
         this.allocationService = allocationService;
         this.clusterSettings = clusterSettings;
 
-        // Task will get retried from associated TransportClusterManagerNodeAction.
-        clusterService.registerThrottlingKey(ClusterManagerThrottlingKeys.CLUSTER_UPDATE_SETTINGS_KEY, true);
+        // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
+        clusterUpdateSettingTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.CLUSTER_UPDATE_SETTINGS_KEY, true);
+
     }
 
     @Override
@@ -142,7 +145,7 @@ public class TransportClusterUpdateSettingsAction extends TransportClusterManage
 
                 @Override
                 public String getClusterManagerThrottlingKey() {
-                    return ClusterManagerThrottlingKeys.CLUSTER_UPDATE_SETTINGS_KEY;
+                    return clusterUpdateSettingTaskKey;
                 }
 
                 @Override

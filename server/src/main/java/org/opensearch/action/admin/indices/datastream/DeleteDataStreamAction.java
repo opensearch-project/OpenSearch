@@ -50,7 +50,7 @@ import org.opensearch.cluster.metadata.DataStream;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.MetadataDeleteIndexService;
-import org.opensearch.cluster.service.ClusterManagerThrottlingKeys;
+import org.opensearch.cluster.service.ClusterManagerTaskKeys;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.Strings;
@@ -168,6 +168,7 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
     public static class TransportAction extends TransportClusterManagerNodeAction<Request, AcknowledgedResponse> {
 
         private final MetadataDeleteIndexService deleteIndexService;
+        private final String removeDataStreamTaskKey;
 
         @Inject
         public TransportAction(
@@ -180,8 +181,8 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
         ) {
             super(NAME, transportService, clusterService, threadPool, actionFilters, Request::new, indexNameExpressionResolver);
             this.deleteIndexService = deleteIndexService;
-            // Task will get retried from associated TransportClusterManagerNodeAction.
-            clusterService.registerThrottlingKey(ClusterManagerThrottlingKeys.REMOVE_DATA_STREAM_KEY, true);
+            // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
+            removeDataStreamTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.REMOVE_DATA_STREAM_KEY, true);
         }
 
         @Override
@@ -213,7 +214,7 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
 
                     @Override
                     public String getClusterManagerThrottlingKey() {
-                        return ClusterManagerThrottlingKeys.REMOVE_DATA_STREAM_KEY;
+                        return removeDataStreamTaskKey;
                     }
 
                     @Override

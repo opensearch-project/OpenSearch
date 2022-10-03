@@ -50,7 +50,7 @@ import org.opensearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.opensearch.cluster.metadata.MetadataCreateDataStreamService.CreateDataStreamClusterStateUpdateRequest;
 import org.opensearch.cluster.metadata.MetadataCreateIndexService;
 import org.opensearch.cluster.metadata.MetadataIndexTemplateService;
-import org.opensearch.cluster.service.ClusterManagerThrottlingKeys;
+import org.opensearch.cluster.service.ClusterManagerTaskKeys;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.inject.Inject;
@@ -85,6 +85,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
         private final ActiveShardsObserver activeShardsObserver;
         private final MetadataCreateIndexService createIndexService;
         private final MetadataCreateDataStreamService metadataCreateDataStreamService;
+        private final String autoCreateTaskKey;
 
         @Inject
         public TransportAction(
@@ -101,8 +102,8 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
             this.createIndexService = createIndexService;
             this.metadataCreateDataStreamService = metadataCreateDataStreamService;
 
-            // Task will get retried from associated TransportClusterManagerNodeAction.
-            clusterService.registerThrottlingKey(ClusterManagerThrottlingKeys.AUTO_CREATE_KEY, true);
+            // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
+            autoCreateTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.AUTO_CREATE_KEY, true);
         }
 
         @Override
@@ -148,7 +149,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
 
                     @Override
                     public String getClusterManagerThrottlingKey() {
-                        return ClusterManagerThrottlingKeys.AUTO_CREATE_KEY;
+                        return autoCreateTaskKey;
                     }
 
                     @Override

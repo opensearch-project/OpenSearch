@@ -75,7 +75,7 @@ import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.routing.allocation.AllocationService;
-import org.opensearch.cluster.service.ClusterManagerThrottlingKeys;
+import org.opensearch.cluster.service.ClusterManagerTaskKeys;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.UUIDs;
@@ -177,6 +177,8 @@ public class RestoreService implements ClusterStateApplier {
 
     private final ClusterSettings clusterSettings;
 
+    private final String restoreSnapshotTaskKey;
+
     private static final CleanRestoreStateTaskExecutor cleanRestoreStateTaskExecutor = new CleanRestoreStateTaskExecutor();
 
     public RestoreService(
@@ -199,8 +201,9 @@ public class RestoreService implements ClusterStateApplier {
         this.clusterSettings = clusterService.getClusterSettings();
         this.shardLimitValidator = shardLimitValidator;
 
-        // Task will get retried from associated TransportClusterManagerNodeAction.
-        clusterService.registerThrottlingKey(ClusterManagerThrottlingKeys.RESTORE_SNAPSHOT_KEY, true);
+        // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
+        restoreSnapshotTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.RESTORE_SNAPSHOT_KEY, true);
+
     }
 
     /**
@@ -394,7 +397,7 @@ public class RestoreService implements ClusterStateApplier {
 
                     @Override
                     public String getClusterManagerThrottlingKey() {
-                        return ClusterManagerThrottlingKeys.RESTORE_SNAPSHOT_KEY;
+                        return restoreSnapshotTaskKey;
                     }
 
                     @Override
