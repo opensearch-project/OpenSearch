@@ -49,6 +49,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.opensearch.test.NodeRoles.onlyRole;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoTimeout;
@@ -181,10 +182,10 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class, randomRemovedNode);
         DecommissionAttributeMetadata metadata = clusterService.state().metadata().custom(DecommissionAttributeMetadata.TYPE);
 
-        // The decommissioned node would be having status as IN_PROGRESS as it was kicked out later
+        // The decommissioned node would not be having status as SUCCESS as it was kicked out later
         // and not receiving any further state updates
         assertEquals(metadata.decommissionAttribute(), decommissionAttribute);
-        assertEquals(metadata.status(), DecommissionStatus.IN_PROGRESS);
+        assertNotEquals(metadata.status(), DecommissionStatus.SUCCESSFUL);
 
         // assert the node has decommissioned attribute
         assertEquals(clusterService.localNode().getAttributes().get("zone"), zoneToDecommission);
@@ -193,11 +194,11 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
         Logger clusterLogger = LogManager.getLogger(JoinHelper.class);
         MockLogAppender mockLogAppender = MockLogAppender.createForLoggers(clusterLogger);
         mockLogAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
+            new MockLogAppender.PatternSeenEventExpectation(
                 "test",
                 JoinHelper.class.getCanonicalName(),
                 Level.INFO,
-                "local node is decommissioned. Will not be able to join the cluster"
+                "local node is decommissioned \\[.*]\\. Will not be able to join the cluster"
             )
         );
         mockLogAppender.addExpectation(
@@ -238,11 +239,6 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
         countDownLatch.await();
         mockLogAppender.assertAllExpectationsMatched();
 
-        // test for PeerFinder
-        PeerFinder peerFinder = (PeerFinder) internalCluster().getInstance(
-            PeerFinder.class,
-            randomRemovedNode
-        );
 
 //        // recommissioning the zone, to safely succeed the test. Specific tests for recommissioning will be written separately
 //        DeleteDecommissionResponse deleteDecommissionResponse = client().execute(DeleteDecommissionAction.INSTANCE, new DeleteDecommissionRequest()).get();
