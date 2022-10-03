@@ -42,3 +42,16 @@ tasks.withType(JavaCompile).configureEach {
   options.compilerArgs -= '-Xlint:rawtypes'
   options.compilerArgs -= '-Xlint:unchecked'
 }
+
+thirdPartyAudit {
+  ignoreMissingClasses(
+    'org.apache.commons.beanutils.BeanUtilsBean',
+    'org.apache.commons.beanutils.ConvertUtilsBean',
+    'org.apache.commons.beanutils.PropertyUtilsBean',
+    'org.apache.commons.beanutils.SuppressPropertiesBeanIntrospector',
+    'org.apache.commons.configuration2.interpol.ConfigurationInterpolator',
+    'org.slf4j.impl.StaticLoggerBinder',
+    'org.slf4j.impl.StaticMDCBinder',
+    'org.slf4j.impl.StaticMarkerBinder',
+  )
+}
