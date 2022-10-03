@@ -483,7 +483,7 @@ public class DecommissionService {
         };
     }
 
-    public void deleteDecommissionState(final ActionListener<AcknowledgedResponse> listener) {
+    public void startDecommissionAction(final ActionListener<AcknowledgedResponse> listener) {
         /*
          * For abandoned requests, we might not really know if it actually restored the exclusion list.
          * And can land up in cases where even after recommission, exclusions are set(which is unexpected).
@@ -495,7 +495,7 @@ public class DecommissionService {
             @Override
             public void onResponse(Void unused) {
                 logger.info("successfully cleared voting config exclusion for deleting the decommission");
-                clusterUpdateTaskForDeletingDecommission(listener);
+                deleteDecommissionAction(listener);
             }
 
             @Override
@@ -506,7 +506,7 @@ public class DecommissionService {
         }, false);
     }
 
-    void clusterUpdateTaskForDeletingDecommission(ActionListener<AcknowledgedResponse> listener) {
+    void deleteDecommissionAction(ActionListener<AcknowledgedResponse> listener) {
         clusterService.submitStateUpdateTask("delete_decommission_state", new ClusterStateUpdateTask(Priority.URGENT) {
             @Override
             public ClusterState execute(ClusterState currentState) {

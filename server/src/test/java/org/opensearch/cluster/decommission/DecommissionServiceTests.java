@@ -234,7 +234,7 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
             threadPool,
             allocationService
         );
-        decommissionService.deleteDecommissionState(Mockito.mock(ActionListener.class));
+        decommissionService.startDecommissionAction(Mockito.mock(ActionListener.class));
 
         ArgumentCaptor<ClearVotingConfigExclusionsRequest> clearVotingConfigExclusionsRequestArgumentCaptor = ArgumentCaptor.forClass(
             ClearVotingConfigExclusionsRequest.class
@@ -267,7 +267,7 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
                 countDownLatch.countDown();
             }
         };
-        decommissionService.clusterUpdateTaskForDeletingDecommission(listener);
+        decommissionService.deleteDecommissionAction(listener);
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
     }
 
