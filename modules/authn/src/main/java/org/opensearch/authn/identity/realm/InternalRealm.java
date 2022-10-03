@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.identity.realm;
+package org.opensearch.authn.identity.realm;
 
 import org.apache.shiro.authc.AuthenticationException;
 import org.apache.shiro.authc.AuthenticationInfo;
@@ -17,8 +17,7 @@ import org.apache.shiro.authc.SimpleAuthenticationInfo;
 import org.apache.shiro.authc.UnknownAccountException;
 import org.apache.shiro.authc.UsernamePasswordToken;
 import org.apache.shiro.realm.AuthenticatingRealm;
-import org.bouncycastle.crypto.generators.OpenBSDBCrypt;
-import org.opensearch.identity.InternalSubject;
+import org.opensearch.authn.identity.InternalSubject;
 
 import java.io.FileNotFoundException;
 import java.util.Map;
@@ -68,7 +67,7 @@ public class InternalRealm extends AuthenticatingRealm {
 
             // Verify the user
             SimpleAuthenticationInfo sai = new SimpleAuthenticationInfo(userRecord.getPrimaryPrincipal(), userRecord.getHash(), REALM_NAME);
-            boolean successfulAuthentication = OpenBSDBCrypt.checkPassword(userRecord.getHash(), password);
+            boolean successfulAuthentication = getCredentialsMatcher().doCredentialsMatch(token, sai);
 
             if (successfulAuthentication) {
                 // Check for anything else that might prevent login (expired password, locked account, etc

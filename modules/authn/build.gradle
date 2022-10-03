@@ -1,0 +1,44 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ *
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
+apply plugin: 'opensearch.yaml-rest-test'
+apply plugin: 'opensearch.internal-cluster-test'
+
+opensearchplugin {
+  description 'Plugin for authentication features in OpenSearch.'
+  classname 'org.opensearch.authn.AuthnModulePlugin'
+}
+
+dependencies {
+  api 'org.apache.shiro:shiro-core:1.9.1'
+  // Needed for shiro
+  api "org.slf4j:slf4j-api:${versions.slf4j}"
+  api "org.bouncycastle:bcprov-jdk15on:${versions.bouncycastle}"
+  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
+}
+
+restResources {
+  restApi {
+    includeCore '_common', 'indices', 'index', 'search', 'bulk'
+  }
+}
+
+artifacts {
+  restTests(project.file('src/yamlRestTest/resources/rest-api-spec/test'))
+}
+/**
+ * These compiler arguments needs to be removed, as there are raw types being used in the GeoGrid and GeoTile aggregations.
+ */
+tasks.withType(JavaCompile).configureEach {
+  options.compilerArgs -= '-Xlint:rawtypes'
+  options.compilerArgs -= '-Xlint:unchecked'
+}

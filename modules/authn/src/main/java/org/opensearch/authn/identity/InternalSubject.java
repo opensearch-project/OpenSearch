@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.identity;
+package org.opensearch.authn.identity;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
@@ -52,3 +52,4 @@ public class InternalSubject {
         return "InternalSubject [primaryPrincipal=" + primaryPrincipal + ", hash=" + hash + ", attributes=" + attributes + "]";
     }
 }
+

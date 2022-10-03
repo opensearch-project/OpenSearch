@@ -6,13 +6,13 @@
  * compatible open source license.
  */
 
-package org.opensearch.identity;
+package org.opensearch.authn.identity;
 
 import org.apache.shiro.authc.AuthenticationException;
 import org.apache.shiro.authc.AuthenticationInfo;
 import org.apache.shiro.authc.IncorrectCredentialsException;
 import org.apache.shiro.authc.UsernamePasswordToken;
-import org.opensearch.identity.realm.InternalRealm;
+import org.opensearch.authn.identity.realm.InternalRealm;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.FileNotFoundException;
@@ -22,7 +22,7 @@ public class InternalRealmTests extends OpenSearchTestCase {
     public void testGetAuthenticationInfoUserExists() throws FileNotFoundException {
         String username = "admin";
         String password = "admin";
-        String internalUserTestFile = "config/internal_users_test.yml";
+        String internalUserTestFile = "internal_users_test.yml";
         UsernamePasswordToken token = new UsernamePasswordToken(username, password);
         InternalRealm realm = InternalRealm.INSTANCE;
         realm.initializeInternalSubjectsStore(internalUserTestFile);
@@ -34,7 +34,7 @@ public class InternalRealmTests extends OpenSearchTestCase {
     public void testGetAuthenticationInfoUserExistsWrongPassword() throws FileNotFoundException {
         String username = "admin";
         String password = "wrong_password";
-        String internalUserTestFile = "config/internal_users_test.yml";
+        String internalUserTestFile = "internal_users_test.yml";
         UsernamePasswordToken token = new UsernamePasswordToken(username, password);
         InternalRealm realm = InternalRealm.INSTANCE;
         realm.initializeInternalSubjectsStore(internalUserTestFile);
