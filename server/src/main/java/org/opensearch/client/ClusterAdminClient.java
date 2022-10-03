@@ -37,6 +37,12 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
 import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainRequestBuilder;
 import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
+import org.opensearch.action.admin.cluster.decommission.awareness.get.GetDecommissionStateRequest;
+import org.opensearch.action.admin.cluster.decommission.awareness.get.GetDecommissionStateRequestBuilder;
+import org.opensearch.action.admin.cluster.decommission.awareness.get.GetDecommissionStateResponse;
+import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionRequest;
+import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionRequestBuilder;
+import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionResponse;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -827,4 +833,35 @@ public interface ClusterAdminClient extends OpenSearchClient {
      * Gets weights for weighted round-robin search routing policy.
      */
     ClusterGetWeightedRoutingRequestBuilder prepareGetWeightedRouting();
+
+    /**
+     * Decommission awareness attribute
+     */
+    ActionFuture<DecommissionResponse> decommission(DecommissionRequest request);
+
+    /**
+     * Decommission awareness attribute
+     */
+    void decommission(DecommissionRequest request, ActionListener<DecommissionResponse> listener);
+
+    /**
+     * Decommission awareness attribute
+     */
+    DecommissionRequestBuilder prepareDecommission(DecommissionRequest request);
+
+    /**
+     * Get Decommissioned attribute
+     */
+    ActionFuture<GetDecommissionStateResponse> getDecommission(GetDecommissionStateRequest request);
+
+    /**
+     * Get Decommissioned attribute
+     */
+    void getDecommission(GetDecommissionStateRequest request, ActionListener<GetDecommissionStateResponse> listener);
+
+    /**
+     * Get Decommissioned attribute
+     */
+    GetDecommissionStateRequestBuilder prepareGetDecommission();
+
 }
