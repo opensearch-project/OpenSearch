@@ -52,4 +52,3 @@ public class InternalSubject {
         return "InternalSubject [primaryPrincipal=" + primaryPrincipal + ", hash=" + hash + ", attributes=" + attributes + "]";
     }
 }
-
