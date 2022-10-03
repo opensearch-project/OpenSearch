@@ -13,9 +13,9 @@ import org.junit.After;
 import org.junit.Before;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
+import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionResponse;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
 import org.opensearch.cluster.coordination.CoordinationMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -120,9 +120,9 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
     public void testDecommissioningNotStartedForInvalidAttributeName() throws InterruptedException {
         final CountDownLatch countDownLatch = new CountDownLatch(1);
         DecommissionAttribute decommissionAttribute = new DecommissionAttribute("rack", "rack-a");
-        ActionListener<ClusterStateUpdateResponse> listener = new ActionListener<ClusterStateUpdateResponse>() {
+        ActionListener<DecommissionResponse> listener = new ActionListener<DecommissionResponse>() {
             @Override
-            public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {
+            public void onResponse(DecommissionResponse decommissionResponse) {
                 fail("on response shouldn't have been called");
             }
 
@@ -141,9 +141,9 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
     public void testDecommissioningNotStartedForInvalidAttributeValue() throws InterruptedException {
         final CountDownLatch countDownLatch = new CountDownLatch(1);
         DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "rack-a");
-        ActionListener<ClusterStateUpdateResponse> listener = new ActionListener<ClusterStateUpdateResponse>() {
+        ActionListener<DecommissionResponse> listener = new ActionListener<DecommissionResponse>() {
             @Override
-            public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {
+            public void onResponse(DecommissionResponse decommissionResponse) {
                 fail("on response shouldn't have been called");
             }
 
@@ -177,9 +177,9 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
             clusterService,
             builder.metadata(Metadata.builder(clusterService.state().metadata()).decommissionAttributeMetadata(oldMetadata).build())
         );
-        ActionListener<ClusterStateUpdateResponse> listener = new ActionListener<ClusterStateUpdateResponse>() {
+        ActionListener<DecommissionResponse> listener = new ActionListener<DecommissionResponse>() {
             @Override
-            public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {
+            public void onResponse(DecommissionResponse decommissionResponse) {
                 fail("on response shouldn't have been called");
             }
 
