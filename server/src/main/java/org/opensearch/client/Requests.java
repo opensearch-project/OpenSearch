@@ -32,6 +32,8 @@
 
 package org.opensearch.client;
 
+import org.opensearch.action.admin.cluster.decommission.awareness.get.GetDecommissionStateRequest;
+import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
@@ -47,6 +49,7 @@ import org.opensearch.action.admin.cluster.repositories.verify.VerifyRepositoryR
 import org.opensearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingRequest;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.opensearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.opensearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
@@ -547,5 +550,32 @@ public class Requests {
      */
     public static SnapshotsStatusRequest snapshotsStatusRequest(String repository) {
         return new SnapshotsStatusRequest(repository);
+    }
+
+    /**
+     * Updates weights for weighted round-robin search routing policy
+     *
+     * @return update weight request
+     */
+    public static ClusterPutWeightedRoutingRequest putWeightedRoutingRequest(String attributeName) {
+        return new ClusterPutWeightedRoutingRequest(attributeName);
+    }
+
+    /**
+     * Creates a new decommission request.
+     *
+     * @return returns put decommission request
+     */
+    public static DecommissionRequest decommissionRequest() {
+        return new DecommissionRequest();
+    }
+
+    /**
+     * Get decommissioned attribute from metadata
+     *
+     * @return returns get decommission request
+     */
+    public static GetDecommissionStateRequest getDecommissionStateRequest() {
+        return new GetDecommissionStateRequest();
     }
 }

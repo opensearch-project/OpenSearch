@@ -37,6 +37,12 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
 import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainRequestBuilder;
 import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
+import org.opensearch.action.admin.cluster.decommission.awareness.get.GetDecommissionStateRequest;
+import org.opensearch.action.admin.cluster.decommission.awareness.get.GetDecommissionStateRequestBuilder;
+import org.opensearch.action.admin.cluster.decommission.awareness.get.GetDecommissionStateResponse;
+import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionRequest;
+import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionRequestBuilder;
+import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionResponse;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -86,6 +92,9 @@ import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRespons
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsRequestBuilder;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingRequest;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingRequestBuilder;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingResponse;
 import org.opensearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequest;
 import org.opensearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequestBuilder;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
@@ -791,4 +800,50 @@ public interface ClusterAdminClient extends OpenSearchClient {
      * Delete specified dangling indices.
      */
     ActionFuture<AcknowledgedResponse> deleteDanglingIndex(DeleteDanglingIndexRequest request);
+
+    /**
+     * Updates weights for weighted round-robin search routing policy.
+     */
+    ActionFuture<ClusterPutWeightedRoutingResponse> putWeightedRouting(ClusterPutWeightedRoutingRequest request);
+
+    /**
+     * Updates weights for weighted round-robin search routing policy.
+     */
+    void putWeightedRouting(ClusterPutWeightedRoutingRequest request, ActionListener<ClusterPutWeightedRoutingResponse> listener);
+
+    /**
+     * Updates weights for weighted round-robin search routing policy.
+     */
+    ClusterPutWeightedRoutingRequestBuilder prepareWeightedRouting();
+
+    /**
+     * Decommission awareness attribute
+     */
+    ActionFuture<DecommissionResponse> decommission(DecommissionRequest request);
+
+    /**
+     * Decommission awareness attribute
+     */
+    void decommission(DecommissionRequest request, ActionListener<DecommissionResponse> listener);
+
+    /**
+     * Decommission awareness attribute
+     */
+    DecommissionRequestBuilder prepareDecommission(DecommissionRequest request);
+
+    /**
+     * Get Decommissioned attribute
+     */
+    ActionFuture<GetDecommissionStateResponse> getDecommission(GetDecommissionStateRequest request);
+
+    /**
+     * Get Decommissioned attribute
+     */
+    void getDecommission(GetDecommissionStateRequest request, ActionListener<GetDecommissionStateResponse> listener);
+
+    /**
+     * Get Decommissioned attribute
+     */
+    GetDecommissionStateRequestBuilder prepareGetDecommission();
+
 }
