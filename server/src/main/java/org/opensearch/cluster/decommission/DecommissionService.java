@@ -20,7 +20,6 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.NotClusterManagerException;
-import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.allocation.AllocationService;
@@ -122,7 +121,7 @@ public class DecommissionService {
         final DecommissionRequest decommissionRequest,
         final ActionListener<DecommissionResponse> listener
     ) {
-        DecommissionAttribute decommissionAttribute = decommissionRequest.getDecommissionAttribute()
+        DecommissionAttribute decommissionAttribute = decommissionRequest.getDecommissionAttribute();
         // register the metadata with status as INIT as first step
         clusterService.submitStateUpdateTask("decommission [" + decommissionAttribute + "]", new ClusterStateUpdateTask(Priority.URGENT) {
             @Override
