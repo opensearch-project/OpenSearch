@@ -281,14 +281,14 @@ public class DecommissionController {
 
     void setRoutingWeights(
         String awarenessAttributeName,
-        Map<String, Double> weights,
+        Map<String, Double> awarenessAttributeToWeightMap,
         ActionListener<ClusterPutWeightedRoutingResponse> listener
     ) {
         // WRR API will validate invalid weights
         final ClusterPutWeightedRoutingRequest clusterPutRoutingWeightRequest = new ClusterPutWeightedRoutingRequest(
             awarenessAttributeName
         );
-        clusterPutRoutingWeightRequest.setWeightedRouting(new WeightedRouting(awarenessAttributeName, weights));
+        clusterPutRoutingWeightRequest.setWeightedRouting(new WeightedRouting(awarenessAttributeName, awarenessAttributeToWeightMap));
 
         transportService.sendRequest(
             transportService.getLocalNode(),
@@ -322,6 +322,11 @@ public class DecommissionController {
     }
 
     private void logActiveConnections(NodesStatsResponse nodesStatsResponse) {
+        if (nodesStatsResponse == null || nodesStatsResponse.getNodes() == null) {
+            logger.info("Node stats response received is null/empty.");
+            return;
+        }
+
         Map<String, Long> nodeActiveConnectionMap = new HashMap<>();
         List<NodeStats> responseNodes = nodesStatsResponse.getNodes();
         for (int i = 0; i < responseNodes.size(); i++) {
@@ -332,7 +337,7 @@ public class DecommissionController {
         logger.info("Decommissioning node with connections : [{}]", nodeActiveConnectionMap);
     }
 
-    void getActiveRequestCountOnDecommissionNodes(Set<DiscoveryNode> decommissionedNodes) {
+    void getActiveRequestCountOnDecommissionedNodes(Set<DiscoveryNode> decommissionedNodes) {
         if (decommissionedNodes == null || decommissionedNodes.isEmpty()) {
             return;
         }

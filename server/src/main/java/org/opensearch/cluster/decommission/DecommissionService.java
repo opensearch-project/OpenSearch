@@ -382,7 +382,7 @@ public class DecommissionService {
         // Wait for timeout to happen. Log the active connection before decommissioning of nodes.
         transportService.getThreadPool().schedule(() -> {
             // Log active connections.
-            decommissionController.getActiveRequestCountOnDecommissionNodes(decommissionedNodes);
+            decommissionController.getActiveRequestCountOnDecommissionedNodes(decommissionedNodes);
             // Call to fail the decommission nodes
             failDecommissionedNodes(clusterService.getClusterApplierService().state(), decommissionAttribute);
         }, timeoutForNodeDraining, org.opensearch.threadpool.ThreadPool.Names.SAME);
