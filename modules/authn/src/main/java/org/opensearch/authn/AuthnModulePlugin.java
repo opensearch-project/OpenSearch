@@ -8,8 +8,23 @@
 
 package org.opensearch.authn;
 
+import org.opensearch.common.settings.Setting;
 import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SystemIndexPlugin;
 
-public class AuthnModulePlugin extends Plugin implements SystemIndexPlugin, NetworkPlugin {}
+import java.util.Arrays;
+import java.util.List;
+
+public class AuthnModulePlugin extends Plugin implements SystemIndexPlugin, NetworkPlugin {
+    public static final Setting<String> INTERNAL_REALM_NAME = Setting.simpleString(
+        "authn.realm.name",
+        "internal",
+        Setting.Property.NodeScope
+    );
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        return Arrays.asList(INTERNAL_REALM_NAME);
+    }
+}
