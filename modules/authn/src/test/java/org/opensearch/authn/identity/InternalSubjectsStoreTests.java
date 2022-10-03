@@ -6,9 +6,9 @@
  * compatible open source license.
  */
 
-package org.opensearch.identity;
+package org.opensearch.authn.identity;
 
-import org.opensearch.identity.realm.InternalSubjectsStore;
+import org.opensearch.authn.identity.realm.InternalSubjectsStore;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.FileNotFoundException;
@@ -17,7 +17,7 @@ import java.util.Map;
 public class InternalSubjectsStoreTests extends OpenSearchTestCase {
 
     public void testReadInternalSubjectsTest() throws FileNotFoundException {
-        String internalSubjectsYaml = "config/internal_users_test.yml";
+        String internalSubjectsYaml = "internal_users_test.yml";
         Map<String, InternalSubject> internalSubjectMap = InternalSubjectsStore.readInternalSubjectsAsMap(internalSubjectsYaml);
         assertTrue(internalSubjectMap.containsKey("new-user"));
         assertFalse(internalSubjectMap.containsKey("new-user2"));

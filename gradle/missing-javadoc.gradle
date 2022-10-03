@@ -107,6 +107,7 @@ configure([
   project(":libs:opensearch-x-content"),
   project(":modules:aggs-matrix-stats"),
   project(":modules:analysis-common"),
+  project(":modules:authn"),
   project(":modules:geo"),
   project(":modules:ingest-common"),
   project(":modules:ingest-geoip"),

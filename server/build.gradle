@@ -111,13 +111,6 @@ dependencies {
   api "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
   api "org.apache.lucene:lucene-suggest:${versions.lucene}"
 
-  api 'org.apache.shiro:shiro-core:1.9.1'
-  // Needed for shiro
-  api "org.slf4j:slf4j-api:${versions.slf4j}"
-  api "org.bouncycastle:bcprov-jdk15on:${versions.bouncycastle}"
-  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
-  api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
-
   // utilities
   api project(":libs:opensearch-cli")
   api 'com.carrotsearch:hppc:0.8.1'

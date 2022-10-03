@@ -7,4 +7,4 @@
  */
 
 /** Classes for the internal OpenSearch realm */
-package org.opensearch.identity.realm;
+package org.opensearch.authn.identity.realm;
