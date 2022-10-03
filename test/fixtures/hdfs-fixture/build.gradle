@@ -33,7 +33,7 @@ apply plugin: 'opensearch.java'
 group = 'hdfs'
 
 dependencies {
-  api("org.apache.hadoop:hadoop-minicluster:3.3.3") {
+  api("org.apache.hadoop:hadoop-minicluster:3.3.4") {
     exclude module: 'websocket-client'
   }
   api "org.apache.commons:commons-compress:1.21"

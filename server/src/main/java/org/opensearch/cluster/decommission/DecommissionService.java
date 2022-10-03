@@ -163,7 +163,7 @@ public class DecommissionService {
 
     private synchronized void decommissionClusterManagerNodes(
         final DecommissionAttribute decommissionAttribute,
-        ActionListener<ClusterStateUpdateResponse> listener
+        ActionListener<DecommissionResponse> listener
     ) {
         ClusterState state = clusterService.getClusterApplierService().state();
         // since here metadata is already registered with INIT, we can guarantee that no new node with decommission attribute can further

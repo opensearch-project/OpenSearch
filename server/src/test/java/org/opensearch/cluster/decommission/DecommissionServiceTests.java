@@ -141,9 +141,9 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
     public void testDecommissioningNotStartedForInvalidAttributeValue() throws InterruptedException {
         final CountDownLatch countDownLatch = new CountDownLatch(1);
         DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "rack-a");
-        ActionListener<ClusterStateUpdateResponse> listener = new ActionListener<ClusterStateUpdateResponse>() {
+        ActionListener<DecommissionResponse> listener = new ActionListener<DecommissionResponse>() {
             @Override
-            public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {
+            public void onResponse(DecommissionResponse decommissionResponse) {
                 fail("on response shouldn't have been called");
             }
 
