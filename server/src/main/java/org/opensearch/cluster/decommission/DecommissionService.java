@@ -13,11 +13,14 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.action.ActionListener;
+import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionRequest;
 import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionResponse;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.NotClusterManagerException;
+import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.allocation.AllocationService;
@@ -112,13 +115,14 @@ public class DecommissionService {
      * Starts the new decommission request and registers the metadata with status as {@link DecommissionStatus#INIT}
      * Once the status is updated, it tries to exclude to-be-decommissioned cluster manager eligible nodes from Voting Configuration
      *
-     * @param decommissionAttribute register decommission attribute in the metadata request
+     * @param decommissionRequest decommission request Object
      * @param listener register decommission listener
      */
     public void startDecommissionAction(
-        final DecommissionAttribute decommissionAttribute,
+        final DecommissionRequest decommissionRequest,
         final ActionListener<DecommissionResponse> listener
     ) {
+        DecommissionAttribute decommissionAttribute = decommissionRequest.getDecommissionAttribute()
         // register the metadata with status as INIT as first step
         clusterService.submitStateUpdateTask("decommission [" + decommissionAttribute + "]", new ClusterStateUpdateTask(Priority.URGENT) {
             @Override
@@ -207,7 +211,8 @@ public class DecommissionService {
                         // and to-be-decommissioned cluster manager is no more part of Voting Configuration and no more to-be-decommission
                         // nodes can be part of Voting Config
                         listener.onResponse(new DecommissionResponse(true));
-                        failDecommissionedNodes(clusterService.getClusterApplierService().state());
+
+                        drainNodesWithDecommissionedAttribute(state, decommissionRequest);
                     }
                 } else {
                     // explicitly calling listener.onFailure with NotClusterManagerException as the local node is not the cluster manager
@@ -304,10 +309,89 @@ public class DecommissionService {
         }
     }
 
-    private void failDecommissionedNodes(ClusterState state) {
+    private void drainNodesWithDecommissionedAttribute(ClusterState state, DecommissionRequest decommissionRequest) {
         // this method ensures no matter what, we always exit from this function after clearing the voting config exclusion
         DecommissionAttributeMetadata decommissionAttributeMetadata = state.metadata().decommissionAttributeMetadata();
         DecommissionAttribute decommissionAttribute = decommissionAttributeMetadata.decommissionAttribute();
+
+        // Awareness values refers to all zones in the cluster
+        List<String> awarenessValues = forcedAwarenessAttributes.get(decommissionAttribute.attributeName());
+
+        decommissionController.updateMetadataWithDecommissionStatus(DecommissionStatus.DRAINING, new ActionListener<>() {
+            @Override
+            public void onResponse(DecommissionStatus status) {
+                logger.info("updated the decommission status to [{}]", status);
+                // set the weights
+                setRoutingWeightsToAwarenessAttribute(awarenessValues, decommissionRequest);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.error(
+                    () -> new ParameterizedMessage(
+                        "failed to update decommission status for attribute [{}] to [{}]",
+                        decommissionAttribute.toString(),
+                        DecommissionStatus.DRAINING
+                    ),
+                    e
+                );
+                // since we are not able to update the status, we will clear the voting config exclusion we have set earlier
+                clearVotingConfigExclusionAndUpdateStatus(false, false);
+            }
+        });
+    }
+
+    void setRoutingWeightsToAwarenessAttribute(List<String> awarenessAttributeValues, DecommissionRequest decommissionRequest) {
+        ClusterState state = clusterService.getClusterApplierService().state();
+
+        DecommissionAttributeMetadata decommissionAttributeMetadata = state.metadata().decommissionAttributeMetadata();
+        assert decommissionAttributeMetadata.status().equals(DecommissionStatus.DRAINING)
+            : "unexpected status encountered while decommissioning nodes";
+        DecommissionAttribute decommissionAttribute = decommissionAttributeMetadata.decommissionAttribute();
+
+        Map<String, Double> weights = new HashMap<>();
+        awarenessAttributeValues.forEach(awarenessValue -> {
+            if (awarenessValue.equalsIgnoreCase(decommissionAttribute.attributeValue())) {
+                weights.put(awarenessValue, Double.valueOf(0.0));
+            } else {
+                weights.put(awarenessValue, Double.valueOf(1.0));
+            }
+        });
+
+        decommissionController.setRoutingWeights(decommissionAttribute.attributeName(), weights, new ActionListener<>() {
+            @Override
+            public void onResponse(ClusterPutWeightedRoutingResponse response) {
+                // Schedule the node decommission process after the weights are successfully set.
+                scheduleNodesDecommissionOnTimeout(decommissionRequest.getDrainingTimeout());
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                // Weights not successfully set. Fail the decommissioning process.
+                clearVotingConfigExclusionAndUpdateStatus(false, false);
+            }
+        });
+    }
+
+    void scheduleNodesDecommissionOnTimeout(TimeValue timeoutForNodeDraining) {
+        ClusterState state = clusterService.getClusterApplierService().state();
+        // this method ensures no matter what, we always exit from this function after clearing the voting config exclusion
+        DecommissionAttributeMetadata decommissionAttributeMetadata = state.metadata().decommissionAttributeMetadata();
+        DecommissionAttribute decommissionAttribute = decommissionAttributeMetadata.decommissionAttribute();
+
+        Set<DiscoveryNode> decommissionedNodes = filterNodesWithDecommissionAttribute(state, decommissionAttribute, false);
+        // Wait for timeout to happen. Log the active connection before decommissioning of nodes.
+        transportService.getThreadPool().schedule(() -> {
+            // Log active connections.
+            decommissionController.getActiveRequestCountOnDecommissionNodes(decommissionedNodes);
+            // Call to fail the decommission nodes
+            failDecommissionedNodes(clusterService.getClusterApplierService().state(), decommissionAttribute);
+        }, timeoutForNodeDraining, org.opensearch.threadpool.ThreadPool.Names.SAME);
+    }
+
+    private void failDecommissionedNodes(ClusterState state, DecommissionAttribute decommissionAttribute) {
+
+        // Weighing away is complete. We have allowed the nodes to be drained. Let's move decommission status to IN_PROGRESS.
         decommissionController.updateMetadataWithDecommissionStatus(DecommissionStatus.IN_PROGRESS, new ActionListener<>() {
             @Override
             public void onResponse(DecommissionStatus status) {
@@ -429,6 +513,7 @@ public class DecommissionService {
                     case INIT:
                     case FAILED:
                         break;
+                    case DRAINING:
                     case IN_PROGRESS:
                     case SUCCESSFUL:
                         msg = "same request is already in status [" + decommissionAttributeMetadata.status() + "]";
@@ -446,6 +531,7 @@ public class DecommissionService {
                             + decommissionAttributeMetadata.decommissionAttribute().toString()
                             + "] already successfully decommissioned, recommission before triggering another decommission";
                         break;
+                    case DRAINING:
                     case IN_PROGRESS:
                     case INIT:
                         // it means the decommission has been initiated or is inflight. In that case, will fail new request

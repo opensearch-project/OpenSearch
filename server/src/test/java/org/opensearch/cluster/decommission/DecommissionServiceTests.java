@@ -13,6 +13,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
+import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionRequest;
 import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionResponse;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
@@ -133,7 +134,7 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
                 countDownLatch.countDown();
             }
         };
-        decommissionService.startDecommissionAction(decommissionAttribute, listener);
+        decommissionService.startDecommissionAction(new DecommissionRequest(decommissionAttribute), listener);
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
     }
 
@@ -160,7 +161,7 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
                 countDownLatch.countDown();
             }
         };
-        decommissionService.startDecommissionAction(decommissionAttribute, listener);
+        decommissionService.startDecommissionAction(new DecommissionRequest(decommissionAttribute), listener);
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
     }
 
@@ -197,7 +198,8 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
                 countDownLatch.countDown();
             }
         };
-        decommissionService.startDecommissionAction(new DecommissionAttribute("zone", "zone_2"), listener);
+        DecommissionRequest request = new DecommissionRequest(new DecommissionAttribute("zone", "zone_2"));
+        decommissionService.startDecommissionAction(request, listener);
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
     }
 
