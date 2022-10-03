@@ -212,11 +212,11 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
             decommissionAttribute,
             DecommissionStatus.SUCCESSFUL
         );
-        ClusterState.builder(new ClusterName("test"))
+        ClusterState state = ClusterState.builder(new ClusterName("test"))
             .metadata(Metadata.builder().putCustom(DecommissionAttributeMetadata.TYPE, decommissionAttributeMetadata).build())
             .build();
 
-        final ClusterState newClusterState = this.decommissionService.clearDecommissionedAttributeFromMetadata();
+        final ClusterState newClusterState = this.decommissionService.clearDecommissionedAttributeFromMetadata(state);
         DecommissionAttributeMetadata metadata = newClusterState.metadata().custom(DecommissionAttributeMetadata.TYPE);
 
         // Decommission Attribute should be removed.
@@ -234,7 +234,7 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
             threadPool,
             allocationService
         );
-        decommissionService.deleteDecommissionAttribute(Mockito.mock(ActionListener.class));
+        decommissionService.deleteDecommissionState(Mockito.mock(ActionListener.class));
 
         ArgumentCaptor<ClearVotingConfigExclusionsRequest> clearVotingConfigExclusionsRequestArgumentCaptor = ArgumentCaptor.forClass(
             ClearVotingConfigExclusionsRequest.class

@@ -483,17 +483,24 @@ public class DecommissionService {
         };
     }
 
-    public void deleteDecommissionAttribute(final ActionListener<AcknowledgedResponse> listener) {
+    public void deleteDecommissionState(final ActionListener<AcknowledgedResponse> listener) {
+        /*
+         * For abandoned requests, we might not really know if it actually restored the exclusion list.
+         * And can land up in cases where even after recommission, exclusions are set(which is unexpected).
+         * And by definition of OpenSearch - Clusters should have no voting configuration exclusions in normal operation.
+         * Once the excluded nodes have stopped, clear the voting configuration exclusions with DELETE /_cluster/voting_config_exclusions.
+         * And hence it is safe to remove the exclusion if any. User should make conscious choice before decommissioning awareness attribute.
+         */
         decommissionController.clearVotingConfigExclusion(new ActionListener<Void>() {
             @Override
             public void onResponse(Void unused) {
-                logger.info("successfully cleared voting config exclusion for delting the decommission");
+                logger.info("successfully cleared voting config exclusion for deleting the decommission");
                 clusterUpdateTaskForDeletingDecommission(listener);
             }
 
             @Override
             public void onFailure(Exception e) {
-                logger.debug(new ParameterizedMessage("failure in clearing voting config during delete_decommission request"), e);
+                logger.error(new ParameterizedMessage("failure in clearing voting config during delete_decommission request"), e);
                 listener.onFailure(e);
             }
         }, false);
@@ -503,7 +510,7 @@ public class DecommissionService {
         clusterService.submitStateUpdateTask("delete_decommission_state", new ClusterStateUpdateTask(Priority.URGENT) {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                return clearDecommissionedAttributeFromMetadata();
+                return clearDecommissionedAttributeFromMetadata(currentState);
             }
 
             @Override
@@ -521,9 +528,8 @@ public class DecommissionService {
         });
     }
 
-    ClusterState clearDecommissionedAttributeFromMetadata() {
+    ClusterState clearDecommissionedAttributeFromMetadata(ClusterState state) {
         logger.info("Deleting the decommission attribute from cluster state");
-        ClusterState state = clusterService.getClusterApplierService().state();
         Metadata metadata = state.metadata();
         Metadata.Builder mdBuilder = Metadata.builder(metadata);
         mdBuilder.removeCustom(DecommissionAttributeMetadata.TYPE);
