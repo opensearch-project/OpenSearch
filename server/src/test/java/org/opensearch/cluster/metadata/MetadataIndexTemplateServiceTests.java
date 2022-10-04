@@ -56,7 +56,6 @@ import org.opensearch.index.Index;
 import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.indices.IndexTemplateMissingException;
-import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.InvalidIndexTemplateException;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
