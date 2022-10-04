@@ -86,6 +86,7 @@ if (!isEclipse) {
 }
 
 dependencies {
+
   api project(':libs:opensearch-core')
   api project(':libs:opensearch-secure-sm')
   api project(':libs:opensearch-x-content')
