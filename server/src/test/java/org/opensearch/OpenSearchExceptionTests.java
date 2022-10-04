@@ -814,12 +814,7 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
         }
         assertNotNull(parsedFailure);
 
-        String reason;
-        if (failure instanceof OpenSearchException) {
-            reason = failure.getClass().getSimpleName() + "[" + failure.getMessage() + "]";
-        } else {
-            reason = "No OpenSearchException found";
-        }
+        String reason = ExceptionsHelper.summaryMessage(failure);
         assertEquals(OpenSearchException.buildMessage("exception", reason, null), parsedFailure.getMessage());
         assertEquals(0, parsedFailure.getHeaders().size());
         assertEquals(0, parsedFailure.getMetadata().size());
