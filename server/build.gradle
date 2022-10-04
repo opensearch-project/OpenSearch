@@ -92,7 +92,9 @@ dependencies {
   api project(':libs:opensearch-x-content')
   api project(":libs:opensearch-geo")
 
-  api project(':sandbox:libs:opensearch-authn')
+  if (project.hasProperty("opensearch.experimental.feature.native_authn.enabled")) {
+    api project(':sandbox:libs:opensearch-authn')
+  }
 
   compileOnly project(':libs:opensearch-plugin-classloader')
   testRuntimeOnly project(':libs:opensearch-plugin-classloader')
