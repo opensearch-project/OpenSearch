@@ -2110,7 +2110,7 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
             new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings())
         );
         MetadataIndexTemplateService service = new MetadataIndexTemplateService(
-            null,
+            clusterService,
             createIndexService,
             new AliasValidator(),
             null,
@@ -2155,31 +2155,7 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
     }
 
     private MetadataIndexTemplateService getMetadataIndexTemplateService() {
-        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        ClusterService clusterService = getInstanceFromNode(ClusterService.class);
-        MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(
-            Settings.EMPTY,
-            clusterService,
-            indicesService,
-            null,
-            null,
-            createTestShardLimitService(randomIntBetween(1, 1000)),
-            new Environment(builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build(), null),
-            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
-            null,
-            xContentRegistry(),
-            new SystemIndices(Collections.emptyMap()),
-            true,
-            new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings())
-        );
-        return new MetadataIndexTemplateService(
-            clusterService,
-            createIndexService,
-            new AliasValidator(),
-            indicesService,
-            new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS),
-            xContentRegistry()
-        );
+        return getInstanceFromNode(MetadataIndexTemplateService.class);
     }
 
     @SuppressWarnings("unchecked")
