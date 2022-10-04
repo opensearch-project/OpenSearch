@@ -17,6 +17,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ### Dependencies
 - Bumps `com.diffplug.spotless` from 6.9.1 to 6.10.0
 - Bumps `xmlbeans` from 5.1.0 to 5.1.1
+- Bumps `hadoop-hdfs` from 3.3.3 to 3.3.4
 
 ### Changed
 - Dependency updates (httpcore, mockito, slf4j, httpasyncclient, commons-codec) ([#4308](https://github.com/opensearch-project/OpenSearch/pull/4308))
