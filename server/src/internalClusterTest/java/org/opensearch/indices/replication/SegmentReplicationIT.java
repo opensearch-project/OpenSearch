@@ -235,6 +235,48 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
         }
     }
 
+    public void testIndexReopenClose() throws Exception {
+        final String primary = internalCluster().startNode();
+        createIndex(INDEX_NAME);
+        ensureYellowAndNoInitializingShards(INDEX_NAME);
+        final String replica = internalCluster().startNode();
+        ensureGreen(INDEX_NAME);
+
+        client().prepareIndex(INDEX_NAME).setId("1").setSource("foo", "bar").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        refresh(INDEX_NAME);
+
+        final int initialDocCount = scaledRandomIntBetween(10000, 200000);
+        try (
+            BackgroundIndexer indexer = new BackgroundIndexer(
+                INDEX_NAME,
+                "_doc",
+                client(),
+                -1,
+                RandomizedTest.scaledRandomIntBetween(2, 5),
+                false,
+                random()
+            )
+        ) {
+            indexer.start(initialDocCount);
+            waitForDocs(initialDocCount, indexer);
+            refresh(INDEX_NAME);
+            waitForReplicaUpdate();
+        }
+
+        flushAndRefresh(INDEX_NAME);
+        waitForReplicaUpdate();
+
+        logger.info("--> Closing the index ");
+        client().admin().indices().prepareClose(INDEX_NAME).get();
+
+        // Add another node to kick off TransportNodesListGatewayStartedShards which fetches latestReplicationCheckpoint for SegRep enabled
+        // indices
+        final String replica2 = internalCluster().startNode();
+
+        logger.info("--> Opening the index");
+        client().admin().indices().prepareOpen(INDEX_NAME).get();
+    }
+
     public void testMultipleShards() throws Exception {
         Settings indexSettings = Settings.builder()
             .put(super.indexSettings())
