@@ -32,6 +32,7 @@ import java.util.function.Supplier;
  */
 public class ClusterManagerTaskThrottler implements TaskBatcherListener {
     private static final Logger logger = LogManager.getLogger(ClusterManagerTaskThrottler.class);
+    private static final String TASK_SUFFIX = "-task";
 
     public static final Setting<Settings> THRESHOLD_SETTINGS = Setting.groupSetting(
         "cluster_manager.throttling.thresholds.",
@@ -70,7 +71,8 @@ public class ClusterManagerTaskThrottler implements TaskBatcherListener {
      *
      * If tasks are not getting retried then we can register with false flag, so user won't be able to configure threshold limits for it.
      */
-    protected String registerThrottlingKey(String throttlingKey, boolean retryableOnDataNode) {
+    protected String registerThrottlingKey(String taskKey, boolean retryableOnDataNode) {
+        String throttlingKey = taskKey + TASK_SUFFIX;
         if (THROTTLING_TASK_KEYS.containsKey(throttlingKey)) {
             throw new IllegalArgumentException("There is already a Throttling key registered with same name: " + throttlingKey);
         }

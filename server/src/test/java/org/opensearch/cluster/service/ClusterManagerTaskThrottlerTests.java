@@ -181,14 +181,14 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
         // set some limit for update snapshot tasks
         long newLimit = randomLongBetween(1, 10);
 
-        Settings newSettings = Settings.builder().put("cluster_manager.throttling.thresholds.put-mapping.value", newLimit).build();
+        Settings newSettings = Settings.builder().put("cluster_manager.throttling.thresholds.put-mapping-task.value", newLimit).build();
         clusterSettings.applySettings(newSettings);
-        assertEquals(newLimit, throttler.getThrottlingLimit("put-mapping").intValue());
+        assertEquals(newLimit, throttler.getThrottlingLimit("put-mapping-task").intValue());
 
         // set update snapshot task limit to default
-        newSettings = Settings.builder().put("cluster_manager.throttling.thresholds.put-mapping.value", -1).build();
+        newSettings = Settings.builder().put("cluster_manager.throttling.thresholds.put-mapping-task.value", -1).build();
         clusterSettings.applySettings(newSettings);
-        assertNull(throttler.getThrottlingLimit("put-mapping"));
+        assertNull(throttler.getThrottlingLimit("put-mapping-task"));
     }
 
     public void testValidateSettingForLimit() {
