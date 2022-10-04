@@ -107,7 +107,6 @@ public class TransportGetWeightedRoutingAction extends TransportClusterManagerNo
             listener.onResponse(clusterGetWeightedRoutingResponse);
         } catch (ActionRequestValidationException ex) {
             listener.onFailure(ex);
-            return;
         }
 
     }
