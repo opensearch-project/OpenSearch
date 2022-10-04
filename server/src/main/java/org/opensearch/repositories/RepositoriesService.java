@@ -54,6 +54,7 @@ import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.service.ClusterManagerTaskKeys;
+import org.opensearch.cluster.service.ClusterManagerThrottlingKey;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Strings;
 import org.opensearch.common.component.AbstractLifecycleComponent;
@@ -112,8 +113,8 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     private final Map<String, Repository> internalRepositories = ConcurrentCollections.newConcurrentMap();
     private volatile Map<String, Repository> repositories = Collections.emptyMap();
     private final RepositoriesStatsArchive repositoriesStatsArchive;
-    private final String putRepositoryTaskKey;
-    private final String deleteRepositoryTaskKey;
+    private final ClusterManagerThrottlingKey putRepositoryTaskKey;
+    private final ClusterManagerThrottlingKey deleteRepositoryTaskKey;
 
     public RepositoriesService(
         Settings settings,
@@ -236,7 +237,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                 }
 
                 @Override
-                public String getClusterManagerThrottlingKey() {
+                public ClusterManagerThrottlingKey getClusterManagerThrottlingKey() {
                     return putRepositoryTaskKey;
                 }
 
@@ -302,7 +303,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                 }
 
                 @Override
-                public String getClusterManagerThrottlingKey() {
+                public ClusterManagerThrottlingKey getClusterManagerThrottlingKey() {
                     return deleteRepositoryTaskKey;
                 }
 

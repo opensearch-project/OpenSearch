@@ -46,6 +46,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ack.ClusterStateUpdateRequest;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
 import org.opensearch.cluster.service.ClusterManagerTaskKeys;
+import org.opensearch.cluster.service.ClusterManagerThrottlingKey;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
@@ -75,7 +76,7 @@ public class MetadataCreateDataStreamService {
     private final ClusterService clusterService;
     private final ActiveShardsObserver activeShardsObserver;
     private final MetadataCreateIndexService metadataCreateIndexService;
-    private final String createDataStreamTaskKey;
+    private final ClusterManagerThrottlingKey createDataStreamTaskKey;
 
     public MetadataCreateDataStreamService(
         ThreadPool threadPool,
@@ -118,7 +119,7 @@ public class MetadataCreateDataStreamService {
                 }
 
                 @Override
-                public String getClusterManagerThrottlingKey() {
+                public ClusterManagerThrottlingKey getClusterManagerThrottlingKey() {
                     return createDataStreamTaskKey;
                 }
 

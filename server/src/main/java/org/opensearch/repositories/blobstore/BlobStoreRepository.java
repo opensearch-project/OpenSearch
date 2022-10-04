@@ -63,6 +63,7 @@ import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.allocation.AllocationService;
+import org.opensearch.cluster.service.ClusterManagerThrottlingKey;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Numbers;
@@ -456,7 +457,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 }
 
                 @Override
-                public String getClusterManagerThrottlingKey() {
+                public ClusterManagerThrottlingKey getClusterManagerThrottlingKey() {
                     return updateTask.getClusterManagerThrottlingKey();
                 }
             });

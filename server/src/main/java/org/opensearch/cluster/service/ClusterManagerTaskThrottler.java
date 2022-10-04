@@ -40,7 +40,7 @@ public class ClusterManagerTaskThrottler implements TaskBatcherListener {
         Setting.Property.NodeScope
     );
 
-    protected Map<String, Boolean> THROTTLING_TASK_KEYS = new ConcurrentHashMap<>();
+    protected Map<String, ClusterManagerThrottlingKey> THROTTLING_TASK_KEYS = new ConcurrentHashMap<>();
 
     private final int MIN_THRESHOLD_VALUE = -1; // Disabled throttling
     private final ClusterManagerTaskThrottlerListener clusterManagerTaskThrottlerListener;
@@ -71,12 +71,12 @@ public class ClusterManagerTaskThrottler implements TaskBatcherListener {
      *
      * If tasks are not getting retried then we can register with false flag, so user won't be able to configure threshold limits for it.
      */
-    protected String registerThrottlingKey(String taskKey, boolean retryableOnDataNode) {
-        String throttlingKey = taskKey + TASK_SUFFIX;
-        if (THROTTLING_TASK_KEYS.containsKey(throttlingKey)) {
-            throw new IllegalArgumentException("There is already a Throttling key registered with same name: " + throttlingKey);
+    protected ClusterManagerThrottlingKey registerClusterManagerTask(String taskKey, boolean throttlingEnabled) {
+        ClusterManagerThrottlingKey throttlingKey = new ClusterManagerThrottlingKey(taskKey, throttlingEnabled);
+        if (THROTTLING_TASK_KEYS.containsKey(taskKey)) {
+            throw new IllegalArgumentException("There is already a Throttling key registered with same name: " + taskKey);
         }
-        THROTTLING_TASK_KEYS.put(throttlingKey, retryableOnDataNode);
+        THROTTLING_TASK_KEYS.put(taskKey, throttlingKey);
         return throttlingKey;
     }
 
@@ -92,10 +92,8 @@ public class ClusterManagerTaskThrottler implements TaskBatcherListener {
             if (!THROTTLING_TASK_KEYS.containsKey(key)) {
                 throw new IllegalArgumentException("Cluster manager task throttling is not configured for given task type: " + key);
             }
-            if (!THROTTLING_TASK_KEYS.get(key)) {
-                throw new IllegalArgumentException(
-                    "Data node doesn't perform retries for Cluster manager task throttling for given task type: " + key
-                );
+            if (!THROTTLING_TASK_KEYS.get(key).isThrottlingEnabled()) {
+                throw new IllegalArgumentException("Throttling is not enabled for given task type: " + key);
             }
             int threshold = groups.get(key).getAsInt("value", MIN_THRESHOLD_VALUE);
             if (threshold < MIN_THRESHOLD_VALUE) {
@@ -126,20 +124,25 @@ public class ClusterManagerTaskThrottler implements TaskBatcherListener {
 
     @Override
     public void onBeginSubmit(List<? extends TaskBatcher.BatchedTask> tasks) {
-        String clusterManagerThrottlingKey = ((ClusterStateTaskExecutor<Object>) tasks.get(0).batchingKey).getClusterManagerThrottlingKey();
-        tasksCount.putIfAbsent(clusterManagerThrottlingKey, 0L);
-        tasksCount.computeIfPresent(clusterManagerThrottlingKey, (key, count) -> {
+        ClusterManagerThrottlingKey clusterManagerThrottlingKey = ((ClusterStateTaskExecutor<Object>) tasks.get(0).batchingKey)
+            .getClusterManagerThrottlingKey();
+        tasksCount.putIfAbsent(clusterManagerThrottlingKey.getTaskThrottlingKey(), 0L);
+        tasksCount.computeIfPresent(clusterManagerThrottlingKey.getTaskThrottlingKey(), (key, count) -> {
             int size = tasks.size();
-            Long threshold = tasksThreshold.get(clusterManagerThrottlingKey);
-            if (threshold != null && (count + size > threshold)) {
-                clusterManagerTaskThrottlerListener.onThrottle(clusterManagerThrottlingKey, size);
-                logger.warn(
-                    "Throwing Throttling Exception for [{}]. Trying to add [{}] tasks to queue, limit is set to [{}]",
-                    clusterManagerThrottlingKey,
-                    tasks.size(),
-                    threshold
-                );
-                throw new ClusterManagerThrottlingException("Throttling Exception : Limit exceeded for " + clusterManagerThrottlingKey);
+            if (clusterManagerThrottlingKey.isThrottlingEnabled()) {
+                Long threshold = tasksThreshold.get(clusterManagerThrottlingKey.getTaskThrottlingKey());
+                if (threshold != null && (count + size > threshold)) {
+                    clusterManagerTaskThrottlerListener.onThrottle(clusterManagerThrottlingKey.getTaskThrottlingKey(), size);
+                    logger.warn(
+                        "Throwing Throttling Exception for [{}]. Trying to add [{}] tasks to queue, limit is set to [{}]",
+                        clusterManagerThrottlingKey.getTaskThrottlingKey(),
+                        tasks.size(),
+                        threshold
+                    );
+                    throw new ClusterManagerThrottlingException(
+                        "Throttling Exception : Limit exceeded for " + clusterManagerThrottlingKey.getTaskThrottlingKey()
+                    );
+                }
             }
             return count + size;
         });
@@ -166,7 +169,8 @@ public class ClusterManagerTaskThrottler implements TaskBatcherListener {
     }
 
     private void reduceTaskCount(List<? extends TaskBatcher.BatchedTask> tasks) {
-        String masterTaskKey = ((ClusterStateTaskExecutor<Object>) tasks.get(0).batchingKey).getClusterManagerThrottlingKey();
+        String masterTaskKey = ((ClusterStateTaskExecutor<Object>) tasks.get(0).batchingKey).getClusterManagerThrottlingKey()
+            .getTaskThrottlingKey();
         tasksCount.computeIfPresent(masterTaskKey, (key, count) -> count - tasks.size());
     }
 }

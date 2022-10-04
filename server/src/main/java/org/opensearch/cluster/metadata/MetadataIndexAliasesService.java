@@ -40,6 +40,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
 import org.opensearch.cluster.metadata.AliasAction.NewAliasValidator;
 import org.opensearch.cluster.service.ClusterManagerTaskKeys;
+import org.opensearch.cluster.service.ClusterManagerThrottlingKey;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.Strings;
@@ -79,7 +80,7 @@ public class MetadataIndexAliasesService {
     private final MetadataDeleteIndexService deleteIndexService;
 
     private final NamedXContentRegistry xContentRegistry;
-    private final String indexAliasTaskKey;
+    private final ClusterManagerThrottlingKey indexAliasTaskKey;
 
     @Inject
     public MetadataIndexAliasesService(
@@ -113,7 +114,7 @@ public class MetadataIndexAliasesService {
                 }
 
                 @Override
-                public String getClusterManagerThrottlingKey() {
+                public ClusterManagerThrottlingKey getClusterManagerThrottlingKey() {
                     return indexAliasTaskKey;
                 }
 

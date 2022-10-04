@@ -45,6 +45,7 @@ import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateApplier;
 import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.service.ClusterManagerThrottlingKey;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Strings;
 import org.opensearch.common.settings.ClusterSettings;
@@ -545,7 +546,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
     public void putStoredScript(
         ClusterService clusterService,
         PutStoredScriptRequest request,
-        String putStoreTaskKey,
+        ClusterManagerThrottlingKey putStoreTaskKey,
         ActionListener<AcknowledgedResponse> listener
     ) {
         if (request.content().length() > maxSizeInBytes) {
@@ -607,7 +608,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
                 }
 
                 @Override
-                public String getClusterManagerThrottlingKey() {
+                public ClusterManagerThrottlingKey getClusterManagerThrottlingKey() {
                     return putStoreTaskKey;
                 }
             }
@@ -617,7 +618,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
     public void deleteStoredScript(
         ClusterService clusterService,
         DeleteStoredScriptRequest request,
-        String deleteScriptTaskKey,
+        ClusterManagerThrottlingKey deleteScriptTaskKey,
         ActionListener<AcknowledgedResponse> listener
     ) {
         clusterService.submitStateUpdateTask(
@@ -639,7 +640,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
                 }
 
                 @Override
-                public String getClusterManagerThrottlingKey() {
+                public ClusterManagerThrottlingKey getClusterManagerThrottlingKey() {
                     return deleteScriptTaskKey;
                 }
             }

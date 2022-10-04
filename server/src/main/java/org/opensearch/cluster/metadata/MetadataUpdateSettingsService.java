@@ -48,6 +48,7 @@ import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.cluster.service.ClusterManagerTaskKeys;
+import org.opensearch.cluster.service.ClusterManagerThrottlingKey;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.ValidationException;
@@ -90,7 +91,7 @@ public class MetadataUpdateSettingsService {
     private final IndicesService indicesService;
     private final ShardLimitValidator shardLimitValidator;
     private final ThreadPool threadPool;
-    private final String updateSettingsTaskKey;
+    private final ClusterManagerThrottlingKey updateSettingsTaskKey;
 
     private AwarenessReplicaBalance awarenessReplicaBalance;
 
@@ -168,7 +169,7 @@ public class MetadataUpdateSettingsService {
                 }
 
                 @Override
-                public String getClusterManagerThrottlingKey() {
+                public ClusterManagerThrottlingKey getClusterManagerThrottlingKey() {
                     return updateSettingsTaskKey;
                 }
 

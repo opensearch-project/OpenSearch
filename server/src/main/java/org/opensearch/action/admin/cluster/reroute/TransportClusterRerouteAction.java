@@ -55,6 +55,7 @@ import org.opensearch.cluster.routing.allocation.command.AbstractAllocateAllocat
 import org.opensearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
 import org.opensearch.cluster.routing.allocation.command.AllocationCommand;
 import org.opensearch.cluster.service.ClusterManagerTaskKeys;
+import org.opensearch.cluster.service.ClusterManagerThrottlingKey;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.Strings;
@@ -81,7 +82,7 @@ public class TransportClusterRerouteAction extends TransportClusterManagerNodeAc
     private static final Logger logger = LogManager.getLogger(TransportClusterRerouteAction.class);
 
     private final AllocationService allocationService;
-    private static String clusterRerouteTaskKey;
+    private static ClusterManagerThrottlingKey clusterRerouteTaskKey;
 
     @Inject
     public TransportClusterRerouteAction(
@@ -246,7 +247,7 @@ public class TransportClusterRerouteAction extends TransportClusterManagerNodeAc
         }
 
         @Override
-        public String getClusterManagerThrottlingKey() {
+        public ClusterManagerThrottlingKey getClusterManagerThrottlingKey() {
             return clusterRerouteTaskKey;
         }
 

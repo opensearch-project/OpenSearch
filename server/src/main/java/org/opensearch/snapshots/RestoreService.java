@@ -76,6 +76,7 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterManagerTaskKeys;
+import org.opensearch.cluster.service.ClusterManagerThrottlingKey;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.UUIDs;
@@ -177,7 +178,7 @@ public class RestoreService implements ClusterStateApplier {
 
     private final ClusterSettings clusterSettings;
 
-    private final String restoreSnapshotTaskKey;
+    private final ClusterManagerThrottlingKey restoreSnapshotTaskKey;
 
     private static final CleanRestoreStateTaskExecutor cleanRestoreStateTaskExecutor = new CleanRestoreStateTaskExecutor();
 
@@ -396,7 +397,7 @@ public class RestoreService implements ClusterStateApplier {
                     RestoreInfo restoreInfo = null;
 
                     @Override
-                    public String getClusterManagerThrottlingKey() {
+                    public ClusterManagerThrottlingKey getClusterManagerThrottlingKey() {
                         return restoreSnapshotTaskKey;
                     }
 

@@ -46,6 +46,7 @@ import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.service.ClusterManagerTaskKeys;
+import org.opensearch.cluster.service.ClusterManagerThrottlingKey;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
@@ -110,12 +111,12 @@ public class MetadataIndexTemplateService {
     private final MetadataCreateIndexService metadataCreateIndexService;
     private final IndexScopedSettings indexScopedSettings;
     private final NamedXContentRegistry xContentRegistry;
-    private final String createIndexTemplateTaskKey;
-    private final String createIndexTemplateV2TaskKey;
-    private final String removeIndexTemplateTaskKey;
-    private final String removeIndexTemplateV2TaskKey;
-    private final String createComponentTemplateTaskKey;
-    private final String removeComponentTemplateTaskKey;
+    private final ClusterManagerThrottlingKey createIndexTemplateTaskKey;
+    private final ClusterManagerThrottlingKey createIndexTemplateV2TaskKey;
+    private final ClusterManagerThrottlingKey removeIndexTemplateTaskKey;
+    private final ClusterManagerThrottlingKey removeIndexTemplateV2TaskKey;
+    private final ClusterManagerThrottlingKey createComponentTemplateTaskKey;
+    private final ClusterManagerThrottlingKey removeComponentTemplateTaskKey;
 
     @Inject
     public MetadataIndexTemplateService(
@@ -162,7 +163,7 @@ public class MetadataIndexTemplateService {
             }
 
             @Override
-            public String getClusterManagerThrottlingKey() {
+            public ClusterManagerThrottlingKey getClusterManagerThrottlingKey() {
                 return removeIndexTemplateTaskKey;
             }
 
@@ -225,7 +226,7 @@ public class MetadataIndexTemplateService {
                 }
 
                 @Override
-                public String getClusterManagerThrottlingKey() {
+                public ClusterManagerThrottlingKey getClusterManagerThrottlingKey() {
                     return createComponentTemplateTaskKey;
                 }
 
@@ -390,7 +391,7 @@ public class MetadataIndexTemplateService {
             }
 
             @Override
-            public String getClusterManagerThrottlingKey() {
+            public ClusterManagerThrottlingKey getClusterManagerThrottlingKey() {
                 return removeComponentTemplateTaskKey;
             }
 
@@ -484,7 +485,7 @@ public class MetadataIndexTemplateService {
                 }
 
                 @Override
-                public String getClusterManagerThrottlingKey() {
+                public ClusterManagerThrottlingKey getClusterManagerThrottlingKey() {
                     return createIndexTemplateV2TaskKey;
                 }
 
@@ -806,7 +807,7 @@ public class MetadataIndexTemplateService {
             }
 
             @Override
-            public String getClusterManagerThrottlingKey() {
+            public ClusterManagerThrottlingKey getClusterManagerThrottlingKey() {
                 return removeIndexTemplateV2TaskKey;
             }
 
@@ -915,7 +916,7 @@ public class MetadataIndexTemplateService {
                 }
 
                 @Override
-                public String getClusterManagerThrottlingKey() {
+                public ClusterManagerThrottlingKey getClusterManagerThrottlingKey() {
                     return createIndexTemplateTaskKey;
                 }
 

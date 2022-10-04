@@ -51,6 +51,7 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.MetadataDeleteIndexService;
 import org.opensearch.cluster.service.ClusterManagerTaskKeys;
+import org.opensearch.cluster.service.ClusterManagerThrottlingKey;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.Strings;
@@ -168,7 +169,7 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
     public static class TransportAction extends TransportClusterManagerNodeAction<Request, AcknowledgedResponse> {
 
         private final MetadataDeleteIndexService deleteIndexService;
-        private final String removeDataStreamTaskKey;
+        private final ClusterManagerThrottlingKey removeDataStreamTaskKey;
 
         @Inject
         public TransportAction(
@@ -213,7 +214,7 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
                     }
 
                     @Override
-                    public String getClusterManagerThrottlingKey() {
+                    public ClusterManagerThrottlingKey getClusterManagerThrottlingKey() {
                         return removeDataStreamTaskKey;
                     }
 

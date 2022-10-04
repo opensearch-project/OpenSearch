@@ -78,6 +78,7 @@ import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterManagerTaskKeys;
+import org.opensearch.cluster.service.ClusterManagerThrottlingKey;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
@@ -199,9 +200,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     private final OngoingRepositoryOperations repositoryOperations = new OngoingRepositoryOperations();
 
-    private final String createSnapshotTaskKey;
-    private final String deleteSnapshotTaskKey;
-    private static String updateSnapshotStateTaskKey;
+    private final ClusterManagerThrottlingKey createSnapshotTaskKey;
+    private final ClusterManagerThrottlingKey deleteSnapshotTaskKey;
+    private static ClusterManagerThrottlingKey updateSnapshotStateTaskKey;
 
     /**
      * Setting that specifies the maximum number of allowed concurrent snapshot create and delete operations in the
@@ -354,8 +355,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             }
 
             @Override
-            public String getClusterManagerThrottlingKey() {
-                return "create-snapshot";
+            public ClusterManagerThrottlingKey getClusterManagerThrottlingKey() {
+                return createSnapshotTaskKey;
             }
 
             @Override
@@ -543,7 +544,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             }
 
             @Override
-            public String getClusterManagerThrottlingKey() {
+            public ClusterManagerThrottlingKey getClusterManagerThrottlingKey() {
                 return createSnapshotTaskKey;
             }
 
@@ -2294,7 +2295,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             }
 
             @Override
-            public String getClusterManagerThrottlingKey() {
+            public ClusterManagerThrottlingKey getClusterManagerThrottlingKey() {
                 return deleteSnapshotTaskKey;
             }
 
@@ -3266,7 +3267,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }
 
         @Override
-        public String getClusterManagerThrottlingKey() {
+        public ClusterManagerThrottlingKey getClusterManagerThrottlingKey() {
             return updateSnapshotStateTaskKey;
         }
     };

@@ -718,8 +718,8 @@ public class MasterServiceTests extends OpenSearchTestCase {
             }
 
             @Override
-            public String getClusterManagerThrottlingKey() {
-                return taskName;
+            public ClusterManagerThrottlingKey getClusterManagerThrottlingKey() {
+                return new ClusterManagerThrottlingKey(taskName, true);
             }
 
             @Override
@@ -809,8 +809,8 @@ public class MasterServiceTests extends OpenSearchTestCase {
             public void clusterStatePublished(ClusterChangedEvent clusterChangedEvent) {}
 
             @Override
-            public String getClusterManagerThrottlingKey() {
-                return "Task1";
+            public ClusterManagerThrottlingKey getClusterManagerThrottlingKey() {
+                return new ClusterManagerThrottlingKey("Task1", true);
             }
         }
 
@@ -825,8 +825,8 @@ public class MasterServiceTests extends OpenSearchTestCase {
             public void clusterStatePublished(ClusterChangedEvent clusterChangedEvent) {}
 
             @Override
-            public String getClusterManagerThrottlingKey() {
-                return "Task2";
+            public ClusterManagerThrottlingKey getClusterManagerThrottlingKey() {
+                return new ClusterManagerThrottlingKey("Task2", true);
             }
         }
 
@@ -841,8 +841,8 @@ public class MasterServiceTests extends OpenSearchTestCase {
             public void clusterStatePublished(ClusterChangedEvent clusterChangedEvent) {}
 
             @Override
-            public String getClusterManagerThrottlingKey() {
-                return "Task3";
+            public ClusterManagerThrottlingKey getClusterManagerThrottlingKey() {
+                return new ClusterManagerThrottlingKey("Task3", true);
             }
         }
 

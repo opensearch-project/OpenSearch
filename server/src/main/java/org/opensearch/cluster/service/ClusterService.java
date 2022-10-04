@@ -295,11 +295,11 @@ public class ClusterService extends AbstractLifecycleComponent {
      * Functionality for register task key to cluster manager node.
      *
      * @param taskKey - task key of task
-     * @param onboardedForThrottling - want to onboard task for throttling, need to ensure data node perform retries on it
-     * @return task key which needs to be passed while submitting task to cluster manager
+     * @param throttlingEnabled - throttling is enabled for task or not i.e does data node perform retries on it or not
+     * @return throttling task key which needs to be passed while submitting task to cluster manager
      */
-    public String registerClusterManagerTask(String taskKey, boolean onboardedForThrottling) {
-        return clusterManagerService.registerClusterManagerTask(taskKey, onboardedForThrottling);
+    public ClusterManagerThrottlingKey registerClusterManagerTask(String taskKey, boolean throttlingEnabled) {
+        return clusterManagerService.registerClusterManagerTask(taskKey, throttlingEnabled);
     }
 
     /**

@@ -46,6 +46,7 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterManagerTaskKeys;
+import org.opensearch.cluster.service.ClusterManagerThrottlingKey;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -82,10 +83,10 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
     private final EnableAssignmentDecider decider;
     private final ThreadPool threadPool;
     private final PeriodicRechecker periodicRechecker;
-    private final String createPersistentTaskKey;
-    private final String finishPersistentTaskKey;
-    private final String removePersistentTaskKey;
-    private final String updatePersistentTaskKey;
+    private final ClusterManagerThrottlingKey createPersistentTaskKey;
+    private final ClusterManagerThrottlingKey finishPersistentTaskKey;
+    private final ClusterManagerThrottlingKey removePersistentTaskKey;
+    private final ClusterManagerThrottlingKey updatePersistentTaskKey;
 
     public PersistentTasksClusterService(
         Settings settings,
@@ -156,7 +157,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
             }
 
             @Override
-            public String getClusterManagerThrottlingKey() {
+            public ClusterManagerThrottlingKey getClusterManagerThrottlingKey() {
                 return createPersistentTaskKey;
             }
 
@@ -220,7 +221,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
             }
 
             @Override
-            public String getClusterManagerThrottlingKey() {
+            public ClusterManagerThrottlingKey getClusterManagerThrottlingKey() {
                 return finishPersistentTaskKey;
             }
 
@@ -256,7 +257,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
             }
 
             @Override
-            public String getClusterManagerThrottlingKey() {
+            public ClusterManagerThrottlingKey getClusterManagerThrottlingKey() {
                 return removePersistentTaskKey;
             }
 
@@ -304,7 +305,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
             }
 
             @Override
-            public String getClusterManagerThrottlingKey() {
+            public ClusterManagerThrottlingKey getClusterManagerThrottlingKey() {
                 return updatePersistentTaskKey;
             }
 
