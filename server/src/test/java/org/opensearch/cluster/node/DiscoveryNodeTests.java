@@ -39,6 +39,7 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.test.NodeRoles;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.net.InetAddress;
@@ -203,5 +204,11 @@ public class DiscoveryNodeTests extends OpenSearchTestCase {
         DiscoveryNodeRole dynamicNodeRole = DiscoveryNode.getRoleFromRoleName(dynamicRoleName);
         assertEquals(dynamicRoleName.toLowerCase(Locale.ROOT), dynamicNodeRole.roleName());
         assertEquals(dynamicRoleName.toLowerCase(Locale.ROOT), dynamicNodeRole.roleNameAbbreviation());
+    }
+
+    public void testDiscoveryNodeIsRemoteSearcherNode() {
+        final Settings settingWithRemoteSearcherRole = NodeRoles.onlyRole(DiscoveryNodeRole.REMOTE_SEARCHER_ROLE);
+        final DiscoveryNode node = DiscoveryNode.createLocal(settingWithRemoteSearcherRole, buildNewFakeTransportAddress(), "node");
+        assertThat(node.isRemoteSearcherNode(), equalTo(true));
     }
 }

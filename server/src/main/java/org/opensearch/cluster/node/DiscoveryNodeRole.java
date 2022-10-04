@@ -291,10 +291,32 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
     };
 
     /**
+     * Represents the role for a remote searcher node.
+     */
+    public static final DiscoveryNodeRole REMOTE_SEARCHER_ROLE = new DiscoveryNodeRole("remote_searcher", "s", true) {
+
+        @Override
+        public Setting<Boolean> legacySetting() {
+            // remote_searcher role is added in 2.4 so doesn't need to configure legacy setting
+            return null;
+        }
+
+        @Override
+        public DiscoveryNodeRole getCompatibilityRole(Version nodeVersion) {
+            if (nodeVersion.onOrAfter(Version.V_2_4_0)) {
+                return this;
+            } else {
+                return DiscoveryNodeRole.DATA_ROLE;
+            }
+        }
+
+    };
+
+    /**
      * The built-in node roles.
      */
     public static SortedSet<DiscoveryNodeRole> BUILT_IN_ROLES = Collections.unmodifiableSortedSet(
-        new TreeSet<>(Arrays.asList(DATA_ROLE, INGEST_ROLE, CLUSTER_MANAGER_ROLE, REMOTE_CLUSTER_CLIENT_ROLE))
+        new TreeSet<>(Arrays.asList(DATA_ROLE, INGEST_ROLE, CLUSTER_MANAGER_ROLE, REMOTE_CLUSTER_CLIENT_ROLE, REMOTE_SEARCHER_ROLE))
     );
 
     /**

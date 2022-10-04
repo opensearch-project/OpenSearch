@@ -239,6 +239,13 @@ public class Node {
             return roles.contains("ingest");
         }
 
+        /**
+         * Returns whether the node provides search capability for a remote shard.
+         */
+        public boolean isRemoteSearcher() {
+            return roles.contains("remote_searcher");
+        }
+
         @Override
         public String toString() {
             return String.join(",", roles);
