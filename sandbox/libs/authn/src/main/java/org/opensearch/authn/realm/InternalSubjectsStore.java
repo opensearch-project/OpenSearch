@@ -6,12 +6,12 @@
  * compatible open source license.
  */
 
-package org.opensearch.authn.identity.realm;
+package org.opensearch.authn.realm;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import org.opensearch.authn.identity.DefaultObjectMapper;
-import org.opensearch.authn.identity.InternalSubject;
+import org.opensearch.authn.DefaultObjectMapper;
+import org.opensearch.authn.InternalSubject;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
