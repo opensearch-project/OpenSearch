@@ -71,7 +71,7 @@ public class ClusterShardLimitIT extends OpenSearchIntegTestCase {
     }
 
     public void testSettingIgnoreDotIndexes() {
-        boolean ignoreDotIndexes = randomBoolean() ;
+        boolean ignoreDotIndexes = randomBoolean();
         setIgnoreDotIndex(ignoreDotIndexes);
     }
 

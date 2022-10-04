@@ -415,7 +415,8 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         Settings limitOnlySettings = Settings.builder()
             .put(SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), maxShardsPerNode)
-            .put(SETTING_CLUSTER_IGNORE_DOT_INDEXES.getKey(), ignoreDotIndexes).build();
+            .put(SETTING_CLUSTER_IGNORE_DOT_INDEXES.getKey(), ignoreDotIndexes)
+            .build();
         when(clusterService.getClusterSettings()).thenReturn(
             new ClusterSettings(limitOnlySettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
@@ -431,10 +432,15 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
      * @param clusterService   the cluster service to use
      * @return a test instance
      */
-    public static ShardLimitValidator createTestShardLimitService(int maxShardsPerNode, boolean ignoreDotIndexes, ClusterService clusterService) {
+    public static ShardLimitValidator createTestShardLimitService(
+        int maxShardsPerNode,
+        boolean ignoreDotIndexes,
+        ClusterService clusterService
+    ) {
         Settings limitOnlySettings = Settings.builder()
             .put(SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), maxShardsPerNode)
-            .put(SETTING_CLUSTER_IGNORE_DOT_INDEXES.getKey(), ignoreDotIndexes).build();
+            .put(SETTING_CLUSTER_IGNORE_DOT_INDEXES.getKey(), ignoreDotIndexes)
+            .build();
 
         return new ShardLimitValidator(limitOnlySettings, clusterService, new SystemIndices(emptyMap()));
     }
