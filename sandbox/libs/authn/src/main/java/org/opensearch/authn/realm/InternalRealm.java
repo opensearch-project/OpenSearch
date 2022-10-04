@@ -14,10 +14,13 @@ import org.apache.shiro.authc.SimpleAuthenticationInfo;
 import org.apache.shiro.authc.UnknownAccountException;
 import org.apache.shiro.authc.UsernamePasswordToken;
 import org.apache.shiro.realm.AuthenticatingRealm;
+import org.opensearch.authn.StringPrincipal;
 import org.opensearch.authn.User;
 
 import java.util.Objects;
 import java.util.concurrent.ConcurrentMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Internal Realm is a custom realm using the internal OpenSearch IdP
@@ -103,5 +106,115 @@ public class InternalRealm extends AuthenticatingRealm {
         }
         // Don't know what to do with this token
         throw new CredentialsException();
+    }
+
+    // TODO: Expose all the operations below as a rest API
+
+    /**
+     * Creates a subject in an in-memory data store
+     * @param user to be created. It should be passed in {@link User}
+     */
+    public void createUser(User user) {
+        String primaryPrincipal = user.getPrimaryPrincipal().getName();
+
+        // TODO: should we update if an object already exists with same principal.
+        // If so, it should be handled in updateSubject
+        if (this.internalUsers.containsKey(primaryPrincipal)) return;
+
+        // TODO: add checks to restrict the users that are allowed to create
+        this.internalUsers.put(primaryPrincipal, user);
+    }
+
+    /**
+     * Creates a user in in-memory data-store when relevant details are passed
+     * @param primaryPrincipal the primary identifier of this user (must be unique)
+     * @param hash the password passed as hash
+     * @param attributes passed in key-value format
+     */
+    public void createUser(String primaryPrincipal, String hash, Map<String, String> attributes) {
+        User user = new User();
+        user.setPrimaryPrincipal(new StringPrincipal(primaryPrincipal));
+        user.setBcryptHash(hash);
+        user.setAttributes(attributes);
+
+        createUser(user);
+    }
+
+    /**
+     * Updates the user's password
+     * @param primaryPrincipal the principal whose password is to be updated
+     * @param hash The new password
+     * @return true if password update was successful, false otherwise
+     *
+     * TODO: Add restrictions around who can do this
+     */
+    public boolean updateUserPassword(String primaryPrincipal, String hash) {
+        if (!this.internalUsers.containsKey(primaryPrincipal))
+            // TODO: log a message here stating request user doesn't exist
+            return false;
+        User userToBeUpdated = this.internalUsers.get(primaryPrincipal);
+        userToBeUpdated.setBcryptHash(hash);
+
+        this.internalUsers.put(primaryPrincipal, userToBeUpdated);
+        return true;
+    }
+
+    /**
+     * Adds new attributes to the user's current list (stored as map) AND
+     * updates the existing attributes if there is a match
+     * @param primaryPrincipal the principal whose attributes are to be updated
+     * @param attributesToBeAdded new attributes to be added
+     * @return true if the addition was successful, false otherwise
+     *
+     * TODO: Add restrictions around who can do this
+     */
+    public boolean updateUserAttributes(String primaryPrincipal, Map<String, String> attributesToBeAdded) {
+        if (!this.internalUsers.containsKey(primaryPrincipal))
+            // TODO: log a message here stating request user doesn't exist
+            return false;
+
+        User userToBeUpdated = this.internalUsers.get(primaryPrincipal);
+        Map<String, String> attributes = userToBeUpdated.getAttributes();
+        attributes.putAll(attributesToBeAdded);
+        userToBeUpdated.setAttributes(attributes);
+
+        this.internalUsers.put(primaryPrincipal, userToBeUpdated);
+        return true;
+    }
+
+    /**
+     * Deletes the list of attributes for a given user
+     * @param primaryPrincipal the principal whose attributes are to be deleted
+     * @param attributesToBeDeleted the list of attributes to be deleted (list of keys in the attribute map)
+     * @return true is successful, false otherwise
+     *
+     * TODO: 1. Are we supporting this. 2. If so add restrictions around who can do this
+     */
+    public boolean deleteAttributesFromUser(String primaryPrincipal, List<String> attributesToBeDeleted) {
+        if (!this.internalUsers.containsKey(primaryPrincipal))
+            // TODO: log a message here stating request user doesn't exist
+            return false;
+
+        User userToBeUpdated = this.internalUsers.get(primaryPrincipal);
+        Map<String, String> attributes = userToBeUpdated.getAttributes();
+
+        for (String attribute : attributesToBeDeleted)
+            attributes.remove(attribute);
+
+        userToBeUpdated.setAttributes(attributes);
+
+        this.internalUsers.put(primaryPrincipal, userToBeUpdated);
+        return true;
+    }
+
+    /**
+     * Deletes a user given its primaryPrincipal from the in-memory store
+     * @param primaryPrincipal the primaryPrincipal of the user to be deleted
+     * @return true is deletion was successful, false otherwise
+     *
+     * TODO: Add restrictions around who can do this
+     */
+    public boolean deleteUser(String primaryPrincipal) {
+        return this.internalUsers.remove(primaryPrincipal) != null;
     }
 }
