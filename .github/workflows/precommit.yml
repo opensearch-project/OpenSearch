@@ -16,4 +16,4 @@ jobs:
           distribution: adopt
       - name: Run Gradle
         run: |
-          ./gradlew precommit --parallel
+          ./gradlew javadoc precommit --parallel
