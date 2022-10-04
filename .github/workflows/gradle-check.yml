@@ -8,14 +8,13 @@ on:
   pull_request_target:
     types: [opened, synchronize, reopened]
   workflow_run:
-    workflows: [Gradle Precommit]
+    workflows: ["Gradle Precommit"]
     types:
       - completed
 
 jobs:
   gradle-check:
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     timeout-minutes: 130
     steps:
       - name: Checkout OpenSearch repo
