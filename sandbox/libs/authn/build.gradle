@@ -33,3 +33,9 @@ dependencies {
 tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'
 }
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /jackson-.*/, to: 'jackson'
+}
+
+jarHell.enabled = false
