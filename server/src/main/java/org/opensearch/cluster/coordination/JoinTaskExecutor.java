@@ -196,6 +196,9 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
                     // we do this validation quite late to prevent race conditions between nodes joining and importing dangling indices
                     // we have to reject nodes that don't support all indices we have in this cluster
                     ensureIndexCompatibility(node.getVersion(), currentState.getMetadata());
+                    // we have added the same check in handleJoinRequest method and adding it here as this method
+                    // would guarantee that a decommissioned node would never be able to join the cluster and ensures correctness
+                    ensureNodeCommissioned(node, currentState.metadata());
                     nodesBuilder.add(node);
                     nodesChanged = true;
                     minClusterNodeVersion = Version.min(minClusterNodeVersion, node.getVersion());
@@ -503,7 +506,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         validators.add((node, state) -> {
             ensureNodesCompatibility(node.getVersion(), state.getNodes());
             ensureIndexCompatibility(node.getVersion(), state.getMetadata());
-            ensureNodeCommissioned(node, state.getMetadata());
+//            ensureNodeCommissioned(node, state.getMetadata());
         });
         validators.addAll(onJoinValidators);
         return Collections.unmodifiableCollection(validators);
