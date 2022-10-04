@@ -42,6 +42,7 @@ import org.opensearch.index.Index;
 
 import java.util.Arrays;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
@@ -64,12 +65,23 @@ public class ShardLimitValidator {
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
+
+    public static final Setting<Boolean> SETTING_CLUSTER_IGNORE_DOT_INDEXES = Setting.boolSetting(
+        "cluster.ignore_dot_indexes",
+        true,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     protected final AtomicInteger shardLimitPerNode = new AtomicInteger();
+    protected final AtomicBoolean ignoreDotIndexes = new AtomicBoolean();
     private final SystemIndices systemIndices;
 
     public ShardLimitValidator(final Settings settings, ClusterService clusterService, SystemIndices systemIndices) {
         this.shardLimitPerNode.set(SETTING_CLUSTER_MAX_SHARDS_PER_NODE.get(settings));
+        this.ignoreDotIndexes.set(SETTING_CLUSTER_IGNORE_DOT_INDEXES.get(settings));
         clusterService.getClusterSettings().addSettingsUpdateConsumer(SETTING_CLUSTER_MAX_SHARDS_PER_NODE, this::setShardLimitPerNode);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(SETTING_CLUSTER_IGNORE_DOT_INDEXES, this::setIgnoreDotIndexes);
         this.systemIndices = systemIndices;
     }
 
@@ -85,6 +97,18 @@ public class ShardLimitValidator {
         return shardLimitPerNode.get();
     }
 
+    private void setIgnoreDotIndexes(boolean newValue) {
+        this.ignoreDotIndexes.set(newValue);
+    }
+
+    /**
+     * Gets the currently configured value of the {@link ShardLimitValidator#SETTING_CLUSTER_IGNORE_DOT_INDEXES} setting.
+     * @return the current value of the setting
+     */
+    public boolean getIgnoreDotIndexes() {
+        return ignoreDotIndexes.get();
+    }
+
     /**
      * Checks whether an index can be created without going over the cluster shard limit.
      *
@@ -96,6 +120,14 @@ public class ShardLimitValidator {
     public void validateShardLimit(final String indexName, final Settings settings, final ClusterState state) {
         // Validate shard limit only for non system indices as it is not hard limit anyways
         if (systemIndices.validateSystemIndex(indexName)) {
+            return;
+        }
+
+        /*
+        Validates if cluster.ignore_dot_indexes is set to true.
+        If so then it does not validate any index which starts with '.' character.
+        */
+        if (getIgnoreDotIndexes() && indexName.charAt(0) == '.') {
             return;
         }
 
@@ -121,8 +153,13 @@ public class ShardLimitValidator {
      */
     public void validateShardLimit(ClusterState currentState, Index[] indicesToOpen) {
         int shardsToOpen = Arrays.stream(indicesToOpen)
-            // Validate shard limit only for non system indices as it is not hard limit anyways
+            /*
+            Validate shard limit only for non system indices as it is not hard limit anyways.
+            Further also validates if the cluster.ignore_dot_indexes is set to true.
+            If so then it does not validate any index which starts with '.'.
+            */
             .filter(index -> !systemIndices.validateSystemIndex(index.getName()))
+            .filter(index -> !(getIgnoreDotIndexes() && index.getName().charAt(0) == '.'))
             .filter(index -> currentState.metadata().index(index).getState().equals(IndexMetadata.State.CLOSE))
             .mapToInt(index -> getTotalShardCount(currentState, index))
             .sum();
