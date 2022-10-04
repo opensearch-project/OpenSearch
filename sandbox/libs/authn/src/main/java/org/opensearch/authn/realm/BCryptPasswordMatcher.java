@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.authn.identity.realm;
+package org.opensearch.authn.realm;
 
 import org.apache.shiro.authc.AuthenticationInfo;
 import org.apache.shiro.authc.AuthenticationToken;

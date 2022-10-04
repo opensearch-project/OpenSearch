@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.authn.identity;
+package org.opensearch.authn;
 
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.core.JsonParser;
@@ -14,12 +14,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.InjectableValues;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import org.opensearch.SpecialPermission;
 
 import java.io.IOException;
-import java.security.AccessController;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 
 /**
  * @opensearch.experimental
@@ -45,43 +41,10 @@ public class DefaultObjectMapper {
     }
 
     public static <T> T readValue(String string, Class<T> clazz) throws IOException {
-
-        final SecurityManager sm = System.getSecurityManager();
-
-        if (sm != null) {
-            sm.checkPermission(new SpecialPermission());
-        }
-
-        try {
-            return AccessController.doPrivileged(new PrivilegedExceptionAction<T>() {
-                @Override
-                public T run() throws Exception {
-                    return objectMapper.readValue(string, clazz);
-                }
-            });
-        } catch (final PrivilegedActionException e) {
-            throw (IOException) e.getCause();
-        }
+        return objectMapper.readValue(string, clazz);
     }
 
     public static String writeValueAsString(Object value, boolean omitDefaults) throws JsonProcessingException {
-
-        final SecurityManager sm = System.getSecurityManager();
-
-        if (sm != null) {
-            sm.checkPermission(new SpecialPermission());
-        }
-
-        try {
-            return AccessController.doPrivileged(new PrivilegedExceptionAction<String>() {
-                @Override
-                public String run() throws Exception {
-                    return (omitDefaults ? defaulOmittingObjectMapper : objectMapper).writeValueAsString(value);
-                }
-            });
-        } catch (final PrivilegedActionException e) {
-            throw (JsonProcessingException) e.getCause();
-        }
-
+        return (omitDefaults ? defaulOmittingObjectMapper : objectMapper).writeValueAsString(value);
     }
 }

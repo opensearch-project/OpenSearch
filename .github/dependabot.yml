@@ -559,14 +559,6 @@ updates:
     labels:
       - "dependabot"
       - "dependencies"
-  - directory: /modules/authn/
-    open-pull-requests-limit: 1
-    package-ecosystem: gradle
-    schedule:
-      interval: weekly
-    labels:
-      - "dependabot"
-      - "dependencies"
   - directory: /modules/geo/
     open-pull-requests-limit: 1
     package-ecosystem: gradle

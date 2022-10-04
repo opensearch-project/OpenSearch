@@ -6,9 +6,9 @@
  * compatible open source license.
  */
 
-package org.opensearch.authn.identity;
+package org.opensearch.authn;
 
-import org.opensearch.authn.identity.realm.InternalSubjectsStore;
+import org.opensearch.authn.realm.InternalSubjectsStore;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.FileNotFoundException;

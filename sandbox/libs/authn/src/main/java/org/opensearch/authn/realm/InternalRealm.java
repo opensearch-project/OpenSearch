@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.authn.identity.realm;
+package org.opensearch.authn.realm;
 
 import org.apache.shiro.authc.AuthenticationException;
 import org.apache.shiro.authc.AuthenticationInfo;
@@ -17,7 +17,7 @@ import org.apache.shiro.authc.SimpleAuthenticationInfo;
 import org.apache.shiro.authc.UnknownAccountException;
 import org.apache.shiro.authc.UsernamePasswordToken;
 import org.apache.shiro.realm.AuthenticatingRealm;
-import org.opensearch.authn.identity.InternalSubject;
+import org.opensearch.authn.InternalSubject;
 
 import java.io.FileNotFoundException;
 import java.util.Map;

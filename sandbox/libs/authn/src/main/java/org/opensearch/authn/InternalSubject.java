@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.authn.identity;
+package org.opensearch.authn;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 

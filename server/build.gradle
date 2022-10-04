@@ -86,11 +86,12 @@ if (!isEclipse) {
 }
 
 dependencies {
-
   api project(':libs:opensearch-core')
   api project(':libs:opensearch-secure-sm')
   api project(':libs:opensearch-x-content')
   api project(":libs:opensearch-geo")
+
+  api project(':sandbox:libs:authn')
 
   compileOnly project(':libs:opensearch-plugin-classloader')
   testRuntimeOnly project(':libs:opensearch-plugin-classloader')
