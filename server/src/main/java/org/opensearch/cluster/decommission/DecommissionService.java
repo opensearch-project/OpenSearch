@@ -510,12 +510,16 @@ public class DecommissionService {
         clusterService.submitStateUpdateTask("delete_decommission_state", new ClusterStateUpdateTask(Priority.URGENT) {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                return clearDecommissionedAttributeFromMetadata(currentState);
+                logger.info("Deleting the decommission attribute from cluster state");
+                Metadata metadata = currentState.metadata();
+                Metadata.Builder mdBuilder = Metadata.builder(metadata);
+                mdBuilder.removeCustom(DecommissionAttributeMetadata.TYPE);
+                return ClusterState.builder(currentState).metadata(mdBuilder).build();
             }
 
             @Override
             public void onFailure(String source, Exception e) {
-                logger.error(() -> new ParameterizedMessage("Failed to clear decommission attribute."), e);
+                logger.error(() -> new ParameterizedMessage("Failed to clear decommission attribute. Exception: [{}]"), e);
                 listener.onFailure(e);
             }
 
@@ -526,13 +530,5 @@ public class DecommissionService {
                 listener.onResponse(new AcknowledgedResponse(true));
             }
         });
-    }
-
-    ClusterState clearDecommissionedAttributeFromMetadata(ClusterState state) {
-        logger.info("Deleting the decommission attribute from cluster state");
-        Metadata metadata = state.metadata();
-        Metadata.Builder mdBuilder = Metadata.builder(metadata);
-        mdBuilder.removeCustom(DecommissionAttributeMetadata.TYPE);
-        return ClusterState.builder(state).metadata(mdBuilder).build();
     }
 }

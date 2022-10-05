@@ -206,7 +206,8 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
     }
 
-    public void testClearClusterDecommissionState() {
+    public void testClearClusterDecommissionState() throws InterruptedException {
+        final CountDownLatch countDownLatch = new CountDownLatch(1);
         DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "zone-2");
         DecommissionAttributeMetadata decommissionAttributeMetadata = new DecommissionAttributeMetadata(
             decommissionAttribute,
@@ -216,11 +217,25 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
             .metadata(Metadata.builder().putCustom(DecommissionAttributeMetadata.TYPE, decommissionAttributeMetadata).build())
             .build();
 
-        final ClusterState newClusterState = this.decommissionService.clearDecommissionedAttributeFromMetadata(state);
-        DecommissionAttributeMetadata metadata = newClusterState.metadata().custom(DecommissionAttributeMetadata.TYPE);
+        ActionListener<AcknowledgedResponse> listener = new ActionListener<AcknowledgedResponse>() {
+            @Override
+            public void onResponse(AcknowledgedResponse decommissionResponse) {
+                DecommissionAttributeMetadata metadata = clusterService.state().metadata().custom(DecommissionAttributeMetadata.TYPE);
+                assertNull(metadata);
+                countDownLatch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail("on failure shouldn't have been called");
+                countDownLatch.countDown();
+            }
+        };
+
+        this.decommissionService.deleteDecommissionState(listener);
 
         // Decommission Attribute should be removed.
-        assertNull(metadata);
+        assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
     }
 
     public void testDeleteDecommissionAttributeClearVotingExclusion() {
