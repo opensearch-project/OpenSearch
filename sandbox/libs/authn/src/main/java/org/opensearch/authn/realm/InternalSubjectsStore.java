@@ -13,23 +13,22 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.opensearch.authn.DefaultObjectMapper;
 import org.opensearch.authn.InternalSubject;
 
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URL;
-import java.util.HashMap;
 import java.util.Iterator;
-import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 /**
  * @opensearch.experimental
  */
 public class InternalSubjectsStore {
 
-    public static Map<String, InternalSubject> readInternalSubjectsAsMap(String pathToInternalUsersYaml) throws FileNotFoundException {
-        Map<String, InternalSubject> internalSubjectsMap = new HashMap<>();
+    public static ConcurrentMap<String, InternalSubject> readInternalSubjectsAsMap(String pathToInternalUsersYaml) {
+        ConcurrentMap<String, InternalSubject> internalSubjectsMap = new ConcurrentHashMap<>();
         URL resourceUrl = InternalSubjectsStore.class.getClassLoader().getResource(pathToInternalUsersYaml);
         if (resourceUrl == null) {
-            throw new FileNotFoundException(pathToInternalUsersYaml + " not found");
+            throw new RuntimeException(pathToInternalUsersYaml + " not found");
         }
 
         try {
