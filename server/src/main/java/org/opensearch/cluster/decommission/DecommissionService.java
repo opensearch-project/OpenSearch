@@ -519,7 +519,7 @@ public class DecommissionService {
 
             @Override
             public void onFailure(String source, Exception e) {
-                logger.error(() -> new ParameterizedMessage("Failed to clear decommission attribute. Exception: [{}]"), e);
+                logger.error(() -> new ParameterizedMessage("Failed to clear decommission attribute. [{}]", source), e);
                 listener.onFailure(e);
             }
 
