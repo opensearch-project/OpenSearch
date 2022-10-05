@@ -494,13 +494,13 @@ public class DecommissionService {
         decommissionController.clearVotingConfigExclusion(new ActionListener<Void>() {
             @Override
             public void onResponse(Void unused) {
-                logger.info("successfully cleared voting config exclusion for deleting the decommission");
+                logger.info("successfully cleared voting config exclusion for deleting the decommission.");
                 deleteDecommissionState(listener);
             }
 
             @Override
             public void onFailure(Exception e) {
-                logger.error(new ParameterizedMessage("failure in clearing voting config during delete_decommission request"), e);
+                logger.error("Failure in clearing voting config during delete_decommission request.", e);
                 listener.onFailure(e);
             }
         }, false);
@@ -510,7 +510,7 @@ public class DecommissionService {
         clusterService.submitStateUpdateTask("delete_decommission_state", new ClusterStateUpdateTask(Priority.URGENT) {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                logger.info("Deleting the decommission attribute from cluster state");
+                logger.info("Deleting the decommission attribute from the cluster state");
                 Metadata metadata = currentState.metadata();
                 Metadata.Builder mdBuilder = Metadata.builder(metadata);
                 mdBuilder.removeCustom(DecommissionAttributeMetadata.TYPE);
@@ -525,7 +525,7 @@ public class DecommissionService {
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                // Cluster state Processed for deleting the decommission attribute.
+                // Cluster state processed for deleting the decommission attribute.
                 assert newState.metadata().decommissionAttributeMetadata() == null;
                 listener.onResponse(new AcknowledgedResponse(true));
             }
