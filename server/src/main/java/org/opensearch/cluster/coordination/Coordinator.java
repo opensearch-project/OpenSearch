@@ -590,9 +590,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
         transportService.connectToNode(joinRequest.getSourceNode(), ActionListener.wrap(ignore -> {
             final ClusterState stateForJoinValidation = getStateForClusterManagerService();
-            // we are checking source node commission status here to reject any join request coming from a decommissioned node
-            // even before executing the join task to fail fast
-            JoinTaskExecutor.ensureNodeCommissioned(joinRequest.getSourceNode(), stateForJoinValidation.metadata());
 
             if (stateForJoinValidation.nodes().isLocalNodeElectedClusterManager()) {
                 onJoinValidators.forEach(a -> a.accept(joinRequest.getSourceNode(), stateForJoinValidation));
@@ -603,6 +600,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                         joinRequest.getSourceNode().getVersion(),
                         stateForJoinValidation.getNodes().getMinNodeVersion()
                     );
+                    // we are checking source node commission status here to reject any join request coming from a decommissioned node
+                    // even before executing the join task to fail fast
+                    JoinTaskExecutor.ensureNodeCommissioned(joinRequest.getSourceNode(), stateForJoinValidation.metadata());
                 }
                 sendValidateJoinRequest(stateForJoinValidation, joinRequest, joinCallback);
             } else {
