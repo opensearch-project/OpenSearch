@@ -36,8 +36,8 @@ import org.opensearch.geo.search.aggregations.bucket.composite.GeoTileGridValues
 import org.opensearch.geo.search.aggregations.bucket.geogrid.GeoHashGridAggregationBuilder;
 import org.opensearch.geo.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
 import org.opensearch.geo.search.aggregations.bucket.geogrid.GeoTileGridAggregator;
-import org.opensearch.geo.search.aggregations.bucket.geogrid.InternalGeoHashGrid;
-import org.opensearch.geo.search.aggregations.bucket.geogrid.InternalGeoTileGrid;
+import org.opensearch.geo.search.aggregations.bucket.geogrid.GeoHashGrid;
+import org.opensearch.geo.search.aggregations.bucket.geogrid.GeoTileGrid;
 import org.opensearch.geo.search.aggregations.metrics.GeoBounds;
 import org.opensearch.geo.search.aggregations.metrics.GeoBoundsAggregationBuilder;
 import org.opensearch.geo.search.aggregations.metrics.GeoBoundsGeoShapeAggregator;
@@ -78,13 +78,13 @@ public class GeoModulePlugin extends Plugin implements MapperPlugin, SearchPlugi
             GeoHashGridAggregationBuilder.NAME,
             GeoHashGridAggregationBuilder::new,
             GeoHashGridAggregationBuilder.PARSER
-        ).addResultReader(InternalGeoHashGrid::new).setAggregatorRegistrar(GeoHashGridAggregationBuilder::registerAggregators);
+        ).addResultReader(GeoHashGrid::new).setAggregatorRegistrar(GeoHashGridAggregationBuilder::registerAggregators);
 
         final AggregationSpec geoTileGrid = new AggregationSpec(
             GeoTileGridAggregationBuilder.NAME,
             GeoTileGridAggregationBuilder::new,
             GeoTileGridAggregationBuilder.PARSER
-        ).addResultReader(InternalGeoTileGrid::new).setAggregatorRegistrar(GeoTileGridAggregationBuilder::registerAggregators);
+        ).addResultReader(GeoTileGrid::new).setAggregatorRegistrar(GeoTileGridAggregationBuilder::registerAggregators);
         return List.of(geoBounds, geoHashGrid, geoTileGrid);
     }
 

@@ -43,45 +43,45 @@ import java.util.Map;
  * All geohashes in a grid are of the same precision and held internally as a single long
  * for efficiency's sake.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
-public class InternalGeoHashGrid extends BaseGeoGrid<InternalGeoHashGridBucket> {
+public class GeoTileGrid extends BaseGeoGrid<InternalGeoTileGridBucket> {
 
-    InternalGeoHashGrid(String name, int requiredSize, List<BaseGeoGridBucket> buckets, Map<String, Object> metadata) {
+    GeoTileGrid(String name, int requiredSize, List<BaseGeoGridBucket> buckets, Map<String, Object> metadata) {
         super(name, requiredSize, buckets, metadata);
     }
 
-    public InternalGeoHashGrid(StreamInput in) throws IOException {
+    public GeoTileGrid(StreamInput in) throws IOException {
         super(in);
     }
 
     @Override
     public BaseGeoGrid create(List<BaseGeoGridBucket> buckets) {
-        return new InternalGeoHashGrid(name, requiredSize, buckets, metadata);
+        return new GeoTileGrid(name, requiredSize, buckets, metadata);
     }
 
     @Override
     public BaseGeoGridBucket createBucket(InternalAggregations aggregations, BaseGeoGridBucket prototype) {
-        return new InternalGeoHashGridBucket(prototype.hashAsLong, prototype.docCount, aggregations);
+        return new InternalGeoTileGridBucket(prototype.hashAsLong, prototype.docCount, aggregations);
     }
 
     @Override
     protected BaseGeoGrid create(String name, int requiredSize, List buckets, Map metadata) {
-        return new InternalGeoHashGrid(name, requiredSize, buckets, metadata);
+        return new GeoTileGrid(name, requiredSize, buckets, metadata);
     }
 
     @Override
-    protected InternalGeoHashGridBucket createBucket(long hashAsLong, long docCount, InternalAggregations aggregations) {
-        return new InternalGeoHashGridBucket(hashAsLong, docCount, aggregations);
+    protected InternalGeoTileGridBucket createBucket(long hashAsLong, long docCount, InternalAggregations aggregations) {
+        return new InternalGeoTileGridBucket(hashAsLong, docCount, aggregations);
     }
 
     @Override
     protected Reader getBucketReader() {
-        return InternalGeoHashGridBucket::new;
+        return InternalGeoTileGridBucket::new;
     }
 
     @Override
     public String getWriteableName() {
-        return GeoHashGridAggregationBuilder.NAME;
+        return GeoTileGridAggregationBuilder.NAME;
     }
 }

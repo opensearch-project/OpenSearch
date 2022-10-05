@@ -86,7 +86,7 @@ public class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory 
 
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
-        final InternalAggregation aggregation = new InternalGeoHashGrid(name, requiredSize, emptyList(), metadata);
+        final InternalAggregation aggregation = new GeoHashGrid(name, requiredSize, emptyList(), metadata);
         return new NonCollectingAggregator(name, searchContext, parent, factories, metadata) {
             @Override
             public InternalAggregation buildEmptyAggregation() {

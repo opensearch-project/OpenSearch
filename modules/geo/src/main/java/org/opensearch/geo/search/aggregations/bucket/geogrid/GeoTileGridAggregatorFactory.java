@@ -85,7 +85,7 @@ public class GeoTileGridAggregatorFactory extends ValuesSourceAggregatorFactory 
 
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
-        final InternalAggregation aggregation = new InternalGeoTileGrid(name, requiredSize, Collections.emptyList(), metadata);
+        final InternalAggregation aggregation = new GeoTileGrid(name, requiredSize, Collections.emptyList(), metadata);
         return new NonCollectingAggregator(name, searchContext, parent, factories, metadata) {
             @Override
             public InternalAggregation buildEmptyAggregation() {
