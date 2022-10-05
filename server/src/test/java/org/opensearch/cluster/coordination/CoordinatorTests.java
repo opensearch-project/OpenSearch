@@ -1785,7 +1785,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         try (Cluster cluster = new Cluster(randomIntBetween(1, 5))) {
             cluster.runRandomly();
             cluster.stabilise();
-            for (ClusterNode node: cluster.clusterNodes) {
+            for (ClusterNode node : cluster.clusterNodes) {
                 assertTrue(node.coordinator.localNodeCommissioned());
             }
         }
@@ -1795,7 +1795,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         try (Cluster cluster = new Cluster(randomIntBetween(1, 5))) {
             cluster.runRandomly();
             cluster.stabilise();
-            for (ClusterNode node: cluster.clusterNodes) {
+            for (ClusterNode node : cluster.clusterNodes) {
                 assertTrue(node.coordinator.localNodeCommissioned());
             }
             final ClusterNode leader = cluster.getAnyLeader();
