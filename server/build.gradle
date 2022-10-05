@@ -92,8 +92,11 @@ dependencies {
   api project(':libs:opensearch-x-content')
   api project(":libs:opensearch-geo")
 
-  if (project.hasProperty("opensearch.experimental.feature.native_authn.enabled")) {
-    api project(':sandbox:libs:opensearch-authn')
+  if (project.hasProperty("org.gradle.project.opensearch.experimental.feature.native_authn.enabled")) {
+    def nativeAuthnEnabled = project.property('org.gradle.project.opensearch.experimental.feature.native_authn.enabled')
+    if (nativeAuthnEnabled == "true") {
+      api project(':sandbox:libs:opensearch-authn')
+    }
   }
 
   compileOnly project(':libs:opensearch-plugin-classloader')
