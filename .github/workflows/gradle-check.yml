@@ -16,8 +16,10 @@ jobs:
     permissions:
       contents: read # to fetch code (actions/checkout)
       pull-requests: write # to create or update comment (peter-evans/create-or-update-comment)
-
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ 'ubuntu-22.04', 'ubuntu-20.04', 'ubuntu-latest' ]
     timeout-minutes: 130
     steps:
       - name: Checkout OpenSearch repo

@@ -4,7 +4,10 @@ on: [pull_request]
 
 jobs:
   linelint:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ 'ubuntu-22.04', 'ubuntu-20.04', 'ubuntu-latest' ]
     name: Check if all files end in newline
     steps:
       - name: Checkout

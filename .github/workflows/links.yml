@@ -7,7 +7,10 @@ permissions:
 jobs:
   linkchecker:
     if: github.repository == 'opensearch-project/OpenSearch'
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ 'ubuntu-22.04', 'ubuntu-20.04', 'ubuntu-latest' ]
 
     steps:
       - uses: actions/checkout@v2

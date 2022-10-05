@@ -13,7 +13,10 @@ on:
 
 jobs:
   publish-snapshots:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ 'ubuntu-22.04', 'ubuntu-20.04', 'ubuntu-latest' ]
     # These permissions are needed to interact with GitHub's OIDC Token endpoint.
     permissions:
       id-token: write

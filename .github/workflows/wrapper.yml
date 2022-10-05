@@ -4,7 +4,10 @@ on: [pull_request]
 jobs:
   validate:
     name: Validate
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ 'ubuntu-22.04', 'ubuntu-20.04', 'ubuntu-latest' ]
     steps:
       - uses: actions/checkout@v2
       - uses: gradle/wrapper-validation-action@v1
