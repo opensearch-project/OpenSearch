@@ -2965,8 +2965,14 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                     updatedAssignmentsBuilder.put(shardId, updated);
                                 }
                             }
-                            snapshotEntries.add(entry.withStartedShards(updatedAssignmentsBuilder.build()));
+                            final SnapshotsInProgress.Entry updatedEntry = entry.withShardStates(updatedAssignmentsBuilder.build());
+                            snapshotEntries.add(updatedEntry);
                             changed = true;
+                            // When all the required shards for a snapshot are missing, the snapshot state will be "completed"
+                            // need to finalize it.
+                            if (updatedEntry.state().completed()) {
+                                newFinalizations.add(entry);
+                            }
                         }
                     } else {
                         // Entry is already completed so we will finalize it now that the delete doesn't block us after
