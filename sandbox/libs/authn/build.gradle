@@ -26,7 +26,7 @@ dependencies {
   api "org.bouncycastle:bcprov-jdk15on:${versions.bouncycastle}"
 
   testImplementation(project(":test:framework")) {
-    exclude group: 'org.opensearch', module: 'opensearch-authn'
+    exclude group: 'org.opensearch.sandbox', module: 'opensearch-authn'
   }
 }
 
@@ -37,5 +37,37 @@ tasks.named('forbiddenApisMain').configure {
 tasks.named("dependencyLicenses").configure {
   mapping from: /jackson-.*/, to: 'jackson'
 }
+
+thirdPartyAudit.ignoreMissingClasses(
+  'org.apache.commons.beanutils.BeanUtilsBean',
+  'org.apache.commons.beanutils.ConvertUtilsBean',
+  'org.apache.commons.beanutils.PropertyUtilsBean',
+  'org.apache.commons.beanutils.SuppressPropertiesBeanIntrospector',
+  'org.apache.commons.configuration2.interpol.ConfigurationInterpolator',
+  'org.slf4j.impl.StaticLoggerBinder',
+  'org.slf4j.impl.StaticMDCBinder',
+  'org.slf4j.impl.StaticMarkerBinder',
+  'org.yaml.snakeyaml.DumperOptions',
+  'org.yaml.snakeyaml.DumperOptions$FlowStyle',
+  'org.yaml.snakeyaml.DumperOptions$LineBreak',
+  'org.yaml.snakeyaml.DumperOptions$ScalarStyle',
+  'org.yaml.snakeyaml.DumperOptions$Version',
+  'org.yaml.snakeyaml.emitter.Emitter',
+  'org.yaml.snakeyaml.error.Mark',
+  'org.yaml.snakeyaml.error.MarkedYAMLException',
+  'org.yaml.snakeyaml.error.YAMLException',
+  'org.yaml.snakeyaml.events.AliasEvent',
+  'org.yaml.snakeyaml.events.CollectionStartEvent',
+  'org.yaml.snakeyaml.events.Event',
+  'org.yaml.snakeyaml.events.Event$ID',
+  'org.yaml.snakeyaml.events.ImplicitTuple',
+  'org.yaml.snakeyaml.events.MappingStartEvent',
+  'org.yaml.snakeyaml.events.NodeEvent',
+  'org.yaml.snakeyaml.events.ScalarEvent',
+  'org.yaml.snakeyaml.nodes.NodeId',
+  'org.yaml.snakeyaml.nodes.Tag',
+  'org.yaml.snakeyaml.parser.ParserImpl',
+  'org.yaml.snakeyaml.resolver.Resolver',
+)
 
 jarHell.enabled = false

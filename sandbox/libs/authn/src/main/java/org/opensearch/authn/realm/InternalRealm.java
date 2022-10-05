@@ -19,8 +19,8 @@ import org.apache.shiro.authc.UsernamePasswordToken;
 import org.apache.shiro.realm.AuthenticatingRealm;
 import org.opensearch.authn.InternalSubject;
 
-import java.io.FileNotFoundException;
-import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.ConcurrentMap;
 
 /**
  * Internal Realm is a custom realm using the internal OpenSearch IdP
@@ -28,45 +28,62 @@ import java.util.Map;
  * @opensearch.experimental
  */
 public class InternalRealm extends AuthenticatingRealm {
+    private static final String DEFAULT_REALM_NAME = "internal";
 
-    public static final InternalRealm INSTANCE = new InternalRealm();
-    private static final String REALM_NAME = "internal";
+    public static final InternalRealm INSTANCE = new InternalRealm.Builder(DEFAULT_REALM_NAME).build();
 
-    private boolean isRealmInitialized = false;
+    private final String realmName;
 
-    public InternalRealm() {
+    private InternalRealm(String realmName) {
         super(new BCryptPasswordMatcher());
+        this.realmName = realmName;
     }
 
     // TODO Switch this to private after debugging
-    public Map<String, InternalSubject> internalSubjects;
+    public ConcurrentMap<String, InternalSubject> internalSubjects;
 
-    public void initializeInternalSubjectsStore(String pathToInternalUsersYaml) throws FileNotFoundException {
+    public static final class Builder {
+        private final String name;
+
+        public Builder(String name) {
+            this.name = Objects.requireNonNull(name);
+        }
+
+        public InternalRealm build() {
+            return new InternalRealm(name);
+        }
+    }
+
+    public void initializeInternalSubjectsStore(String pathToInternalUsersYaml) {
         // TODO load this at cluster start
         internalSubjects = InternalSubjectsStore.readInternalSubjectsAsMap(pathToInternalUsersYaml);
-        isRealmInitialized = true;
+    }
+
+    public InternalSubject getInternalSubject(String principalIdentifier) throws UnknownAccountException {
+        InternalSubject userRecord = internalSubjects.get(principalIdentifier);
+        // UserRecord userRecord = lookupUserRecord(username);
+        // No record found - don't know who this is
+        if (userRecord == null) {
+            throw new UnknownAccountException(principalIdentifier + " does not exist in " + realmName + " realm.");
+        }
+        return userRecord;
     }
 
     @Override
     protected AuthenticationInfo doGetAuthenticationInfo(AuthenticationToken token) throws AuthenticationException {
-        if (!isRealmInitialized || internalSubjects == null) {
-            // nothing to do
-            return null;
-        }
         if (token instanceof UsernamePasswordToken) {
             String username = ((UsernamePasswordToken) token).getUsername();
             final char[] password = ((UsernamePasswordToken) token).getPassword();
             // Look up the user by the provide username
-            InternalSubject userRecord = internalSubjects.get(username);
-            // UserRecord userRecord = lookupUserRecord(username);
-            // No record found - don't know who this is
-            if (userRecord == null) {
-                throw new UnknownAccountException();
-            }
+            InternalSubject userRecord = getInternalSubject(username);
             // Check for other things, like a locked account, expired password, etc.
 
             // Verify the user
-            SimpleAuthenticationInfo sai = new SimpleAuthenticationInfo(userRecord.getPrimaryPrincipal(), userRecord.getHash(), REALM_NAME);
+            SimpleAuthenticationInfo sai = new SimpleAuthenticationInfo(
+                userRecord.getPrimaryPrincipal(),
+                userRecord.getBcryptHash(),
+                realmName
+            );
             boolean successfulAuthentication = getCredentialsMatcher().doCredentialsMatch(token, sai);
 
             if (successfulAuthentication) {

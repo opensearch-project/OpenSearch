@@ -11,12 +11,11 @@ package org.opensearch.authn;
 import org.opensearch.authn.realm.InternalSubjectsStore;
 import org.opensearch.test.OpenSearchTestCase;
 
-import java.io.FileNotFoundException;
 import java.util.Map;
 
 public class InternalSubjectsStoreTests extends OpenSearchTestCase {
 
-    public void testReadInternalSubjectsTest() throws FileNotFoundException {
+    public void testReadInternalSubjectsTest() {
         String internalSubjectsYaml = "internal_users_test.yml";
         Map<String, InternalSubject> internalSubjectMap = InternalSubjectsStore.readInternalSubjectsAsMap(internalSubjectsYaml);
         assertTrue(internalSubjectMap.containsKey("new-user"));
@@ -28,7 +27,7 @@ public class InternalSubjectsStoreTests extends OpenSearchTestCase {
         try {
             Map<String, InternalSubject> internalSubjectMap = InternalSubjectsStore.readInternalSubjectsAsMap(internalSubjectsYaml);
             fail("Expected to throw FileNotFoundException");
-        } catch (FileNotFoundException e) {
+        } catch (RuntimeException e) {
             // expected
         }
     }

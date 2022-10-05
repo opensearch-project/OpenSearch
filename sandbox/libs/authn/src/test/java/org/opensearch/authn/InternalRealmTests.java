@@ -15,23 +15,21 @@ import org.apache.shiro.authc.UsernamePasswordToken;
 import org.opensearch.authn.realm.InternalRealm;
 import org.opensearch.test.OpenSearchTestCase;
 
-import java.io.FileNotFoundException;
-
 public class InternalRealmTests extends OpenSearchTestCase {
 
-    public void testGetAuthenticationInfoUserExists() throws FileNotFoundException {
+    public void testGetAuthenticationInfoUserExists() {
         String username = "admin";
         String password = "admin";
         String internalUserTestFile = "internal_users_test.yml";
         UsernamePasswordToken token = new UsernamePasswordToken(username, password);
         InternalRealm realm = InternalRealm.INSTANCE;
         realm.initializeInternalSubjectsStore(internalUserTestFile);
-        InternalSubject admin = realm.internalSubjects.get("admin");
+        InternalSubject admin = realm.getInternalSubject("admin");
         AuthenticationInfo adminInfo = realm.getAuthenticationInfo(token);
         assertNotNull(adminInfo);
     }
 
-    public void testGetAuthenticationInfoUserExistsWrongPassword() throws FileNotFoundException {
+    public void testGetAuthenticationInfoUserExistsWrongPassword() {
         String username = "admin";
         String password = "wrong_password";
         String internalUserTestFile = "internal_users_test.yml";

@@ -74,10 +74,10 @@ grant codeBase "${codebase.opensearch-plugin-classloader}" {
   permission java.lang.RuntimePermission "createClassLoader";
 };
 
-grant codeBase "${codebase.opensearch-authn}" {
-  // needed by jackson-databind ObjectMapper.readValue
-  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
-};
+// grant codeBase "${codebase.opensearch-authn}" {
+//   // needed by jackson-databind ObjectMapper.readValue
+//   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+// };
 
 grant codeBase "${codebase.jna}" {
   // for registering native methods
@@ -132,6 +132,8 @@ grant {
   // fix that in randomizedtesting
   permission java.util.PropertyPermission "junit4.childvm.count", "write";
   permission java.util.PropertyPermission "junit4.childvm.id", "write";
+
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 
   // needed by Settings
   permission java.lang.RuntimePermission "getenv.*";

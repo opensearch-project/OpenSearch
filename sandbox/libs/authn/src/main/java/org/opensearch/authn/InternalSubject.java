@@ -18,7 +18,8 @@ public class InternalSubject {
     @JsonProperty(value = "primary_principal")
     private String primaryPrincipal;
 
-    private String hash;
+    @JsonProperty(value = "hash")
+    private String bcryptHash;
     private Map<String, String> attributes = Collections.emptyMap();
 
     @JsonProperty(value = "primary_principal")
@@ -31,12 +32,14 @@ public class InternalSubject {
         this.primaryPrincipal = primaryPrincipal;
     }
 
-    public String getHash() {
-        return hash;
+    @JsonProperty(value = "hash")
+    public String getBcryptHash() {
+        return bcryptHash;
     }
 
-    public void setHash(String hash) {
-        this.hash = hash;
+    @JsonProperty(value = "hash")
+    public void setBcryptHash(String bcryptHash) {
+        this.bcryptHash = bcryptHash;
     }
 
     public Map<String, String> getAttributes() {
@@ -49,6 +52,6 @@ public class InternalSubject {
 
     @Override
     public String toString() {
-        return "InternalSubject [primaryPrincipal=" + primaryPrincipal + ", hash=" + hash + ", attributes=" + attributes + "]";
+        return "InternalSubject [primaryPrincipal=" + primaryPrincipal + ", bcryptHash=" + bcryptHash + ", attributes=" + attributes + "]";
     }
 }
