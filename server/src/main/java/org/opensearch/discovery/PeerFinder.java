@@ -150,8 +150,8 @@ public abstract class PeerFinder {
         );
     }
 
-    // public for testing
-    public TimeValue getFindPeersInterval() {
+    // package private for tests
+    TimeValue getFindPeersInterval() {
         return findPeersInterval;
     }
 
