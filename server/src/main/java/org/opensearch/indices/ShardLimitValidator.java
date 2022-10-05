@@ -66,22 +66,22 @@ public class ShardLimitValidator {
         Setting.Property.NodeScope
     );
 
-    public static final Setting<Boolean> SETTING_CLUSTER_IGNORE_DOT_INDEXES = Setting.boolSetting(
-        "cluster.ignore_dot_indexes",
+    public static final Setting<Boolean> SETTING_CLUSTER_IGNORE_HIDDEN_INDEXES = Setting.boolSetting(
+        "cluster.ignore_hidden_indexes",
         true,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
 
     protected final AtomicInteger shardLimitPerNode = new AtomicInteger();
-    protected final AtomicBoolean ignoreDotIndexes = new AtomicBoolean();
+    protected final AtomicBoolean ignoreHiddenIndexes = new AtomicBoolean();
     private final SystemIndices systemIndices;
 
     public ShardLimitValidator(final Settings settings, ClusterService clusterService, SystemIndices systemIndices) {
         this.shardLimitPerNode.set(SETTING_CLUSTER_MAX_SHARDS_PER_NODE.get(settings));
-        this.ignoreDotIndexes.set(SETTING_CLUSTER_IGNORE_DOT_INDEXES.get(settings));
+        this.ignoreHiddenIndexes.set(SETTING_CLUSTER_IGNORE_HIDDEN_INDEXES.get(settings));
         clusterService.getClusterSettings().addSettingsUpdateConsumer(SETTING_CLUSTER_MAX_SHARDS_PER_NODE, this::setShardLimitPerNode);
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(SETTING_CLUSTER_IGNORE_DOT_INDEXES, this::setIgnoreDotIndexes);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(SETTING_CLUSTER_IGNORE_HIDDEN_INDEXES, this::setIgnoreHiddenIndexes);
         this.systemIndices = systemIndices;
     }
 
@@ -97,16 +97,16 @@ public class ShardLimitValidator {
         return shardLimitPerNode.get();
     }
 
-    private void setIgnoreDotIndexes(boolean newValue) {
-        this.ignoreDotIndexes.set(newValue);
+    private void setIgnoreHiddenIndexes(boolean newValue) {
+        this.ignoreHiddenIndexes.set(newValue);
     }
 
     /**
-     * Gets the currently configured value of the {@link ShardLimitValidator#SETTING_CLUSTER_IGNORE_DOT_INDEXES} setting.
+     * Gets the currently configured value of the {@link ShardLimitValidator#SETTING_CLUSTER_IGNORE_HIDDEN_INDEXES} setting.
      * @return the current value of the setting
      */
-    public boolean getIgnoreDotIndexes() {
-        return ignoreDotIndexes.get();
+    public boolean getIgnoreHiddenIndexes() {
+        return ignoreHiddenIndexes.get();
     }
 
     /**
@@ -118,16 +118,12 @@ public class ShardLimitValidator {
      * @throws ValidationException if creating this index would put the cluster over the cluster shard limit
      */
     public void validateShardLimit(final String indexName, final Settings settings, final ClusterState state) {
-        // Validate shard limit only for non system indices as it is not hard limit anyways
-        if (systemIndices.validateSystemIndex(indexName)) {
-            return;
-        }
-
         /*
-        Validates if cluster.ignore_dot_indexes is set to true.
-        If so then it does not validate any index which starts with '.' character.
+        Validate shard limit only for non system indices as it is not hard limit anyways.
+        Further also validates if the cluster.ignore_hidden_indexes is set to true.
+        If so then it does not validate any index which starts with '.'.
         */
-        if (getIgnoreDotIndexes() && indexName.charAt(0) == '.') {
+        if (systemIndices.validateSystemIndex(indexName) || validateHiddenIndex(indexName)) {
             return;
         }
 
@@ -155,11 +151,11 @@ public class ShardLimitValidator {
         int shardsToOpen = Arrays.stream(indicesToOpen)
             /*
             Validate shard limit only for non system indices as it is not hard limit anyways.
-            Further also validates if the cluster.ignore_dot_indexes is set to true.
+            Further also validates if the cluster.ignore_hidden_indexes is set to true.
             If so then it does not validate any index which starts with '.'.
             */
             .filter(index -> !systemIndices.validateSystemIndex(index.getName()))
-            .filter(index -> !(getIgnoreDotIndexes() && index.getName().charAt(0) == '.'))
+            .filter(index -> !(validateHiddenIndex(index.getName())))
             .filter(index -> currentState.metadata().index(index).getState().equals(IndexMetadata.State.CLOSE))
             .mapToInt(index -> getTotalShardCount(currentState, index))
             .sum();
@@ -175,6 +171,10 @@ public class ShardLimitValidator {
     private static int getTotalShardCount(ClusterState state, Index index) {
         IndexMetadata indexMetadata = state.metadata().index(index);
         return indexMetadata.getNumberOfShards() * (1 + indexMetadata.getNumberOfReplicas());
+    }
+
+    private boolean validateHiddenIndex(String indexName) {
+        return getIgnoreHiddenIndexes() && indexName.charAt(0) == '.';
     }
 
     /**

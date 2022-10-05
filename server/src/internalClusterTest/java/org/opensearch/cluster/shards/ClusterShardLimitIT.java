@@ -63,16 +63,16 @@ import static org.hamcrest.Matchers.greaterThan;
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)
 public class ClusterShardLimitIT extends OpenSearchIntegTestCase {
     private static final String shardsPerNodeKey = ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey();
-    private static final String ignoreDotIndexKey = ShardLimitValidator.SETTING_CLUSTER_IGNORE_DOT_INDEXES.getKey();
+    private static final String ignoreHiddenIndexKey = ShardLimitValidator.SETTING_CLUSTER_IGNORE_HIDDEN_INDEXES.getKey();
 
     public void testSettingClusterMaxShards() {
         int shardsPerNode = between(1, 500_000);
         setShardsPerNode(shardsPerNode);
     }
 
-    public void testSettingIgnoreDotIndexes() {
-        boolean ignoreDotIndexes = randomBoolean();
-        setIgnoreDotIndex(ignoreDotIndexes);
+    public void testSettingIgnoreHiddenIndexes() {
+        boolean ignoreHiddenIndexes = randomBoolean();
+        setIgnoreHiddenIndex(ignoreHiddenIndexes);
     }
 
     public void testMinimumPerNode() {
@@ -133,7 +133,7 @@ public class ClusterShardLimitIT extends OpenSearchIntegTestCase {
         assertFalse(clusterState.getMetadata().hasIndex("should-fail"));
     }
 
-    public void testIndexCreationOverLimitForDotIndexesSucceeds() {
+    public void testIndexCreationOverLimitForHiddenIndexesSucceeds() {
         int dataNodes = client().admin().cluster().prepareState().get().getState().getNodes().getDataNodes().size();
 
         ShardCounts counts = ShardCounts.forDataNodeCount(dataNodes);
@@ -164,13 +164,13 @@ public class ClusterShardLimitIT extends OpenSearchIntegTestCase {
         assertTrue(clusterState.getMetadata().hasIndex(".test-index"));
     }
 
-    public void testIndexCreationOverLimitForDotIndexesFail() {
+    public void testIndexCreationOverLimitForHiddenIndexesFail() {
         int dataNodes = client().admin().cluster().prepareState().get().getState().getNodes().getDataNodes().size();
 
         ShardCounts counts = ShardCounts.forDataNodeCount(dataNodes);
 
         setShardsPerNode(counts.getShardsPerNode());
-        setIgnoreDotIndex(false);
+        setIgnoreHiddenIndex(false);
 
         createIndex(
             "test",
@@ -526,23 +526,23 @@ public class ClusterShardLimitIT extends OpenSearchIntegTestCase {
         }
     }
 
-    private void setIgnoreDotIndex(boolean ignoreDotIndex) {
+    private void setIgnoreHiddenIndex(boolean ignoreHiddenIndex) {
         try {
             ClusterUpdateSettingsResponse response;
             if (frequently()) {
                 response = client().admin()
                     .cluster()
                     .prepareUpdateSettings()
-                    .setPersistentSettings(Settings.builder().put(ignoreDotIndexKey, ignoreDotIndex).build())
+                    .setPersistentSettings(Settings.builder().put(ignoreHiddenIndexKey, ignoreHiddenIndex).build())
                     .get();
-                assertEquals(ignoreDotIndex, response.getPersistentSettings().getAsBoolean(ignoreDotIndexKey, true).booleanValue());
+                assertEquals(ignoreHiddenIndex, response.getPersistentSettings().getAsBoolean(ignoreHiddenIndexKey, true));
             } else {
                 response = client().admin()
                     .cluster()
                     .prepareUpdateSettings()
-                    .setTransientSettings(Settings.builder().put(shardsPerNodeKey, ignoreDotIndex).build())
+                    .setTransientSettings(Settings.builder().put(shardsPerNodeKey, ignoreHiddenIndex).build())
                     .get();
-                assertEquals(ignoreDotIndex, response.getTransientSettings().getAsBoolean(ignoreDotIndexKey, true).booleanValue());
+                assertEquals(ignoreHiddenIndex, response.getTransientSettings().getAsBoolean(ignoreHiddenIndexKey, true));
             }
         } catch (IllegalArgumentException ex) {
             fail(ex.getMessage());
