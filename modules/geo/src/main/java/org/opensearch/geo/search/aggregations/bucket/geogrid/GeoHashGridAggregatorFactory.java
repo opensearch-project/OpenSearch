@@ -58,7 +58,7 @@ import static java.util.Collections.emptyList;
  *
  * @opensearch.internal
  */
-public class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory {
+class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     private final int precision;
     private final int requiredSize;

@@ -35,7 +35,6 @@ package org.opensearch.geo;
 import org.opensearch.geo.search.aggregations.bucket.composite.GeoTileGridValuesSourceBuilder;
 import org.opensearch.geo.search.aggregations.bucket.geogrid.GeoHashGridAggregationBuilder;
 import org.opensearch.geo.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
-import org.opensearch.geo.search.aggregations.bucket.geogrid.GeoTileGridAggregator;
 import org.opensearch.geo.search.aggregations.bucket.geogrid.GeoHashGrid;
 import org.opensearch.geo.search.aggregations.bucket.geogrid.GeoTileGrid;
 import org.opensearch.geo.search.aggregations.metrics.GeoBounds;
@@ -89,7 +88,7 @@ public class GeoModulePlugin extends Plugin implements MapperPlugin, SearchPlugi
     }
 
     /**
-     * Registering the {@link GeoTileGridAggregator} in the {@link CompositeAggregation}.
+     * Registering the geotile grid in the {@link CompositeAggregation}.
      *
      * @return a {@link List} of {@link CompositeAggregationSpec}
      */

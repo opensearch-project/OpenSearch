@@ -48,9 +48,9 @@ import java.util.Map;
  *
  * @opensearch.internal
  */
-public class GeoTileGridAggregator extends GeoGridAggregator<GeoTileGrid> {
+class GeoTileGridAggregator extends GeoGridAggregator<GeoTileGrid> {
 
-    public GeoTileGridAggregator(
+    GeoTileGridAggregator(
         String name,
         AggregatorFactories factories,
         ValuesSource.Numeric valuesSource,

@@ -47,9 +47,9 @@ import java.util.Map;
  *
  * @opensearch.internal
  */
-public class GeoHashGridAggregator extends GeoGridAggregator<GeoHashGrid> {
+class GeoHashGridAggregator extends GeoGridAggregator<GeoHashGrid> {
 
-    public GeoHashGridAggregator(
+    GeoHashGridAggregator(
         String name,
         AggregatorFactories factories,
         ValuesSource.Numeric valuesSource,

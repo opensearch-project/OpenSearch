@@ -57,7 +57,7 @@ import java.util.Map;
  *
  * @opensearch.internal
  */
-public class GeoTileGridAggregatorFactory extends ValuesSourceAggregatorFactory {
+class GeoTileGridAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     private final int precision;
     private final int requiredSize;
