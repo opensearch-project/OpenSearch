@@ -35,14 +35,19 @@ package org.opensearch.bootstrap;
 import com.sun.jna.Native;
 import com.sun.jna.Pointer;
 import com.sun.jna.WString;
+import com.sun.jna.ptr.IntByReference;
+import com.sun.jna.ptr.PointerByReference;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
+import org.opensearch.bootstrap.JNAAdvapi32Library.TokenElevation;
 import org.opensearch.monitor.jvm.JvmInfo;
 
 import java.nio.file.Path;
 
+import static org.opensearch.bootstrap.JNAAdvapi32Library.TOKEN_ELEVATION;
+import static org.opensearch.bootstrap.JNAAdvapi32Library.TOKEN_QUERY;
 import static org.opensearch.bootstrap.JNAKernel32Library.SizeT;
 
 /**
@@ -185,13 +190,44 @@ class JNANatives {
 
     /** Returns true if user is root, false if not, or if we don't know */
     static boolean definitelyRunningAsRoot() {
-        if (Constants.WINDOWS) {
-            return false; // don't know
-        }
         try {
+            if (Constants.WINDOWS) {
+                JNAKernel32Library kernel32 = JNAKernel32Library.getInstance();
+                JNAAdvapi32Library advapi32 = JNAAdvapi32Library.getInstance();
+
+                // Fetch a pseudo handle for the current process.
+                // The pseudo handle need not be closed when it is no longer needed (calling CloseHandle is a no-op).
+                Pointer process = kernel32.GetCurrentProcess();
+                PointerByReference hToken = new PointerByReference();
+                // Fetch the process token for the current process, for which we know we have the access rights
+                if (!advapi32.OpenProcessToken(process, TOKEN_QUERY, hToken)) {
+                    logger.warn(
+                        "Unable to open the Process Token for the current process [" + JNACLibrary.strerror(Native.getLastError()) + "]"
+                    );
+                    return false;
+                }
+                // We have successfully opened the token. Ensure it gets closed after we use it.
+                try {
+                    TokenElevation elevation = new TokenElevation();
+                    IntByReference returnLength = new IntByReference();
+                    if (!advapi32.GetTokenInformation(hToken.getValue(), TOKEN_ELEVATION, elevation, elevation.size(), returnLength)) {
+                        logger.warn(
+                            "Unable to get TokenElevation information for the current process ["
+                                + JNACLibrary.strerror(Native.getLastError())
+                                + "]"
+                        );
+                        return false;
+                    }
+                    // Nonzero value means elevated privileges
+                    return elevation.TokenIsElevated > 0;
+                } finally {
+                    kernel32.CloseHandle(hToken.getValue());
+                }
+            }
+            // For unix-based systems, check effective user ID of process
             return JNACLibrary.geteuid() == 0;
         } catch (UnsatisfiedLinkError e) {
-            // this will have already been logged by Kernel32Library, no need to repeat it
+            // this will have already been logged by Native Library, no need to repeat it
             return false;
         }
     }
