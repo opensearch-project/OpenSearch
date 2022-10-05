@@ -105,6 +105,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
  - Add getSettings support for AD([#4519](https://github.com/opensearch-project/OpenSearch/pull/4519))
  - Fixed javadoc warning for build failure([#4581](https://github.com/opensearch-project/OpenSearch/pull/4581))
  - Added transport actions support for extensions ([#4598](https://github.com/opensearch-project/OpenSearch/pull/4598/))
+ - Pass REST params and content to extensions ([#4633](https://github.com/opensearch-project/OpenSearch/pull/4633))
 
 ## [2.x]
 ### Added
