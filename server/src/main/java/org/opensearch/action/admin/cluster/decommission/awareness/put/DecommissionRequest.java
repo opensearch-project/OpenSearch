@@ -113,6 +113,7 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
     public TimeValue getRetryTimeout() {
         return this.retryTimeout;
     }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
