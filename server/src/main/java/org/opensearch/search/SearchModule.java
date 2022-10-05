@@ -48,6 +48,7 @@ import org.opensearch.common.xcontent.ParseFieldRegistry;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.BoostingQueryBuilder;
+import org.opensearch.index.query.CombinedFieldQueryBuilder;
 import org.opensearch.index.query.CommonTermsQueryBuilder;
 import org.opensearch.index.query.ConstantScoreQueryBuilder;
 import org.opensearch.index.query.DisMaxQueryBuilder;
@@ -1195,6 +1196,9 @@ public class SearchModule {
         if (ShapesAvailability.JTS_AVAILABLE && ShapesAvailability.SPATIAL4J_AVAILABLE) {
             registerQuery(new QuerySpec<>(GeoShapeQueryBuilder.NAME, GeoShapeQueryBuilder::new, GeoShapeQueryBuilder::fromXContent));
         }
+        registerQuery(
+            new QuerySpec<>(CombinedFieldQueryBuilder.NAME, CombinedFieldQueryBuilder::new, CombinedFieldQueryBuilder::fromXContent)
+        );
 
         registerFromPlugin(plugins, SearchPlugin::getQueries, this::registerQuery);
     }

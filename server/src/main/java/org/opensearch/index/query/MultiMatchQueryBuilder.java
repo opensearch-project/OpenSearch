@@ -779,7 +779,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         return builder;
     }
 
-    private static void parseFieldAndBoost(XContentParser parser, Map<String, Float> fieldsBoosts) throws IOException {
+    static void parseFieldAndBoost(XContentParser parser, Map<String, Float> fieldsBoosts) throws IOException {
         String fField = null;
         Float fBoost = AbstractQueryBuilder.DEFAULT_BOOST;
         char[] fieldText = parser.textCharacters();

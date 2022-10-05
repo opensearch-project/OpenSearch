@@ -29,6 +29,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Added release notes for 1.3.6 ([#4681](https://github.com/opensearch-project/OpenSearch/pull/4681))
 - Added precommit support for MacOS ([#4682](https://github.com/opensearch-project/OpenSearch/pull/4682))
 - Recommission API changes for service layer ([#4320](https://github.com/opensearch-project/OpenSearch/pull/4320))
+- Add support for combined field query ([#4699](https://github.com/opensearch-project/OpenSearch/pull/4699))
 ### Dependencies
 - Bumps `log4j-core` from 2.18.0 to 2.19.0
 - Bumps `reactor-netty-http` from 1.0.18 to 1.0.23

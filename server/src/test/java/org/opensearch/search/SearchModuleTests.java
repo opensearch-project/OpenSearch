@@ -419,6 +419,7 @@ public class SearchModuleTests extends OpenSearchTestCase {
     private static final String[] NON_DEPRECATED_QUERIES = new String[] {
         "bool",
         "boosting",
+        "combined_field",
         "constant_score",
         "dis_max",
         "exists",
