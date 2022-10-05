@@ -13,6 +13,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
+import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionRequest;
 import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionResponse;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
@@ -26,6 +27,7 @@ import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDeci
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransport;
 import org.opensearch.threadpool.TestThreadPool;
@@ -133,7 +135,8 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
                 countDownLatch.countDown();
             }
         };
-        decommissionService.startDecommissionAction(decommissionAttribute, listener);
+        TimeValue retryTimeout = TimeValue.timeValueMinutes(between(0, 10));
+        decommissionService.startDecommissionAction(new DecommissionRequest(decommissionAttribute, retryTimeout), listener);
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
     }
 
@@ -160,7 +163,8 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
                 countDownLatch.countDown();
             }
         };
-        decommissionService.startDecommissionAction(decommissionAttribute, listener);
+        TimeValue retryTimeout = TimeValue.timeValueMinutes(between(0, 10));
+        decommissionService.startDecommissionAction(new DecommissionRequest(decommissionAttribute, retryTimeout), listener);
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
     }
 
@@ -197,7 +201,9 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
                 countDownLatch.countDown();
             }
         };
-        decommissionService.startDecommissionAction(new DecommissionAttribute("zone", "zone_2"), listener);
+        TimeValue retryTimeout = TimeValue.timeValueMinutes(between(0, 10));
+        DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "zone_2");
+        decommissionService.startDecommissionAction(new DecommissionRequest(decommissionAttribute, retryTimeout), listener);
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
     }
 

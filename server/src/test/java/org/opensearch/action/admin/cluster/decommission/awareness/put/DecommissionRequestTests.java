@@ -10,6 +10,7 @@ package org.opensearch.action.admin.cluster.decommission.awareness.put;
 
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.cluster.decommission.DecommissionAttribute;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -19,8 +20,9 @@ public class DecommissionRequestTests extends OpenSearchTestCase {
     public void testSerialization() throws IOException {
         String attributeName = "zone";
         String attributeValue = "zone-1";
+        TimeValue retryTimeout = TimeValue.timeValueMinutes(between(0, 10));
         DecommissionAttribute decommissionAttribute = new DecommissionAttribute(attributeName, attributeValue);
-        final DecommissionRequest originalRequest = new DecommissionRequest(decommissionAttribute);
+        final DecommissionRequest originalRequest = new DecommissionRequest(decommissionAttribute, retryTimeout);
 
         final DecommissionRequest deserialized = copyWriteable(originalRequest, writableRegistry(), DecommissionRequest::new);
 
@@ -31,9 +33,10 @@ public class DecommissionRequestTests extends OpenSearchTestCase {
         {
             String attributeName = null;
             String attributeValue = "test";
+            TimeValue retryTimeout = TimeValue.timeValueMinutes(between(0, 10));
             DecommissionAttribute decommissionAttribute = new DecommissionAttribute(attributeName, attributeValue);
 
-            final DecommissionRequest request = new DecommissionRequest(decommissionAttribute);
+            final DecommissionRequest request = new DecommissionRequest(decommissionAttribute, retryTimeout);
             ActionRequestValidationException e = request.validate();
             assertNotNull(e);
             assertTrue(e.getMessage().contains("attribute name is missing"));
@@ -41,9 +44,10 @@ public class DecommissionRequestTests extends OpenSearchTestCase {
         {
             String attributeName = "zone";
             String attributeValue = "";
+            TimeValue retryTimeout = TimeValue.timeValueMinutes(between(0, 10));
             DecommissionAttribute decommissionAttribute = new DecommissionAttribute(attributeName, attributeValue);
 
-            final DecommissionRequest request = new DecommissionRequest(decommissionAttribute);
+            final DecommissionRequest request = new DecommissionRequest(decommissionAttribute, retryTimeout);
             ActionRequestValidationException e = request.validate();
             assertNotNull(e);
             assertTrue(e.getMessage().contains("attribute value is missing"));
@@ -51,9 +55,10 @@ public class DecommissionRequestTests extends OpenSearchTestCase {
         {
             String attributeName = "zone";
             String attributeValue = "test";
+            TimeValue retryTimeout = TimeValue.timeValueMinutes(between(0, 10));
             DecommissionAttribute decommissionAttribute = new DecommissionAttribute(attributeName, attributeValue);
 
-            final DecommissionRequest request = new DecommissionRequest(decommissionAttribute);
+            final DecommissionRequest request = new DecommissionRequest(decommissionAttribute, retryTimeout);
             ActionRequestValidationException e = request.validate();
             assertNull(e);
         }

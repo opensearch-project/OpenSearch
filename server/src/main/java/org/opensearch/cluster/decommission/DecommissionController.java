@@ -18,6 +18,9 @@ import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusio
 import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
 import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsRequest;
 import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsResponse;
+import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionAction;
+import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionRequest;
+import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.ClusterStateTaskConfig;
@@ -70,6 +73,66 @@ public class DecommissionController {
         this.transportService = transportService;
         this.nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService, logger);
         this.threadPool = threadPool;
+    }
+
+    /**
+     * This method sends a transport call to retry decommission action, given that -
+     * 1. The request is not timed out
+     * 2. And executed when there was a cluster manager change
+     *
+     * @param decommissionRequest decommission request object
+     * @param startTime start time of previous request
+     * @param listener callback for the retry action
+     */
+    public void retryDecommissionAction(
+        DecommissionRequest decommissionRequest,
+        long startTime,
+        ActionListener<DecommissionResponse> listener
+    ) {
+        final long remainingTimeoutMS = decommissionRequest.getRetryTimeout().millis() - (threadPool.relativeTimeInMillis() - startTime);
+        if (remainingTimeoutMS <= 0) {
+            logger.debug(
+                "timed out before retrying [{}] for attribute [{}] after cluster manager change",
+                DecommissionAction.NAME,
+                decommissionRequest.getDecommissionAttribute()
+            );
+            listener.onFailure(
+                new OpenSearchTimeoutException(
+                    "timed out before retrying [{}] for attribute [{}] after cluster manager change",
+                    DecommissionAction.NAME,
+                    decommissionRequest.getDecommissionAttribute()
+                )
+            );
+            return;
+        }
+        decommissionRequest.setRetryOnClusterManagerChange(true);
+        decommissionRequest.setRetryTimeout(TimeValue.timeValueMillis(remainingTimeoutMS));
+        transportService.sendRequest(
+            transportService.getLocalNode(),
+            DecommissionAction.NAME,
+            decommissionRequest,
+            new TransportResponseHandler<DecommissionResponse>() {
+                @Override
+                public void handleResponse(DecommissionResponse response) {
+                    listener.onResponse(response);
+                }
+
+                @Override
+                public void handleException(TransportException exp) {
+                    listener.onFailure(exp);
+                }
+
+                @Override
+                public String executor() {
+                    return ThreadPool.Names.SAME;
+                }
+
+                @Override
+                public DecommissionResponse read(StreamInput in) throws IOException {
+                    return new DecommissionResponse(in);
+                }
+            }
+        );
     }
 
     /**
