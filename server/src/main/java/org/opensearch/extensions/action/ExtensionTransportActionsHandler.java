@@ -36,20 +36,27 @@ import java.util.concurrent.TimeUnit;
  *
  * @opensearch.internal
  */
-public class ExtensionActions {
-    private static final Logger logger = LogManager.getLogger(ExtensionActions.class);
+public class ExtensionTransportActionsHandler {
+    private static final Logger logger = LogManager.getLogger(ExtensionTransportActionsHandler.class);
     private Map<String, DiscoveryExtension> actionsMap;
     private final Map<String, DiscoveryExtension> extensionIdMap;
     private final TransportService transportService;
     private final NodeClient client;
 
-    public ExtensionActions(Map<String, DiscoveryExtension> extensionIdMap, TransportService transportService, NodeClient client) {
+    public ExtensionTransportActionsHandler(Map<String, DiscoveryExtension> extensionIdMap, TransportService transportService, NodeClient client) {
         this.actionsMap = new HashMap<>();
         this.extensionIdMap = extensionIdMap;
         this.transportService = transportService;
         this.client = client;
     }
 
+    /**
+     * Method to register actions for extensions.
+     *
+     * @param action to be registered.
+     * @param extension for which action is being registered.
+     * @throws IllegalArgumentException when action being registered already is registered.
+     */
     void registerAction(String action, DiscoveryExtension extension) throws IllegalArgumentException {
         if (actionsMap.containsKey(action)) {
             throw new IllegalArgumentException("The " + action + " you are trying to register is already registered");
@@ -57,6 +64,12 @@ public class ExtensionActions {
         actionsMap.putIfAbsent(action, extension);
     }
 
+    /**
+     * Method to get extension for a given action.
+     *
+     * @param action for which to get the registered extension.
+     * @return the extension.
+     */
     public DiscoveryExtension getExtension(String action) {
         return actionsMap.get(action);
     }
@@ -84,6 +97,13 @@ public class ExtensionActions {
         return new ExtensionBooleanResponse(true);
     }
 
+    /**
+     * Method which handles transport action request from an extension.
+     *
+     * @param request from extension.
+     * @return {@link TransportResponse} which is sent back to the transport action invoker.
+     * @throws InterruptedException when message transport fails.
+     */
     public TransportResponse handleTransportActionRequestFromExtension(TransportActionRequestFromExtension request)
         throws InterruptedException {
         DiscoveryExtension extension = extensionIdMap.get(request.getUniqueId());
@@ -112,6 +132,13 @@ public class ExtensionActions {
         return response;
     }
 
+    /**
+     * Method to send transport action request to an extension to handle.
+     *
+     * @param request to extension to handle transport request.
+     * @return {@link ExtensionActionResponse} which encapsulates the transport response from the extension.
+     * @throws InterruptedException when message transport fails.
+     */
     public ExtensionActionResponse sendTransportRequestToExtension(ExtensionActionRequest request) throws InterruptedException {
         DiscoveryExtension extension = actionsMap.get(request.getAction());
         if (extension == null) {

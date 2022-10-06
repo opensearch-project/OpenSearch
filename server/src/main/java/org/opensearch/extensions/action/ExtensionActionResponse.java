@@ -20,14 +20,27 @@ import java.io.IOException;
  * @opensearch.internal
  */
 public class ExtensionActionResponse extends ActionResponse {
+    /**
+     * responseBytes is the raw bytes being transported between extensions.
+     */
     private byte[] responseBytes;
 
+    /**
+     * ExtensionActionResponse constructor.
+     *
+     * @param responseBytes is the raw bytes being transported between extensions.
+     */
     public ExtensionActionResponse(byte[] responseBytes) {
         this.responseBytes = responseBytes;
     }
 
+    /**
+     * ExtensionActionResponse constructor from {@link StreamInput}.
+     *
+     * @param in bytes stream input used to de-serialize the message.
+     * @throws IOException when message de-serialization fails.
+     */
     public ExtensionActionResponse(StreamInput in) throws IOException {
-        super(in);
         responseBytes = in.readByteArray();
     }
 

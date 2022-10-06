@@ -21,14 +21,32 @@ import java.util.Objects;
  * @opensearch.api
  */
 public class ExtensionHandleTransportRequest extends TransportRequest {
+    /**
+     * action is the transport action intended to be invoked which is registered by an extension via {@link ExtensionTransportActionsHandler}.
+     */
     private final String action;
+    /**
+     * requestBytes is the raw bytes being transported between extensions.
+     */
     private final byte[] requestBytes;
 
+    /**
+     * ExtensionHandleTransportRequest constructor.
+     *
+     * @param action is the transport action intended to be invoked which is registered by an extension via {@link ExtensionTransportActionsHandler}.
+     * @param requestBytes is the raw bytes being transported between extensions.
+     */
     public ExtensionHandleTransportRequest(String action, byte[] requestBytes) {
         this.action = action;
         this.requestBytes = requestBytes;
     }
 
+    /**
+     * ExtensionHandleTransportRequest constructor from {@link StreamInput}.
+     *
+     * @param in bytes stream input used to de-serialize the message.
+     * @throws IOException when message de-serialization fails.
+     */
     public ExtensionHandleTransportRequest(StreamInput in) throws IOException {
         super(in);
         this.action = in.readString();

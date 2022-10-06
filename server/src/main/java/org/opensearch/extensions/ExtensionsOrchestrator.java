@@ -42,7 +42,7 @@ import org.opensearch.discovery.InitializeExtensionsResponse;
 import org.opensearch.extensions.ExtensionsSettings.Extension;
 import org.opensearch.extensions.action.ExtensionActionRequest;
 import org.opensearch.extensions.action.ExtensionActionResponse;
-import org.opensearch.extensions.action.ExtensionActions;
+import org.opensearch.extensions.action.ExtensionTransportActionsHandler;
 import org.opensearch.extensions.action.TransportActionRequestFromExtension;
 import org.opensearch.extensions.rest.RegisterRestActionsRequest;
 import org.opensearch.extensions.rest.RestActionsRequestHandler;
@@ -120,7 +120,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     }
 
     private final Path extensionsPath;
-    ExtensionActions extensionActions;
+    ExtensionTransportActionsHandler extensionTransportActionsHandler;
     // A list of initialized extensions, a subset of the values of map below which includes all extensions
     List<DiscoveryExtension> extensionsInitializedList;
     // A map of extension uniqueId to full extension details used for node transport here and in the RestActionsRequestHandler
@@ -146,14 +146,15 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     public ExtensionsOrchestrator(Settings settings, Path extensionsPath) throws IOException {
         logger.info("ExtensionsOrchestrator initialized");
         this.extensionsPath = extensionsPath;
-        this.transportService = null;
+        this.listener = new ExtensionActionListener();
         this.extensionsInitializedList = new ArrayList<DiscoveryExtension>();
         this.extensionIdMap = new HashMap<String, DiscoveryExtension>();
+        // will be initialized in initializeServicesAndRestHandler which is called after the Node is initialized
+        this.transportService = null;
         this.clusterService = null;
         this.namedWriteableRegistry = null;
-        this.listener = new ExtensionActionListener();
         this.client = null;
-        this.extensionActions = null;
+        this.extensionTransportActionsHandler = null;
 
         /*
          * Now Discover extensions
@@ -193,12 +194,17 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             REQUEST_EXTENSION_UPDATE_SETTINGS
         );
         this.client = client;
-        this.extensionActions = new ExtensionActions(extensionIdMap, transportService, client);
+        this.extensionTransportActionsHandler = new ExtensionTransportActionsHandler(extensionIdMap, transportService, client);
         registerRequestHandler();
     }
 
+    /**
+     * Handles Transport Request from {@link org.opensearch.extensions.action.ExtensionTransportAction} which was invoked by an extension via {@link ExtensionTransportActionsHandler}.
+     *
+     * @param request which was sent by an extension.
+     */
     public ExtensionActionResponse handleTransportRequest(ExtensionActionRequest request) throws InterruptedException {
-        return extensionActions.sendTransportRequestToExtension(request);
+        return extensionTransportActionsHandler.sendTransportRequestToExtension(request);
     }
 
     private void registerRequestHandler() {
@@ -274,7 +280,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             false,
             false,
             RegisterTransportActionsRequest::new,
-            ((request, channel, task) -> channel.sendResponse(extensionActions.handleRegisterTransportActionsRequest(request)))
+            ((request, channel, task) -> channel.sendResponse(extensionTransportActionsHandler.handleRegisterTransportActionsRequest(request)))
         );
         transportService.registerRequestHandler(
             TRANSPORT_ACTION_REQUEST_FROM_EXTENSION,
@@ -282,7 +288,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             false,
             false,
             TransportActionRequestFromExtension::new,
-            ((request, channel, task) -> channel.sendResponse(extensionActions.handleTransportActionRequestFromExtension(request)))
+            ((request, channel, task) -> channel.sendResponse(extensionTransportActionsHandler.handleTransportActionRequestFromExtension(request)))
         );
     }
 

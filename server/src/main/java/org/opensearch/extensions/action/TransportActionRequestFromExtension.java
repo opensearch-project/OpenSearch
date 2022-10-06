@@ -21,16 +21,38 @@ import java.util.Objects;
  * @opensearch.api
  */
 public class TransportActionRequestFromExtension extends TransportRequest {
+    /**
+     * action is the transport action intended to be invoked which is registered by an extension via {@link ExtensionTransportActionsHandler}.
+     */
     private final String action;
+    /**
+     * requestBytes is the raw bytes being transported between extensions.
+     */
     private final byte[] requestBytes;
+    /**
+     * uniqueId to identify which extension is making a transport request call.
+     */
     private final String uniqueId;
 
+    /**
+     * TransportActionRequestFromExtension constructor.
+     *
+     * @param action is the transport action intended to be invoked which is registered by an extension via {@link ExtensionTransportActionsHandler}.
+     * @param requestBytes is the raw bytes being transported between extensions.
+     * @param uniqueId to identify which extension is making a transport request call.
+     */
     public TransportActionRequestFromExtension(String action, byte[] requestBytes, String uniqueId) {
         this.action = action;
         this.requestBytes = requestBytes;
         this.uniqueId = uniqueId;
     }
 
+    /**
+     * TransportActionRequestFromExtension constructor from {@link StreamInput}.
+     *
+     * @param in bytes stream input used to de-serialize the message.
+     * @throws IOException when message de-serialization fails.
+     */
     public TransportActionRequestFromExtension(StreamInput in) throws IOException {
         super(in);
         this.action = in.readString();

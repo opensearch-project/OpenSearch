@@ -44,11 +44,11 @@ import java.util.concurrent.TimeUnit;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 
-public class ExtensionActionsTests extends OpenSearchTestCase {
+public class ExtensionTransportActionsHandlerTests extends OpenSearchTestCase {
     private TransportService transportService;
     private MockNioTransport transport;
     private DiscoveryExtension discoveryExtension;
-    private ExtensionActions extensionActions;
+    private ExtensionTransportActionsHandler extensionTransportActionsHandler;
     private NodeClient client;
     private final ThreadPool threadPool = new TestThreadPool(RestSendToExtensionActionTests.class.getSimpleName());
 
@@ -101,7 +101,7 @@ public class ExtensionActionsTests extends OpenSearchTestCase {
             )
         );
         client = new NoOpNodeClient(this.getTestName());
-        extensionActions = new ExtensionActions(Map.of("uniqueid1", discoveryExtension), transportService, client);
+        extensionTransportActionsHandler = new ExtensionTransportActionsHandler(Map.of("uniqueid1", discoveryExtension), transportService, client);
     }
 
     @Override
@@ -115,26 +115,26 @@ public class ExtensionActionsTests extends OpenSearchTestCase {
 
     public void testRegisterAction() {
         String action = "test-action";
-        extensionActions.registerAction(action, discoveryExtension);
-        assertEquals(discoveryExtension, extensionActions.getExtension(action));
+        extensionTransportActionsHandler.registerAction(action, discoveryExtension);
+        assertEquals(discoveryExtension, extensionTransportActionsHandler.getExtension(action));
 
         // Test duplicate action registration
-        expectThrows(IllegalArgumentException.class, () -> extensionActions.registerAction(action, discoveryExtension));
-        assertEquals(discoveryExtension, extensionActions.getExtension(action));
+        expectThrows(IllegalArgumentException.class, () -> extensionTransportActionsHandler.registerAction(action, discoveryExtension));
+        assertEquals(discoveryExtension, extensionTransportActionsHandler.getExtension(action));
     }
 
     public void testRegisterTransportActionsRequest() {
         String action = "test-action";
         RegisterTransportActionsRequest request = new RegisterTransportActionsRequest(
             "uniqueid1",
-            Map.of(action, ExtensionActionsTests.class)
+            Map.of(action, ExtensionTransportActionsHandlerTests.class)
         );
-        ExtensionBooleanResponse response = (ExtensionBooleanResponse) extensionActions.handleRegisterTransportActionsRequest(request);
+        ExtensionBooleanResponse response = (ExtensionBooleanResponse) extensionTransportActionsHandler.handleRegisterTransportActionsRequest(request);
         assertTrue(response.getStatus());
-        assertEquals(discoveryExtension, extensionActions.getExtension(action));
+        assertEquals(discoveryExtension, extensionTransportActionsHandler.getExtension(action));
 
         // Test duplicate action registration
-        response = (ExtensionBooleanResponse) extensionActions.handleRegisterTransportActionsRequest(request);
+        response = (ExtensionBooleanResponse) extensionTransportActionsHandler.handleRegisterTransportActionsRequest(request);
         assertFalse(response.getStatus());
     }
 
@@ -143,7 +143,7 @@ public class ExtensionActionsTests extends OpenSearchTestCase {
         byte[] requestBytes = "requestBytes".getBytes(StandardCharsets.UTF_8);
         TransportActionRequestFromExtension request = new TransportActionRequestFromExtension(action, requestBytes, "uniqueid1");
         // NoOpNodeClient returns null as response
-        expectThrows(NullPointerException.class, () -> extensionActions.handleTransportActionRequestFromExtension(request));
+        expectThrows(NullPointerException.class, () -> extensionTransportActionsHandler.handleTransportActionRequestFromExtension(request));
     }
 
     public void testSendTransportRequestToExtension() throws InterruptedException {
@@ -152,19 +152,19 @@ public class ExtensionActionsTests extends OpenSearchTestCase {
         ExtensionActionRequest request = new ExtensionActionRequest(action, requestBytes);
 
         // Action not registered, expect exception
-        expectThrows(ActionNotFoundTransportException.class, () -> extensionActions.sendTransportRequestToExtension(request));
+        expectThrows(ActionNotFoundTransportException.class, () -> extensionTransportActionsHandler.sendTransportRequestToExtension(request));
 
         // Register Action
         RegisterTransportActionsRequest registerRequest = new RegisterTransportActionsRequest(
             "uniqueid1",
-            Map.of(action, ExtensionActionsTests.class)
+            Map.of(action, ExtensionTransportActionsHandlerTests.class)
         );
-        ExtensionBooleanResponse response = (ExtensionBooleanResponse) extensionActions.handleRegisterTransportActionsRequest(
+        ExtensionBooleanResponse response = (ExtensionBooleanResponse) extensionTransportActionsHandler.handleRegisterTransportActionsRequest(
             registerRequest
         );
         assertTrue(response.getStatus());
 
-        ExtensionActionResponse extensionResponse = extensionActions.sendTransportRequestToExtension(request);
+        ExtensionActionResponse extensionResponse = extensionTransportActionsHandler.sendTransportRequestToExtension(request);
         assertEquals(
             "Request failed: [firstExtension][127.0.0.0:9300] Node not connected",
             new String(extensionResponse.getResponseBytes(), StandardCharsets.UTF_8)
