@@ -157,12 +157,6 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         } else if (currentNodes.getClusterManagerNode() == null && joiningNodes.stream().anyMatch(Task::isBecomeClusterManagerTask)) {
             assert joiningNodes.stream().anyMatch(Task::isFinishElectionTask) : "becoming a cluster-manager but election is not finished "
                 + joiningNodes;
-            // keeping an explicit check for decommissioned CANDIDATE node before they become cluster manager
-            for (final Task joinTask : joiningNodes) {
-                if (joinTask.isBecomeClusterManagerTask()) {
-                    ensureNodeCommissioned(joinTask.node(), currentState.metadata());
-                }
-            }
             // use these joins to try and become the cluster-manager.
             // Note that we don't have to do any validation of the amount of joining nodes - the commit
             // during the cluster state publishing guarantees that we have enough
