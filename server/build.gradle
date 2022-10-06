@@ -92,8 +92,6 @@ dependencies {
   api project(':libs:opensearch-x-content')
   api project(":libs:opensearch-geo")
 
-  println "java.class.path"
-  println System.getProperty("java.class.path")
   if (project.hasProperty("org.gradle.project.opensearch.experimental.feature.native_authn.enabled")) {
     def nativeAuthnEnabled = project.property('org.gradle.project.opensearch.experimental.feature.native_authn.enabled')
     if (nativeAuthnEnabled == "true") {
