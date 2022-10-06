@@ -9,6 +9,7 @@
 package org.opensearch.cluster.routing;
 
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.delete.ClusterDeleteWeightedRoutingResponse;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.get.ClusterGetWeightedRoutingResponse;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingResponse;
 import org.opensearch.common.settings.Settings;
@@ -241,5 +242,68 @@ public class WeightedRoutingIT extends OpenSearchIntegTestCase {
             .get();
         assertEquals(weightedRouting, weightedRoutingResponse.weights());
         assertEquals("3.0", weightedRoutingResponse.getLocalNodeWeight());
+    }
+
+    public void testDeleteWeightedRouting_WeightsNotSet() {
+        Settings commonSettings = Settings.builder()
+            .put("cluster.routing.allocation.awareness.attributes", "zone")
+            .put("cluster.routing.allocation.awareness.force.zone.values", "a,b,c")
+            .build();
+
+        internalCluster().startNodes(
+            Settings.builder().put(commonSettings).put("node.attr.zone", "a").build(),
+            Settings.builder().put(commonSettings).put("node.attr.zone", "b").build(),
+            Settings.builder().put(commonSettings).put("node.attr.zone", "c").build()
+        );
+
+        logger.info("--> waiting for nodes to form a cluster");
+        ClusterHealthResponse health = client().admin().cluster().prepareHealth().setWaitForNodes("3").execute().actionGet();
+        assertThat(health.isTimedOut(), equalTo(false));
+
+        ensureGreen();
+
+        assertNull(internalCluster().clusterService().state().metadata().weightedRoutingMetadata());
+
+        // delete weighted routing metadata
+        ClusterDeleteWeightedRoutingResponse deleteResponse = client().admin().cluster().prepareDeleteWeightedRouting().get();
+        assertTrue(deleteResponse.isAcknowledged());
+        assertNull(internalCluster().clusterService().state().metadata().weightedRoutingMetadata());
+    }
+
+    public void testDeleteWeightedRouting_WeightsAreSet() {
+        Settings commonSettings = Settings.builder()
+            .put("cluster.routing.allocation.awareness.attributes", "zone")
+            .put("cluster.routing.allocation.awareness.force.zone.values", "a,b,c")
+            .build();
+
+        internalCluster().startNodes(
+            Settings.builder().put(commonSettings).put("node.attr.zone", "a").build(),
+            Settings.builder().put(commonSettings).put("node.attr.zone", "b").build(),
+            Settings.builder().put(commonSettings).put("node.attr.zone", "c").build()
+        );
+
+        logger.info("--> waiting for nodes to form a cluster");
+        ClusterHealthResponse health = client().admin().cluster().prepareHealth().setWaitForNodes("3").execute().actionGet();
+        assertThat(health.isTimedOut(), equalTo(false));
+
+        ensureGreen();
+
+        logger.info("--> setting shard routing weights for weighted round robin");
+        Map<String, Double> weights = Map.of("a", 1.0, "b", 2.0, "c", 3.0);
+        WeightedRouting weightedRouting = new WeightedRouting("zone", weights);
+
+        // put api call to set weights
+        ClusterPutWeightedRoutingResponse response = client().admin()
+            .cluster()
+            .prepareWeightedRouting()
+            .setWeightedRouting(weightedRouting)
+            .get();
+        assertEquals(response.isAcknowledged(), true);
+        assertNotNull(internalCluster().clusterService().state().metadata().weightedRoutingMetadata());
+
+        // delete weighted routing metadata
+        ClusterDeleteWeightedRoutingResponse deleteResponse = client().admin().cluster().prepareDeleteWeightedRouting().get();
+        assertTrue(deleteResponse.isAcknowledged());
+        assertNull(internalCluster().clusterService().state().metadata().weightedRoutingMetadata());
     }
 }

@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.ActionListener;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.delete.ClusterDeleteWeightedRoutingRequest;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingRequest;
 import org.opensearch.cluster.ClusterState;
@@ -104,6 +105,34 @@ public class WeightedRoutingService {
         WeightedRoutingMetadata oldWeightedRoutingMetadata
     ) {
         return newWeightedRoutingMetadata.getWeightedRouting().equals(oldWeightedRoutingMetadata.getWeightedRouting());
+    }
+
+    public void deleteWeightedRoutingMetadata(
+        final ClusterDeleteWeightedRoutingRequest request,
+        final ActionListener<ClusterStateUpdateResponse> listener
+    ) {
+        clusterService.submitStateUpdateTask("delete_weighted_routing", new ClusterStateUpdateTask(Priority.URGENT) {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                logger.info("Deleting weighted routing metadata from the cluster state");
+                Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
+                mdBuilder.removeCustom(WeightedRoutingMetadata.TYPE);
+                return ClusterState.builder(currentState).metadata(mdBuilder).build();
+            }
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                logger.warn(() -> new ParameterizedMessage("failed to remove weighted routing metadata from cluster state [{}]", e));
+                listener.onFailure(e);
+            }
+
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                logger.debug("cluster weighted routing metadata change is processed by all the nodes");
+                assert newState.metadata().weightedRoutingMetadata() == null;
+                listener.onResponse(new ClusterStateUpdateResponse(true));
+            }
+        });
     }
 
     List<String> getAwarenessAttributes() {

@@ -12,6 +12,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.delete.ClusterDeleteWeightedRoutingRequest;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterAddWeightedRoutingAction;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingRequestBuilder;
@@ -230,6 +231,32 @@ public class WeightedRoutingServiceTests extends OpenSearchTestCase {
             }
         };
         weightedRoutingService.registerWeightedRoutingMetadata(request.request(), listener);
+        assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
+    }
+
+    public void testDeleteWeightedRoutingMetadata() throws InterruptedException {
+        Map<String, Double> weights = Map.of("zone_A", 1.0, "zone_B", 1.0, "zone_C", 1.0);
+        ClusterState state = clusterService.state();
+        state = setWeightedRoutingWeights(state, weights);
+        ClusterState.Builder builder = ClusterState.builder(state);
+        ClusterServiceUtils.setState(clusterService, builder);
+
+        ClusterDeleteWeightedRoutingRequest clusterDeleteWeightedRoutingRequest = new ClusterDeleteWeightedRoutingRequest();
+        final CountDownLatch countDownLatch = new CountDownLatch(1);
+        ActionListener<ClusterStateUpdateResponse> listener = new ActionListener<ClusterStateUpdateResponse>() {
+            @Override
+            public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {
+                assertTrue(clusterStateUpdateResponse.isAcknowledged());
+                assertNull(clusterService.state().metadata().weightedRoutingMetadata());
+                countDownLatch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail("on failure shouldn't have been called");
+            }
+        };
+        weightedRoutingService.deleteWeightedRoutingMetadata(clusterDeleteWeightedRoutingRequest, listener);
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
     }
 
