@@ -807,6 +807,42 @@ public class PeerFinderTests extends OpenSearchTestCase {
         assertFoundPeers(rebootedOtherNode);
     }
 
+    public void testConnectionAttemptDuringDecommissioning() {
+        boolean localNodeCommissioned = randomBoolean();
+        peerFinder.onNodeCommissionStatusChange(localNodeCommissioned);
+
+        long findPeersInterval = peerFinder.getFindPeersInterval().millis();
+
+        final DiscoveryNode otherNode = newDiscoveryNode("node-1");
+        providedAddresses.add(otherNode.getAddress());
+        transportAddressConnector.addReachableNode(otherNode);
+
+        peerFinder.activate(lastAcceptedNodes);
+        runAllRunnableTasks();
+        assertFoundPeers(otherNode);
+
+        transportAddressConnector.reachableNodes.clear();
+        final DiscoveryNode newNode = new DiscoveryNode("new-node", otherNode.getAddress(), Version.CURRENT);
+        transportAddressConnector.addReachableNode(newNode);
+
+        connectedNodes.remove(otherNode);
+        disconnectedNodes.add(otherNode);
+
+        // peer discovery will be delayed now
+        if (localNodeCommissioned == false) {
+            deterministicTaskQueue.advanceTime();
+            runAllRunnableTasks();
+            assertPeersNotDiscovered(newNode);
+        }
+
+        final long expectedTime = CONNECTION_TIMEOUT_MILLIS + findPeersInterval;
+        while (deterministicTaskQueue.getCurrentTimeMillis() < expectedTime) {
+            deterministicTaskQueue.advanceTime();
+            runAllRunnableTasks();
+        }
+        assertFoundPeers(newNode);
+    }
+
     private void respondToRequests(Function<DiscoveryNode, PeersResponse> responseFactory) {
         final CapturedRequest[] capturedRequests = capturingTransport.getCapturedRequestsAndClear();
         for (final CapturedRequest capturedRequest : capturedRequests) {
@@ -826,6 +862,16 @@ public class PeerFinderTests extends OpenSearchTestCase {
         assertThat(actualNodesSet, equalTo(expectedNodes));
         assertTrue("no duplicates in " + actualNodesList, actualNodesSet.size() == actualNodesList.size());
         assertNotifiedOfAllUpdates();
+    }
+
+    private void assertPeersNotDiscovered(DiscoveryNode... undiscoveredNodesArray) {
+        final Set<DiscoveryNode> undiscoveredNodes = Arrays.stream(undiscoveredNodesArray).collect(Collectors.toSet());
+        final List<DiscoveryNode> actualNodesList = StreamSupport.stream(peerFinder.getFoundPeers().spliterator(), false)
+            .collect(Collectors.toList());
+        final HashSet<DiscoveryNode> actualNodesSet = new HashSet<>(actualNodesList);
+        Set<DiscoveryNode> intersection = new HashSet<>(actualNodesSet);
+        intersection.retainAll(undiscoveredNodes);
+        assertEquals(intersection.size(), 0);
     }
 
     private void assertNotifiedOfAllUpdates() {

@@ -1441,6 +1441,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             logger.warn("Ignoring new replication checkpoint - shard is in primaryMode and cannot receive any checkpoints.");
             return false;
         }
+        if (this.routingEntry().primary()) {
+            logger.warn("Ignoring new replication checkpoint - primary shard cannot receive any checkpoints.");
+            return false;
+        }
         ReplicationCheckpoint localCheckpoint = getLatestReplicationCheckpoint();
         if (localCheckpoint.isAheadOf(requestCheckpoint)) {
             logger.trace(

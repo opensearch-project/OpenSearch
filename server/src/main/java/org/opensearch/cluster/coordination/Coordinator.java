@@ -106,6 +106,7 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import static org.opensearch.cluster.coordination.NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_ID;
+import static org.opensearch.cluster.decommission.DecommissionService.nodeCommissioned;
 import static org.opensearch.gateway.ClusterStateUpdaters.hideStateIfNotRecovered;
 import static org.opensearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.opensearch.monitor.StatusInfo.Status.UNHEALTHY;
@@ -139,7 +140,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
     private final Settings settings;
     private final boolean singleNodeDiscovery;
-    private volatile boolean localNodeCommissioned;
     private final ElectionStrategy electionStrategy;
     private final TransportService transportService;
     private final ClusterManagerService clusterManagerService;
@@ -209,20 +209,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.onJoinValidators = JoinTaskExecutor.addBuiltInJoinValidators(onJoinValidators);
         this.singleNodeDiscovery = DiscoveryModule.isSingleNodeDiscovery(settings);
         this.electionStrategy = electionStrategy;
-        this.joinHelper = new JoinHelper(
-            settings,
-            allocationService,
-            clusterManagerService,
-            transportService,
-            this::getCurrentTerm,
-            this::getStateForClusterManagerService,
-            this::handleJoinRequest,
-            this::joinLeaderInTerm,
-            this.onJoinValidators,
-            rerouteService,
-            nodeHealthService,
-            this::nodeCommissioned
-        );
         this.persistedStateSupplier = persistedStateSupplier;
         this.noClusterManagerBlockService = new NoClusterManagerBlockService(settings, clusterSettings);
         this.lastKnownLeader = Optional.empty();
@@ -245,6 +231,20 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             transportService,
             new HandshakingTransportAddressConnector(settings, transportService),
             configuredHostsResolver
+        );
+        this.joinHelper = new JoinHelper(
+            settings,
+            allocationService,
+            clusterManagerService,
+            transportService,
+            this::getCurrentTerm,
+            this::getStateForClusterManagerService,
+            this::handleJoinRequest,
+            this::joinLeaderInTerm,
+            this.onJoinValidators,
+            rerouteService,
+            nodeHealthService,
+            peerFinder::onNodeCommissionStatusChange
         );
         this.publicationHandler = new PublicationTransportHandler(
             transportService,
@@ -284,7 +284,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             joinHelper::logLastFailedJoinAttempt
         );
         this.nodeHealthService = nodeHealthService;
-        this.localNodeCommissioned = true;
     }
 
     private ClusterFormationState getClusterFormationState() {
@@ -600,6 +599,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                         joinRequest.getSourceNode().getVersion(),
                         stateForJoinValidation.getNodes().getMinNodeVersion()
                     );
+                    // we are checking source node commission status here to reject any join request coming from a decommissioned node
+                    // even before executing the join task to fail fast
+                    JoinTaskExecutor.ensureNodeCommissioned(joinRequest.getSourceNode(), stateForJoinValidation.metadata());
                 }
                 sendValidateJoinRequest(stateForJoinValidation, joinRequest, joinCallback);
             } else {
@@ -1428,11 +1430,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         }
     }
 
-    private synchronized void nodeCommissioned(boolean localNodeCommissioned) {
-        this.localNodeCommissioned = localNodeCommissioned;
-        peerFinder.setFindPeersInterval(localNodeCommissioned);
-    }
-
     private void startElectionScheduler() {
         assert electionScheduler == null : electionScheduler;
 
@@ -1459,7 +1456,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                             return;
                         }
 
-                        if (localNodeCommissioned == false) {
+                        if (nodeCommissioned(lastAcceptedState.nodes().getLocalNode(), lastAcceptedState.metadata()) == false) {
                             logger.debug("skip prevoting as local node is decommissioned");
                             return;
                         }

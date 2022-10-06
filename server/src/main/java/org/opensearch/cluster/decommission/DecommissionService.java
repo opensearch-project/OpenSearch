@@ -14,6 +14,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionResponse;
+import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.ClusterStateUpdateTask;
@@ -388,10 +389,6 @@ public class DecommissionService {
         return nodesWithDecommissionAttribute;
     }
 
-    private static boolean nodeHasDecommissionedAttribute(DiscoveryNode discoveryNode, DecommissionAttribute decommissionAttribute) {
-        return discoveryNode.getAttributes().get(decommissionAttribute.attributeName()).equals(decommissionAttribute.attributeValue());
-    }
-
     private static void validateAwarenessAttribute(
         final DecommissionAttribute decommissionAttribute,
         List<String> awarenessAttributes,
@@ -480,5 +477,87 @@ public class DecommissionService {
                 logger.error("unexpected failure occurred during decommission status update", e);
             }
         };
+    }
+
+    public void startRecommissionAction(final ActionListener<AcknowledgedResponse> listener) {
+        /*
+         * For abandoned requests, we might not really know if it actually restored the exclusion list.
+         * And can land up in cases where even after recommission, exclusions are set(which is unexpected).
+         * And by definition of OpenSearch - Clusters should have no voting configuration exclusions in normal operation.
+         * Once the excluded nodes have stopped, clear the voting configuration exclusions with DELETE /_cluster/voting_config_exclusions.
+         * And hence it is safe to remove the exclusion if any. User should make conscious choice before decommissioning awareness attribute.
+         */
+        decommissionController.clearVotingConfigExclusion(new ActionListener<Void>() {
+            @Override
+            public void onResponse(Void unused) {
+                logger.info("successfully cleared voting config exclusion for deleting the decommission.");
+                deleteDecommissionState(listener);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.error("Failure in clearing voting config during delete_decommission request.", e);
+                listener.onFailure(e);
+            }
+        }, false);
+    }
+
+    void deleteDecommissionState(ActionListener<AcknowledgedResponse> listener) {
+        clusterService.submitStateUpdateTask("delete_decommission_state", new ClusterStateUpdateTask(Priority.URGENT) {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                logger.info("Deleting the decommission attribute from the cluster state");
+                Metadata metadata = currentState.metadata();
+                Metadata.Builder mdBuilder = Metadata.builder(metadata);
+                mdBuilder.removeCustom(DecommissionAttributeMetadata.TYPE);
+                return ClusterState.builder(currentState).metadata(mdBuilder).build();
+            }
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                logger.error(() -> new ParameterizedMessage("Failed to clear decommission attribute. [{}]", source), e);
+                listener.onFailure(e);
+            }
+
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                // Cluster state processed for deleting the decommission attribute.
+                assert newState.metadata().decommissionAttributeMetadata() == null;
+                listener.onResponse(new AcknowledgedResponse(true));
+            }
+        });
+    }
+
+    /**
+     * Utility method to check if the node has decommissioned attribute
+     *
+     * @param discoveryNode node to check on
+     * @param decommissionAttribute attribute to be checked with
+     * @return true or false based on whether node has decommissioned attribute
+     */
+    public static boolean nodeHasDecommissionedAttribute(DiscoveryNode discoveryNode, DecommissionAttribute decommissionAttribute) {
+        return discoveryNode.getAttributes().get(decommissionAttribute.attributeName()).equals(decommissionAttribute.attributeValue());
+    }
+
+    /**
+     * Utility method to check if the node is commissioned or not
+     *
+     * @param discoveryNode node to check on
+     * @param metadata metadata present current which will be used to check the commissioning status of the node
+     * @return if the node is commissioned or not
+     */
+    public static boolean nodeCommissioned(DiscoveryNode discoveryNode, Metadata metadata) {
+        DecommissionAttributeMetadata decommissionAttributeMetadata = metadata.decommissionAttributeMetadata();
+        if (decommissionAttributeMetadata != null) {
+            DecommissionAttribute decommissionAttribute = decommissionAttributeMetadata.decommissionAttribute();
+            DecommissionStatus status = decommissionAttributeMetadata.status();
+            if (decommissionAttribute != null && status != null) {
+                if (nodeHasDecommissionedAttribute(discoveryNode, decommissionAttribute)
+                    && (status.equals(DecommissionStatus.IN_PROGRESS) || status.equals(DecommissionStatus.SUCCESSFUL))) {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 }

@@ -360,7 +360,10 @@ public class JoinHelper {
                         attempt.logNow();
                         lastFailedJoinAttempt.set(attempt);
                         if (exp instanceof RemoteTransportException && (exp.getCause() instanceof NodeDecommissionedException)) {
-                            logger.info("local node is decommissioned [{}]. Will not be able to join the cluster", exp.getCause().getMessage());
+                            logger.info(
+                                "local node is decommissioned [{}]. Will not be able to join the cluster",
+                                exp.getCause().getMessage()
+                            );
                             nodeCommissioned.accept(false);
                         }
                         onCompletion.run();
