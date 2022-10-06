@@ -6,7 +6,7 @@
 package org.opensearch.identity.noop;
 
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.identity.Subject;
+import org.opensearch.authn.Subject;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;

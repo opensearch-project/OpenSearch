@@ -5,6 +5,8 @@
 
 package org.opensearch.identity;
 
+import org.opensearch.authn.Subject;
+
 /**
  * Authentication management for OpenSearch.
  *

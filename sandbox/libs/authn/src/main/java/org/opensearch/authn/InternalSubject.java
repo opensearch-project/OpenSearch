@@ -10,10 +10,11 @@ package org.opensearch.authn;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import java.security.Principal;
 import java.util.Collections;
 import java.util.Map;
 
-public class InternalSubject {
+public class InternalSubject implements Subject {
 
     @JsonProperty(value = "primary_principal")
     private String primaryPrincipal;
@@ -53,5 +54,15 @@ public class InternalSubject {
     @Override
     public String toString() {
         return "InternalSubject [primaryPrincipal=" + primaryPrincipal + ", bcryptHash=" + bcryptHash + ", attributes=" + attributes + "]";
+    }
+
+    @Override
+    public Principal getPrincipal() {
+        return new StringPrincipal(primaryPrincipal);
+    }
+
+    @Override
+    public void login(AuthenticationToken token) {
+        // TODO implement this
     }
 }

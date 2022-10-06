@@ -7,7 +7,7 @@ package org.opensearch.identity.noop;
 
 import org.opensearch.identity.AccessTokenManager;
 import org.opensearch.identity.AuthenticationManager;
-import org.opensearch.identity.Subject;
+import org.opensearch.authn.Subject;
 
 /**
  * Implementation of authentication manager that does not enforce authentication

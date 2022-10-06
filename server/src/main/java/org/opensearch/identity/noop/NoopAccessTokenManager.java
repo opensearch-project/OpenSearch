@@ -4,7 +4,7 @@
  */
 package org.opensearch.identity.noop;
 
-import org.opensearch.identity.AccessToken;
+import org.opensearch.authn.AccessToken;
 import org.opensearch.identity.AccessTokenManager;
 
 /**
