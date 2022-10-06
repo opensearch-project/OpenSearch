@@ -188,7 +188,7 @@ public class MetadataRolloverService {
         ClusterState newState = createIndexService.applyCreateIndexRequest(currentState, createIndexClusterStateRequest, silent);
         newState = indexAliasesService.applyAliasActions(
             newState,
-            rolloverAliasToNewIndex(sourceIndexName, rolloverIndexName, explicitWriteIndex, aliasMetadata.isHidden(), aliasName)
+            rolloverAliasToNewIndex(sourceIndexName, rolloverIndexName, explicitWriteIndex, aliasMetadata, aliasName)
         );
 
         RolloverInfo rolloverInfo = new RolloverInfo(aliasName, metConditions, threadPool.absoluteTimeInMillis());
@@ -309,20 +309,46 @@ public class MetadataRolloverService {
         String oldIndex,
         String newIndex,
         boolean explicitWriteIndex,
-        @Nullable Boolean isHidden,
+        AliasMetadata aliasMetadata,
         String alias
     ) {
+        String filterAsString = aliasMetadata.getFilter() != null ? aliasMetadata.getFilter().string() : null;
+
         if (explicitWriteIndex) {
             return Collections.unmodifiableList(
                 Arrays.asList(
-                    new AliasAction.Add(newIndex, alias, null, null, null, true, isHidden),
-                    new AliasAction.Add(oldIndex, alias, null, null, null, false, isHidden)
+                    new AliasAction.Add(
+                        newIndex,
+                        alias,
+                        filterAsString,
+                        aliasMetadata.getIndexRouting(),
+                        aliasMetadata.getSearchRouting(),
+                        true,
+                        aliasMetadata.isHidden()
+                    ),
+                    new AliasAction.Add(
+                        oldIndex,
+                        alias,
+                        filterAsString,
+                        aliasMetadata.getIndexRouting(),
+                        aliasMetadata.getSearchRouting(),
+                        false,
+                        aliasMetadata.isHidden()
+                    )
                 )
             );
         } else {
             return Collections.unmodifiableList(
                 Arrays.asList(
-                    new AliasAction.Add(newIndex, alias, null, null, null, null, isHidden),
+                    new AliasAction.Add(
+                        newIndex,
+                        alias,
+                        filterAsString,
+                        aliasMetadata.getIndexRouting(),
+                        aliasMetadata.getSearchRouting(),
+                        null,
+                        aliasMetadata.isHidden()
+                    ),
                     new AliasAction.Remove(oldIndex, alias, null)
                 )
             );
