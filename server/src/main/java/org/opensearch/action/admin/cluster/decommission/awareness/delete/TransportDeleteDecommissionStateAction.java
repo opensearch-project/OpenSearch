@@ -16,6 +16,7 @@ import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeA
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
+import org.opensearch.cluster.decommission.DecommissionService;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
@@ -35,6 +36,7 @@ public class TransportDeleteDecommissionStateAction extends TransportClusterMana
     DeleteDecommissionStateResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportDeleteDecommissionStateAction.class);
+    private final DecommissionService decommissionService;
 
     @Inject
     public TransportDeleteDecommissionStateAction(
@@ -42,7 +44,8 @@ public class TransportDeleteDecommissionStateAction extends TransportClusterMana
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        DecommissionService decommissionService
     ) {
         super(
             DeleteDecommissionStateAction.NAME,
@@ -53,6 +56,7 @@ public class TransportDeleteDecommissionStateAction extends TransportClusterMana
             DeleteDecommissionStateRequest::new,
             indexNameExpressionResolver
         );
+        this.decommissionService = decommissionService;
     }
 
     @Override
@@ -76,8 +80,7 @@ public class TransportDeleteDecommissionStateAction extends TransportClusterMana
         ClusterState state,
         ActionListener<DeleteDecommissionStateResponse> listener
     ) {
-        // TODO: Enable when service class change is merged
-        logger.info("Received delete decommission Request");
-        // TODO: Add call to decommission service method.
+        logger.info("Received delete decommission Request [{}]", request);
+        this.decommissionService.startRecommissionAction(listener);
     }
 }
