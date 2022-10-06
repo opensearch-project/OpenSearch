@@ -12,17 +12,26 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.ActionListener;
+import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingRequest;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
+import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.inject.Inject;
 
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.threadpool.ThreadPool;
+
+import java.util.List;
+import java.util.Locale;
+
+import static org.opensearch.action.ValidateActions.addValidationError;
 
 /**
  * * Service responsible for updating cluster state metadata with weighted routing weights
@@ -31,11 +40,22 @@ public class WeightedRoutingService {
     private static final Logger logger = LogManager.getLogger(WeightedRoutingService.class);
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
+    private volatile List<String> awarenessAttributes;
 
     @Inject
-    public WeightedRoutingService(ClusterService clusterService, ThreadPool threadPool) {
+    public WeightedRoutingService(
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        Settings settings,
+        ClusterSettings clusterSettings
+    ) {
         this.clusterService = clusterService;
         this.threadPool = threadPool;
+        this.awarenessAttributes = AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(
+            AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING,
+            this::setAwarenessAttributes
+        );
     }
 
     public void registerWeightedRoutingMetadata(
@@ -84,5 +104,24 @@ public class WeightedRoutingService {
         WeightedRoutingMetadata oldWeightedRoutingMetadata
     ) {
         return newWeightedRoutingMetadata.getWeightedRouting().equals(oldWeightedRoutingMetadata.getWeightedRouting());
+    }
+
+    List<String> getAwarenessAttributes() {
+        return awarenessAttributes;
+    }
+
+    private void setAwarenessAttributes(List<String> awarenessAttributes) {
+        this.awarenessAttributes = awarenessAttributes;
+    }
+
+    public void verifyAwarenessAttribute(String attributeName) {
+        if (getAwarenessAttributes().contains(attributeName) == false) {
+            ActionRequestValidationException validationException = null;
+            validationException = addValidationError(
+                String.format(Locale.ROOT, "invalid awareness attribute %s requested for updating weighted routing", attributeName),
+                validationException
+            );
+            throw validationException;
+        }
     }
 }
