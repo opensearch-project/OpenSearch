@@ -128,7 +128,7 @@ public class Jdk implements Buildable, Iterable<File> {
                 "unknown architecture [" + jdkArchitecture + "] for jdk [" + name + "], must be one of " + ALLOWED_ARCHITECTURES
             );
         }
-        this.architecture.set(architecture);
+        this.architecture.set(jdkArchitecture);
     }
 
     public String getBaseVersion() {
