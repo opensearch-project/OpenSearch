@@ -1003,12 +1003,8 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             closeIndex(index);
         }
 
-        if (getOldClusterVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
-            ensureGreenLongWait(index);
-            assertClosedIndex(index, true);
-        } else {
-            assertClosedIndex(index, false);
-        }
+        ensureGreenLongWait(index);
+        assertClosedIndex(index, true);
 
         if (isRunningAgainstOldCluster() == false) {
             openIndex(index);

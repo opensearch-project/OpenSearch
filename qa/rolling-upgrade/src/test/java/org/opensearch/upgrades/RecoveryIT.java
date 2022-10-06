@@ -457,15 +457,10 @@ public class RecoveryIT extends AbstractRollingTestCase {
             closeIndex(indexName);
         }
 
-        final Version indexVersionCreated = indexVersionCreated(indexName);
-        if (indexVersionCreated.onOrAfter(LegacyESVersion.V_7_2_0)) {
-            // index was created on a version that supports the replication of closed indices,
-            // so we expect the index to be closed and replicated
-            ensureGreen(indexName);
-            assertClosedIndex(indexName, true);
-        } else {
-            assertClosedIndex(indexName, false);
-        }
+        // index was created on a version that supports the replication of closed indices,
+        // so we expect the index to be closed and replicated
+        ensureGreen(indexName);
+        assertClosedIndex(indexName, true);
     }
 
     /**
@@ -491,14 +486,10 @@ public class RecoveryIT extends AbstractRollingTestCase {
             closeIndex(indexName);
         }
 
-        if (minimumNodeVersion.onOrAfter(LegacyESVersion.V_7_2_0)) {
-            // index is created on a version that supports the replication of closed indices,
-            // so we expect the index to be closed and replicated
-            ensureGreen(indexName);
-            assertClosedIndex(indexName, true);
-        } else {
-            assertClosedIndex(indexName, false);
-        }
+        // index is created on a version that supports the replication of closed indices,
+        // so we expect the index to be closed and replicated
+        ensureGreen(indexName);
+        assertClosedIndex(indexName, true);
     }
 
     /**
@@ -525,27 +516,20 @@ public class RecoveryIT extends AbstractRollingTestCase {
             closeIndex(indexName);
         }
 
-        final Version indexVersionCreated = indexVersionCreated(indexName);
-        if (indexVersionCreated.onOrAfter(LegacyESVersion.V_7_2_0)) {
-            // index was created on a version that supports the replication of closed indices,
-            // so we expect the index to be closed and replicated
-            ensureGreen(indexName);
-            assertClosedIndex(indexName, true);
-            if (minimumNodeVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
-                switch (CLUSTER_TYPE) {
-                    case OLD: break;
-                    case MIXED:
-                        assertNoopRecoveries(indexName, s -> s.startsWith(CLUSTER_NAME + "-0"));
-                        break;
-                    case UPGRADED:
-                        assertNoopRecoveries(indexName, s -> s.startsWith(CLUSTER_NAME));
-                        break;
-                }
-            }
-        } else {
-            assertClosedIndex(indexName, false);
-        }
+        // index was created on a version that supports the replication of closed indices,
+        // so we expect the index to be closed and replicated
+        ensureGreen(indexName);
+        assertClosedIndex(indexName, true);
 
+        switch (CLUSTER_TYPE) {
+            case OLD: break;
+            case MIXED:
+                assertNoopRecoveries(indexName, s -> s.startsWith(CLUSTER_NAME + "-0"));
+                break;
+            case UPGRADED:
+                assertNoopRecoveries(indexName, s -> s.startsWith(CLUSTER_NAME));
+                break;
+        }
     }
     /**
      * Returns the version in which the given index has been created

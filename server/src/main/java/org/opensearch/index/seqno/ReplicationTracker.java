@@ -1495,7 +1495,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         assert primaryMode == false;
         if (primaryContext.checkpoints.containsKey(shardAllocationId) == false) {
             // can happen if the old primary was on an old version
-            assert indexSettings.getIndexVersionCreated().before(LegacyESVersion.V_7_3_0);
+            assert indexSettings.getIndexVersionCreated().before(LegacyESVersion.fromId(7000099));
             throw new IllegalStateException("primary context [" + primaryContext + "] does not contain " + shardAllocationId);
         }
         final Runnable runAfter = getClusterManagerUpdateOperationFromCurrentState();
