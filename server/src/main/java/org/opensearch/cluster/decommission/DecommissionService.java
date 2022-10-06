@@ -13,11 +13,12 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.action.ActionListener;
+import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionResponse;
+import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.NotClusterManagerException;
-import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.allocation.AllocationService;
@@ -117,7 +118,7 @@ public class DecommissionService {
      */
     public void startDecommissionAction(
         final DecommissionAttribute decommissionAttribute,
-        final ActionListener<ClusterStateUpdateResponse> listener
+        final ActionListener<DecommissionResponse> listener
     ) {
         // register the metadata with status as INIT as first step
         clusterService.submitStateUpdateTask("decommission [" + decommissionAttribute + "]", new ClusterStateUpdateTask(Priority.URGENT) {
@@ -163,7 +164,7 @@ public class DecommissionService {
 
     private synchronized void decommissionClusterManagerNodes(
         final DecommissionAttribute decommissionAttribute,
-        ActionListener<ClusterStateUpdateResponse> listener
+        ActionListener<DecommissionResponse> listener
     ) {
         ClusterState state = clusterService.getClusterApplierService().state();
         // since here metadata is already registered with INIT, we can guarantee that no new node with decommission attribute can further
@@ -183,7 +184,8 @@ public class DecommissionService {
         final Predicate<ClusterState> allNodesRemovedAndAbdicated = clusterState -> {
             final Set<String> votingConfigNodeIds = clusterState.getLastCommittedConfiguration().getNodeIds();
             return nodeIdsToBeExcluded.stream().noneMatch(votingConfigNodeIds::contains)
-                && nodeIdsToBeExcluded.contains(clusterState.nodes().getClusterManagerNodeId()) == false;
+                && nodeIdsToBeExcluded.contains(clusterState.nodes().getClusterManagerNodeId()) == false
+                && clusterState.nodes().getClusterManagerNodeId() != null;
         };
 
         ActionListener<Void> exclusionListener = new ActionListener<Void>() {
@@ -205,7 +207,7 @@ public class DecommissionService {
                         // we are good here to send the response now as the request is processed by an eligible active leader
                         // and to-be-decommissioned cluster manager is no more part of Voting Configuration and no more to-be-decommission
                         // nodes can be part of Voting Config
-                        listener.onResponse(new ClusterStateUpdateResponse(true));
+                        listener.onResponse(new DecommissionResponse(true));
                         failDecommissionedNodes(clusterService.getClusterApplierService().state());
                     }
                 } else {
@@ -479,5 +481,54 @@ public class DecommissionService {
                 logger.error("unexpected failure occurred during decommission status update", e);
             }
         };
+    }
+
+    public void startRecommissionAction(final ActionListener<AcknowledgedResponse> listener) {
+        /*
+         * For abandoned requests, we might not really know if it actually restored the exclusion list.
+         * And can land up in cases where even after recommission, exclusions are set(which is unexpected).
+         * And by definition of OpenSearch - Clusters should have no voting configuration exclusions in normal operation.
+         * Once the excluded nodes have stopped, clear the voting configuration exclusions with DELETE /_cluster/voting_config_exclusions.
+         * And hence it is safe to remove the exclusion if any. User should make conscious choice before decommissioning awareness attribute.
+         */
+        decommissionController.clearVotingConfigExclusion(new ActionListener<Void>() {
+            @Override
+            public void onResponse(Void unused) {
+                logger.info("successfully cleared voting config exclusion for deleting the decommission.");
+                deleteDecommissionState(listener);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.error("Failure in clearing voting config during delete_decommission request.", e);
+                listener.onFailure(e);
+            }
+        }, false);
+    }
+
+    void deleteDecommissionState(ActionListener<AcknowledgedResponse> listener) {
+        clusterService.submitStateUpdateTask("delete_decommission_state", new ClusterStateUpdateTask(Priority.URGENT) {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                logger.info("Deleting the decommission attribute from the cluster state");
+                Metadata metadata = currentState.metadata();
+                Metadata.Builder mdBuilder = Metadata.builder(metadata);
+                mdBuilder.removeCustom(DecommissionAttributeMetadata.TYPE);
+                return ClusterState.builder(currentState).metadata(mdBuilder).build();
+            }
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                logger.error(() -> new ParameterizedMessage("Failed to clear decommission attribute. [{}]", source), e);
+                listener.onFailure(e);
+            }
+
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                // Cluster state processed for deleting the decommission attribute.
+                assert newState.metadata().decommissionAttributeMetadata() == null;
+                listener.onResponse(new AcknowledgedResponse(true));
+            }
+        });
     }
 }
