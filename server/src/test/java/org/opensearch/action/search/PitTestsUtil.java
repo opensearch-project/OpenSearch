@@ -30,6 +30,7 @@ import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.ShardSearchContextId;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -134,6 +135,22 @@ public class PitTestsUtil {
         Assert.assertEquals(0, getPitResponse.getPitInfos().size());
     }
 
+    public static void assertSegments(boolean isEmpty, String index, long expectedShardSize, Client client, String pitId) {
+        PitSegmentsRequest pitSegmentsRequest;
+        pitSegmentsRequest = new PitSegmentsRequest();
+        List<String> pitIds = new ArrayList<>();
+        pitIds.add(pitId);
+        pitSegmentsRequest.clearAndSetPitIds(pitIds);
+        IndicesSegmentResponse indicesSegmentResponse = client.execute(PitSegmentsAction.INSTANCE, pitSegmentsRequest).actionGet();
+        assertTrue(indicesSegmentResponse.getShardFailures() == null || indicesSegmentResponse.getShardFailures().length == 0);
+        assertEquals(indicesSegmentResponse.getIndices().isEmpty(), isEmpty);
+        if (!isEmpty) {
+            assertTrue(indicesSegmentResponse.getIndices().get(index) != null);
+            assertTrue(indicesSegmentResponse.getIndices().get(index).getIndex().equalsIgnoreCase(index));
+            assertEquals(expectedShardSize, indicesSegmentResponse.getIndices().get(index).getShards().size());
+        }
+    }
+
     public static void assertSegments(boolean isEmpty, String index, long expectedShardSize, Client client) {
         PitSegmentsRequest pitSegmentsRequest = new PitSegmentsRequest("_all");
         IndicesSegmentResponse indicesSegmentResponse = client.execute(PitSegmentsAction.INSTANCE, pitSegmentsRequest).actionGet();
@@ -148,5 +165,9 @@ public class PitTestsUtil {
 
     public static void assertSegments(boolean isEmpty, Client client) {
         assertSegments(isEmpty, "index", 2, client);
+    }
+
+    public static void assertSegments(boolean isEmpty, Client client, String pitId) {
+        assertSegments(isEmpty, "index", 2, client, pitId);
     }
 }
