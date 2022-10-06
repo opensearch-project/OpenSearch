@@ -502,7 +502,6 @@ public class DecommissionService {
             DecommissionAttribute decommissionAttribute = decommissionAttributeMetadata.decommissionAttribute();
             DecommissionStatus status = decommissionAttributeMetadata.status();
             if (decommissionAttribute != null && status != null) {
-                // We will let the node join the cluster if the current status is in FAILED state
                 if (nodeHasDecommissionedAttribute(discoveryNode, decommissionAttribute)
                     && (status.equals(DecommissionStatus.IN_PROGRESS) || status.equals(DecommissionStatus.SUCCESSFUL))) {
                     return false;
