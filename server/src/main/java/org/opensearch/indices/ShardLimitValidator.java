@@ -64,12 +64,23 @@ public class ShardLimitValidator {
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
+
+    public static final Setting<Boolean> SETTING_CLUSTER_IGNORE_HIDDEN_INDEXES = Setting.boolSetting(
+        "cluster.ignore_hidden_indexes",
+        true,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     protected final AtomicInteger shardLimitPerNode = new AtomicInteger();
     private final SystemIndices systemIndices;
+    private volatile boolean ignoreHiddenIndexes;
 
     public ShardLimitValidator(final Settings settings, ClusterService clusterService, SystemIndices systemIndices) {
         this.shardLimitPerNode.set(SETTING_CLUSTER_MAX_SHARDS_PER_NODE.get(settings));
+        this.ignoreHiddenIndexes = SETTING_CLUSTER_IGNORE_HIDDEN_INDEXES.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(SETTING_CLUSTER_MAX_SHARDS_PER_NODE, this::setShardLimitPerNode);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(SETTING_CLUSTER_IGNORE_HIDDEN_INDEXES, this::setIgnoreHiddenIndexes);
         this.systemIndices = systemIndices;
     }
 
@@ -85,8 +96,15 @@ public class ShardLimitValidator {
         return shardLimitPerNode.get();
     }
 
+    private void setIgnoreHiddenIndexes(boolean newValue) {
+        this.ignoreHiddenIndexes = newValue;
+    }
+
     /**
      * Checks whether an index can be created without going over the cluster shard limit.
+     * Validate shard limit only for non system indices as it is not hard limit anyways.
+     * Further also validates if the cluster.ignore_hidden_indexes is set to true.
+     * If so then it does not validate any index which starts with '.'
      *
      * @param indexName      the name of the index being created
      * @param settings       the settings of the index to be created
@@ -94,8 +112,12 @@ public class ShardLimitValidator {
      * @throws ValidationException if creating this index would put the cluster over the cluster shard limit
      */
     public void validateShardLimit(final String indexName, final Settings settings, final ClusterState state) {
-        // Validate shard limit only for non system indices as it is not hard limit anyways
-        if (systemIndices.validateSystemIndex(indexName)) {
+        /*
+        Validate shard limit only for non system indices as it is not hard limit anyways.
+        Further also validates if the cluster.ignore_hidden_indexes is set to true.
+        If so then it does not validate any index which starts with '.'.
+        */
+        if (systemIndices.validateSystemIndex(indexName) || validateHiddenIndex(indexName)) {
             return;
         }
 
@@ -113,7 +135,9 @@ public class ShardLimitValidator {
 
     /**
      * Validates whether a list of indices can be opened without going over the cluster shard limit.  Only counts indices which are
-     * currently closed and will be opened, ignores indices which are already open.
+     * currently closed and will be opened, ignores indices which are already open. Adding to this it validates the
+     * shard limit only for non system indices and if the cluster.ignore_hidden_indexes property is set to true
+     * then the indexes starting with '.' are also ignored.
      *
      * @param currentState The current cluster state.
      * @param indicesToOpen The indices which are to be opened.
@@ -121,8 +145,13 @@ public class ShardLimitValidator {
      */
     public void validateShardLimit(ClusterState currentState, Index[] indicesToOpen) {
         int shardsToOpen = Arrays.stream(indicesToOpen)
-            // Validate shard limit only for non system indices as it is not hard limit anyways
+            /*
+            Validate shard limit only for non system indices as it is not hard limit anyways.
+            Further also validates if the cluster.ignore_hidden_indexes is set to true.
+            If so then it does not validate any index which starts with '.'.
+            */
             .filter(index -> !systemIndices.validateSystemIndex(index.getName()))
+            .filter(index -> !(validateHiddenIndex(index.getName())))
             .filter(index -> currentState.metadata().index(index).getState().equals(IndexMetadata.State.CLOSE))
             .mapToInt(index -> getTotalShardCount(currentState, index))
             .sum();
@@ -138,6 +167,16 @@ public class ShardLimitValidator {
     private static int getTotalShardCount(ClusterState state, Index index) {
         IndexMetadata indexMetadata = state.metadata().index(index);
         return indexMetadata.getNumberOfShards() * (1 + indexMetadata.getNumberOfReplicas());
+    }
+
+    /**
+     * Returns true if the cluster.ignore_hidden_indexes property is set to true and the index name
+     * starts with '.' else false.
+     *
+     * @param indexName  The index which needs to be validated.
+     */
+    private boolean validateHiddenIndex(String indexName) {
+        return this.ignoreHiddenIndexes && indexName.charAt(0) == '.';
     }
 
     /**

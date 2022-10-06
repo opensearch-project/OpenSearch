@@ -63,10 +63,16 @@ import static org.hamcrest.Matchers.greaterThan;
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)
 public class ClusterShardLimitIT extends OpenSearchIntegTestCase {
     private static final String shardsPerNodeKey = ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey();
+    private static final String ignoreHiddenIndexKey = ShardLimitValidator.SETTING_CLUSTER_IGNORE_HIDDEN_INDEXES.getKey();
 
     public void testSettingClusterMaxShards() {
         int shardsPerNode = between(1, 500_000);
         setShardsPerNode(shardsPerNode);
+    }
+
+    public void testSettingIgnoreHiddenIndexes() {
+        boolean ignoreHiddenIndexes = randomBoolean();
+        setIgnoreHiddenIndex(ignoreHiddenIndexes);
     }
 
     public void testMinimumPerNode() {
@@ -125,6 +131,69 @@ public class ClusterShardLimitIT extends OpenSearchIntegTestCase {
         }
         ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
         assertFalse(clusterState.getMetadata().hasIndex("should-fail"));
+    }
+
+    public void testIndexCreationOverLimitForHiddenIndexesSucceeds() {
+        int dataNodes = client().admin().cluster().prepareState().get().getState().getNodes().getDataNodes().size();
+
+        ShardCounts counts = ShardCounts.forDataNodeCount(dataNodes);
+
+        setShardsPerNode(counts.getShardsPerNode());
+
+        createIndex(
+            "test",
+            Settings.builder()
+                .put(indexSettings())
+                .put(SETTING_NUMBER_OF_SHARDS, counts.getFirstIndexShards())
+                .put(SETTING_NUMBER_OF_REPLICAS, counts.getFirstIndexReplicas())
+                .build()
+        );
+
+        try {
+            prepareCreate(
+                ".test-index",
+                Settings.builder()
+                    .put(indexSettings())
+                    .put(SETTING_NUMBER_OF_SHARDS, counts.getFailingIndexShards())
+                    .put(SETTING_NUMBER_OF_REPLICAS, counts.getFailingIndexReplicas())
+            ).get();
+        } catch (IllegalArgumentException e) {
+            verifyException(dataNodes, counts, e);
+        }
+        ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+        assertTrue(clusterState.getMetadata().hasIndex(".test-index"));
+    }
+
+    public void testIndexCreationOverLimitForHiddenIndexesFail() {
+        int dataNodes = client().admin().cluster().prepareState().get().getState().getNodes().getDataNodes().size();
+
+        ShardCounts counts = ShardCounts.forDataNodeCount(dataNodes);
+
+        setShardsPerNode(counts.getShardsPerNode());
+        setIgnoreHiddenIndex(false);
+
+        createIndex(
+            "test",
+            Settings.builder()
+                .put(indexSettings())
+                .put(SETTING_NUMBER_OF_SHARDS, counts.getFirstIndexShards())
+                .put(SETTING_NUMBER_OF_REPLICAS, counts.getFirstIndexReplicas())
+                .build()
+        );
+
+        try {
+            prepareCreate(
+                ".test-index",
+                Settings.builder()
+                    .put(indexSettings())
+                    .put(SETTING_NUMBER_OF_SHARDS, counts.getFailingIndexShards())
+                    .put(SETTING_NUMBER_OF_REPLICAS, counts.getFailingIndexReplicas())
+            ).get();
+        } catch (IllegalArgumentException e) {
+            verifyException(dataNodes, counts, e);
+        }
+        ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+        assertFalse(clusterState.getMetadata().hasIndex(".test-index"));
     }
 
     public void testIndexCreationOverLimitFromTemplate() {
@@ -451,6 +520,29 @@ public class ClusterShardLimitIT extends OpenSearchIntegTestCase {
                     .setTransientSettings(Settings.builder().put(shardsPerNodeKey, shardsPerNode).build())
                     .get();
                 assertEquals(shardsPerNode, response.getTransientSettings().getAsInt(shardsPerNodeKey, -1).intValue());
+            }
+        } catch (IllegalArgumentException ex) {
+            fail(ex.getMessage());
+        }
+    }
+
+    private void setIgnoreHiddenIndex(boolean ignoreHiddenIndex) {
+        try {
+            ClusterUpdateSettingsResponse response;
+            if (frequently()) {
+                response = client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setPersistentSettings(Settings.builder().put(ignoreHiddenIndexKey, ignoreHiddenIndex).build())
+                    .get();
+                assertEquals(ignoreHiddenIndex, response.getPersistentSettings().getAsBoolean(ignoreHiddenIndexKey, true));
+            } else {
+                response = client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setTransientSettings(Settings.builder().put(shardsPerNodeKey, ignoreHiddenIndex).build())
+                    .get();
+                assertEquals(ignoreHiddenIndex, response.getTransientSettings().getAsBoolean(ignoreHiddenIndexKey, true));
             }
         } catch (IllegalArgumentException ex) {
             fail(ex.getMessage());

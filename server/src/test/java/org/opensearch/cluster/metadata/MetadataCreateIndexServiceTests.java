@@ -592,7 +592,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
                 null,
                 null,
                 null,
-                createTestShardLimitService(randomIntBetween(1, 1000), clusterService),
+                createTestShardLimitService(randomIntBetween(1, 1000), false, clusterService),
                 null,
                 null,
                 threadPool,
@@ -674,7 +674,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
                 null,
                 null,
                 null,
-                createTestShardLimitService(randomIntBetween(1, 1000), clusterService),
+                createTestShardLimitService(randomIntBetween(1, 1000), false, clusterService),
                 null,
                 null,
                 threadPool,
@@ -1090,7 +1090,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             null,
             null,
             null,
-            createTestShardLimitService(randomIntBetween(1, 1000), clusterService),
+            createTestShardLimitService(randomIntBetween(1, 1000), false, clusterService),
             new Environment(Settings.builder().put("path.home", "dummy").build(), null),
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             threadPool,
@@ -1234,7 +1234,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
                 null,
                 null,
                 null,
-                createTestShardLimitService(randomIntBetween(1, 1000), clusterService),
+                createTestShardLimitService(randomIntBetween(1, 1000), false, clusterService),
                 new Environment(Settings.builder().put("path.home", "dummy").build(), null),
                 new IndexScopedSettings(ilnSetting, Collections.emptySet()),
                 threadPool,
@@ -1311,7 +1311,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
     }
 
     private ShardLimitValidator randomShardLimitService() {
-        return createTestShardLimitService(randomIntBetween(10, 10000));
+        return createTestShardLimitService(randomIntBetween(10, 10000), false);
     }
 
     private void withTemporaryClusterService(BiConsumer<ClusterService, ThreadPool> consumer) {
