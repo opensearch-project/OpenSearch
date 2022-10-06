@@ -62,6 +62,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.spy;
 
 public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelReplicationTestCase {
 
@@ -206,6 +207,36 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         // verify checkpoint is not published
         verify(mock, times(0)).publish(any());
         closeShards(shard);
+    }
+
+    /**
+     * here we are starting a new primary shard and testing that we don't process a checkpoint on a shard when it's shard routing is primary.
+     */
+    public void testRejectCheckpointOnShardRoutingPrimary() throws IOException {
+        IndexShard primaryShard = newStartedShard(true);
+        SegmentReplicationTargetService sut;
+        sut = prepareForReplication(primaryShard);
+        SegmentReplicationTargetService spy = spy(sut);
+
+        // Starting a new shard in PrimaryMode and shard routing primary.
+        IndexShard spyShard = spy(primaryShard);
+        String id = primaryShard.routingEntry().allocationId().getId();
+
+        // Starting relocation handoff
+        primaryShard.getReplicationTracker().startRelocationHandoff(id);
+
+        // Completing relocation handoff.
+        primaryShard.getReplicationTracker().completeRelocationHandoff();
+
+        // Assert that primary shard is no longer in Primary Mode and shard routing is still Primary
+        assertEquals(false, primaryShard.getReplicationTracker().isPrimaryMode());
+        assertEquals(true, primaryShard.routingEntry().primary());
+
+        spy.onNewCheckpoint(new ReplicationCheckpoint(primaryShard.shardId(), 0L, 0L, 0L, 0L), spyShard);
+
+        // Verify that checkpoint is not processed as shard routing is primary.
+        verify(spy, times(0)).startReplication(any(), any(), any());
+        closeShards(primaryShard);
     }
 
     public void testReplicaReceivesGenIncrease() throws Exception {
