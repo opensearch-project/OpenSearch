@@ -8,8 +8,6 @@
 
 package org.opensearch.authn;
 
-import org.opensearch.authn.StringPrincipal;
-
 import java.security.Principal;
 
 /**
