@@ -86,7 +86,7 @@ public class PitMultiNodeTests extends OpenSearchIntegTestCase {
         assertEquals(2, searchResponse.getTotalShards());
         validatePitStats("index", 2, 2);
         PitTestsUtil.assertUsingGetAllPits(client(), pitResponse.getId(), pitResponse.getCreationTime());
-        assertSegments(false, client());
+        assertSegments(false, client(), pitResponse.getId());
     }
 
     public void testCreatePitWhileNodeDropWithAllowPartialCreationFalse() throws Exception {
@@ -98,7 +98,6 @@ public class PitMultiNodeTests extends OpenSearchIntegTestCase {
                 ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, request);
                 ExecutionException ex = expectThrows(ExecutionException.class, execute::get);
                 assertTrue(ex.getMessage().contains("Failed to execute phase [create_pit]"));
-                assertTrue(ex.getMessage().contains("Partial shards failure"));
                 validatePitStats("index", 0, 0);
                 return super.onNodeStopped(nodeName);
             }
@@ -114,7 +113,7 @@ public class PitMultiNodeTests extends OpenSearchIntegTestCase {
                 ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, request);
                 CreatePitResponse pitResponse = execute.get();
                 PitTestsUtil.assertUsingGetAllPits(client(), pitResponse.getId(), pitResponse.getCreationTime());
-                assertSegments(false, "index", 1, client());
+                assertSegments(false, "index", 1, client(), pitResponse.getId());
                 assertEquals(1, pitResponse.getSuccessfulShards());
                 assertEquals(2, pitResponse.getTotalShards());
                 SearchResponse searchResponse = client().prepareSearch("index")

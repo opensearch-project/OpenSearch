@@ -1475,6 +1475,31 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         logger.info("--> done");
     }
 
+    public void testIndexDeletionDuringSnapshotCreationInQueue() throws Exception {
+        assertAcked(prepareCreate("test-idx", 1, indexSettingsNoReplicas(1)));
+        ensureGreen();
+        indexRandomDocs("test-idx", 100);
+        createRepository("test-repo", "fs");
+        createSnapshot("test-repo", "test-snap", Collections.singletonList("test-idx"));
+
+        logger.info("--> create snapshot to be deleted and then delete");
+        createSnapshot("test-repo", "test-snap-delete", Collections.singletonList("test-idx"));
+        clusterAdmin().prepareDeleteSnapshot("test-repo", "test-snap-delete").execute();
+
+        logger.info("--> create snapshot before index deletion during above snapshot deletion");
+        clusterAdmin().prepareCreateSnapshot("test-repo", "test-snap-2")
+            .setWaitForCompletion(false)
+            .setPartial(true)
+            .setIndices("test-idx")
+            .get();
+
+        logger.info("delete index during snapshot creation");
+        assertAcked(admin().indices().prepareDelete("test-idx"));
+
+        clusterAdmin().prepareRestoreSnapshot("test-repo", "test-snap").get();
+        ensureGreen("test-idx");
+    }
+
     private long calculateTotalFilesSize(List<Path> files) {
         return files.stream().mapToLong(f -> {
             try {
