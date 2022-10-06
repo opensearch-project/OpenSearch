@@ -104,7 +104,7 @@ public class ShardLimitValidator {
      * Checks whether an index can be created without going over the cluster shard limit.
      * Validate shard limit only for non system indices as it is not hard limit anyways.
      * Further also validates if the cluster.ignore_hidden_indexes is set to true.
-     * If so then it does not validate any index which starts with '.'.
+     * If so then it does not validate any index which starts with '.'
      *
      * @param indexName      the name of the index being created
      * @param settings       the settings of the index to be created
