@@ -113,7 +113,7 @@ public class IndicesModuleTests extends OpenSearchTestCase {
             }
         }
         {
-            assertEquals(EXPECTED_METADATA_FIELDS.length - 1, module.getMapperRegistry().getMetadataMapperParsers().size());
+            assertEquals(EXPECTED_METADATA_FIELDS.length, module.getMapperRegistry().getMetadataMapperParsers().size());
         }
     }
 
