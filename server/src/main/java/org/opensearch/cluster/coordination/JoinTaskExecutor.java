@@ -495,6 +495,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         validators.add((node, state) -> {
             ensureNodesCompatibility(node.getVersion(), state.getNodes());
             ensureIndexCompatibility(node.getVersion(), state.getMetadata());
+            ensureNodeCommissioned(node, state.metadata());
         });
         validators.addAll(onJoinValidators);
         return Collections.unmodifiableCollection(validators);
