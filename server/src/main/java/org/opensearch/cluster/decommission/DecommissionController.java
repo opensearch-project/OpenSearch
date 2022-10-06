@@ -284,7 +284,7 @@ public class DecommissionController {
         Map<String, Double> awarenessAttributeToWeightMap,
         ActionListener<ClusterPutWeightedRoutingResponse> listener
     ) {
-        // WRR API will validate invalid weights
+        // WRR transport action will validate invalid weights
         final ClusterPutWeightedRoutingRequest clusterPutRoutingWeightRequest = new ClusterPutWeightedRoutingRequest(
             awarenessAttributeName
         );
@@ -304,7 +304,7 @@ public class DecommissionController {
                 @Override
                 public void handleException(TransportException exp) {
                     // Logging message on failure. Should we do Retry? If weights are not set should we fail?
-                    logger.error("Exception occurred while setting weights.Exception Messages - ", exp);
+                    logger.error("Failed to set routing weights [{}].", exp);
                     listener.onFailure(exp);
                 }
 

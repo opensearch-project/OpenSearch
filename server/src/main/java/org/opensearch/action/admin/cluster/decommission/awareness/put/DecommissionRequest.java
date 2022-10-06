@@ -50,7 +50,6 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
         super(in);
         decommissionAttribute = new DecommissionAttribute(in);
         this.drainingTimeout = in.readTimeValue();
-
     }
 
     @Override
@@ -103,7 +102,7 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
             validationException = addValidationError("attribute value is missing", validationException);
         }
         if (drainingTimeout.getSeconds() < 0) {
-            validationException = addValidationError("Invalid draining timeout", validationException);
+            validationException = addValidationError("Invalid draining timeout - " + drainingTimeout.getSeconds(), validationException);
         }
         return validationException;
     }

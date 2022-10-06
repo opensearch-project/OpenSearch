@@ -121,7 +121,7 @@ public class DecommissionService {
         final DecommissionRequest decommissionRequest,
         final ActionListener<DecommissionResponse> listener
     ) {
-        DecommissionAttribute decommissionAttribute = decommissionRequest.getDecommissionAttribute();
+        final DecommissionAttribute decommissionAttribute = decommissionRequest.getDecommissionAttribute();
         // register the metadata with status as INIT as first step
         clusterService.submitStateUpdateTask("decommission [" + decommissionAttribute + "]", new ClusterStateUpdateTask(Priority.URGENT) {
             @Override
@@ -310,18 +310,12 @@ public class DecommissionService {
     }
 
     private void drainNodesWithDecommissionedAttribute(ClusterState state, DecommissionRequest decommissionRequest) {
-        // this method ensures no matter what, we always exit from this function after clearing the voting config exclusion
-        DecommissionAttributeMetadata decommissionAttributeMetadata = state.metadata().decommissionAttributeMetadata();
-        DecommissionAttribute decommissionAttribute = decommissionAttributeMetadata.decommissionAttribute();
-
-        List<String> awarenessValues = forcedAwarenessAttributes.get(decommissionAttribute.attributeName());
-
         decommissionController.updateMetadataWithDecommissionStatus(DecommissionStatus.DRAINING, new ActionListener<>() {
             @Override
             public void onResponse(DecommissionStatus status) {
                 logger.info("updated the decommission status to [{}]", status);
                 // set the weights
-                setRoutingWeightsToAwarenessAttribute(awarenessValues, decommissionRequest);
+                setRoutingWeightsToAwarenessAttribute(decommissionRequest);
             }
 
             @Override
@@ -329,7 +323,7 @@ public class DecommissionService {
                 logger.error(
                     () -> new ParameterizedMessage(
                         "failed to update decommission status for attribute [{}] to [{}]",
-                        decommissionAttribute.toString(),
+                        decommissionRequest.getDecommissionAttribute().toString(),
                         DecommissionStatus.DRAINING
                     ),
                     e
@@ -340,13 +334,18 @@ public class DecommissionService {
         });
     }
 
-    void setRoutingWeightsToAwarenessAttribute(List<String> awarenessAttributeValues, DecommissionRequest decommissionRequest) {
+    void setRoutingWeightsToAwarenessAttribute(DecommissionRequest decommissionRequest) {
         ClusterState state = clusterService.getClusterApplierService().state();
 
         DecommissionAttributeMetadata decommissionAttributeMetadata = state.metadata().decommissionAttributeMetadata();
+        if (decommissionAttributeMetadata == null) {
+            clearVotingConfigExclusionAndUpdateStatus(false, false);
+            return;
+        }
         assert decommissionAttributeMetadata.status().equals(DecommissionStatus.DRAINING)
-            : "unexpected status encountered while decommissioning nodes";
+            : "Unexpected status encountered while decommissioning nodes.";
         DecommissionAttribute decommissionAttribute = decommissionAttributeMetadata.decommissionAttribute();
+        List<String> awarenessAttributeValues = forcedAwarenessAttributes.get(decommissionAttribute.attributeName());
 
         Map<String, Double> weights = new HashMap<>();
         awarenessAttributeValues.forEach(awarenessValue -> {
