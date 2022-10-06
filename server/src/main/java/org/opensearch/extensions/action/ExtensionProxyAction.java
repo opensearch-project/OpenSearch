@@ -15,11 +15,11 @@ import org.opensearch.action.ActionType;
  *
  * @opensearch.internal
  */
-public class ExtensionMainAction extends ActionType<ExtensionActionResponse> {
-    public static final String NAME = "cluster:internal/extension";
-    public static final ExtensionMainAction INSTANCE = new ExtensionMainAction();
+public class ExtensionProxyAction extends ActionType<ExtensionActionResponse> {
+    public static final String NAME = "cluster:internal/extensions";
+    public static final ExtensionProxyAction INSTANCE = new ExtensionProxyAction();
 
-    public ExtensionMainAction() {
+    public ExtensionProxyAction() {
         super(NAME, ExtensionActionResponse::new);
     }
 }

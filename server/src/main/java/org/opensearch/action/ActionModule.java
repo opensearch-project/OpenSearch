@@ -274,7 +274,7 @@ import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.common.util.FeatureFlags;
-import org.opensearch.extensions.action.ExtensionMainAction;
+import org.opensearch.extensions.action.ExtensionProxyAction;
 import org.opensearch.extensions.action.ExtensionTransportAction;
 import org.opensearch.index.seqno.RetentionLeaseActions;
 import org.opensearch.indices.SystemIndices;
@@ -685,8 +685,8 @@ public class ActionModule extends AbstractModule {
         // Remote Store
         actions.register(RestoreRemoteStoreAction.INSTANCE, TransportRestoreRemoteStoreAction.class);
 
-        // ExtensionMainAction
-        actions.register(ExtensionMainAction.INSTANCE, ExtensionTransportAction.class);
+        // ExtensionProxyAction
+        actions.register(ExtensionProxyAction.INSTANCE, ExtensionTransportAction.class);
 
         return unmodifiableMap(actions.getRegistry());
     }

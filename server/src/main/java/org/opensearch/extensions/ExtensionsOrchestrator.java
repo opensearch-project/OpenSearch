@@ -90,6 +90,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     public static final String REQUEST_REST_EXECUTE_ON_EXTENSION_ACTION = "internal:extensions/restexecuteonextensiontaction";
     public static final String REQUEST_EXTENSION_HANDLE_TRANSPORT_ACTION = "internal:extensions/handle-transportaction";
     public static final String TRANSPORT_ACTION_REQUEST_FROM_EXTENSION = "internal:extensions/request-transportaction-from-extension";
+    public static final int EXTENSION_REQUEST_WAIT_TIMEOUT = 10;
 
     private static final Logger logger = LogManager.getLogger(ExtensionsOrchestrator.class);
 
@@ -280,7 +281,9 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             false,
             false,
             RegisterTransportActionsRequest::new,
-            ((request, channel, task) -> channel.sendResponse(extensionTransportActionsHandler.handleRegisterTransportActionsRequest(request)))
+            ((request, channel, task) -> channel.sendResponse(
+                extensionTransportActionsHandler.handleRegisterTransportActionsRequest(request)
+            ))
         );
         transportService.registerRequestHandler(
             TRANSPORT_ACTION_REQUEST_FROM_EXTENSION,
@@ -288,7 +291,9 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             false,
             false,
             TransportActionRequestFromExtension::new,
-            ((request, channel, task) -> channel.sendResponse(extensionTransportActionsHandler.handleTransportActionRequestFromExtension(request)))
+            ((request, channel, task) -> channel.sendResponse(
+                extensionTransportActionsHandler.handleTransportActionRequestFromExtension(request)
+            ))
         );
     }
 
@@ -406,7 +411,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
                 new InitializeExtensionsRequest(transportService.getLocalNode(), extension),
                 extensionResponseHandler
             );
-            inProgressLatch.await(100, TimeUnit.SECONDS);
+            inProgressLatch.await(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS);
         } catch (Exception e) {
             logger.error(e.toString());
         }
@@ -500,7 +505,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
                                 /*
                                  * Making async synchronous for now.
                                  */
-                                inProgressIndexNameLatch.await(100, TimeUnit.SECONDS);
+                                inProgressIndexNameLatch.await(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS);
                                 logger.info("Received ack response from Extension");
                             } catch (Exception e) {
                                 logger.error(e.toString());
@@ -534,7 +539,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             /*
              * Making asynchronous for now.
              */
-            inProgressLatch.await(100, TimeUnit.SECONDS);
+            inProgressLatch.await(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS);
             logger.info("Received response from Extension");
         } catch (Exception e) {
             logger.error(e.toString());

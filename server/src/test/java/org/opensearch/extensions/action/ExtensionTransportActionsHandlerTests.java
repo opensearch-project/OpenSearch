@@ -101,7 +101,11 @@ public class ExtensionTransportActionsHandlerTests extends OpenSearchTestCase {
             )
         );
         client = new NoOpNodeClient(this.getTestName());
-        extensionTransportActionsHandler = new ExtensionTransportActionsHandler(Map.of("uniqueid1", discoveryExtension), transportService, client);
+        extensionTransportActionsHandler = new ExtensionTransportActionsHandler(
+            Map.of("uniqueid1", discoveryExtension),
+            transportService,
+            client
+        );
     }
 
     @Override
@@ -129,7 +133,8 @@ public class ExtensionTransportActionsHandlerTests extends OpenSearchTestCase {
             "uniqueid1",
             Map.of(action, ExtensionTransportActionsHandlerTests.class)
         );
-        ExtensionBooleanResponse response = (ExtensionBooleanResponse) extensionTransportActionsHandler.handleRegisterTransportActionsRequest(request);
+        ExtensionBooleanResponse response = (ExtensionBooleanResponse) extensionTransportActionsHandler
+            .handleRegisterTransportActionsRequest(request);
         assertTrue(response.getStatus());
         assertEquals(discoveryExtension, extensionTransportActionsHandler.getExtension(action));
 
@@ -152,16 +157,18 @@ public class ExtensionTransportActionsHandlerTests extends OpenSearchTestCase {
         ExtensionActionRequest request = new ExtensionActionRequest(action, requestBytes);
 
         // Action not registered, expect exception
-        expectThrows(ActionNotFoundTransportException.class, () -> extensionTransportActionsHandler.sendTransportRequestToExtension(request));
+        expectThrows(
+            ActionNotFoundTransportException.class,
+            () -> extensionTransportActionsHandler.sendTransportRequestToExtension(request)
+        );
 
         // Register Action
         RegisterTransportActionsRequest registerRequest = new RegisterTransportActionsRequest(
             "uniqueid1",
             Map.of(action, ExtensionTransportActionsHandlerTests.class)
         );
-        ExtensionBooleanResponse response = (ExtensionBooleanResponse) extensionTransportActionsHandler.handleRegisterTransportActionsRequest(
-            registerRequest
-        );
+        ExtensionBooleanResponse response = (ExtensionBooleanResponse) extensionTransportActionsHandler
+            .handleRegisterTransportActionsRequest(registerRequest);
         assertTrue(response.getStatus());
 
         ExtensionActionResponse extensionResponse = extensionTransportActionsHandler.sendTransportRequestToExtension(request);

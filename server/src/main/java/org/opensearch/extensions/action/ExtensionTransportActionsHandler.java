@@ -43,7 +43,11 @@ public class ExtensionTransportActionsHandler {
     private final TransportService transportService;
     private final NodeClient client;
 
-    public ExtensionTransportActionsHandler(Map<String, DiscoveryExtension> extensionIdMap, TransportService transportService, NodeClient client) {
+    public ExtensionTransportActionsHandler(
+        Map<String, DiscoveryExtension> extensionIdMap,
+        TransportService transportService,
+        NodeClient client
+    ) {
         this.actionsMap = new HashMap<>();
         this.extensionIdMap = extensionIdMap;
         this.transportService = transportService;
@@ -82,7 +86,7 @@ public class ExtensionTransportActionsHandler {
      */
     public TransportResponse handleRegisterTransportActionsRequest(RegisterTransportActionsRequest transportActionsRequest) {
         /*
-         * We are proxying the transport Actions through ExtensionMainAction, so we really dont need to register dynamic actions for now.
+         * We are proxying the transport Actions through ExtensionProxyAction, so we really dont need to register dynamic actions for now.
          */
         logger.debug("Register Transport Actions request recieved {}", transportActionsRequest);
         DiscoveryExtension extension = extensionIdMap.get(transportActionsRequest.getUniqueId());
@@ -110,7 +114,7 @@ public class ExtensionTransportActionsHandler {
         final CountDownLatch inProgressLatch = new CountDownLatch(1);
         final TransportActionResponseToExtension response = new TransportActionResponseToExtension(new byte[0]);
         client.execute(
-            ExtensionMainAction.INSTANCE,
+            ExtensionProxyAction.INSTANCE,
             new ExtensionActionRequest(request.getAction(), request.getRequestBytes()),
             new ActionListener<ExtensionActionResponse>() {
                 @Override
@@ -128,7 +132,7 @@ public class ExtensionTransportActionsHandler {
                 }
             }
         );
-        inProgressLatch.await(5, TimeUnit.SECONDS);
+        inProgressLatch.await(ExtensionsOrchestrator.EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS);
         return response;
     }
 
@@ -183,7 +187,7 @@ public class ExtensionTransportActionsHandler {
         } catch (Exception e) {
             logger.info("Failed to send transport action to extension " + extension.getName(), e);
         }
-        inProgressLatch.await(5, TimeUnit.SECONDS);
+        inProgressLatch.await(ExtensionsOrchestrator.EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS);
         return extensionActionResponse;
     }
 }

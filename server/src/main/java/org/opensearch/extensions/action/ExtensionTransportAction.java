@@ -38,7 +38,7 @@ public class ExtensionTransportAction extends HandledTransportAction<ExtensionAc
         ClusterService clusterService,
         ExtensionsOrchestrator extensionsOrchestrator
     ) {
-        super(ExtensionMainAction.NAME, transportService, actionFilters, ExtensionActionRequest::new);
+        super(ExtensionProxyAction.NAME, transportService, actionFilters, ExtensionActionRequest::new);
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.clusterService = clusterService;
         this.extensionsOrchestrator = extensionsOrchestrator;

@@ -10,9 +10,9 @@ package org.opensearch.extensions.action;
 
 import org.opensearch.test.OpenSearchTestCase;
 
-public class ExtensionMainActionTests extends OpenSearchTestCase {
-    public void testExtensionMainAction() {
-        assertEquals("cluster:internal/extension", ExtensionMainAction.NAME);
-        assertEquals(ExtensionMainAction.class, ExtensionMainAction.INSTANCE.getClass());
+public class ExtensionProxyActionTests extends OpenSearchTestCase {
+    public void testExtensionProxyAction() {
+        assertEquals("cluster:internal/extensions", ExtensionProxyAction.NAME);
+        assertEquals(ExtensionProxyAction.class, ExtensionProxyAction.INSTANCE.getClass());
     }
 }
