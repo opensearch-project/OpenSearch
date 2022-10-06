@@ -169,7 +169,7 @@ public class DecommissionService {
         final DecommissionRequest decommissionRequest,
         ActionListener<DecommissionResponse> listener
     ) {
-        DecommissionAttribute decommissionAttribute = decommissionRequest.getDecommissionAttribute();
+        final DecommissionAttribute decommissionAttribute = decommissionRequest.getDecommissionAttribute();
         ClusterState state = clusterService.getClusterApplierService().state();
         // since here metadata is already registered with INIT, we can guarantee that no new node with decommission attribute can further
         // join the cluster
@@ -212,7 +212,6 @@ public class DecommissionService {
                         // and to-be-decommissioned cluster manager is no more part of Voting Configuration and no more to-be-decommission
                         // nodes can be part of Voting Config
                         listener.onResponse(new DecommissionResponse(true));
-
                         drainNodesWithDecommissionedAttribute(clusterService.getClusterApplierService().state(), decommissionRequest);
                     }
                 } else {
