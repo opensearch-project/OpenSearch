@@ -1,6 +1,9 @@
 /*
- * Copyright OpenSearch Contributors
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
  */
 
 package org.opensearch.authn.realm;
@@ -14,6 +17,8 @@ import org.apache.shiro.authc.SimpleAuthenticationInfo;
 import org.apache.shiro.authc.UnknownAccountException;
 import org.apache.shiro.authc.UsernamePasswordToken;
 import org.apache.shiro.realm.AuthenticatingRealm;
+
+import java.util.HashMap;
 import org.opensearch.authn.StringPrincipal;
 import org.opensearch.authn.User;
 
@@ -43,6 +48,9 @@ public class InternalRealm extends AuthenticatingRealm {
         this.realmName = realmName;
         this.internalUsers = internalUsers;
     }
+
+    // TODO Switch this to private after debugging
+    public ConcurrentMap<String, InternalSubject> internalSubjects;
 
     public static final class Builder {
         private final String name;
@@ -216,5 +224,9 @@ public class InternalRealm extends AuthenticatingRealm {
      */
     public boolean deleteUser(String primaryPrincipal) {
         return this.internalUsers.remove(primaryPrincipal) != null;
+    }
+
+    public String subjectDoesNotExistMessage(String primaryPrincipal){
+        return "Subject with primaryPrincipal=" + primaryPrincipal + " doesn't exist";
     }
 }

@@ -11,11 +11,11 @@ package org.opensearch.authn;
 import org.apache.shiro.authc.AuthenticationException;
 import org.apache.shiro.authc.AuthenticationInfo;
 import org.apache.shiro.authc.IncorrectCredentialsException;
-import org.apache.shiro.authc.UnknownAccountException;
 import org.apache.shiro.authc.UsernamePasswordToken;
 import org.junit.Before;
 import org.opensearch.authn.realm.InternalRealm;
 import org.opensearch.test.OpenSearchTestCase;
+
 import java.io.FileNotFoundException;
 import java.util.List;
 import java.util.Map;
@@ -72,6 +72,17 @@ public class InternalRealmTests extends OpenSearchTestCase {
         assertEquals(primaryPrincipal, realm.getInternalUser(otherPrimaryPrincipal).getPrimaryPrincipal().getName());
     }
 
+    public void testCreateUserThrowsException() {
+        Exception e1 = assertThrows(IllegalArgumentException.class, () -> realm.createUser("", "some_hash", Map.of()));
+        assertEquals(InternalRealm.INVALID_ARGUMENTS_MESSAGE, e1.getMessage());
+
+        Exception e2 = assertThrows(IllegalArgumentException.class, () -> realm.createUser("ble", null, Map.of()));
+        assertEquals(InternalRealm.INVALID_ARGUMENTS_MESSAGE, e2.getMessage());
+
+        Exception e3 = assertThrows(IllegalArgumentException.class, () -> realm.createUser(null));
+        assertEquals(InternalRealm.INVALID_SUBJECT_MESSAGE, e3.getMessage());
+    }
+
     public void testUpdateUserPassword() {
         String primaryPrincipal = "new-user";
         String currentHash = "$2y$12$88IFVl6IfIwCFh5aQYfOmuXVL9j2hz/GusQb35o.4sdTDAEMTOD.K";
@@ -83,6 +94,12 @@ public class InternalRealmTests extends OpenSearchTestCase {
         realm.updateUserPassword(primaryPrincipal, newHash);
         String newUserPasswordHash = realm.getInternalUser(primaryPrincipal).getBcryptHash();
         assertEquals(newHash, newUserPasswordHash);
+    }
+
+    public void testUpdateUserPasswordThrowsException() {
+        String primaryPrincipal = "ble";
+        Exception e = assertThrows(RuntimeException.class, () -> realm.updateUserPassword(primaryPrincipal, "some_hash"));
+        assertEquals(realm.subjectDoesNotExistMessage(primaryPrincipal), e.getMessage());
     }
 
     public void testAddNewAttributesToUser() {
@@ -101,6 +118,12 @@ public class InternalRealmTests extends OpenSearchTestCase {
         Map<String, String> updatedAttributes = realm.getInternalUser(primaryPrincipal).getAttributes();
         assertEquals(3, updatedAttributes.size());
         assertTrue(newUserAttributes.containsKey("attr2"));
+    }
+
+    public void testUpdateUserAttributesThrowsException() {
+        String primaryPrincipal = "ble";
+        Exception e = assertThrows(RuntimeException.class, () -> realm.updateUserAttributes(primaryPrincipal, Map.of("a2", "v2")));
+        assertEquals(realm.subjectDoesNotExistMessage(primaryPrincipal), e.getMessage());
     }
 
     public void testDeleteAttributesFromUser() {
@@ -122,10 +145,22 @@ public class InternalRealmTests extends OpenSearchTestCase {
         assertEquals(0, updatedAttributes.size());
     }
 
+    public void testDeleteUserAttributesThrowsException() {
+        String primaryPrincipal = "ble";
+        Exception e = assertThrows(RuntimeException.class, () -> realm.deleteAttributesFromUser(primaryPrincipal, List.of("a1")));
+        assertEquals(realm.subjectDoesNotExistMessage(primaryPrincipal), e.getMessage());
+    }
+
     public void testDeleteUser() {
         String primaryPrincipal = "new-user";
         assertEquals(primaryPrincipal, realm.getInternalUser(primaryPrincipal).getPrimaryPrincipal().getName());
         realm.deleteUser(primaryPrincipal);
         assertThrows(UnknownAccountException.class, () -> realm.getInternalUser(primaryPrincipal));
+    }
+
+    public void testDeleteSubjectThrowsException() {
+        String primaryPrincipal = "ble";
+        Exception e = assertThrows(RuntimeException.class, () -> realm.deleteUser(primaryPrincipal));
+        assertEquals(realm.subjectDoesNotExistMessage(primaryPrincipal), e.getMessage());
     }
 }
