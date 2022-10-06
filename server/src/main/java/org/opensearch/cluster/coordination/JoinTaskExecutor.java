@@ -41,6 +41,7 @@ import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.decommission.DecommissionAttribute;
 import org.opensearch.cluster.decommission.DecommissionAttributeMetadata;
+import org.opensearch.cluster.decommission.DecommissionHelper;
 import org.opensearch.cluster.decommission.DecommissionStatus;
 import org.opensearch.cluster.decommission.NodeDecommissionedException;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -486,22 +487,13 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
     }
 
     public static void ensureNodeCommissioned(DiscoveryNode node, Metadata metadata) {
-        DecommissionAttributeMetadata decommissionAttributeMetadata = metadata.decommissionAttributeMetadata();
-        if (decommissionAttributeMetadata != null) {
-            DecommissionAttribute decommissionAttribute = decommissionAttributeMetadata.decommissionAttribute();
-            DecommissionStatus status = decommissionAttributeMetadata.status();
-            if (decommissionAttribute != null && status != null) {
-                // We will let the node join the cluster if the current status is in FAILED state
-                if (node.getAttributes().get(decommissionAttribute.attributeName()).equals(decommissionAttribute.attributeValue())
-                    && (status.equals(DecommissionStatus.IN_PROGRESS) || status.equals(DecommissionStatus.SUCCESSFUL))) {
-                    throw new NodeDecommissionedException(
-                        "node [{}] has decommissioned attribute [{}] with current status of decommissioning [{}]",
-                        node.toString(),
-                        decommissionAttribute.toString(),
-                        status.status()
-                    );
-                }
-            }
+        if (DecommissionHelper.nodeCommissioned(node, metadata) == false) {
+            throw new NodeDecommissionedException(
+                "node [{}] has decommissioned attribute [{}] with current status of decommissioning [{}]",
+                node.toString(),
+                metadata.decommissionAttributeMetadata().decommissionAttribute().toString(),
+                metadata.decommissionAttributeMetadata().status().status()
+            );
         }
     }
 
