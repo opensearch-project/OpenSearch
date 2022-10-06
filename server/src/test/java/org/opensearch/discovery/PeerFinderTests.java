@@ -809,7 +809,7 @@ public class PeerFinderTests extends OpenSearchTestCase {
 
     public void testConnectionAttemptDuringDecommissioning() {
         boolean localNodeCommissioned = randomBoolean();
-        peerFinder.setFindPeersInterval(localNodeCommissioned);
+        peerFinder.onNodeCommissionStatusChange(localNodeCommissioned);
 
         long findPeersInterval = peerFinder.getFindPeersInterval().millis();
 
