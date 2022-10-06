@@ -25,6 +25,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - [Identity] Add stubs for AccessTokenManager  ([#4612](https://github.com/opensearch-project/OpenSearch/pull/4612))
 - [Identity] Permissions check API ([#4516](https://github.com/opensearch-project/OpenSearch/pull/4516))
 - [Identity] Add detail to identity roadmap items ([#4641](https://github.com/opensearch-project/OpenSearch/pull/4641))
+- [Identity] Switch to smaller license header for all identity files ([#4657](https://github.com/opensearch-project/OpenSearch/pull/4657))
 - [Identity] Prototype Internal IdP ([#4659](https://github.com/opensearch-project/OpenSearch/pull/4659))
 
 ### Dependencies
