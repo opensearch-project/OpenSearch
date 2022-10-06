@@ -23,22 +23,25 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Add BWC version 2.3.1 ([#4513](https://github.com/opensearch-project/OpenSearch/pull/4513))
 - [Segment Replication] Add snapshot and restore tests for segment replication feature ([#3993](https://github.com/opensearch-project/OpenSearch/pull/3993))
 - Added missing javadocs for `:example-plugins` modules ([#4540](https://github.com/opensearch-project/OpenSearch/pull/4540))
+- Add missing Javadoc tag descriptions in unit tests ([#4629](https://github.com/opensearch-project/OpenSearch/pull/4629))
+- Add getter for path field in NestedQueryBuilder ([#4636](https://github.com/opensearch-project/OpenSearch/pull/4636))
+- Added precommit support for windows ([#4676](https://github.com/opensearch-project/OpenSearch/pull/4676))
+- Added release notes for 1.3.6 ([#4681](https://github.com/opensearch-project/OpenSearch/pull/4681))
+- Added precommit support for MacOS ([#4682](https://github.com/opensearch-project/OpenSearch/pull/4682))
+- Recommission API changes for service layer ([#4320](https://github.com/opensearch-project/OpenSearch/pull/4320))
 - [Identity] Document identity roadmap and feature branch processes ([#4583](https://github.com/opensearch-project/OpenSearch/pull/4583))
 - [Identity] Add stubs for AccessTokenManager  ([#4612](https://github.com/opensearch-project/OpenSearch/pull/4612))
 - [Identity] Permissions check API ([#4516](https://github.com/opensearch-project/OpenSearch/pull/4516))
 - [Identity] Add detail to identity roadmap items ([#4641](https://github.com/opensearch-project/OpenSearch/pull/4641))
 - [Identity] Switch to smaller license header for all identity files ([#4657](https://github.com/opensearch-project/OpenSearch/pull/4657))
-- Add missing Javadoc tag descriptions in unit tests ([#4629](https://github.com/opensearch-project/OpenSearch/pull/4629))
-- Added precommit support for windows ([#4676](https://github.com/opensearch-project/OpenSearch/pull/4676))
-- Added release notes for 1.3.6 ([#4681](https://github.com/opensearch-project/OpenSearch/pull/4681))
-- Added precommit support for MacOS ([#4682](https://github.com/opensearch-project/OpenSearch/pull/4682))
-- Recommission API changes for service layer ([#4320](https://github.com/opensearch-project/OpenSearch/pull/4320))
 
 ### Dependencies
 - Bumps `log4j-core` from 2.18.0 to 2.19.0
+- Bumps `reactor-netty-http` from 1.0.18 to 1.0.23
 - Bumps `jettison` from 1.5.0 to 1.5.1
 - Bumps `azure-storage-common` from 12.18.0 to 12.18.1
 - Bumps `forbiddenapis` from 3.3 to 3.4
+
 
 ### Dependencies
 - Bumps `xmlbeans` from 5.1.0 to 5.1.1 ([#4354](https://github.com/opensearch-project/OpenSearch/pull/4354))
@@ -121,6 +124,11 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - [Bug]: Alias filter lost after rollover ([#4499](https://github.com/opensearch-project/OpenSearch/pull/4499))
 - Attempt to fix Github workflow for Gradle Check job ([#4679](https://github.com/opensearch-project/OpenSearch/pull/4679))
 - Fix flaky DecommissionControllerTests.testTimesOut ([4683](https://github.com/opensearch-project/OpenSearch/pull/4683))
+<<<<<<< HEAD
+=======
+- Fix new race condition in DecommissionControllerTests ([4688](https://github.com/opensearch-project/OpenSearch/pull/4688))
+- Fix SearchStats (de)serialization (caused by https://github.com/opensearch-project/OpenSearch/pull/4616) ([#4697](https://github.com/opensearch-project/OpenSearch/pull/4697))
+>>>>>>> origin/main
 
 ### Security
 
