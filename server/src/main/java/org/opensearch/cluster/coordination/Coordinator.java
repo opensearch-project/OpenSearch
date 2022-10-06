@@ -592,9 +592,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
             if (stateForJoinValidation.nodes().isLocalNodeElectedClusterManager()) {
                 onJoinValidators.forEach(a -> a.accept(joinRequest.getSourceNode(), stateForJoinValidation));
-                // we are checking source node commission status here to reject any join request coming from a decommissioned node
-                // even before executing the join task to fail fast
-                JoinTaskExecutor.ensureNodeCommissioned(joinRequest.getSourceNode(), stateForJoinValidation.metadata());
                 if (stateForJoinValidation.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false) {
                     // we do this in a couple of places including the cluster update thread. This one here is really just best effort
                     // to ensure we fail as fast as possible.
@@ -602,6 +599,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                         joinRequest.getSourceNode().getVersion(),
                         stateForJoinValidation.getNodes().getMinNodeVersion()
                     );
+                    // we are checking source node commission status here to reject any join request coming from a decommissioned node
+                    // even before executing the join task to fail fast
+                    JoinTaskExecutor.ensureNodeCommissioned(joinRequest.getSourceNode(), stateForJoinValidation.metadata());
                 }
                 sendValidateJoinRequest(stateForJoinValidation, joinRequest, joinCallback);
             } else {
