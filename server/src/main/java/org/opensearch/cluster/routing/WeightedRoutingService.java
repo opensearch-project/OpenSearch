@@ -96,7 +96,7 @@ public class WeightedRoutingService {
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 logger.debug("cluster weighted routing weights metadata change is processed by all the nodes");
-                listener.onResponse(new ClusterDeleteWeightedRoutingResponse(true));
+                listener.onResponse(new ClusterStateUpdateResponse(true));
             }
         });
     }
