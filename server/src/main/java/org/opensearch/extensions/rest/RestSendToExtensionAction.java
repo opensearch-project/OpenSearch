@@ -41,6 +41,8 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableList;
+import static org.opensearch.extensions.rest.ExtensionRestResponse.CONSUMED_CONTENT_KEY;
+import static org.opensearch.extensions.rest.ExtensionRestResponse.CONSUMED_PARAMS_KEY;
 
 /**
  * An action that forwards REST requests to an extension
@@ -49,8 +51,6 @@ public class RestSendToExtensionAction extends BaseRestHandler {
 
     private static final String SEND_TO_EXTENSION_ACTION = "send_to_extension_action";
     private static final Logger logger = LogManager.getLogger(RestSendToExtensionAction.class);
-    private static final String CONSUMED_PARAMS_KEY = "extension.consumed.parameters";
-    private static final String CONSUMED_CONTENT_KEY = "extension.consumed.content";
     // To replace with user identity see https://github.com/opensearch-project/OpenSearch/pull/4247
     private static final Principal DEFAULT_PRINCIPAL = new Principal() {
         @Override
@@ -151,15 +151,16 @@ public class RestSendToExtensionAction extends BaseRestHandler {
                 List<String> consumedContent = headers.get(CONSUMED_CONTENT_KEY);
                 if (consumedContent != null) {
                     // conditionally consume content
-                    if (consumedParams.stream().filter(c -> Boolean.parseBoolean(c)).count() > 0) {
+                    if (consumedContent.stream().filter(c -> Boolean.parseBoolean(c)).count() > 0) {
                         request.content();
                     }
                 }
-                Map<String, List<String>> headersWithoutConsumedParams = headers.entrySet()
+                Map<String, List<String>> headersWithoutConsumedParamsOrContent = headers.entrySet()
                     .stream()
                     .filter(e -> !e.getKey().equals(CONSUMED_PARAMS_KEY))
+                    .filter(e -> !e.getKey().equals(CONSUMED_CONTENT_KEY))
                     .collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue()));
-                restExecuteOnExtensionResponse.setHeaders(headersWithoutConsumedParams);
+                restExecuteOnExtensionResponse.setHeaders(headersWithoutConsumedParamsOrContent);
                 inProgressLatch.countDown();
             }
 
