@@ -2,9 +2,9 @@ name: Gradle Check (Jenkins)
 on:
   push:
     branches-ignore:
-      - 'backport/*'
-      - 'create-pull-request/*'
-      - 'dependabot/*'
+      - 'backport/**'
+      - 'create-pull-request/**'
+      - 'dependabot/**'
   pull_request_target:
     types: [opened, synchronize, reopened]
 
