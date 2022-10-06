@@ -6,24 +6,28 @@
  * compatible open source license.
  */
 
-package org.opensearch.cluster.routing;
+package org.opensearch.cluster.action.shard.routing.weighted.get;
 
 import org.junit.After;
 import org.junit.Before;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
-import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterAddWeightedRoutingAction;
-import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingRequestBuilder;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.get.ClusterGetWeightedRoutingAction;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.get.ClusterGetWeightedRoutingRequestBuilder;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.get.ClusterGetWeightedRoutingResponse;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.get.TransportGetWeightedRoutingAction;
+import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.ActionTestUtils;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.routing.WeightedRouting;
+import org.opensearch.cluster.routing.WeightedRoutingService;
 import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
@@ -39,14 +43,17 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 
-public class WeightedRoutingServiceTests extends OpenSearchTestCase {
+import static java.util.Collections.emptySet;
+import static org.mockito.Mockito.mock;
+
+public class TransportGetWeightedRoutingActionTests extends OpenSearchTestCase {
+
     private ThreadPool threadPool;
     private ClusterService clusterService;
     private TransportService transportService;
     private WeightedRoutingService weightedRoutingService;
+    private TransportGetWeightedRoutingAction transportGetWeightedRoutingAction;
     private ClusterSettings clusterSettings;
     NodeClient client;
 
@@ -94,13 +101,16 @@ public class WeightedRoutingServiceTests extends OpenSearchTestCase {
         transportService.acceptIncomingRequests();
 
         this.weightedRoutingService = new WeightedRoutingService(clusterService, threadPool, settingsBuilder.build(), clusterSettings);
-        client = new NodeClient(Settings.EMPTY, threadPool);
-    }
 
-    @After
-    public void shutdown() {
-        clusterService.stop();
-        threadPool.shutdown();
+        this.transportGetWeightedRoutingAction = new TransportGetWeightedRoutingAction(
+            transportService,
+            clusterService,
+            weightedRoutingService,
+            threadPool,
+            new ActionFilters(emptySet()),
+            mock(IndexNameExpressionResolver.class)
+        );
+        client = new NodeClient(Settings.EMPTY, threadPool);
     }
 
     private ClusterState addDataNodes(ClusterState clusterState) {
@@ -171,81 +181,82 @@ public class WeightedRoutingServiceTests extends OpenSearchTestCase {
         return clusterState;
     }
 
-    public void testRegisterWeightedRoutingMetadataWithChangedWeights() throws InterruptedException {
-        Map<String, Double> weights = Map.of("zone_A", 1.0, "zone_B", 1.0, "zone_C", 1.0);
+    public void testGetWeightedRouting_WeightsNotSetInMetadata() {
+
+        final ClusterGetWeightedRoutingRequestBuilder request = new ClusterGetWeightedRoutingRequestBuilder(
+            client,
+            ClusterGetWeightedRoutingAction.INSTANCE
+        );
+        request.setAwarenessAttribute("zone");
         ClusterState state = clusterService.state();
+
+        ClusterGetWeightedRoutingResponse response = ActionTestUtils.executeBlocking(transportGetWeightedRoutingAction, request.request());
+        assertEquals(response.getLocalNodeWeight(), null);
+        assertEquals(response.weights(), null);
+    }
+
+    public void testGetWeightedRouting_WeightsSetInMetadata() {
+        ClusterGetWeightedRoutingRequestBuilder request = new ClusterGetWeightedRoutingRequestBuilder(
+            client,
+            ClusterGetWeightedRoutingAction.INSTANCE
+        );
+        request.setAwarenessAttribute("zone");
+
+        ClusterState state = clusterService.state();
+        state = setLocalNode(state, "nodeB1");
+        Map<String, Double> weights = Map.of("zone_A", 1.0, "zone_B", 0.0, "zone_C", 1.0);
         state = setWeightedRoutingWeights(state, weights);
         ClusterState.Builder builder = ClusterState.builder(state);
         ClusterServiceUtils.setState(clusterService, builder);
 
-        ClusterPutWeightedRoutingRequestBuilder request = new ClusterPutWeightedRoutingRequestBuilder(
-            client,
-            ClusterAddWeightedRoutingAction.INSTANCE
-        );
-        WeightedRouting updatedWeightedRouting = new WeightedRouting("zone", Map.of("zone_A", 1.0, "zone_B", 0.0, "zone_C", 0.0));
-        request.setWeightedRouting(updatedWeightedRouting);
-        final CountDownLatch countDownLatch = new CountDownLatch(1);
-        ActionListener<ClusterStateUpdateResponse> listener = new ActionListener<ClusterStateUpdateResponse>() {
-            @Override
-            public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {
-                assertTrue(clusterStateUpdateResponse.isAcknowledged());
-                assertEquals(updatedWeightedRouting, clusterService.state().metadata().weightedRoutingMetadata().getWeightedRouting());
-                countDownLatch.countDown();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                fail("request should not fail");
-            }
-        };
-        weightedRoutingService.registerWeightedRoutingMetadata(request.request(), listener);
-        assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
+        ClusterGetWeightedRoutingResponse response = ActionTestUtils.executeBlocking(transportGetWeightedRoutingAction, request.request());
+        assertEquals(weights, response.weights().weights());
     }
 
-    public void testRegisterWeightedRoutingMetadataWithSameWeights() throws InterruptedException {
-        Map<String, Double> weights = Map.of("zone_A", 1.0, "zone_B", 1.0, "zone_C", 1.0);
+    public void testGetWeightedRoutingLocalWeight_WeightsSetInMetadata() {
+
+        ClusterGetWeightedRoutingRequestBuilder request = new ClusterGetWeightedRoutingRequestBuilder(
+            client,
+            ClusterGetWeightedRoutingAction.INSTANCE
+        );
+
+        request.setRequestLocal(true);
+        request.setAwarenessAttribute("zone");
+
         ClusterState state = clusterService.state();
+        state = setLocalNode(state, "nodeB1");
+        Map<String, Double> weights = Map.of("zone_A", 1.0, "zone_B", 0.0, "zone_C", 1.0);
         state = setWeightedRoutingWeights(state, weights);
         ClusterState.Builder builder = ClusterState.builder(state);
         ClusterServiceUtils.setState(clusterService, builder);
 
-        ClusterPutWeightedRoutingRequestBuilder request = new ClusterPutWeightedRoutingRequestBuilder(
+        ClusterGetWeightedRoutingResponse response = ActionTestUtils.executeBlocking(transportGetWeightedRoutingAction, request.request());
+        assertEquals("0.0", response.getLocalNodeWeight());
+    }
+
+    public void testGetWeightedRoutingLocalWeight_WeightsNotSetInMetadata() {
+
+        ClusterGetWeightedRoutingRequestBuilder request = new ClusterGetWeightedRoutingRequestBuilder(
             client,
-            ClusterAddWeightedRoutingAction.INSTANCE
+            ClusterGetWeightedRoutingAction.INSTANCE
         );
-        WeightedRouting updatedWeightedRouting = new WeightedRouting("zone", weights);
-        request.setWeightedRouting(updatedWeightedRouting);
-        final CountDownLatch countDownLatch = new CountDownLatch(1);
-        ActionListener<ClusterStateUpdateResponse> listener = new ActionListener<ClusterStateUpdateResponse>() {
-            @Override
-            public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {
-                assertTrue(clusterStateUpdateResponse.isAcknowledged());
-                assertEquals(updatedWeightedRouting, clusterService.state().metadata().weightedRoutingMetadata().getWeightedRouting());
-                countDownLatch.countDown();
-            }
 
-            @Override
-            public void onFailure(Exception e) {
-                fail("request should not fail");
-            }
-        };
-        weightedRoutingService.registerWeightedRoutingMetadata(request.request(), listener);
-        assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
+        request.setRequestLocal(true);
+        request.setAwarenessAttribute("zone");
+
+        ClusterState state = clusterService.state();
+        state = setLocalNode(state, "nodeB1");
+        ClusterState.Builder builder = ClusterState.builder(state);
+        ClusterServiceUtils.setState(clusterService, builder);
+
+        ClusterGetWeightedRoutingResponse response = ActionTestUtils.executeBlocking(transportGetWeightedRoutingAction, request.request());
+        assertEquals(null, response.getLocalNodeWeight());
     }
 
-    public void testVerifyAwarenessAttribute_InvalidAttributeName() {
-        assertThrows(
-            "invalid awareness attribute %s requested for updating weighted routing",
-            ActionRequestValidationException.class,
-            () -> weightedRoutingService.verifyAwarenessAttribute("zone2")
-        );
+    @After
+    public void shutdown() {
+        clusterService.stop();
+        threadPool.shutdown();
     }
 
-    public void testVerifyAwarenessAttribute_ValidAttributeName() {
-        try {
-            weightedRoutingService.verifyAwarenessAttribute("zone");
-        } catch (Exception e) {
-            fail("verify awareness attribute should not fail");
-        }
-    }
 }
