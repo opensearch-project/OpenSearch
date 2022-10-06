@@ -110,6 +110,10 @@ import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsAction;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsRequestBuilder;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.get.ClusterGetWeightedRoutingAction;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.get.ClusterGetWeightedRoutingRequest;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.get.ClusterGetWeightedRoutingRequestBuilder;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.get.ClusterGetWeightedRoutingResponse;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterAddWeightedRoutingAction;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingRequest;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingRequestBuilder;
@@ -1292,6 +1296,24 @@ public abstract class AbstractClient implements Client {
         @Override
         public ClusterPutWeightedRoutingRequestBuilder prepareWeightedRouting() {
             return new ClusterPutWeightedRoutingRequestBuilder(this, ClusterAddWeightedRoutingAction.INSTANCE);
+        }
+
+        @Override
+        public ActionFuture<ClusterGetWeightedRoutingResponse> getWeightedRouting(ClusterGetWeightedRoutingRequest request) {
+            return execute(ClusterGetWeightedRoutingAction.INSTANCE, request);
+        }
+
+        @Override
+        public void getWeightedRouting(
+            ClusterGetWeightedRoutingRequest request,
+            ActionListener<ClusterGetWeightedRoutingResponse> listener
+        ) {
+            execute(ClusterGetWeightedRoutingAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public ClusterGetWeightedRoutingRequestBuilder prepareGetWeightedRouting() {
+            return new ClusterGetWeightedRoutingRequestBuilder(this, ClusterGetWeightedRoutingAction.INSTANCE);
         }
 
         @Override
