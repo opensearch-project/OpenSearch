@@ -41,7 +41,7 @@ import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterManagerTaskKeys;
-import org.opensearch.cluster.service.ClusterManagerThrottlingKey;
+import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
@@ -59,7 +59,7 @@ import java.io.IOException;
 public class TransportPutStoredScriptAction extends TransportClusterManagerNodeAction<PutStoredScriptRequest, AcknowledgedResponse> {
 
     private final ScriptService scriptService;
-    private final ClusterManagerThrottlingKey putScriptTaskKey;
+    private final ClusterManagerTaskThrottler.ThrottlingKey putScriptTaskKey;
 
     @Inject
     public TransportPutStoredScriptAction(

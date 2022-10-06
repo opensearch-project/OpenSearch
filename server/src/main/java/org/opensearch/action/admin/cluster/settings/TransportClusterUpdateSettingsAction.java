@@ -48,7 +48,7 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterManagerTaskKeys;
-import org.opensearch.cluster.service.ClusterManagerThrottlingKey;
+import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
@@ -75,7 +75,7 @@ public class TransportClusterUpdateSettingsAction extends TransportClusterManage
 
     private final ClusterSettings clusterSettings;
 
-    private final ClusterManagerThrottlingKey clusterUpdateSettingTaskKey;
+    private final ClusterManagerTaskThrottler.ThrottlingKey clusterUpdateSettingTaskKey;
 
     @Inject
     public TransportClusterUpdateSettingsAction(
@@ -145,7 +145,7 @@ public class TransportClusterUpdateSettingsAction extends TransportClusterManage
                 private volatile boolean changed = false;
 
                 @Override
-                public ClusterManagerThrottlingKey getClusterManagerThrottlingKey() {
+                public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
                     return clusterUpdateSettingTaskKey;
                 }
 

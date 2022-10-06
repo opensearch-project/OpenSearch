@@ -298,7 +298,7 @@ public class ClusterService extends AbstractLifecycleComponent {
      * @param throttlingEnabled - throttling is enabled for task or not i.e does data node perform retries on it or not
      * @return throttling task key which needs to be passed while submitting task to cluster manager
      */
-    public ClusterManagerThrottlingKey registerClusterManagerTask(String taskKey, boolean throttlingEnabled) {
+    public ClusterManagerTaskThrottler.ThrottlingKey registerClusterManagerTask(String taskKey, boolean throttlingEnabled) {
         return clusterManagerService.registerClusterManagerTask(taskKey, throttlingEnabled);
     }
 

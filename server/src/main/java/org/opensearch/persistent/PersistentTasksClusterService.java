@@ -46,7 +46,7 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterManagerTaskKeys;
-import org.opensearch.cluster.service.ClusterManagerThrottlingKey;
+import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -83,10 +83,10 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
     private final EnableAssignmentDecider decider;
     private final ThreadPool threadPool;
     private final PeriodicRechecker periodicRechecker;
-    private final ClusterManagerThrottlingKey createPersistentTaskKey;
-    private final ClusterManagerThrottlingKey finishPersistentTaskKey;
-    private final ClusterManagerThrottlingKey removePersistentTaskKey;
-    private final ClusterManagerThrottlingKey updatePersistentTaskKey;
+    private final ClusterManagerTaskThrottler.ThrottlingKey createPersistentTaskKey;
+    private final ClusterManagerTaskThrottler.ThrottlingKey finishPersistentTaskKey;
+    private final ClusterManagerTaskThrottler.ThrottlingKey removePersistentTaskKey;
+    private final ClusterManagerTaskThrottler.ThrottlingKey updatePersistentTaskKey;
 
     public PersistentTasksClusterService(
         Settings settings,
@@ -157,7 +157,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
             }
 
             @Override
-            public ClusterManagerThrottlingKey getClusterManagerThrottlingKey() {
+            public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
                 return createPersistentTaskKey;
             }
 
@@ -221,7 +221,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
             }
 
             @Override
-            public ClusterManagerThrottlingKey getClusterManagerThrottlingKey() {
+            public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
                 return finishPersistentTaskKey;
             }
 
@@ -257,7 +257,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
             }
 
             @Override
-            public ClusterManagerThrottlingKey getClusterManagerThrottlingKey() {
+            public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
                 return removePersistentTaskKey;
             }
 
@@ -305,7 +305,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
             }
 
             @Override
-            public ClusterManagerThrottlingKey getClusterManagerThrottlingKey() {
+            public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
                 return updatePersistentTaskKey;
             }
 

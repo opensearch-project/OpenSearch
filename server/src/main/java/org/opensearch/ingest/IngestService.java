@@ -57,7 +57,7 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.MetadataIndexTemplateService;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterManagerTaskKeys;
-import org.opensearch.cluster.service.ClusterManagerThrottlingKey;
+import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.regex.Regex;
@@ -116,8 +116,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     private final ThreadPool threadPool;
     private final IngestMetric totalMetrics = new IngestMetric();
     private final List<Consumer<ClusterState>> ingestClusterStateListeners = new CopyOnWriteArrayList<>();
-    private final ClusterManagerThrottlingKey putPipelineTaskKey;
-    private final ClusterManagerThrottlingKey deletePipelineTaskKey;
+    private final ClusterManagerTaskThrottler.ThrottlingKey putPipelineTaskKey;
+    private final ClusterManagerTaskThrottler.ThrottlingKey deletePipelineTaskKey;
     private volatile ClusterState state;
 
     public IngestService(
@@ -300,7 +300,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 }
 
                 @Override
-                public ClusterManagerThrottlingKey getClusterManagerThrottlingKey() {
+                public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
                     return deletePipelineTaskKey;
                 }
             }
@@ -399,7 +399,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 }
 
                 @Override
-                public ClusterManagerThrottlingKey getClusterManagerThrottlingKey() {
+                public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
                     return putPipelineTaskKey;
                 }
             }

@@ -61,7 +61,7 @@ import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.cluster.service.ClusterManagerTaskKeys;
-import org.opensearch.cluster.service.ClusterManagerThrottlingKey;
+import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
@@ -149,7 +149,7 @@ public class MetadataCreateIndexService {
     private final ShardLimitValidator shardLimitValidator;
     private final boolean forbidPrivateIndexSettings;
     private final Set<IndexSettingProvider> indexSettingProviders = new HashSet<>();
-    private final ClusterManagerThrottlingKey createIndexTaskKey;
+    private final ClusterManagerTaskThrottler.ThrottlingKey createIndexTaskKey;
     private AwarenessReplicaBalance awarenessReplicaBalance;
 
     public MetadataCreateIndexService(
@@ -333,7 +333,7 @@ public class MetadataCreateIndexService {
                 }
 
                 @Override
-                public ClusterManagerThrottlingKey getClusterManagerThrottlingKey() {
+                public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
                     return createIndexTaskKey;
                 }
 

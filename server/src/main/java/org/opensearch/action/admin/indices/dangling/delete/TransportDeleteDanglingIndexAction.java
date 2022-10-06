@@ -55,7 +55,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.service.ClusterManagerTaskKeys;
-import org.opensearch.cluster.service.ClusterManagerThrottlingKey;
+import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
@@ -82,7 +82,7 @@ public class TransportDeleteDanglingIndexAction extends TransportClusterManagerN
 
     private final Settings settings;
     private final NodeClient nodeClient;
-    private final ClusterManagerThrottlingKey deleteDanglingIndexTaskKey;
+    private final ClusterManagerTaskThrottler.ThrottlingKey deleteDanglingIndexTaskKey;
 
     @Inject
     public TransportDeleteDanglingIndexAction(
@@ -163,7 +163,7 @@ public class TransportDeleteDanglingIndexAction extends TransportClusterManagerN
                         }
 
                         @Override
-                        public ClusterManagerThrottlingKey getClusterManagerThrottlingKey() {
+                        public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
                             return deleteDanglingIndexTaskKey;
                         }
 

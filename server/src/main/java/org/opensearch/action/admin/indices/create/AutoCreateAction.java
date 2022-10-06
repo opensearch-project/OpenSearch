@@ -51,7 +51,7 @@ import org.opensearch.cluster.metadata.MetadataCreateDataStreamService.CreateDat
 import org.opensearch.cluster.metadata.MetadataCreateIndexService;
 import org.opensearch.cluster.metadata.MetadataIndexTemplateService;
 import org.opensearch.cluster.service.ClusterManagerTaskKeys;
-import org.opensearch.cluster.service.ClusterManagerThrottlingKey;
+import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.inject.Inject;
@@ -86,7 +86,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
         private final ActiveShardsObserver activeShardsObserver;
         private final MetadataCreateIndexService createIndexService;
         private final MetadataCreateDataStreamService metadataCreateDataStreamService;
-        private final ClusterManagerThrottlingKey autoCreateTaskKey;
+        private final ClusterManagerTaskThrottler.ThrottlingKey autoCreateTaskKey;
 
         @Inject
         public TransportAction(
@@ -149,7 +149,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     }
 
                     @Override
-                    public ClusterManagerThrottlingKey getClusterManagerThrottlingKey() {
+                    public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
                         return autoCreateTaskKey;
                     }
 

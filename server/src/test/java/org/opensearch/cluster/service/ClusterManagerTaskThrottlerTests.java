@@ -56,7 +56,6 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        clusterService.registerClusterManagerTask("put-mapping", true);
         localNode = new DiscoveryNode(
             "local_node",
             buildNewFakeTransportAddress(),
@@ -254,13 +253,13 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
             () -> { return clusterService.getMasterService().getMinNodeVersion(); },
             throttlingStats
         );
-        throttler.registerClusterManagerTask(taskKey, false);
+        ClusterManagerTaskThrottler.ThrottlingKey throttlingKey = throttler.registerClusterManagerTask(taskKey, false);
 
         // adding limit directly in thresholds
         throttler.updateLimit(taskKey, 5);
 
         // adding 10 tasks, should pass as throttling is disabled for task
-        throttler.onBeginSubmit(getMockUpdateTaskList(taskKey, false, 10));
+        throttler.onBeginSubmit(getMockUpdateTaskList(taskKey, throttlingKey, 10));
 
         // Asserting that there was not any throttling for it
         assertEquals(0L, throttlingStats.getThrottlingCount(taskKey));
@@ -274,38 +273,48 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
             () -> { return clusterService.getMasterService().getMinNodeVersion(); },
             throttlingStats
         );
-        throttler.registerClusterManagerTask(taskKey, true);
+        ClusterManagerTaskThrottler.ThrottlingKey throttlingKey = throttler.registerClusterManagerTask(taskKey, true);
 
         throttler.updateLimit(taskKey, 5);
 
         // adding 3 tasks
-        throttler.onBeginSubmit(getMockUpdateTaskList(taskKey, true, 3));
+        throttler.onBeginSubmit(getMockUpdateTaskList(taskKey, throttlingKey, 3));
 
         // adding 3 more tasks, these tasks should be throttled
         // taskCount in Queue: 3 Threshold: 5
-        assertThrows(ClusterManagerThrottlingException.class, () -> throttler.onBeginSubmit(getMockUpdateTaskList(taskKey, true, 3)));
+        assertThrows(
+            ClusterManagerThrottlingException.class,
+            () -> throttler.onBeginSubmit(getMockUpdateTaskList(taskKey, throttlingKey, 3))
+        );
         assertEquals(3L, throttlingStats.getThrottlingCount(taskKey));
 
         // remove one task
-        throttler.onBeginProcessing(getMockUpdateTaskList(taskKey, true, 1));
+        throttler.onBeginProcessing(getMockUpdateTaskList(taskKey, throttlingKey, 1));
 
         // add 3 tasks should pass now.
         // taskCount in Queue: 2 Threshold: 5
-        throttler.onBeginSubmit(getMockUpdateTaskList(taskKey, true, 3));
+        throttler.onBeginSubmit(getMockUpdateTaskList(taskKey, throttlingKey, 3));
 
         // adding one task will throttle
         // taskCount in Queue: 5 Threshold: 5
-        assertThrows(ClusterManagerThrottlingException.class, () -> throttler.onBeginSubmit(getMockUpdateTaskList(taskKey, true, 1)));
+        assertThrows(
+            ClusterManagerThrottlingException.class,
+            () -> throttler.onBeginSubmit(getMockUpdateTaskList(taskKey, throttlingKey, 1))
+        );
         assertEquals(4L, throttlingStats.getThrottlingCount(taskKey));
 
         // update limit of threshold 6
         throttler.updateLimit(taskKey, 6);
 
         // adding one task should pass now
-        throttler.onBeginSubmit(getMockUpdateTaskList(taskKey, true, 1));
+        throttler.onBeginSubmit(getMockUpdateTaskList(taskKey, throttlingKey, 1));
     }
 
-    private List<TaskBatcherTests.TestTaskBatcher.UpdateTask> getMockUpdateTaskList(String taskKey, boolean throttlingEnabled, int size) {
+    private List<TaskBatcherTests.TestTaskBatcher.UpdateTask> getMockUpdateTaskList(
+        String taskKey,
+        ClusterManagerTaskThrottler.ThrottlingKey throttlingKey,
+        int size
+    ) {
         TaskBatcherTests.TestTaskBatcher testTaskBatcher = new TaskBatcherTests.TestTaskBatcher(logger, null);
         List<TaskBatcherTests.TestTaskBatcher.UpdateTask> taskList = new ArrayList<>();
 
@@ -335,8 +344,8 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
             public void execute(List tasks) {}
 
             @Override
-            public ClusterManagerThrottlingKey getClusterManagerThrottlingKey() {
-                return new ClusterManagerThrottlingKey(taskKey, throttlingEnabled);
+            public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
+                return throttlingKey;
             }
 
             @Override

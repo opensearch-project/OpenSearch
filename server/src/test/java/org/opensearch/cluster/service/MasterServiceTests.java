@@ -693,12 +693,13 @@ public class MasterServiceTests extends OpenSearchTestCase {
     }
 
     public void testThrottlingForTaskSubmission() throws InterruptedException {
+        MasterService masterService = createClusterManagerService(true);
         int throttlingLimit = randomIntBetween(1, 10);
         int taskId = 1;
         final CyclicBarrier barrier = new CyclicBarrier(2);
         final CountDownLatch latch = new CountDownLatch(1);
         final String taskName = "test";
-
+        ClusterManagerTaskThrottler.ThrottlingKey throttlingKey = masterService.registerClusterManagerTask(taskName, true);
         class Task {
             private final int id;
 
@@ -718,8 +719,8 @@ public class MasterServiceTests extends OpenSearchTestCase {
             }
 
             @Override
-            public ClusterManagerThrottlingKey getClusterManagerThrottlingKey() {
-                return new ClusterManagerThrottlingKey(taskName, true);
+            public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
+                return throttlingKey;
             }
 
             @Override
@@ -728,7 +729,6 @@ public class MasterServiceTests extends OpenSearchTestCase {
             }
         }
 
-        MasterService masterService = createClusterManagerService(true);
         masterService.clusterManagerTaskThrottler.updateLimit(taskName, throttlingLimit);
 
         final ClusterStateTaskListener listener = new ClusterStateTaskListener() {
@@ -787,12 +787,20 @@ public class MasterServiceTests extends OpenSearchTestCase {
     }
 
     public void testThrottlingForMultipleTaskTypes() throws InterruptedException {
+        MasterService masterService = createClusterManagerService(true);
         int throttlingLimitForTask1 = randomIntBetween(1, 5);
         int throttlingLimitForTask2 = randomIntBetween(1, 5);
         int throttlingLimitForTask3 = randomIntBetween(1, 5);
         int numberOfTask1 = randomIntBetween(throttlingLimitForTask1, 10);
         int numberOfTask2 = randomIntBetween(throttlingLimitForTask2, 10);
         int numberOfTask3 = randomIntBetween(throttlingLimitForTask3, 10);
+        String task1 = "Task1";
+        String task2 = "Task2";
+        String task3 = "Task3";
+
+        ClusterManagerTaskThrottler.ThrottlingKey throttlingKey1 = masterService.registerClusterManagerTask(task1, true);
+        ClusterManagerTaskThrottler.ThrottlingKey throttlingKey2 = masterService.registerClusterManagerTask(task2, true);
+        ClusterManagerTaskThrottler.ThrottlingKey throttlingKey3 = masterService.registerClusterManagerTask(task3, true);
         class Task {}
         class Task1 extends Task {}
         class Task2 extends Task {}
@@ -809,8 +817,8 @@ public class MasterServiceTests extends OpenSearchTestCase {
             public void clusterStatePublished(ClusterChangedEvent clusterChangedEvent) {}
 
             @Override
-            public ClusterManagerThrottlingKey getClusterManagerThrottlingKey() {
-                return new ClusterManagerThrottlingKey("Task1", true);
+            public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
+                return throttlingKey1;
             }
         }
 
@@ -825,8 +833,8 @@ public class MasterServiceTests extends OpenSearchTestCase {
             public void clusterStatePublished(ClusterChangedEvent clusterChangedEvent) {}
 
             @Override
-            public ClusterManagerThrottlingKey getClusterManagerThrottlingKey() {
-                return new ClusterManagerThrottlingKey("Task2", true);
+            public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
+                return throttlingKey2;
             }
         }
 
@@ -841,15 +849,14 @@ public class MasterServiceTests extends OpenSearchTestCase {
             public void clusterStatePublished(ClusterChangedEvent clusterChangedEvent) {}
 
             @Override
-            public ClusterManagerThrottlingKey getClusterManagerThrottlingKey() {
-                return new ClusterManagerThrottlingKey("Task3", true);
+            public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
+                return throttlingKey3;
             }
         }
 
-        MasterService masterService = createClusterManagerService(true);
         // configuring limits for Task1 and Task3. All task submission of Task2 should pass.
-        masterService.clusterManagerTaskThrottler.updateLimit("Task1", throttlingLimitForTask1);
-        masterService.clusterManagerTaskThrottler.updateLimit("Task3", throttlingLimitForTask3);
+        masterService.clusterManagerTaskThrottler.updateLimit(task1, throttlingLimitForTask1);
+        masterService.clusterManagerTaskThrottler.updateLimit(task3, throttlingLimitForTask3);
         final CountDownLatch latch = new CountDownLatch(numberOfTask1 + numberOfTask2 + numberOfTask3);
         AtomicInteger throttledTask1 = new AtomicInteger();
         AtomicInteger throttledTask2 = new AtomicInteger();
@@ -862,16 +869,16 @@ public class MasterServiceTests extends OpenSearchTestCase {
             @Override
             public void onFailure(String source, Exception e) {
                 // Task3's timeout should have called this.
-                assertEquals("Task3", source);
+                assertEquals(task3, source);
                 timedOutTask3.incrementAndGet();
                 latch.countDown();
             }
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                if (source.equals("Task1")) {
+                if (source.equals(task1)) {
                     succeededTask1.incrementAndGet();
-                } else if (source.equals("Task2")) {
+                } else if (source.equals(task2)) {
                     succeededTask2.incrementAndGet();
                 }
                 latch.countDown();
@@ -887,7 +894,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
                 public void run() {
                     try {
                         masterService.submitStateUpdateTask(
-                            "Task1",
+                            task1,
                             new Task1(),
                             ClusterStateTaskConfig.build(randomFrom(Priority.values())),
                             executor1,
@@ -907,7 +914,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
                 public void run() {
                     try {
                         masterService.submitStateUpdateTask(
-                            "Task2",
+                            task2,
                             new Task2(),
                             ClusterStateTaskConfig.build(randomFrom(Priority.values())),
                             executor2,
@@ -926,7 +933,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
                 public void run() {
                     try {
                         masterService.submitStateUpdateTask(
-                            "Task3",
+                            task3,
                             new Task3(),
                             ClusterStateTaskConfig.build(randomFrom(Priority.values()), new TimeValue(0)),
                             executor3,

@@ -32,7 +32,7 @@ import java.util.function.Supplier;
  */
 public class ClusterManagerTaskThrottler implements TaskBatcherListener {
     private static final Logger logger = LogManager.getLogger(ClusterManagerTaskThrottler.class);
-    private static final String TASK_SUFFIX = "-task";
+    public static final ThrottlingKey DEFAULT_THROTTLING_KEY = new ThrottlingKey("default-task-key", false);
 
     public static final Setting<Settings> THRESHOLD_SETTINGS = Setting.groupSetting(
         "cluster_manager.throttling.thresholds.",
@@ -40,7 +40,7 @@ public class ClusterManagerTaskThrottler implements TaskBatcherListener {
         Setting.Property.NodeScope
     );
 
-    protected Map<String, ClusterManagerThrottlingKey> THROTTLING_TASK_KEYS = new ConcurrentHashMap<>();
+    protected Map<String, ThrottlingKey> THROTTLING_TASK_KEYS = new ConcurrentHashMap<>();
 
     private final int MIN_THRESHOLD_VALUE = -1; // Disabled throttling
     private final ClusterManagerTaskThrottlerListener clusterManagerTaskThrottlerListener;
@@ -71,13 +71,40 @@ public class ClusterManagerTaskThrottler implements TaskBatcherListener {
      *
      * If tasks are not getting retried then we can register with false flag, so user won't be able to configure threshold limits for it.
      */
-    protected ClusterManagerThrottlingKey registerClusterManagerTask(String taskKey, boolean throttlingEnabled) {
-        ClusterManagerThrottlingKey throttlingKey = new ClusterManagerThrottlingKey(taskKey, throttlingEnabled);
+    protected ThrottlingKey registerClusterManagerTask(String taskKey, boolean throttlingEnabled) {
+        ThrottlingKey throttlingKey = new ThrottlingKey(taskKey, throttlingEnabled);
         if (THROTTLING_TASK_KEYS.containsKey(taskKey)) {
             throw new IllegalArgumentException("There is already a Throttling key registered with same name: " + taskKey);
         }
         THROTTLING_TASK_KEYS.put(taskKey, throttlingKey);
         return throttlingKey;
+    }
+
+    /**
+     * Class to store the throttling key for the tasks of cluster manager
+     */
+    public static class ThrottlingKey {
+        private String taskThrottlingKey;
+        private boolean throttlingEnabled;
+
+        /**
+         * Class for throttling key of tasks
+         *
+         * @param taskThrottlingKey - throttling key for task
+         * @param throttlingEnabled - if throttling is enabled or not i.e. data node is performing retry over throttling exception or not.
+         */
+        private ThrottlingKey(String taskThrottlingKey, boolean throttlingEnabled) {
+            this.taskThrottlingKey = taskThrottlingKey;
+            this.throttlingEnabled = throttlingEnabled;
+        }
+
+        public String getTaskThrottlingKey() {
+            return taskThrottlingKey;
+        }
+
+        public boolean isThrottlingEnabled() {
+            return throttlingEnabled;
+        }
     }
 
     void validateSetting(final Settings settings) {
@@ -124,7 +151,7 @@ public class ClusterManagerTaskThrottler implements TaskBatcherListener {
 
     @Override
     public void onBeginSubmit(List<? extends TaskBatcher.BatchedTask> tasks) {
-        ClusterManagerThrottlingKey clusterManagerThrottlingKey = ((ClusterStateTaskExecutor<Object>) tasks.get(0).batchingKey)
+        ThrottlingKey clusterManagerThrottlingKey = ((ClusterStateTaskExecutor<Object>) tasks.get(0).batchingKey)
             .getClusterManagerThrottlingKey();
         tasksCount.putIfAbsent(clusterManagerThrottlingKey.getTaskThrottlingKey(), 0L);
         tasksCount.computeIfPresent(clusterManagerThrottlingKey.getTaskThrottlingKey(), (key, count) -> {

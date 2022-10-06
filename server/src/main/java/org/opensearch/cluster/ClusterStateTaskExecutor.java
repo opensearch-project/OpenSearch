@@ -31,7 +31,7 @@
 
 package org.opensearch.cluster;
 
-import org.opensearch.cluster.service.ClusterManagerThrottlingKey;
+import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.common.Nullable;
 
 import java.util.IdentityHashMap;
@@ -89,16 +89,14 @@ public interface ClusterStateTaskExecutor<T> {
         return String.join(", ", tasks.stream().map(t -> (CharSequence) t.toString()).filter(t -> t.length() > 0)::iterator);
     }
 
-    // Default task is not registered with clusterService.registerClusterMangerTask,
-    // User can't configure throttling limit on it and will be bypassed while throttling on cluster manager
-    ClusterManagerThrottlingKey DEFAULT_CLUSTER_MANAGER_THROTTLING_KEY = new ClusterManagerThrottlingKey("default-throttling-key", false);
-
     /**
      * Throttling key associated with the task, on which cluster manager node will do aggregation count
      * and perform throttling based on configured threshold in cluster setting.
      */
-    default ClusterManagerThrottlingKey getClusterManagerThrottlingKey() {
-        return DEFAULT_CLUSTER_MANAGER_THROTTLING_KEY;
+    default ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
+        // Default task is not registered with clusterService.registerClusterMangerTask,
+        // User can't configure throttling limit on it and will be bypassed while throttling on cluster manager
+        return ClusterManagerTaskThrottler.DEFAULT_THROTTLING_KEY;
     }
 
     /**

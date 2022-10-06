@@ -44,7 +44,7 @@ import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterManagerTaskKeys;
-import org.opensearch.cluster.service.ClusterManagerThrottlingKey;
+import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.collect.ImmutableOpenMap;
@@ -75,7 +75,7 @@ public class MetadataDeleteIndexService {
     private final ClusterService clusterService;
 
     private final AllocationService allocationService;
-    private final ClusterManagerThrottlingKey deleteIndexTaskKey;
+    private final ClusterManagerTaskThrottler.ThrottlingKey deleteIndexTaskKey;
 
     @Inject
     public MetadataDeleteIndexService(Settings settings, ClusterService clusterService, AllocationService allocationService) {
@@ -106,7 +106,7 @@ public class MetadataDeleteIndexService {
                 }
 
                 @Override
-                public ClusterManagerThrottlingKey getClusterManagerThrottlingKey() {
+                public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
                     return deleteIndexTaskKey;
                 }
 
