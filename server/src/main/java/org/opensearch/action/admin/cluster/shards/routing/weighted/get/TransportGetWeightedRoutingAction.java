@@ -12,7 +12,6 @@ import org.opensearch.action.ActionListener;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeReadAction;
 import org.opensearch.cluster.ClusterState;
@@ -85,7 +84,7 @@ public class TransportGetWeightedRoutingAction extends TransportClusterManagerNo
         final ClusterGetWeightedRoutingRequest request,
         ClusterState state,
         final ActionListener<ClusterGetWeightedRoutingResponse> listener
-    ) throws IOException {
+    ) {
         try {
             weightedRoutingService.verifyAwarenessAttribute(request.getAwarenessAttribute());
             WeightedRoutingMetadata weightedRoutingMetadata = state.metadata().custom(WeightedRoutingMetadata.TYPE);
@@ -105,10 +104,8 @@ public class TransportGetWeightedRoutingAction extends TransportClusterManagerNo
                 clusterGetWeightedRoutingResponse = new ClusterGetWeightedRoutingResponse(weight, weightedRouting);
             }
             listener.onResponse(clusterGetWeightedRoutingResponse);
-        } catch (ActionRequestValidationException ex) {
+        } catch (Exception ex) {
             listener.onFailure(ex);
         }
-
     }
-
 }
