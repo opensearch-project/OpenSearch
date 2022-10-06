@@ -123,12 +123,7 @@ public class WeightedRoutingService {
 
             @Override
             public void onFailure(String source, Exception e) {
-                logger.error(
-                    () -> new ParameterizedMessage(
-                        "failed to remove weighted routing metadata from cluster state with an exception [{}]",
-                        e
-                    )
-                );
+                logger.error("failed to remove weighted routing metadata from cluster state", e);
                 listener.onFailure(e);
             }
 
