@@ -65,6 +65,7 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
+import static org.opensearch.cluster.decommission.DecommissionService.nodeCommissioned;
 import static org.opensearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 
 /**
@@ -481,7 +482,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
     }
 
     public static void ensureNodeCommissioned(DiscoveryNode node, Metadata metadata) {
-        if (DecommissionHelper.nodeCommissioned(node, metadata) == false) {
+        if (nodeCommissioned(node, metadata) == false) {
             throw new NodeDecommissionedException(
                 "node [{}] has decommissioned attribute [{}] with current status of decommissioning [{}]",
                 node.toString(),

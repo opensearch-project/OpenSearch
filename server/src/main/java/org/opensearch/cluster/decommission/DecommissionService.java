@@ -39,7 +39,6 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import static org.opensearch.cluster.decommission.DecommissionHelper.nodeHasDecommissionedAttribute;
 import static org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING;
 import static org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING;
 
@@ -477,5 +476,39 @@ public class DecommissionService {
                 logger.error("unexpected failure occurred during decommission status update", e);
             }
         };
+    }
+
+    /**
+     * Utility method to check if the node has decommissioned attribute
+     *
+     * @param discoveryNode node to check on
+     * @param decommissionAttribute attribute to be checked with
+     * @return true or false based on whether node has decommissioned attribute
+     */
+    public static boolean nodeHasDecommissionedAttribute(DiscoveryNode discoveryNode, DecommissionAttribute decommissionAttribute) {
+        return discoveryNode.getAttributes().get(decommissionAttribute.attributeName()).equals(decommissionAttribute.attributeValue());
+    }
+
+    /**
+     * Utility method to check if the node is commissioned or not
+     *
+     * @param discoveryNode node to check on
+     * @param metadata metadata present current which will be used to check the commissioning status of the node
+     * @return if the node is commissioned or not
+     */
+    public static boolean nodeCommissioned(DiscoveryNode discoveryNode, Metadata metadata) {
+        DecommissionAttributeMetadata decommissionAttributeMetadata = metadata.decommissionAttributeMetadata();
+        if (decommissionAttributeMetadata != null) {
+            DecommissionAttribute decommissionAttribute = decommissionAttributeMetadata.decommissionAttribute();
+            DecommissionStatus status = decommissionAttributeMetadata.status();
+            if (decommissionAttribute != null && status != null) {
+                // We will let the node join the cluster if the current status is in FAILED state
+                if (nodeHasDecommissionedAttribute(discoveryNode, decommissionAttribute)
+                    && (status.equals(DecommissionStatus.IN_PROGRESS) || status.equals(DecommissionStatus.SUCCESSFUL))) {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 }
