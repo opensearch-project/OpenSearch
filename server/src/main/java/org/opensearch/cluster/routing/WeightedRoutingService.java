@@ -14,6 +14,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.delete.ClusterDeleteWeightedRoutingRequest;
 import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.delete.ClusterDeleteWeightedRoutingResponse;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingRequest;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
@@ -95,7 +96,7 @@ public class WeightedRoutingService {
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 logger.debug("cluster weighted routing weights metadata change is processed by all the nodes");
-                listener.onResponse(new ClusterStateUpdateResponse(true));
+                listener.onResponse(new ClusterDeleteWeightedRoutingResponse(true));
             }
         });
     }
@@ -109,7 +110,7 @@ public class WeightedRoutingService {
 
     public void deleteWeightedRoutingMetadata(
         final ClusterDeleteWeightedRoutingRequest request,
-        final ActionListener<ClusterStateUpdateResponse> listener
+        final ActionListener<ClusterDeleteWeightedRoutingResponse> listener
     ) {
         clusterService.submitStateUpdateTask("delete_weighted_routing", new ClusterStateUpdateTask(Priority.URGENT) {
             @Override
@@ -122,7 +123,12 @@ public class WeightedRoutingService {
 
             @Override
             public void onFailure(String source, Exception e) {
-                logger.warn(() -> new ParameterizedMessage("failed to remove weighted routing metadata from cluster state [{}]", e));
+                logger.error(
+                    () -> new ParameterizedMessage(
+                        "failed to remove weighted routing metadata from cluster state with an exception [{}]",
+                        e
+                    )
+                );
                 listener.onFailure(e);
             }
 
@@ -130,7 +136,7 @@ public class WeightedRoutingService {
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 logger.debug("cluster weighted routing metadata change is processed by all the nodes");
                 assert newState.metadata().weightedRoutingMetadata() == null;
-                listener.onResponse(new ClusterStateUpdateResponse(true));
+                listener.onResponse(new ClusterDeleteWeightedRoutingResponse(true));
             }
         });
     }

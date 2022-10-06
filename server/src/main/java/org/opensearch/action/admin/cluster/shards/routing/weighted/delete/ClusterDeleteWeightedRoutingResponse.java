@@ -25,7 +25,7 @@ public class ClusterDeleteWeightedRoutingResponse extends AcknowledgedResponse {
         super(in);
     }
 
-    ClusterDeleteWeightedRoutingResponse(boolean acknowledged) {
+    public ClusterDeleteWeightedRoutingResponse(boolean acknowledged) {
         super(acknowledged);
     }
 

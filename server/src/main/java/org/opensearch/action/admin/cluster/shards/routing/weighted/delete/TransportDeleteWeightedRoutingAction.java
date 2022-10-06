@@ -81,14 +81,6 @@ public class TransportDeleteWeightedRoutingAction extends TransportClusterManage
         ClusterState state,
         ActionListener<ClusterDeleteWeightedRoutingResponse> listener
     ) throws Exception {
-        weightedRoutingService.deleteWeightedRoutingMetadata(
-            request,
-            ActionListener.delegateFailure(
-                listener,
-                (delegatedListener, response) -> {
-                    delegatedListener.onResponse(new ClusterDeleteWeightedRoutingResponse(response.isAcknowledged()));
-                }
-            )
-        );
+        weightedRoutingService.deleteWeightedRoutingMetadata(request, listener);
     }
 }
