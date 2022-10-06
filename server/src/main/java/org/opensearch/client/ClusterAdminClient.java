@@ -92,6 +92,9 @@ import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRespons
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsRequestBuilder;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.get.ClusterGetWeightedRoutingRequest;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.get.ClusterGetWeightedRoutingRequestBuilder;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.get.ClusterGetWeightedRoutingResponse;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingRequest;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingRequestBuilder;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingResponse;
@@ -815,6 +818,21 @@ public interface ClusterAdminClient extends OpenSearchClient {
      * Updates weights for weighted round-robin search routing policy.
      */
     ClusterPutWeightedRoutingRequestBuilder prepareWeightedRouting();
+
+    /**
+     * Gets weights for weighted round-robin search routing policy.
+     */
+    ActionFuture<ClusterGetWeightedRoutingResponse> getWeightedRouting(ClusterGetWeightedRoutingRequest request);
+
+    /**
+     * Gets weights for weighted round-robin search routing policy.
+     */
+    void getWeightedRouting(ClusterGetWeightedRoutingRequest request, ActionListener<ClusterGetWeightedRoutingResponse> listener);
+
+    /**
+     * Gets weights for weighted round-robin search routing policy.
+     */
+    ClusterGetWeightedRoutingRequestBuilder prepareGetWeightedRouting();
 
     /**
      * Decommission awareness attribute
