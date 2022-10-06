@@ -165,7 +165,9 @@ import org.opensearch.action.admin.indices.resolve.ResolveIndexAction;
 import org.opensearch.action.admin.indices.rollover.RolloverAction;
 import org.opensearch.action.admin.indices.rollover.TransportRolloverAction;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentsAction;
+import org.opensearch.action.admin.indices.segments.PitSegmentsAction;
 import org.opensearch.action.admin.indices.segments.TransportIndicesSegmentsAction;
+import org.opensearch.action.admin.indices.segments.TransportPitSegmentsAction;
 import org.opensearch.action.admin.indices.settings.get.GetSettingsAction;
 import org.opensearch.action.admin.indices.settings.get.TransportGetSettingsAction;
 import org.opensearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
@@ -234,10 +236,16 @@ import org.opensearch.action.ingest.SimulatePipelineTransportAction;
 import org.opensearch.action.main.MainAction;
 import org.opensearch.action.main.TransportMainAction;
 import org.opensearch.action.search.ClearScrollAction;
+import org.opensearch.action.search.CreatePitAction;
+import org.opensearch.action.search.DeletePitAction;
 import org.opensearch.action.search.MultiSearchAction;
+import org.opensearch.action.search.GetAllPitsAction;
 import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.search.SearchScrollAction;
 import org.opensearch.action.search.TransportClearScrollAction;
+import org.opensearch.action.search.TransportCreatePitAction;
+import org.opensearch.action.search.TransportDeletePitAction;
+import org.opensearch.action.search.TransportGetAllPitsAction;
 import org.opensearch.action.search.TransportMultiSearchAction;
 import org.opensearch.action.search.TransportSearchAction;
 import org.opensearch.action.search.TransportSearchScrollAction;
@@ -375,6 +383,7 @@ import org.opensearch.rest.action.cat.RestIndicesAction;
 import org.opensearch.rest.action.cat.RestClusterManagerAction;
 import org.opensearch.rest.action.cat.RestNodeAttrsAction;
 import org.opensearch.rest.action.cat.RestNodesAction;
+import org.opensearch.rest.action.cat.RestPitSegmentsAction;
 import org.opensearch.rest.action.cat.RestPluginsAction;
 import org.opensearch.rest.action.cat.RestRepositoriesAction;
 import org.opensearch.rest.action.cat.RestSegmentsAction;
@@ -400,7 +409,10 @@ import org.opensearch.rest.action.ingest.RestPutPipelineAction;
 import org.opensearch.rest.action.ingest.RestSimulatePipelineAction;
 import org.opensearch.rest.action.search.RestClearScrollAction;
 import org.opensearch.rest.action.search.RestCountAction;
+import org.opensearch.rest.action.search.RestCreatePitAction;
+import org.opensearch.rest.action.search.RestDeletePitAction;
 import org.opensearch.rest.action.search.RestExplainAction;
+import org.opensearch.rest.action.search.RestGetAllPitsAction;
 import org.opensearch.rest.action.search.RestMultiSearchAction;
 import org.opensearch.rest.action.search.RestSearchAction;
 import org.opensearch.rest.action.search.RestSearchScrollAction;
@@ -664,6 +676,12 @@ public class ActionModule extends AbstractModule {
         // Remote Store
         actions.register(RestoreRemoteStoreAction.INSTANCE, TransportRestoreRemoteStoreAction.class);
 
+        // point in time actions
+        actions.register(CreatePitAction.INSTANCE, TransportCreatePitAction.class);
+        actions.register(DeletePitAction.INSTANCE, TransportDeletePitAction.class);
+        actions.register(PitSegmentsAction.INSTANCE, TransportPitSegmentsAction.class);
+        actions.register(GetAllPitsAction.INSTANCE, TransportGetAllPitsAction.class);
+
         return unmodifiableMap(actions.getRegistry());
     }
 
@@ -835,6 +853,13 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestRepositoriesAction());
         registerHandler.accept(new RestSnapshotAction());
         registerHandler.accept(new RestTemplatesAction());
+
+        // Point in time API
+        registerHandler.accept(new RestCreatePitAction());
+        registerHandler.accept(new RestDeletePitAction());
+        registerHandler.accept(new RestGetAllPitsAction(nodesInCluster));
+        registerHandler.accept(new RestPitSegmentsAction(nodesInCluster));
+
         for (ActionPlugin plugin : actionPlugins) {
             for (RestHandler handler : plugin.getRestHandlers(
                 settings,

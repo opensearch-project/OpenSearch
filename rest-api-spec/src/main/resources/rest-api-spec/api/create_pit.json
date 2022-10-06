@@ -1,0 +1,44 @@
+
+{
+  "create_pit":{
+    "documentation":{
+      "url":"https://opensearch.org/docs/latest/opensearch/rest-api/point_in_time/",
+      "description":"Creates point in time context."
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/{index}/_search/point_in_time",
+          "methods":[
+            "POST"
+          ],
+          "parts":{
+            "index":{
+              "type":"list",
+              "description":"A comma-separated list of index names to search; use `_all` or empty string to perform the operation on all indices"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+      "allow_partial_pit_creation":{
+        "type":"boolean",
+        "description":"Allow if point in time can be created with partial failures"
+      },
+      "keep_alive":{
+        "type":"string",
+        "description":"Specify the keep alive for point in time"
+      },
+      "preference":{
+        "type":"string",
+        "description":"Specify the node or shard the operation should be performed on (default: random)"
+      },
+      "routing":{
+        "type":"list",
+        "description":"A comma-separated list of specific routing values"
+      }
+    }
+  }
+}

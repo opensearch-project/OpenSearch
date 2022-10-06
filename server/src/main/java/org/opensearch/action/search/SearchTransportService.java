@@ -71,7 +71,9 @@ import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiFunction;
@@ -87,6 +89,8 @@ public class SearchTransportService {
     public static final String FREE_CONTEXT_SCROLL_ACTION_NAME = "indices:data/read/search[free_context/scroll]";
     public static final String FREE_CONTEXT_ACTION_NAME = "indices:data/read/search[free_context]";
     public static final String CLEAR_SCROLL_CONTEXTS_ACTION_NAME = "indices:data/read/search[clear_scroll_contexts]";
+    public static final String FREE_PIT_CONTEXT_ACTION_NAME = "indices:data/read/search[free_context/pit]";
+    public static final String FREE_ALL_PIT_CONTEXTS_ACTION_NAME = "indices:data/read/search[free_pit_contexts]";
     public static final String DFS_ACTION_NAME = "indices:data/read/search[phase/dfs]";
     public static final String QUERY_ACTION_NAME = "indices:data/read/search[phase/query]";
     public static final String QUERY_ID_ACTION_NAME = "indices:data/read/search[phase/query/id]";
@@ -95,6 +99,8 @@ public class SearchTransportService {
     public static final String FETCH_ID_SCROLL_ACTION_NAME = "indices:data/read/search[phase/fetch/id/scroll]";
     public static final String FETCH_ID_ACTION_NAME = "indices:data/read/search[phase/fetch/id]";
     public static final String QUERY_CAN_MATCH_NAME = "indices:data/read/search[can_match]";
+    public static final String CREATE_READER_CONTEXT_ACTION_NAME = "indices:data/read/search[create_context]";
+    public static final String UPDATE_READER_CONTEXT_ACTION_NAME = "indices:data/read/search[update_context]";
 
     private final TransportService transportService;
     private final BiFunction<Transport.Connection, SearchActionListener, ActionListener> responseWrapper;
@@ -142,6 +148,36 @@ public class SearchTransportService {
         );
     }
 
+    public void updatePitContext(
+        Transport.Connection connection,
+        UpdatePitContextRequest request,
+        ActionListener<UpdatePitContextResponse> actionListener
+    ) {
+        transportService.sendRequest(
+            connection,
+            UPDATE_READER_CONTEXT_ACTION_NAME,
+            request,
+            TransportRequestOptions.EMPTY,
+            new ActionListenerResponseHandler<>(actionListener, UpdatePitContextResponse::new)
+        );
+    }
+
+    public void createPitContext(
+        Transport.Connection connection,
+        TransportCreatePitAction.CreateReaderContextRequest request,
+        SearchTask task,
+        ActionListener<TransportCreatePitAction.CreateReaderContextResponse> actionListener
+    ) {
+        transportService.sendChildRequest(
+            connection,
+            CREATE_READER_CONTEXT_ACTION_NAME,
+            request,
+            task,
+            TransportRequestOptions.EMPTY,
+            new ActionListenerResponseHandler<>(actionListener, TransportCreatePitAction.CreateReaderContextResponse::new)
+        );
+    }
+
     public void sendCanMatch(
         Transport.Connection connection,
         final ShardSearchRequest request,
@@ -165,6 +201,20 @@ public class SearchTransportService {
             TransportRequest.Empty.INSTANCE,
             TransportRequestOptions.EMPTY,
             new ActionListenerResponseHandler<>(listener, (in) -> TransportResponse.Empty.INSTANCE)
+        );
+    }
+
+    public void sendFreePITContexts(
+        Transport.Connection connection,
+        List<PitSearchContextIdForNode> contextIds,
+        ActionListener<DeletePitResponse> listener
+    ) {
+        transportService.sendRequest(
+            connection,
+            FREE_PIT_CONTEXT_ACTION_NAME,
+            new PitFreeContextsRequest(contextIds),
+            TransportRequestOptions.EMPTY,
+            new ActionListenerResponseHandler<>(listener, DeletePitResponse::new)
         );
     }
 
@@ -339,6 +389,43 @@ public class SearchTransportService {
     }
 
     /**
+     * Request to free the PIT context based on id
+     */
+    static class PitFreeContextsRequest extends TransportRequest {
+        private List<PitSearchContextIdForNode> contextIds;
+
+        PitFreeContextsRequest(List<PitSearchContextIdForNode> contextIds) {
+            this.contextIds = new ArrayList<>();
+            this.contextIds.addAll(contextIds);
+        }
+
+        PitFreeContextsRequest(StreamInput in) throws IOException {
+            super(in);
+            int size = in.readVInt();
+            if (size > 0) {
+                this.contextIds = new ArrayList<>();
+                for (int i = 0; i < size; i++) {
+                    PitSearchContextIdForNode contextId = new PitSearchContextIdForNode(in);
+                    contextIds.add(contextId);
+                }
+            }
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeVInt(contextIds.size());
+            for (PitSearchContextIdForNode contextId : contextIds) {
+                contextId.writeTo(out);
+            }
+        }
+
+        public List<PitSearchContextIdForNode> getContextIds() {
+            return this.contextIds;
+        }
+    }
+
+    /**
      * A search free context request
      *
      * @opensearch.internal
@@ -422,6 +509,15 @@ public class SearchTransportService {
             }
         );
         TransportActionProxy.registerProxyAction(transportService, FREE_CONTEXT_SCROLL_ACTION_NAME, SearchFreeContextResponse::new);
+
+        transportService.registerRequestHandler(
+            FREE_PIT_CONTEXT_ACTION_NAME,
+            ThreadPool.Names.SAME,
+            PitFreeContextsRequest::new,
+            (request, channel, task) -> { channel.sendResponse(searchService.freeReaderContextsIfFound(request.getContextIds())); }
+        );
+        TransportActionProxy.registerProxyAction(transportService, FREE_PIT_CONTEXT_ACTION_NAME, DeletePitResponse::new);
+
         transportService.registerRequestHandler(
             FREE_CONTEXT_ACTION_NAME,
             ThreadPool.Names.SAME,
@@ -562,6 +658,48 @@ public class SearchTransportService {
             }
         );
         TransportActionProxy.registerProxyAction(transportService, QUERY_CAN_MATCH_NAME, SearchService.CanMatchResponse::new);
+        transportService.registerRequestHandler(
+            CREATE_READER_CONTEXT_ACTION_NAME,
+            ThreadPool.Names.SAME,
+            TransportCreatePitAction.CreateReaderContextRequest::new,
+            (request, channel, task) -> {
+                ChannelActionListener<
+                    TransportCreatePitAction.CreateReaderContextResponse,
+                    TransportCreatePitAction.CreateReaderContextRequest> listener = new ChannelActionListener<>(
+                        channel,
+                        CREATE_READER_CONTEXT_ACTION_NAME,
+                        request
+                    );
+                searchService.createPitReaderContext(
+                    request.getShardId(),
+                    request.getKeepAlive(),
+                    ActionListener.wrap(
+                        r -> listener.onResponse(new TransportCreatePitAction.CreateReaderContextResponse(r)),
+                        listener::onFailure
+                    )
+                );
+            }
+        );
+        TransportActionProxy.registerProxyAction(
+            transportService,
+            CREATE_READER_CONTEXT_ACTION_NAME,
+            TransportCreatePitAction.CreateReaderContextResponse::new
+        );
+
+        transportService.registerRequestHandler(
+            UPDATE_READER_CONTEXT_ACTION_NAME,
+            ThreadPool.Names.SAME,
+            UpdatePitContextRequest::new,
+            (request, channel, task) -> {
+                ChannelActionListener<UpdatePitContextResponse, UpdatePitContextRequest> listener = new ChannelActionListener<>(
+                    channel,
+                    UPDATE_READER_CONTEXT_ACTION_NAME,
+                    request
+                );
+                searchService.updatePitIdAndKeepAlive(request, listener);
+            }
+        );
+        TransportActionProxy.registerProxyAction(transportService, UPDATE_READER_CONTEXT_ACTION_NAME, UpdatePitContextResponse::new);
     }
 
     /**
