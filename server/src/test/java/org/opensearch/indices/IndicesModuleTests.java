@@ -32,7 +32,6 @@
 
 package org.opensearch.indices;
 
-import org.opensearch.Version;
 import org.opensearch.index.mapper.DocCountFieldMapper;
 import org.opensearch.index.mapper.DataStreamFieldMapper;
 import org.opensearch.index.mapper.FieldNamesFieldMapper;
@@ -104,7 +103,6 @@ public class IndicesModuleTests extends OpenSearchTestCase {
     public void testBuiltinMappers() {
         IndicesModule module = new IndicesModule(Collections.emptyList());
         {
-            Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
             assertFalse(module.getMapperRegistry().getMapperParsers().isEmpty());
             assertFalse(module.getMapperRegistry().getMetadataMapperParsers().isEmpty());
             Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = module.getMapperRegistry().getMetadataMapperParsers();
@@ -115,12 +113,7 @@ public class IndicesModuleTests extends OpenSearchTestCase {
             }
         }
         {
-            Version version = VersionUtils.randomVersionBetween(
-                random(),
-                Version.V_1_0_0,
-                VersionUtils.getPreviousVersion(Version.V_2_0_0)
-            );
-            assertEquals(EXPECTED_METADATA_FIELDS.length - 1, module.getMapperRegistry().getMetadataMapperParsers(version).size());
+            assertEquals(EXPECTED_METADATA_FIELDS.length - 1, module.getMapperRegistry().getMetadataMapperParsers().size());
         }
     }
 
