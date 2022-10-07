@@ -140,6 +140,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
     private final Settings settings;
     private final boolean singleNodeDiscovery;
+    private volatile boolean localNodeCommissioned;
     private final ElectionStrategy electionStrategy;
     private final TransportService transportService;
     private final ClusterManagerService clusterManagerService;
@@ -209,6 +210,20 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.onJoinValidators = JoinTaskExecutor.addBuiltInJoinValidators(onJoinValidators);
         this.singleNodeDiscovery = DiscoveryModule.isSingleNodeDiscovery(settings);
         this.electionStrategy = electionStrategy;
+        this.joinHelper = new JoinHelper(
+            settings,
+            allocationService,
+            clusterManagerService,
+            transportService,
+            this::getCurrentTerm,
+            this::getStateForClusterManagerService,
+            this::handleJoinRequest,
+            this::joinLeaderInTerm,
+            this.onJoinValidators,
+            rerouteService,
+            nodeHealthService,
+            this::onNodeCommissionStatusChange
+        );
         this.persistedStateSupplier = persistedStateSupplier;
         this.noClusterManagerBlockService = new NoClusterManagerBlockService(settings, clusterSettings);
         this.lastKnownLeader = Optional.empty();
@@ -231,20 +246,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             transportService,
             new HandshakingTransportAddressConnector(settings, transportService),
             configuredHostsResolver
-        );
-        this.joinHelper = new JoinHelper(
-            settings,
-            allocationService,
-            clusterManagerService,
-            transportService,
-            this::getCurrentTerm,
-            this::getStateForClusterManagerService,
-            this::handleJoinRequest,
-            this::joinLeaderInTerm,
-            this.onJoinValidators,
-            rerouteService,
-            nodeHealthService,
-            peerFinder::onNodeCommissionStatusChange
         );
         this.publicationHandler = new PublicationTransportHandler(
             transportService,
@@ -284,6 +285,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             joinHelper::logLastFailedJoinAttempt
         );
         this.nodeHealthService = nodeHealthService;
+        this.localNodeCommissioned = true;
     }
 
     private ClusterFormationState getClusterFormationState() {
@@ -1430,6 +1432,17 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         }
     }
 
+    // package-visible for testing
+    synchronized void onNodeCommissionStatusChange(boolean localNodeCommissioned) {
+        this.localNodeCommissioned = localNodeCommissioned;
+        peerFinder.onNodeCommissionStatusChange(localNodeCommissioned);
+    }
+
+    // package-visible for testing
+    boolean localNodeCommissioned() {
+        return localNodeCommissioned;
+    }
+
     private void startElectionScheduler() {
         assert electionScheduler == null : electionScheduler;
 
@@ -1456,7 +1469,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                             return;
                         }
 
-                        if (nodeCommissioned(lastAcceptedState.nodes().getLocalNode(), lastAcceptedState.metadata()) == false) {
+                        // if either the localNodeCommissioned flag or the last accepted state thinks it should skip pre voting, we will acknowledge it
+                        if (nodeCommissioned(lastAcceptedState.nodes().getLocalNode(), lastAcceptedState.metadata()) == false || localNodeCommissioned == false) {
                             logger.debug("skip prevoting as local node is decommissioned");
                             return;
                         }
