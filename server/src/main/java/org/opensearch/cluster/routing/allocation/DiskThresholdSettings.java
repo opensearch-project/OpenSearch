@@ -33,6 +33,7 @@
 package org.opensearch.cluster.routing.allocation;
 
 import org.opensearch.OpenSearchParseException;
+import org.opensearch.Version;
 import org.opensearch.common.Strings;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
@@ -108,19 +109,14 @@ public class DiskThresholdSettings {
     private volatile TimeValue rerouteInterval;
     private volatile Double freeDiskThresholdFloodStage;
     private volatile ByteSizeValue freeBytesThresholdFloodStage;
-    private static final boolean autoReleaseIndexEnabled;
-    public static final String AUTO_RELEASE_INDEX_ENABLED_KEY = "opensearch.disk.auto_release_flood_stage_block";
 
     static {
+        assert Version.CURRENT.major == Version.V_2_0_0.major + 1; // this check is unnecessary in v4
+        final String AUTO_RELEASE_INDEX_ENABLED_KEY = "opensearch.disk.auto_release_flood_stage_block";
+
         final String property = System.getProperty(AUTO_RELEASE_INDEX_ENABLED_KEY);
-        if (property == null) {
-            autoReleaseIndexEnabled = true;
-        } else if (Boolean.FALSE.toString().equals(property)) {
-            autoReleaseIndexEnabled = false;
-        } else {
-            throw new IllegalArgumentException(
-                AUTO_RELEASE_INDEX_ENABLED_KEY + " may only be unset or set to [false] but was [" + property + "]"
-            );
+        if (property != null) {
+            throw new IllegalArgumentException("system property [" + AUTO_RELEASE_INDEX_ENABLED_KEY + "] may not be set");
         }
     }
 
@@ -369,10 +365,6 @@ public class DiskThresholdSettings {
 
     public ByteSizeValue getFreeBytesThresholdFloodStage() {
         return freeBytesThresholdFloodStage;
-    }
-
-    public boolean isAutoReleaseIndexEnabled() {
-        return autoReleaseIndexEnabled;
     }
 
     public boolean includeRelocations() {
