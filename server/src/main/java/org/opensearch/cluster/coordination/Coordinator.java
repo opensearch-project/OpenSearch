@@ -1469,8 +1469,10 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                             return;
                         }
 
-                        // if either the localNodeCommissioned flag or the last accepted state thinks it should skip pre voting, we will acknowledge it
-                        if (nodeCommissioned(lastAcceptedState.nodes().getLocalNode(), lastAcceptedState.metadata()) == false || localNodeCommissioned == false) {
+                        // if either the localNodeCommissioned flag or the last accepted state thinks it should skip pre voting, we will
+                        // acknowledge it
+                        if (nodeCommissioned(lastAcceptedState.nodes().getLocalNode(), lastAcceptedState.metadata()) == false
+                            || localNodeCommissioned == false) {
                             logger.debug("skip prevoting as local node is decommissioned");
                             return;
                         }
