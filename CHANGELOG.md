@@ -69,6 +69,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - 2.3.0 release notes ([#4457](https://github.com/opensearch-project/OpenSearch/pull/4457))
 - Add BWC version 2.3.1 ([#4512](https://github.com/opensearch-project/OpenSearch/pull/4512))
 - Updated jackson to 2.13.4 and snakeyml to 1.32 ([#4563](https://github.com/opensearch-project/OpenSearch/pull/4563))
+- Add BWC version 1.3.7 ([#4709](https://github.com/opensearch-project/OpenSearch/pull/4709))
 
 ### Changed
 
