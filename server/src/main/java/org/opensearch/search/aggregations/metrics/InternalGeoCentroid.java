@@ -33,7 +33,6 @@
 package org.opensearch.search.aggregations.metrics;
 
 import org.apache.lucene.geo.GeoEncodingUtils;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.io.stream.StreamInput;
@@ -84,13 +83,7 @@ public class InternalGeoCentroid extends InternalAggregation implements GeoCentr
         super(in);
         count = in.readVLong();
         if (in.readBoolean()) {
-            if (in.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
-                centroid = new GeoPoint(in.readDouble(), in.readDouble());
-            } else {
-                final long hash = in.readLong();
-                centroid = new GeoPoint(decodeLatitude(hash), decodeLongitude(hash));
-            }
-
+            centroid = new GeoPoint(in.readDouble(), in.readDouble());
         } else {
             centroid = null;
         }
@@ -101,12 +94,8 @@ public class InternalGeoCentroid extends InternalAggregation implements GeoCentr
         out.writeVLong(count);
         if (centroid != null) {
             out.writeBoolean(true);
-            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
-                out.writeDouble(centroid.lat());
-                out.writeDouble(centroid.lon());
-            } else {
-                out.writeLong(encodeLatLon(centroid.lat(), centroid.lon()));
-            }
+            out.writeDouble(centroid.lat());
+            out.writeDouble(centroid.lon());
         } else {
             out.writeBoolean(false);
         }

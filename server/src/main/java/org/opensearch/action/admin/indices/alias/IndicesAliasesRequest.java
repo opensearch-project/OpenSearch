@@ -88,11 +88,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
     public IndicesAliasesRequest(StreamInput in) throws IOException {
         super(in);
         allAliasActions = in.readList(AliasActions::new);
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_3_0)) {
-            origin = in.readOptionalString();
-        } else {
-            origin = null;
-        }
+        origin = in.readOptionalString();
     }
 
     public IndicesAliasesRequest() {}
@@ -662,11 +658,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         super.writeTo(out);
         out.writeList(allAliasActions);
         // noinspection StatementWithEmptyBody
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_3_0)) {
-            out.writeOptionalString(origin);
-        } else {
-            // nothing to do here, here for symmetry with IndicesAliasesRequest#readFrom
-        }
+        out.writeOptionalString(origin);
     }
 
     public IndicesOptions indicesOptions() {

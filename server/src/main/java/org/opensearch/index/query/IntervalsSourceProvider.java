@@ -41,7 +41,6 @@ import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.RegExp;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.ParsingException;
@@ -166,11 +165,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             }
             this.analyzer = in.readOptionalString();
             this.filter = in.readOptionalWriteable(IntervalFilter::new);
-            if (in.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
-                this.useField = in.readOptionalString();
-            } else {
-                this.useField = null;
-            }
+            this.useField = in.readOptionalString();
         }
 
         @Override
@@ -234,9 +229,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             }
             out.writeOptionalString(analyzer);
             out.writeOptionalWriteable(filter);
-            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
-                out.writeOptionalString(useField);
-            }
+            out.writeOptionalString(useField);
         }
 
         @Override

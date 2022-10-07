@@ -39,7 +39,6 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.nodes.BaseNodeRequest;
 import org.opensearch.action.support.nodes.BaseNodeResponse;
 import org.opensearch.action.support.nodes.BaseNodesRequest;
 import org.opensearch.action.support.nodes.BaseNodesResponse;
@@ -68,6 +67,7 @@ import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
@@ -410,7 +410,7 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
      *
      * @opensearch.internal
      */
-    public static class NodeRequest extends BaseNodeRequest {
+    public static class NodeRequest extends TransportRequest {
 
         private final ShardId shardId;
         @Nullable
