@@ -280,6 +280,8 @@ import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.extensions.action.ExtensionProxyAction;
+import org.opensearch.extensions.action.ExtensionTransportAction;
 import org.opensearch.index.seqno.RetentionLeaseActions;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.indices.breaker.CircuitBreakerService;
@@ -695,6 +697,9 @@ public class ActionModule extends AbstractModule {
 
         // Remote Store
         actions.register(RestoreRemoteStoreAction.INSTANCE, TransportRestoreRemoteStoreAction.class);
+
+        // ExtensionProxyAction
+        actions.register(ExtensionProxyAction.INSTANCE, ExtensionTransportAction.class);
 
         // Decommission actions
         actions.register(DecommissionAction.INSTANCE, TransportDecommissionAction.class);

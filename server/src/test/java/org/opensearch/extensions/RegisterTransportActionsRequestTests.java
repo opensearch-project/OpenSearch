@@ -21,7 +21,7 @@ public class RegisterTransportActionsRequestTests extends OpenSearchTestCase {
 
     @Before
     public void setup() {
-        this.originalRequest = new RegisterTransportActionsRequest(Map.of("testAction", Map.class));
+        this.originalRequest = new RegisterTransportActionsRequest("extension-uniqueId", Map.of("testAction", Map.class));
     }
 
     public void testRegisterTransportActionsRequest() throws IOException {
@@ -37,6 +37,9 @@ public class RegisterTransportActionsRequestTests extends OpenSearchTestCase {
     }
 
     public void testToString() {
-        assertEquals(originalRequest.toString(), "TransportActionsRequest{actions={testAction=class org.opensearch.common.collect.Map}}");
+        assertEquals(
+            originalRequest.toString(),
+            "TransportActionsRequest{uniqueId=extension-uniqueId, actions={testAction=class org.opensearch.common.collect.Map}}"
+        );
     }
 }
