@@ -35,6 +35,7 @@ package org.opensearch.repositories;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 
@@ -67,6 +68,15 @@ public class RepositoryException extends OpenSearchException {
     public RepositoryException(StreamInput in) throws IOException {
         super(in);
         repository = in.readOptionalString();
+    }
+
+    @Override
+    public RestStatus status() {
+        String causeDescription = unwrapCause().getMessage();
+        if (causeDescription != null && causeDescription.contains("not found")) {
+            return RestStatus.NOT_FOUND;
+        }
+        return RestStatus.INTERNAL_SERVER_ERROR;
     }
 
     @Override
