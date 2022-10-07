@@ -536,7 +536,8 @@ public class DecommissionService {
      * @return true or false based on whether node has decommissioned attribute
      */
     public static boolean nodeHasDecommissionedAttribute(DiscoveryNode discoveryNode, DecommissionAttribute decommissionAttribute) {
-        return discoveryNode.getAttributes().get(decommissionAttribute.attributeName()).equals(decommissionAttribute.attributeValue());
+        String nodeAttributeValue = discoveryNode.getAttributes().get(decommissionAttribute.attributeName());
+        return nodeAttributeValue != null && nodeAttributeValue.equals(decommissionAttribute.attributeValue());
     }
 
     /**
