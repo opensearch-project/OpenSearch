@@ -243,7 +243,7 @@ public class WeightedRoutingIT extends OpenSearchIntegTestCase {
         assertEquals("3.0", weightedRoutingResponse.getLocalNodeWeight());
     }
 
-    public void testWeightedRoutingMetadataOnOSProcessRestart() throws IOException {
+    public void testWeightedRoutingMetadataOnOSProcessRestart() throws Exception {
         Settings commonSettings = Settings.builder()
             .put("cluster.routing.allocation.awareness.attributes", "zone")
             .put("cluster.routing.allocation.awareness.force.zone.values", "a,b,c")
@@ -280,14 +280,8 @@ public class WeightedRoutingIT extends OpenSearchIntegTestCase {
         ensureGreen();
 
         // Restart a random data node and check that OS process comes healthy
-        try {
-            internalCluster().restartRandomDataNode();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
+        internalCluster().restartRandomDataNode();
         ensureGreen();
-
         assertNotNull(internalCluster().clusterService().state().metadata().weightedRoutingMetadata());
     }
 }
