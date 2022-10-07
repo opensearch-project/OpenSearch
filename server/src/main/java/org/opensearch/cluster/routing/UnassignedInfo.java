@@ -33,7 +33,6 @@
 package org.opensearch.cluster.routing;
 
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
@@ -314,11 +313,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         this.failure = in.readException();
         this.failedAllocations = in.readVInt();
         this.lastAllocationStatus = AllocationStatus.readFrom(in);
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_5_0)) {
-            this.failedNodeIds = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
-        } else {
-            this.failedNodeIds = Collections.emptySet();
-        }
+        this.failedNodeIds = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
     }
 
     public void writeTo(StreamOutput out) throws IOException {
@@ -330,9 +325,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         out.writeException(failure);
         out.writeVInt(failedAllocations);
         lastAllocationStatus.writeTo(out);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_5_0)) {
-            out.writeCollection(failedNodeIds, StreamOutput::writeString);
-        }
+        out.writeCollection(failedNodeIds, StreamOutput::writeString);
     }
 
     /**

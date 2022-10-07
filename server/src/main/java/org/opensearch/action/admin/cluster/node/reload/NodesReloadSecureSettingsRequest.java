@@ -114,16 +114,14 @@ public class NodesReloadSecureSettingsRequest extends BaseNodesRequest<NodesRelo
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_4_0)) {
-            if (this.secureSettingsPassword == null) {
-                out.writeOptionalBytesReference(null);
-            } else {
-                final byte[] passwordBytes = CharArrays.toUtf8Bytes(this.secureSettingsPassword.getChars());
-                try {
-                    out.writeOptionalBytesReference(new BytesArray(passwordBytes));
-                } finally {
-                    Arrays.fill(passwordBytes, (byte) 0);
-                }
+        if (this.secureSettingsPassword == null) {
+            out.writeOptionalBytesReference(null);
+        } else {
+            final byte[] passwordBytes = CharArrays.toUtf8Bytes(this.secureSettingsPassword.getChars());
+            try {
+                out.writeOptionalBytesReference(new BytesArray(passwordBytes));
+            } finally {
+                Arrays.fill(passwordBytes, (byte) 0);
             }
         }
     }

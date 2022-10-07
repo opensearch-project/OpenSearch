@@ -123,7 +123,6 @@ import org.opensearch.repositories.RepositoryStats;
 import org.opensearch.repositories.RepositoryVerificationException;
 import org.opensearch.repositories.ShardGenerations;
 import org.opensearch.snapshots.AbortedSnapshotException;
-import org.opensearch.snapshots.SnapshotCreationException;
 import org.opensearch.snapshots.SnapshotException;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotInfo;
@@ -711,21 +710,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             return RepositoryStats.EMPTY_STATS;
         }
         return new RepositoryStats(store.stats());
-    }
-
-    @Override
-    public void initializeSnapshot(SnapshotId snapshotId, List<IndexId> indices, Metadata clusterMetadata) {
-        try {
-            // Write Global Metadata
-            GLOBAL_METADATA_FORMAT.write(clusterMetadata, blobContainer(), snapshotId.getUUID(), compress);
-
-            // write the index metadata for each index in the snapshot
-            for (IndexId index : indices) {
-                INDEX_METADATA_FORMAT.write(clusterMetadata.index(index.getName()), indexContainer(index), snapshotId.getUUID(), compress);
-            }
-        } catch (IOException ex) {
-            throw new SnapshotCreationException(metadata.name(), snapshotId, ex);
-        }
     }
 
     @Override
