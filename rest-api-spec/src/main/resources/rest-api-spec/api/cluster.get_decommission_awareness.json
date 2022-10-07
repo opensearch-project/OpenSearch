@@ -1,0 +1,19 @@
+{
+  "cluster.get_decommission_awareness": {
+    "documentation": {
+      "url": "https://opensearch.org/docs/latest/opensearch/rest-api/decommission/",
+      "description": "Get details and status of decommissioned attribute"
+    },
+    "stability": "experimental",
+    "url": {
+      "paths": [
+        {
+          "path": "/_cluster/decommission/awareness/_status",
+          "methods": [
+            "GET"
+          ]
+        }
+      ]
+    }
+  }
+}
