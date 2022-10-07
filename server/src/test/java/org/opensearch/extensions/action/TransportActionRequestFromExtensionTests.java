@@ -17,13 +17,17 @@ import java.nio.charset.StandardCharsets;
 
 public class TransportActionRequestFromExtensionTests extends OpenSearchTestCase {
     public void testTransportActionRequestFromExtension() throws Exception {
-        String action = "test-action";
-        byte[] requestBytes = "request-bytes".getBytes(StandardCharsets.UTF_8);
+        String expectedAction = "test-action";
+        byte[] expectedRequestBytes = "request-bytes".getBytes(StandardCharsets.UTF_8);
         String uniqueId = "test-uniqueId";
-        TransportActionRequestFromExtension request = new TransportActionRequestFromExtension(action, requestBytes, uniqueId);
+        TransportActionRequestFromExtension request = new TransportActionRequestFromExtension(
+            expectedAction,
+            expectedRequestBytes,
+            uniqueId
+        );
 
-        assertEquals(action, request.getAction());
-        assertEquals(requestBytes, request.getRequestBytes());
+        assertEquals(expectedAction, request.getAction());
+        assertEquals(expectedRequestBytes, request.getRequestBytes());
         assertEquals(uniqueId, request.getUniqueId());
 
         BytesStreamOutput out = new BytesStreamOutput();
@@ -31,8 +35,8 @@ public class TransportActionRequestFromExtensionTests extends OpenSearchTestCase
         BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()));
         request = new TransportActionRequestFromExtension(in);
 
-        assertEquals(action, request.getAction());
-        assertEquals(new String(requestBytes, StandardCharsets.UTF_8), new String(request.getRequestBytes(), StandardCharsets.UTF_8));
+        assertEquals(expectedAction, request.getAction());
+        assertArrayEquals(expectedRequestBytes, request.getRequestBytes());
         assertEquals(uniqueId, request.getUniqueId());
     }
 }

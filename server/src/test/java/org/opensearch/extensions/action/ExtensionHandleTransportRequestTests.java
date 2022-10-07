@@ -17,19 +17,19 @@ import java.nio.charset.StandardCharsets;
 
 public class ExtensionHandleTransportRequestTests extends OpenSearchTestCase {
     public void testExtensionHandleTransportRequest() throws Exception {
-        String action = "test-action";
-        byte[] requestBytes = "request-bytes".getBytes(StandardCharsets.UTF_8);
-        ExtensionHandleTransportRequest request = new ExtensionHandleTransportRequest(action, requestBytes);
+        String expectedAction = "test-action";
+        byte[] expectedRequestBytes = "request-bytes".getBytes(StandardCharsets.UTF_8);
+        ExtensionHandleTransportRequest request = new ExtensionHandleTransportRequest(expectedAction, expectedRequestBytes);
 
-        assertEquals(action, request.getAction());
-        assertEquals(requestBytes, request.getRequestBytes());
+        assertEquals(expectedAction, request.getAction());
+        assertEquals(expectedRequestBytes, request.getRequestBytes());
 
         BytesStreamOutput out = new BytesStreamOutput();
         request.writeTo(out);
         BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()));
         request = new ExtensionHandleTransportRequest(in);
 
-        assertEquals(action, request.getAction());
-        assertEquals(new String(requestBytes, StandardCharsets.UTF_8), new String(request.getRequestBytes(), StandardCharsets.UTF_8));
+        assertEquals(expectedAction, request.getAction());
+        assertArrayEquals(expectedRequestBytes, request.getRequestBytes());
     }
 }

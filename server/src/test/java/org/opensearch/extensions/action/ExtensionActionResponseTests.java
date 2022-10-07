@@ -18,16 +18,15 @@ import java.nio.charset.StandardCharsets;
 public class ExtensionActionResponseTests extends OpenSearchTestCase {
 
     public void testExtensionActionResponse() throws Exception {
-        byte[] responseBytes = "response-bytes".getBytes(StandardCharsets.UTF_8);
-        ExtensionActionResponse response = new ExtensionActionResponse(responseBytes);
+        byte[] expectedResponseBytes = "response-bytes".getBytes(StandardCharsets.UTF_8);
+        ExtensionActionResponse response = new ExtensionActionResponse(expectedResponseBytes);
 
-        assertEquals(responseBytes, response.getResponseBytes());
+        assertEquals(expectedResponseBytes, response.getResponseBytes());
 
         BytesStreamOutput out = new BytesStreamOutput();
         response.writeTo(out);
         BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()));
         response = new ExtensionActionResponse(in);
-
-        assertEquals(new String(responseBytes, StandardCharsets.UTF_8), new String(response.getResponseBytes(), StandardCharsets.UTF_8));
+        assertArrayEquals(expectedResponseBytes, response.getResponseBytes());
     }
 }
