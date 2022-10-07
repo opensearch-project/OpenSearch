@@ -720,7 +720,7 @@ public class RecoverySourceHandler {
                 // it's possible that the primary has no retention lease yet if we are doing a rolling upgrade from a version before
                 // 7.4, and in that case we just create a lease using the local checkpoint of the safe commit which we're using for
                 // recovery as a conservative estimate for the global checkpoint.
-                assert shard.indexSettings().getIndexVersionCreated().before(LegacyESVersion.V_7_4_0)
+                assert shard.indexSettings().getIndexVersionCreated().before(LegacyESVersion.fromId(7040099))
                     || shard.indexSettings().isSoftDeleteEnabled() == false;
                 final StepListener<ReplicationResponse> addRetentionLeaseStep = new StepListener<>();
                 final long estimatedGlobalCheckpoint = startingSeqNo - 1;
