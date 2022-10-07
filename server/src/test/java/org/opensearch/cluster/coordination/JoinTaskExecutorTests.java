@@ -111,18 +111,16 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
 
         final Version maxNodeVersion = nodes.getMaxNodeVersion();
         final Version minNodeVersion = nodes.getMinNodeVersion();
-        if (maxNodeVersion.onOrAfter(LegacyESVersion.V_7_0_0)) {
-            final Version tooLow = LegacyESVersion.fromString("6.7.0");
-            expectThrows(IllegalStateException.class, () -> {
-                if (randomBoolean()) {
-                    JoinTaskExecutor.ensureNodesCompatibility(tooLow, nodes);
-                } else {
-                    JoinTaskExecutor.ensureNodesCompatibility(tooLow, minNodeVersion, maxNodeVersion);
-                }
-            });
-        }
+        final Version tooLow = LegacyESVersion.fromString("6.7.0");
+        expectThrows(IllegalStateException.class, () -> {
+            if (randomBoolean()) {
+                JoinTaskExecutor.ensureNodesCompatibility(tooLow, nodes);
+            } else {
+                JoinTaskExecutor.ensureNodesCompatibility(tooLow, minNodeVersion, maxNodeVersion);
+            }
+        });
 
-        if (minNodeVersion.onOrAfter(LegacyESVersion.V_7_0_0) && minNodeVersion.before(Version.V_3_0_0)) {
+        if (minNodeVersion.before(Version.V_3_0_0)) {
             Version oldMajor = minNodeVersion.minimumCompatibilityVersion();
             expectThrows(IllegalStateException.class, () -> JoinTaskExecutor.ensureMajorVersionBarrier(oldMajor, minNodeVersion));
         }

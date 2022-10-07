@@ -47,6 +47,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.test.rest.yaml.ObjectPath;
 import org.hamcrest.Matcher;
@@ -244,6 +245,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
             if (versionPredicate.test(version)) {
                 return id;
             }
+            return id;
         }
         return null;
     }
@@ -270,6 +272,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 updateIndexSettings(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none"));
                 break;
             case MIXED:
+                // todo: verify this test can be removed in 3.0.0
                 final String newNode = getNodeId(v -> v.equals(Version.CURRENT));
                 final String oldNode = getNodeId(v -> v.before(Version.CURRENT));
                 // remove the replica and guaranteed the primary is placed on the old node
@@ -348,11 +351,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 if (randomBoolean()) {
                     indexDocs(index, i, 1); // update
                 } else if (randomBoolean()) {
-                    if (getNodeId(v -> v.onOrAfter(LegacyESVersion.V_7_0_0)) == null) {
-                        client().performRequest(new Request("DELETE", index + "/test/" + i));
-                    } else {
-                        client().performRequest(new Request("DELETE", index + "/_doc/" + i));
-                    }
+                    client().performRequest(new Request("DELETE", index + "/" + MapperService.SINGLE_MAPPING_NAME + "/" + i));
                 }
             }
         }

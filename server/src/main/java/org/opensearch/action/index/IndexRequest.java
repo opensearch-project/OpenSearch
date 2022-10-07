@@ -148,9 +148,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         }
         id = in.readOptionalString();
         routing = in.readOptionalString();
-        if (in.getVersion().before(LegacyESVersion.V_7_0_0)) {
-            in.readOptionalString(); // _parent
-        }
         source = in.readBytesReference();
         opType = OpType.fromId(in.readByte());
         version = in.readLong();
@@ -669,9 +666,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         }
         out.writeOptionalString(id);
         out.writeOptionalString(routing);
-        if (out.getVersion().before(LegacyESVersion.V_7_0_0)) {
-            out.writeOptionalString(null); // _parent
-        }
         out.writeBytesReference(source);
         out.writeByte(opType.getId());
         out.writeLong(version);

@@ -981,15 +981,9 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
         MetadataDiff(StreamInput in) throws IOException {
             clusterUUID = in.readString();
-            if (in.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
-                clusterUUIDCommitted = in.readBoolean();
-            }
+            clusterUUIDCommitted = in.readBoolean();
             version = in.readLong();
-            if (in.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
-                coordinationMetadata = new CoordinationMetadata(in);
-            } else {
-                coordinationMetadata = CoordinationMetadata.EMPTY_METADATA;
-            }
+            coordinationMetadata = new CoordinationMetadata(in);
             transientSettings = Settings.readSettingsFromStream(in);
             persistentSettings = Settings.readSettingsFromStream(in);
             if (in.getVersion().onOrAfter(LegacyESVersion.V_7_3_0)) {
@@ -1005,13 +999,9 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(clusterUUID);
-            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
-                out.writeBoolean(clusterUUIDCommitted);
-            }
+            out.writeBoolean(clusterUUIDCommitted);
             out.writeLong(version);
-            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
-                coordinationMetadata.writeTo(out);
-            }
+            coordinationMetadata.writeTo(out);
             Settings.writeSettingsToStream(transientSettings, out);
             Settings.writeSettingsToStream(persistentSettings, out);
             if (out.getVersion().onOrAfter(LegacyESVersion.V_7_3_0)) {
@@ -1043,12 +1033,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         Builder builder = new Builder();
         builder.version = in.readLong();
         builder.clusterUUID = in.readString();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
-            builder.clusterUUIDCommitted = in.readBoolean();
-        }
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
-            builder.coordinationMetadata(new CoordinationMetadata(in));
-        }
+        builder.clusterUUIDCommitted = in.readBoolean();
+        builder.coordinationMetadata(new CoordinationMetadata(in));
         builder.transientSettings(readSettingsFromStream(in));
         builder.persistentSettings(readSettingsFromStream(in));
         if (in.getVersion().onOrAfter(LegacyESVersion.V_7_3_0)) {
@@ -1074,12 +1060,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(version);
         out.writeString(clusterUUID);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
-            out.writeBoolean(clusterUUIDCommitted);
-        }
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
-            coordinationMetadata.writeTo(out);
-        }
+        out.writeBoolean(clusterUUIDCommitted);
+        coordinationMetadata.writeTo(out);
         writeSettingsToStream(transientSettings, out);
         writeSettingsToStream(persistentSettings, out);
         if (out.getVersion().onOrAfter(LegacyESVersion.V_7_3_0)) {

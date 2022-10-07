@@ -322,11 +322,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
     }
 
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().before(LegacyESVersion.V_7_0_0) && reason == Reason.INDEX_CLOSED) {
-            out.writeByte((byte) Reason.REINITIALIZED.ordinal());
-        } else {
-            out.writeByte((byte) reason.ordinal());
-        }
+        out.writeByte((byte) reason.ordinal());
         out.writeLong(unassignedTimeMillis);
         // Do not serialize unassignedTimeNanos as System.nanoTime() cannot be compared across different JVMs
         out.writeBoolean(delayed);
