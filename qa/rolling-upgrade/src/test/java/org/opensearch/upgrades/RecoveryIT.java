@@ -245,7 +245,6 @@ public class RecoveryIT extends AbstractRollingTestCase {
             if (versionPredicate.test(version)) {
                 return id;
             }
-            return id;
         }
         return null;
     }
