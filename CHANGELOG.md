@@ -62,6 +62,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ## [1.x]
 ### Added
 - Backported CODEOWNERS file and Dependabot configuration
+- Bump version to 1.3.7 ([#4701](https://github.com/opensearch-project/OpenSearch/pull/4701))
 
 ### Dependencies
 - Bumps jackson to 2.13.4 and snakeyml to 1.32 ([#4599](https://github.com/opensearch-project/OpenSearch/pull/4599))
