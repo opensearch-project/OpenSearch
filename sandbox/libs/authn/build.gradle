@@ -13,17 +13,15 @@ apply plugin: 'opensearch.build'
 apply plugin: 'opensearch.publish'
 
 dependencies {
-  api project(':libs:opensearch-core')
+  implementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.jackson}"
+  implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  implementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
 
-  api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-  api "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.jackson}"
-  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
-  api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
-
-  api 'org.apache.shiro:shiro-core:1.9.1'
+  implementation 'org.apache.shiro:shiro-core:1.9.1'
   // Needed for shiro
-  api "org.slf4j:slf4j-api:${versions.slf4j}"
-  api "org.bouncycastle:bcprov-jdk15on:${versions.bouncycastle}"
+  implementation "org.slf4j:slf4j-api:${versions.slf4j}"
+  implementation "org.bouncycastle:bcprov-jdk15on:${versions.bouncycastle}"
 
   testImplementation(project(":test:framework")) {
     exclude group: 'org.opensearch.sandbox', module: 'opensearch-authn'
@@ -69,5 +67,3 @@ thirdPartyAudit.ignoreMissingClasses(
   'org.yaml.snakeyaml.parser.ParserImpl',
   'org.yaml.snakeyaml.resolver.Resolver',
 )
-
-jarHell.enabled = false
