@@ -1,9 +1,16 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
 package org.opensearch.extensions.rest;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
-import java.util.List;
 
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
@@ -12,7 +19,6 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.rest.RestRequest.Method;
 import org.opensearch.test.OpenSearchTestCase;
 
-import static org.opensearch.extensions.rest.ExtensionRestResponse.CONSUMED_PARAMS_KEY;
 import static org.opensearch.rest.BytesRestResponse.TEXT_CONTENT_TYPE;
 import static org.opensearch.rest.RestStatus.ACCEPTED;
 import static org.opensearch.rest.RestStatus.OK;
@@ -60,8 +66,7 @@ public class ExtensionRestResponseTests extends OpenSearchTestCase {
         assertEquals(OK, response.status());
         assertEquals(JSON_CONTENT_TYPE, response.contentType());
         assertEquals("{\"status\":\"ACCEPTED\"}", response.content().utf8ToString());
-        List<String> consumedParams = response.getHeaders().get(CONSUMED_PARAMS_KEY);
-        for (String param : consumedParams) {
+        for (String param : response.getConsumedParams()) {
             assertTrue(request.consumedParams().contains(param));
         }
         assertTrue(request.isContentConsumed());
@@ -74,8 +79,7 @@ public class ExtensionRestResponseTests extends OpenSearchTestCase {
         assertEquals(OK, response.status());
         assertEquals(TEXT_CONTENT_TYPE, response.contentType());
         assertEquals(testText, response.content().utf8ToString());
-        List<String> consumedParams = response.getHeaders().get(CONSUMED_PARAMS_KEY);
-        for (String param : consumedParams) {
+        for (String param : response.getConsumedParams()) {
             assertTrue(request.consumedParams().contains(param));
         }
         assertTrue(request.isContentConsumed());
@@ -89,8 +93,7 @@ public class ExtensionRestResponseTests extends OpenSearchTestCase {
         assertEquals(TEXT_CONTENT_TYPE, response.contentType());
         assertEquals(testText, response.content().utf8ToString());
 
-        List<String> consumedParams = response.getHeaders().get(CONSUMED_PARAMS_KEY);
-        for (String param : consumedParams) {
+        for (String param : response.getConsumedParams()) {
             assertTrue(request.consumedParams().contains(param));
         }
         assertTrue(request.isContentConsumed());
@@ -103,8 +106,7 @@ public class ExtensionRestResponseTests extends OpenSearchTestCase {
         assertEquals(OK, response.status());
         assertEquals(OCTET_CONTENT_TYPE, response.contentType());
         assertArrayEquals(testBytes, BytesReference.toBytes(response.content()));
-        List<String> consumedParams = response.getHeaders().get(CONSUMED_PARAMS_KEY);
-        for (String param : consumedParams) {
+        for (String param : response.getConsumedParams()) {
             assertTrue(request.consumedParams().contains(param));
         }
         assertTrue(request.isContentConsumed());
@@ -122,8 +124,7 @@ public class ExtensionRestResponseTests extends OpenSearchTestCase {
         assertEquals(OK, response.status());
         assertEquals(OCTET_CONTENT_TYPE, response.contentType());
         assertArrayEquals(testBytes, BytesReference.toBytes(response.content()));
-        List<String> consumedParams = response.getHeaders().get(CONSUMED_PARAMS_KEY);
-        for (String param : consumedParams) {
+        for (String param : response.getConsumedParams()) {
             assertTrue(request.consumedParams().contains(param));
         }
         assertTrue(request.isContentConsumed());

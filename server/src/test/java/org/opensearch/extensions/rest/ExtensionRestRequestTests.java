@@ -192,30 +192,46 @@ public class ExtensionRestRequestTests extends OpenSearchTestCase {
             expectedStatus,
             expectedContentType,
             expectedResponseBytes,
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            Collections.emptyList(),
+            false
         );
 
         assertEquals(expectedStatus, response.getStatus());
         assertEquals(expectedContentType, response.getContentType());
         assertArrayEquals(expectedResponseBytes, response.getContent());
         assertEquals(0, response.getHeaders().size());
+        assertEquals(0, response.getConsumedParams().size());
+        assertFalse(response.isContentConsumed());
 
         String headerKey = "foo";
         List<String> headerValueList = List.of("bar", "baz");
         Map<String, List<String>> expectedHeaders = Map.of(headerKey, headerValueList);
+        List<String> expectedConsumedParams = List.of("foo", "bar");
 
-        response = new RestExecuteOnExtensionResponse(expectedStatus, expectedContentType, expectedResponseBytes, expectedHeaders);
+        response = new RestExecuteOnExtensionResponse(
+            expectedStatus,
+            expectedContentType,
+            expectedResponseBytes,
+            expectedHeaders,
+            expectedConsumedParams,
+            true
+        );
 
         assertEquals(expectedStatus, response.getStatus());
         assertEquals(expectedContentType, response.getContentType());
         assertArrayEquals(expectedResponseBytes, response.getContent());
 
-        assertEquals(1, expectedHeaders.keySet().size());
-        assertTrue(expectedHeaders.containsKey(headerKey));
+        assertEquals(1, response.getHeaders().keySet().size());
+        assertTrue(response.getHeaders().containsKey(headerKey));
 
-        List<String> fooList = expectedHeaders.get(headerKey);
+        List<String> fooList = response.getHeaders().get(headerKey);
         assertEquals(2, fooList.size());
         assertTrue(fooList.containsAll(headerValueList));
+
+        assertEquals(2, response.getConsumedParams().size());
+        assertTrue(response.getConsumedParams().containsAll(expectedConsumedParams));
+        assertTrue(response.isContentConsumed());
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             response.writeTo(out);
@@ -227,12 +243,16 @@ public class ExtensionRestRequestTests extends OpenSearchTestCase {
                 assertEquals(expectedContentType, response.getContentType());
                 assertArrayEquals(expectedResponseBytes, response.getContent());
 
-                assertEquals(1, expectedHeaders.keySet().size());
-                assertTrue(expectedHeaders.containsKey(headerKey));
+                assertEquals(1, response.getHeaders().keySet().size());
+                assertTrue(response.getHeaders().containsKey(headerKey));
 
-                fooList = expectedHeaders.get(headerKey);
+                fooList = response.getHeaders().get(headerKey);
                 assertEquals(2, fooList.size());
                 assertTrue(fooList.containsAll(headerValueList));
+
+                assertEquals(2, response.getConsumedParams().size());
+                assertTrue(response.getConsumedParams().containsAll(expectedConsumedParams));
+                assertTrue(response.isContentConsumed());
             }
         }
     }
