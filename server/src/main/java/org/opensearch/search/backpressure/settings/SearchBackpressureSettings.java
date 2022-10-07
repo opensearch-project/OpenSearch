@@ -8,13 +8,16 @@
 
 package org.opensearch.search.backpressure.settings;
 
-import org.apache.lucene.util.SetOnce;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 /**
  * Settings related to search backpressure and cancellation of in-flight requests.
@@ -23,7 +26,7 @@ import java.util.concurrent.TimeUnit;
  */
 public class SearchBackpressureSettings {
     private static class Defaults {
-        private static final long INTERVAL = 1000;
+        private static final long INTERVAL_MILLIS = 1000;
 
         private static final boolean ENABLED = true;
         private static final boolean ENFORCED = false;
@@ -37,9 +40,9 @@ public class SearchBackpressureSettings {
      * Defines the interval (in millis) at which the SearchBackpressureService monitors and cancels tasks.
      */
     private final TimeValue interval;
-    public static final Setting<Long> SETTING_INTERVAL = Setting.longSetting(
-        "search_backpressure.interval",
-        Defaults.INTERVAL,
+    public static final Setting<Long> SETTING_INTERVAL_MILLIS = Setting.longSetting(
+        "search_backpressure.interval_millis",
+        Defaults.INTERVAL_MILLIS,
         1,
         Setting.Property.NodeScope
     );
@@ -116,15 +119,19 @@ public class SearchBackpressureSettings {
         void onCancellationBurstChanged();
     }
 
-    private final SetOnce<Listener> listener = new SetOnce<>();
+    private final List<Listener> listeners = new ArrayList<>();
+    private final Settings settings;
+    private final ClusterSettings clusterSettings;
     private final NodeDuressSettings nodeDuressSettings;
     private final SearchShardTaskSettings searchShardTaskSettings;
 
     public SearchBackpressureSettings(Settings settings, ClusterSettings clusterSettings) {
+        this.settings = settings;
+        this.clusterSettings = clusterSettings;
         this.nodeDuressSettings = new NodeDuressSettings(settings, clusterSettings);
         this.searchShardTaskSettings = new SearchShardTaskSettings(settings, clusterSettings);
 
-        interval = new TimeValue(SETTING_INTERVAL.get(settings));
+        interval = new TimeValue(SETTING_INTERVAL_MILLIS.get(settings));
 
         enabled = SETTING_ENABLED.get(settings);
         clusterSettings.addSettingsUpdateConsumer(SETTING_ENABLED, this::setEnabled);
@@ -142,8 +149,16 @@ public class SearchBackpressureSettings {
         clusterSettings.addSettingsUpdateConsumer(SETTING_CANCELLATION_BURST, this::setCancellationBurst);
     }
 
-    public void setListener(Listener listener) {
-        this.listener.set(listener);
+    public void addListener(Listener listener) {
+        listeners.add(listener);
+    }
+
+    public Settings getSettings() {
+        return settings;
+    }
+
+    public ClusterSettings getClusterSettings() {
+        return clusterSettings;
     }
 
     public NodeDuressSettings getNodeDuressSettings() {
@@ -180,9 +195,7 @@ public class SearchBackpressureSettings {
 
     private void setCancellationRatio(double cancellationRatio) {
         this.cancellationRatio = cancellationRatio;
-        if (listener.get() != null) {
-            listener.get().onCancellationRatioChanged();
-        }
+        notifyListeners(Listener::onCancellationRatioChanged);
     }
 
     public double getCancellationRate() {
@@ -195,9 +208,7 @@ public class SearchBackpressureSettings {
 
     private void setCancellationRate(double cancellationRate) {
         this.cancellationRate = cancellationRate;
-        if (listener.get() != null) {
-            listener.get().onCancellationRateChanged();
-        }
+        notifyListeners(Listener::onCancellationRateChanged);
     }
 
     public double getCancellationBurst() {
@@ -206,8 +217,20 @@ public class SearchBackpressureSettings {
 
     private void setCancellationBurst(double cancellationBurst) {
         this.cancellationBurst = cancellationBurst;
-        if (listener.get() != null) {
-            listener.get().onCancellationBurstChanged();
+        notifyListeners(Listener::onCancellationBurstChanged);
+    }
+
+    private void notifyListeners(Consumer<Listener> consumer) {
+        List<Exception> exceptions = new ArrayList<>();
+
+        for (Listener listener : listeners) {
+            try {
+                consumer.accept(listener);
+            } catch (Exception e) {
+                exceptions.add(e);
+            }
         }
+
+        ExceptionsHelper.maybeThrowRuntimeAndSuppress(exceptions);
     }
 }

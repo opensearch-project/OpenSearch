@@ -596,11 +596,12 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 NodeDuressSettings.SETTING_NUM_SUCCESSIVE_BREACHES,
                 NodeDuressSettings.SETTING_CPU_THRESHOLD,
                 NodeDuressSettings.SETTING_HEAP_THRESHOLD,
-                SearchShardTaskSettings.SETTING_TOTAL_HEAP_THRESHOLD,
-                SearchShardTaskSettings.SETTING_HEAP_THRESHOLD,
+                SearchShardTaskSettings.SETTING_TOTAL_HEAP_PERCENT_THRESHOLD,
+                SearchShardTaskSettings.SETTING_HEAP_PERCENT_THRESHOLD,
                 SearchShardTaskSettings.SETTING_HEAP_VARIANCE_THRESHOLD,
-                SearchShardTaskSettings.SETTING_CPU_TIME_THRESHOLD,
-                SearchShardTaskSettings.SETTING_ELAPSED_TIME_THRESHOLD
+                SearchShardTaskSettings.SETTING_HEAP_MOVING_AVERAGE_WINDOW_SIZE,
+                SearchShardTaskSettings.SETTING_CPU_TIME_MILLIS_THRESHOLD,
+                SearchShardTaskSettings.SETTING_ELAPSED_TIME_MILLIS_THRESHOLD
             )
         )
     );

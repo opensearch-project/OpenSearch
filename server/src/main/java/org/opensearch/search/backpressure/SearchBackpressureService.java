@@ -17,6 +17,9 @@ import org.opensearch.common.util.TokenBucket;
 import org.opensearch.monitor.jvm.JvmStats;
 import org.opensearch.monitor.process.ProcessProbe;
 import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
+import org.opensearch.search.backpressure.trackers.CpuUsageTracker;
+import org.opensearch.search.backpressure.trackers.ElapsedTimeTracker;
+import org.opensearch.search.backpressure.trackers.HeapUsageTracker;
 import org.opensearch.search.backpressure.trackers.NodeDuressTracker;
 import org.opensearch.search.backpressure.trackers.TaskResourceUsageTracker;
 import org.opensearch.tasks.CancellableTask;
@@ -29,7 +32,6 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
@@ -84,7 +86,7 @@ public class SearchBackpressureService extends AbstractLifecycleComponent
                     () -> JvmStats.jvmStats().getMem().getHeapUsedPercent() / 100.0 >= settings.getNodeDuressSettings().getHeapThreshold()
                 )
             ),
-            Collections.emptyList()
+            List.of(new CpuUsageTracker(settings), new HeapUsageTracker(settings), new ElapsedTimeTracker(settings, System::nanoTime))
         );
     }
 
@@ -97,7 +99,7 @@ public class SearchBackpressureService extends AbstractLifecycleComponent
         List<TaskResourceUsageTracker> taskResourceUsageTrackers
     ) {
         this.settings = settings;
-        this.settings.setListener(this);
+        this.settings.addListener(this);
         this.taskResourceTrackingService = taskResourceTrackingService;
         this.taskResourceTrackingService.addTaskCompletionListener(this);
         this.threadPool = threadPool;
@@ -181,10 +183,10 @@ public class SearchBackpressureService extends AbstractLifecycleComponent
      * Returns true if the increase in heap usage is due to search requests.
      */
     boolean isHeapUsageDominatedBySearch(List<CancellableTask> searchShardTasks) {
-        long runningTasksHeapUsage = searchShardTasks.stream().mapToLong(task -> task.getTotalResourceStats().getMemoryInBytes()).sum();
-        long searchTasksHeapThreshold = getSettings().getSearchShardTaskSettings().getTotalHeapThresholdBytes();
-        if (runningTasksHeapUsage < searchTasksHeapThreshold) {
-            logger.debug("heap usage not dominated by search requests [{}/{}]", runningTasksHeapUsage, searchTasksHeapThreshold);
+        long usage = searchShardTasks.stream().mapToLong(task -> task.getTotalResourceStats().getMemoryInBytes()).sum();
+        long threshold = getSettings().getSearchShardTaskSettings().getTotalHeapBytesThreshold();
+        if (usage < threshold) {
+            logger.debug("heap usage not dominated by search requests [{}/{}]", usage, threshold);
             return false;
         }
 
