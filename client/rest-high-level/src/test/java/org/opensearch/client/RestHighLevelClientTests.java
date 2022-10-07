@@ -134,6 +134,8 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
         // core
         "ping",
         "info",
+        "delete_all_pits",
+        "get_all_pits",
         // security
         "security.get_ssl_certificates",
         "security.authenticate",

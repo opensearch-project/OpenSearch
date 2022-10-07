@@ -240,6 +240,8 @@ import org.opensearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentsAction;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentsRequestBuilder;
+import org.opensearch.action.admin.indices.segments.PitSegmentsAction;
+import org.opensearch.action.admin.indices.segments.PitSegmentsRequest;
 import org.opensearch.action.admin.indices.settings.get.GetSettingsAction;
 import org.opensearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.opensearch.action.admin.indices.settings.get.GetSettingsRequestBuilder;
@@ -327,10 +329,19 @@ import org.opensearch.action.search.ClearScrollAction;
 import org.opensearch.action.search.ClearScrollRequest;
 import org.opensearch.action.search.ClearScrollRequestBuilder;
 import org.opensearch.action.search.ClearScrollResponse;
+import org.opensearch.action.search.CreatePitAction;
+import org.opensearch.action.search.CreatePitRequest;
+import org.opensearch.action.search.CreatePitResponse;
+import org.opensearch.action.search.DeletePitAction;
+import org.opensearch.action.search.DeletePitRequest;
+import org.opensearch.action.search.DeletePitResponse;
+import org.opensearch.action.search.GetAllPitNodesRequest;
+import org.opensearch.action.search.GetAllPitNodesResponse;
 import org.opensearch.action.search.MultiSearchAction;
 import org.opensearch.action.search.MultiSearchRequest;
 import org.opensearch.action.search.MultiSearchRequestBuilder;
 import org.opensearch.action.search.MultiSearchResponse;
+import org.opensearch.action.search.GetAllPitsAction;
 import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchRequestBuilder;
@@ -575,6 +586,26 @@ public abstract class AbstractClient implements Client {
     @Override
     public SearchScrollRequestBuilder prepareSearchScroll(String scrollId) {
         return new SearchScrollRequestBuilder(this, SearchScrollAction.INSTANCE, scrollId);
+    }
+
+    @Override
+    public void createPit(final CreatePitRequest createPITRequest, final ActionListener<CreatePitResponse> listener) {
+        execute(CreatePitAction.INSTANCE, createPITRequest, listener);
+    }
+
+    @Override
+    public void deletePits(final DeletePitRequest deletePITRequest, final ActionListener<DeletePitResponse> listener) {
+        execute(DeletePitAction.INSTANCE, deletePITRequest, listener);
+    }
+
+    @Override
+    public void getAllPits(final GetAllPitNodesRequest getAllPitNodesRequest, final ActionListener<GetAllPitNodesResponse> listener) {
+        execute(GetAllPitsAction.INSTANCE, getAllPitNodesRequest, listener);
+    }
+
+    @Override
+    public void pitSegments(final PitSegmentsRequest request, final ActionListener<IndicesSegmentResponse> listener) {
+        execute(PitSegmentsAction.INSTANCE, request, listener);
     }
 
     @Override
