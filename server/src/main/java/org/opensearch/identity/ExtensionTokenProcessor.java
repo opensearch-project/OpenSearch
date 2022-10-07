@@ -2,10 +2,19 @@
  * Copyright OpenSearch Contributors
  * SPDX-License-Identifier: Apache-2.0
  */
-
 package org.opensearch.identity;
 
 import java.security.Principal;
+import java.security.SecureRandom;
+import java.util.Map;
+import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
+import java.security.Key;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+
+
+
 
 /**
  * Token processor class to handle token encryption/decryption
@@ -16,13 +25,38 @@ public class ExtensionTokenProcessor {
     public static final String INVALID_EXTENSION_MESSAGE = "Token passed here is for a different extension";
 
     private final String extensionUniqueId;
+    private final byte[] extensionSecret;
+    private final byte[] byteId;
+    private byte[] saltedExtensionId; 
 
     public ExtensionTokenProcessor(String extensionUniqueId) {
         this.extensionUniqueId = extensionUniqueId;
+        //Look into the role mapping for the auto-generated extension id:secret pair-->grab the secret 
+        this.extensionSecret = ExtensionDataSample.getExtensionSecret(this.extensionUniqueId);
+        this.byteId = this.extensionUniqueId.getBytes(StandardCharsets.UTF_8);
     }
 
     public String getExtensionUniqueId() {
         return extensionUniqueId;
+    }
+
+   /**
+    * Uses the extension secret to salt the extensionID and then transform it into a deterministic hashed string 
+    * @return A hashed string that is only verifiable by core
+    */
+    public String saltExtensionId() throws NoSuchAlgorithmException{
+        
+        MessageDigest md = MessageDigest.getInstance("SHA-256");
+        this.saltedExtensionId = this.byteId; //Secret allows only core to feasibly reproduce
+        BigInteger convertedNumber = new BigInteger(1, this.saltedExtensionId);
+        StringBuilder hexString = new StringBuilder(convertedNumber.toString(16)); 
+
+        while (hexString.length() < 64){
+            hexString.insert(0, '0');
+        }
+
+        String hashedExtensionId = hexString.toString();
+        return hashedExtensionId;
     }
 
     /**
@@ -33,7 +67,7 @@ public class ExtensionTokenProcessor {
         // This is a placeholder implementation
         // More concrete implementation will be covered in https://github.com/opensearch-project/OpenSearch/issues/4485
         String token = principal.getName() + ":" + extensionUniqueId;
-
+        
         return new PrincipalIdentifierToken(token);
     }
 

@@ -10,6 +10,8 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -22,6 +24,8 @@ public class PrincipalIdentifierToken implements NamedWriteable {
     public static final String NAME = "principal_identifier_token";
     private final String token;
 
+    public static Map<String, String> extension_pairs = new HashMap<>();
+     
     /**
      * Should only be instantiated via extensionTokenProcessor.generateToken(..)
      * @param token string value of token
