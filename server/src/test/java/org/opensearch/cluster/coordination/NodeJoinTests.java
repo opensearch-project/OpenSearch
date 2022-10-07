@@ -786,8 +786,10 @@ public class NodeJoinTests extends OpenSearchTestCase {
         long initialVersion = randomLongBetween(1, 10);
         setupFakeClusterManagerServiceAndCoordinator(
             initialTerm,
-            initialStateWithDecommissionedAttribute(initialState(node0, initialTerm, initialVersion, VotingConfiguration.of(node0)),
-                new DecommissionAttribute("zone", "zone1")),
+            initialStateWithDecommissionedAttribute(
+                initialState(node0, initialTerm, initialVersion, VotingConfiguration.of(node0)),
+                new DecommissionAttribute("zone", "zone1")
+            ),
             () -> new StatusInfo(HEALTHY, "healthy-info")
         );
         assertFalse(isLocalNodeElectedMaster());
@@ -799,20 +801,32 @@ public class NodeJoinTests extends OpenSearchTestCase {
         assertTrue(isLocalNodeElectedMaster());
         assertTrue(clusterStateHasNode(node1));
         DiscoveryNode decommissionedNode = new DiscoveryNode(
-            "data_2", 2 + "",
-            buildNewFakeTransportAddress(), Collections.singletonMap("zone", "zone1"), DiscoveryNodeRole.BUILT_IN_ROLES, Version.CURRENT);
+            "data_2",
+            2 + "",
+            buildNewFakeTransportAddress(),
+            Collections.singletonMap("zone", "zone1"),
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
+        );
         long anotherTerm = newTerm + randomLongBetween(1, 10);
 
         assertThat(
-            expectThrows(NodeDecommissionedException.class, () -> joinNodeAndRun(new JoinRequest(decommissionedNode, anotherTerm, Optional.empty())))
-                .getMessage(),
+            expectThrows(
+                NodeDecommissionedException.class,
+                () -> joinNodeAndRun(new JoinRequest(decommissionedNode, anotherTerm, Optional.empty()))
+            ).getMessage(),
             containsString("with current status of decommissioning")
         );
         assertFalse(clusterStateHasNode(decommissionedNode));
 
         DiscoveryNode node3 = new DiscoveryNode(
-            "data_3", 3 + "",
-            buildNewFakeTransportAddress(), Collections.singletonMap("zone", "zone2"), DiscoveryNodeRole.BUILT_IN_ROLES, Version.CURRENT);
+            "data_3",
+            3 + "",
+            buildNewFakeTransportAddress(),
+            Collections.singletonMap("zone", "zone2"),
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
+        );
         long termForNode3 = anotherTerm + randomLongBetween(1, 10);
 
         joinNodeAndRun(new JoinRequest(node3, termForNode3, Optional.empty()));
@@ -827,7 +841,10 @@ public class NodeJoinTests extends OpenSearchTestCase {
         return node.equals(MasterServiceTests.discoveryState(clusterManagerService).nodes().get(node.getId()));
     }
 
-    private static ClusterState initialStateWithDecommissionedAttribute(ClusterState clusterState, DecommissionAttribute decommissionAttribute) {
+    private static ClusterState initialStateWithDecommissionedAttribute(
+        ClusterState clusterState,
+        DecommissionAttribute decommissionAttribute
+    ) {
         DecommissionAttributeMetadata decommissionAttributeMetadata = new DecommissionAttributeMetadata(
             decommissionAttribute,
             DecommissionStatus.SUCCESSFUL
