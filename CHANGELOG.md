@@ -7,6 +7,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Add failover support with Segment Replication enabled. ([#4325](https://github.com/opensearch-project/OpenSearch/pull/4325)
 - Added @dreamer-89 as an Opensearch maintainer ([#4342](https://github.com/opensearch-project/OpenSearch/pull/4342))
 - Bump version to 2.3.1 and add 2.3.0 to BWC versions ([#4511](https://github.com/opensearch-project/OpenSearch/pull/4511))
+- Add BWC version 1.3.7 ([#4711](https://github.com/opensearch-project/OpenSearch/pull/4711))
 
 ### Changed
 - Dependency updates (httpcore, mockito, slf4j, httpasyncclient, commons-codec) ([#4308](https://github.com/opensearch-project/OpenSearch/pull/4308))
