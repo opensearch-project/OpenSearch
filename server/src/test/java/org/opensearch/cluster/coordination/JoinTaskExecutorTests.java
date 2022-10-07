@@ -336,6 +336,51 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         JoinTaskExecutor.ensureNodeCommissioned(discoveryNode, metadata);
     }
 
+    public void testJoinFailedForDecommissionedNode() throws Exception {
+        final AllocationService allocationService = mock(AllocationService.class);
+        when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
+        final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
+
+        final JoinTaskExecutor joinTaskExecutor = new JoinTaskExecutor(Settings.EMPTY, allocationService, logger, rerouteService, null);
+
+        final DiscoveryNode clusterManagerNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
+
+        DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "zone1");
+        DecommissionAttributeMetadata decommissionAttributeMetadata = new DecommissionAttributeMetadata(
+            decommissionAttribute,
+            DecommissionStatus.SUCCESSFUL
+        );
+        final ClusterState clusterManagerClusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(clusterManagerNode)
+                    .localNodeId(clusterManagerNode.getId())
+                    .clusterManagerNodeId(clusterManagerNode.getId())
+            )
+            .metadata(Metadata.builder().decommissionAttributeMetadata(decommissionAttributeMetadata))
+            .build();
+
+        final DiscoveryNode decommissionedNode = new DiscoveryNode(
+            UUIDs.base64UUID(),
+            buildNewFakeTransportAddress(),
+            Collections.singletonMap("zone", "zone1"),
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
+        );
+
+        String decommissionedNodeID = decommissionedNode.getId();
+
+        final ClusterStateTaskExecutor.ClusterTasksResult<JoinTaskExecutor.Task> result = joinTaskExecutor.execute(
+            clusterManagerClusterState,
+            List.of(new JoinTaskExecutor.Task(decommissionedNode, "test"))
+        );
+        assertThat(result.executionResults.entrySet(), hasSize(1));
+        final ClusterStateTaskExecutor.TaskResult taskResult = result.executionResults.values().iterator().next();
+        assertFalse(taskResult.isSuccess());
+        assertTrue(taskResult.getFailure() instanceof NodeDecommissionedException);
+        assertFalse(result.resultingState.getNodes().nodeExists(decommissionedNodeID));
+    }
+
     public void testJoinClusterWithDecommissionFailed() {
         Settings.builder().build();
         DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "zone-1");
