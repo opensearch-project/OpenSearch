@@ -78,3 +78,5 @@ thirdPartyAudit.ignoreViolations(
   'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSExtendedMasterSecretGenerator',
   'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSExtendedMasterSecretGenerator$2'
 )
+
+jarHell.enabled = false
