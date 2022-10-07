@@ -188,7 +188,12 @@ public class ExtensionRestRequestTests extends OpenSearchTestCase {
         String expectedResponse = "Test response";
         byte[] expectedResponseBytes = expectedResponse.getBytes(StandardCharsets.UTF_8);
 
-        RestExecuteOnExtensionResponse response = new RestExecuteOnExtensionResponse(expectedStatus, expectedResponse);
+        RestExecuteOnExtensionResponse response = new RestExecuteOnExtensionResponse(
+            expectedStatus,
+            expectedContentType,
+            expectedResponseBytes,
+            Collections.emptyMap()
+        );
 
         assertEquals(expectedStatus, response.getStatus());
         assertEquals(expectedContentType, response.getContentType());

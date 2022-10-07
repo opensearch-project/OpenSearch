@@ -12,23 +12,18 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestStatus;
+
 import java.util.List;
 
 /**
- * A subclass of {@link BytesRestResponse} which processes the consumed parameters into a custom header.
+ * A subclass of {@link BytesRestResponse} which also tracks consumed parameters and content.
  *
  * @opensearch.api
  */
 public class ExtensionRestResponse extends BytesRestResponse {
 
-    /**
-     * Key passed in {@link BytesRestResponse} headers to identify parameters consumed by the handler. For internal use.
-     */
-    static final String CONSUMED_PARAMS_KEY = "extension.consumed.parameters";
-    /**
-     * Key passed in {@link BytesRestResponse} headers to identify content consumed by the handler. For internal use.
-     */
-    static final String CONSUMED_CONTENT_KEY = "extension.consumed.content";
+    private final List<String> consumedParams;
+    private final boolean contentConsumed;
 
     /**
      * Creates a new response based on {@link XContentBuilder}.
@@ -39,7 +34,8 @@ public class ExtensionRestResponse extends BytesRestResponse {
      */
     public ExtensionRestResponse(ExtensionRestRequest request, RestStatus status, XContentBuilder builder) {
         super(status, builder);
-        addConsumedHeaders(request.consumedParams(), request.isContentConsumed());
+        this.consumedParams = request.consumedParams();
+        this.contentConsumed = request.isContentConsumed();
     }
 
     /**
@@ -51,7 +47,8 @@ public class ExtensionRestResponse extends BytesRestResponse {
      */
     public ExtensionRestResponse(ExtensionRestRequest request, RestStatus status, String content) {
         super(status, content);
-        addConsumedHeaders(request.consumedParams(), request.isContentConsumed());
+        this.consumedParams = request.consumedParams();
+        this.contentConsumed = request.isContentConsumed();
     }
 
     /**
@@ -64,7 +61,8 @@ public class ExtensionRestResponse extends BytesRestResponse {
      */
     public ExtensionRestResponse(ExtensionRestRequest request, RestStatus status, String contentType, String content) {
         super(status, contentType, content);
-        addConsumedHeaders(request.consumedParams(), request.isContentConsumed());
+        this.consumedParams = request.consumedParams();
+        this.contentConsumed = request.isContentConsumed();
     }
 
     /**
@@ -77,7 +75,8 @@ public class ExtensionRestResponse extends BytesRestResponse {
      */
     public ExtensionRestResponse(ExtensionRestRequest request, RestStatus status, String contentType, byte[] content) {
         super(status, contentType, content);
-        addConsumedHeaders(request.consumedParams(), request.isContentConsumed());
+        this.consumedParams = request.consumedParams();
+        this.contentConsumed = request.isContentConsumed();
     }
 
     /**
@@ -90,11 +89,25 @@ public class ExtensionRestResponse extends BytesRestResponse {
      */
     public ExtensionRestResponse(ExtensionRestRequest request, RestStatus status, String contentType, BytesReference content) {
         super(status, contentType, content);
-        addConsumedHeaders(request.consumedParams(), request.isContentConsumed());
+        this.consumedParams = request.consumedParams();
+        this.contentConsumed = request.isContentConsumed();
     }
 
-    private void addConsumedHeaders(List<String> consumedParams, boolean contentConusmed) {
-        consumedParams.stream().forEach(p -> addHeader(CONSUMED_PARAMS_KEY, p));
-        addHeader(CONSUMED_CONTENT_KEY, Boolean.toString(contentConusmed));
+    /**
+     * Gets the list of consumed parameters. These are needed to consume the parameters of the original request.
+     *
+     * @return the list of consumed params.
+     */
+    public List<String> getConsumedParams() {
+        return consumedParams;
+    }
+
+    /**
+     * Reports whether content was consumed.
+     *
+     * @return true if the content was consumed, false otherwise.
+     */
+    public boolean isContentConsumed() {
+        return contentConsumed;
     }
 }
