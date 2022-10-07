@@ -116,7 +116,9 @@ public class DiskThresholdSettings {
 
         final String property = System.getProperty(AUTO_RELEASE_INDEX_ENABLED_KEY);
         if (property != null) {
-            throw new IllegalArgumentException("system property [" + AUTO_RELEASE_INDEX_ENABLED_KEY + "] may not be set");
+            throw new IllegalArgumentException(
+                "system property [" + AUTO_RELEASE_INDEX_ENABLED_KEY + "] has been removed in 3.0.0 and is not supported anymore"
+            );
         }
     }
 
