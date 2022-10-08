@@ -32,7 +32,6 @@
 
 package org.opensearch.search.aggregations.bucket.histogram;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.Rounding.DateTimeUnit;
@@ -143,21 +142,8 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
     public DateIntervalWrapper() {}
 
     public DateIntervalWrapper(StreamInput in) throws IOException {
-        if (in.getVersion().before(LegacyESVersion.V_7_2_0)) {
-            long interval = in.readLong();
-            DateHistogramInterval histoInterval = in.readOptionalWriteable(DateHistogramInterval::new);
-
-            if (histoInterval != null) {
-                dateHistogramInterval = histoInterval;
-                intervalType = IntervalTypeEnum.LEGACY_DATE_HISTO;
-            } else {
-                dateHistogramInterval = new DateHistogramInterval(interval + "ms");
-                intervalType = IntervalTypeEnum.LEGACY_INTERVAL;
-            }
-        } else {
-            dateHistogramInterval = in.readOptionalWriteable(DateHistogramInterval::new);
-            intervalType = IntervalTypeEnum.fromStream(in);
-        }
+        dateHistogramInterval = in.readOptionalWriteable(DateHistogramInterval::new);
+        intervalType = IntervalTypeEnum.fromStream(in);
     }
 
     public IntervalTypeEnum getIntervalType() {
@@ -402,20 +388,8 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().before(LegacyESVersion.V_7_2_0)) {
-            if (intervalType.equals(IntervalTypeEnum.LEGACY_INTERVAL)) {
-                out.writeLong(
-                    TimeValue.parseTimeValue(dateHistogramInterval.toString(), DateHistogramAggregationBuilder.NAME + ".innerWriteTo")
-                        .getMillis()
-                );
-            } else {
-                out.writeLong(0L);
-            }
-            out.writeOptionalWriteable(dateHistogramInterval);
-        } else {
-            out.writeOptionalWriteable(dateHistogramInterval);
-            intervalType.writeTo(out);
-        }
+        out.writeOptionalWriteable(dateHistogramInterval);
+        intervalType.writeTo(out);
     }
 
     @Override

@@ -35,7 +35,6 @@ package org.opensearch.search.slice;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.routing.GroupShardsIterator;
@@ -260,16 +259,7 @@ public class SliceBuilder implements Writeable, ToXContentObject {
         String field = this.field;
         boolean useTermQuery = false;
         if ("_uid".equals(field)) {
-            // on new indices, the _id acts as a _uid
-            field = IdFieldMapper.NAME;
-            if (context.getIndexSettings().getIndexVersionCreated().onOrAfter(LegacyESVersion.V_7_0_0)) {
-                throw new IllegalArgumentException("Computing slices on the [_uid] field is illegal for 7.x indices, use [_id] instead");
-            }
-            DEPRECATION_LOG.deprecate(
-                "slice_on_uid",
-                "Computing slices on the [_uid] field is deprecated for 6.x indices, use [_id] instead"
-            );
-            useTermQuery = true;
+            throw new IllegalArgumentException("Computing slices on the [_uid] field is illegal for 7.x indices, use [_id] instead");
         } else if (IdFieldMapper.NAME.equals(field)) {
             useTermQuery = true;
         } else if (type.hasDocValues() == false) {
