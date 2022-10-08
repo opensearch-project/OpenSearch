@@ -475,7 +475,10 @@ public class DecommissionService {
         }
     }
 
-    private static void ensureEligibleRetry(DecommissionRequest decommissionRequest, DecommissionAttributeMetadata decommissionAttributeMetadata) {
+    private static void ensureEligibleRetry(
+        DecommissionRequest decommissionRequest,
+        DecommissionAttributeMetadata decommissionAttributeMetadata
+    ) {
         if (decommissionAttributeMetadata != null) {
             if (decommissionAttributeMetadata.status().equals(DecommissionStatus.INIT)
                 && decommissionRequest.retryOnClusterManagerChange() == false) {
