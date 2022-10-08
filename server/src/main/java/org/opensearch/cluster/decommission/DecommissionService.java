@@ -231,7 +231,6 @@ public class DecommissionService {
                                 ),
                                 t
                             );
-                            clearVotingConfigExclusionAndUpdateStatus(false, false); // TODO - need to test this
                             delegatedListener.onFailure(t);
                         })
                     );
@@ -476,7 +475,7 @@ public class DecommissionService {
         }
     }
 
-    public void ensureEligibleRetry(DecommissionRequest decommissionRequest, DecommissionAttributeMetadata decommissionAttributeMetadata) {
+    private static void ensureEligibleRetry(DecommissionRequest decommissionRequest, DecommissionAttributeMetadata decommissionAttributeMetadata) {
         if (decommissionAttributeMetadata != null) {
             if (decommissionAttributeMetadata.status().equals(DecommissionStatus.INIT)
                 && decommissionRequest.retryOnClusterManagerChange() == false) {
