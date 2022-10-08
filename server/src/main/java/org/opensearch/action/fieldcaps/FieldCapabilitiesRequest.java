@@ -72,11 +72,7 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         mergeResults = in.readBoolean();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
-            includeUnmapped = in.readBoolean();
-        } else {
-            includeUnmapped = false;
-        }
+        includeUnmapped = in.readBoolean();
         indexFilter = in.getVersion().onOrAfter(LegacyESVersion.V_7_9_0) ? in.readOptionalNamedWriteable(QueryBuilder.class) : null;
         nowInMillis = in.getVersion().onOrAfter(LegacyESVersion.V_7_9_0) ? in.readOptionalLong() : null;
     }
@@ -109,9 +105,7 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
         out.writeBoolean(mergeResults);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
-            out.writeBoolean(includeUnmapped);
-        }
+        out.writeBoolean(includeUnmapped);
         if (out.getVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
             out.writeOptionalNamedWriteable(indexFilter);
             out.writeOptionalLong(nowInMillis);

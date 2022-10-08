@@ -43,7 +43,7 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public class InternalGeoHashGridBucket extends InternalGeoGridBucket<InternalGeoHashGridBucket> {
+class InternalGeoHashGridBucket extends BaseGeoGridBucket<InternalGeoHashGridBucket> {
     InternalGeoHashGridBucket(long hashAsLong, long docCount, InternalAggregations aggregations) {
         super(hashAsLong, docCount, aggregations);
     }
@@ -51,7 +51,7 @@ public class InternalGeoHashGridBucket extends InternalGeoGridBucket<InternalGeo
     /**
      * Read from a stream.
      */
-    public InternalGeoHashGridBucket(StreamInput in) throws IOException {
+    InternalGeoHashGridBucket(StreamInput in) throws IOException {
         super(in);
     }
 
