@@ -32,7 +32,6 @@
 
 package org.opensearch.action.search;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionResponse;
@@ -147,11 +146,7 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
         for (int i = 0; i < items.length; i++) {
             items[i] = new Item(in);
         }
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
-            tookInMillis = in.readVLong();
-        } else {
-            tookInMillis = 0L;
-        }
+        tookInMillis = in.readVLong();
     }
 
     public MultiSearchResponse(Item[] items, long tookInMillis) {
@@ -184,9 +179,7 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
         for (Item item : items) {
             item.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
-            out.writeVLong(tookInMillis);
-        }
+        out.writeVLong(tookInMillis);
     }
 
     @Override

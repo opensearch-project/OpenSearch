@@ -329,9 +329,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             client().performRequest(updateSettingsRequest);
 
             Request shrinkIndexRequest = new Request("PUT", "/" + index + "/_shrink/" + shrunkenIndex);
-            if (getOldClusterVersion().before(LegacyESVersion.V_7_0_0)) {
-                shrinkIndexRequest.addParameter("copy_settings", "true");
-            }
             shrinkIndexRequest.setJsonEntity("{\"settings\": {\"index.number_of_shards\": 1}}");
             client().performRequest(shrinkIndexRequest);
 
@@ -1006,12 +1003,8 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             closeIndex(index);
         }
 
-        if (getOldClusterVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
-            ensureGreenLongWait(index);
-            assertClosedIndex(index, true);
-        } else {
-            assertClosedIndex(index, false);
-        }
+        ensureGreenLongWait(index);
+        assertClosedIndex(index, true);
 
         if (isRunningAgainstOldCluster() == false) {
             openIndex(index);
@@ -1253,7 +1246,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 settings.startObject("settings");
                 settings.field("number_of_shards", between(1, 5));
                 settings.field("number_of_replicas", between(0, 1));
-                if (randomBoolean() || getOldClusterVersion().before(LegacyESVersion.V_7_0_0)) {
+                if (randomBoolean()) {
                     // this is the default after v7.0.0, but is required before that
                     settings.field("soft_deletes.enabled", true);
                 }
@@ -1436,10 +1429,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             // make sure .tasks index exists
             Request getTasksIndex = new Request("GET", "/.tasks");
             getTasksIndex.addParameter("allow_no_indices", "false");
-            if (getOldClusterVersion().before(LegacyESVersion.V_7_0_0)) {
-                getTasksIndex.addParameter("include_type_name", "false");
-            }
-
             getTasksIndex.setOptions(expectVersionSpecificWarnings(v -> {
                 v.current(systemIndexWarning);
                 v.compatible(systemIndexWarning);

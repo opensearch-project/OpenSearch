@@ -415,7 +415,7 @@ public class VersionTests extends OpenSearchTestCase {
 
     public void testIsCompatible() {
         assertTrue(isCompatible(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()));
-        assertFalse(isCompatible(Version.fromId(2000099), LegacyESVersion.V_7_0_0));
+        assertFalse(isCompatible(Version.fromId(2000099), LegacyESVersion.fromId(7000099)));
         assertFalse(isCompatible(Version.fromId(2000099), LegacyESVersion.fromId(6050099)));
 
         int currentMajorID = Version.computeID(Version.CURRENT.major, 0, 0, 99);

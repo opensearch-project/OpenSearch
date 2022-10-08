@@ -32,10 +32,8 @@
 
 package org.opensearch.indices.recovery;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.store.Store;
 
@@ -76,11 +74,7 @@ public class RecoveryCleanFilesRequest extends RecoveryTransportRequest {
         shardId = new ShardId(in);
         snapshotFiles = new Store.MetadataSnapshot(in);
         totalTranslogOps = in.readVInt();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
-            globalCheckpoint = in.readZLong();
-        } else {
-            globalCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
-        }
+        globalCheckpoint = in.readZLong();
     }
 
     @Override
@@ -90,9 +84,7 @@ public class RecoveryCleanFilesRequest extends RecoveryTransportRequest {
         shardId.writeTo(out);
         snapshotFiles.writeTo(out);
         out.writeVInt(totalTranslogOps);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
-            out.writeZLong(globalCheckpoint);
-        }
+        out.writeZLong(globalCheckpoint);
     }
 
     public Store.MetadataSnapshot sourceMetaSnapshot() {

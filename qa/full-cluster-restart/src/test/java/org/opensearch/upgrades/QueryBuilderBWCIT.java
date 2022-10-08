@@ -46,6 +46,7 @@ import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.ConstantScoreQueryBuilder;
 import org.opensearch.index.query.DisMaxQueryBuilder;
@@ -157,7 +158,7 @@ public class QueryBuilderBWCIT extends AbstractFullClusterRestartTestCase {
     }
 
     public void testQueryBuilderBWC() throws Exception {
-        final String type = getOldClusterVersion().before(LegacyESVersion.V_7_0_0) ? "doc" : "_doc";
+        final String type = MapperService.SINGLE_MAPPING_NAME;
         String index = "queries";
         if (isRunningAgainstOldCluster()) {
             XContentBuilder mappingsAndSettings = jsonBuilder();

@@ -48,7 +48,7 @@ opensearchplugin {
 }
 
 versions << [
-  'hadoop3': '3.3.3'
+  'hadoop3': '3.3.4'
 ]
 
 testFixtures.useFixture ":test:fixtures:krb5kdc-fixture", "hdfs"
