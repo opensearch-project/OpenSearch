@@ -37,7 +37,6 @@ import com.carrotsearch.hppc.IntSet;
 
 import org.opensearch.Version;
 import org.opensearch.action.ActionFuture;
-import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
@@ -47,7 +46,6 @@ import org.opensearch.action.admin.cluster.snapshots.status.SnapshotsStatusRespo
 import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.support.ActiveShardCount;
-import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.client.Client;
 import org.opensearch.client.node.NodeClient;
@@ -1386,44 +1384,6 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertThat(createSnapshotResponse.getSnapshotInfo().state(), is(SnapshotState.PARTIAL));
     }
 
-    /**
-     * Tests for the legacy snapshot path that is normally executed if the cluster contains any nodes older than
-     * {@link SnapshotsService#NO_REPO_INITIALIZE_VERSION}.
-     * Makes sure that blocking as well as non-blocking snapshot create paths execute cleanly as well as that error handling works out
-     * correctly by testing a snapshot name collision.
-     */
-    public void testCreateSnapshotLegacyPath() throws Exception {
-        final String clusterManagerNode = internalCluster().startClusterManagerOnlyNode();
-        internalCluster().startDataOnlyNode();
-        final String repoName = "test-repo";
-        createRepository(repoName, "fs");
-        createIndex("some-index");
-
-        final SnapshotsService snapshotsService = internalCluster().getClusterManagerNodeInstance(SnapshotsService.class);
-        final Snapshot snapshot1 = PlainActionFuture.get(
-            f -> snapshotsService.createSnapshotLegacy(new CreateSnapshotRequest(repoName, "snap-1"), f)
-        );
-        awaitNoMoreRunningOperations(clusterManagerNode);
-
-        final InvalidSnapshotNameException sne = expectThrows(
-            InvalidSnapshotNameException.class,
-            () -> PlainActionFuture.<SnapshotInfo, Exception>get(
-                f -> snapshotsService.executeSnapshotLegacy(new CreateSnapshotRequest(repoName, snapshot1.getSnapshotId().getName()), f)
-            )
-        );
-
-        assertThat(sne.getMessage(), containsString("snapshot with the same name already exists"));
-        final SnapshotInfo snapshot2 = PlainActionFuture.get(
-            f -> snapshotsService.executeSnapshotLegacy(new CreateSnapshotRequest(repoName, "snap-2"), f)
-        );
-        assertThat(snapshot2.state(), is(SnapshotState.SUCCESS));
-
-        final SnapshotInfo snapshot3 = PlainActionFuture.get(
-            f -> snapshotsService.executeSnapshotLegacy(new CreateSnapshotRequest(repoName, "snap-3").indices("does-not-exist-*"), f)
-        );
-        assertThat(snapshot3.state(), is(SnapshotState.SUCCESS));
-    }
-
     public void testSnapshotDeleteRelocatingPrimaryIndex() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
         final List<String> dataNodes = internalCluster().startDataOnlyNodes(2);
@@ -1473,6 +1433,31 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertThat(snapshotInfo.state(), equalTo(SnapshotState.PARTIAL));
         assertThat(snapshotInfo.shardFailures().size(), greaterThan(0));
         logger.info("--> done");
+    }
+
+    public void testIndexDeletionDuringSnapshotCreationInQueue() throws Exception {
+        assertAcked(prepareCreate("test-idx", 1, indexSettingsNoReplicas(1)));
+        ensureGreen();
+        indexRandomDocs("test-idx", 100);
+        createRepository("test-repo", "fs");
+        createSnapshot("test-repo", "test-snap", Collections.singletonList("test-idx"));
+
+        logger.info("--> create snapshot to be deleted and then delete");
+        createSnapshot("test-repo", "test-snap-delete", Collections.singletonList("test-idx"));
+        clusterAdmin().prepareDeleteSnapshot("test-repo", "test-snap-delete").execute();
+
+        logger.info("--> create snapshot before index deletion during above snapshot deletion");
+        clusterAdmin().prepareCreateSnapshot("test-repo", "test-snap-2")
+            .setWaitForCompletion(false)
+            .setPartial(true)
+            .setIndices("test-idx")
+            .get();
+
+        logger.info("delete index during snapshot creation");
+        assertAcked(admin().indices().prepareDelete("test-idx"));
+
+        clusterAdmin().prepareRestoreSnapshot("test-repo", "test-snap").get();
+        ensureGreen("test-idx");
     }
 
     private long calculateTotalFilesSize(List<Path> files) {

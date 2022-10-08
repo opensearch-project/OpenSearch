@@ -73,7 +73,6 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
 
     public static final String CONTEXT_MODE_PARAM = "context_mode";
     public static final String CONTEXT_MODE_SNAPSHOT = "SNAPSHOT";
-    public static final Version METADATA_FIELD_INTRODUCED = LegacyESVersion.V_7_3_0;
     private static final DateFormatter DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_optional_time");
     private static final String SNAPSHOT = "snapshot";
     private static final String UUID = "uuid";
@@ -401,11 +400,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         shardFailures = Collections.unmodifiableList(in.readList(SnapshotShardFailure::new));
         version = in.readBoolean() ? Version.readVersion(in) : null;
         includeGlobalState = in.readOptionalBoolean();
-        if (in.getVersion().onOrAfter(METADATA_FIELD_INTRODUCED)) {
-            userMetadata = in.readMap();
-        } else {
-            userMetadata = null;
-        }
+        userMetadata = in.readMap();
         if (in.getVersion().onOrAfter(DATA_STREAMS_IN_SNAPSHOT)) {
             dataStreams = in.readStringList();
         } else {
@@ -840,11 +835,9 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             out.writeBoolean(false);
         }
         out.writeOptionalBoolean(includeGlobalState);
-        if (out.getVersion().onOrAfter(METADATA_FIELD_INTRODUCED)) {
-            out.writeMap(userMetadata);
-            if (out.getVersion().onOrAfter(DATA_STREAMS_IN_SNAPSHOT)) {
-                out.writeStringCollection(dataStreams);
-            }
+        out.writeMap(userMetadata);
+        if (out.getVersion().onOrAfter(DATA_STREAMS_IN_SNAPSHOT)) {
+            out.writeStringCollection(dataStreams);
         }
     }
 

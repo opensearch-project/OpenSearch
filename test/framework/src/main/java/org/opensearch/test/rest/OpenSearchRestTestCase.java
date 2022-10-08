@@ -531,8 +531,8 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
     private void wipeCluster() throws Exception {
 
         // Clean up SLM policies before trying to wipe snapshots so that no new ones get started by SLM after wiping
-        if (nodeVersions.first().onOrAfter(LegacyESVersion.V_7_4_0) && nodeVersions.first().before(Version.V_1_0_0)) { // SLM was introduced
-                                                                                                                       // in version 7.4
+        if (nodeVersions.first().before(Version.V_1_0_0)) { // SLM was introduced
+                                                            // in version 7.4
             if (preserveSLMPoliciesUponCompletion() == false) {
                 // Clean up SLM policies before trying to wipe snapshots so that no new ones get started by SLM after wiping
                 deleteAllSLMPolicies();

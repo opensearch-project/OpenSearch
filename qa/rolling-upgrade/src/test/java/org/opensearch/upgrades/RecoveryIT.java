@@ -47,6 +47,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.test.rest.yaml.ObjectPath;
 import org.hamcrest.Matcher;
@@ -270,6 +271,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 updateIndexSettings(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none"));
                 break;
             case MIXED:
+                // todo: verify this test can be removed in 3.0.0
                 final String newNode = getNodeId(v -> v.equals(Version.CURRENT));
                 final String oldNode = getNodeId(v -> v.before(Version.CURRENT));
                 // remove the replica and guaranteed the primary is placed on the old node
@@ -348,11 +350,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 if (randomBoolean()) {
                     indexDocs(index, i, 1); // update
                 } else if (randomBoolean()) {
-                    if (getNodeId(v -> v.onOrAfter(LegacyESVersion.V_7_0_0)) == null) {
-                        client().performRequest(new Request("DELETE", index + "/test/" + i));
-                    } else {
-                        client().performRequest(new Request("DELETE", index + "/_doc/" + i));
-                    }
+                    client().performRequest(new Request("DELETE", index + "/" + MapperService.SINGLE_MAPPING_NAME + "/" + i));
                 }
             }
         }
@@ -458,15 +456,10 @@ public class RecoveryIT extends AbstractRollingTestCase {
             closeIndex(indexName);
         }
 
-        final Version indexVersionCreated = indexVersionCreated(indexName);
-        if (indexVersionCreated.onOrAfter(LegacyESVersion.V_7_2_0)) {
-            // index was created on a version that supports the replication of closed indices,
-            // so we expect the index to be closed and replicated
-            ensureGreen(indexName);
-            assertClosedIndex(indexName, true);
-        } else {
-            assertClosedIndex(indexName, false);
-        }
+        // index was created on a version that supports the replication of closed indices,
+        // so we expect the index to be closed and replicated
+        ensureGreen(indexName);
+        assertClosedIndex(indexName, true);
     }
 
     /**
@@ -492,14 +485,10 @@ public class RecoveryIT extends AbstractRollingTestCase {
             closeIndex(indexName);
         }
 
-        if (minimumNodeVersion.onOrAfter(LegacyESVersion.V_7_2_0)) {
-            // index is created on a version that supports the replication of closed indices,
-            // so we expect the index to be closed and replicated
-            ensureGreen(indexName);
-            assertClosedIndex(indexName, true);
-        } else {
-            assertClosedIndex(indexName, false);
-        }
+        // index is created on a version that supports the replication of closed indices,
+        // so we expect the index to be closed and replicated
+        ensureGreen(indexName);
+        assertClosedIndex(indexName, true);
     }
 
     /**
@@ -526,27 +515,20 @@ public class RecoveryIT extends AbstractRollingTestCase {
             closeIndex(indexName);
         }
 
-        final Version indexVersionCreated = indexVersionCreated(indexName);
-        if (indexVersionCreated.onOrAfter(LegacyESVersion.V_7_2_0)) {
-            // index was created on a version that supports the replication of closed indices,
-            // so we expect the index to be closed and replicated
-            ensureGreen(indexName);
-            assertClosedIndex(indexName, true);
-            if (minimumNodeVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
-                switch (CLUSTER_TYPE) {
-                    case OLD: break;
-                    case MIXED:
-                        assertNoopRecoveries(indexName, s -> s.startsWith(CLUSTER_NAME + "-0"));
-                        break;
-                    case UPGRADED:
-                        assertNoopRecoveries(indexName, s -> s.startsWith(CLUSTER_NAME));
-                        break;
-                }
-            }
-        } else {
-            assertClosedIndex(indexName, false);
-        }
+        // index was created on a version that supports the replication of closed indices,
+        // so we expect the index to be closed and replicated
+        ensureGreen(indexName);
+        assertClosedIndex(indexName, true);
 
+        switch (CLUSTER_TYPE) {
+            case OLD: break;
+            case MIXED:
+                assertNoopRecoveries(indexName, s -> s.startsWith(CLUSTER_NAME + "-0"));
+                break;
+            case UPGRADED:
+                assertNoopRecoveries(indexName, s -> s.startsWith(CLUSTER_NAME));
+                break;
+        }
     }
     /**
      * Returns the version in which the given index has been created
