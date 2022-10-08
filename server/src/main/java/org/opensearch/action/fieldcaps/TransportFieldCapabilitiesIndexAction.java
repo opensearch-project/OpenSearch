@@ -153,8 +153,7 @@ public class TransportFieldCapabilitiesIndexAction extends HandledTransportActio
         for (String field : fieldNames) {
             MappedFieldType ft = mapperService.fieldType(field);
             if (ft != null) {
-                if (indicesService.isMetadataField(mapperService.getIndexSettings().getIndexVersionCreated(), field)
-                    || fieldPredicate.test(ft.name())) {
+                if (indicesService.isMetadataField(field) || fieldPredicate.test(ft.name())) {
                     IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
                         field,
                         ft.familyTypeName(),

@@ -60,7 +60,6 @@ public class DiskThresholdSettingsTests extends OpenSearchTestCase {
         assertTrue(diskThresholdSettings.includeRelocations());
         assertEquals(zeroBytes, diskThresholdSettings.getFreeBytesThresholdFloodStage());
         assertEquals(5.0D, diskThresholdSettings.getFreeDiskThresholdFloodStage(), 0.0D);
-        assertTrue(diskThresholdSettings.isAutoReleaseIndexEnabled());
     }
 
     public void testUpdate() {

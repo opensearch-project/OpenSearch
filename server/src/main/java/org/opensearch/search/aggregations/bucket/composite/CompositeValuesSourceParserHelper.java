@@ -32,7 +32,6 @@
 
 package org.opensearch.search.aggregations.bucket.composite;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.io.stream.StreamInput;
@@ -103,15 +102,6 @@ public class CompositeValuesSourceParserHelper {
             aggregationType = BUILDER_CLASS_TO_AGGREGATION_TYPE.get(builder.getClass());
             if (BUILDER_CLASS_TO_BYTE_CODE.containsKey(builder.getClass())) {
                 code = BUILDER_CLASS_TO_BYTE_CODE.get(builder.getClass());
-                if (code == 3 && out.getVersion().before(LegacyESVersion.V_7_5_0)) {
-                    throw new IOException(
-                        "Attempting to serialize ["
-                            + builder.getClass().getSimpleName()
-                            + "] to a node with unsupported version ["
-                            + out.getVersion()
-                            + "]"
-                    );
-                }
             }
         }
 

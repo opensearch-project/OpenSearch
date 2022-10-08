@@ -67,7 +67,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.opensearch.snapshots.SnapshotInfo.DATA_STREAMS_IN_SNAPSHOT;
-import static org.opensearch.snapshots.SnapshotInfo.METADATA_FIELD_INTRODUCED;
 
 /**
  * Meta data about snapshots that are currently executing
@@ -296,11 +295,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             shards = in.readImmutableMap(ShardId::new, ShardSnapshotStatus::readFrom);
             repositoryStateId = in.readLong();
             failure = in.readOptionalString();
-            if (in.getVersion().onOrAfter(METADATA_FIELD_INTRODUCED)) {
-                userMetadata = in.readMap();
-            } else {
-                userMetadata = null;
-            }
+            userMetadata = in.readMap();
             if (in.getVersion().onOrAfter(VERSION_IN_SNAPSHOT_VERSION)) {
                 version = Version.readVersion(in);
             } else if (in.getVersion().onOrAfter(SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION)) {
@@ -736,9 +731,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             out.writeMap(shards);
             out.writeLong(repositoryStateId);
             out.writeOptionalString(failure);
-            if (out.getVersion().onOrAfter(METADATA_FIELD_INTRODUCED)) {
-                out.writeMap(userMetadata);
-            }
+            out.writeMap(userMetadata);
             if (out.getVersion().onOrAfter(VERSION_IN_SNAPSHOT_VERSION)) {
                 Version.writeVersion(version, out);
             } else if (out.getVersion().onOrAfter(SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION)) {

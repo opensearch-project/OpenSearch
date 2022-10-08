@@ -1016,11 +1016,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             version = in.readLong();
             mappingVersion = in.readVLong();
             settingsVersion = in.readVLong();
-            if (in.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
-                aliasesVersion = in.readVLong();
-            } else {
-                aliasesVersion = 1;
-            }
+            aliasesVersion = in.readVLong();
             state = State.fromId(in.readByte());
             settings = Settings.readSettingsFromStream(in);
             primaryTerms = in.readVLongArray();
@@ -1051,9 +1047,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             out.writeLong(version);
             out.writeVLong(mappingVersion);
             out.writeVLong(settingsVersion);
-            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
-                out.writeVLong(aliasesVersion);
-            }
+            out.writeVLong(aliasesVersion);
             out.writeByte(state.id);
             Settings.writeSettingsToStream(settings, out);
             out.writeVLongArray(primaryTerms);
@@ -1093,11 +1087,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         builder.version(in.readLong());
         builder.mappingVersion(in.readVLong());
         builder.settingsVersion(in.readVLong());
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
-            builder.aliasesVersion(in.readVLong());
-        } else {
-            builder.aliasesVersion(1);
-        }
+        builder.aliasesVersion(in.readVLong());
         builder.setRoutingNumShards(in.readInt());
         builder.state(State.fromId(in.readByte()));
         builder.settings(readSettingsFromStream(in));
@@ -1140,9 +1130,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         out.writeLong(version);
         out.writeVLong(mappingVersion);
         out.writeVLong(settingsVersion);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
-            out.writeVLong(aliasesVersion);
-        }
+        out.writeVLong(aliasesVersion);
         out.writeInt(routingNumShards);
         out.writeByte(state.id());
         writeSettingsToStream(settings, out);
@@ -1821,8 +1809,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             if (Assertions.ENABLED) {
                 assert settingsVersion : "settings version should be present for indices";
             }
-            if (Assertions.ENABLED && Version.indexCreated(builder.settings).onOrAfter(LegacyESVersion.V_7_2_0)) {
-                assert aliasesVersion : "aliases version should be present for indices created on or after 7.2.0";
+            if (Assertions.ENABLED) {
+                assert aliasesVersion : "aliases version should be present for indices";
             }
             return builder.build();
         }

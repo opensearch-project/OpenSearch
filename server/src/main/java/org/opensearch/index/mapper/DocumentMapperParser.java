@@ -91,7 +91,7 @@ public class DocumentMapperParser {
         this.scriptService = scriptService;
         this.typeParsers = mapperRegistry.getMapperParsers();
         this.indexVersionCreated = indexSettings.getIndexVersionCreated();
-        this.rootTypeParsers = mapperRegistry.getMetadataMapperParsers(indexVersionCreated);
+        this.rootTypeParsers = mapperRegistry.getMetadataMapperParsers();
     }
 
     public Mapper.TypeParser.ParserContext parserContext() {

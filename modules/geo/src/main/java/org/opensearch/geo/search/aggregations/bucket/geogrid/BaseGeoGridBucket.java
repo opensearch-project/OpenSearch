@@ -45,12 +45,12 @@ import java.util.Objects;
 /**
  * Base implementation of geogrid aggs
  *
- * @opensearch.internal
+ * @opensearch.api
  */
-public abstract class InternalGeoGridBucket<B extends InternalGeoGridBucket> extends InternalMultiBucketAggregation.InternalBucket
+public abstract class BaseGeoGridBucket<B extends BaseGeoGridBucket> extends InternalMultiBucketAggregation.InternalBucket
     implements
         GeoGrid.Bucket,
-        Comparable<InternalGeoGridBucket> {
+        Comparable<BaseGeoGridBucket> {
 
     protected long hashAsLong;
     protected long docCount;
@@ -58,7 +58,7 @@ public abstract class InternalGeoGridBucket<B extends InternalGeoGridBucket> ext
 
     long bucketOrd;
 
-    public InternalGeoGridBucket(long hashAsLong, long docCount, InternalAggregations aggregations) {
+    public BaseGeoGridBucket(long hashAsLong, long docCount, InternalAggregations aggregations) {
         this.docCount = docCount;
         this.aggregations = aggregations;
         this.hashAsLong = hashAsLong;
@@ -67,7 +67,7 @@ public abstract class InternalGeoGridBucket<B extends InternalGeoGridBucket> ext
     /**
      * Read from a stream.
      */
-    public InternalGeoGridBucket(StreamInput in) throws IOException {
+    public BaseGeoGridBucket(StreamInput in) throws IOException {
         hashAsLong = in.readLong();
         docCount = in.readVLong();
         aggregations = InternalAggregations.readFrom(in);
@@ -80,7 +80,7 @@ public abstract class InternalGeoGridBucket<B extends InternalGeoGridBucket> ext
         aggregations.writeTo(out);
     }
 
-    long hashAsLong() {
+    public long hashAsLong() {
         return hashAsLong;
     }
 
@@ -95,7 +95,7 @@ public abstract class InternalGeoGridBucket<B extends InternalGeoGridBucket> ext
     }
 
     @Override
-    public int compareTo(InternalGeoGridBucket other) {
+    public int compareTo(BaseGeoGridBucket other) {
         if (this.hashAsLong > other.hashAsLong) {
             return 1;
         }
@@ -119,7 +119,7 @@ public abstract class InternalGeoGridBucket<B extends InternalGeoGridBucket> ext
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        InternalGeoGridBucket bucket = (InternalGeoGridBucket) o;
+        BaseGeoGridBucket bucket = (BaseGeoGridBucket) o;
         return hashAsLong == bucket.hashAsLong && docCount == bucket.docCount && Objects.equals(aggregations, bucket.aggregations);
     }
 

@@ -84,6 +84,14 @@ public abstract class PeerFinder {
         Setting.Property.NodeScope
     );
 
+    // the time between attempts to find all peers when node is in decommissioned state, default set to 2 minutes
+    public static final Setting<TimeValue> DISCOVERY_FIND_PEERS_INTERVAL_DURING_DECOMMISSION_SETTING = Setting.timeSetting(
+        "discovery.find_peers_interval_during_decommission",
+        TimeValue.timeValueSeconds(120L),
+        TimeValue.timeValueMillis(1000),
+        Setting.Property.NodeScope
+    );
+
     public static final Setting<TimeValue> DISCOVERY_REQUEST_PEERS_TIMEOUT_SETTING = Setting.timeSetting(
         "discovery.request_peers_timeout",
         TimeValue.timeValueMillis(3000),
@@ -91,7 +99,8 @@ public abstract class PeerFinder {
         Setting.Property.NodeScope
     );
 
-    private final TimeValue findPeersInterval;
+    private final Settings settings;
+    private TimeValue findPeersInterval;
     private final TimeValue requestPeersTimeout;
 
     private final Object mutex = new Object();
@@ -112,6 +121,7 @@ public abstract class PeerFinder {
         TransportAddressConnector transportAddressConnector,
         ConfiguredHostsResolver configuredHostsResolver
     ) {
+        this.settings = settings;
         findPeersInterval = DISCOVERY_FIND_PEERS_INTERVAL_SETTING.get(settings);
         requestPeersTimeout = DISCOVERY_REQUEST_PEERS_TIMEOUT_SETTING.get(settings);
         this.transportService = transportService;
@@ -126,6 +136,23 @@ public abstract class PeerFinder {
             PeersRequest::new,
             (request, channel, task) -> channel.sendResponse(handlePeersRequest(request))
         );
+    }
+
+    public synchronized void onNodeCommissionStatusChange(boolean localNodeCommissioned) {
+        findPeersInterval = localNodeCommissioned
+            ? DISCOVERY_FIND_PEERS_INTERVAL_SETTING.get(settings)
+            : DISCOVERY_FIND_PEERS_INTERVAL_DURING_DECOMMISSION_SETTING.get(settings);
+        logger.info(
+            "setting findPeersInterval to [{}] as node commission status = [{}] for local node [{}]",
+            findPeersInterval,
+            localNodeCommissioned,
+            transportService.getLocalNode()
+        );
+    }
+
+    // package private for tests
+    TimeValue getFindPeersInterval() {
+        return findPeersInterval;
     }
 
     public void activate(final DiscoveryNodes lastAcceptedNodes) {

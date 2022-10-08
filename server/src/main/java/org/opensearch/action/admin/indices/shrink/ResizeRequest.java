@@ -31,7 +31,6 @@
 
 package org.opensearch.action.admin.indices.shrink;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.admin.indices.alias.Alias;
@@ -122,9 +121,6 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         super.writeTo(out);
         targetIndexRequest.writeTo(out);
         out.writeString(sourceIndex);
-        if (type == ResizeType.CLONE && out.getVersion().before(LegacyESVersion.V_7_4_0)) {
-            throw new IllegalArgumentException("can't send clone request to a node that's older than " + LegacyESVersion.V_7_4_0);
-        }
         out.writeEnum(type);
         out.writeOptionalBoolean(copySettings);
     }
