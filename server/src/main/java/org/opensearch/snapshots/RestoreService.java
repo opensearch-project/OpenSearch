@@ -75,6 +75,8 @@ import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.routing.allocation.AllocationService;
+import org.opensearch.cluster.service.ClusterManagerTaskKeys;
+import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.UUIDs;
@@ -176,6 +178,8 @@ public class RestoreService implements ClusterStateApplier {
 
     private final ClusterSettings clusterSettings;
 
+    private final ClusterManagerTaskThrottler.ThrottlingKey restoreSnapshotTaskKey;
+
     private static final CleanRestoreStateTaskExecutor cleanRestoreStateTaskExecutor = new CleanRestoreStateTaskExecutor();
 
     public RestoreService(
@@ -197,6 +201,10 @@ public class RestoreService implements ClusterStateApplier {
         }
         this.clusterSettings = clusterService.getClusterSettings();
         this.shardLimitValidator = shardLimitValidator;
+
+        // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
+        restoreSnapshotTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.RESTORE_SNAPSHOT_KEY, true);
+
     }
 
     /**
@@ -389,18 +397,13 @@ public class RestoreService implements ClusterStateApplier {
                     RestoreInfo restoreInfo = null;
 
                     @Override
+                    public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
+                        return restoreSnapshotTaskKey;
+                    }
+
+                    @Override
                     public ClusterState execute(ClusterState currentState) {
                         RestoreInProgress restoreInProgress = currentState.custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY);
-                        if (currentState.getNodes().getMinNodeVersion().before(LegacyESVersion.V_7_0_0)) {
-                            // Check if another restore process is already running - cannot run two restore processes at the
-                            // same time in versions prior to 7.0
-                            if (restoreInProgress.isEmpty() == false) {
-                                throw new ConcurrentSnapshotExecutionException(
-                                    snapshot,
-                                    "Restore process is already running in this cluster"
-                                );
-                            }
-                        }
                         // Check if the snapshot to restore is currently being deleted
                         SnapshotDeletionsInProgress deletionsInProgress = currentState.custom(
                             SnapshotDeletionsInProgress.TYPE,

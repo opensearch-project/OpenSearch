@@ -105,6 +105,7 @@ import java.io.UncheckedIOException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -122,6 +123,7 @@ import java.util.zip.Checksum;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.opensearch.index.seqno.SequenceNumbers.LOCAL_CHECKPOINT_KEY;
+import static org.opensearch.index.store.Store.MetadataSnapshot.loadMetadata;
 
 /**
  * A Store provides plain access to files written by an opensearch index shard. Each shard
@@ -332,6 +334,51 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      */
     public MetadataSnapshot getMetadata(SegmentInfos segmentInfos) throws IOException {
         return new MetadataSnapshot(segmentInfos, directory, logger);
+    }
+
+    /**
+     * Segment Replication method - Fetch a map of StoreFileMetadata for segments, ignoring Segment_N files.
+     * @param segmentInfos {@link SegmentInfos} from which to compute metadata.
+     * @return {@link Map} map file name to {@link StoreFileMetadata}.
+     */
+    public Map<String, StoreFileMetadata> getSegmentMetadataMap(SegmentInfos segmentInfos) throws IOException {
+        assert indexSettings.isSegRepEnabled();
+        return loadMetadata(segmentInfos, directory, logger, true).fileMetadata;
+    }
+
+    /**
+     * Segment Replication method
+     * Returns a diff between the Maps of StoreFileMetadata that can be used for getting list of files to copy over to a replica for segment replication. The returned diff will hold a list of files that are:
+     * <ul>
+     * <li>identical: they exist in both maps and they can be considered the same ie. they don't need to be recovered</li>
+     * <li>different: they exist in both maps but their they are not identical</li>
+     * <li>missing: files that exist in the source but not in the target</li>
+     * </ul>
+     */
+    public static RecoveryDiff segmentReplicationDiff(Map<String, StoreFileMetadata> source, Map<String, StoreFileMetadata> target) {
+        final List<StoreFileMetadata> identical = new ArrayList<>();
+        final List<StoreFileMetadata> different = new ArrayList<>();
+        final List<StoreFileMetadata> missing = new ArrayList<>();
+        for (StoreFileMetadata value : source.values()) {
+            if (value.name().startsWith(IndexFileNames.SEGMENTS)) {
+                continue;
+            }
+            if (target.containsKey(value.name()) == false) {
+                missing.add(value);
+            } else {
+                final StoreFileMetadata fileMetadata = target.get(value.name());
+                if (fileMetadata.isSame(value)) {
+                    identical.add(value);
+                } else {
+                    different.add(value);
+                }
+            }
+        }
+        return new RecoveryDiff(
+            Collections.unmodifiableList(identical),
+            Collections.unmodifiableList(different),
+            Collections.unmodifiableList(missing)
+        );
     }
 
     /**
@@ -709,31 +756,34 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     /**
-     * This method deletes every file in this store that is not contained in either the remote or local metadata snapshots.
+     * Segment Replication method -
+     * This method deletes every file in this store that is not referenced by the passed in SegmentInfos or
+     * part of the latest on-disk commit point.
      * This method is used for segment replication when the in memory SegmentInfos can be ahead of the on disk segment file.
      * In this case files from both snapshots must be preserved. Verification has been done that all files are present on disk.
      * @param reason         the reason for this cleanup operation logged for each deleted file
-     * @param localSnapshot  The local snapshot from in memory SegmentInfos.
+     * @param infos          {@link SegmentInfos} Files from this infos will be preserved on disk if present.
      * @throws IllegalStateException if the latest snapshot in this store differs from the given one after the cleanup.
      */
-    public void cleanupAndPreserveLatestCommitPoint(String reason, MetadataSnapshot localSnapshot) throws IOException {
+    public void cleanupAndPreserveLatestCommitPoint(String reason, SegmentInfos infos) throws IOException {
+        assert indexSettings.isSegRepEnabled();
         // fetch a snapshot from the latest on disk Segments_N file. This can be behind
         // the passed in local in memory snapshot, so we want to ensure files it references are not removed.
         metadataLock.writeLock().lock();
         try (Lock writeLock = directory.obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
-            cleanupFiles(reason, localSnapshot, getMetadata(readLastCommittedSegmentsInfo()));
+            cleanupFiles(reason, getMetadata(readLastCommittedSegmentsInfo()), infos.files(true));
         } finally {
             metadataLock.writeLock().unlock();
         }
     }
 
-    private void cleanupFiles(String reason, MetadataSnapshot localSnapshot, @Nullable MetadataSnapshot additionalSnapshot)
+    private void cleanupFiles(String reason, MetadataSnapshot localSnapshot, @Nullable Collection<String> additionalFiles)
         throws IOException {
         assert metadataLock.isWriteLockedByCurrentThread();
         for (String existingFile : directory.listAll()) {
             if (Store.isAutogenerated(existingFile)
                 || localSnapshot.contains(existingFile)
-                || (additionalSnapshot != null && additionalSnapshot.contains(existingFile))) {
+                || (additionalFiles != null && additionalFiles.contains(existingFile))) {
                 // don't delete snapshot file, or the checksums file (note, this is extra protection since the Store won't delete
                 // checksum)
                 continue;
@@ -825,17 +875,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             userData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
             latestSegmentInfos.setUserData(userData, true);
             latestSegmentInfos.commit(directory());
-
-            // similar to TrimUnsafeCommits, create a commit with an appending IW, this will delete old commits and ensure all files
-            // associated with the SegmentInfos.commit are fsynced.
-            final List<IndexCommit> existingCommits = DirectoryReader.listCommits(directory);
-            assert existingCommits.isEmpty() == false : "Expected at least one commit but none found";
-            final IndexCommit lastIndexCommit = existingCommits.get(existingCommits.size() - 1);
-            assert latestSegmentInfos.getSegmentsFileName().equals(lastIndexCommit.getSegmentsFileName());
-            try (IndexWriter writer = newAppendingIndexWriter(directory, lastIndexCommit)) {
-                writer.setLiveCommitData(lastIndexCommit.getUserData().entrySet());
-                writer.commit();
-            }
+            directory.sync(latestSegmentInfos.files(true));
+            directory.syncMetaData();
+            cleanupAndPreserveLatestCommitPoint("After commit", latestSegmentInfos);
         } finally {
             metadataLock.writeLock().unlock();
         }
@@ -1033,6 +1075,11 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
 
         static LoadedMetadata loadMetadata(SegmentInfos segmentInfos, Directory directory, Logger logger) throws IOException {
+            return loadMetadata(segmentInfos, directory, logger, false);
+        }
+
+        static LoadedMetadata loadMetadata(SegmentInfos segmentInfos, Directory directory, Logger logger, boolean ignoreSegmentsFile)
+            throws IOException {
             long numDocs = Lucene.getNumDocs(segmentInfos);
             Map<String, String> commitUserDataBuilder = new HashMap<>();
             commitUserDataBuilder.putAll(segmentInfos.getUserData());
@@ -1067,8 +1114,10 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             if (maxVersion == null) {
                 maxVersion = org.opensearch.Version.CURRENT.minimumIndexCompatibilityVersion().luceneVersion;
             }
-            final String segmentsFile = segmentInfos.getSegmentsFileName();
-            checksumFromLuceneFile(directory, segmentsFile, builder, logger, maxVersion, true);
+            if (ignoreSegmentsFile == false) {
+                final String segmentsFile = segmentInfos.getSegmentsFileName();
+                checksumFromLuceneFile(directory, segmentsFile, builder, logger, maxVersion, true);
+            }
             return new LoadedMetadata(unmodifiableMap(builder), unmodifiableMap(commitUserDataBuilder), numDocs);
         }
 
@@ -1148,7 +1197,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
          * Helper method used to group store files according to segment and commit.
          *
          * @see MetadataSnapshot#recoveryDiff(MetadataSnapshot)
-         * @see MetadataSnapshot#segmentReplicationDiff(MetadataSnapshot)
          */
         private Iterable<List<StoreFileMetadata>> getGroupedFilesIterable() {
             final Map<String, List<StoreFileMetadata>> perSegment = new HashMap<>();
@@ -1238,51 +1286,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 + "] metadata size: ["
                 + this.metadata.size()
                 + "]";
-            return recoveryDiff;
-        }
-
-        /**
-         * Segment Replication method
-         * Returns a diff between the two snapshots that can be used for getting list of files to copy over to a replica for segment replication. The given snapshot is treated as the
-         * target and this snapshot as the source. The returned diff will hold a list of files that are:
-         * <ul>
-         * <li>identical: they exist in both snapshots and they can be considered the same ie. they don't need to be recovered</li>
-         * <li>different: they exist in both snapshots but their they are not identical</li>
-         * <li>missing: files that exist in the source but not in the target</li>
-         * </ul>
-         */
-        public RecoveryDiff segmentReplicationDiff(MetadataSnapshot recoveryTargetSnapshot) {
-            final List<StoreFileMetadata> identical = new ArrayList<>();
-            final List<StoreFileMetadata> different = new ArrayList<>();
-            final List<StoreFileMetadata> missing = new ArrayList<>();
-            final ArrayList<StoreFileMetadata> identicalFiles = new ArrayList<>();
-            for (List<StoreFileMetadata> segmentFiles : getGroupedFilesIterable()) {
-                identicalFiles.clear();
-                boolean consistent = true;
-                for (StoreFileMetadata meta : segmentFiles) {
-                    StoreFileMetadata storeFileMetadata = recoveryTargetSnapshot.get(meta.name());
-                    if (storeFileMetadata == null) {
-                        // Do not consider missing files as inconsistent in SegRep as replicas may lag while primary updates
-                        // documents and generate new files specific to a segment
-                        missing.add(meta);
-                    } else if (storeFileMetadata.isSame(meta) == false) {
-                        consistent = false;
-                        different.add(meta);
-                    } else {
-                        identicalFiles.add(meta);
-                    }
-                }
-                if (consistent) {
-                    identical.addAll(identicalFiles);
-                } else {
-                    different.addAll(identicalFiles);
-                }
-            }
-            RecoveryDiff recoveryDiff = new RecoveryDiff(
-                Collections.unmodifiableList(identical),
-                Collections.unmodifiableList(different),
-                Collections.unmodifiableList(missing)
-            );
             return recoveryDiff;
         }
 

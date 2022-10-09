@@ -36,7 +36,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.ResourceAlreadyExistsException;
 import org.opensearch.Version;
@@ -60,6 +59,8 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
+import org.opensearch.cluster.service.ClusterManagerTaskKeys;
+import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
@@ -147,6 +148,7 @@ public class MetadataCreateIndexService {
     private final ShardLimitValidator shardLimitValidator;
     private final boolean forbidPrivateIndexSettings;
     private final Set<IndexSettingProvider> indexSettingProviders = new HashSet<>();
+    private final ClusterManagerTaskThrottler.ThrottlingKey createIndexTaskKey;
     private AwarenessReplicaBalance awarenessReplicaBalance;
 
     public MetadataCreateIndexService(
@@ -177,6 +179,9 @@ public class MetadataCreateIndexService {
         this.forbidPrivateIndexSettings = forbidPrivateIndexSettings;
         this.shardLimitValidator = shardLimitValidator;
         this.awarenessReplicaBalance = awarenessReplicaBalance;
+
+        // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
+        createIndexTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.CREATE_INDEX_KEY, true);
     }
 
     /**
@@ -324,6 +329,11 @@ public class MetadataCreateIndexService {
                 @Override
                 protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
                     return new ClusterStateUpdateResponse(acknowledged);
+                }
+
+                @Override
+                public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
+                    return createIndexTaskKey;
                 }
 
                 @Override
@@ -1385,21 +1395,17 @@ public class MetadataCreateIndexService {
      * the less default split operations are supported
      */
     public static int calculateNumRoutingShards(int numShards, Version indexVersionCreated) {
-        if (indexVersionCreated.onOrAfter(LegacyESVersion.V_7_0_0)) {
-            // only select this automatically for indices that are created on or after 7.0 this will prevent this new behaviour
-            // until we have a fully upgraded cluster. Additionally it will make integratin testing easier since mixed clusters
-            // will always have the behavior of the min node in the cluster.
-            //
-            // We use as a default number of routing shards the higher number that can be expressed
-            // as {@code numShards * 2^x`} that is less than or equal to the maximum number of shards: 1024.
-            int log2MaxNumShards = 10; // logBase2(1024)
-            int log2NumShards = 32 - Integer.numberOfLeadingZeros(numShards - 1); // ceil(logBase2(numShards))
-            int numSplits = log2MaxNumShards - log2NumShards;
-            numSplits = Math.max(1, numSplits); // Ensure the index can be split at least once
-            return numShards * 1 << numSplits;
-        } else {
-            return numShards;
-        }
+        // only select this automatically for indices that are created on or after 7.0 this will prevent this new behaviour
+        // until we have a fully upgraded cluster. Additionally it will make integratin testing easier since mixed clusters
+        // will always have the behavior of the min node in the cluster.
+        //
+        // We use as a default number of routing shards the higher number that can be expressed
+        // as {@code numShards * 2^x`} that is less than or equal to the maximum number of shards: 1024.
+        int log2MaxNumShards = 10; // logBase2(1024)
+        int log2NumShards = 32 - Integer.numberOfLeadingZeros(numShards - 1); // ceil(logBase2(numShards))
+        int numSplits = log2MaxNumShards - log2NumShards;
+        numSplits = Math.max(1, numSplits); // Ensure the index can be split at least once
+        return numShards * 1 << numSplits;
     }
 
     public static void validateTranslogRetentionSettings(Settings indexSettings) {

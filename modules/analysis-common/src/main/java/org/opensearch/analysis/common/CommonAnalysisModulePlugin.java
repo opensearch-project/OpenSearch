@@ -485,19 +485,10 @@ public class CommonAnalysisModulePlugin extends Plugin implements AnalysisPlugin
         filters.add(PreConfiguredTokenFilter.singleton("dutch_stem", false, input -> new SnowballFilter(input, new DutchStemmer())));
         filters.add(PreConfiguredTokenFilter.singleton("edge_ngram", false, false, input -> new EdgeNGramTokenFilter(input, 1)));
         filters.add(PreConfiguredTokenFilter.openSearchVersion("edgeNGram", false, false, (reader, version) -> {
-            if (version.onOrAfter(LegacyESVersion.V_7_0_0)) {
-                throw new IllegalArgumentException(
-                    "The [edgeNGram] token filter name was deprecated in 6.4 and cannot be used in new indices. "
-                        + "Please change the filter name to [edge_ngram] instead."
-                );
-            } else {
-                deprecationLogger.deprecate(
-                    "edgeNGram_deprecation",
-                    "The [edgeNGram] token filter name is deprecated and will be removed in a future version. "
-                        + "Please change the filter name to [edge_ngram] instead."
-                );
-            }
-            return new EdgeNGramTokenFilter(reader, 1);
+            throw new IllegalArgumentException(
+                "The [edgeNGram] token filter name was deprecated in 6.4 and cannot be used in new indices. "
+                    + "Please change the filter name to [edge_ngram] instead."
+            );
         }));
         filters.add(
             PreConfiguredTokenFilter.singleton("elision", true, input -> new ElisionFilter(input, FrenchAnalyzer.DEFAULT_ARTICLES))
@@ -524,19 +515,10 @@ public class CommonAnalysisModulePlugin extends Plugin implements AnalysisPlugin
         );
         filters.add(PreConfiguredTokenFilter.singleton("ngram", false, false, reader -> new NGramTokenFilter(reader, 1, 2, false)));
         filters.add(PreConfiguredTokenFilter.openSearchVersion("nGram", false, false, (reader, version) -> {
-            if (version.onOrAfter(LegacyESVersion.V_7_0_0)) {
-                throw new IllegalArgumentException(
-                    "The [nGram] token filter name was deprecated in 6.4 and cannot be used in new indices. "
-                        + "Please change the filter name to [ngram] instead."
-                );
-            } else {
-                deprecationLogger.deprecate(
-                    "nGram_deprecation",
-                    "The [nGram] token filter name is deprecated and will be removed in a future version. "
-                        + "Please change the filter name to [ngram] instead."
-                );
-            }
-            return new NGramTokenFilter(reader, 1, 2, false);
+            throw new IllegalArgumentException(
+                "The [nGram] token filter name was deprecated in 6.4 and cannot be used in new indices. "
+                    + "Please change the filter name to [ngram] instead."
+            );
         }));
         filters.add(PreConfiguredTokenFilter.singleton("persian_normalization", true, PersianNormalizationFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("porter_stem", false, PorterStemFilter::new));
@@ -581,18 +563,22 @@ public class CommonAnalysisModulePlugin extends Plugin implements AnalysisPlugin
                 )
             )
         );
-        filters.add(PreConfiguredTokenFilter.openSearchVersion("word_delimiter_graph", false, false, (input, version) -> {
-            boolean adjustOffsets = version.onOrAfter(LegacyESVersion.V_7_3_0);
-            return new WordDelimiterGraphFilter(
-                input,
-                adjustOffsets,
-                WordDelimiterIterator.DEFAULT_WORD_DELIM_TABLE,
-                WordDelimiterGraphFilter.GENERATE_WORD_PARTS | WordDelimiterGraphFilter.GENERATE_NUMBER_PARTS
-                    | WordDelimiterGraphFilter.SPLIT_ON_CASE_CHANGE | WordDelimiterGraphFilter.SPLIT_ON_NUMERICS
-                    | WordDelimiterGraphFilter.STEM_ENGLISH_POSSESSIVE,
-                null
-            );
-        }));
+        filters.add(
+            PreConfiguredTokenFilter.openSearchVersion(
+                "word_delimiter_graph",
+                false,
+                false,
+                (input, version) -> new WordDelimiterGraphFilter(
+                    input,
+                    true,
+                    WordDelimiterIterator.DEFAULT_WORD_DELIM_TABLE,
+                    WordDelimiterGraphFilter.GENERATE_WORD_PARTS | WordDelimiterGraphFilter.GENERATE_NUMBER_PARTS
+                        | WordDelimiterGraphFilter.SPLIT_ON_CASE_CHANGE | WordDelimiterGraphFilter.SPLIT_ON_NUMERICS
+                        | WordDelimiterGraphFilter.STEM_ENGLISH_POSSESSIVE,
+                    null
+                )
+            )
+        );
         return filters;
     }
 
@@ -606,12 +592,12 @@ public class CommonAnalysisModulePlugin extends Plugin implements AnalysisPlugin
         tokenizers.add(PreConfiguredTokenizer.singleton("letter", LetterTokenizer::new));
         tokenizers.add(PreConfiguredTokenizer.singleton("whitespace", WhitespaceTokenizer::new));
         tokenizers.add(PreConfiguredTokenizer.singleton("ngram", NGramTokenizer::new));
-        tokenizers.add(PreConfiguredTokenizer.openSearchVersion("edge_ngram", (version) -> {
-            if (version.onOrAfter(LegacyESVersion.V_7_3_0)) {
-                return new EdgeNGramTokenizer(NGramTokenizer.DEFAULT_MIN_NGRAM_SIZE, NGramTokenizer.DEFAULT_MAX_NGRAM_SIZE);
-            }
-            return new EdgeNGramTokenizer(EdgeNGramTokenizer.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenizer.DEFAULT_MAX_GRAM_SIZE);
-        }));
+        tokenizers.add(
+            PreConfiguredTokenizer.openSearchVersion(
+                "edge_ngram",
+                (version) -> new EdgeNGramTokenizer(NGramTokenizer.DEFAULT_MIN_NGRAM_SIZE, NGramTokenizer.DEFAULT_MAX_NGRAM_SIZE)
+            )
+        );
         tokenizers.add(PreConfiguredTokenizer.singleton("pattern", () -> new PatternTokenizer(Regex.compile("\\W+", null), -1)));
         tokenizers.add(PreConfiguredTokenizer.singleton("thai", ThaiTokenizer::new));
         // TODO deprecate and remove in API
@@ -637,10 +623,7 @@ public class CommonAnalysisModulePlugin extends Plugin implements AnalysisPlugin
                         + "Please change the tokenizer name to [edge_ngram] instead."
                 );
             }
-            if (version.onOrAfter(LegacyESVersion.V_7_3_0)) {
-                return new EdgeNGramTokenizer(NGramTokenizer.DEFAULT_MIN_NGRAM_SIZE, NGramTokenizer.DEFAULT_MAX_NGRAM_SIZE);
-            }
-            return new EdgeNGramTokenizer(EdgeNGramTokenizer.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenizer.DEFAULT_MAX_GRAM_SIZE);
+            return new EdgeNGramTokenizer(NGramTokenizer.DEFAULT_MIN_NGRAM_SIZE, NGramTokenizer.DEFAULT_MAX_NGRAM_SIZE);
         }));
         tokenizers.add(PreConfiguredTokenizer.singleton("PathHierarchy", PathHierarchyTokenizer::new));
 

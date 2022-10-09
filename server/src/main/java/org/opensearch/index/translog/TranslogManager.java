@@ -34,6 +34,11 @@ public interface TranslogManager {
     int recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long localCheckpoint, long recoverUpToSeqNo) throws IOException;
 
     /**
+     * Creates a new history snapshot from the translog file instead of the lucene index.
+     */
+    Translog.Snapshot newChangesSnapshot(long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException;
+
+    /**
      * Checks if the underlying storage sync is required.
      */
     boolean isTranslogSyncNeeded();

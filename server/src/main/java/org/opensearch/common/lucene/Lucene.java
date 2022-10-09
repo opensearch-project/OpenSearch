@@ -97,7 +97,6 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
 import org.opensearch.common.SuppressForbidden;
@@ -322,10 +321,7 @@ public class Lucene {
 
     public static TotalHits readTotalHits(StreamInput in) throws IOException {
         long totalHits = in.readVLong();
-        TotalHits.Relation totalHitsRelation = TotalHits.Relation.EQUAL_TO;
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
-            totalHitsRelation = in.readEnum(TotalHits.Relation.class);
-        }
+        TotalHits.Relation totalHitsRelation = in.readEnum(TotalHits.Relation.class);
         return new TotalHits(totalHits, totalHitsRelation);
     }
 
@@ -444,11 +440,7 @@ public class Lucene {
 
     public static void writeTotalHits(StreamOutput out, TotalHits totalHits) throws IOException {
         out.writeVLong(totalHits.value);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
-            out.writeEnum(totalHits.relation);
-        } else if (totalHits.value > 0 && totalHits.relation != TotalHits.Relation.EQUAL_TO) {
-            throw new IllegalArgumentException("Cannot serialize approximate total hit counts to nodes that are on a version < 7.0.0");
-        }
+        out.writeEnum(totalHits.relation);
     }
 
     public static void writeTopDocs(StreamOutput out, TopDocsAndMaxScore topDocs) throws IOException {
@@ -648,20 +640,16 @@ public class Lucene {
     }
 
     private static Number readExplanationValue(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
-            final int numberType = in.readByte();
-            switch (numberType) {
-                case 0:
-                    return in.readFloat();
-                case 1:
-                    return in.readDouble();
-                case 2:
-                    return in.readZLong();
-                default:
-                    throw new IOException("Unexpected number type: " + numberType);
-            }
-        } else {
-            return in.readFloat();
+        final int numberType = in.readByte();
+        switch (numberType) {
+            case 0:
+                return in.readFloat();
+            case 1:
+                return in.readDouble();
+            case 2:
+                return in.readZLong();
+            default:
+                throw new IOException("Unexpected number type: " + numberType);
         }
     }
 
@@ -680,19 +668,15 @@ public class Lucene {
     }
 
     private static void writeExplanationValue(StreamOutput out, Number value) throws IOException {
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
-            if (value instanceof Float) {
-                out.writeByte((byte) 0);
-                out.writeFloat(value.floatValue());
-            } else if (value instanceof Double) {
-                out.writeByte((byte) 1);
-                out.writeDouble(value.doubleValue());
-            } else {
-                out.writeByte((byte) 2);
-                out.writeZLong(value.longValue());
-            }
-        } else {
+        if (value instanceof Float) {
+            out.writeByte((byte) 0);
             out.writeFloat(value.floatValue());
+        } else if (value instanceof Double) {
+            out.writeByte((byte) 1);
+            out.writeDouble(value.doubleValue());
+        } else {
+            out.writeByte((byte) 2);
+            out.writeZLong(value.longValue());
         }
     }
 

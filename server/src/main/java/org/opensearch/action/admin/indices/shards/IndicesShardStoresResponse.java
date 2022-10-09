@@ -34,7 +34,6 @@ package org.opensearch.action.admin.indices.shards;
 
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.action.support.DefaultShardOperationFailedException;
@@ -247,13 +246,8 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
         }
 
         private Failure(StreamInput in) throws IOException {
-            if (in.getVersion().before(LegacyESVersion.V_7_4_0)) {
-                nodeId = in.readString();
-            }
             readFrom(in, this);
-            if (in.getVersion().onOrAfter(LegacyESVersion.V_7_4_0)) {
-                nodeId = in.readString();
-            }
+            nodeId = in.readString();
         }
 
         public String nodeId() {
@@ -266,13 +260,8 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getVersion().before(LegacyESVersion.V_7_4_0)) {
-                out.writeString(nodeId);
-            }
             super.writeTo(out);
-            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_4_0)) {
-                out.writeString(nodeId);
-            }
+            out.writeString(nodeId);
         }
 
         @Override

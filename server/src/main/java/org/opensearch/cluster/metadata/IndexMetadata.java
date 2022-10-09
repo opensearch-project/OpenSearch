@@ -285,6 +285,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public static final String SETTING_REMOTE_STORE_ENABLED = "index.remote_store.enabled";
 
+    public static final String SETTING_REMOTE_STORE_REPOSITORY = "index.remote_store.repository";
+
     public static final String SETTING_REMOTE_TRANSLOG_STORE_ENABLED = "index.remote_store.translog.enabled";
     /**
      * Used to specify if the index data should be persisted in the remote store.
@@ -323,6 +325,50 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     );
 
     /**
+     * Used to specify remote store repository to use for this index.
+     */
+    public static final Setting<String> INDEX_REMOTE_STORE_REPOSITORY_SETTING = Setting.simpleString(
+        SETTING_REMOTE_STORE_REPOSITORY,
+        new Setting.Validator<>() {
+
+            @Override
+            public void validate(final String value) {}
+
+            @Override
+            public void validate(final String value, final Map<Setting<?>, Object> settings) {
+                if (value == null || value.isEmpty()) {
+                    throw new IllegalArgumentException(
+                        "Setting " + INDEX_REMOTE_STORE_REPOSITORY_SETTING.getKey() + " should be provided with non-empty repository ID"
+                    );
+                } else {
+                    validateRemoteStoreSettingEnabled(settings, INDEX_REMOTE_STORE_REPOSITORY_SETTING);
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                final List<Setting<?>> settings = Collections.singletonList(INDEX_REMOTE_STORE_ENABLED_SETTING);
+                return settings.iterator();
+            }
+        },
+        Property.IndexScope,
+        Property.Final
+    );
+
+    private static void validateRemoteStoreSettingEnabled(final Map<Setting<?>, Object> settings, Setting<?> setting) {
+        final Boolean isRemoteSegmentStoreEnabled = (Boolean) settings.get(INDEX_REMOTE_STORE_ENABLED_SETTING);
+        if (isRemoteSegmentStoreEnabled == false) {
+            throw new IllegalArgumentException(
+                "Settings "
+                    + setting.getKey()
+                    + " can ont be set/enabled when "
+                    + INDEX_REMOTE_STORE_ENABLED_SETTING.getKey()
+                    + " is set to true"
+            );
+        }
+    }
+
+    /**
      * Used to specify if the index translog operations should be persisted in the remote store.
      */
     public static final Setting<Boolean> INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING = Setting.boolSetting(
@@ -335,16 +381,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
             @Override
             public void validate(final Boolean value, final Map<Setting<?>, Object> settings) {
-                final Boolean isRemoteSegmentStoreEnabled = (Boolean) settings.get(INDEX_REMOTE_STORE_ENABLED_SETTING);
-                if (isRemoteSegmentStoreEnabled == false && value == true) {
-                    throw new IllegalArgumentException(
-                        "Settings "
-                            + INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING.getKey()
-                            + " cannot be enabled when "
-                            + INDEX_REMOTE_STORE_ENABLED_SETTING.getKey()
-                            + " is set to "
-                            + settings.get(INDEX_REMOTE_STORE_ENABLED_SETTING)
-                    );
+                if (value == true) {
+                    validateRemoteStoreSettingEnabled(settings, INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING);
                 }
             }
 
@@ -978,11 +1016,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             version = in.readLong();
             mappingVersion = in.readVLong();
             settingsVersion = in.readVLong();
-            if (in.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
-                aliasesVersion = in.readVLong();
-            } else {
-                aliasesVersion = 1;
-            }
+            aliasesVersion = in.readVLong();
             state = State.fromId(in.readByte());
             settings = Settings.readSettingsFromStream(in);
             primaryTerms = in.readVLongArray();
@@ -1013,9 +1047,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             out.writeLong(version);
             out.writeVLong(mappingVersion);
             out.writeVLong(settingsVersion);
-            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
-                out.writeVLong(aliasesVersion);
-            }
+            out.writeVLong(aliasesVersion);
             out.writeByte(state.id);
             Settings.writeSettingsToStream(settings, out);
             out.writeVLongArray(primaryTerms);
@@ -1055,11 +1087,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         builder.version(in.readLong());
         builder.mappingVersion(in.readVLong());
         builder.settingsVersion(in.readVLong());
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
-            builder.aliasesVersion(in.readVLong());
-        } else {
-            builder.aliasesVersion(1);
-        }
+        builder.aliasesVersion(in.readVLong());
         builder.setRoutingNumShards(in.readInt());
         builder.state(State.fromId(in.readByte()));
         builder.settings(readSettingsFromStream(in));
@@ -1102,9 +1130,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         out.writeLong(version);
         out.writeVLong(mappingVersion);
         out.writeVLong(settingsVersion);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
-            out.writeVLong(aliasesVersion);
-        }
+        out.writeVLong(aliasesVersion);
         out.writeInt(routingNumShards);
         out.writeByte(state.id());
         writeSettingsToStream(settings, out);
@@ -1783,8 +1809,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             if (Assertions.ENABLED) {
                 assert settingsVersion : "settings version should be present for indices";
             }
-            if (Assertions.ENABLED && Version.indexCreated(builder.settings).onOrAfter(LegacyESVersion.V_7_2_0)) {
-                assert aliasesVersion : "aliases version should be present for indices created on or after 7.2.0";
+            if (Assertions.ENABLED) {
+                assert aliasesVersion : "aliases version should be present for indices";
             }
             return builder.build();
         }

@@ -935,6 +935,17 @@ public class MasterService extends AbstractLifecycleComponent {
     }
 
     /**
+     * Functionality for register task key to cluster manager node.
+     *
+     * @param taskKey - task key of task
+     * @param throttlingEnabled - throttling is enabled for task or not i.e does data node perform retries on it or not
+     * @return throttling task key which needs to be passed while submitting task to cluster manager
+     */
+    public ClusterManagerTaskThrottler.ThrottlingKey registerClusterManagerTask(String taskKey, boolean throttlingEnabled) {
+        return clusterManagerTaskThrottler.registerClusterManagerTask(taskKey, throttlingEnabled);
+    }
+
+    /**
      * Submits a batch of cluster state update tasks; submitted updates are guaranteed to be processed together,
      * potentially with more tasks of the same executor.
      *

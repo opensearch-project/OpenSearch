@@ -73,7 +73,7 @@ import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket> extends AggregatorTestCase {
+public abstract class GeoGridAggregatorTestCase<T extends BaseGeoGridBucket> extends AggregatorTestCase {
 
     private static final String FIELD_NAME = "location";
     protected static final double GEOHASH_TOLERANCE = 1E-5D;
@@ -201,9 +201,9 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
         Consumer<StringTerms> verify = (terms) -> {
             Map<String, Map<String, Long>> actual = new TreeMap<>();
             for (StringTerms.Bucket tb : terms.getBuckets()) {
-                InternalGeoGrid<?> gg = tb.getAggregations().get("gg");
+                BaseGeoGrid<?> gg = tb.getAggregations().get("gg");
                 Map<String, Long> sub = new TreeMap<>();
-                for (InternalGeoGridBucket<?> ggb : gg.getBuckets()) {
+                for (BaseGeoGridBucket<?> ggb : gg.getBuckets()) {
                     sub.put(ggb.getKeyAsString(), ggb.getDocCount());
                 }
                 actual.put(tb.getKeyAsString(), sub);
@@ -299,7 +299,7 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
         String field,
         int precision,
         GeoBoundingBox geoBoundingBox,
-        Consumer<InternalGeoGrid<T>> verify,
+        Consumer<BaseGeoGrid<T>> verify,
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex
     ) throws IOException {
         testCase(query, precision, geoBoundingBox, verify, buildIndex, createBuilder("_name").field(field));
@@ -309,7 +309,7 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
         Query query,
         int precision,
         GeoBoundingBox geoBoundingBox,
-        Consumer<InternalGeoGrid<T>> verify,
+        Consumer<BaseGeoGrid<T>> verify,
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
         GeoGridAggregationBuilder aggregationBuilder
     ) throws IOException {
@@ -333,7 +333,7 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
         aggregator.preCollection();
         indexSearcher.search(query, aggregator);
         aggregator.postCollection();
-        verify.accept((InternalGeoGrid<T>) aggregator.buildTopLevel());
+        verify.accept((BaseGeoGrid<T>) aggregator.buildTopLevel());
 
         indexReader.close();
         directory.close();

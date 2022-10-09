@@ -49,6 +49,8 @@ import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.coordination.CoordinationStateRejectedException;
 import org.opensearch.cluster.coordination.NoClusterManagerBlockService;
+import org.opensearch.cluster.decommission.DecommissioningFailedException;
+import org.opensearch.cluster.decommission.NodeDecommissionedException;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.IllegalShardRoutingStateException;
 import org.opensearch.cluster.routing.ShardRouting;
@@ -392,7 +394,7 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
     public void testCircuitBreakingException() throws IOException {
         CircuitBreakingException ex = serialize(
             new CircuitBreakingException("Too large", 0, 100, CircuitBreaker.Durability.TRANSIENT),
-            LegacyESVersion.V_7_0_0
+            Version.V_2_0_0
         );
         assertEquals("Too large", ex.getMessage());
         assertEquals(100, ex.getByteLimit());
@@ -861,7 +863,9 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
         ids.put(160, NoSeedNodeLeftException.class);
         ids.put(161, ReplicationFailedException.class);
         ids.put(162, PrimaryShardClosedException.class);
-        ids.put(163, ClusterManagerThrottlingException.class);
+        ids.put(163, DecommissioningFailedException.class);
+        ids.put(164, NodeDecommissionedException.class);
+        ids.put(165, ClusterManagerThrottlingException.class);
 
         Map<Class<? extends OpenSearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends OpenSearchException>> entry : ids.entrySet()) {

@@ -37,16 +37,11 @@ import org.opensearch.search.aggregations.bucket.GeoTileUtils;
 import java.util.List;
 import java.util.Map;
 
-public class GeoTileGridTests extends GeoGridTestCase<InternalGeoTileGridBucket, InternalGeoTileGrid> {
+public class GeoTileGridTests extends GeoGridTestCase<InternalGeoTileGridBucket, GeoTileGrid> {
 
     @Override
-    protected InternalGeoTileGrid createInternalGeoGrid(
-        String name,
-        int size,
-        List<InternalGeoGridBucket> buckets,
-        Map<String, Object> metadata
-    ) {
-        return new InternalGeoTileGrid(name, size, buckets, metadata);
+    protected GeoTileGrid createInternalGeoGrid(String name, int size, List<BaseGeoGridBucket> buckets, Map<String, Object> metadata) {
+        return new GeoTileGrid(name, size, buckets, metadata);
     }
 
     @Override

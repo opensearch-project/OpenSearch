@@ -16,7 +16,6 @@ import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.opensearch.action.support.ActionTestUtils;
-import org.opensearch.action.support.nodes.BaseNodeRequest;
 import org.opensearch.action.support.nodes.BaseNodesRequest;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.SuppressForbidden;
@@ -32,6 +31,7 @@ import org.opensearch.tasks.TaskInfo;
 import org.opensearch.test.tasks.MockTaskManager;
 import org.opensearch.test.tasks.MockTaskManagerListener;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
@@ -42,6 +42,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -55,7 +56,7 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
 
     private static final ThreadMXBean threadMXBean = (ThreadMXBean) ManagementFactory.getThreadMXBean();
 
-    public static class ResourceAwareNodeRequest extends BaseNodeRequest {
+    public static class ResourceAwareNodeRequest extends TransportRequest {
         protected String requestName;
 
         public ResourceAwareNodeRequest() {
@@ -615,6 +616,10 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
         });
 
         taskTestContext.requestCompleteLatch.await();
+
+        // It is possible for the MockTaskManagerListener to be called after the response is sent already.
+        // Wait enough time for taskId to be added to taskIdsRemovedFromThreadContext before performing validations.
+        waitUntil(() -> taskIdsAddedToThreadContext.size() == taskIdsRemovedFromThreadContext.size(), 5, TimeUnit.SECONDS);
 
         assertEquals(expectedTaskIdInThreadContext.get(), actualTaskIdInThreadContext.get());
         assertThat(taskIdsAddedToThreadContext, containsInAnyOrder(taskIdsRemovedFromThreadContext.toArray()));
