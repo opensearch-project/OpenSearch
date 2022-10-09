@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.cluster;
+package org.opensearch.cluster.coordination;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -20,19 +20,22 @@ import org.opensearch.action.admin.cluster.decommission.awareness.put.Decommissi
 import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionRequest;
 import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionResponse;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.opensearch.cluster.coordination.JoinHelper;
+import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.decommission.DecommissionAttribute;
 import org.opensearch.cluster.decommission.DecommissionAttributeMetadata;
 import org.opensearch.cluster.decommission.DecommissionStatus;
+import org.opensearch.cluster.decommission.DecommissioningFailedException;
 import org.opensearch.cluster.decommission.NodeDecommissionedException;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
+import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.TimeValue;
+import org.opensearch.discovery.Discovery;
 import org.opensearch.discovery.PeerFinder;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
@@ -49,7 +52,9 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.opensearch.test.NodeRoles.onlyRole;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoTimeout;
@@ -70,14 +75,84 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
     }
     /*
     Test Plan -
-    1. Basic decommissioning
-    2. Decommissioning when master in decommissioned zone
-    3. Basic assert testing (zone, force zone not present; second request after successful etc)
     4. Failure scenarios
     5. Concurrency handling
      */
 
+    public void testDecommissionFailedWhenNotZoneAware() throws ExecutionException, InterruptedException {
+        Settings commonSettings = Settings.builder().build();
+        // Start 3 cluster manager eligible nodes
+        internalCluster().startClusterManagerOnlyNodes(
+            3,
+            Settings.builder().put(commonSettings).build()
+        );
+        // start 3 data nodes
+        internalCluster().startDataOnlyNodes(
+            3,
+            Settings.builder().put(commonSettings).build()
+        );
+        ensureStableCluster(6);
+        ClusterHealthResponse health = client().admin()
+            .cluster()
+            .prepareHealth()
+            .setWaitForEvents(Priority.LANGUID)
+            .setWaitForGreenStatus()
+            .setWaitForNodes(Integer.toString(6))
+            .execute()
+            .actionGet();
+        assertFalse(health.isTimedOut());
+
+        DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "zone-1");
+        DecommissionRequest decommissionRequest = new DecommissionRequest(decommissionAttribute);
+        ExecutionException ex = expectThrows(ExecutionException.class, () -> client().execute(DecommissionAction.INSTANCE, decommissionRequest).get());
+        assertTrue(ex.getCause() instanceof RemoteTransportException);
+        assertTrue(ex.getCause().getCause() instanceof DecommissioningFailedException);
+        assertTrue(ex.getCause().getCause().getMessage().contains("invalid awareness attribute requested for decommissioning"));
+    }
+
+    public void testDecommissionFailedWhenNotForceZoneAware() throws ExecutionException, InterruptedException {
+        Settings commonSettings = Settings.builder()
+            .put("cluster.routing.allocation.awareness.attributes", "zone")
+            .build();
+        // Start 3 cluster manager eligible nodes
+        logger.info("--> start 3 cluster manager nodes on zones 'a' & 'b' & 'c'");
+        internalCluster().startNodes(
+            Settings.builder().put(commonSettings).put("node.attr.zone", "a").put(onlyRole(commonSettings, DiscoveryNodeRole.CLUSTER_MANAGER_ROLE)).build(),
+            Settings.builder().put(commonSettings).put("node.attr.zone", "b").put(onlyRole(commonSettings, DiscoveryNodeRole.CLUSTER_MANAGER_ROLE)).build(),
+            Settings.builder().put(commonSettings).put("node.attr.zone", "c").put(onlyRole(commonSettings, DiscoveryNodeRole.CLUSTER_MANAGER_ROLE)).build()
+        );
+        logger.info("--> starting data node each on zones 'a' & 'b' & 'c'");
+        internalCluster().startDataOnlyNode(Settings.builder().put(commonSettings).put("node.attr.zone", "a").build());
+        internalCluster().startDataOnlyNode(Settings.builder().put(commonSettings).put("node.attr.zone", "b").build());
+        internalCluster().startDataOnlyNode(Settings.builder().put(commonSettings).put("node.attr.zone", "c").build());
+        ensureStableCluster(6);
+        ClusterHealthResponse health = client().admin()
+            .cluster()
+            .prepareHealth()
+            .setWaitForEvents(Priority.LANGUID)
+            .setWaitForGreenStatus()
+            .setWaitForNodes(Integer.toString(6))
+            .execute()
+            .actionGet();
+        assertFalse(health.isTimedOut());
+
+        DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "a");
+        DecommissionRequest decommissionRequest = new DecommissionRequest(decommissionAttribute);
+        ExecutionException ex = expectThrows(ExecutionException.class, () -> client().execute(DecommissionAction.INSTANCE, decommissionRequest).get());
+        assertTrue(ex.getCause() instanceof RemoteTransportException);
+        assertTrue(ex.getCause().getCause() instanceof DecommissioningFailedException);
+        assertTrue(ex.getCause().getCause().getMessage().contains("doesn't have the decommissioning attribute"));
+    }
+
     public void testNodesRemovedAfterZoneDecommission_ClusterManagerNotInToBeDecommissionedZone() throws Exception {
+        assertNodesRemovedAfterZoneDecommission(false);
+    }
+
+    public void testNodesRemovedAfterZoneDecommission_ClusterManagerInToBeDecommissionedZone() throws Exception {
+        assertNodesRemovedAfterZoneDecommission(true);
+    }
+
+    private void assertNodesRemovedAfterZoneDecommission(boolean originalClusterManagerDecommission) throws Exception {
         int dataNodeCountPerAZ = 4;
         List<String> zones = new ArrayList<>(Arrays.asList("a", "b", "c"));
         Settings commonSettings = Settings.builder()
@@ -124,9 +199,14 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
         String originalClusterManagerZone = clusterManagerNameToZone.get(originalClusterManager);
         logger.info("--> original cluster manager - name {}, zone {}", originalClusterManager, originalClusterManagerZone);
 
-        List<String> tempZones = new ArrayList<>(zones);
-        tempZones.remove(originalClusterManagerZone);
-        String zoneToDecommission = randomFrom(tempZones);
+        String zoneToDecommission = originalClusterManagerZone;
+
+        if (originalClusterManagerDecommission == false) {
+            // decommission one zone where active cluster manager is not present
+            List<String> tempZones = new ArrayList<>(zones);
+            tempZones.remove(originalClusterManagerZone);
+            zoneToDecommission = randomFrom(tempZones);
+        }
 
         logger.info("--> starting decommissioning nodes in zone {}", zoneToDecommission);
         DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", zoneToDecommission);
@@ -143,11 +223,15 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
         assertEquals(clusterState.nodes().getDataNodes().size(), 8);
         assertEquals(clusterState.nodes().getClusterManagerNodes().size(), 2);
 
-        // assert that no node has decommissioned attribute
         Iterator<DiscoveryNode> discoveryNodeIterator = clusterState.nodes().getNodes().valuesIt();
         while(discoveryNodeIterator.hasNext()) {
+            // assert no node has decommissioned attribute
             DiscoveryNode node = discoveryNodeIterator.next();
             assertNotEquals(node.getAttributes().get("zone"), zoneToDecommission);
+
+            // assert no node is decommissioned from Coordinator#localNodeCommissioned
+            Coordinator coordinator = (Coordinator) internalCluster().getInstance(Discovery.class, node.getName());
+            assertTrue(coordinator.localNodeCommissioned());
         }
 
         // assert that decommission status is successful
@@ -158,8 +242,13 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
         // assert that no node present in Voting Config Exclusion
         assertEquals(clusterState.metadata().coordinationMetadata().getVotingConfigExclusions().size(),0);
 
-        // assert that cluster manager didn't switch during test
-        assertEquals(originalClusterManager,internalCluster().getClusterManagerName());
+        if (originalClusterManagerDecommission) {
+            // assert that cluster manager switched during the test
+            assertNotEquals(originalClusterManager, internalCluster().getClusterManagerName());
+        } else {
+            // assert that cluster manager didn't switch during test
+            assertEquals(originalClusterManager, internalCluster().getClusterManagerName());
+        }
 
         // ------------------------------------------------------------------------------
         // tests for removed nodes
@@ -225,7 +314,7 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
             TransportService.class,
             randomRemovedNode
         );
-        final CountDownLatch countDownLatch = new CountDownLatch(3);
+        final CountDownLatch countDownLatch = new CountDownLatch(2);
         decommissionedNodeTransportService.addSendBehavior(
             clusterManagerTransportService,
             (connection, requestId, action, request, options) -> {
@@ -239,181 +328,49 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
         countDownLatch.await();
         mockLogAppender.assertAllExpectationsMatched();
 
+        // decommissioned node should have localNodeCommissioned = false
+        Coordinator coordinator = (Coordinator) internalCluster().getInstance(Discovery.class, randomRemovedNode);
+        assertFalse(coordinator.localNodeCommissioned());
 
-//        // recommissioning the zone, to safely succeed the test. Specific tests for recommissioning will be written separately
-//        DeleteDecommissionResponse deleteDecommissionResponse = client().execute(DeleteDecommissionAction.INSTANCE, new DeleteDecommissionRequest()).get();
-//        assertTrue(deleteDecommissionResponse.isAcknowledged());
-//
-//        ensureStableCluster(15, TimeValue.timeValueSeconds(30L)); // time should be set to findPeerInterval setting
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(removedNodes.toArray(String[]::new)));
+        ensureStableCluster(10);
     }
 
-    public void testNodesRemovedAfterZoneDecommission_ClusterManagerInToBeDecommissionedZone() throws Exception {
-        int dataNodeCountPerAZ = 4;
-        List<String> zones = new ArrayList<String>(Arrays.asList("a", "b", "c"));
+    public void testDecommissionFailedWhenDifferentAttributeAlreadyDecommissioned() throws ExecutionException, InterruptedException {
         Settings commonSettings = Settings.builder()
             .put("cluster.routing.allocation.awareness.attributes", "zone")
             .put("cluster.routing.allocation.awareness.force.zone.values", "a,b,c")
             .build();
 
         logger.info("--> start 3 cluster manager nodes on zones 'a' & 'b' & 'c'");
-        List<String> clusterManagerNodes = internalCluster().startNodes(
+        internalCluster().startNodes(
             Settings.builder().put(commonSettings).put("node.attr.zone", "a").put(onlyRole(commonSettings, DiscoveryNodeRole.CLUSTER_MANAGER_ROLE)).build(),
             Settings.builder().put(commonSettings).put("node.attr.zone", "b").put(onlyRole(commonSettings, DiscoveryNodeRole.CLUSTER_MANAGER_ROLE)).build(),
             Settings.builder().put(commonSettings).put("node.attr.zone", "c").put(onlyRole(commonSettings, DiscoveryNodeRole.CLUSTER_MANAGER_ROLE)).build()
         );
-        Map<String, String> clusterManagerNameToZone = new HashMap<>();
-        clusterManagerNameToZone.put(clusterManagerNodes.get(0), "a");
-        clusterManagerNameToZone.put(clusterManagerNodes.get(1), "b");
-        clusterManagerNameToZone.put(clusterManagerNodes.get(2), "c");
-
-        logger.info("--> starting 4 nodes each on zones 'a' & 'b' & 'c'");
-        List<String> nodes_in_zone_a = internalCluster().startDataOnlyNodes(
-            dataNodeCountPerAZ,
-            Settings.builder().put(commonSettings).put("node.attr.zone", "a").build()
-        );
-        List<String> nodes_in_zone_b = internalCluster().startDataOnlyNodes(
-            dataNodeCountPerAZ,
-            Settings.builder().put(commonSettings).put("node.attr.zone", "b").build()
-        );
-        List<String> nodes_in_zone_c = internalCluster().startDataOnlyNodes(
-            dataNodeCountPerAZ,
-            Settings.builder().put(commonSettings).put("node.attr.zone", "c").build()
-        );
-        ensureStableCluster(15);
+        logger.info("--> starting 1 nodes each on zones 'a' & 'b' & 'c'");
+        internalCluster().startDataOnlyNode(Settings.builder().put(commonSettings).put("node.attr.zone", "a").build());
+        internalCluster().startDataOnlyNode(Settings.builder().put(commonSettings).put("node.attr.zone", "b").build());
+        internalCluster().startDataOnlyNode(Settings.builder().put(commonSettings).put("node.attr.zone", "c").build());
+        ensureStableCluster(6);
         ClusterHealthResponse health = client().admin()
             .cluster()
             .prepareHealth()
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForGreenStatus()
-            .setWaitForNodes(Integer.toString(15))
+            .setWaitForNodes(Integer.toString(6))
             .execute()
             .actionGet();
         assertFalse(health.isTimedOut());
 
-        String originalClusterManager = internalCluster().getClusterManagerName();
-        String originalClusterManagerZone = clusterManagerNameToZone.get(originalClusterManager);
-        logger.info("--> original cluster manager - name {}, zone {}", originalClusterManager, originalClusterManagerZone);
-
-        logger.info("--> starting decommissioning nodes in zone {}", originalClusterManagerZone);
-        DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", originalClusterManagerZone);
-        DecommissionRequest decommissionRequest = new DecommissionRequest(decommissionAttribute);
+        logger.info("--> starting decommissioning nodes in zone {}", 'a');
+        DecommissionRequest decommissionRequest = new DecommissionRequest(new DecommissionAttribute("zone", "a"));
         DecommissionResponse decommissionResponse = client().execute(DecommissionAction.INSTANCE, decommissionRequest).get();
         assertTrue(decommissionResponse.isAcknowledged());
 
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get();
-
-        ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
-
-        // assert that number of nodes should be 10 ( 2 cluster manager nodes + 8 data nodes )
-        assertEquals(clusterState.nodes().getNodes().size(), 10);
-        assertEquals(clusterState.nodes().getDataNodes().size(), 8);
-        assertEquals(clusterState.nodes().getClusterManagerNodes().size(), 2);
-
-        // assert that no node has decommissioned attribute
-        Iterator<DiscoveryNode> discoveryNodeIterator = clusterState.nodes().getNodes().valuesIt();
-        while(discoveryNodeIterator.hasNext()) {
-            DiscoveryNode node = discoveryNodeIterator.next();
-            assertNotEquals(node.getAttributes().get("zone"), originalClusterManagerZone);
-        }
-
-        // assert that cluster manager is changed
-        assertNotEquals(originalClusterManager, internalCluster().getClusterManagerName());
-
-        // assert that decommission status is successful
-        GetDecommissionStateResponse response = client().execute(GetDecommissionStateAction.INSTANCE, new GetDecommissionStateRequest()).get();
-        assertEquals(response.getDecommissionedAttribute(), decommissionAttribute);
-        assertEquals(response.getDecommissionStatus(), DecommissionStatus.SUCCESSFUL);
-
-        // assert that no node present in Voting Config Exclusion
-        assertEquals(clusterState.metadata().coordinationMetadata().getVotingConfigExclusions().size(),0);
-
-        // ------------------------------------------------------------------------------
-        // tests for removed nodes
-        // ------------------------------------------------------------------------------
-        List<String> removedNodes;
-        switch (originalClusterManagerZone) {
-            case "a":
-                removedNodes = new ArrayList<>(nodes_in_zone_a);
-                break;
-            case "b":
-                removedNodes = new ArrayList<>(nodes_in_zone_b);
-                break;
-            case "c":
-                removedNodes = new ArrayList<>(nodes_in_zone_c);
-                break;
-            default:
-                throw new IllegalStateException("unrecognized zone to be decommissioned");
-        }
-        String randomRemovedNode = randomFrom(removedNodes);
-        ClusterService clusterService = internalCluster().getInstance(ClusterService.class, randomRemovedNode);
-        DecommissionAttributeMetadata metadata = clusterService.state().metadata().custom(DecommissionAttributeMetadata.TYPE);
-
-        // The decommissioned node would be having status as IN_PROGRESS
-        assertEquals(metadata.decommissionAttribute(), decommissionAttribute);
-        assertEquals(metadata.status(), DecommissionStatus.IN_PROGRESS);
-
-        // assert the node has decommissioned attribute
-        assertEquals(clusterService.localNode().getAttributes().get("zone"), originalClusterManagerZone);
-
-        // assert exception on decommissioned node
-        Logger clusterLogger = LogManager.getLogger(JoinHelper.class);
-        MockLogAppender mockLogAppender = MockLogAppender.createForLoggers(clusterLogger);
-        mockLogAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "test",
-                JoinHelper.class.getCanonicalName(),
-                Level.INFO,
-                "local node is decommissioned. Will not be able to join the cluster"
-            )
-        );
-        mockLogAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "test",
-                JoinHelper.class.getCanonicalName(),
-                Level.INFO,
-                "failed to join"
-            ) {
-                @Override
-                public boolean innerMatch(LogEvent event) {
-                    return event.getThrown() != null
-                        && event.getThrown().getClass() == RemoteTransportException.class
-                        && event.getThrown().getCause() != null
-                        && event.getThrown().getCause().getClass() == NodeDecommissionedException.class;
-                }
-            }
-        );
-        TransportService clusterManagerTransportService = internalCluster().getInstance(
-            TransportService.class,
-            internalCluster().getClusterManagerName()
-        );
-        MockTransportService decommissionedNodeTransportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            randomRemovedNode
-        );
-        // test for PeerFinder
-        PeerFinder peerFinder = internalCluster().getInstance(
-            PeerFinder.class,
-            randomRemovedNode
-        );
-        final CountDownLatch countDownLatch = new CountDownLatch(3);
-        // TODO can check join request timings using counters
-        decommissionedNodeTransportService.addSendBehavior(
-            clusterManagerTransportService,
-            (connection, requestId, action, request, options) -> {
-                if (action.equals(JoinHelper.JOIN_ACTION_NAME)) {
-                    countDownLatch.countDown();
-                }
-                connection.sendRequest(requestId, action, request, options);
-            }
-        );
-        decommissionedNodeTransportService.addConnectBehavior(clusterManagerTransportService, Transport::openConnection);
-        countDownLatch.await();
-        mockLogAppender.assertAllExpectationsMatched();
-
-//        // recommissioning the zone, to safely succeed the test. Specific tests for recommissioning will be written separately
-//        DeleteDecommissionResponse deleteDecommissionResponse = client().execute(DeleteDecommissionAction.INSTANCE, new DeleteDecommissionRequest()).get();
-//        assertTrue(deleteDecommissionResponse.isAcknowledged());
-//
-//        ensureStableCluster(15, TimeValue.timeValueSeconds(30L)); // time should be set to findPeerInterval setting
+        DecommissionRequest newDecommissionRequest = new DecommissionRequest(new DecommissionAttribute("zone", "b"));
+        ExecutionException ex = expectThrows(ExecutionException.class, () -> client().execute(DecommissionAction.INSTANCE, newDecommissionRequest).get());
+        assertTrue(ex.getCause() instanceof RemoteTransportException);
+        assertTrue(ex.getCause().getCause() instanceof DecommissioningFailedException);
     }
 }
