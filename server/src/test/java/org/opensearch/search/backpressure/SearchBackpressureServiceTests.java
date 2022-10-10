@@ -9,12 +9,19 @@
 package org.opensearch.search.backpressure;
 
 import org.opensearch.action.search.SearchShardTask;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
 import org.opensearch.search.backpressure.settings.SearchShardTaskSettings;
 import org.opensearch.search.backpressure.trackers.NodeDuressTracker;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.search.backpressure.stats.CancelledTaskStats;
+import org.opensearch.search.backpressure.stats.SearchBackpressureStats;
+import org.opensearch.search.backpressure.stats.SearchShardTaskStats;
 import org.opensearch.search.backpressure.trackers.TaskResourceUsageTracker;
+import org.opensearch.search.backpressure.trackers.TaskResourceUsageTrackerType;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskCancellation;
@@ -22,10 +29,12 @@ import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -125,7 +134,7 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
         TaskResourceUsageTracker mockTaskResourceUsageTracker = new TaskResourceUsageTracker() {
             @Override
             public String name() {
-                return "mock_tracker";
+                return TaskResourceUsageTrackerType.CPU_USAGE_TRACKER.getName();
             }
 
             @Override
@@ -139,12 +148,18 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
 
                 return Optional.of(new TaskCancellation.Reason("limits exceeded", 5));
             }
+
+            @Override
+            public Stats stats(List<? extends Task> activeTasks) {
+                return new MockStats(getCancellations());
+            }
         };
 
         // Mocking 'settings' with predictable rate limiting thresholds.
         SearchBackpressureSettings settings = spy(
             new SearchBackpressureSettings(
                 Settings.builder()
+                    .put(SearchBackpressureSettings.SETTING_ENABLED.getKey(), true)
                     .put(SearchBackpressureSettings.SETTING_ENFORCED.getKey(), true)
                     .put(SearchBackpressureSettings.SETTING_CANCELLATION_RATIO.getKey(), 0.1)
                     .put(SearchBackpressureSettings.SETTING_CANCELLATION_RATE.getKey(), 0.003)
@@ -209,5 +224,54 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
         service.doRun();
         assertEquals(15, service.getState().getCancellationCount());
         assertEquals(3, service.getState().getLimitReachedCount());  // no more tasks to cancel; limit not reached
+
+        // Verify search backpressure stats.
+        SearchBackpressureStats expectedStats = new SearchBackpressureStats(
+            new SearchShardTaskStats(
+                15,
+                3,
+                new CancelledTaskStats(500, 500, 1000000000),
+                Map.of(TaskResourceUsageTrackerType.CPU_USAGE_TRACKER, new MockStats(15))
+            ),
+            true,
+            true
+        );
+        SearchBackpressureStats actualStats = service.nodeStats();
+        assertEquals(expectedStats, actualStats);
+    }
+
+    private static class MockStats implements TaskResourceUsageTracker.Stats {
+        private final long cancellationCount;
+
+        public MockStats(long cancellationCount) {
+            this.cancellationCount = cancellationCount;
+        }
+
+        public MockStats(StreamInput in) throws IOException {
+            this(in.readVLong());
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder.startObject().field("cancellation_count", cancellationCount).endObject();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVLong(cancellationCount);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            MockStats mockStats = (MockStats) o;
+            return cancellationCount == mockStats.cancellationCount;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(cancellationCount);
+        }
     }
 }
