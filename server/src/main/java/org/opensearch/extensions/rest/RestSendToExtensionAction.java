@@ -34,11 +34,9 @@ import java.security.Principal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
-
+import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableList;
 
@@ -49,8 +47,6 @@ public class RestSendToExtensionAction extends BaseRestHandler {
 
     private static final String SEND_TO_EXTENSION_ACTION = "send_to_extension_action";
     private static final Logger logger = LogManager.getLogger(RestSendToExtensionAction.class);
-    private static final String CONSUMED_PARAMS_KEY = "extension.consumed.parameters";
-    private static final String CONSUMED_CONTENT_KEY = "extension.consumed.content";
     // To replace with user identity see https://github.com/opensearch-project/OpenSearch/pull/4247
     private static final Principal DEFAULT_PRINCIPAL = new Principal() {
         @Override
@@ -124,7 +120,9 @@ public class RestSendToExtensionAction extends BaseRestHandler {
             RestStatus.INTERNAL_SERVER_ERROR,
             BytesRestResponse.TEXT_CONTENT_TYPE,
             message.getBytes(StandardCharsets.UTF_8),
-            emptyMap()
+            emptyMap(),
+            emptyList(),
+            false
         );
         final CountDownLatch inProgressLatch = new CountDownLatch(1);
         final TransportResponseHandler<RestExecuteOnExtensionResponse> restExecuteOnExtensionResponseHandler = new TransportResponseHandler<
@@ -141,25 +139,12 @@ public class RestSendToExtensionAction extends BaseRestHandler {
                 restExecuteOnExtensionResponse.setStatus(response.getStatus());
                 restExecuteOnExtensionResponse.setContentType(response.getContentType());
                 restExecuteOnExtensionResponse.setContent(response.getContent());
-                // Extract the consumed parameters and content from the header
-                Map<String, List<String>> headers = response.getHeaders();
-                List<String> consumedParams = headers.get(CONSUMED_PARAMS_KEY);
-                if (consumedParams != null) {
-                    // consume each param
-                    consumedParams.stream().forEach(p -> request.param(p));
+                restExecuteOnExtensionResponse.setHeaders(response.getHeaders());
+                // Consume parameters and content
+                response.getConsumedParams().stream().forEach(p -> request.param(p));
+                if (response.isContentConsumed()) {
+                    request.content();
                 }
-                List<String> consumedContent = headers.get(CONSUMED_CONTENT_KEY);
-                if (consumedContent != null) {
-                    // conditionally consume content
-                    if (consumedParams.stream().filter(c -> Boolean.parseBoolean(c)).count() > 0) {
-                        request.content();
-                    }
-                }
-                Map<String, List<String>> headersWithoutConsumedParams = headers.entrySet()
-                    .stream()
-                    .filter(e -> !e.getKey().equals(CONSUMED_PARAMS_KEY))
-                    .collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue()));
-                restExecuteOnExtensionResponse.setHeaders(headersWithoutConsumedParams);
                 inProgressLatch.countDown();
             }
 
@@ -204,11 +189,11 @@ public class RestSendToExtensionAction extends BaseRestHandler {
             restExecuteOnExtensionResponse.getContentType(),
             restExecuteOnExtensionResponse.getContent()
         );
-        for (Entry<String, List<String>> headerEntry : restExecuteOnExtensionResponse.getHeaders().entrySet()) {
-            for (String value : headerEntry.getValue()) {
-                restResponse.addHeader(headerEntry.getKey(), value);
-            }
-        }
+        // No constructor that includes headers so we roll our own
+        restExecuteOnExtensionResponse.getHeaders()
+            .entrySet()
+            .stream()
+            .forEach(e -> { e.getValue().stream().forEach(v -> restResponse.addHeader(e.getKey(), v)); });
 
         return channel -> channel.sendResponse(restResponse);
     }
