@@ -39,7 +39,6 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.junit.Assert;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
@@ -1283,7 +1282,11 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                     }
 
                     @Override
-                    public void onReplicationFailure(SegmentReplicationState state, ReplicationFailedException e, boolean sendShardFailure) {
+                    public void onReplicationFailure(
+                        SegmentReplicationState state,
+                        ReplicationFailedException e,
+                        boolean sendShardFailure
+                    ) {
                         logger.error("Unexpected replication failure in test", e);
                         Assert.fail("test replication should not fail: " + e);
                     }
