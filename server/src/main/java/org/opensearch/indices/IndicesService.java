@@ -40,10 +40,8 @@ import org.apache.lucene.index.IndexReader.CacheHelper;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.ResourceAlreadyExistsException;
-import org.opensearch.Version;
 import org.opensearch.action.admin.indices.stats.CommonStats;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags.Flag;
@@ -699,8 +697,7 @@ public class IndicesService extends AbstractLifecycleComponent
         IndexingOperationListener... indexingOperationListeners
     ) throws IOException {
         final IndexSettings idxSettings = new IndexSettings(indexMetadata, settings, indexScopedSettings);
-        if (idxSettings.getIndexVersionCreated().onOrAfter(LegacyESVersion.V_7_0_0)
-            && EngineConfig.INDEX_OPTIMIZE_AUTO_GENERATED_IDS.exists(idxSettings.getSettings())) {
+        if (EngineConfig.INDEX_OPTIMIZE_AUTO_GENERATED_IDS.exists(idxSettings.getSettings())) {
             throw new IllegalArgumentException(
                 "Setting [" + EngineConfig.INDEX_OPTIMIZE_AUTO_GENERATED_IDS.getKey() + "] was removed in version 7.0.0"
             );
@@ -1710,8 +1707,8 @@ public class IndicesService extends AbstractLifecycleComponent
     /**
      * Returns true if the provided field is a registered metadata field (including ones registered via plugins), false otherwise.
      */
-    public boolean isMetadataField(Version indexCreatedVersion, String field) {
-        return mapperRegistry.isMetadataField(indexCreatedVersion, field);
+    public boolean isMetadataField(String field) {
+        return mapperRegistry.isMetadataField(field);
     }
 
     /**

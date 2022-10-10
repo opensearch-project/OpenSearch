@@ -43,40 +43,40 @@ import java.util.Map;
  * All geohashes in a grid are of the same precision and held internally as a single long
  * for efficiency's sake.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
-public class InternalGeoHashGrid extends InternalGeoGrid<InternalGeoHashGridBucket> {
+public class GeoHashGrid extends BaseGeoGrid<InternalGeoHashGridBucket> {
 
-    InternalGeoHashGrid(String name, int requiredSize, List<InternalGeoGridBucket> buckets, Map<String, Object> metadata) {
+    GeoHashGrid(String name, int requiredSize, List<BaseGeoGridBucket> buckets, Map<String, Object> metadata) {
         super(name, requiredSize, buckets, metadata);
     }
 
-    public InternalGeoHashGrid(StreamInput in) throws IOException {
+    public GeoHashGrid(StreamInput in) throws IOException {
         super(in);
     }
 
     @Override
-    public InternalGeoGrid create(List<InternalGeoGridBucket> buckets) {
-        return new InternalGeoHashGrid(name, requiredSize, buckets, metadata);
+    public BaseGeoGrid create(List<BaseGeoGridBucket> buckets) {
+        return new GeoHashGrid(name, requiredSize, buckets, metadata);
     }
 
     @Override
-    public InternalGeoGridBucket createBucket(InternalAggregations aggregations, InternalGeoGridBucket prototype) {
+    public BaseGeoGridBucket createBucket(InternalAggregations aggregations, BaseGeoGridBucket prototype) {
         return new InternalGeoHashGridBucket(prototype.hashAsLong, prototype.docCount, aggregations);
     }
 
     @Override
-    InternalGeoGrid create(String name, int requiredSize, List buckets, Map metadata) {
-        return new InternalGeoHashGrid(name, requiredSize, buckets, metadata);
+    protected BaseGeoGrid create(String name, int requiredSize, List buckets, Map metadata) {
+        return new GeoHashGrid(name, requiredSize, buckets, metadata);
     }
 
     @Override
-    InternalGeoHashGridBucket createBucket(long hashAsLong, long docCount, InternalAggregations aggregations) {
+    protected InternalGeoHashGridBucket createBucket(long hashAsLong, long docCount, InternalAggregations aggregations) {
         return new InternalGeoHashGridBucket(hashAsLong, docCount, aggregations);
     }
 
     @Override
-    Reader getBucketReader() {
+    protected Reader getBucketReader() {
         return InternalGeoHashGridBucket::new;
     }
 

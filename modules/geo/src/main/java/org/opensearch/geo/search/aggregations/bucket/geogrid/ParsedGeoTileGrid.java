@@ -42,7 +42,7 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public class ParsedGeoTileGrid extends ParsedGeoGrid {
+class ParsedGeoTileGrid extends ParsedGeoGrid {
 
     private static final ObjectParser<ParsedGeoGrid, Void> PARSER = createParser(
         ParsedGeoTileGrid::new,
