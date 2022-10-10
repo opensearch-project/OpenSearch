@@ -143,7 +143,7 @@ public class ExtensionTokenProcessor {
         byte[] principalEncoding = principalCipher.doFinal(principalNameEncodedBytes);
         String principalName = principalEncoding.toString();
         
-        //Have to be able to look at the principals and find the match if you want to actually return the Principal object and not just a String
+        //Have to be able to look at the principals and find the match if you want to actually return the Principal object and not just a String    
         for (Principal p : Principals){
             if (p.NAME.equals(principalName)) {
                 return p;
@@ -168,7 +168,7 @@ public class ExtensionTokenProcessor {
 
         //TODO: This may not work after the conversion back and forth to Strings and byte[]s, check afterwards
         /* 
-        String[] parts = token.getWriteableName().split(String.format("*{%d}", KEY_SIZE));
+        String[] parts = token.getWriteableName().split(String.format("*{%d}", 2*KEY_SIZE));
 
         // check whether token is malformed
         if (parts.length != 2) {
