@@ -32,7 +32,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Added precommit support for MacOS ([#4682](https://github.com/opensearch-project/OpenSearch/pull/4682))
 - Recommission API changes for service layer ([#4320](https://github.com/opensearch-project/OpenSearch/pull/4320))
 - Update GeoGrid base class access modifier to support extensibility ([#4572](https://github.com/opensearch-project/OpenSearch/pull/4572))
-- Add a new node role which is dedicated to provide search capability ([#4689](https://github.com/opensearch-project/OpenSearch/pull/4689))
+- Add a new node role 'search' which is dedicated to provide search capability ([#4689](https://github.com/opensearch-project/OpenSearch/pull/4689))
 
 ### Dependencies
 - Bumps `log4j-core` from 2.18.0 to 2.19.0
