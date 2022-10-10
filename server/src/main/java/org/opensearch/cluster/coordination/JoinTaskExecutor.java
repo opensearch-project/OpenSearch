@@ -64,6 +64,7 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
+import static org.opensearch.cluster.decommission.DecommissionService.nodeCommissioned;
 import static org.opensearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 
 /**
@@ -196,6 +197,9 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
                     // we do this validation quite late to prevent race conditions between nodes joining and importing dangling indices
                     // we have to reject nodes that don't support all indices we have in this cluster
                     ensureIndexCompatibility(node.getVersion(), currentState.getMetadata());
+                    // we have added the same check in handleJoinRequest method and adding it here as this method
+                    // would guarantee that a decommissioned node would never be able to join the cluster and ensures correctness
+                    ensureNodeCommissioned(node, currentState.metadata());
                     nodesBuilder.add(node);
                     nodesChanged = true;
                     minClusterNodeVersion = Version.min(minClusterNodeVersion, node.getVersion());
@@ -203,7 +207,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
                     if (node.isClusterManagerNode()) {
                         joiniedNodeNameIds.put(node.getName(), node.getId());
                     }
-                } catch (IllegalArgumentException | IllegalStateException e) {
+                } catch (IllegalArgumentException | IllegalStateException | NodeDecommissionedException e) {
                     results.failure(joinTask, e);
                     continue;
                 }
@@ -477,24 +481,13 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
     }
 
     public static void ensureNodeCommissioned(DiscoveryNode node, Metadata metadata) {
-        DecommissionAttributeMetadata decommissionAttributeMetadata = metadata.decommissionAttributeMetadata();
-        if (decommissionAttributeMetadata != null) {
-            DecommissionAttribute decommissionAttribute = decommissionAttributeMetadata.decommissionAttribute();
-            DecommissionStatus status = decommissionAttributeMetadata.status();
-            if (decommissionAttribute != null && status != null) {
-                // We will let the node join the cluster if the current status is in FAILED state
-                if (node.getAttributes().get(decommissionAttribute.attributeName()).equals(decommissionAttribute.attributeValue())
-                    && (status.equals(DecommissionStatus.DRAINING)
-                        || status.equals(DecommissionStatus.IN_PROGRESS)
-                        || status.equals(DecommissionStatus.SUCCESSFUL))) {
-                    throw new NodeDecommissionedException(
-                        "node [{}] has decommissioned attribute [{}] with current status of decommissioning [{}]",
-                        node.toString(),
-                        decommissionAttribute.toString(),
-                        status.status()
-                    );
-                }
-            }
+        if (nodeCommissioned(node, metadata) == false) {
+            throw new NodeDecommissionedException(
+                "node [{}] has decommissioned attribute [{}] with current status of decommissioning [{}]",
+                node.toString(),
+                metadata.decommissionAttributeMetadata().decommissionAttribute().toString(),
+                metadata.decommissionAttributeMetadata().status().status()
+            );
         }
     }
 
