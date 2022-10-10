@@ -70,6 +70,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Add BWC version 2.3.1 ([#4512](https://github.com/opensearch-project/OpenSearch/pull/4512))
 - Updated jackson to 2.13.4 and snakeyml to 1.32 ([#4563](https://github.com/opensearch-project/OpenSearch/pull/4563))
 - Add BWC version 1.3.7 ([#4709](https://github.com/opensearch-project/OpenSearch/pull/4709))
+- Bump `jettison` from 1.4.1 to 1.5.1 ([#4712](https://github.com/opensearch-project/OpenSearch/pull/4712))
 
 ### Changed
 
