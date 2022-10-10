@@ -41,7 +41,6 @@ import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.TaskOperationFailure;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.nodes.BaseNodeRequest;
 import org.opensearch.action.support.nodes.BaseNodeResponse;
 import org.opensearch.action.support.nodes.BaseNodesRequest;
 import org.opensearch.action.support.nodes.BaseNodesResponse;
@@ -182,7 +181,7 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
         }
     }
 
-    public static class NodeRequest extends BaseNodeRequest {
+    public static class NodeRequest extends TransportRequest {
         protected final String requestName;
         protected final boolean shouldBlock;
 
