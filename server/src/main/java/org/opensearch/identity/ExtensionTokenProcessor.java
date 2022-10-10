@@ -23,17 +23,19 @@ import java.security.NoSuchAlgorithmException;
 public class ExtensionTokenProcessor {
     public static final String INVALID_TOKEN_MESSAGE = "Token must not be null and must be a colon-separated String";
     public static final String INVALID_EXTENSION_MESSAGE = "Token passed here is for a different extension";
+    public static final String INVALID_ALGO_MESSAGE = "Failed to create a token because an invalid hashing algorithm was used.";
+    public static final String INVALID_PRINCIPAL_MESSAGE = "Token passed here is for a different principal.";
 
     private final String extensionUniqueId;
     private final byte[] extensionSecret;
-    private final byte[] byteId;
     private byte[] saltedExtensionId; 
+    private Principal principal; 
 
     public ExtensionTokenProcessor(String extensionUniqueId) {
         this.extensionUniqueId = extensionUniqueId;
         //Look into the role mapping for the auto-generated extension id:secret pair-->grab the secret 
         this.extensionSecret = ExtensionDataSample.getExtensionSecret(this.extensionUniqueId);
-        this.byteId = this.extensionUniqueId.getBytes(StandardCharsets.UTF_8);
+       
     }
 
     public String getExtensionUniqueId() {
@@ -42,21 +44,30 @@ public class ExtensionTokenProcessor {
 
    /**
     * Uses the extension secret to salt the extensionID and then transform it into a deterministic hashed string 
+    * Adapted from https://www.geeksforgeeks.org/sha-256-hash-in-java/
     * @return A hashed string that is only verifiable by core
     */
-    public String saltExtensionId() throws NoSuchAlgorithmException{
+    public String hashExtensionId() throws NoSuchAlgorithmException{
         
-        MessageDigest md = MessageDigest.getInstance("SHA-256");
-        this.saltedExtensionId = this.byteId; //Secret allows only core to feasibly reproduce
+        MessageDigest messageDigest = MessageDigest.getInstance("SHA-256");
+        messageDigest.update(this.extensionSecret, 0, 0); // Applies the secret as salt to MessageDigest 
+        this.saltedExtensionId =  messageDigest.digest(this.extensionUniqueId.getBytes(StandardCharsets.UTF_8));
         BigInteger convertedNumber = new BigInteger(1, this.saltedExtensionId);
         StringBuilder hexString = new StringBuilder(convertedNumber.toString(16)); 
-
-        while (hexString.length() < 64){
-            hexString.insert(0, '0');
-        }
-
         String hashedExtensionId = hexString.toString();
         return hashedExtensionId;
+    }
+
+    public String hashPrincipalName(Principal principal) throws NoSuchAlgorithmException{
+
+        this.principal = principal;
+        MessageDigest messageDigest = MessageDigest.getInstance("SHA-256");
+        messageDigest.update(this.extensionSecret, 0, 0); // Applies the secret as salt to MessageDigest 
+        byte[] hashedPrincipal =  messageDigest.digest(principal.getName().getBytes(StandardCharsets.UTF_8));
+        BigInteger convertedNumber = new BigInteger(1, hashedPrincipal);
+        StringBuilder hexString = new StringBuilder(convertedNumber.toString(16)); 
+        return hexString.toString();
+        
     }
 
     /**
@@ -66,9 +77,19 @@ public class ExtensionTokenProcessor {
     public PrincipalIdentifierToken generateToken(Principal principal) {
         // This is a placeholder implementation
         // More concrete implementation will be covered in https://github.com/opensearch-project/OpenSearch/issues/4485
-        String token = principal.getName() + ":" + extensionUniqueId;
-        
-        return new PrincipalIdentifierToken(token);
+
+        try {
+            String hashedExtensionId = this.hashExtensionId();
+            String hashedPrincipalId = this.hashPrincipalName(principal);
+            String token = hashedPrincipalId + ":" + hashedExtensionId;
+            return new PrincipalIdentifierToken(token);
+        }
+        catch (NoSuchAlgorithmException noAlgo) {
+            noAlgo.printStackTrace();
+            System.exit(1);
+            String token = INVALID_ALGO_MESSAGE;
+            return new PrincipalIdentifierToken(token);
+        }
     }
 
     /**
@@ -78,18 +99,16 @@ public class ExtensionTokenProcessor {
      *
      * @opensearch.internal
      *
-     * This method contains a placeholder implementation.
+     * This method contains a placeholder simplementation.
      * More concrete implementation will be covered in https://github.com/opensearch-project/OpenSearch/issues/4485
      */
     public Principal extractPrincipal(PrincipalIdentifierToken token) throws IllegalArgumentException {
         // check is token is valid, we don't do anything if it is valid
         // else we re-throw the thrown exception
         validateToken(token);
-
-        String[] parts = token.getToken().split(":");
-        final String principalName = parts[0];
-        return () -> principalName;
+        return this.principal;
     }
+
 
     /**
      * Checks validity of the requester identifier token
@@ -111,9 +130,32 @@ public class ExtensionTokenProcessor {
         if (parts.length != 2) {
             throw new IllegalArgumentException(INVALID_TOKEN_MESSAGE);
         }
+
+        // check whether token is for this principal
+
+        try {
+            String expectedHashedPrincipal = hashPrincipalName(this.principal);
+            if (!parts[0].equals(expectedHashedPrincipal)){
+                throw new IllegalArgumentException(INVALID_PRINCIPAL_MESSAGE);
+                
+            }
+        }
+
+        catch (NoSuchAlgorithmException noAlgo) {
+            noAlgo.printStackTrace();
+            System.exit(1);            
+        }
+
         // check whether token is for this extension
-        if (!parts[1].equals(extensionUniqueId)) {
-            throw new IllegalArgumentException(INVALID_EXTENSION_MESSAGE);
+        try {   
+                String hashedId = hashExtensionId();
+                if (!parts[1].equals(hashedId)) {
+                    throw new IllegalArgumentException(INVALID_EXTENSION_MESSAGE);
+                }
+            }
+        catch (NoSuchAlgorithmException noAlgo) {
+            noAlgo.printStackTrace();
+            System.exit(1);            
         }
     }
 }

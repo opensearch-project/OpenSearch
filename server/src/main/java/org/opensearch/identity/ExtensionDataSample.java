@@ -29,7 +29,7 @@ public class ExtensionDataSample {
         
         byte[] salt = new byte[16];
         SecureRandom secRan = new SecureRandom();
-        secRan.nextBytes(salt);
+        secRan.nextBytes(salt); // A random 16 value byte array 
         extensionMap.put(uniqueExtensionId, salt);
     }
 
@@ -41,6 +41,11 @@ public class ExtensionDataSample {
 
         return extensionMap.get(uniqueExtensionId);
 
+    }
+
+    public int getExtensionCount() {
+
+        return extensionMap.size();
     }
 
 }
