@@ -67,6 +67,11 @@ public class TaskCancellationTests extends OpenSearchTestCase {
             public Optional<TaskCancellation.Reason> checkAndMaybeGetCancellationReason(Task task) {
                 return Optional.empty();
             }
+
+            @Override
+            public Stats stats(List<? extends Task> activeTasks) {
+                return null;
+            }
         };
     }
 }
