@@ -22,9 +22,8 @@ public class InternalRealmTests extends OpenSearchTestCase {
         String password = "admin";
         String internalUserTestFile = "internal_users_test.yml";
         UsernamePasswordToken token = new UsernamePasswordToken(username, password);
-        InternalRealm realm = InternalRealm.INSTANCE;
-        realm.initializeInternalSubjectsStore(internalUserTestFile);
-        InternalSubject admin = realm.getInternalSubject("admin");
+        InternalRealm realm = new InternalRealm.Builder("test", internalUserTestFile).build();
+        User admin = realm.getInternalUser("admin");
         AuthenticationInfo adminInfo = realm.getAuthenticationInfo(token);
         assertNotNull(adminInfo);
     }
@@ -34,9 +33,8 @@ public class InternalRealmTests extends OpenSearchTestCase {
         String password = "wrong_password";
         String internalUserTestFile = "internal_users_test.yml";
         UsernamePasswordToken token = new UsernamePasswordToken(username, password);
-        InternalRealm realm = InternalRealm.INSTANCE;
-        realm.initializeInternalSubjectsStore(internalUserTestFile);
-        InternalSubject admin = realm.internalSubjects.get("admin");
+        InternalRealm realm = new InternalRealm.Builder("test", internalUserTestFile).build();
+        User admin = realm.getInternalUser("admin");
         try {
             AuthenticationInfo adminInfo = realm.getAuthenticationInfo(token);
             fail("Expected to throw IncorrectCredentialsException");

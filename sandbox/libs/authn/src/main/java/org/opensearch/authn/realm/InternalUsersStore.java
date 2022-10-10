@@ -1,9 +1,6 @@
 /*
+ * Copyright OpenSearch Contributors
  * SPDX-License-Identifier: Apache-2.0
- *
- * The OpenSearch Contributors require contributions made to
- * this file be licensed under the Apache-2.0 license or a
- * compatible open source license.
  */
 
 package org.opensearch.authn.realm;
@@ -11,7 +8,7 @@ package org.opensearch.authn.realm;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.opensearch.authn.DefaultObjectMapper;
-import org.opensearch.authn.InternalSubject;
+import org.opensearch.authn.User;
 
 import java.io.IOException;
 import java.net.URL;
@@ -22,11 +19,11 @@ import java.util.concurrent.ConcurrentMap;
 /**
  * @opensearch.experimental
  */
-public class InternalSubjectsStore {
+public class InternalUsersStore {
 
-    public static ConcurrentMap<String, InternalSubject> readInternalSubjectsAsMap(String pathToInternalUsersYaml) {
-        ConcurrentMap<String, InternalSubject> internalSubjectsMap = new ConcurrentHashMap<>();
-        URL resourceUrl = InternalSubjectsStore.class.getClassLoader().getResource(pathToInternalUsersYaml);
+    public static ConcurrentMap<String, User> readInternalSubjectsAsMap(String pathToInternalUsersYaml) {
+        ConcurrentMap<String, User> internalUsersMap = new ConcurrentHashMap<>();
+        URL resourceUrl = InternalUsersStore.class.getClassLoader().getResource(pathToInternalUsersYaml);
         if (resourceUrl == null) {
             throw new RuntimeException(pathToInternalUsersYaml + " not found");
         }
@@ -40,13 +37,13 @@ public class InternalSubjectsStore {
                 ObjectNode o = (ObjectNode) subjectNode;
                 o.put("primary_principal", primaryPrincipal);
                 String subjectNodeString = DefaultObjectMapper.writeValueAsString((JsonNode) o, false);
-                InternalSubject theSubject = DefaultObjectMapper.readValue(subjectNodeString, InternalSubject.class);
-                internalSubjectsMap.put(primaryPrincipal, theSubject);
+                User user = DefaultObjectMapper.readValue(subjectNodeString, User.class);
+                internalUsersMap.put(primaryPrincipal, user);
             }
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
 
-        return internalSubjectsMap;
+        return internalUsersMap;
     }
 }

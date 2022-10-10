@@ -8,24 +8,24 @@
 
 package org.opensearch.authn;
 
-import org.opensearch.authn.realm.InternalSubjectsStore;
+import org.opensearch.authn.realm.InternalUsersStore;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Map;
 
-public class InternalSubjectsStoreTests extends OpenSearchTestCase {
+public class InternalUsersStoreTests extends OpenSearchTestCase {
 
     public void testReadInternalSubjectsTest() {
         String internalSubjectsYaml = "internal_users_test.yml";
-        Map<String, InternalSubject> internalSubjectMap = InternalSubjectsStore.readInternalSubjectsAsMap(internalSubjectsYaml);
-        assertTrue(internalSubjectMap.containsKey("new-user"));
-        assertFalse(internalSubjectMap.containsKey("new-user2"));
+        Map<String, User> internalUserMap = InternalUsersStore.readInternalSubjectsAsMap(internalSubjectsYaml);
+        assertTrue(internalUserMap.containsKey("new-user"));
+        assertFalse(internalUserMap.containsKey("new-user2"));
     }
 
     public void testReadInternalSubjectsFileDoesNotExistTest() {
         String internalSubjectsYaml = "config/does_not_exist.yml";
         try {
-            Map<String, InternalSubject> internalSubjectMap = InternalSubjectsStore.readInternalSubjectsAsMap(internalSubjectsYaml);
+            Map<String, User> internalUserMap = InternalUsersStore.readInternalSubjectsAsMap(internalSubjectsYaml);
             fail("Expected to throw FileNotFoundException");
         } catch (RuntimeException e) {
             // expected

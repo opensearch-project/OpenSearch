@@ -1,9 +1,6 @@
 /*
+ * Copyright OpenSearch Contributors
  * SPDX-License-Identifier: Apache-2.0
- *
- * The OpenSearch Contributors require contributions made to
- * this file be licensed under the Apache-2.0 license or a
- * compatible open source license.
  */
 
 package org.opensearch.authn.realm;
@@ -17,7 +14,7 @@ import org.apache.shiro.authc.SimpleAuthenticationInfo;
 import org.apache.shiro.authc.UnknownAccountException;
 import org.apache.shiro.authc.UsernamePasswordToken;
 import org.apache.shiro.realm.AuthenticatingRealm;
-import org.opensearch.authn.InternalSubject;
+import org.opensearch.authn.User;
 
 import java.util.Objects;
 import java.util.concurrent.ConcurrentMap;
@@ -30,37 +27,43 @@ import java.util.concurrent.ConcurrentMap;
 public class InternalRealm extends AuthenticatingRealm {
     private static final String DEFAULT_REALM_NAME = "internal";
 
-    public static final InternalRealm INSTANCE = new InternalRealm.Builder(DEFAULT_REALM_NAME).build();
+    private static final String DEFAULT_INTERNAL_USERS_FILE = "example/example_internal_users.yml";
+
+    public static final InternalRealm INSTANCE = new InternalRealm.Builder(DEFAULT_REALM_NAME, DEFAULT_INTERNAL_USERS_FILE).build();
 
     private final String realmName;
 
-    private InternalRealm(String realmName) {
+    private ConcurrentMap<String, User> internalUsers;
+
+    private InternalRealm(String realmName, ConcurrentMap<String, User> internalUsers) {
         super(new BCryptPasswordMatcher());
         this.realmName = realmName;
+        this.internalUsers = internalUsers;
     }
-
-    // TODO Switch this to private after debugging
-    public ConcurrentMap<String, InternalSubject> internalSubjects;
 
     public static final class Builder {
         private final String name;
 
-        public Builder(String name) {
+        private final String pathToInternalUsersYaml;
+
+        public Builder(String name, String pathToInternalUsersYaml) {
             this.name = Objects.requireNonNull(name);
+            this.pathToInternalUsersYaml = pathToInternalUsersYaml;
         }
 
         public InternalRealm build() {
-            return new InternalRealm(name);
+            ConcurrentMap<String, User> internalUsers = InternalUsersStore.readInternalSubjectsAsMap(pathToInternalUsersYaml);
+            return new InternalRealm(name, internalUsers);
         }
     }
 
-    public void initializeInternalSubjectsStore(String pathToInternalUsersYaml) {
+    private void initializeInternalSubjectsStore(String pathToInternalUsersYaml) {
         // TODO load this at cluster start
-        internalSubjects = InternalSubjectsStore.readInternalSubjectsAsMap(pathToInternalUsersYaml);
+        internalUsers = InternalUsersStore.readInternalSubjectsAsMap(pathToInternalUsersYaml);
     }
 
-    public InternalSubject getInternalSubject(String principalIdentifier) throws UnknownAccountException {
-        InternalSubject userRecord = internalSubjects.get(principalIdentifier);
+    public User getInternalUser(String principalIdentifier) throws UnknownAccountException {
+        User userRecord = internalUsers.get(principalIdentifier);
         // UserRecord userRecord = lookupUserRecord(username);
         // No record found - don't know who this is
         if (userRecord == null) {
@@ -75,7 +78,7 @@ public class InternalRealm extends AuthenticatingRealm {
             String username = ((UsernamePasswordToken) token).getUsername();
             final char[] password = ((UsernamePasswordToken) token).getPassword();
             // Look up the user by the provide username
-            InternalSubject userRecord = getInternalSubject(username);
+            User userRecord = getInternalUser(username);
             // Check for other things, like a locked account, expired password, etc.
 
             // Verify the user
