@@ -14,6 +14,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import javax.crypto.SecretKey;
+
 /**
  * Requester Token for requests to/from an extension
  * Each user will have different token for different extension
@@ -23,15 +25,15 @@ import java.util.Objects;
 public class PrincipalIdentifierToken implements NamedWriteable {
     public static final String NAME = "principal_identifier_token";
     private final String token;
-
-    public static Map<String, String> extension_pairs = new HashMap<>();
-     
+   
+    
     /**
      * Should only be instantiated via extensionTokenProcessor.generateToken(..)
      * @param token string value of token
      */
     protected PrincipalIdentifierToken(String token) {
         this.token = token;
+   
     }
 
     public PrincipalIdentifierToken(StreamInput in) throws IOException {
