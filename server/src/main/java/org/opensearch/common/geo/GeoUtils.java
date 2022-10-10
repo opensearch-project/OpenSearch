@@ -43,6 +43,7 @@ import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentSubParser;
 import org.opensearch.common.xcontent.support.MapXContentParser;
 import org.opensearch.common.xcontent.support.XContentMapValues;
+import org.opensearch.geometry.ShapeType;
 import org.opensearch.index.fielddata.FieldData;
 import org.opensearch.index.fielddata.GeoPointValues;
 import org.opensearch.index.fielddata.MultiGeoPointValues;
@@ -76,7 +77,6 @@ public class GeoUtils {
     public static final String GEOHASH = "geohash";
 
     public static final String GEOJSON_TYPE = "type";
-    public static final String GEOJSON_TYPE_POINT = "Point";
     public static final String GEOJSON_COORDS = "coordinates";
     /** Earth ellipsoid major axis defined by WGS 84 in meters */
     public static final double EARTH_SEMI_MAJOR_AXIS = 6378137.0;      // meters (WGS 84)
@@ -528,7 +528,7 @@ public class GeoUtils {
             }
 
             String field = parser.currentName();
-            if (!LONGITUDE.equals(field) && !LATITUDE.equals(field)) {
+            if (LONGITUDE.equals(field) == false && LATITUDE.equals(field) == false) {
                 throw new OpenSearchParseException(ERR_MSG_INVALID_FIELDS);
             }
             switch (parser.nextToken()) {
@@ -564,7 +564,7 @@ public class GeoUtils {
             throw new OpenSearchParseException(ERR_MSG_INVALID_TOKEN, parser.currentToken());
         }
 
-        if (!GEOHASH.equals(parser.currentName())) {
+        if (GEOHASH.equals(parser.currentName()) == false) {
             throw new OpenSearchParseException(ERR_MSG_INVALID_FIELDS);
         }
 
@@ -585,10 +585,10 @@ public class GeoUtils {
             }
 
             if (parser.currentToken() != XContentParser.Token.FIELD_NAME) {
-                if (!hasTypePoint) {
+                if (hasTypePoint == false) {
                     throw new OpenSearchParseException("field [{}] missing", GEOJSON_TYPE);
                 }
-                if (!hasCoordinates) {
+                if (hasCoordinates == false) {
                     throw new OpenSearchParseException("field [{}] missing", GEOJSON_COORDS);
                 }
             }
@@ -598,8 +598,9 @@ public class GeoUtils {
                     throw new OpenSearchParseException("{} must be a string", GEOJSON_TYPE);
                 }
 
-                if (!GEOJSON_TYPE_POINT.equals(parser.text())) {
-                    throw new OpenSearchParseException("{} must be {}", GEOJSON_TYPE, GEOJSON_TYPE_POINT);
+                // To be consistent with geo_shape parsing, ignore case here as well.
+                if (ShapeType.POINT.name().equalsIgnoreCase(parser.text()) == false) {
+                    throw new OpenSearchParseException("{} must be Point", GEOJSON_TYPE);
                 }
                 hasTypePoint = true;
             } else if (GEOJSON_COORDS.equals(parser.currentName())) {

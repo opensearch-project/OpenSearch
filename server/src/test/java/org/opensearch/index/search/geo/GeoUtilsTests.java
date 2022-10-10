@@ -703,8 +703,15 @@ public class GeoUtilsTests extends OpenSearchTestCase {
     public void testParserGeoPointGeoJson() throws IOException {
         GeoPoint geoPoint = RandomGeoGenerator.randomPoint(random());
         double[] coordinates = { geoPoint.getLon(), geoPoint.getLat() };
-        XContentBuilder json = jsonBuilder().startObject().field("type", "Point").array("coordinates", coordinates).endObject();
-        try (XContentParser parser = createParser(json)) {
+        XContentBuilder json1 = jsonBuilder().startObject().field("type", "Point").array("coordinates", coordinates).endObject();
+        try (XContentParser parser = createParser(json1)) {
+            parser.nextToken();
+            GeoPoint paredPoint = GeoUtils.parseGeoPoint(parser);
+            assertEquals(geoPoint, paredPoint);
+        }
+
+        XContentBuilder json2 = jsonBuilder().startObject().field("type", "PoInT").array("coordinates", coordinates).endObject();
+        try (XContentParser parser = createParser(json2)) {
             parser.nextToken();
             GeoPoint paredPoint = GeoUtils.parseGeoPoint(parser);
             assertEquals(geoPoint, paredPoint);
@@ -736,7 +743,7 @@ public class GeoUtilsTests extends OpenSearchTestCase {
         GeoPoint geoPoint = RandomGeoGenerator.randomPoint(random());
         double[] coordinates = { geoPoint.getLon(), geoPoint.getLat() };
         XContentBuilder invalidGeoJsonType = jsonBuilder().startObject()
-            .field("type", "point")
+            .field("type", "invalid")
             .array("coordinates", coordinates)
             .endObject();
         expectParseException(invalidGeoJsonType, "type must be Point");
