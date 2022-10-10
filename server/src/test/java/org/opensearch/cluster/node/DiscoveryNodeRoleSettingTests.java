@@ -56,8 +56,7 @@ public class DiscoveryNodeRoleSettingTests extends OpenSearchTestCase {
     }
 
     public void testIsMasterNode() {
-        // It's used to add MASTER_ROLE into 'roleMap', because MASTER_ROLE is removed from DiscoveryNodeRole.BUILT_IN_ROLES in 2.0.
-        DiscoveryNode.setAdditionalRoles(Collections.emptySet());
+        DiscoveryNode.setDeprecatedMasterRole();
         runRoleTest(DiscoveryNode::isClusterManagerNode, DiscoveryNodeRole.MASTER_ROLE);
     }
 
