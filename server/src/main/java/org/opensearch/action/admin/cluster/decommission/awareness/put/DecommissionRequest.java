@@ -48,9 +48,9 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
     }
 
     /**
-     * Sets decommission attribute for decommission request
+     * Sets decommission attribute for decommission request.
      *
-     * @param decommissionAttribute attribute key-value that needs to be decommissioned
+     * @param decommissionAttribute attribute key-value that needs to be decommissioned.
      * @return this request
      */
     public DecommissionRequest setDecommissionAttribute(DecommissionAttribute decommissionAttribute) {
