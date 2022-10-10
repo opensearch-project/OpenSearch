@@ -44,6 +44,7 @@ import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.CopyState;
+import org.opensearch.indices.replication.common.ReplicationFailedException;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
@@ -670,8 +671,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
                 }
 
                 @Override
-                public void onReplicationFailure(SegmentReplicationState state, OpenSearchException e, boolean sendShardFailure) {
-                    assertTrue(e instanceof CancellableThreads.ExecutionCancelledException);
+                public void onReplicationFailure(SegmentReplicationState state, ReplicationFailedException e, boolean sendShardFailure) {
                     assertFalse(sendShardFailure);
                     assertEquals(SegmentReplicationState.Stage.CANCELLED, state.getStage());
                     latch.countDown();

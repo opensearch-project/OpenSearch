@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.Nullable;
@@ -197,7 +196,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                 }
 
                 @Override
-                public void onReplicationFailure(SegmentReplicationState state, OpenSearchException e, boolean sendShardFailure) {
+                public void onReplicationFailure(SegmentReplicationState state, ReplicationFailedException e, boolean sendShardFailure) {
                     logger.trace(
                         () -> new ParameterizedMessage(
                             "[shardId {}] [replication id {}] Replication failed, timing data: {}",
@@ -256,7 +255,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
 
         void onReplicationDone(SegmentReplicationState state);
 
-        void onReplicationFailure(SegmentReplicationState state, OpenSearchException e, boolean sendShardFailure);
+        void onReplicationFailure(SegmentReplicationState state, ReplicationFailedException e, boolean sendShardFailure);
     }
 
     /**

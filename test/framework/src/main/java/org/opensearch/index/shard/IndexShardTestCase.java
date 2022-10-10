@@ -1283,7 +1283,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                     }
 
                     @Override
-                    public void onReplicationFailure(SegmentReplicationState state, OpenSearchException e, boolean sendShardFailure) {
+                    public void onReplicationFailure(SegmentReplicationState state, ReplicationFailedException e, boolean sendShardFailure) {
                         logger.error("Unexpected replication failure in test", e);
                         Assert.fail("test replication should not fail: " + e);
                     }
