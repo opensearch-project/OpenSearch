@@ -8,6 +8,8 @@
 
 package org.opensearch.common.util;
 
+import java.util.Objects;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
 
 /**
@@ -36,9 +38,10 @@ public class TokenBucket {
      */
     private final double burst;
 
-    private double tokens;
-
-    private long lastRefilledAt;
+    /**
+     * Defines the current state of the token bucket.
+     */
+    private final AtomicReference<State> state;
 
     public TokenBucket(LongSupplier clock, double rate, double burst) {
         this(clock, rate, burst, burst);
@@ -56,18 +59,7 @@ public class TokenBucket {
         this.clock = clock;
         this.rate = rate;
         this.burst = burst;
-        this.tokens = Math.min(initialTokens, burst);
-        this.lastRefilledAt = clock.getAsLong();
-    }
-
-    /**
-     * Refills the token bucket.
-     */
-    private void refill() {
-        long now = clock.getAsLong();
-        double incr = (now - lastRefilledAt) * rate;
-        tokens = Math.min(tokens + incr, burst);
-        lastRefilledAt = now;
+        this.state = new AtomicReference<>(new State(Math.min(initialTokens, burst), clock.getAsLong()));
     }
 
     /**
@@ -79,19 +71,54 @@ public class TokenBucket {
             throw new IllegalArgumentException("requested tokens must be greater than zero");
         }
 
-        synchronized (this) {
-            refill();
+        // Refill tokens
+        State currentState, updatedState;
+        do {
+            currentState = state.get();
+            long now = clock.getAsLong();
+            double incr = (now - currentState.lastRefilledAt) * rate;
+            updatedState = new State(Math.min(currentState.tokens + incr, burst), now);
+        } while (state.compareAndSet(currentState, updatedState) == false);
 
-            if (tokens >= n) {
-                tokens -= n;
-                return true;
+        // Deduct tokens
+        do {
+            currentState = state.get();
+            if (currentState.tokens < n) {
+                return false;
             }
+            updatedState = new State(currentState.tokens - n, currentState.lastRefilledAt);
+        } while (state.compareAndSet(currentState, updatedState) == false);
 
-            return false;
-        }
+        return true;
     }
 
     public boolean request() {
         return request(1.0);
+    }
+
+    /**
+     * Represents an immutable token bucket state.
+     */
+    private static class State {
+        final double tokens;
+        final double lastRefilledAt;
+
+        public State(double tokens, double lastRefilledAt) {
+            this.tokens = tokens;
+            this.lastRefilledAt = lastRefilledAt;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            State state = (State) o;
+            return Double.compare(state.tokens, tokens) == 0 && Double.compare(state.lastRefilledAt, lastRefilledAt) == 0;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(tokens, lastRefilledAt);
+        }
     }
 }

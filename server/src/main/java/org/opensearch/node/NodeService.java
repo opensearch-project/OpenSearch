@@ -207,6 +207,10 @@ public class NodeService implements Closeable {
         return monitorService;
     }
 
+    public SearchBackpressureService getSearchBackpressureService() {
+        return searchBackpressureService;
+    }
+
     @Override
     public void close() throws IOException {
         IOUtils.close(indicesService);

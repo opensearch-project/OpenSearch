@@ -6,28 +6,28 @@
  * compatible open source license.
  */
 
-package org.opensearch.common;
+package org.opensearch.common.util;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Streak is a data structure that keeps track of the number of consecutive successful events.
+ * Streak is a data structure that keeps track of the number of successive successful events.
  *
  * @opensearch.internal
  */
 public class Streak {
-    private final AtomicInteger consecutiveSuccessfulEvents = new AtomicInteger();
+    private final AtomicInteger successiveSuccessfulEvents = new AtomicInteger();
 
     public int record(boolean isSuccessful) {
         if (isSuccessful) {
-            return consecutiveSuccessfulEvents.incrementAndGet();
+            return successiveSuccessfulEvents.incrementAndGet();
         } else {
-            consecutiveSuccessfulEvents.set(0);
+            successiveSuccessfulEvents.set(0);
             return 0;
         }
     }
 
     public int length() {
-        return consecutiveSuccessfulEvents.get();
+        return successiveSuccessfulEvents.get();
     }
 }

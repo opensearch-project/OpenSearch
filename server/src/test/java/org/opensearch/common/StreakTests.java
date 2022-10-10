@@ -8,6 +8,7 @@
 
 package org.opensearch.common;
 
+import org.opensearch.common.util.Streak;
 import org.opensearch.test.OpenSearchTestCase;
 
 public class StreakTests extends OpenSearchTestCase {
@@ -18,7 +19,7 @@ public class StreakTests extends OpenSearchTestCase {
         // Streak starts with zero.
         assertEquals(0, streak.length());
 
-        // Streak increases on consecutive successful events.
+        // Streak increases on successive successful events.
         streak.record(true);
         assertEquals(1, streak.length());
         streak.record(true);

@@ -8,16 +8,16 @@
 
 package org.opensearch.search.backpressure.trackers;
 
-import org.opensearch.common.Streak;
+import org.opensearch.common.util.Streak;
 
 import java.util.function.BooleanSupplier;
 
 /**
- * NodeResourceUsageTracker is used to check if the node is in duress.
+ * NodeDuressTracker is used to check if the node is in duress.
  *
  * @opensearch.internal
  */
-public class NodeResourceUsageTracker {
+public class NodeDuressTracker {
     /**
      * Tracks the number of consecutive breaches.
      */
@@ -28,7 +28,7 @@ public class NodeResourceUsageTracker {
      */
     private final BooleanSupplier isNodeInDuress;
 
-    public NodeResourceUsageTracker(BooleanSupplier isNodeInDuress) {
+    public NodeDuressTracker(BooleanSupplier isNodeInDuress) {
         this.isNodeInDuress = isNodeInDuress;
     }
 

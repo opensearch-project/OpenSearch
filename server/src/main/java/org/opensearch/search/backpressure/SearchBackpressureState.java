@@ -35,7 +35,7 @@ public class SearchBackpressureState {
         return completionCount.get();
     }
 
-    public long incrementCompletionCount() {
+    long incrementCompletionCount() {
         return completionCount.incrementAndGet();
     }
 
@@ -43,7 +43,7 @@ public class SearchBackpressureState {
         return cancellationCount.get();
     }
 
-    public long incrementCancellationCount() {
+    long incrementCancellationCount() {
         return cancellationCount.incrementAndGet();
     }
 
@@ -51,7 +51,7 @@ public class SearchBackpressureState {
         return limitReachedCount.get();
     }
 
-    public long incrementLimitReachedCount() {
+    long incrementLimitReachedCount() {
         return limitReachedCount.incrementAndGet();
     }
 }

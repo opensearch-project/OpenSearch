@@ -12,18 +12,22 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.search.SearchShardTask;
+import org.opensearch.common.component.AbstractLifecycleComponent;
 import org.opensearch.common.util.TokenBucket;
 import org.opensearch.monitor.jvm.JvmStats;
 import org.opensearch.monitor.process.ProcessProbe;
-import org.opensearch.search.backpressure.trackers.NodeResourceUsageTracker;
+import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
+import org.opensearch.search.backpressure.trackers.NodeDuressTracker;
 import org.opensearch.search.backpressure.trackers.TaskResourceUsageTracker;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskCancellation;
 import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.tasks.TaskResourceTrackingService.TaskCompletionListener;
+import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -39,14 +43,20 @@ import java.util.stream.Collectors;
  *
  * @opensearch.internal
  */
-public class SearchBackpressureService implements Runnable, TaskCompletionListener, SearchBackpressureSettings.Listener {
+public class SearchBackpressureService extends AbstractLifecycleComponent
+    implements
+        TaskCompletionListener,
+        SearchBackpressureSettings.Listener {
     private static final Logger logger = LogManager.getLogger(SearchBackpressureService.class);
+
+    private volatile Scheduler.Cancellable scheduledFuture;
 
     private final SearchBackpressureSettings settings;
     private final TaskResourceTrackingService taskResourceTrackingService;
+    private final ThreadPool threadPool;
     private final LongSupplier timeNanosSupplier;
 
-    private final List<NodeResourceUsageTracker> nodeResourceUsageTrackers;
+    private final List<NodeDuressTracker> nodeDuressTrackers;
     private final List<TaskResourceUsageTracker> taskResourceUsageTrackers;
 
     private final AtomicReference<TokenBucket> taskCancellationRateLimiter = new AtomicReference<>();
@@ -67,11 +77,11 @@ public class SearchBackpressureService implements Runnable, TaskCompletionListen
             threadPool,
             System::nanoTime,
             List.of(
-                new NodeResourceUsageTracker(
-                    () -> ProcessProbe.getInstance().getProcessCpuPercent() / 100.0 >= settings.getNodeDuressCpuThreshold()
+                new NodeDuressTracker(
+                    () -> ProcessProbe.getInstance().getProcessCpuPercent() / 100.0 >= settings.getNodeDuressSettings().getCpuThreshold()
                 ),
-                new NodeResourceUsageTracker(
-                    () -> JvmStats.jvmStats().getMem().getHeapUsedPercent() / 100.0 >= settings.getNodeDuressHeapThreshold()
+                new NodeDuressTracker(
+                    () -> JvmStats.jvmStats().getMem().getHeapUsedPercent() / 100.0 >= settings.getNodeDuressSettings().getHeapThreshold()
                 )
             ),
             Collections.emptyList()
@@ -83,15 +93,16 @@ public class SearchBackpressureService implements Runnable, TaskCompletionListen
         TaskResourceTrackingService taskResourceTrackingService,
         ThreadPool threadPool,
         LongSupplier timeNanosSupplier,
-        List<NodeResourceUsageTracker> nodeResourceUsageTrackers,
+        List<NodeDuressTracker> nodeDuressTrackers,
         List<TaskResourceUsageTracker> taskResourceUsageTrackers
     ) {
         this.settings = settings;
         this.settings.setListener(this);
         this.taskResourceTrackingService = taskResourceTrackingService;
         this.taskResourceTrackingService.addTaskCompletionListener(this);
+        this.threadPool = threadPool;
         this.timeNanosSupplier = timeNanosSupplier;
-        this.nodeResourceUsageTrackers = nodeResourceUsageTrackers;
+        this.nodeDuressTrackers = nodeDuressTrackers;
         this.taskResourceUsageTrackers = taskResourceUsageTrackers;
 
         this.taskCancellationRateLimiter.set(
@@ -101,20 +112,9 @@ public class SearchBackpressureService implements Runnable, TaskCompletionListen
         this.taskCancellationRatioLimiter.set(
             new TokenBucket(state::getCompletionCount, getSettings().getCancellationRatio(), getSettings().getCancellationBurst())
         );
-
-        threadPool.scheduleWithFixedDelay(this, getSettings().getInterval(), ThreadPool.Names.GENERIC);
     }
 
-    @Override
-    public void run() {
-        try {
-            doRun();
-        } catch (Exception e) {
-            logger.debug("failure in search search backpressure", e);
-        }
-    }
-
-    public void doRun() {
+    void doRun() {
         if (getSettings().isEnabled() == false) {
             return;
         }
@@ -166,10 +166,10 @@ public class SearchBackpressureService implements Runnable, TaskCompletionListen
      */
     boolean isNodeInDuress() {
         boolean isNodeInDuress = false;
-        int numConsecutiveBreaches = getSettings().getNodeDuressNumConsecutiveBreaches();
+        int numSuccessiveBreaches = getSettings().getNodeDuressSettings().getNumSuccessiveBreaches();
 
-        for (NodeResourceUsageTracker tracker : nodeResourceUsageTrackers) {
-            if (tracker.check() >= numConsecutiveBreaches) {
+        for (NodeDuressTracker tracker : nodeDuressTrackers) {
+            if (tracker.check() >= numSuccessiveBreaches) {
                 isNodeInDuress = true;  // not breaking the loop so that each tracker's streak gets updated.
             }
         }
@@ -182,7 +182,7 @@ public class SearchBackpressureService implements Runnable, TaskCompletionListen
      */
     boolean isHeapUsageDominatedBySearch(List<CancellableTask> searchShardTasks) {
         long runningTasksHeapUsage = searchShardTasks.stream().mapToLong(task -> task.getTotalResourceStats().getMemoryInBytes()).sum();
-        long searchTasksHeapThreshold = getSettings().getSearchHeapThresholdBytes();
+        long searchTasksHeapThreshold = getSettings().getSearchShardTaskSettings().getTotalHeapThresholdBytes();
         if (runningTasksHeapUsage < searchTasksHeapThreshold) {
             logger.debug("heap usage not dominated by search requests [{}/{}]", runningTasksHeapUsage, searchTasksHeapThreshold);
             return false;
@@ -216,7 +216,7 @@ public class SearchBackpressureService implements Runnable, TaskCompletionListen
             Optional<TaskCancellation.Reason> reason = tracker.cancellationReason(task);
             if (reason.isPresent()) {
                 reasons.add(reason.get());
-                callbacks.add(() -> tracker.update(task));
+                callbacks.add(tracker::incrementCancellations);
             }
         }
 
@@ -232,6 +232,14 @@ public class SearchBackpressureService implements Runnable, TaskCompletionListen
             .filter(TaskCancellation::isEligibleForCancellation)
             .sorted(Comparator.reverseOrder())
             .collect(Collectors.toUnmodifiableList());
+    }
+
+    SearchBackpressureSettings getSettings() {
+        return settings;
+    }
+
+    SearchBackpressureState getState() {
+        return state;
     }
 
     @Override
@@ -280,11 +288,24 @@ public class SearchBackpressureService implements Runnable, TaskCompletionListen
         onCancellationRateChanged();
     }
 
-    public SearchBackpressureSettings getSettings() {
-        return settings;
+    @Override
+    protected void doStart() {
+        scheduledFuture = threadPool.scheduleWithFixedDelay(() -> {
+            try {
+                doRun();
+            } catch (Exception e) {
+                logger.debug("failure in search search backpressure", e);
+            }
+        }, getSettings().getInterval(), ThreadPool.Names.GENERIC);
     }
 
-    public SearchBackpressureState getState() {
-        return state;
+    @Override
+    protected void doStop() {
+        if (scheduledFuture != null) {
+            scheduledFuture.cancel();
+        }
     }
+
+    @Override
+    protected void doClose() throws IOException {}
 }

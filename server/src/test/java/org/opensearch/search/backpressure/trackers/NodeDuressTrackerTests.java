@@ -12,11 +12,11 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.concurrent.atomic.AtomicReference;
 
-public class NodeResourceUsageTrackerTests extends OpenSearchTestCase {
+public class NodeDuressTrackerTests extends OpenSearchTestCase {
 
-    public void testNodeResourceUsageTracker() {
+    public void testNodeDuressTracker() {
         AtomicReference<Double> cpuUsage = new AtomicReference<>(0.0);
-        NodeResourceUsageTracker tracker = new NodeResourceUsageTracker(() -> cpuUsage.get() >= 0.5);
+        NodeDuressTracker tracker = new NodeDuressTracker(() -> cpuUsage.get() >= 0.5);
 
         // Node not in duress.
         assertEquals(0, tracker.check());
