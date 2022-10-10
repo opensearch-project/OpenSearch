@@ -32,7 +32,6 @@ public interface Subject {
      */
     public void login(final AuthenticationToken token);
 
-
     /**
      * Updates/Adds attributes of/to this subject
      */

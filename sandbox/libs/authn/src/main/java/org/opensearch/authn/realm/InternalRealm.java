@@ -18,7 +18,6 @@ import org.apache.shiro.authc.UnknownAccountException;
 import org.apache.shiro.authc.UsernamePasswordToken;
 import org.apache.shiro.realm.AuthenticatingRealm;
 
-import java.util.HashMap;
 import org.opensearch.authn.StringPrincipal;
 import org.opensearch.authn.User;
 
@@ -53,9 +52,6 @@ public class InternalRealm extends AuthenticatingRealm {
         this.internalUsers = internalUsers;
     }
 
-    // TODO Switch this to private after debugging
-    public ConcurrentMap<String, InternalSubject> internalSubjects;
-
     public static final class Builder {
         private final String name;
 
@@ -67,14 +63,14 @@ public class InternalRealm extends AuthenticatingRealm {
         }
 
         public InternalRealm build() {
-            ConcurrentMap<String, User> internalUsers = InternalUsersStore.readInternalSubjectsAsMap(pathToInternalUsersYaml);
+            ConcurrentMap<String, User> internalUsers = InternalUsersStore.readUsersAsMap(pathToInternalUsersYaml);
             return new InternalRealm(name, internalUsers);
         }
     }
 
-    private void initializeInternalSubjectsStore(String pathToInternalUsersYaml) {
+    private void initializeUsersStore(String pathToInternalUsersYaml) {
         // TODO load this at cluster start
-        internalUsers = InternalUsersStore.readInternalSubjectsAsMap(pathToInternalUsersYaml);
+        internalUsers = InternalUsersStore.readUsersAsMap(pathToInternalUsersYaml);
     }
 
     public User getInternalUser(String principalIdentifier) throws UnknownAccountException {
@@ -123,15 +119,20 @@ public class InternalRealm extends AuthenticatingRealm {
     // TODO: Expose all the operations below as a rest API
 
     /**
-     * Creates a subject in an in-memory data store
+     * Creates a user in an in-memory data store
      * @param user to be created. It should be passed in {@link User}
      */
     public void createUser(User user) {
+        if (user == null) {
+            throw new IllegalArgumentException(INVALID_SUBJECT_MESSAGE);
+        }
         String primaryPrincipal = user.getPrimaryPrincipal().getName();
 
         // TODO: should we update if an object already exists with same principal.
         // If so, it should be handled in updateSubject
-        if (this.internalUsers.containsKey(primaryPrincipal)) return;
+        if (this.internalUsers.containsKey(primaryPrincipal)) {
+            throw new RuntimeException("User with principal= " + primaryPrincipal + " already exists in realm= " + realmName);
+        }
 
         // TODO: add checks to restrict the users that are allowed to create
         this.internalUsers.put(primaryPrincipal, user);
@@ -143,9 +144,14 @@ public class InternalRealm extends AuthenticatingRealm {
      * @param hash the password passed as hash
      * @param attributes passed in key-value format
      * @throws IllegalArgumentException if primaryPrincipal or hash is null or empty
-     * @return {@linkplain InternalSubject} the created subject
+     * @return {@linkplain User} the created user
      */
     public void createUser(String primaryPrincipal, String hash, Map<String, String> attributes) {
+        // We don't create a user if primaryPrincipal and/or hash is empty or null
+        if (primaryPrincipal == null || hash == null || primaryPrincipal == "" || hash == "") {
+            throw new IllegalArgumentException(INVALID_ARGUMENTS_MESSAGE);
+        }
+
         User user = new User();
         user.setPrimaryPrincipal(new StringPrincipal(primaryPrincipal));
         user.setBcryptHash(hash);
@@ -155,7 +161,7 @@ public class InternalRealm extends AuthenticatingRealm {
     }
 
     /**
-     * Updates the subject's password
+     * Updates the user's password
      * @param primaryPrincipal the principal whose password is to be updated
      * @param hash The new password
      * @return true if password update was successful, false otherwise
@@ -163,9 +169,9 @@ public class InternalRealm extends AuthenticatingRealm {
      * TODO: Add restrictions around who can do this
      */
     public boolean updateUserPassword(String primaryPrincipal, String hash) {
-        if (!this.internalUsers.containsKey(primaryPrincipal))
-            // TODO: log a message here stating request user doesn't exist
-            return false;
+        if (!this.internalUsers.containsKey(primaryPrincipal)) {
+            throw new RuntimeException(userDoesNotExistMessage(primaryPrincipal));
+        }
         User userToBeUpdated = this.internalUsers.get(primaryPrincipal);
         userToBeUpdated.setBcryptHash(hash);
 
@@ -183,56 +189,53 @@ public class InternalRealm extends AuthenticatingRealm {
      * TODO: Add restrictions around who can do this
      */
     public boolean updateUserAttributes(String primaryPrincipal, Map<String, String> attributesToBeAdded) {
-        if (!this.internalUsers.containsKey(primaryPrincipal))
-            // TODO: log a message here stating request user doesn't exist
-            return false;
+        if (!this.internalUsers.containsKey(primaryPrincipal)) {
+            throw new RuntimeException(userDoesNotExistMessage(primaryPrincipal));
+        }
 
         User userToBeUpdated = this.internalUsers.get(primaryPrincipal);
-        Map<String, String> attributes = userToBeUpdated.getAttributes();
-        attributes.putAll(attributesToBeAdded);
-        userToBeUpdated.setAttributes(attributes);
+        userToBeUpdated.updateSubjectAttributes(attributesToBeAdded);
 
         this.internalUsers.put(primaryPrincipal, userToBeUpdated);
         return true;
     }
 
     /**
-     * Deletes the list of attributes for a given user
+     * Removes the list of attributes for a given user
      * @param primaryPrincipal the principal whose attributes are to be deleted
-     * @param attributesToBeDeleted the list of attributes to be deleted (list of keys in the attribute map)
+     * @param attributesToBeRemoved the list of attributes to be deleted (list of keys in the attribute map)
      * @return true is successful, false otherwise
      *
      * TODO: 1. Are we supporting this. 2. If so add restrictions around who can do this
      */
-    public boolean deleteAttributesFromUser(String primaryPrincipal, List<String> attributesToBeDeleted) {
-        if (!this.internalUsers.containsKey(primaryPrincipal))
-            // TODO: log a message here stating request user doesn't exist
-            return false;
+    public boolean removeAttributesFromUser(String primaryPrincipal, List<String> attributesToBeRemoved) {
+        if (!this.internalUsers.containsKey(primaryPrincipal)) {
+            throw new RuntimeException(userDoesNotExistMessage(primaryPrincipal));
+        }
 
         User userToBeUpdated = this.internalUsers.get(primaryPrincipal);
-        Map<String, String> attributes = userToBeUpdated.getAttributes();
-
-        for (String attribute : attributesToBeDeleted)
-            attributes.remove(attribute);
-
-        userToBeUpdated.setAttributes(attributes);
+        userToBeUpdated.removeSubjectAttributes(attributesToBeRemoved);
 
         this.internalUsers.put(primaryPrincipal, userToBeUpdated);
         return true;
     }
 
     /**
-     * Deletes a user given its primaryPrincipal from the in-memory store
+     * Removes a user given its primaryPrincipal from the in-memory store
      * @param primaryPrincipal the primaryPrincipal of the user to be deleted
      * @return true is deletion was successful, false otherwise
      *
      * TODO: Add restrictions around who can do this
      */
-    public boolean deleteUser(String primaryPrincipal) {
-        return this.internalUsers.remove(primaryPrincipal) != null;
+    public User removeUser(String primaryPrincipal) {
+        User removedUser = this.internalUsers.remove(primaryPrincipal);
+        if (removedUser == null) {
+            throw new RuntimeException(userDoesNotExistMessage(primaryPrincipal));
+        }
+        return removedUser;
     }
 
-    public String subjectDoesNotExistMessage(String primaryPrincipal){
+    public String userDoesNotExistMessage(String primaryPrincipal) {
         return "Subject with primaryPrincipal=" + primaryPrincipal + " doesn't exist";
     }
 }

@@ -12,7 +12,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-public class User extends Subject {
+public class User implements Subject {
 
     @JsonProperty(value = "primary_principal")
     private StringPrincipal primaryPrincipal;
@@ -66,7 +66,7 @@ public class User extends Subject {
 
     @Override
     public void updateSubjectAttributes(Map<String, String> attributes) {
-       this.attributes.putAll(attributes);
+        this.attributes.putAll(attributes);
     }
 
     @Override
