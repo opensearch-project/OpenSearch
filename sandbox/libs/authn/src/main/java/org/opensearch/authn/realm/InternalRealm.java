@@ -33,6 +33,10 @@ import java.util.Map;
  * @opensearch.experimental
  */
 public class InternalRealm extends AuthenticatingRealm {
+    public static final String INVALID_SUBJECT_MESSAGE = "Subject can't be null";
+
+    public static final String INVALID_ARGUMENTS_MESSAGE = "primaryPrincipal or hash can't be null or empty";
+
     private static final String DEFAULT_REALM_NAME = "internal";
 
     private static final String DEFAULT_INTERNAL_USERS_FILE = "example/example_internal_users.yml";
@@ -138,6 +142,8 @@ public class InternalRealm extends AuthenticatingRealm {
      * @param primaryPrincipal the primary identifier of this user (must be unique)
      * @param hash the password passed as hash
      * @param attributes passed in key-value format
+     * @throws IllegalArgumentException if primaryPrincipal or hash is null or empty
+     * @return {@linkplain InternalSubject} the created subject
      */
     public void createUser(String primaryPrincipal, String hash, Map<String, String> attributes) {
         User user = new User();
@@ -149,7 +155,7 @@ public class InternalRealm extends AuthenticatingRealm {
     }
 
     /**
-     * Updates the user's password
+     * Updates the subject's password
      * @param primaryPrincipal the principal whose password is to be updated
      * @param hash The new password
      * @return true if password update was successful, false otherwise

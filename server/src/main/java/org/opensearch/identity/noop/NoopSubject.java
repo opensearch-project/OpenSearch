@@ -6,6 +6,8 @@
 package org.opensearch.identity.noop;
 
 import java.security.Principal;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import org.opensearch.authn.Subject;
@@ -47,5 +49,15 @@ public class NoopSubject implements Subject {
     @Override
     public void login(final AuthenticationToken token) {
         // Noop subject is always logged in, and all authentication tokens are accepted
+    }
+
+    @Override
+    public void updateSubjectAttributes(Map<String, String> attributes) {
+        // Noop subject will potentially never have any attributes and hence no updates required
+    }
+
+    @Override
+    public void removeSubjectAttributes(List<String> attributesToBeRemoved) {
+        // Noop subject will potentially never have any attributes and hence no removals required
     }
 }
