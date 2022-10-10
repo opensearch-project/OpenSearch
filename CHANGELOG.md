@@ -173,6 +173,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
  - Fixed javadoc warning for build failure([#4581](https://github.com/opensearch-project/OpenSearch/pull/4581))
  - Added transport actions support for extensions ([#4598](https://github.com/opensearch-project/OpenSearch/pull/4598/))
  - Pass REST params and content to extensions ([#4633](https://github.com/opensearch-project/OpenSearch/pull/4633))
+ - Modified EnvironmentSettingsRequest to pass entire Settings object ([#](add url here))
 
 ## [2.x]
 
