@@ -52,7 +52,6 @@ import org.opensearch.snapshots.SnapshotInfo;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -93,11 +92,6 @@ public class FilterRepository implements Repository {
     @Override
     public void getRepositoryData(ActionListener<RepositoryData> listener) {
         in.getRepositoryData(listener);
-    }
-
-    @Override
-    public void initializeSnapshot(SnapshotId snapshotId, List<IndexId> indices, Metadata metadata) {
-        in.initializeSnapshot(snapshotId, indices, metadata);
     }
 
     @Override

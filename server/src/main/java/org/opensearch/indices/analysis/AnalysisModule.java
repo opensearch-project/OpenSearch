@@ -33,7 +33,6 @@
 package org.opensearch.indices.analysis;
 
 import org.apache.lucene.analysis.LowerCaseFilter;
-import org.apache.lucene.analysis.TokenStream;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -42,7 +41,6 @@ import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.analysis.AbstractTokenFilterFactory;
 import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.index.analysis.AnalyzerProvider;
 import org.opensearch.index.analysis.CharFilterFactory;
@@ -152,20 +150,7 @@ public final class AnalysisModule {
         tokenFilters.register("standard", new AnalysisProvider<TokenFilterFactory>() {
             @Override
             public TokenFilterFactory get(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-                if (indexSettings.getIndexVersionCreated().before(LegacyESVersion.V_7_0_0)) {
-                    deprecationLogger.deprecate(
-                        "standard_deprecation",
-                        "The [standard] token filter name is deprecated and will be removed in a future version."
-                    );
-                } else {
-                    throw new IllegalArgumentException("The [standard] token filter has been removed.");
-                }
-                return new AbstractTokenFilterFactory(indexSettings, name, settings) {
-                    @Override
-                    public TokenStream create(TokenStream tokenStream) {
-                        return tokenStream;
-                    }
-                };
+                throw new IllegalArgumentException("The [standard] token filter has been removed.");
             }
 
             @Override

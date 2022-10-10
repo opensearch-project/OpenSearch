@@ -94,8 +94,13 @@ public class ExampleCustomSettingsConfig {
     private final List<Integer> list;
     private final String filtered;
 
+    /**
+     * Instantiate this object based on the specified environment.
+     *
+     * @param environment The environment including paths to custom setting configuration files
+     */
     public ExampleCustomSettingsConfig(final Environment environment) {
-        // Elasticsearch config directory
+        // OpenSearch config directory
         final Path configDir = environment.configDir();
 
         // Resolve the plugin's custom settings file
@@ -121,22 +126,47 @@ public class ExampleCustomSettingsConfig {
         assert secured != null;
     }
 
+    /**
+     * Gets the value of the custom.simple String setting.
+     *
+     * @return the custom.simple value
+     */
     public String getSimple() {
         return simple;
     }
 
+    /**
+     * Gets the value of the custom.bool boolean setting.
+     *
+     * @return the custom.bool value
+     */
     public Boolean getBool() {
         return bool;
     }
 
+    /**
+     * Gets the value of the custom.validated String setting.
+     *
+     * @return the custom.validated value
+     */
     public String getValidated() {
         return validated;
     }
 
+    /**
+     * Gets the value of the custom.filtered String setting.
+     *
+     * @return the custom.filtered value
+     */
     public String getFiltered() {
         return filtered;
     }
 
+    /**
+     * Gets the value of the custom.list list of integers setting.
+     *
+     * @return the custom.list value
+     */
     public List<Integer> getList() {
         return list;
     }

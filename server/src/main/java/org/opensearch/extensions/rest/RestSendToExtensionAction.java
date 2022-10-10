@@ -175,7 +175,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
                 restExecuteOnExtensionResponseHandler
             );
             try {
-                inProgressLatch.await(5, TimeUnit.SECONDS);
+                inProgressLatch.await(ExtensionsOrchestrator.EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS);
             } catch (InterruptedException e) {
                 return channel -> channel.sendResponse(
                     new BytesRestResponse(RestStatus.REQUEST_TIMEOUT, "No response from extension to request.")

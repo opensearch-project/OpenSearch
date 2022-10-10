@@ -44,13 +44,25 @@ import java.io.IOException;
  * A simple {@linkplain SignificanceHeuristic} used an example of declaring a custom heuristic.
  */
 public class SimpleHeuristic extends SignificanceHeuristic {
+    /**
+     * The name of this NamedWriteable heuristic.
+     */
     public static final String NAME = "simple";
+
+    /**
+     * The parser with which to deserialize this object from XContent.
+     */
     public static final ObjectParser<SimpleHeuristic, Void> PARSER = new ObjectParser<>(NAME, SimpleHeuristic::new);
 
+    /**
+     * Instantiates this object.
+     */
     public SimpleHeuristic() {}
 
     /**
      * Read from a stream.
+     *
+     * @param in Input to read the value from
      */
     public SimpleHeuristic(StreamInput in) throws IOException {
         // Nothing to read

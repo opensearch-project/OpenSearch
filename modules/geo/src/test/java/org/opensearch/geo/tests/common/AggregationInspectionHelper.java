@@ -8,7 +8,7 @@
 
 package org.opensearch.geo.tests.common;
 
-import org.opensearch.geo.search.aggregations.bucket.geogrid.InternalGeoGrid;
+import org.opensearch.geo.search.aggregations.bucket.geogrid.BaseGeoGrid;
 import org.opensearch.geo.search.aggregations.metrics.InternalGeoBounds;
 
 public class AggregationInspectionHelper {
@@ -17,7 +17,7 @@ public class AggregationInspectionHelper {
         return (agg.topLeft() == null && agg.bottomRight() == null) == false;
     }
 
-    public static boolean hasValue(InternalGeoGrid<?> agg) {
+    public static boolean hasValue(BaseGeoGrid<?> agg) {
         return agg.getBuckets().stream().anyMatch(bucket -> bucket.getDocCount() > 0);
     }
 }
