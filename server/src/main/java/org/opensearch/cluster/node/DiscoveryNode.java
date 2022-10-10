@@ -499,12 +499,12 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     }
 
     /**
-     * Returns whether the node can provide search capability for a remote shard.
+     * Returns whether the node is dedicated to provide search capability.
      *
-     * @return true if the node contains remote_searcher role, false otherwise
+     * @return true if the node contains search role, false otherwise
      */
-    public boolean isRemoteSearcherNode() {
-        return roles.contains(DiscoveryNodeRole.REMOTE_SEARCHER_ROLE);
+    public boolean isSearchNode() {
+        return roles.contains(DiscoveryNodeRole.SEARCH_ROLE);
     }
 
     /**

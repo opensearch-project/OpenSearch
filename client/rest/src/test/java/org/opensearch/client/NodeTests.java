@@ -164,8 +164,8 @@ public class NodeTests extends RestClientTestCase {
         );
     }
 
-    public void testIsRemoteSearcherNode() {
-        Roles remoteSearcherRole = new Roles(Collections.singleton("remote_searcher"));
-        assertThat(remoteSearcherRole.isRemoteSearcher(), equalTo(true));
+    public void testIsSearchNode() {
+        Roles searchRole = new Roles(Collections.singleton("search"));
+        assertThat(searchRole.isSearch(), equalTo(true));
     }
 }

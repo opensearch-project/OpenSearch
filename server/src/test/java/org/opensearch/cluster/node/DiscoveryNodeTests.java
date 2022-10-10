@@ -206,9 +206,9 @@ public class DiscoveryNodeTests extends OpenSearchTestCase {
         assertEquals(dynamicRoleName.toLowerCase(Locale.ROOT), dynamicNodeRole.roleNameAbbreviation());
     }
 
-    public void testDiscoveryNodeIsRemoteSearcherNode() {
-        final Settings settingWithRemoteSearcherRole = NodeRoles.onlyRole(DiscoveryNodeRole.REMOTE_SEARCHER_ROLE);
-        final DiscoveryNode node = DiscoveryNode.createLocal(settingWithRemoteSearcherRole, buildNewFakeTransportAddress(), "node");
-        assertThat(node.isRemoteSearcherNode(), equalTo(true));
+    public void testDiscoveryNodeIsSearchNode() {
+        final Settings settingWithSearchRole = NodeRoles.onlyRole(DiscoveryNodeRole.SEARCH_ROLE);
+        final DiscoveryNode node = DiscoveryNode.createLocal(settingWithSearchRole, buildNewFakeTransportAddress(), "node");
+        assertThat(node.isSearchNode(), equalTo(true));
     }
 }

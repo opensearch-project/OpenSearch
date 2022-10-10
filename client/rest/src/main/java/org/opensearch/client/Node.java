@@ -240,10 +240,10 @@ public class Node {
         }
 
         /**
-         * Returns whether the node provides search capability for a remote shard.
+         * Returns whether the node is dedicated to provide search capability.
          */
-        public boolean isRemoteSearcher() {
-            return roles.contains("remote_searcher");
+        public boolean isSearch() {
+            return roles.contains("search");
         }
 
         @Override
