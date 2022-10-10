@@ -637,7 +637,9 @@ public class DecommissionService {
             DecommissionStatus status = decommissionAttributeMetadata.status();
             if (decommissionAttribute != null && status != null) {
                 if (nodeHasDecommissionedAttribute(discoveryNode, decommissionAttribute)
-                    && (status.equals(DecommissionStatus.IN_PROGRESS) || status.equals(DecommissionStatus.SUCCESSFUL))) {
+                    && (status.equals(DecommissionStatus.IN_PROGRESS)
+                        || status.equals(DecommissionStatus.SUCCESSFUL)
+                        || status.equals(DecommissionStatus.DRAINING))) {
                     return false;
                 }
             }
