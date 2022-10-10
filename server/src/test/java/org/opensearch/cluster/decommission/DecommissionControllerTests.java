@@ -227,7 +227,9 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
             TimeValue.timeValueMillis(0),
             new ActionListener<>() {
                 @Override
-                public void onResponse(Void unused) {}
+                public void onResponse(Void unused) {
+                    countDownLatch.countDown();
+                }
 
                 @Override
                 public void onFailure(Exception e) {
@@ -236,10 +238,10 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
                 }
             }
         );
+        assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
         MatcherAssert.assertThat("Expected onFailure to be called", exceptionReference.get(), notNullValue());
         MatcherAssert.assertThat(exceptionReference.get(), instanceOf(OpenSearchTimeoutException.class));
         MatcherAssert.assertThat(exceptionReference.get().getMessage(), containsString("waiting for removal of decommissioned nodes"));
-        assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
     }
 
     public void testSuccessfulDecommissionStatusMetadataUpdate() throws InterruptedException {

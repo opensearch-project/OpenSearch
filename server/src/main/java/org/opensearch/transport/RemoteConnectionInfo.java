@@ -36,20 +36,14 @@ import org.opensearch.LegacyESVersion;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.ToXContentFragment;
 import org.opensearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
-
-import static java.util.Collections.emptyList;
 
 /**
  * This class encapsulates all remote cluster information to be rendered on
@@ -79,26 +73,7 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
             clusterAlias = input.readString();
             skipUnavailable = input.readBoolean();
         } else {
-            List<String> seedNodes;
-            if (input.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
-                seedNodes = Arrays.asList(input.readStringArray());
-            } else {
-                // versions prior to 7.0.0 sent the resolved transport address of the seed nodes
-                final List<TransportAddress> transportAddresses = input.readList(TransportAddress::new);
-                seedNodes = transportAddresses.stream()
-                    .map(a -> a.address().getHostString() + ":" + a.address().getPort())
-                    .collect(Collectors.toList());
-                /*
-                 * Versions before 7.0 sent the HTTP addresses of all nodes in the
-                 * remote cluster here but it was expensive to fetch and we
-                 * ultimately figured out how to do without it. So we removed it.
-                 *
-                 * We just throw any HTTP addresses received here on the floor
-                 * because we don't need to do anything with them.
-                 */
-                input.readList(TransportAddress::new);
-            }
-
+            List<String> seedNodes = Arrays.asList(input.readStringArray());
             int connectionsPerCluster = input.readVInt();
             initialConnectionTimeout = input.readTimeValue();
             int numNodesConnected = input.readVInt();
@@ -137,52 +112,12 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
         } else {
             if (modeInfo.modeType() == RemoteConnectionStrategy.ConnectionStrategy.SNIFF) {
                 SniffConnectionStrategy.SniffModeInfo sniffInfo = (SniffConnectionStrategy.SniffModeInfo) this.modeInfo;
-                if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
-                    out.writeStringArray(sniffInfo.seedNodes.toArray(new String[0]));
-                } else {
-                    // versions prior to 7.0.0 received the resolved transport address of the seed nodes
-                    out.writeList(sniffInfo.seedNodes.stream().map(s -> {
-                        final String host = RemoteConnectionStrategy.parseHost(s);
-                        final int port = RemoteConnectionStrategy.parsePort(s);
-                        try {
-                            return new TransportAddress(InetAddress.getByAddress(host, TransportAddress.META_ADDRESS.getAddress()), port);
-                        } catch (final UnknownHostException e) {
-                            throw new AssertionError(e);
-                        }
-                    }).collect(Collectors.toList()));
-                    /*
-                     * Versions before 7.0 sent the HTTP addresses of all nodes in the
-                     * remote cluster here but it was expensive to fetch and we
-                     * ultimately figured out how to do without it. So we removed it.
-                     *
-                     * When sending this request to a node that expects HTTP addresses
-                     * here we pretend that we didn't find any. This *should* be fine
-                     * because, after all, we haven't been using this information for
-                     * a while.
-                     */
-                    out.writeList(emptyList());
-                }
+                out.writeStringArray(sniffInfo.seedNodes.toArray(new String[0]));
                 out.writeVInt(sniffInfo.maxConnectionsPerCluster);
                 out.writeTimeValue(initialConnectionTimeout);
                 out.writeVInt(sniffInfo.numNodesConnected);
             } else {
-                if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
-                    out.writeStringArray(new String[0]);
-                } else {
-                    // versions prior to 7.0.0 received the resolved transport address of the seed nodes
-                    out.writeList(emptyList());
-                    /*
-                     * Versions before 7.0 sent the HTTP addresses of all nodes in the
-                     * remote cluster here but it was expensive to fetch and we
-                     * ultimately figured out how to do without it. So we removed it.
-                     *
-                     * When sending this request to a node that expects HTTP addresses
-                     * here we pretend that we didn't find any. This *should* be fine
-                     * because, after all, we haven't been using this information for
-                     * a while.
-                     */
-                    out.writeList(emptyList());
-                }
+                out.writeStringArray(new String[0]);
                 out.writeVInt(0);
                 out.writeTimeValue(initialConnectionTimeout);
                 out.writeVInt(0);

@@ -13,12 +13,14 @@ import org.gradle.api.publish.PublishingExtension;
 import org.gradle.api.publish.maven.MavenPublication;
 
 import java.nio.file.Path;
+import java.util.Set;
+import java.util.stream.Collectors;
+
 import org.gradle.api.Task;
 import org.gradle.api.publish.maven.plugins.MavenPublishPlugin;
 
 public class Publish implements Plugin<Project> {
 
-    // public final static String PLUGIN_ZIP_PUBLISH_POM_TASK = "generatePomFileForPluginZipPublication";
     public final static String PUBLICATION_NAME = "pluginZip";
     public final static String STAGING_REPO = "zipStaging";
     public final static String LOCAL_STAGING_REPO_PATH = "/build/local-staging-repo";
@@ -67,10 +69,15 @@ public class Publish implements Plugin<Project> {
                 if (validatePluginZipPom != null) {
                     validatePluginZipPom.dependsOn("generatePomFileForNebulaPublication");
                 }
-                Task publishPluginZipPublicationToZipStagingRepository = project.getTasks()
-                    .findByName("publishPluginZipPublicationToZipStagingRepository");
-                if (publishPluginZipPublicationToZipStagingRepository != null) {
-                    publishPluginZipPublicationToZipStagingRepository.dependsOn("generatePomFileForNebulaPublication");
+
+                // There are number of tasks prefixed by 'publishPluginZipPublication', f.e.:
+                // publishPluginZipPublicationToZipStagingRepository, publishPluginZipPublicationToMavenLocal
+                final Set<Task> publishPluginZipPublicationToTasks = project.getTasks()
+                    .stream()
+                    .filter(t -> t.getName().startsWith("publishPluginZipPublicationTo"))
+                    .collect(Collectors.toSet());
+                if (!publishPluginZipPublicationToTasks.isEmpty()) {
+                    publishPluginZipPublicationToTasks.forEach(t -> t.dependsOn("generatePomFileForNebulaPublication"));
                 }
             } else {
                 project.getLogger()

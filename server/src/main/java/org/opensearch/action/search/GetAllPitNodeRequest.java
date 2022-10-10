@@ -9,16 +9,16 @@
 
 package org.opensearch.action.search;
 
-import org.opensearch.action.support.nodes.BaseNodeRequest;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;
 
 /**
  * Inner node get all pits request
  */
-public class GetAllPitNodeRequest extends BaseNodeRequest {
+public class GetAllPitNodeRequest extends TransportRequest {
 
     public GetAllPitNodeRequest() {
         super();
