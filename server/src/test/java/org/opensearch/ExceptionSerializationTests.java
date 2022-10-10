@@ -393,7 +393,7 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
     public void testCircuitBreakingException() throws IOException {
         CircuitBreakingException ex = serialize(
             new CircuitBreakingException("Too large", 0, 100, CircuitBreaker.Durability.TRANSIENT),
-            LegacyESVersion.V_7_0_0
+            Version.V_2_0_0
         );
         assertEquals("Too large", ex.getMessage());
         assertEquals(100, ex.getByteLimit());

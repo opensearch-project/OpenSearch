@@ -50,6 +50,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.CapturingTransport;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportService;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -378,7 +379,7 @@ public class TransportNodesActionTests extends OpenSearchTestCase {
         }
     }
 
-    private static class TestNodeRequest extends BaseNodeRequest {
+    private static class TestNodeRequest extends TransportRequest {
         TestNodeRequest() {}
 
         TestNodeRequest(StreamInput in) throws IOException {

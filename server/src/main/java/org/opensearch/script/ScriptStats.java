@@ -89,7 +89,7 @@ public class ScriptStats implements Writeable, ToXContentFragment {
     public ScriptStats(StreamInput in) throws IOException {
         compilations = in.readVLong();
         cacheEvictions = in.readVLong();
-        compilationLimitTriggered = in.getVersion().onOrAfter(LegacyESVersion.V_7_0_0) ? in.readVLong() : 0;
+        compilationLimitTriggered = in.readVLong();
         contextStats = in.getVersion().onOrAfter(LegacyESVersion.V_7_9_0) ? in.readList(ScriptContextStats::new) : Collections.emptyList();
     }
 
@@ -97,9 +97,7 @@ public class ScriptStats implements Writeable, ToXContentFragment {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(compilations);
         out.writeVLong(cacheEvictions);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
-            out.writeVLong(compilationLimitTriggered);
-        }
+        out.writeVLong(compilationLimitTriggered);
         if (out.getVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
             out.writeList(contextStats);
         }
