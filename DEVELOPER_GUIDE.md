@@ -75,6 +75,8 @@ Most of the work will be centralized around new systems in the `server` director
 | Craig Perkins    | [cwperks](https://github.com/cwperks)                 | Amazon      |
 | Darshit Chanpura | [DarshitChanpura](https://github.com/DarshitChanpura) | Amazon      |
 | Peter Nied       | [peternied](https://github.com/peternied)             | Amazon      |
+| Stephen Crawford | [scrawfor99](https://github.com/scrawfor99)           | Amazon      |
+
 
 ### Processes
 
