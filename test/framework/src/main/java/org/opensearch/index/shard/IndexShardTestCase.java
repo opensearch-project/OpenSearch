@@ -119,6 +119,7 @@ import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.common.CopyState;
 import org.opensearch.indices.replication.common.ReplicationCollection;
+import org.opensearch.indices.replication.common.ReplicationFailedException;
 import org.opensearch.indices.replication.common.ReplicationListener;
 import org.opensearch.indices.replication.common.ReplicationState;
 import org.opensearch.repositories.IndexId;
@@ -181,7 +182,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         }
 
         @Override
-        public void onFailure(ReplicationState state, OpenSearchException e, boolean sendShardFailure) {
+        public void onFailure(ReplicationState state, ReplicationFailedException e, boolean sendShardFailure) {
             throw new AssertionError(e);
         }
     };
