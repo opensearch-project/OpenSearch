@@ -5,6 +5,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ## [Unreleased]
 ### Dependencies
 - Bumps `gson` from 2.9.0 to 2.9.1
+- Bumps `protobuf-java` from 3.21.2 to 3.21.7
 
 ### Added
 
