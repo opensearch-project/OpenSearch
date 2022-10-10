@@ -25,7 +25,7 @@ import java.util.Objects;
  * @opensearch.internal
  */
 public class UpdateSettingsRequest extends TransportRequest {
-    private static final Logger logger = LogManager.getLogger(EnvironmentSettingsRequest.class);
+    private static final Logger logger = LogManager.getLogger(UpdateSettingsRequest.class);
 
     private WriteableSetting.SettingType settingType;
     private Setting<?> componentSetting;

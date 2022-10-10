@@ -62,6 +62,7 @@ import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
+import org.opensearch.env.EnvironmentSettingsResponse;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
@@ -106,6 +107,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         REQUEST_EXTENSION_ACTION_LISTENER_ON_FAILURE,
         REQUEST_EXTENSION_REGISTER_REST_ACTIONS,
         REQUEST_EXTENSION_REGISTER_SETTINGS,
+        REQUEST_EXTENSION_ENVIRONMENT_SETTINGS,
         CREATE_COMPONENT,
         ON_INDEX_MODULE,
         GET_SETTINGS
@@ -133,7 +135,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     ExtensionNamedWriteableRegistry namedWriteableRegistry;
     ExtensionActionListener listener;
     ExtensionActionListenerHandler listenerHandler;
-    EnvironmentSettingsRequestHandler environmentSettingsRequestHandler;
+    Settings environmentSettings;
     AddSettingsUpdateConsumerRequestHandler addSettingsUpdateConsumerRequestHandler;
     NodeClient client;
 
@@ -188,7 +190,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         this.customSettingsRequestHandler = new CustomSettingsRequestHandler(settingsModule);
         this.transportService = transportService;
         this.clusterService = clusterService;
-        this.environmentSettingsRequestHandler = new EnvironmentSettingsRequestHandler(initialEnvironmentSettings);
+        this.environmentSettings = initialEnvironmentSettings;
         this.addSettingsUpdateConsumerRequestHandler = new AddSettingsUpdateConsumerRequestHandler(
             clusterService,
             transportService,
@@ -262,8 +264,8 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             ThreadPool.Names.GENERIC,
             false,
             false,
-            EnvironmentSettingsRequest::new,
-            ((request, channel, task) -> channel.sendResponse(environmentSettingsRequestHandler.handleEnvironmentSettingsRequest(request)))
+            ExtensionRequest::new,
+            ((request, channel, task) -> channel.sendResponse(handleExtensionRequest(request)))
         );
         transportService.registerRequestHandler(
             REQUEST_EXTENSION_ADD_SETTINGS_UPDATE_CONSUMER,
@@ -432,6 +434,8 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
                 return new LocalNodeResponse(clusterService);
             case REQUEST_EXTENSION_CLUSTER_SETTINGS:
                 return new ClusterSettingsResponse(clusterService);
+            case REQUEST_EXTENSION_ENVIRONMENT_SETTINGS:
+                return new EnvironmentSettingsResponse(this.environmentSettings);
             default:
                 throw new IllegalArgumentException("Handler not present for the provided request");
         }

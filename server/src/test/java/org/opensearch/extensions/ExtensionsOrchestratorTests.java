@@ -458,6 +458,14 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         ExtensionRequest localNodeRequest = new ExtensionRequest(ExtensionsOrchestrator.RequestType.REQUEST_EXTENSION_LOCAL_NODE);
         assertEquals(LocalNodeResponse.class, extensionsOrchestrator.handleExtensionRequest(localNodeRequest).getClass());
 
+        ExtensionRequest environmentSettingsRequest = new ExtensionRequest(
+            ExtensionsOrchestrator.RequestType.REQUEST_EXTENSION_ENVIRONMENT_SETTINGS
+        );
+        assertEquals(
+            EnvironmentSettingsResponse.class,
+            extensionsOrchestrator.handleExtensionRequest(environmentSettingsRequest).getClass()
+        );
+
         ExtensionRequest exceptionRequest = new ExtensionRequest(ExtensionsOrchestrator.RequestType.GET_SETTINGS);
         Exception exception = expectThrows(Exception.class, () -> extensionsOrchestrator.handleExtensionRequest(exceptionRequest));
         assertEquals("Handler not present for the provided request", exception.getMessage());
@@ -477,54 +485,11 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         assertEquals("Test failure", extensionsOrchestrator.listener.getExceptionList().get(0).getMessage());
     }
 
-    public void testEnvironmentSettingsRequest() throws Exception {
-        Path extensionDir = createTempDir();
-        Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
-        ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
-        initialize(extensionsOrchestrator);
-
-        List<Setting<?>> componentSettings = List.of(
-            Setting.boolSetting("falseSetting", false, Property.IndexScope, Property.NodeScope),
-            Setting.simpleString("fooSetting", "foo", Property.Dynamic)
-        );
-
-        // Test EnvironmentSettingsRequest arg constructor
-        EnvironmentSettingsRequest environmentSettingsRequest = new EnvironmentSettingsRequest(componentSettings);
-        List<Setting<?>> requestComponentSettings = environmentSettingsRequest.getComponentSettings();
-        assertEquals(componentSettings.size(), requestComponentSettings.size());
-        assertTrue(requestComponentSettings.containsAll(componentSettings));
-        assertTrue(componentSettings.containsAll(requestComponentSettings));
-
-        // Test EnvironmentSettingsRequest StreamInput constructor
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            environmentSettingsRequest.writeTo(out);
-            out.flush();
-            try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
-                environmentSettingsRequest = new EnvironmentSettingsRequest(in);
-                requestComponentSettings = environmentSettingsRequest.getComponentSettings();
-                assertEquals(componentSettings.size(), requestComponentSettings.size());
-                assertTrue(requestComponentSettings.containsAll(componentSettings));
-                assertTrue(componentSettings.containsAll(requestComponentSettings));
-            }
-        }
-
-    }
-
     public void testEnvironmentSettingsResponse() throws Exception {
 
-        List<Setting<?>> componentSettings = List.of(
-            Setting.boolSetting("falseSetting", false, Property.IndexScope, Property.NodeScope),
-            Setting.simpleString("fooSetting", "foo", Property.Dynamic)
-        );
-
         // Test EnvironmentSettingsResponse arg constructor
-        EnvironmentSettingsResponse environmentSettingsResponse = new EnvironmentSettingsResponse(settings, componentSettings);
-        assertEquals(componentSettings.size(), environmentSettingsResponse.getComponentSettingValues().size());
-
-        List<Setting<?>> responseSettings = new ArrayList<>();
-        responseSettings.addAll(environmentSettingsResponse.getComponentSettingValues().keySet());
-        assertTrue(responseSettings.containsAll(componentSettings));
-        assertTrue(componentSettings.containsAll(responseSettings));
+        EnvironmentSettingsResponse environmentSettingsResponse = new EnvironmentSettingsResponse(settings);
+        assertEquals(settings, environmentSettingsResponse.getEnvironmentSettings());
 
         // Test EnvironmentSettingsResponse StreamInput constrcutor
         try (BytesStreamOutput out = new BytesStreamOutput()) {
@@ -533,39 +498,9 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
             try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
 
                 environmentSettingsResponse = new EnvironmentSettingsResponse(in);
-                assertEquals(componentSettings.size(), environmentSettingsResponse.getComponentSettingValues().size());
-
-                responseSettings = new ArrayList<>();
-                responseSettings.addAll(environmentSettingsResponse.getComponentSettingValues().keySet());
-                assertTrue(responseSettings.containsAll(componentSettings));
-                assertTrue(componentSettings.containsAll(responseSettings));
+                assertEquals(settings, environmentSettingsResponse.getEnvironmentSettings());
             }
         }
-    }
-
-    public void testHandleEnvironmentSettingsRequest() throws Exception {
-        Path extensionDir = createTempDir();
-        Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
-        ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
-        initialize(extensionsOrchestrator);
-
-        List<Setting<?>> componentSettings = List.of(
-            Setting.boolSetting("falseSetting", false, Property.Dynamic),
-            Setting.boolSetting("trueSetting", true, Property.Dynamic)
-        );
-
-        EnvironmentSettingsRequest environmentSettingsRequest = new EnvironmentSettingsRequest(componentSettings);
-        TransportResponse response = extensionsOrchestrator.environmentSettingsRequestHandler.handleEnvironmentSettingsRequest(
-            environmentSettingsRequest
-        );
-
-        assertEquals(EnvironmentSettingsResponse.class, response.getClass());
-        assertEquals(componentSettings.size(), ((EnvironmentSettingsResponse) response).getComponentSettingValues().size());
-
-        List<Setting<?>> responseSettings = new ArrayList<>();
-        responseSettings.addAll(((EnvironmentSettingsResponse) response).getComponentSettingValues().keySet());
-        assertTrue(responseSettings.containsAll(componentSettings));
-        assertTrue(componentSettings.containsAll(responseSettings));
     }
 
     public void testAddSettingsUpdateConsumerRequest() throws Exception {
