@@ -15,6 +15,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Support for HTTP/2 (server-side) ([#3847](https://github.com/opensearch-project/OpenSearch/pull/3847))
 - BWC version 2.2.2 ([#4383](https://github.com/opensearch-project/OpenSearch/pull/4383))
 - Support for labels on version bump PRs, skip label support for changelog verifier ([#4391](https://github.com/opensearch-project/OpenSearch/pull/4391))
+- Add a new node role 'search' which is dedicated to provide search capability ([#4689](https://github.com/opensearch-project/OpenSearch/pull/4689))
 
 ### Dependencies
 - Bumps `com.diffplug.spotless` from 6.9.1 to 6.10.0
