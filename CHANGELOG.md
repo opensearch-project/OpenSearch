@@ -8,6 +8,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Bumps `protobuf-java` from 3.21.2 to 3.21.7
 - Bumps `azure-core` from 1.31.0 to 1.33.0
 - Bumps `avro` from 1.11.0 to 1.11.1
+- Bumps `woodstox-core` from 6.3.0 to 6.3.1
 
 ### Added
 
