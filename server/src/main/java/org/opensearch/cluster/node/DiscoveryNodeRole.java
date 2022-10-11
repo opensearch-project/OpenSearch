@@ -301,15 +301,6 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
             return null;
         }
 
-        @Override
-        public DiscoveryNodeRole getCompatibilityRole(Version nodeVersion) {
-            if (nodeVersion.onOrAfter(Version.V_2_4_0)) {
-                return this;
-            } else {
-                return DiscoveryNodeRole.DATA_ROLE;
-            }
-        }
-
     };
 
     /**
