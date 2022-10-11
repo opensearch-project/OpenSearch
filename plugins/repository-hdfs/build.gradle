@@ -65,7 +65,7 @@ dependencies {
   }
   api 'org.apache.htrace:htrace-core4:4.2.0-incubating'
   api "org.apache.logging.log4j:log4j-core:${versions.log4j}"
-  api 'org.apache.avro:avro:1.11.0'
+  api 'org.apache.avro:avro:1.11.1'
   api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
   api 'com.google.code.gson:gson:2.9.0'
   runtimeOnly 'com.google.guava:guava:31.1-jre'
