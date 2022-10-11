@@ -89,6 +89,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         expectedCounts.put(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE.roleName(), 1);
         expectedCounts.put(DiscoveryNodeRole.INGEST_ROLE.roleName(), 1);
         expectedCounts.put(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName(), 1);
+        expectedCounts.put(DiscoveryNodeRole.SEARCH_ROLE.roleName(), 0);
         expectedCounts.put(ClusterStatsNodes.Counts.COORDINATING_ONLY, 0);
         int numNodes = randomIntBetween(1, 5);
 
@@ -160,6 +161,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         expectedCounts.put(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE.roleName(), 1);
         expectedCounts.put(DiscoveryNodeRole.INGEST_ROLE.roleName(), 0);
         expectedCounts.put(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName(), 0);
+        expectedCounts.put(DiscoveryNodeRole.SEARCH_ROLE.roleName(), 0);
         expectedCounts.put(ClusterStatsNodes.Counts.COORDINATING_ONLY, 0);
 
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
