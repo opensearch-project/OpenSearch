@@ -129,14 +129,14 @@ public class ExtensionTokenProcessor {
         // check is token is valid, we don't do anything if it is valid
         // else we re-throw the thrown exception
 
-        String token_name = token.getWriteableName();
-        byte[] token_bytes = token_name.getBytes();
+        String tokenName = token.getWriteableName();
+        byte[] tokenBytes = tokenName.getBytes();
 
         validateToken(token);
 
         
-        byte[] principalNameEncodedBytes = Arrays.copyOfRange(token_bytes, 0, KEY_SIZE);
-        byte[] extensionNameEncodedBytes = Arrays.copyOfRange(token_bytes, KEY_SIZE, token_bytes.length);
+        byte[] principalNameEncodedBytes = Arrays.copyOfRange(tokenBytes, 0, KEY_SIZE);
+        byte[] extensionNameEncodedBytes = Arrays.copyOfRange(tokenBytes, KEY_SIZE, tokenBytes.length);
 
         Cipher principalCipher = Cipher.getInstance(ALGORITHM);
         principalCipher.init(Cipher.DECRYPT_MODE, this.secretKey, new GCMParameterSpec(TAG_LENGTH, this.initializationVector));
@@ -167,10 +167,10 @@ public class ExtensionTokenProcessor {
             throw new IllegalArgumentException(INVALID_TOKEN_MESSAGE);
         }
 
-        String token_name = token.getWriteableName();
-        byte[] token_bytes = token_name.getBytes();
+        String tokenName = token.getWriteableName();
+        byte[] tokenBytes = tokenName.getBytes();
         // Check whether token is correct length 
-        if (token_bytes.length != KEY_SIZE*2) {
+        if (tokenBytes.length != KEY_SIZE*2) {
             throw new IllegalArgumentException(INVALID_TOKEN_MESSAGE);
         }
         
