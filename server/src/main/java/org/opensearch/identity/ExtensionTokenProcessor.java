@@ -162,19 +162,18 @@ public class ExtensionTokenProcessor {
      */
     public void validateToken(PrincipalIdentifierToken token) throws IllegalArgumentException {
 
+        // Check whether token exists 
         if (token == null || token.getToken() == null) {
             throw new IllegalArgumentException(INVALID_TOKEN_MESSAGE);
         }
 
-        //TODO: This may not work after the conversion back and forth to Strings and byte[]s, check afterwards
-        /* 
-        String[] parts = token.getWriteableName().split(String.format("*{%d}", 2*KEY_SIZE));
-
-        // check whether token is malformed
-        if (parts.length != 2) {
+        String token_name = token.getWriteableName();
+        byte[] token_bytes = token_name.getBytes();
+        // Check whether token is correct length 
+        if (token_bytes.length != KEY_SIZE*2) {
             throw new IllegalArgumentException(INVALID_TOKEN_MESSAGE);
         }
-        */
+        
 
     }
 }
