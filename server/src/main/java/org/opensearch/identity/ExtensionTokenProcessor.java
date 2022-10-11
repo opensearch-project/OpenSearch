@@ -122,7 +122,7 @@ public class ExtensionTokenProcessor {
      *
      * @opensearch.internal
      *
-     * This method contains a placeholder simplementation.
+     * This method contains a placeholder implementation.
      * More concrete implementation will be covered in https://github.com/opensearch-project/OpenSearch/issues/4485
      */
     public Principal extractPrincipal(PrincipalIdentifierToken token) throws IllegalArgumentException {
@@ -137,7 +137,6 @@ public class ExtensionTokenProcessor {
         
         byte[] principalNameEncodedBytes = Arrays.copyOfRange(token_bytes, 0, KEY_SIZE);
         byte[] extensionNameEncodedBytes = Arrays.copyOfRange(token_bytes, KEY_SIZE, token_bytes.length);
-
 
         Cipher principalCipher = Cipher.getInstance(ALGORITHM);
         principalCipher.init(Cipher.DECRYPT_MODE, this.secretKey, new GCMParameterSpec(TAG_LENGTH, this.initializationVector));
