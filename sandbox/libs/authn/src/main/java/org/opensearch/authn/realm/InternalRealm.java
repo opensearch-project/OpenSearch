@@ -144,7 +144,6 @@ public class InternalRealm extends AuthenticatingRealm {
      * @param hash the password passed as hash
      * @param attributes passed in key-value format
      * @throws IllegalArgumentException if primaryPrincipal or hash is null or empty
-     * @return {@linkplain User} the created user
      */
     public void createUser(String primaryPrincipal, String hash, Map<String, String> attributes) {
         // We don't create a user if primaryPrincipal and/or hash is empty or null
@@ -223,7 +222,7 @@ public class InternalRealm extends AuthenticatingRealm {
     /**
      * Removes a user given its primaryPrincipal from the in-memory store
      * @param primaryPrincipal the primaryPrincipal of the user to be deleted
-     * @return true is deletion was successful, false otherwise
+     * @return {@linkplain User} the deleted user
      *
      * TODO: Add restrictions around who can do this
      */
@@ -235,6 +234,11 @@ public class InternalRealm extends AuthenticatingRealm {
         return removedUser;
     }
 
+    /**
+     * Generates an Exception message String
+     * @param primaryPrincipal to be added to this message
+     * @return the exception message string
+     */
     public String userDoesNotExistMessage(String primaryPrincipal) {
         return "Subject with primaryPrincipal=" + primaryPrincipal + " doesn't exist";
     }
