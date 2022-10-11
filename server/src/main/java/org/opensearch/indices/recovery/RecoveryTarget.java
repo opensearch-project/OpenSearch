@@ -435,27 +435,6 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
         }
     }
 
-    /**
-     * fail the recovery and call listener
-     *
-     * @param e                exception that encapsulates the failure
-     * @param sendShardFailure indicates whether to notify the master of the shard failure
-     */
-    public void fail(RecoveryFailedException e, boolean sendShardFailure) {
-        if (finished.compareAndSet(false, true)) {
-            try {
-                notifyListener(e, sendShardFailure);
-            } finally {
-                try {
-                    cancellableThreads.cancel("failed" + description() + "[" + ExceptionsHelper.stackTrace(e) + "]");
-                } finally {
-                    // release the initial reference. replication files will be cleaned as soon as ref count goes to zero, potentially now
-                    decRef();
-                }
-            }
-        }
-    }
-
     /** Get a temporary name for the provided file name. */
     public String getTempNameForFile(String origFile) {
         return multiFileWriter.getTempNameForFile(origFile);

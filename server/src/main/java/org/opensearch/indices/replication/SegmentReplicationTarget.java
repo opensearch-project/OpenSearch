@@ -110,10 +110,8 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         final Throwable cancelledException = ExceptionsHelper.unwrap(e, CancellableThreads.ExecutionCancelledException.class);
         if (cancelledException != null) {
             state.setStage(SegmentReplicationState.Stage.CANCELLED);
-            listener.onFailure(state(), new ReplicationFailedException(indexShard, cancelledException), sendShardFailure);
-        } else {
-            listener.onFailure(state(), e, sendShardFailure);
         }
+        listener.onFailure(state(), e, sendShardFailure);
     }
 
     @Override
@@ -147,10 +145,9 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         cancellableThreads.setOnCancel((reason, beforeCancelEx) -> {
             // This method only executes when cancellation is triggered by this node and caught by a call to checkForCancel,
             // SegmentReplicationSource does not share CancellableThreads.
-            final ReplicationFailedException executionCancelledException = new ReplicationFailedException(
-                "replication was canceled reason [" + reason + "]"
-            );
-            notifyListener(executionCancelledException, false);
+            final CancellableThreads.ExecutionCancelledException executionCancelledException =
+                new CancellableThreads.ExecutionCancelledException("replication was canceled reason [" + reason + "]");
+            notifyListener(new ReplicationFailedException("Segment replication failed", executionCancelledException), false);
             throw executionCancelledException;
         });
         state.setStage(SegmentReplicationState.Stage.REPLICATING);
