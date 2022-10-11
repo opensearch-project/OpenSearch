@@ -1,0 +1,145 @@
+setup:
+  - do:
+      indices.create:
+        index: test_1
+        body:
+          settings:
+            number_of_replicas: 0
+          mappings:
+            properties:
+              location:
+                type: geo_point
+
+---
+"Single point test":
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: test_1
+              _id: 1
+          - location:
+              lon: 52.374081
+              lat: 4.912350
+          - index:
+              _index: test_1
+              _id: 2
+          - location: "4.901618,52.369219"
+          - index:
+              _index: test_1
+              _id: 3
+          - location: [ 52.371667, 4.914722 ]
+          - index:
+              _index: test_1
+              _id: 4
+          - location: "POINT (52.371667 4.914722)"
+          - index:
+              _index: test_1
+              _id: 5
+          - location: "t0v5zsq1gpzf"
+          - index:
+              _index: test_1
+              _id: 6
+          - location:
+              type: Point
+              coordinates: [ 52.371667, 4.914722 ]
+
+  - do:
+      search:
+        index: test_1
+        rest_total_hits_as_int: true
+        body:
+          query:
+            geo_shape:
+              location:
+                shape:
+                  type: "envelope"
+                  coordinates: [ [ 51, 5 ], [ 53, 3 ] ]
+
+  - match: { hits.total: 6 }
+
+  - do:
+      search:
+        index: test_1
+        rest_total_hits_as_int: true
+        body:
+          query:
+            geo_shape:
+              location:
+                shape:
+                  type: "envelope"
+                  coordinates: [ [ 151, 15 ], [ 153, 13 ] ]
+
+  - match: { hits.total: 0 }
+
+---
+"Multi points test":
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: test_1
+              _id: 1
+          - location:
+              - {lon: 52.374081, lat: 4.912350}
+              - {lon: 152.374081, lat: 14.912350}
+          - index:
+              _index: test_1
+              _id: 2
+          - location:
+              - "4.901618,52.369219"
+              - "14.901618,152.369219"
+          - index:
+              _index: test_1
+              _id: 3
+          - location:
+              - [ 52.371667, 4.914722 ]
+              - [ 152.371667, 14.914722 ]
+          - index:
+              _index: test_1
+              _id: 4
+          - location:
+              - "POINT (52.371667 4.914722)"
+              - "POINT (152.371667 14.914722)"
+          - index:
+              _index: test_1
+              _id: 5
+          - location:
+              - "t0v5zsq1gpzf"
+              - "x6skg0zbhnum"
+          - index:
+              _index: test_1
+              _id: 6
+          - location:
+              - {type: Point, coordinates: [ 52.371667, 4.914722 ]}
+              - {type: Point, coordinates: [ 152.371667, 14.914722 ]}
+
+  - do:
+      search:
+        index: test_1
+        rest_total_hits_as_int: true
+        body:
+          query:
+            geo_shape:
+              location:
+                shape:
+                  type: "envelope"
+                  coordinates: [ [ 51, 5 ], [ 53, 3 ] ]
+
+  - match: { hits.total: 6 }
+
+  - do:
+      search:
+        index: test_1
+        rest_total_hits_as_int: true
+        body:
+          query:
+            geo_shape:
+              location:
+                shape:
+                  type: "envelope"
+                  coordinates: [ [ 151, 15 ], [ 153, 13 ] ]
+
+  - match: { hits.total: 6 }
