@@ -32,7 +32,6 @@
 
 package org.opensearch.upgrades;
 
-import org.apache.http.util.EntityUtils;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.client.Request;
@@ -53,6 +52,8 @@ import org.opensearch.test.NotEqualMessageBuilder;
 import org.opensearch.test.XContentTestUtils;
 import org.opensearch.test.rest.OpenSearchRestTestCase;
 import org.opensearch.test.rest.yaml.ObjectPath;
+import org.apache.hc.core5.http.ParseException;
+import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -286,7 +287,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
     }
 
-    public void testShrink() throws IOException {
+    public void testShrink() throws IOException, NumberFormatException, ParseException {
         String shrunkenIndex = index + "_shrunk";
         int numDocs;
         if (isRunningAgainstOldCluster()) {
@@ -356,7 +357,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertEquals(numDocs, totalHits);
     }
 
-    public void testShrinkAfterUpgrade() throws IOException {
+    public void testShrinkAfterUpgrade() throws IOException, ParseException {
         String shrunkenIndex = index + "_shrunk";
         int numDocs;
         if (isRunningAgainstOldCluster()) {
@@ -444,7 +445,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
      *  <li>Make sure the document count is correct
      * </ol>
      */
-    public void testRollover() throws IOException {
+    public void testRollover() throws IOException, ParseException {
         if (isRunningAgainstOldCluster()) {
             Request createIndex = new Request("PUT", "/" + index + "-000001");
             createIndex.setJsonEntity("{"
@@ -526,7 +527,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         }
     }
 
-    void assertAllSearchWorks(int count) throws IOException {
+    void assertAllSearchWorks(int count) throws IOException, ParseException {
         logger.info("--> testing _all search");
         Map<String, Object> response = entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search")));
         assertNoFailures(response);
@@ -623,14 +624,14 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         }
     }
 
-    static String toStr(Response response) throws IOException {
+    static String toStr(Response response) throws IOException, ParseException {
         return EntityUtils.toString(response.getEntity());
     }
 
     /**
      * Tests that a single document survives. Super basic smoke test.
      */
-    public void testSingleDoc() throws IOException {
+    public void testSingleDoc() throws IOException, ParseException {
         String docLocation = "/" + index + "/" + type + "/1";
         String doc = "{\"test\": \"test\"}";
 
@@ -792,7 +793,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
      * old and new versions. All of the snapshots include an index, a template,
      * and some routing configuration.
      */
-    public void testSnapshotRestore() throws IOException {
+    public void testSnapshotRestore() throws IOException, ParseException {
         int count;
         if (isRunningAgainstOldCluster()) {
             // Create the index
@@ -1060,7 +1061,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         }
     }
 
-    private void checkSnapshot(final String snapshotName, final int count, final Version tookOnVersion) throws IOException {
+    private void checkSnapshot(final String snapshotName, final int count, final Version tookOnVersion) throws IOException, ParseException {
         // Check the snapshot metadata, especially the version
         Request listSnapshotRequest = new Request("GET", "/_snapshot/repo/" + snapshotName);
         Map<String, Object> listSnapshotResponse = entityAsMap(client().performRequest(listSnapshotRequest));
@@ -1179,7 +1180,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertOK(client().performRequest(indexRequest));
     }
 
-    private int countOfIndexedRandomDocuments() throws IOException {
+    private int countOfIndexedRandomDocuments() throws IOException, NumberFormatException, ParseException {
         return Integer.parseInt(loadInfoDocument(index + "_count"));
     }
 
@@ -1194,7 +1195,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         client().performRequest(request);
     }
 
-    private String loadInfoDocument(String id) throws IOException {
+    private String loadInfoDocument(String id) throws IOException, ParseException {
         Request request = new Request("GET", "/info/_doc/" + id);
         request.addParameter("filter_path", "_source");
         String doc = toStr(client().performRequest(request));

@@ -32,7 +32,7 @@
 
 package org.opensearch.client;
 
-import org.apache.http.HttpHost;
+import org.apache.hc.core5.http.HttpHost;
 
 import java.util.List;
 import java.util.Map;
@@ -152,6 +152,9 @@ public class Node {
         return attributes;
     }
 
+    /**
+     * Convert node to string representation
+     */
     @Override
     public String toString() {
         StringBuilder b = new StringBuilder();
@@ -174,6 +177,10 @@ public class Node {
         return b.append(']').toString();
     }
 
+    /**
+     * Compare two nodes for equality
+     * @param obj node instance to compare with
+     */
     @Override
     public boolean equals(Object obj) {
         if (obj == null || obj.getClass() != getClass()) {
@@ -188,6 +195,9 @@ public class Node {
             && Objects.equals(attributes, other.attributes);
     }
 
+    /**
+     * Calculate the hash code of the node
+     */
     @Override
     public int hashCode() {
         return Objects.hash(host, boundHosts, name, version, roles, attributes);
@@ -246,11 +256,18 @@ public class Node {
             return roles.contains("search");
         }
 
+        /**
+         * Convert roles to string representation
+         */
         @Override
         public String toString() {
             return String.join(",", roles);
         }
 
+        /**
+         * Compare two roles for equality
+         * @param obj roles instance to compare with
+         */
         @Override
         public boolean equals(Object obj) {
             if (obj == null || obj.getClass() != getClass()) {
@@ -260,6 +277,9 @@ public class Node {
             return roles.equals(other.roles);
         }
 
+        /**
+         * Calculate the hash code of the roles
+         */
         @Override
         public int hashCode() {
             return roles.hashCode();

@@ -31,7 +31,8 @@
 
 package org.opensearch.upgrades;
 
-import org.apache.http.util.EntityUtils;
+import org.apache.hc.core5.http.ParseException;
+import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.client.Request;
@@ -61,7 +62,7 @@ import static org.hamcrest.Matchers.either;
  */
 public class IndexingIT extends AbstractRollingTestCase {
 
-    public void testIndexing() throws IOException {
+    public void testIndexing() throws IOException, ParseException {
         switch (CLUSTER_TYPE) {
         case OLD:
             break;
@@ -203,7 +204,7 @@ public class IndexingIT extends AbstractRollingTestCase {
         client().performRequest(bulk);
     }
 
-    private void assertCount(String index, int count) throws IOException {
+    private void assertCount(String index, int count) throws IOException, ParseException {
         Request searchTestIndexRequest = new Request("POST", "/" + index + "/_search");
         searchTestIndexRequest.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
         searchTestIndexRequest.addParameter("filter_path", "hits.total");
