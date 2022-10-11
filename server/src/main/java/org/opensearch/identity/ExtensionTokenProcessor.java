@@ -6,6 +6,7 @@ package org.opensearch.identity;
 
 import java.security.Principal;
 import java.security.SecureRandom;
+import java.util.Arrays;
 import java.util.Map;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -132,10 +133,10 @@ public class ExtensionTokenProcessor {
         byte[] token_bytes = token_name.getBytes();
 
         validateToken(token);
-        String[] parts = token.getToken().split(String.format("*{%d}", KEY_SIZE));
-        String pricipalNameEncoded = parts[0];
-        byte[] principalNameEncodedBytes = pricipalNameEncoded.getBytes();
-        String extensionNameEncoded = parts[1];
+
+        
+        byte[] principalNameEncodedBytes = Arrays.copyOfRange(token_bytes, 0, KEY_SIZE);
+        byte[] extensionNameEncodedBytes = Arrays.copyOfRange(token_bytes, KEY_SIZE, token_bytes.length);
 
 
         Cipher principalCipher = Cipher.getInstance(ALGORITHM);
