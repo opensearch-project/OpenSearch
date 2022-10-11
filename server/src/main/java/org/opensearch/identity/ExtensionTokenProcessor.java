@@ -30,7 +30,6 @@ import javax.crypto.spec.SecretKeySpec;
 import org.apache.logging.log4j.message.Message;
 
 
-
 /**
  * Token processor class to handle token encryption/decryption
  * This processor is will be instantiated for every extension
@@ -50,7 +49,6 @@ public class ExtensionTokenProcessor {
 
     private final byte[] initializationVector; 
     private final SecretKey secretKey;  
-
 
     public ExtensionTokenProcessor(String extensionUniqueId) {
         this.extensionUniqueId = extensionUniqueId.getBytes();
@@ -80,7 +78,6 @@ public class ExtensionTokenProcessor {
         return keyGen.generateKey();
     }
     
-
     /**
      * Create a two-way encrypted access token for given principal for this extension
      * @param: principal being sent to the extension
@@ -119,21 +116,21 @@ public class ExtensionTokenProcessor {
      * Decrypt the token and extract Principal
      * @param token the requester identity token, should not be null
      * @return Principal
+     * @throws InvalidAlgorithmParameterException
+     * @throws InvalidKeyException
+     * @throws BadPaddingException
+     * @throws IllegalBlockSizeException
+     * @throws NoSuchPaddingException
+     * @throws NoSuchAlgorithmException
      *
      * @opensearch.internal
-     *
-     * This method contains a placeholder implementation.
-     * More concrete implementation will be covered in https://github.com/opensearch-project/OpenSearch/issues/4485
      */
-    public Principal extractPrincipal(PrincipalIdentifierToken token) throws IllegalArgumentException {
-        // check is token is valid, we don't do anything if it is valid
-        // else we re-throw the thrown exception
-
+    public String extractPrincipal(PrincipalIdentifierToken token) throws IllegalArgumentException, InvalidKeyException, InvalidAlgorithmParameterException, IllegalBlockSizeException, BadPaddingException, NoSuchAlgorithmException, NoSuchPaddingException {
+    
         String tokenName = token.getWriteableName();
         byte[] tokenBytes = tokenName.getBytes();
 
         validateToken(token);
-
         
         byte[] principalNameEncodedBytes = Arrays.copyOfRange(tokenBytes, 0, KEY_SIZE);
         byte[] extensionNameEncodedBytes = Arrays.copyOfRange(tokenBytes, KEY_SIZE, tokenBytes.length);
@@ -142,15 +139,16 @@ public class ExtensionTokenProcessor {
         principalCipher.init(Cipher.DECRYPT_MODE, this.secretKey, new GCMParameterSpec(TAG_LENGTH, this.initializationVector));
         byte[] principalEncoding = principalCipher.doFinal(principalNameEncodedBytes);
         String principalName = principalEncoding.toString();
-        
-        //Have to be able to look at the principals and find the match if you want to actually return the Principal object and not just a String    
-        for (Principal p : Principals){
-            if (p.NAME.equals(principalName)) {
-                return p;
-            }
-        }
-    }
 
+        return principalName;
+        //Have to be able to look at the principals and find the match if you want to actually return the Principal object and not just a String    
+        
+        //for (Principal p : Principals){
+        //   if (p.NAME.equals(principalName)) {
+        //        return p;
+        //    }
+        //}
+    }
 
     /**
      * Checks validity of the requester identifier token
@@ -173,7 +171,5 @@ public class ExtensionTokenProcessor {
         if (tokenBytes.length != KEY_SIZE*2) {
             throw new IllegalArgumentException(INVALID_TOKEN_MESSAGE);
         }
-        
-
     }
 }

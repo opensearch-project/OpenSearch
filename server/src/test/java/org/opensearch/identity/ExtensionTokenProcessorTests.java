@@ -7,7 +7,15 @@ package org.opensearch.identity;
 
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.io.IOException;
+import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
 import java.security.Principal;
+
+import javax.crypto.BadPaddingException;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
 
 public class ExtensionTokenProcessorTests extends OpenSearchTestCase {
 
@@ -18,7 +26,16 @@ public class ExtensionTokenProcessorTests extends OpenSearchTestCase {
         ExtensionTokenProcessor extensionTokenProcessor = new ExtensionTokenProcessor(extensionUniqueId);
 
         String expectedToken = userPrincipal.getName() + ":" + extensionUniqueId;
-        PrincipalIdentifierToken generatedIdentifier = extensionTokenProcessor.generateToken(userPrincipal);
+        PrincipalIdentifierToken generatedIdentifier;
+        try {
+            generatedIdentifier = extensionTokenProcessor.generateToken(userPrincipal);
+        } catch (InvalidKeyException | NoSuchAlgorithmException | NoSuchPaddingException
+                | InvalidAlgorithmParameterException | IllegalBlockSizeException | BadPaddingException
+                | IOException e) {
+       
+            e.printStackTrace();
+            throw new Error(e);
+        }
 
         assertNotEquals(null, generatedIdentifier);
         assertEquals(expectedToken, generatedIdentifier.getToken());
@@ -31,10 +48,19 @@ public class ExtensionTokenProcessorTests extends OpenSearchTestCase {
 
         ExtensionTokenProcessor extensionTokenProcessor = new ExtensionTokenProcessor(extensionUniqueId);
 
-        Principal principal = extensionTokenProcessor.extractPrincipal(principalIdentifierToken);
+        String principalName;
+        try {
+            principalName = extensionTokenProcessor.extractPrincipal(principalIdentifierToken);
+        } catch (InvalidKeyException | IllegalArgumentException | InvalidAlgorithmParameterException
+                | IllegalBlockSizeException | BadPaddingException | NoSuchAlgorithmException
+                | NoSuchPaddingException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+            throw new Error(e);
+        }
 
-        assertNotEquals(null, principal);
-        assertEquals(userPrincipal.getName(), principal.getName());
+        //assertNotEquals(null, principal);
+        assertEquals(userPrincipal.getName(), principalName);
     }
 
     public void testExtractPrincipalMalformedToken() {

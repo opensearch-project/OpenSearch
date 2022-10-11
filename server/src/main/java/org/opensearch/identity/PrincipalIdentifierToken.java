@@ -26,7 +26,6 @@ public class PrincipalIdentifierToken implements NamedWriteable {
     public static final String NAME = "principal_identifier_token";
     private final String token;
    
-    
     /**
      * Should only be instantiated via extensionTokenProcessor.generateToken(..)
      * @param token string value of token
