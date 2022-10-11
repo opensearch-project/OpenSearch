@@ -5,17 +5,11 @@
 package org.opensearch.identity;
 
 import java.security.Principal;
-import java.security.SecureRandom;
 import java.util.Arrays;
-import java.util.Map;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.math.BigInteger;
-import java.nio.charset.StandardCharsets;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
-import java.security.Key;
-import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
 import javax.crypto.BadPaddingException;
@@ -25,9 +19,6 @@ import javax.crypto.KeyGenerator;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
-import javax.crypto.spec.SecretKeySpec;
-
-import org.apache.logging.log4j.message.Message;
 
 
 /**
@@ -40,42 +31,49 @@ public class ExtensionTokenProcessor {
     public static final String INVALID_ALGO_MESSAGE = "Failed to create a token because an invalid hashing algorithm was used.";
     public static final String INVALID_PRINCIPAL_MESSAGE = "Token passed here is for a different principal.";
 
-    public static final String ALGORITHM = "AES";
+    
     public static final int KEY_SIZE = 128;
     public static final int INITIALIZATION_VECTOR_SIZE = 96;
     public static final int TAG_LENGTH = 128;
     
     private final byte[] extensionUniqueId;
-
-    private final byte[] initializationVector; 
+ 
     private final SecretKey secretKey;  
+    private final Cipher encryptionCipher;
 
     public ExtensionTokenProcessor(String extensionUniqueId) {
         this.extensionUniqueId = extensionUniqueId.getBytes();
-        this.initializationVector = generateRandomIV(INITIALIZATION_VECTOR_SIZE);;
         try {
+            this.encryptionCipher = generateCipher(); 
             this.secretKey = generateSecretKey(KEY_SIZE);
         }
-        catch (NoSuchAlgorithmException noAlgo) {
+        catch (NoSuchAlgorithmException | NoSuchPaddingException ex) {
             
-            noAlgo.printStackTrace();
-            throw new Error(noAlgo);
+            ex.printStackTrace();
+            throw new Error(ex);
         }
     }
 
-    public static byte[] generateRandomIV(int ivLength){
-
-        byte[] nonce = new byte[ivLength/8];
-        SecureRandom secureRandom = new SecureRandom();
-        secureRandom.nextBytes(nonce);
-        return nonce;
-    }
-
+    /**
+     * This method generates the secret key for a given extension.
+     * @param keyLength: The number of bits in the key
+     * @return The generated key
+     */
     public static SecretKey generateSecretKey(int keyLength) throws NoSuchAlgorithmException {
 
-        KeyGenerator keyGen = KeyGenerator.getInstance(ALGORITHM);
+        KeyGenerator keyGen = KeyGenerator.getInstance("AES");
         keyGen.init(keyLength);
         return keyGen.generateKey();
+    }
+
+    /**
+     * Creates the encryption cipher which will perist for encryption and decryption of this extension
+     * @return The instance's encryption cipher 
+     */
+    public static Cipher generateCipher() throws NoSuchAlgorithmException, NoSuchPaddingException{
+
+        Cipher encryptionCipher = Cipher.getInstance("AES/GCM/NoPadding");
+        return encryptionCipher;
     }
     
     /**
@@ -91,18 +89,13 @@ public class ExtensionTokenProcessor {
      * @throws IOException
      */
     public PrincipalIdentifierToken generateToken(Principal principal) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, InvalidAlgorithmParameterException, IllegalBlockSizeException, BadPaddingException, IOException {
-
-        Cipher extensionCipher = Cipher.getInstance(ALGORITHM);
-        extensionCipher.init(Cipher.ENCRYPT_MODE, this.secretKey, new GCMParameterSpec(TAG_LENGTH, this.initializationVector));
-        byte[] extensionEncoding = extensionCipher.doFinal(this.extensionUniqueId);
         
-        // Note that this will use the same IV and secret key for every principal on the given extension--this will be the same as the extension's secret key & iv
-        Cipher principalCipher = Cipher.getInstance(ALGORITHM);
-        principalCipher.init(Cipher.ENCRYPT_MODE, this.secretKey, new GCMParameterSpec(TAG_LENGTH, this.initializationVector));
-        byte[] principalEncoding = principalCipher.doFinal(principal.getName().getBytes());
+        this.encryptionCipher.init(Cipher.ENCRYPT_MODE, this.secretKey);
+        byte[] extensionEncoding = this.encryptionCipher.doFinal(this.extensionUniqueId);
+        //byte[] principalEncoding = this.encryptionCipher.doFinal(principal.getName().getBytes());
 
         ByteArrayOutputStream output = new ByteArrayOutputStream();
-        output.write(principalEncoding);
+        //output.write(principalEncoding);
         output.write(extensionEncoding);
 
         byte[] combinedEncodings = output.toByteArray();
@@ -130,14 +123,14 @@ public class ExtensionTokenProcessor {
         String tokenName = token.getWriteableName();
         byte[] tokenBytes = tokenName.getBytes();
 
-        validateToken(token);
+        //validateToken(token);
         
         byte[] principalNameEncodedBytes = Arrays.copyOfRange(tokenBytes, 0, KEY_SIZE);
         byte[] extensionNameEncodedBytes = Arrays.copyOfRange(tokenBytes, KEY_SIZE, tokenBytes.length);
-
-        Cipher principalCipher = Cipher.getInstance(ALGORITHM);
-        principalCipher.init(Cipher.DECRYPT_MODE, this.secretKey, new GCMParameterSpec(TAG_LENGTH, this.initializationVector));
-        byte[] principalEncoding = principalCipher.doFinal(principalNameEncodedBytes);
+        Cipher decryptionCipher = Cipher.getInstance("AES/GCM/NoPadding");
+        GCMParameterSpec spec = new GCMParameterSpec(TAG_LENGTH, this.encryptionCipher.getIV());
+        decryptionCipher.init(Cipher.DECRYPT_MODE, this.secretKey, spec);
+        byte[] principalEncoding = decryptionCipher.doFinal(principalNameEncodedBytes);
         String principalName = principalEncoding.toString();
 
         return principalName;
