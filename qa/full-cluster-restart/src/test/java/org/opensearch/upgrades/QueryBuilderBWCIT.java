@@ -32,7 +32,8 @@
 
 package org.opensearch.upgrades;
 
-import org.apache.http.util.EntityUtils;
+import org.apache.hc.core5.http.ParseException;
+import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
@@ -235,7 +236,7 @@ public class QueryBuilderBWCIT extends AbstractFullClusterRestartTestCase {
         }
     }
 
-    private static Map<String, Object> toMap(Response response) throws IOException {
+    private static Map<String, Object> toMap(Response response) throws IOException, ParseException {
         return toMap(EntityUtils.toString(response.getEntity()));
     }
 

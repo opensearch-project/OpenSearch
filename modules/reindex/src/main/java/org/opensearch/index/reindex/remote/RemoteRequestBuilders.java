@@ -32,8 +32,8 @@
 
 package org.opensearch.index.reindex.remote;
 
-import org.apache.http.entity.ContentType;
-import org.apache.http.nio.entity.NStringEntity;
+import org.apache.hc.core5.http.ContentType;
+import org.apache.hc.core5.http.io.entity.StringEntity;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.search.SearchRequest;
@@ -240,7 +240,7 @@ final class RemoteRequestBuilders {
 
         if (remoteVersion.before(Version.fromId(2000099))) {
             // Versions before 2.0.0 extract the plain scroll_id from the body
-            request.setEntity(new NStringEntity(scroll, ContentType.TEXT_PLAIN));
+            request.setEntity(new StringEntity(scroll, ContentType.TEXT_PLAIN));
             return request;
         }
 
@@ -258,7 +258,7 @@ final class RemoteRequestBuilders {
 
         if (remoteVersion.before(Version.fromId(2000099))) {
             // Versions before 2.0.0 extract the plain scroll_id from the body
-            request.setEntity(new NStringEntity(scroll, ContentType.TEXT_PLAIN));
+            request.setEntity(new StringEntity(scroll, ContentType.TEXT_PLAIN));
             return request;
         }
         try (XContentBuilder entity = JsonXContent.contentBuilder()) {
