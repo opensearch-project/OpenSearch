@@ -503,6 +503,52 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         }
     }
 
+    public void testEnvironmentSettingsRegisteredValue() throws Exception {
+
+        // Create setting with value false
+        Setting<Boolean> boolSetting = Setting.boolSetting("boolSetting", false, Property.Dynamic);
+
+        // Create Settings with registered bool setting with value true
+        Settings environmentSettings = Settings.builder().put("boolSetting", "true").build();
+
+        EnvironmentSettingsResponse environmentSettingsResponse = new EnvironmentSettingsResponse(environmentSettings);
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            environmentSettingsResponse.writeTo(out);
+            out.flush();
+            try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
+
+                environmentSettingsResponse = new EnvironmentSettingsResponse(in);
+                assertEquals(environmentSettings, environmentSettingsResponse.getEnvironmentSettings());
+
+                // bool setting is registered in Settings object, thus the expected return value is the registered setting value
+                assertEquals(true, boolSetting.get(environmentSettingsResponse.getEnvironmentSettings()));
+            }
+        }
+
+    }
+
+    public void testEnvironmentSettingsDefaultValue() throws Exception {
+        // Create setting with value false
+        Setting<Boolean> boolSetting = Setting.boolSetting("boolSetting", false, Property.Dynamic);
+
+        // Create settings object without registered bool setting
+        Settings environmentSettings = Settings.builder().put("notBoolSetting", "true").build();
+
+        EnvironmentSettingsResponse environmentSettingsResponse = new EnvironmentSettingsResponse(environmentSettings);
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            environmentSettingsResponse.writeTo(out);
+            out.flush();
+            try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
+
+                environmentSettingsResponse = new EnvironmentSettingsResponse(in);
+                assertEquals(environmentSettings, environmentSettingsResponse.getEnvironmentSettings());
+
+                // bool setting is not registered in Settings object, thus the expected return value is the default setting value
+                assertEquals(false, boolSetting.get(environmentSettingsResponse.getEnvironmentSettings()));
+            }
+        }
+    }
+
     public void testAddSettingsUpdateConsumerRequest() throws Exception {
         Path extensionDir = createTempDir();
         Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
