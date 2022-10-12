@@ -531,7 +531,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         Setting<Boolean> boolSetting = Setting.boolSetting("boolSetting", false, Property.Dynamic);
 
         // Create settings object without registered bool setting
-        Settings environmentSettings = Settings.builder().put("notBoolSetting", "true").build();
+        Settings environmentSettings = Settings.builder().put("testSetting", "true").build();
 
         EnvironmentSettingsResponse environmentSettingsResponse = new EnvironmentSettingsResponse(environmentSettings);
         try (BytesStreamOutput out = new BytesStreamOutput()) {
