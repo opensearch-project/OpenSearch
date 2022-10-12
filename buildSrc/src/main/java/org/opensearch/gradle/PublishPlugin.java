@@ -92,7 +92,7 @@ public class PublishPlugin implements Plugin<Project> {
                 return String.format(
                     "%s/distributions/%s-%s.pom",
                     project.getBuildDir(),
-                    getArchivesBaseName(project),
+                    pomTask.getName().toLowerCase().contains("zip") ? project.getName() : getArchivesBaseName(project),
                     project.getVersion()
                 );
             }
@@ -130,7 +130,6 @@ public class PublishPlugin implements Plugin<Project> {
             publication.getPom().withXml(PublishPlugin::addScmInfo);
 
             if (!publication.getName().toLowerCase().contains("zip")) {
-
                 // have to defer this until archivesBaseName is set
                 project.afterEvaluate(p -> publication.setArtifactId(getArchivesBaseName(project)));
 
@@ -139,6 +138,8 @@ public class PublishPlugin implements Plugin<Project> {
                     publication.artifact(project.getTasks().getByName("sourcesJar"));
                     publication.artifact(project.getTasks().getByName("javadocJar"));
                 }
+            } else {
+                project.afterEvaluate(p -> publication.setArtifactId(project.getName()));
             }
 
             generatePomTask.configure(

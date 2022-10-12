@@ -34,9 +34,6 @@ package org.opensearch.repositories.url;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import org.apache.http.HttpEntity;
-import org.apache.http.entity.ContentType;
-import org.apache.http.nio.entity.NStringEntity;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 import org.opensearch.common.Strings;
@@ -49,6 +46,9 @@ import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.opensearch.test.rest.yaml.OpenSearchClientYamlSuiteTestCase;
+import org.apache.hc.core5.http.ContentType;
+import org.apache.hc.core5.http.HttpEntity;
+import org.apache.hc.core5.http.io.entity.StringEntity;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -144,7 +144,7 @@ public class RepositoryURLClientYamlTestSuiteIT extends OpenSearchClientYamlSuit
                 builder.endObject();
             }
             builder.endObject();
-            return new NStringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
+            return new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
         }
     }
 }

@@ -32,13 +32,12 @@
 
 package org.opensearch.client;
 
-import org.apache.http.HttpHost;
-import org.apache.http.ProtocolVersion;
-import org.apache.http.RequestLine;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.message.BasicRequestLine;
-import org.apache.http.message.BasicStatusLine;
 import org.opensearch.test.OpenSearchTestCase;
+import org.apache.hc.client5.http.classic.methods.HttpGet;
+import org.apache.hc.core5.http.HttpHost;
+import org.apache.hc.core5.http.ProtocolVersion;
+import org.apache.hc.core5.http.message.RequestLine;
+import org.apache.hc.core5.http.message.StatusLine;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -64,9 +63,9 @@ public class MockRestHighLevelTests extends OpenSearchTestCase {
         when(mockResponse.getWarnings()).thenReturn(WARNINGS);
 
         ProtocolVersion protocol = new ProtocolVersion("HTTP", 1, 1);
-        when(mockResponse.getStatusLine()).thenReturn(new BasicStatusLine(protocol, 200, "OK"));
+        when(mockResponse.getStatusLine()).thenReturn(new StatusLine(protocol, 200, "OK"));
 
-        RequestLine requestLine = new BasicRequestLine(HttpGet.METHOD_NAME, "/_blah", protocol);
+        RequestLine requestLine = new RequestLine(HttpGet.METHOD_NAME, "/_blah", protocol);
         when(mockResponse.getRequestLine()).thenReturn(requestLine);
 
         WarningFailureException expectedException = new WarningFailureException(mockResponse);

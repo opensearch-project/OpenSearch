@@ -15,7 +15,6 @@ import org.opensearch.common.TriConsumer;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.time.DateUtils;
 import org.opensearch.common.xcontent.ObjectParser;
 import org.opensearch.common.xcontent.ToXContentObject;
 import org.opensearch.common.xcontent.XContentBuilder;
@@ -86,11 +85,7 @@ public abstract class BaseMultiValuesSourceFieldConfig implements Writeable, ToX
         }
         this.missing = in.readGenericValue();
         this.script = in.readOptionalWriteable(Script::new);
-        if (in.getVersion().before(LegacyESVersion.V_7_0_0)) {
-            this.timeZone = DateUtils.dateTimeZoneToZoneId(in.readOptionalTimeZone());
-        } else {
-            this.timeZone = in.readOptionalZoneId();
-        }
+        this.timeZone = in.readOptionalZoneId();
     }
 
     @Override
@@ -102,11 +97,7 @@ public abstract class BaseMultiValuesSourceFieldConfig implements Writeable, ToX
         }
         out.writeGenericValue(missing);
         out.writeOptionalWriteable(script);
-        if (out.getVersion().before(LegacyESVersion.V_7_0_0)) {
-            out.writeOptionalTimeZone(DateUtils.zoneIdToDateTimeZone(timeZone));
-        } else {
-            out.writeOptionalZoneId(timeZone);
-        }
+        out.writeOptionalZoneId(timeZone);
         doWriteTo(out);
     }
 

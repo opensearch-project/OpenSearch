@@ -12,6 +12,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
+import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterAddWeightedRoutingAction;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingRequestBuilder;
 import org.opensearch.client.node.NodeClient;
@@ -92,7 +93,7 @@ public class WeightedRoutingServiceTests extends OpenSearchTestCase {
         transportService.start();
         transportService.acceptIncomingRequests();
 
-        this.weightedRoutingService = new WeightedRoutingService(clusterService, threadPool);
+        this.weightedRoutingService = new WeightedRoutingService(clusterService, threadPool, settingsBuilder.build(), clusterSettings);
         client = new NodeClient(Settings.EMPTY, threadPool);
     }
 
@@ -230,5 +231,21 @@ public class WeightedRoutingServiceTests extends OpenSearchTestCase {
         };
         weightedRoutingService.registerWeightedRoutingMetadata(request.request(), listener);
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
+    }
+
+    public void testVerifyAwarenessAttribute_InvalidAttributeName() {
+        assertThrows(
+            "invalid awareness attribute %s requested for updating weighted routing",
+            ActionRequestValidationException.class,
+            () -> weightedRoutingService.verifyAwarenessAttribute("zone2")
+        );
+    }
+
+    public void testVerifyAwarenessAttribute_ValidAttributeName() {
+        try {
+            weightedRoutingService.verifyAwarenessAttribute("zone");
+        } catch (Exception e) {
+            fail("verify awareness attribute should not fail");
+        }
     }
 }
