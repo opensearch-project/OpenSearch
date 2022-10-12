@@ -18,7 +18,7 @@ dependencies {
   implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
   implementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
 
-  implementation 'org.apache.shiro:shiro-core:1.9.1'
+  api 'org.apache.shiro:shiro-core:1.9.1'
   // Needed for shiro
   implementation "org.slf4j:slf4j-api:${versions.slf4j}"
   implementation "org.bouncycastle:bcprov-jdk15on:${versions.bouncycastle}"

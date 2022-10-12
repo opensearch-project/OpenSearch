@@ -36,6 +36,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchException;
+import org.opensearch.authn.HttpHeaderToken;
+import org.opensearch.authn.realm.InternalRealm;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
@@ -57,11 +59,14 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
+import java.util.Base64;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
@@ -395,6 +400,36 @@ public class RestController implements HttpServerTransport.Dispatcher {
                         return;
                     }
                 } else {
+
+                    logger.info("Getting sys prop sandbox.enabled = " + System.getProperty("sandbox.enabled"));
+                    // For now, Only do Basic Auth when sandbox is enabled.
+                    // This `if` should be removed once we integrate it with core
+                    if (System.getProperty("sandbox.enabled").equals("true")) {
+                        // Following block of code handles Basic Auth
+                        final Optional<String> authHeader = request.getHeaders()
+                            .getOrDefault(HttpHeaderToken.HEADER_NAME, Collections.emptyList())
+                            .stream()
+                            .findFirst();
+
+                        if (authHeader.isPresent()) {
+                            try {
+                                HttpHeaderToken token = new HttpHeaderToken(authHeader.get());
+                                // TODO: Find out the instance to be used
+                                InternalRealm realm = InternalRealm.INSTANCE;
+                                realm.authenticateWithToken(token);
+                                logger.info("Reached Basic auth point with token = "+ token);
+                            } catch (final Exception e) {
+                                final BytesRestResponse bytesRestResponse = BytesRestResponse.createSimpleErrorResponse(
+                                    channel,
+                                    RestStatus.UNAUTHORIZED,
+                                    e.getMessage()
+                                );
+                                channel.sendResponse(bytesRestResponse);
+                                return;
+                            }
+                        }
+                    }
+
                     dispatchRequest(request, channel, handler);
                     return;
                 }

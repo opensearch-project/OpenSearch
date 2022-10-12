@@ -14,8 +14,10 @@ import org.apache.shiro.authc.SimpleAuthenticationInfo;
 import org.apache.shiro.authc.UnknownAccountException;
 import org.apache.shiro.authc.UsernamePasswordToken;
 import org.apache.shiro.realm.AuthenticatingRealm;
+import org.opensearch.authn.HttpHeaderToken;
 import org.opensearch.authn.User;
 
+import java.util.Base64;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentMap;
 
@@ -103,5 +105,40 @@ public class InternalRealm extends AuthenticatingRealm {
         }
         // Don't know what to do with this token
         throw new CredentialsException();
+    }
+
+    /**
+     * Authenticates the token against this realm
+     * @param token the token to be authenticated
+     * @throws AuthenticationException when authentication is unsuccessful
+     */
+    public void authenticateWithToken(final HttpHeaderToken token) {
+        try {
+            Boolean isAuthenticationSuccessful = null;
+            if (token.getHeaderValue().contains("Basic")) {
+                isAuthenticationSuccessful = handleBasicAuth(token);
+            }
+
+            // TODO Handle other type of auths, and see if we can use switch case here
+
+            // Unsupported auth header found
+            if (isAuthenticationSuccessful == null) {
+                throw new AuthenticationException("Unsupported Authentication header passed");
+            } else if (!isAuthenticationSuccessful) {
+                throw new AuthenticationException("Authentication finally failed");
+            }
+        } catch (Throwable e){
+            throw e;
+        }
+    }
+
+    private boolean handleBasicAuth(final HttpHeaderToken token) throws AuthenticationException {
+
+        final byte[] decodedAuthHeader = Base64.getDecoder().decode(token.getHeaderValue().substring("Basic".length()).trim());
+        final String[] decodedUserNamePassword = new String(decodedAuthHeader).split(":");
+
+        UsernamePasswordToken usernamePasswordToken = new UsernamePasswordToken(decodedUserNamePassword[0], decodedUserNamePassword[1]);
+
+        return this.getAuthenticationInfo(usernamePasswordToken) != null;
     }
 }
