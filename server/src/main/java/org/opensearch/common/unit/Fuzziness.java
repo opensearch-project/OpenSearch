@@ -70,12 +70,12 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
         if (fuzziness != 0 && fuzziness != 1 && fuzziness != 2) {
             throw new IllegalArgumentException("Valid edit distances are [0, 1, 2] but was [" + fuzziness + "]");
         }
-        this.fuzziness = Integer.toString(fuzziness);
+        this.fuzziness = Integer.toString(fuzziness);   
     }
 
     private Fuzziness(String fuzziness) {
-        if (fuzziness == null || fuzziness.isEmpty()) {
-            throw new IllegalArgumentException("fuzziness can't be null!");
+        if (fuzziness == null || fuzziness.isEmpty() || !isValidFuzzinessValue(fuzziness)) {
+            throw new IllegalArgumentException("Illegal Fuzziness Value");
         }
         this.fuzziness = fuzziness.toUpperCase(Locale.ROOT);
     }
@@ -96,6 +96,9 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
      */
     public Fuzziness(StreamInput in) throws IOException {
         fuzziness = in.readString();
+        if(!isValidFuzzinessValue(fuzziness)) {
+            throw new IllegalArgumentException("Illegal Fuzziness Value");
+        }
         if (in.readBoolean()) {
             lowDistance = in.readVInt();
             highDistance = in.readVInt();
@@ -233,6 +236,31 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
         return fuzziness.startsWith("AUTO") && (lowDistance != DEFAULT_LOW_DISTANCE || highDistance != DEFAULT_HIGH_DISTANCE);
     }
 
+    private boolean isValidFuzzinessValue(String fuzziness) {
+        fuzziness = fuzziness.toUpperCase();
+        if("AUTO".equals(fuzziness)) {
+            return true;
+        }
+        if(fuzziness.startsWith("AUTO:")) {
+            String[] fuzzinessLimit = fuzziness.substring("AUTO:".length()).split(",");
+            return isValidFuzzinessLimit(fuzzinessLimit[0]) && isValidFuzzinessLimit(fuzzinessLimit[1]);
+        }
+        return isValidFuzzinessLimit(fuzziness);
+    }
+    
+    private boolean isValidFuzzinessLimit(String string) {
+        try {
+            Integer limit = Integer.valueOf(string);
+            return limit >=0;
+        }
+        catch(NumberFormatException numberFormatException) {
+            return false;
+        }
+        catch(Exception e) {
+            return false;
+        }
+    }
+    
     @Override
     public boolean equals(Object obj) {
         if (this == obj) {
