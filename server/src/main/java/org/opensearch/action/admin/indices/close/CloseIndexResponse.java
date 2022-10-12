@@ -31,7 +31,6 @@
 
 package org.opensearch.action.admin.indices.close;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.support.DefaultShardOperationFailedException;
 import org.opensearch.action.support.master.ShardsAcknowledgedResponse;
@@ -49,7 +48,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
 
 /**
@@ -62,12 +60,8 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
     private final List<IndexResult> indices;
 
     CloseIndexResponse(StreamInput in) throws IOException {
-        super(in, in.getVersion().onOrAfter(LegacyESVersion.V_7_2_0));
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_3_0)) {
-            indices = unmodifiableList(in.readList(IndexResult::new));
-        } else {
-            indices = unmodifiableList(emptyList());
-        }
+        super(in, true);
+        indices = unmodifiableList(in.readList(IndexResult::new));
     }
 
     public CloseIndexResponse(final boolean acknowledged, final boolean shardsAcknowledged, final List<IndexResult> indices) {
@@ -82,12 +76,8 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
-            writeShardsAcknowledged(out);
-        }
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_3_0)) {
-            out.writeList(indices);
-        }
+        writeShardsAcknowledged(out);
+        out.writeList(indices);
     }
 
     @Override

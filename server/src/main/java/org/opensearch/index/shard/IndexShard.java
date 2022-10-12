@@ -52,7 +52,6 @@ import org.apache.lucene.util.SetOnce;
 import org.apache.lucene.util.ThreadInterruptedException;
 import org.opensearch.Assertions;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
@@ -3187,7 +3186,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     ) {
         assert assertPrimaryMode();
         // only needed for BWC reasons involving rolling upgrades from versions that do not support PRRLs:
-        assert indexSettings.getIndexVersionCreated().before(LegacyESVersion.V_7_4_0) || indexSettings.isSoftDeleteEnabled() == false;
+        assert indexSettings.isSoftDeleteEnabled() == false;
         return replicationTracker.addPeerRecoveryRetentionLease(nodeId, globalCheckpoint, listener);
     }
 

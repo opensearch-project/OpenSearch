@@ -34,8 +34,6 @@ package org.opensearch.action.admin.cluster.repositories.cleanup;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.LegacyESVersion;
-import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.StepListener;
@@ -90,8 +88,6 @@ public final class TransportCleanupRepositoryAction extends TransportClusterMana
     CleanupRepositoryResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportCleanupRepositoryAction.class);
-
-    private static final Version MIN_VERSION = LegacyESVersion.V_7_4_0;
 
     private final RepositoriesService repositoriesService;
 
@@ -179,17 +175,7 @@ public final class TransportCleanupRepositoryAction extends TransportClusterMana
         ClusterState state,
         ActionListener<CleanupRepositoryResponse> listener
     ) {
-        if (state.nodes().getMinNodeVersion().onOrAfter(MIN_VERSION)) {
-            cleanupRepo(request.name(), ActionListener.map(listener, CleanupRepositoryResponse::new));
-        } else {
-            throw new IllegalArgumentException(
-                "Repository cleanup is only supported from version ["
-                    + MIN_VERSION
-                    + "] but the oldest node version in the cluster is ["
-                    + state.nodes().getMinNodeVersion()
-                    + ']'
-            );
-        }
+        cleanupRepo(request.name(), ActionListener.map(listener, CleanupRepositoryResponse::new));
     }
 
     @Override

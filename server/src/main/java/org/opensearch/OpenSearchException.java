@@ -49,7 +49,6 @@ import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.index.Index;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.rest.RestStatus;
-import org.opensearch.search.SearchException;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
 import org.opensearch.transport.TcpTransport;
 
@@ -317,10 +316,6 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
     public static OpenSearchException readException(StreamInput input, int id) throws IOException {
         CheckedFunction<StreamInput, ? extends OpenSearchException, IOException> opensearchException = ID_TO_SUPPLIER.get(id);
         if (opensearchException == null) {
-            if (id == 127 && input.getVersion().before(LegacyESVersion.V_7_5_0)) {
-                // was SearchContextException
-                return new SearchException(input);
-            }
             throw new IllegalStateException("unknown exception for id: " + id);
         }
         return opensearchException.apply(input);
@@ -601,7 +596,7 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
                 }
                 t = t.getCause();
             }
-            builder.field(ERROR, ExceptionsHelper.summaryMessage(t));
+            builder.field(ERROR, ExceptionsHelper.summaryMessage(e));
             return;
         }
 
@@ -1533,7 +1528,7 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
             org.opensearch.cluster.coordination.CoordinationStateRejectedException.class,
             org.opensearch.cluster.coordination.CoordinationStateRejectedException::new,
             150,
-            LegacyESVersion.V_7_0_0
+            UNKNOWN_VERSION_ADDED
         ),
         SNAPSHOT_IN_PROGRESS_EXCEPTION(
             org.opensearch.snapshots.SnapshotInProgressException.class,
@@ -1569,13 +1564,13 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
             org.opensearch.index.seqno.RetentionLeaseInvalidRetainingSeqNoException.class,
             org.opensearch.index.seqno.RetentionLeaseInvalidRetainingSeqNoException::new,
             156,
-            LegacyESVersion.V_7_5_0
+            UNKNOWN_VERSION_ADDED
         ),
         INGEST_PROCESSOR_EXCEPTION(
             org.opensearch.ingest.IngestProcessorException.class,
             org.opensearch.ingest.IngestProcessorException::new,
             157,
-            LegacyESVersion.V_7_5_0
+            UNKNOWN_VERSION_ADDED
         ),
         PEER_RECOVERY_NOT_FOUND_EXCEPTION(
             org.opensearch.indices.recovery.PeerRecoveryNotFound.class,

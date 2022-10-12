@@ -16,7 +16,6 @@ import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.opensearch.action.support.ActionTestUtils;
-import org.opensearch.action.support.nodes.BaseNodeRequest;
 import org.opensearch.action.support.nodes.BaseNodesRequest;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.SuppressForbidden;
@@ -32,6 +31,7 @@ import org.opensearch.tasks.TaskInfo;
 import org.opensearch.test.tasks.MockTaskManager;
 import org.opensearch.test.tasks.MockTaskManagerListener;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
@@ -56,7 +56,7 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
 
     private static final ThreadMXBean threadMXBean = (ThreadMXBean) ManagementFactory.getThreadMXBean();
 
-    public static class ResourceAwareNodeRequest extends BaseNodeRequest {
+    public static class ResourceAwareNodeRequest extends TransportRequest {
         protected String requestName;
 
         public ResourceAwareNodeRequest() {

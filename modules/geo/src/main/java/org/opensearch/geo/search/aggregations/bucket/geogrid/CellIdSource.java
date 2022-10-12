@@ -43,7 +43,7 @@ import org.opensearch.search.aggregations.support.ValuesSource;
  * Wrapper class to help convert {@link MultiGeoPointValues}
  * to numeric long values for bucketing.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
 public class CellIdSource extends ValuesSource.Numeric {
     private final ValuesSource.GeoPoint valuesSource;
