@@ -32,7 +32,7 @@
 
 package org.opensearch.client.sniff;
 
-import org.apache.http.HttpHost;
+import org.apache.hc.core5.http.HttpHost;
 import org.opensearch.client.Node;
 import org.opensearch.client.RestClient;
 import org.opensearch.client.RestClientTestCase;
