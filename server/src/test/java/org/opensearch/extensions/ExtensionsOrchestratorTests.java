@@ -504,7 +504,6 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
     }
 
     public void testEnvironmentSettingsRegisteredValue() throws Exception {
-
         // Create setting with value false
         Setting<Boolean> boolSetting = Setting.boolSetting("boolSetting", false, Property.Dynamic);
 
