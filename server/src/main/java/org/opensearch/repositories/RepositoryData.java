@@ -540,6 +540,7 @@ public final class RepositoryData {
     private static final String UUID = "uuid";
     private static final String STATE = "state";
     private static final String VERSION = "version";
+    private static final String MIN_VERSION = "min_version";
 
     /**
      * Writes the snapshots metadata and the related indices metadata to x-content.
@@ -625,6 +626,11 @@ public final class RepositoryData {
                 case INDEX_METADATA_IDENTIFIERS:
                     XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
                     indexMetaIdentifiers = parser.mapStrings();
+                    break;
+                case MIN_VERSION:
+                    // ignore min_version
+                    // todo: remove in next version
+                    parser.nextToken();
                     break;
                 default:
                     XContentParserUtils.throwUnknownField(field, parser.getTokenLocation());
