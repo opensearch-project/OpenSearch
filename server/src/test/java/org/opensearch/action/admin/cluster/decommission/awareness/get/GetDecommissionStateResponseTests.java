@@ -18,10 +18,14 @@ import java.io.IOException;
 public class GetDecommissionStateResponseTests extends AbstractXContentTestCase<GetDecommissionStateResponse> {
     @Override
     protected GetDecommissionStateResponse createTestInstance() {
-        DecommissionStatus status = randomFrom(DecommissionStatus.values());
-        String attributeName = randomAlphaOfLength(10);
-        String attributeValue = randomAlphaOfLength(10);
-        DecommissionAttribute decommissionAttribute = new DecommissionAttribute(attributeName, attributeValue);
+        DecommissionStatus status = null;
+        DecommissionAttribute decommissionAttribute = null;
+        if (randomBoolean()) {
+            status = randomFrom(DecommissionStatus.values());
+            String attributeName = randomAlphaOfLength(10);
+            String attributeValue = randomAlphaOfLength(10);
+            decommissionAttribute = new DecommissionAttribute(attributeName, attributeValue);
+        }
         return new GetDecommissionStateResponse(decommissionAttribute, status);
     }
 

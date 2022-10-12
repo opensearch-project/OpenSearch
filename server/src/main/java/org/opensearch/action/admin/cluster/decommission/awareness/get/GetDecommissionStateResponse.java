@@ -83,11 +83,9 @@ public class GetDecommissionStateResponse extends ActionResponse implements ToXC
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.startObject("awareness");
         if (decommissionedAttribute != null) {
             builder.field(decommissionedAttribute.attributeName(), decommissionedAttribute.attributeValue());
         }
-        builder.endObject();
         if (status != null) {
             builder.field("status", status);
         }
@@ -97,43 +95,13 @@ public class GetDecommissionStateResponse extends ActionResponse implements ToXC
 
     public static GetDecommissionStateResponse fromXContent(XContentParser parser) throws IOException {
         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
-        String attributeType = "awareness";
         XContentParser.Token token;
         DecommissionAttribute decommissionAttribute = null;
         DecommissionStatus status = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 String currentFieldName = parser.currentName();
-                if (attributeType.equals(currentFieldName)) {
-                    if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
-                        throw new OpenSearchParseException(
-                            "failed to parse decommission attribute type [{}], expected object",
-                            attributeType
-                        );
-                    }
-                    token = parser.nextToken();
-                    if (token != XContentParser.Token.END_OBJECT) {
-                        if (token == XContentParser.Token.FIELD_NAME) {
-                            String fieldName = parser.currentName();
-                            String value;
-                            token = parser.nextToken();
-                            if (token == XContentParser.Token.VALUE_STRING) {
-                                value = parser.text();
-                            } else {
-                                throw new OpenSearchParseException(
-                                    "failed to parse attribute [{}], expected string for attribute value",
-                                    fieldName
-                                );
-                            }
-                            decommissionAttribute = new DecommissionAttribute(fieldName, value);
-                            parser.nextToken();
-                        } else {
-                            throw new OpenSearchParseException("failed to parse attribute type [{}], unexpected type", attributeType);
-                        }
-                    } else {
-                        throw new OpenSearchParseException("failed to parse attribute type [{}]", attributeType);
-                    }
-                } else if ("status".equals(currentFieldName)) {
+                if ("status".equals(currentFieldName)) {
                     if (parser.nextToken() != XContentParser.Token.VALUE_STRING) {
                         throw new OpenSearchParseException(
                             "failed to parse status of decommissioning, expected string but found unknown type"
@@ -141,11 +109,21 @@ public class GetDecommissionStateResponse extends ActionResponse implements ToXC
                     }
                     status = DecommissionStatus.fromString(parser.text().toLowerCase(Locale.ROOT));
                 } else {
-                    throw new OpenSearchParseException(
-                        "unknown field found [{}], failed to parse the decommission attribute",
-                        currentFieldName
-                    );
+                    if (parser.nextToken() != XContentParser.Token.VALUE_STRING) {
+                        throw new OpenSearchParseException(
+                            "failed to parse attribute [{}], expected string for attribute value",
+                            currentFieldName
+                        );
+                    }
+                    String attributeValue = parser.text();
+                    decommissionAttribute = new DecommissionAttribute(currentFieldName, attributeValue);
                 }
+            } else {
+                throw new OpenSearchParseException(
+                    "failed to parse decommission state, expected [{}] but found [{}]",
+                    XContentParser.Token.FIELD_NAME,
+                    token
+                );
             }
         }
         return new GetDecommissionStateResponse(decommissionAttribute, status);
@@ -156,7 +134,10 @@ public class GetDecommissionStateResponse extends ActionResponse implements ToXC
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         GetDecommissionStateResponse that = (GetDecommissionStateResponse) o;
-        return decommissionedAttribute.equals(that.decommissionedAttribute) && status == that.status;
+        if (!Objects.equals(decommissionedAttribute, that.decommissionedAttribute)) {
+            return false;
+        }
+        return Objects.equals(status, that.status);
     }
 
     @Override
