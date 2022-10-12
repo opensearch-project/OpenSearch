@@ -32,7 +32,7 @@ public class PrincipalIdentifierToken implements NamedWriteable {
      */
     protected PrincipalIdentifierToken(String token) {
         this.token = token;
-   
+
     }
 
     public PrincipalIdentifierToken(StreamInput in) throws IOException {

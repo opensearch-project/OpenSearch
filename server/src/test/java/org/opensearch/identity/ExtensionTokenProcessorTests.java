@@ -20,7 +20,8 @@ import javax.crypto.NoSuchPaddingException;
 
 public class ExtensionTokenProcessorTests extends OpenSearchTestCase {
 
-    private static final Principal userPrincipal = () -> "user1"; 
+    private static final String userName = "user1";
+    private static final Principal userPrincipal = () -> userName; 
 
     public void testGenerateToken() {
 
@@ -42,9 +43,7 @@ public class ExtensionTokenProcessorTests extends OpenSearchTestCase {
         }
 
         assertNotEquals(null, generatedIdentifier);
-        System.out.print("Assertion Not Null in Generation Test Passed; Generated ID is: ");
         System.out.println(generatedIdentifier.getToken());
-        System.out.println("Token Generation Passed");
     }
 
     public void testExtractPrincipal() {
@@ -72,26 +71,9 @@ public class ExtensionTokenProcessorTests extends OpenSearchTestCase {
                 }
         
 
-        assertNotEquals(null, principalName);
-//System.out.println(String.format("Comparing %s, and %s", userPrincipal.getName(), principalName));
-        //assertEquals(userPrincipal.getName(), principalName);
-        System.out.println(String.format("Retrieved decrypted PIT is %s", principalName));
+        assertEquals(userName, principalName);
     }
 
-    // public void testExtractPrincipalMalformedToken() {
-    //     String extensionUniqueId = "ext_1";
-    //     String token = "garbage";
-    //     PrincipalIdentifierToken principalIdentifierToken = new PrincipalIdentifierToken(token);
-    //     ExtensionTokenProcessor extensionTokenProcessor = new ExtensionTokenProcessor(extensionUniqueId);
-
-    //     Exception exception = assertThrows(
-    //         IllegalArgumentException.class,
-    //         () -> extensionTokenProcessor.extractPrincipal(principalIdentifierToken)
-    //     );
-
-    //     assertFalse(exception.getMessage().isEmpty());
-    //     assertEquals(ExtensionTokenProcessor.INVALID_TOKEN_MESSAGE, exception.getMessage());
-    // }
 
     // public void testExtractPrincipalWithNullToken() {
     //     String extensionUniqueId1 = "ext_1";

@@ -66,13 +66,17 @@ public class ExtensionTokenProcessor {
         return this.secretKey;
     }
 
+    /**
+     * Getter for the extensionTokenProcessor's secretKey
+     */
     public SecretKey getSecretKey() {
 
         return this.secretKey;
     }
 
     /**
-     * 
+     * Creates a new initialization vector for encryption--CAN ONLY BE USED ONCE PER KEY
+     * @returns A new initialization vector
      */
     public byte[] generateInitializationVector() {
 
@@ -106,7 +110,6 @@ public class ExtensionTokenProcessor {
         byte[] initializationVector = generateInitializationVector(); 
         Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
         
-
         GCMParameterSpec spec = new GCMParameterSpec(TAG_LENGTH_BITS, initializationVector);
         cipher.init(Cipher.ENCRYPT_MODE, secretKey, spec);
       
@@ -117,11 +120,6 @@ public class ExtensionTokenProcessor {
             .put(initializationVector)
             .put(combinedEncoding)
             .array();
-
-        System.out.println(String.format("IV at end of generateToken is %s", hex(initializationVector)));
-        System.out.println(String.format("CipherText at end of generateToken is %s", hex(combinedEncoding)));
-        System.out.println(String.format("PIT encoded string with IV at end of generateToken is %s", hex(combinedEncodingWithIV)));
-        System.out.println(String.format("IV length is %d, cipherText length is %d, final encoding length is %d", initializationVector.length, combinedEncoding.length, combinedEncodingWithIV.length));
 
         String s = Base64.getEncoder().encodeToString(combinedEncodingWithIV);
         return new PrincipalIdentifierToken(s);
@@ -150,7 +148,6 @@ public class ExtensionTokenProcessor {
      */
     public String extractPrincipal(PrincipalIdentifierToken token, SecretKey secretKey) throws IllegalArgumentException, InvalidKeyException, InvalidAlgorithmParameterException, IllegalBlockSizeException, BadPaddingException, NoSuchAlgorithmException, NoSuchPaddingException {
     
-        System.out.println("Top of extract prinicipal");
         String tokenString = token.getToken();
         byte[] tokenBytes = Base64.getDecoder().decode(tokenString);
 
@@ -163,14 +160,12 @@ public class ExtensionTokenProcessor {
 
         byte[] cipherText = new byte[bb.remaining()];
         bb.get(cipherText);
-        System.out.println(String.format("Extracted IV %s, Extracted cipherText %s", hex(iv), hex(cipherText)));
 
         Cipher decryptionCipher = Cipher.getInstance("AES/GCM/NoPadding");
         GCMParameterSpec spec = new GCMParameterSpec(TAG_LENGTH_BITS, iv);
         decryptionCipher.init(Cipher.DECRYPT_MODE, secretKey, spec);
       
         byte[] combinedEncoding = decryptionCipher.doFinal(cipherText);
-        System.out.println(String.format("PIT encoding String after decryption is %s", hex(combinedEncoding)));
        
         String decoded = new String(combinedEncoding, StandardCharsets.UTF_8).replace(this.extensionUniqueId, "");
         return decoded;
@@ -192,9 +187,9 @@ public class ExtensionTokenProcessor {
         }
 
         String tokenName = token.getWriteableName();
-        byte[] tokenBytes = tokenName.getBytes();
+        byte[] tokenBytes = Base64.getDecoder().decode(token.getToken());
         // Check whether token is correct length 
-        if (tokenBytes.length != KEY_SIZE_BITS*2) {
+        if (tokenBytes.length >= INITIALIZATION_VECTOR_SIZE_BYTES) {
             throw new IllegalArgumentException(INVALID_TOKEN_MESSAGE);
         }
     }
