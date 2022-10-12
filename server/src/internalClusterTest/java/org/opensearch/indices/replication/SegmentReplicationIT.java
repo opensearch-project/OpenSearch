@@ -237,15 +237,11 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
 
     public void testIndexReopenClose() throws Exception {
         final String primary = internalCluster().startNode();
-        createIndex(INDEX_NAME);
-        ensureYellowAndNoInitializingShards(INDEX_NAME);
         final String replica = internalCluster().startNode();
+        createIndex(INDEX_NAME);
         ensureGreen(INDEX_NAME);
 
-        client().prepareIndex(INDEX_NAME).setId("1").setSource("foo", "bar").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
-        refresh(INDEX_NAME);
-
-        final int initialDocCount = scaledRandomIntBetween(10000, 200000);
+        final int initialDocCount = scaledRandomIntBetween(100, 200);
         try (
             BackgroundIndexer indexer = new BackgroundIndexer(
                 INDEX_NAME,
@@ -259,22 +255,22 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
         ) {
             indexer.start(initialDocCount);
             waitForDocs(initialDocCount, indexer);
-            refresh(INDEX_NAME);
+            flush(INDEX_NAME);
             waitForReplicaUpdate();
         }
 
-        flushAndRefresh(INDEX_NAME);
-        waitForReplicaUpdate();
+        assertHitCount(client(primary).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), initialDocCount);
+        assertHitCount(client(replica).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), initialDocCount);
 
         logger.info("--> Closing the index ");
         client().admin().indices().prepareClose(INDEX_NAME).get();
 
-        // Add another node to kick off TransportNodesListGatewayStartedShards which fetches latestReplicationCheckpoint for SegRep enabled
-        // indices
-        final String replica2 = internalCluster().startNode();
-
         logger.info("--> Opening the index");
         client().admin().indices().prepareOpen(INDEX_NAME).get();
+
+        ensureGreen(INDEX_NAME);
+        assertHitCount(client(primary).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), initialDocCount);
+        assertHitCount(client(replica).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), initialDocCount);
     }
 
     public void testMultipleShards() throws Exception {
