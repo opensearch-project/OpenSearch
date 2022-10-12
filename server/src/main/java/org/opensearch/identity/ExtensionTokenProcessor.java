@@ -14,7 +14,7 @@ import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;  
 import java.security.SecureRandom;
-
+import java.util.Base64;
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
@@ -37,11 +37,11 @@ public class ExtensionTokenProcessor {
     public static final String INVALID_ALGO_MESSAGE = "Failed to create a token because an invalid hashing algorithm was used.";
     public static final String INVALID_PRINCIPAL_MESSAGE = "Token passed here is for a different principal.";
 
-    public static final int KEY_SIZE_BITS = 128;
+    public static final int KEY_SIZE_BITS = 256;
     public static final int INITIALIZATION_VECTOR_SIZE_BYTES = 96;
     public static final int TAG_LENGTH_BITS = 128;
     
-    private final byte[] extensionUniqueId;
+    public final String extensionUniqueId;
 
     private SecretKey secretKey; 
     private SecretKeySpec secretKeySpec; 
@@ -51,31 +51,30 @@ public class ExtensionTokenProcessor {
     public ExtensionTokenProcessor(String extensionUniqueId) {
         
         //The extension ID should ALWAYS stay the same 
-        this.extensionUniqueId = extensionUniqueId.getBytes();
-        try {
-            generateCipher();
-        } catch (NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException | InvalidAlgorithmParameterException | IllegalBlockSizeException | BadPaddingException | IOException ex) {
-
-            System.out.println("Failed to generate cipher at instantiation");
-            ex.printStackTrace();
-            throw new Error(ex);
-        }
+        this.extensionUniqueId = extensionUniqueId;
+      
     }
 
     /**
      * Allow for the reseting of the extension processor key. This will remove all access to existing encryptions. 
      */
-    public void generateKey() throws NoSuchAlgorithmException {
+    public SecretKey generateKey() throws NoSuchAlgorithmException {
 
         KeyGenerator keyGen = KeyGenerator.getInstance("AES");
         keyGen.init(KEY_SIZE_BITS, SecureRandom.getInstanceStrong());
         this.secretKey = keyGen.generateKey();
+        return this.secretKey;
+    }
+
+    public SecretKey getSecretKey() {
+
+        return this.secretKey;
     }
 
     /**
      * 
      */
-    public void generateInitializationVector() {
+    public byte[] generateInitializationVector() {
 
         byte[] initializationVector = new byte[INITIALIZATION_VECTOR_SIZE_BYTES];
         SecureRandom random = new SecureRandom();
@@ -83,20 +82,6 @@ public class ExtensionTokenProcessor {
         return initializationVector;
     }
 
-
-    /**
-     * Completely resets and reinitializes the extensionCipher and all its constituents
-     */
-    public void generateCipher() throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, InvalidAlgorithmParameterException, IllegalBlockSizeException, BadPaddingException, IOException {
-
-        Cipher newCipher = Cipher.getInstance("AES/GCM/NoPadding");
-        byte[] initializationVector = generateInitializationVector(); 
-        generateKey(); 
-        GCMParameterSpec spec = new GCMParameterSpec(TAG_LENGTH_BITS, this.initializationVector);
-        newCipher.init(Cipher.ENCRYPT_MODE, this.secretKey, spec);
-        this.encryptionCipher = newCipher;
-    }
-    
     
     /**
      * Create a two-way encrypted access token for given principal for this extension
@@ -113,22 +98,41 @@ public class ExtensionTokenProcessor {
     public PrincipalIdentifierToken generateToken(Principal principal) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, InvalidAlgorithmParameterException, IllegalBlockSizeException, BadPaddingException, IOException {
         
         ByteArrayOutputStream output = new ByteArrayOutputStream();
-        output.write(this.extensionUniqueId);
+        output.write(this.extensionUniqueId.getBytes());
         output.write(principal.getName().getBytes());
         byte[] combinedAttributes = output.toByteArray();
 
-        System.out.println(String.format("combinedAttributes String before encryption %s", new String(combinedAttributes, StandardCharsets.UTF_8)));
-        byte[] combinedEncoding = this.encryptionCipher.doFinal(combinedAttributes);
+        SecretKey secretKey = generateKey(); 
+        byte[] initializationVector = generateInitializationVector(); 
+        Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+        
+
+        GCMParameterSpec spec = new GCMParameterSpec(TAG_LENGTH_BITS, initializationVector);
+        cipher.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+      
+        
+        byte[] combinedEncoding = cipher.doFinal(combinedAttributes);
         
         byte[] combinedEncodingWithIV = ByteBuffer.allocate(INITIALIZATION_VECTOR_SIZE_BYTES + combinedEncoding.length)
-            .put(this.initializationVector)
+            .put(initializationVector)
             .put(combinedEncoding)
             .array();
 
-        //System.out.println(String.format("On Encrypt IV is: %s", new String(this.initializationVector, StandardCharsets.UTF_8)));
-        System.out.println(String.format("PIT encoded string at end of generateToken is %s", new String(combinedEncoding, StandardCharsets.UTF_8)));
+        System.out.println(String.format("IV at end of generateToken is %s", hex(initializationVector)));
+        System.out.println(String.format("CipherText at end of generateToken is %s", hex(combinedEncoding)));
+        System.out.println(String.format("PIT encoded string with IV at end of generateToken is %s", hex(combinedEncodingWithIV)));
+        System.out.println(String.format("IV length is %d, cipherText length is %d, final encoding length is %d", initializationVector.length, combinedEncoding.length, combinedEncodingWithIV.length));
 
-        return new PrincipalIdentifierToken(new String(combinedEncodingWithIV, StandardCharsets.UTF_8));
+        String s = Base64.getEncoder().encodeToString(combinedEncodingWithIV);
+        return new PrincipalIdentifierToken(s);
+    }
+
+    public static String hex(byte[] bytes) {
+        StringBuilder result = new StringBuilder();
+        for (byte b : bytes) {
+            result.append(String.format("%02x", b));
+        }
+        return result.toString();
     }
 
     /**
@@ -144,11 +148,11 @@ public class ExtensionTokenProcessor {
      *
      * @opensearch.internal
      */
-    public String extractPrincipal(PrincipalIdentifierToken token) throws IllegalArgumentException, InvalidKeyException, InvalidAlgorithmParameterException, IllegalBlockSizeException, BadPaddingException, NoSuchAlgorithmException, NoSuchPaddingException {
+    public String extractPrincipal(PrincipalIdentifierToken token, SecretKey secretKey) throws IllegalArgumentException, InvalidKeyException, InvalidAlgorithmParameterException, IllegalBlockSizeException, BadPaddingException, NoSuchAlgorithmException, NoSuchPaddingException {
     
         System.out.println("Top of extract prinicipal");
         String tokenString = token.getToken();
-        byte[] tokenBytes = tokenString.getBytes(StandardCharsets.UTF_8);
+        byte[] tokenBytes = Base64.getDecoder().decode(tokenString);
 
 
         ByteBuffer bb = ByteBuffer.wrap(tokenBytes);
@@ -159,25 +163,17 @@ public class ExtensionTokenProcessor {
 
         byte[] cipherText = new byte[bb.remaining()];
         bb.get(cipherText);
+        System.out.println(String.format("Extracted IV %s, Extracted cipherText %s", hex(iv), hex(cipherText)));
 
         Cipher decryptionCipher = Cipher.getInstance("AES/GCM/NoPadding");
-        GCMParameterSpec spec = new GCMParameterSpec(TAG_LENGTH_BITS, this.initializationVector);
-        decryptionCipher.init(Cipher.DECRYPT_MODE, this.secretKey, spec);
-        System.out.println(String.format("PIT encoding String before decryption is %s", tokenString));
+        GCMParameterSpec spec = new GCMParameterSpec(TAG_LENGTH_BITS, iv);
+        decryptionCipher.init(Cipher.DECRYPT_MODE, secretKey, spec);
+      
         byte[] combinedEncoding = decryptionCipher.doFinal(cipherText);
-        System.out.println(String.format("PIT encoding String after decryption is %s", new String(combinedEncoding, StandardCharsets.UTF_8)));
-        //String principalName = new String(combinedEncoding, StandardCharsets.UTF_8);
-        //System.out.println(String.format("Principal Name is %s", principalName)); 
-
+        System.out.println(String.format("PIT encoding String after decryption is %s", hex(combinedEncoding)));
+       
         String decoded = new String(combinedEncoding, StandardCharsets.UTF_8);
         return decoded;
-        //Have to be able to look at the principals and find the match if you want to actually return the Principal object and not just a String    
-        
-        //for (Principal p : Principals){
-        //   if (p.NAME.equals(principalName)) {
-        //        return p;
-        //    }
-        //}
     }
 
     /**

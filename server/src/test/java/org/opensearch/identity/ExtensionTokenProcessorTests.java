@@ -13,6 +13,7 @@ import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.Principal;
 
+import javax.crypto.SecretKey;
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
@@ -21,30 +22,30 @@ public class ExtensionTokenProcessorTests extends OpenSearchTestCase {
 
     private static final Principal userPrincipal = () -> "user1"; 
 
-    // public void testGenerateToken() {
+    public void testGenerateToken() {
 
-    //     System.out.println("Start of the extension token tests");
-    //     String extensionUniqueId = "ext_1";
-    //     ExtensionTokenProcessor extensionTokenProcessor = new ExtensionTokenProcessor(extensionUniqueId);
+        System.out.println("Start of the extension token tests");
+        String extensionUniqueId = "ext_1";
+        ExtensionTokenProcessor extensionTokenProcessor = new ExtensionTokenProcessor(extensionUniqueId);
 
-    //     PrincipalIdentifierToken generatedIdentifier;
+        PrincipalIdentifierToken generatedIdentifier;
 
-    //     try {
-    //         generatedIdentifier = extensionTokenProcessor.generateToken(userPrincipal);
-    //     } catch (InvalidKeyException | NoSuchAlgorithmException | NoSuchPaddingException
-    //             | InvalidAlgorithmParameterException | IllegalBlockSizeException | BadPaddingException
-    //             | IOException e) {
+        try {
+            generatedIdentifier = extensionTokenProcessor.generateToken(userPrincipal);
+        } catch (InvalidKeyException | NoSuchAlgorithmException | NoSuchPaddingException
+                | InvalidAlgorithmParameterException | IllegalBlockSizeException | BadPaddingException
+                | IOException e) {
        
-    //         System.out.println("Token Generation Test Failed");
-    //         e.printStackTrace();
-    //         throw new Error(e);
-    //     }
+            System.out.println("Token Generation Test Failed");
+            e.printStackTrace();
+            throw new Error(e);
+        }
 
-    //     assertNotEquals(null, generatedIdentifier);
-    //     System.out.print("Assertion Not Null in Generation Test Passed; Generated ID is: ");
-    //     System.out.println(generatedIdentifier.getToken());
-    //     System.out.println("Token Generation Passed");
-    // }
+        assertNotEquals(null, generatedIdentifier);
+        System.out.print("Assertion Not Null in Generation Test Passed; Generated ID is: ");
+        System.out.println(generatedIdentifier.getToken());
+        System.out.println("Token Generation Passed");
+    }
 
     public void testExtractPrincipal() {
         String extensionUniqueId = "ext_2";
@@ -54,9 +55,13 @@ public class ExtensionTokenProcessorTests extends OpenSearchTestCase {
         PrincipalIdentifierToken generatedIdentifier;
 
         String principalName;
+
+        SecretKey secretKey; 
+
         try {
             generatedIdentifier = extensionTokenProcessor.generateToken(userPrincipal);
-            principalName = extensionTokenProcessor.extractPrincipal(generatedIdentifier);
+            secretKey = extensionTokenProcessor.getSecretKey(); 
+            principalName = extensionTokenProcessor.extractPrincipal(generatedIdentifier, secretKey);
         } catch (InvalidKeyException | IllegalArgumentException | InvalidAlgorithmParameterException
                 | IllegalBlockSizeException | BadPaddingException | NoSuchAlgorithmException
                 | NoSuchPaddingException | IOException e) {
