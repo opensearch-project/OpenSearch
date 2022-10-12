@@ -5,6 +5,10 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ## [Unreleased]
 ### Dependencies
 - Bumps `gson` from 2.9.0 to 2.9.1
+- Bumps `protobuf-java` from 3.21.2 to 3.21.7
+- Bumps `azure-core` from 1.31.0 to 1.33.0
+- Bumps `avro` from 1.11.0 to 1.11.1
+- Bumps `woodstox-core` from 6.3.0 to 6.3.1
 
 ### Added
 
@@ -32,7 +36,8 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Added precommit support for MacOS ([#4682](https://github.com/opensearch-project/OpenSearch/pull/4682))
 - Recommission API changes for service layer ([#4320](https://github.com/opensearch-project/OpenSearch/pull/4320))
 - Update GeoGrid base class access modifier to support extensibility ([#4572](https://github.com/opensearch-project/OpenSearch/pull/4572))
-- Added changes for graceful node decommission ([#4586](https://github.com/opensearch-project/OpenSearch/pull/4586))
+- Add a new node role 'search' which is dedicated to provide search capability ([#4689](https://github.com/opensearch-project/OpenSearch/pull/4689))
+
 ### Dependencies
 - Bumps `log4j-core` from 2.18.0 to 2.19.0
 - Bumps `reactor-netty-http` from 1.0.18 to 1.0.23
@@ -78,6 +83,8 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Update to Apache Lucene 9.4.0 ([#4661](https://github.com/opensearch-project/OpenSearch/pull/4661))
 - Controlling discovery for decommissioned nodes ([#4590](https://github.com/opensearch-project/OpenSearch/pull/4590))
 - Backport Apache Lucene version change for 2.4.0 ([#4677](https://github.com/opensearch-project/OpenSearch/pull/4677))
+- Refactor Base Action class javadocs to OpenSearch.API ([#4732](https://github.com/opensearch-project/OpenSearch/pull/4732))
+- Migrate client transports to Apache HttpClient / Core 5.x ([#4459](https://github.com/opensearch-project/OpenSearch/pull/4459))
 
 ### Deprecated
 
