@@ -172,7 +172,7 @@ public class ExtensionTokenProcessor {
         byte[] combinedEncoding = decryptionCipher.doFinal(cipherText);
         System.out.println(String.format("PIT encoding String after decryption is %s", hex(combinedEncoding)));
        
-        String decoded = new String(combinedEncoding, StandardCharsets.UTF_8);
+        String decoded = new String(combinedEncoding, StandardCharsets.UTF_8).replace(this.extensionUniqueId, "");
         return decoded;
     }
 
