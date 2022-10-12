@@ -12,7 +12,7 @@ import org.opensearch.action.support.clustermanager.ClusterManagerNodeOperationR
 import org.opensearch.client.OpenSearchClient;
 
 /**
- * Builder for a Delete decommission request.
+ * Builder for Delete decommission request.
  *
  * @opensearch.internal
  */
