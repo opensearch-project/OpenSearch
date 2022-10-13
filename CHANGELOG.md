@@ -30,6 +30,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Update GeoGrid base class access modifier to support extensibility ([#4572](https://github.com/opensearch-project/OpenSearch/pull/4572))
 - Add a new node role 'search' which is dedicated to provide search capability ([#4689](https://github.com/opensearch-project/OpenSearch/pull/4689))
 - Introduce experimental searchable snapshot API ([#4680](https://github.com/opensearch-project/OpenSearch/pull/4680))
+- Make the index restored by remote snapshot as read only but allow deletion ([#4764](https://github.com/opensearch-project/OpenSearch/pull/4764))
 
 ### Dependencies
 - Bumps `log4j-core` from 2.18.0 to 2.19.0
