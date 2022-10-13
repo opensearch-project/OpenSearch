@@ -29,7 +29,8 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Recommission API changes for service layer ([#4320](https://github.com/opensearch-project/OpenSearch/pull/4320))
 - Update GeoGrid base class access modifier to support extensibility ([#4572](https://github.com/opensearch-project/OpenSearch/pull/4572))
 - Add a new node role 'search' which is dedicated to provide search capability ([#4689](https://github.com/opensearch-project/OpenSearch/pull/4689))
-- Recommissioning of zone. REST layer support. ([#4624](https://github.com/opensearch-project/OpenSearch/pull/4604))
+- Introduce experimental searchable snapshot API ([#4680](https://github.com/opensearch-project/OpenSearch/pull/4680))
+
 ### Dependencies
 - Bumps `log4j-core` from 2.18.0 to 2.19.0
 - Bumps `reactor-netty-http` from 1.0.18 to 1.0.23
