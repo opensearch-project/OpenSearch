@@ -38,6 +38,7 @@ import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
+import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.indices.replication.SegmentReplicationSourceFactory;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
@@ -213,6 +214,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -604,11 +606,23 @@ public class Node implements Closeable {
                 .map(plugin -> (Function<IndexSettings, Optional<EngineFactory>>) plugin::getEngineFactory)
                 .collect(Collectors.toList());
 
-            final Map<String, IndexStorePlugin.DirectoryFactory> indexStoreFactories = pluginsService.filterPlugins(IndexStorePlugin.class)
+            final Map<String, IndexStorePlugin.DirectoryFactory> builtInDirectoryFactories = IndexModule.createBuiltInDirectoryFactories(
+                repositoriesServiceReference::get
+            );
+            final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories = new HashMap<>();
+            pluginsService.filterPlugins(IndexStorePlugin.class)
                 .stream()
                 .map(IndexStorePlugin::getDirectoryFactories)
                 .flatMap(m -> m.entrySet().stream())
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
+                .forEach((k, v) -> {
+                    // do not allow any plugin-provided index store type to conflict with a built-in type
+                    if (builtInDirectoryFactories.containsKey(k)) {
+                        throw new IllegalStateException("registered index store type [" + k + "] conflicts with a built-in type");
+                    }
+                    directoryFactories.put(k, v);
+                });
+            directoryFactories.putAll(builtInDirectoryFactories);
 
             final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories = pluginsService.filterPlugins(
                 IndexStorePlugin.class
@@ -653,7 +667,7 @@ public class Node implements Closeable {
                 client,
                 metaStateService,
                 engineFactoryProviders,
-                indexStoreFactories,
+                Map.copyOf(directoryFactories),
                 searchModule.getValuesSourceRegistry(),
                 recoveryStateFactories,
                 remoteDirectoryFactory

@@ -484,7 +484,8 @@ public class RemoveCorruptedShardDataCommand extends OpenSearchNodeCommand {
         final ShardStateMetadata newShardStateMetadata = new ShardStateMetadata(
             shardStateMetadata.primary,
             shardStateMetadata.indexUUID,
-            newAllocationId
+            newAllocationId,
+            ShardStateMetadata.IndexDataLocation.LOCAL
         );
 
         ShardStateMetadata.FORMAT.writeAndCleanup(newShardStateMetadata, shardStatePath);
