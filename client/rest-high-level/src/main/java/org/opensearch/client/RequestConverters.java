@@ -32,14 +32,14 @@
 
 package org.opensearch.client;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.client.methods.HttpDelete;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.client.methods.HttpHead;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.methods.HttpPut;
-import org.apache.http.entity.ContentType;
-import org.apache.http.nio.entity.NByteArrayEntity;
+import org.apache.hc.client5.http.classic.methods.HttpDelete;
+import org.apache.hc.client5.http.classic.methods.HttpGet;
+import org.apache.hc.client5.http.classic.methods.HttpHead;
+import org.apache.hc.client5.http.classic.methods.HttpPost;
+import org.apache.hc.client5.http.classic.methods.HttpPut;
+import org.apache.hc.core5.http.ContentType;
+import org.apache.hc.core5.http.HttpEntity;
+import org.apache.hc.core5.http.io.entity.ByteArrayEntity;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
@@ -269,7 +269,7 @@ final class RequestConverters {
             }
         }
         request.addParameters(parameters.asMap());
-        request.setEntity(new NByteArrayEntity(content.toByteArray(), 0, content.size(), requestContentType));
+        request.setEntity(new ByteArrayEntity(content.toByteArray(), 0, content.size(), requestContentType));
         return request;
     }
 
@@ -358,7 +358,7 @@ final class RequestConverters {
         BytesRef source = indexRequest.source().toBytesRef();
         ContentType contentType = createContentType(indexRequest.getContentType());
         request.addParameters(parameters.asMap());
-        request.setEntity(new NByteArrayEntity(source.bytes, source.offset, source.length, contentType));
+        request.setEntity(new ByteArrayEntity(source.bytes, source.offset, source.length, contentType));
         return request;
     }
 
@@ -498,6 +498,10 @@ final class RequestConverters {
         return new Request(HttpDelete.METHOD_NAME, "/_search/point_in_time/_all");
     }
 
+    static Request getAllPits() {
+        return new Request(HttpGet.METHOD_NAME, "/_search/point_in_time/_all");
+    }
+
     static Request multiSearch(MultiSearchRequest multiSearchRequest) throws IOException {
         Request request = new Request(HttpPost.METHOD_NAME, "/_msearch");
 
@@ -510,7 +514,7 @@ final class RequestConverters {
         XContent xContent = REQUEST_BODY_CONTENT_TYPE.xContent();
         byte[] source = MultiSearchRequest.writeMultiLineFormat(multiSearchRequest, xContent);
         request.addParameters(params.asMap());
-        request.setEntity(new NByteArrayEntity(source, createContentType(xContent.type())));
+        request.setEntity(new ByteArrayEntity(source, createContentType(xContent.type())));
         return request;
     }
 
@@ -545,7 +549,7 @@ final class RequestConverters {
 
         XContent xContent = REQUEST_BODY_CONTENT_TYPE.xContent();
         byte[] source = MultiSearchTemplateRequest.writeMultiLineFormat(multiSearchTemplateRequest, xContent);
-        request.setEntity(new NByteArrayEntity(source, createContentType(xContent.type())));
+        request.setEntity(new ByteArrayEntity(source, createContentType(xContent.type())));
         return request;
     }
 
@@ -813,7 +817,7 @@ final class RequestConverters {
     static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType, ToXContent.Params toXContentParams)
         throws IOException {
         BytesRef source = XContentHelper.toXContent(toXContent, xContentType, toXContentParams, false).toBytesRef();
-        return new NByteArrayEntity(source.bytes, source.offset, source.length, createContentType(xContentType));
+        return new ByteArrayEntity(source.bytes, source.offset, source.length, createContentType(xContentType));
     }
 
     static String endpoint(String index, String id) {

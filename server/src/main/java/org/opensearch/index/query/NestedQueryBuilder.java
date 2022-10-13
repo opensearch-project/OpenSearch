@@ -131,6 +131,13 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
     }
 
     /**
+     * Returns path of the nested query.
+     */
+    public String path() {
+        return path;
+    }
+
+    /**
      * Returns the nested query to execute.
      */
     public QueryBuilder query() {

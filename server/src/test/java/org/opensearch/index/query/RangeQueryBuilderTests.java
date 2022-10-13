@@ -94,7 +94,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 if (createShardContext().getMapperService().fieldType(DATE_FIELD_NAME) != null) {
                     if (randomBoolean()) {
                         // drawing a truly random zoneId here can rarely fail under the following conditons:
-                        // - index versionCreated before V_7_0_0
+                        // - index versionCreated before legacy V_7_0_0
                         // - no "forced" date parser through a format parameter
                         // - one of the SystemV* time zones that Jodas DateTimeZone parser doesn't know about
                         // thats why we exlude it here (see #58431)

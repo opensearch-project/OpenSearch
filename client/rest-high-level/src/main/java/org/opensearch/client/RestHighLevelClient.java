@@ -32,7 +32,7 @@
 
 package org.opensearch.client;
 
-import org.apache.http.HttpEntity;
+import org.apache.hc.core5.http.HttpEntity;
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchStatusException;
 import org.opensearch.action.ActionListener;
@@ -63,6 +63,7 @@ import org.opensearch.action.search.CreatePitRequest;
 import org.opensearch.action.search.CreatePitResponse;
 import org.opensearch.action.search.DeletePitRequest;
 import org.opensearch.action.search.DeletePitResponse;
+import org.opensearch.action.search.GetAllPitNodesResponse;
 import org.opensearch.action.search.MultiSearchRequest;
 import org.opensearch.action.search.MultiSearchResponse;
 import org.opensearch.action.search.SearchRequest;
@@ -1369,6 +1370,40 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
+     * Get all point in time searches using list all PITs API
+     *
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     */
+    public final GetAllPitNodesResponse getAllPits(RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(
+            new MainRequest(),
+            (request) -> RequestConverters.getAllPits(),
+            options,
+            GetAllPitNodesResponse::fromXContent,
+            emptySet()
+        );
+    }
+
+    /**
+     * Asynchronously get all point in time searches using list all PITs API
+     *
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @return the response
+     */
+    public final Cancellable getAllPitsAsync(RequestOptions options, ActionListener<GetAllPitNodesResponse> listener) {
+        return performRequestAsyncAndParseEntity(
+            new MainRequest(),
+            (request) -> RequestConverters.getAllPits(),
+            options,
+            GetAllPitNodesResponse::fromXContent,
+            listener,
+            emptySet()
+        );
+    }
+
+    /**
      * Clears one or more scroll ids using the Clear Scroll API.
      *
      * @param clearScrollRequest the request
@@ -2185,9 +2220,9 @@ public class RestHighLevelClient implements Closeable {
         if (entity.getContentType() == null) {
             throw new IllegalStateException("OpenSearch didn't return the [Content-Type] header, unable to parse response body");
         }
-        XContentType xContentType = XContentType.fromMediaType(entity.getContentType().getValue());
+        XContentType xContentType = XContentType.fromMediaType(entity.getContentType());
         if (xContentType == null) {
-            throw new IllegalStateException("Unsupported Content-Type: " + entity.getContentType().getValue());
+            throw new IllegalStateException("Unsupported Content-Type: " + entity.getContentType());
         }
         try (XContentParser parser = xContentType.xContent().createParser(registry, DEPRECATION_HANDLER, entity.getContent())) {
             return entityParser.apply(parser);

@@ -40,7 +40,7 @@ import java.io.IOException;
 /**
  * A single geo grid bucket result parsed between nodes
  *
- * @opensearch.internal
+ * @opensearch.api
  */
 public abstract class ParsedGeoGridBucket extends ParsedMultiBucketAggregation.ParsedBucket implements GeoGrid.Bucket {
 

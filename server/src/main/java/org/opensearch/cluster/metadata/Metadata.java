@@ -39,7 +39,6 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.util.CollectionUtil;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.action.AliasesRequest;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterState.FeatureAware;
@@ -51,6 +50,7 @@ import org.opensearch.cluster.NamedDiffableValueSerializer;
 import org.opensearch.cluster.block.ClusterBlock;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.coordination.CoordinationMetadata;
+import org.opensearch.cluster.decommission.DecommissionAttributeMetadata;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
@@ -795,6 +795,10 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             .orElse(Collections.emptyMap());
     }
 
+    public DecommissionAttributeMetadata decommissionAttributeMetadata() {
+        return custom(DecommissionAttributeMetadata.TYPE);
+    }
+
     public ImmutableOpenMap<String, Custom> customs() {
         return this.customs;
     }
@@ -976,22 +980,12 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
         MetadataDiff(StreamInput in) throws IOException {
             clusterUUID = in.readString();
-            if (in.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
-                clusterUUIDCommitted = in.readBoolean();
-            }
+            clusterUUIDCommitted = in.readBoolean();
             version = in.readLong();
-            if (in.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
-                coordinationMetadata = new CoordinationMetadata(in);
-            } else {
-                coordinationMetadata = CoordinationMetadata.EMPTY_METADATA;
-            }
+            coordinationMetadata = new CoordinationMetadata(in);
             transientSettings = Settings.readSettingsFromStream(in);
             persistentSettings = Settings.readSettingsFromStream(in);
-            if (in.getVersion().onOrAfter(LegacyESVersion.V_7_3_0)) {
-                hashesOfConsistentSettings = DiffableStringMap.readDiffFrom(in);
-            } else {
-                hashesOfConsistentSettings = DiffableStringMap.DiffableStringMapDiff.EMPTY;
-            }
+            hashesOfConsistentSettings = DiffableStringMap.readDiffFrom(in);
             indices = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), INDEX_METADATA_DIFF_VALUE_READER);
             templates = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), TEMPLATES_DIFF_VALUE_READER);
             customs = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
@@ -1000,18 +994,12 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(clusterUUID);
-            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
-                out.writeBoolean(clusterUUIDCommitted);
-            }
+            out.writeBoolean(clusterUUIDCommitted);
             out.writeLong(version);
-            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
-                coordinationMetadata.writeTo(out);
-            }
+            coordinationMetadata.writeTo(out);
             Settings.writeSettingsToStream(transientSettings, out);
             Settings.writeSettingsToStream(persistentSettings, out);
-            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_3_0)) {
-                hashesOfConsistentSettings.writeTo(out);
-            }
+            hashesOfConsistentSettings.writeTo(out);
             indices.writeTo(out);
             templates.writeTo(out);
             customs.writeTo(out);
@@ -1038,17 +1026,11 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         Builder builder = new Builder();
         builder.version = in.readLong();
         builder.clusterUUID = in.readString();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
-            builder.clusterUUIDCommitted = in.readBoolean();
-        }
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
-            builder.coordinationMetadata(new CoordinationMetadata(in));
-        }
+        builder.clusterUUIDCommitted = in.readBoolean();
+        builder.coordinationMetadata(new CoordinationMetadata(in));
         builder.transientSettings(readSettingsFromStream(in));
         builder.persistentSettings(readSettingsFromStream(in));
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_3_0)) {
-            builder.hashesOfConsistentSettings(DiffableStringMap.readFrom(in));
-        }
+        builder.hashesOfConsistentSettings(DiffableStringMap.readFrom(in));
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
             builder.put(IndexMetadata.readFrom(in), false);
@@ -1069,17 +1051,11 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(version);
         out.writeString(clusterUUID);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
-            out.writeBoolean(clusterUUIDCommitted);
-        }
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
-            coordinationMetadata.writeTo(out);
-        }
+        out.writeBoolean(clusterUUIDCommitted);
+        coordinationMetadata.writeTo(out);
         writeSettingsToStream(transientSettings, out);
         writeSettingsToStream(persistentSettings, out);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_3_0)) {
-            hashesOfConsistentSettings.writeTo(out);
-        }
+        hashesOfConsistentSettings.writeTo(out);
         out.writeVInt(indices.size());
         for (IndexMetadata indexMetadata : this) {
             indexMetadata.writeTo(out);
@@ -1334,6 +1310,15 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         public IndexGraveyard indexGraveyard() {
             IndexGraveyard graveyard = (IndexGraveyard) getCustom(IndexGraveyard.TYPE);
             return graveyard;
+        }
+
+        public Builder decommissionAttributeMetadata(final DecommissionAttributeMetadata decommissionAttributeMetadata) {
+            putCustom(DecommissionAttributeMetadata.TYPE, decommissionAttributeMetadata);
+            return this;
+        }
+
+        public DecommissionAttributeMetadata decommissionAttributeMetadata() {
+            return (DecommissionAttributeMetadata) getCustom(DecommissionAttributeMetadata.TYPE);
         }
 
         public Builder updateSettings(Settings settings, String... indices) {
