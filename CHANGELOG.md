@@ -52,6 +52,6 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Bump version to 1.3.7 ([#4701](https://github.com/opensearch-project/OpenSearch/pull/4701))
 ### Dependencies
 - Bumps jackson to 2.13.4 and snakeyml to 1.32 ([#4599](https://github.com/opensearch-project/OpenSearch/pull/4599))
-- Update Jackson Databind to 2.13.4.2 (addressing CVE-2022-42003) ([#4779](https://github.com/opensearch-project/OpenSearch/pull/4779))
+- Update Jackson Databind to 2.13.4.2 (addressing CVE-2022-42003) ([#4782](https://github.com/opensearch-project/OpenSearch/pull/4782))
 
 [Unreleased]: https://github.com/opensearch-project/OpenSearch/compare/2.2.0...HEAD
