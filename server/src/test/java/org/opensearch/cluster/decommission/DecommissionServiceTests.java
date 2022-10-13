@@ -134,7 +134,7 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
             @Override
             public void onFailure(Exception e) {
                 assertTrue(e instanceof DecommissioningFailedException);
-                assertThat(e.getMessage(), Matchers.endsWith("invalid awareness attribute requested for decommissioning"));
+                assertThat(e.getMessage(), Matchers.containsString("invalid awareness attribute requested for decommissioning"));
                 countDownLatch.countDown();
             }
         };
@@ -157,9 +157,8 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
                 assertTrue(e instanceof DecommissioningFailedException);
                 assertThat(
                     e.getMessage(),
-                    Matchers.endsWith(
-                        "invalid awareness attribute value requested for decommissioning. "
-                            + "Set forced awareness values before to decommission"
+                    Matchers.containsString(
+                        "failed because invalid awareness attribute value requested for decommissioning. Eligible forced awareness attributes"
                     )
                 );
                 countDownLatch.countDown();
@@ -203,6 +202,40 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
             }
         };
         decommissionService.startDecommissionAction(new DecommissionAttribute("zone", "zone_2"), listener);
+        assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testDecommissioningFailedForInsufficientAttributeValues() throws InterruptedException {
+        final Settings.Builder tempSettingsBuilder = Settings.builder()
+            .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(), "zone")
+            .put("cluster.routing.allocation.awareness.force.zone.values", "zone_1,zone_2");
+        DecommissionService decommissionService = new DecommissionService(
+            tempSettingsBuilder.build(),
+            clusterSettings,
+            clusterService,
+            transportService,
+            threadPool,
+            allocationService
+        );
+
+        final CountDownLatch countDownLatch = new CountDownLatch(1);
+        DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "zone_1");
+
+        ActionListener<DecommissionResponse> listener = new ActionListener<DecommissionResponse>() {
+            @Override
+            public void onResponse(DecommissionResponse decommissionResponse) {
+                fail("on response shouldn't have been called");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assertTrue(e instanceof DecommissioningFailedException);
+                assertEquals(e.getMessage(), "Decommission request for [DecommissionAttribute{attributeName='zone', attributeValue='zone_1'}] failed because total awareness attribute value set to cluster is [2] which is less than minimum attribute value count required [3]");
+                countDownLatch.countDown();
+            }
+        };
+        decommissionService.startDecommissionAction(decommissionAttribute, listener);
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
     }
 
