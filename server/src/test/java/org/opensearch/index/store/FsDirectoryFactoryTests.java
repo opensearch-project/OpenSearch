@@ -57,6 +57,8 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Locale;
 
+import static org.opensearch.test.store.MockFSDirectoryFactory.FILE_SYSTEM_BASED_STORE_TYPES;
+
 public class FsDirectoryFactoryTests extends OpenSearchTestCase {
 
     public void testPreload() throws IOException {
@@ -170,7 +172,7 @@ public class FsDirectoryFactoryTests extends OpenSearchTestCase {
         // default
         doTestStoreDirectory(tempDir, null, IndexModule.Type.FS);
         // explicit directory impls
-        for (IndexModule.Type type : IndexModule.Type.values()) {
+        for (IndexModule.Type type : FILE_SYSTEM_BASED_STORE_TYPES) {
             doTestStoreDirectory(tempDir, type.name().toLowerCase(Locale.ROOT), type);
         }
     }
