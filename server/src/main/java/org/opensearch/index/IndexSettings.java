@@ -34,7 +34,6 @@ package org.opensearch.index;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.sandbox.index.MergeOnFlushMergePolicy;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Strings;
@@ -549,6 +548,30 @@ public final class IndexSettings {
         MERGE_ON_FLUSH_DEFAULT_POLICY,
         Property.IndexScope,
         Property.Dynamic
+    );
+
+    public static final Setting<String> SEARCHABLE_SNAPSHOT_REPOSITORY = Setting.simpleString(
+        "index.searchable_snapshot.repository",
+        Property.IndexScope,
+        Property.InternalIndex
+    );
+
+    public static final Setting<String> SEARCHABLE_SNAPSHOT_ID_UUID = Setting.simpleString(
+        "index.searchable_snapshot.snapshot_id.uuid",
+        Property.IndexScope,
+        Property.InternalIndex
+    );
+
+    public static final Setting<String> SEARCHABLE_SNAPSHOT_ID_NAME = Setting.simpleString(
+        "index.searchable_snapshot.snapshot_id.name",
+        Property.IndexScope,
+        Property.InternalIndex
+    );
+
+    public static final Setting<String> SEARCHABLE_SNAPSHOT_INDEX_ID = Setting.simpleString(
+        "index.searchable_snapshot.index.id",
+        Property.IndexScope,
+        Property.InternalIndex
     );
 
     private final Index index;
@@ -1122,8 +1145,7 @@ public final class IndexSettings {
     }
 
     private static boolean shouldDisableTranslogRetention(Settings settings) {
-        return INDEX_SOFT_DELETES_SETTING.get(settings)
-            && IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(LegacyESVersion.V_7_4_0);
+        return INDEX_SOFT_DELETES_SETTING.get(settings);
     }
 
     /**

@@ -40,10 +40,8 @@ import org.apache.lucene.index.IndexReader.CacheHelper;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.ResourceAlreadyExistsException;
-import org.opensearch.Version;
 import org.opensearch.action.admin.indices.stats.CommonStats;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags.Flag;
@@ -111,6 +109,7 @@ import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.engine.NoOpEngine;
+import org.opensearch.index.engine.ReadOnlyEngine;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
 import org.opensearch.index.flush.FlushStats;
 import org.opensearch.index.get.GetStats;
@@ -132,6 +131,7 @@ import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.shard.IndexingOperationListener;
 import org.opensearch.index.shard.IndexingStats;
 import org.opensearch.index.shard.ShardId;
+import org.opensearch.index.translog.TranslogStats;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
@@ -337,13 +337,6 @@ public class IndicesService extends AbstractLifecycleComponent
         this.cacheCleaner = new CacheCleaner(indicesFieldDataCache, indicesRequestCache, logger, threadPool, this.cleanInterval);
         this.metaStateService = metaStateService;
         this.engineFactoryProviders = engineFactoryProviders;
-
-        // do not allow any plugin-provided index store type to conflict with a built-in type
-        for (final String indexStoreType : directoryFactories.keySet()) {
-            if (IndexModule.isBuiltinType(indexStoreType)) {
-                throw new IllegalStateException("registered index store type [" + indexStoreType + "] conflicts with a built-in type");
-            }
-        }
 
         this.directoryFactories = directoryFactories;
         this.recoveryStateFactories = recoveryStateFactories;
@@ -699,8 +692,7 @@ public class IndicesService extends AbstractLifecycleComponent
         IndexingOperationListener... indexingOperationListeners
     ) throws IOException {
         final IndexSettings idxSettings = new IndexSettings(indexMetadata, settings, indexScopedSettings);
-        if (idxSettings.getIndexVersionCreated().onOrAfter(LegacyESVersion.V_7_0_0)
-            && EngineConfig.INDEX_OPTIMIZE_AUTO_GENERATED_IDS.exists(idxSettings.getSettings())) {
+        if (EngineConfig.INDEX_OPTIMIZE_AUTO_GENERATED_IDS.exists(idxSettings.getSettings())) {
             throw new IllegalArgumentException(
                 "Setting [" + EngineConfig.INDEX_OPTIMIZE_AUTO_GENERATED_IDS.getKey() + "] was removed in version 7.0.0"
             );
@@ -771,6 +763,9 @@ public class IndicesService extends AbstractLifecycleComponent
         if (engineFactories.isEmpty()) {
             if (idxSettings.isSegRepEnabled()) {
                 return new NRTReplicationEngineFactory();
+            }
+            if (IndexModule.Type.REMOTE_SNAPSHOT.match(idxSettings)) {
+                return config -> new ReadOnlyEngine(config, new SeqNoStats(0, 0, 0), new TranslogStats(), true, Function.identity(), false);
             }
             return new InternalEngineFactory();
         } else if (engineFactories.size() == 1) {
@@ -1710,8 +1705,8 @@ public class IndicesService extends AbstractLifecycleComponent
     /**
      * Returns true if the provided field is a registered metadata field (including ones registered via plugins), false otherwise.
      */
-    public boolean isMetadataField(Version indexCreatedVersion, String field) {
-        return mapperRegistry.isMetadataField(indexCreatedVersion, field);
+    public boolean isMetadataField(String field) {
+        return mapperRegistry.isMetadataField(field);
     }
 
     /**

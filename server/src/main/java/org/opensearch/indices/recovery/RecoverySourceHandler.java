@@ -40,7 +40,6 @@ import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.SetOnce;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.StepListener;
@@ -720,8 +719,7 @@ public class RecoverySourceHandler {
                 // it's possible that the primary has no retention lease yet if we are doing a rolling upgrade from a version before
                 // 7.4, and in that case we just create a lease using the local checkpoint of the safe commit which we're using for
                 // recovery as a conservative estimate for the global checkpoint.
-                assert shard.indexSettings().getIndexVersionCreated().before(LegacyESVersion.V_7_4_0)
-                    || shard.indexSettings().isSoftDeleteEnabled() == false;
+                assert shard.indexSettings().isSoftDeleteEnabled() == false;
                 final StepListener<ReplicationResponse> addRetentionLeaseStep = new StepListener<>();
                 final long estimatedGlobalCheckpoint = startingSeqNo - 1;
                 final RetentionLease newLease = shard.addPeerRecoveryRetentionLease(

@@ -43,6 +43,10 @@ import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainAc
 import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
 import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainRequestBuilder;
 import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
+import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionStateAction;
+import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionStateRequest;
+import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionStateRequestBuilder;
+import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionStateResponse;
 import org.opensearch.action.admin.cluster.decommission.awareness.get.GetDecommissionStateAction;
 import org.opensearch.action.admin.cluster.decommission.awareness.get.GetDecommissionStateRequest;
 import org.opensearch.action.admin.cluster.decommission.awareness.get.GetDecommissionStateRequestBuilder;
@@ -1427,6 +1431,23 @@ public abstract class AbstractClient implements Client {
             return new GetDecommissionStateRequestBuilder(this, GetDecommissionStateAction.INSTANCE);
         }
 
+        @Override
+        public ActionFuture<DeleteDecommissionStateResponse> deleteDecommissionState(DeleteDecommissionStateRequest request) {
+            return execute(DeleteDecommissionStateAction.INSTANCE, request);
+        }
+
+        @Override
+        public void deleteDecommissionState(
+            DeleteDecommissionStateRequest request,
+            ActionListener<DeleteDecommissionStateResponse> listener
+        ) {
+            execute(DeleteDecommissionStateAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public DeleteDecommissionStateRequestBuilder prepareDeleteDecommissionRequest() {
+            return new DeleteDecommissionStateRequestBuilder(this, DeleteDecommissionStateAction.INSTANCE);
+        }
     }
 
     static class IndicesAdmin implements IndicesAdminClient {

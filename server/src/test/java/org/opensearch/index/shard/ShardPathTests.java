@@ -35,6 +35,7 @@ import org.opensearch.cluster.routing.AllocationId;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
+import org.opensearch.gateway.WriteStateException;
 import org.opensearch.index.Index;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -50,7 +51,7 @@ public class ShardPathTests extends OpenSearchTestCase {
             ShardId shardId = new ShardId("foo", "0xDEADBEEF", 0);
             Path[] paths = env.availableShardPaths(shardId);
             Path path = randomFrom(paths);
-            ShardStateMetadata.FORMAT.writeAndCleanup(new ShardStateMetadata(true, "0xDEADBEEF", AllocationId.newInitializing()), path);
+            writeShardStateMetadata("0xDEADBEEF", path);
             ShardPath shardPath = ShardPath.loadShardPath(logger, env, shardId, "");
             assertEquals(path, shardPath.getDataPath());
             assertEquals("0xDEADBEEF", shardPath.getShardId().getIndex().getUUID());
@@ -66,7 +67,7 @@ public class ShardPathTests extends OpenSearchTestCase {
             ShardId shardId = new ShardId("foo", indexUUID, 0);
             Path[] paths = env.availableShardPaths(shardId);
             assumeTrue("This test tests multi data.path but we only got one", paths.length > 1);
-            ShardStateMetadata.FORMAT.writeAndCleanup(new ShardStateMetadata(true, indexUUID, AllocationId.newInitializing()), paths);
+            writeShardStateMetadata(indexUUID, paths);
             Exception e = expectThrows(IllegalStateException.class, () -> ShardPath.loadShardPath(logger, env, shardId, ""));
             assertThat(e.getMessage(), containsString("more than one shard state found"));
         }
@@ -77,7 +78,7 @@ public class ShardPathTests extends OpenSearchTestCase {
             ShardId shardId = new ShardId("foo", "foobar", 0);
             Path[] paths = env.availableShardPaths(shardId);
             Path path = randomFrom(paths);
-            ShardStateMetadata.FORMAT.writeAndCleanup(new ShardStateMetadata(true, "0xDEADBEEF", AllocationId.newInitializing()), path);
+            writeShardStateMetadata("0xDEADBEEF", path);
             Exception e = expectThrows(IllegalStateException.class, () -> ShardPath.loadShardPath(logger, env, shardId, ""));
             assertThat(e.getMessage(), containsString("expected: foobar on shard path"));
         }
@@ -121,7 +122,7 @@ public class ShardPathTests extends OpenSearchTestCase {
             ShardId shardId = new ShardId("foo", indexUUID, 0);
             Path[] paths = env.availableShardPaths(shardId);
             Path path = randomFrom(paths);
-            ShardStateMetadata.FORMAT.writeAndCleanup(new ShardStateMetadata(true, indexUUID, AllocationId.newInitializing()), path);
+            writeShardStateMetadata(indexUUID, path);
             ShardPath shardPath = ShardPath.loadShardPath(logger, env, shardId, customDataPath);
             boolean found = false;
             for (Path p : env.nodeDataPaths()) {
@@ -148,4 +149,10 @@ public class ShardPathTests extends OpenSearchTestCase {
         }
     }
 
+    private static void writeShardStateMetadata(String indexUUID, Path... paths) throws WriteStateException {
+        ShardStateMetadata.FORMAT.writeAndCleanup(
+            new ShardStateMetadata(true, indexUUID, AllocationId.newInitializing(), ShardStateMetadata.IndexDataLocation.LOCAL),
+            paths
+        );
+    }
 }
