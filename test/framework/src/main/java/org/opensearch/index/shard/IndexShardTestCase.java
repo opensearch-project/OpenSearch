@@ -40,7 +40,6 @@ import org.apache.lucene.store.IndexInput;
 import org.junit.Assert;
 import org.mockito.Mockito;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
@@ -125,6 +124,7 @@ import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.common.CopyState;
 import org.opensearch.indices.replication.common.ReplicationCollection;
+import org.opensearch.indices.replication.common.ReplicationFailedException;
 import org.opensearch.indices.replication.common.ReplicationListener;
 import org.opensearch.indices.replication.common.ReplicationState;
 import org.opensearch.repositories.IndexId;
@@ -189,7 +189,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         }
 
         @Override
-        public void onFailure(ReplicationState state, OpenSearchException e, boolean sendShardFailure) {
+        public void onFailure(ReplicationState state, ReplicationFailedException e, boolean sendShardFailure) {
             throw new AssertionError(e);
         }
     };
@@ -1324,7 +1324,11 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                     }
 
                     @Override
-                    public void onReplicationFailure(SegmentReplicationState state, OpenSearchException e, boolean sendShardFailure) {
+                    public void onReplicationFailure(
+                        SegmentReplicationState state,
+                        ReplicationFailedException e,
+                        boolean sendShardFailure
+                    ) {
                         logger.error("Unexpected replication failure in test", e);
                         Assert.fail("test replication should not fail: " + e);
                     }
