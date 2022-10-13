@@ -327,7 +327,8 @@ public class IndexShardTests extends IndexShardTestCase {
         ShardStateMetadata meta = new ShardStateMetadata(
             randomBoolean(),
             randomRealisticUnicodeOfCodepointLengthBetween(1, 10),
-            allocationId
+            allocationId,
+            randomFrom(ShardStateMetadata.IndexDataLocation.values())
         );
 
         assertEquals(meta, new ShardStateMetadata(meta.primary, meta.indexUUID, meta.allocationId));
@@ -339,7 +340,12 @@ public class IndexShardTests extends IndexShardTestCase {
         Set<Integer> hashCodes = new HashSet<>();
         for (int i = 0; i < 30; i++) { // just a sanity check that we impl hashcode
             allocationId = randomBoolean() ? null : randomAllocationId();
-            meta = new ShardStateMetadata(randomBoolean(), randomRealisticUnicodeOfCodepointLengthBetween(1, 10), allocationId);
+            meta = new ShardStateMetadata(
+                randomBoolean(),
+                randomRealisticUnicodeOfCodepointLengthBetween(1, 10),
+                allocationId,
+                randomFrom(ShardStateMetadata.IndexDataLocation.values())
+            );
             hashCodes.add(meta.hashCode());
         }
         assertTrue("more than one unique hashcode expected but got: " + hashCodes.size(), hashCodes.size() > 1);

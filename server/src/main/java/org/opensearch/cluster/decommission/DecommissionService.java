@@ -13,8 +13,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.action.ActionListener;
+import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionStateResponse;
 import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionResponse;
-import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.ClusterStateUpdateTask;
@@ -487,7 +487,7 @@ public class DecommissionService {
         };
     }
 
-    public void startRecommissionAction(final ActionListener<AcknowledgedResponse> listener) {
+    public void startRecommissionAction(final ActionListener<DeleteDecommissionStateResponse> listener) {
         /*
          * For abandoned requests, we might not really know if it actually restored the exclusion list.
          * And can land up in cases where even after recommission, exclusions are set(which is unexpected).
@@ -510,7 +510,7 @@ public class DecommissionService {
         }, false);
     }
 
-    void deleteDecommissionState(ActionListener<AcknowledgedResponse> listener) {
+    void deleteDecommissionState(ActionListener<DeleteDecommissionStateResponse> listener) {
         clusterService.submitStateUpdateTask("delete_decommission_state", new ClusterStateUpdateTask(Priority.URGENT) {
             @Override
             public ClusterState execute(ClusterState currentState) {
@@ -531,7 +531,7 @@ public class DecommissionService {
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 // Cluster state processed for deleting the decommission attribute.
                 assert newState.metadata().decommissionAttributeMetadata() == null;
-                listener.onResponse(new AcknowledgedResponse(true));
+                listener.onResponse(new DeleteDecommissionStateResponse(true));
             }
         });
     }
