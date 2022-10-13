@@ -21,7 +21,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bumps `azure-storage-common` from 12.18.0 to 12.18.1
 - Bumps `forbiddenapis` from 3.3 to 3.4
 - Bumps `gson` from 2.9.0 to 2.10
-- Bumps `protobuf-java` from 3.21.2 to 3.21.9
 - Bumps `azure-core` from 1.31.0 to 1.33.0
 - Bumps `avro` from 1.11.0 to 1.11.1
 - Bumps `woodstox-core` from 6.3.0 to 6.3.1
@@ -45,6 +44,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bumps `json-schema-validator` from 1.0.69 to 1.0.73 ([#5316](https://github.com/opensearch-project/OpenSearch/pull/5316))
 - Bumps `proto-google-common-protos` from 2.8.0 to 2.10.0 ([#5318](https://github.com/opensearch-project/OpenSearch/pull/5318))
 - Bumps `protobuf-java` from 3.21.7 to 3.21.9 ([#5319](https://github.com/opensearch-project/OpenSearch/pull/5319))
+- Bumps `hadoop-hdfs` from 3.3.3 to 3.3.4 ([#4644](https://github.com/opensearch-project/OpenSearch/pull/4644))
+- Bumps `jna` from 5.11.0 to 5.12.1 ([#4656](https://github.com/opensearch-project/OpenSearch/pull/4656))
+- Update Jackson Databind to 2.13.4.2 (addressing CVE-2022-42003) ([#4779](https://github.com/opensearch-project/OpenSearch/pull/4779))
+- Bumps `resteasy-jackson2-provider` from 3.0.19.Final to 6.2.1.Final ([#4757](https://github.com/opensearch-project/OpenSearch/pull/4757))
 - Update Apache Lucene to 9.5.0-snapshot-a4ef70f ([#4979](https://github.com/opensearch-project/OpenSearch/pull/4979))
 - Update to Gradle 7.6 and JDK-19 ([#4973](https://github.com/opensearch-project/OpenSearch/pull/4973))
 
