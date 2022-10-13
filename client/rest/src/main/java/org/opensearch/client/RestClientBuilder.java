@@ -32,15 +32,23 @@
 
 package org.opensearch.client;
 
-import org.apache.http.Header;
-import org.apache.http.client.config.RequestConfig;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClientBuilder;
-import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
-import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
-import org.apache.http.nio.conn.SchemeIOSessionStrategy;
+import org.apache.hc.core5.http.Header;
+import org.apache.hc.core5.http.nio.ssl.TlsStrategy;
+import org.apache.hc.core5.util.Timeout;
+import org.apache.hc.client5.http.async.HttpAsyncClient;
+import org.apache.hc.client5.http.auth.CredentialsProvider;
+import org.apache.hc.client5.http.config.RequestConfig;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
+import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
+import org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManager;
+import org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManagerBuilder;
+import org.apache.hc.client5.http.ssl.ClientTlsStrategyBuilder;
+import org.apache.hc.client5.http.impl.DefaultAuthenticationStrategy;
+import org.apache.hc.client5.http.impl.async.CloseableHttpAsyncClient;
+import org.apache.hc.client5.http.impl.async.HttpAsyncClientBuilder;
 
 import javax.net.ssl.SSLContext;
+
 import java.security.AccessController;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivilegedAction;
@@ -50,19 +58,19 @@ import java.util.Optional;
 
 /**
  * Helps creating a new {@link RestClient}. Allows to set the most common http client configuration options when internally
- * creating the underlying {@link org.apache.http.nio.client.HttpAsyncClient}. Also allows to provide an externally created
- * {@link org.apache.http.nio.client.HttpAsyncClient} in case additional customization is needed.
+ * creating the underlying {@link HttpAsyncClient}. Also allows to provide an externally created
+ * {@link HttpAsyncClient} in case additional customization is needed.
  */
 public final class RestClientBuilder {
     /**
-     * The default connection timout in milliseconds.
+     * The default connection timeout in milliseconds.
      */
     public static final int DEFAULT_CONNECT_TIMEOUT_MILLIS = 1000;
 
     /**
-     * The default socket timeout in milliseconds.
+     * The default response timeout in milliseconds.
      */
-    public static final int DEFAULT_SOCKET_TIMEOUT_MILLIS = 30000;
+    public static final int DEFAULT_RESPONSE_TIMEOUT_MILLIS = 30000;
 
     /**
      * The default maximum of connections per route.
@@ -296,20 +304,26 @@ public final class RestClientBuilder {
     private CloseableHttpAsyncClient createHttpClient() {
         // default timeouts are all infinite
         RequestConfig.Builder requestConfigBuilder = RequestConfig.custom()
-            .setConnectTimeout(DEFAULT_CONNECT_TIMEOUT_MILLIS)
-            .setSocketTimeout(DEFAULT_SOCKET_TIMEOUT_MILLIS);
+            .setConnectTimeout(Timeout.ofMilliseconds(DEFAULT_CONNECT_TIMEOUT_MILLIS))
+            .setResponseTimeout(Timeout.ofMilliseconds(DEFAULT_RESPONSE_TIMEOUT_MILLIS));
         if (requestConfigCallback != null) {
             requestConfigBuilder = requestConfigCallback.customizeRequestConfig(requestConfigBuilder);
         }
 
         try {
-            HttpAsyncClientBuilder httpClientBuilder = HttpAsyncClientBuilder.create()
-                .setDefaultRequestConfig(requestConfigBuilder.build())
-                // default settings for connection pooling may be too constraining
+            final TlsStrategy tlsStrategy = ClientTlsStrategyBuilder.create().setSslContext(SSLContext.getDefault()).build();
+
+            final PoolingAsyncClientConnectionManager connectionManager = PoolingAsyncClientConnectionManagerBuilder.create()
                 .setMaxConnPerRoute(DEFAULT_MAX_CONN_PER_ROUTE)
                 .setMaxConnTotal(DEFAULT_MAX_CONN_TOTAL)
-                .setSSLContext(SSLContext.getDefault())
-                .setTargetAuthenticationStrategy(new PersistentCredentialsAuthenticationStrategy());
+                .setTlsStrategy(tlsStrategy)
+                .build();
+
+            HttpAsyncClientBuilder httpClientBuilder = HttpAsyncClientBuilder.create()
+                .setDefaultRequestConfig(requestConfigBuilder.build())
+                .setConnectionManager(connectionManager)
+                .setTargetAuthenticationStrategy(DefaultAuthenticationStrategy.INSTANCE)
+                .disableAutomaticRetries();
             if (httpClientConfigCallback != null) {
                 httpClientBuilder = httpClientConfigCallback.customizeHttpClient(httpClientBuilder);
             }
@@ -344,9 +358,9 @@ public final class RestClientBuilder {
     public interface HttpClientConfigCallback {
         /**
          * Allows to customize the {@link CloseableHttpAsyncClient} being created and used by the {@link RestClient}.
-         * Commonly used to customize the default {@link org.apache.http.client.CredentialsProvider} for authentication
-         * or the {@link SchemeIOSessionStrategy} for communication through ssl without losing any other useful default
-         * value that the {@link RestClientBuilder} internally sets, like connection pooling.
+         * Commonly used to customize the default {@link CredentialsProvider} for authentication for communication
+         * through TLS/SSL without losing any other useful default value that the {@link RestClientBuilder} internally
+         * sets, like connection pooling.
          *
          * @param httpClientBuilder the {@link HttpClientBuilder} for customizing the client instance.
          */

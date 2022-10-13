@@ -33,7 +33,8 @@
 package org.opensearch.index.reindex;
 
 import java.util.Optional;
-import org.apache.http.HttpRequestInterceptor;
+
+import org.apache.hc.core5.http.HttpRequestInterceptor;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.ActionListener;
