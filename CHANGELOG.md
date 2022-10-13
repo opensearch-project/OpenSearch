@@ -47,6 +47,9 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - BWC version 1.3.6 ([#4452](https://github.com/opensearch-project/OpenSearch/pull/4452))
 - 2.3.0 release notes ([#4457](https://github.com/opensearch-project/OpenSearch/pull/4457))
 
+### Dependencies
+- Update Jackson Databind to 2.13.4.2 (addressing CVE-2022-42003) ([#4781](https://github.com/opensearch-project/OpenSearch/pull/4781))
+
 ### Changed
 
 ### Deprecated
