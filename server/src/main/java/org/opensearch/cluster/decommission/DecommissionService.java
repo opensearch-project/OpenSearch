@@ -400,16 +400,21 @@ public class DecommissionService {
         } else if (forcedAwarenessAttributes == null) {
             msg = "forced awareness attribute not set to the cluster";
         } else if (awarenessAttributes.contains(decommissionAttribute.attributeName()) == false) {
-            msg = "invalid awareness attribute requested for decommissioning, eligible attributes are [" + awarenessAttributes.toString() + "]";
+            msg = "invalid awareness attribute requested for decommissioning, eligible attributes are ["
+                + awarenessAttributes.toString()
+                + "]";
         } else if (forcedAwarenessAttributes.containsKey(decommissionAttribute.attributeName()) == false) {
             msg = "forced awareness attribute [" + forcedAwarenessAttributes.toString() + "] doesn't have the decommissioning attribute";
         } else if (forcedAwarenessAttributes.get(decommissionAttribute.attributeName())
             .contains(decommissionAttribute.attributeValue()) == false) {
-                msg = "invalid awareness attribute value requested for decommissioning. Eligible forced awareness attributes [" + forcedAwarenessAttributes.toString() + "]";
-        } else if (forcedAwarenessAttributes.get(decommissionAttribute.attributeName()).size() < 3) {
-            msg = "total awareness attribute value set to cluster is [" + forcedAwarenessAttributes.get(decommissionAttribute.attributeName()).size()
-                + "] which is less than minimum attribute value count required [3]";
-        }
+                msg = "invalid awareness attribute value requested for decommissioning. Eligible forced awareness attributes ["
+                    + forcedAwarenessAttributes.toString()
+                    + "]";
+            } else if (forcedAwarenessAttributes.get(decommissionAttribute.attributeName()).size() < 3) {
+                msg = "total awareness attribute value set to cluster is ["
+                    + forcedAwarenessAttributes.get(decommissionAttribute.attributeName()).size()
+                    + "] which is less than minimum attribute value count required [3]";
+            }
 
         if (msg != null) {
             throw new DecommissioningFailedException(decommissionAttribute, msg);
