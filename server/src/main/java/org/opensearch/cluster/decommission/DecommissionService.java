@@ -406,7 +406,10 @@ public class DecommissionService {
         } else if (forcedAwarenessAttributes.get(decommissionAttribute.attributeName())
             .contains(decommissionAttribute.attributeValue()) == false) {
                 msg = "invalid awareness attribute value requested for decommissioning. Set forced awareness values before to decommission";
-            }
+        } else if (forcedAwarenessAttributes.get(decommissionAttribute.attributeName()).size() < 3) {
+            msg = "total awareness attribute value set to cluster is [" + forcedAwarenessAttributes.get(decommissionAttribute.attributeName()).size()
+                + "] which is less than minimum attribute value count required [3]";
+        }
 
         if (msg != null) {
             throw new DecommissioningFailedException(decommissionAttribute, msg);
