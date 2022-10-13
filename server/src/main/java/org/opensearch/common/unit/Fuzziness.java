@@ -70,7 +70,7 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
         if (fuzziness != 0 && fuzziness != 1 && fuzziness != 2) {
             throw new IllegalArgumentException("Valid edit distances are [0, 1, 2] but was [" + fuzziness + "]");
         }
-        this.fuzziness = Integer.toString(fuzziness);   
+        this.fuzziness = Integer.toString(fuzziness);
     }
 
     private Fuzziness(String fuzziness) {
@@ -243,6 +243,9 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
         }
         if(fuzziness.startsWith("AUTO:")) {
             String[] fuzzinessLimit = fuzziness.substring("AUTO:".length()).split(",");
+            if(fuzzinessLimit.length!=2) {
+                return false;
+            }
             return isValidFuzzinessLimit(fuzzinessLimit[0]) && isValidFuzzinessLimit(fuzzinessLimit[1]);
         }
         return isValidFuzzinessLimit(fuzziness);
