@@ -551,6 +551,30 @@ public final class IndexSettings {
         Property.Dynamic
     );
 
+    public static final Setting<String> SEARCHABLE_SNAPSHOT_REPOSITORY = Setting.simpleString(
+        "index.searchable_snapshot.repository",
+        Property.IndexScope,
+        Property.InternalIndex
+    );
+
+    public static final Setting<String> SEARCHABLE_SNAPSHOT_ID_UUID = Setting.simpleString(
+        "index.searchable_snapshot.snapshot_id.uuid",
+        Property.IndexScope,
+        Property.InternalIndex
+    );
+
+    public static final Setting<String> SEARCHABLE_SNAPSHOT_ID_NAME = Setting.simpleString(
+        "index.searchable_snapshot.snapshot_id.name",
+        Property.IndexScope,
+        Property.InternalIndex
+    );
+
+    public static final Setting<String> SEARCHABLE_SNAPSHOT_INDEX_ID = Setting.simpleString(
+        "index.searchable_snapshot.index.id",
+        Property.IndexScope,
+        Property.InternalIndex
+    );
+
     private final Index index;
     private final Version version;
     private final Logger logger;
