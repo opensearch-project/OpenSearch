@@ -231,7 +231,10 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
             @Override
             public void onFailure(Exception e) {
                 assertTrue(e instanceof DecommissioningFailedException);
-                assertEquals(e.getMessage(), "Decommission request for [DecommissionAttribute{attributeName='zone', attributeValue='zone_1'}] failed because total awareness attribute value set to cluster is [2] which is less than minimum attribute value count required [3]");
+                assertEquals(
+                    e.getMessage(),
+                    "Decommission request for [DecommissionAttribute{attributeName='zone', attributeValue='zone_1'}] failed because total awareness attribute value set to cluster is [2] which is less than minimum attribute value count required [3]"
+                );
                 countDownLatch.countDown();
             }
         };
