@@ -181,7 +181,7 @@ public class ExtensionTokenProcessor {
 
         String decodedPrincipal = new String(combinedEncoding, StandardCharsets.UTF_8).replace(this.extensionUniqueId, "");
         String decodedExtensionsID = new String(combinedEncoding, StandardCharsets.UTF_8).replace(decodedPrincipal, "");
-        if (decodedExtensionsID.equals(this.extensionUniqueId) == false){
+        if (decodedExtensionsID.equals(this.extensionUniqueId) == false) {
             throw new IllegalArgumentException(INVALID_EXTENSION_MESSAGE);
         }
         return decodedPrincipal;
