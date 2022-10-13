@@ -11,11 +11,14 @@ package org.opensearch.extensions.rest;
 import org.opensearch.identity.ExtensionTokenProcessor;
 import org.opensearch.identity.PrincipalIdentifierToken;
 import org.opensearch.rest.RestStatus;
+import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamInput;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.rest.BytesRestResponse;
@@ -48,7 +51,7 @@ public class ExtensionRestRequestTests extends OpenSearchTestCase {
         expectedPath = "/test/uri";
         expectedParams = Map.ofEntries(entry("foo", "bar"), entry("baz", "42"));
         expectedContentType = XContentType.JSON;
-        expectedContent = new BytesArray("content".getBytes(StandardCharsets.UTF_8));
+        expectedContent = new BytesArray("{\"key\": \"value\"}".getBytes(StandardCharsets.UTF_8));
         extensionUniqueId1 = "ext_1";
         userPrincipal = () -> "user1";
         extensionTokenProcessor = new ExtensionTokenProcessor(extensionUniqueId1);
@@ -94,6 +97,10 @@ public class ExtensionRestRequestTests extends OpenSearchTestCase {
         assertEquals(expectedContent, request.content());
         assertTrue(request.isContentConsumed());
 
+        XContentParser parser = request.contentParser(NamedXContentRegistry.EMPTY);
+        Map<String, String> contentMap = parser.mapStrings();
+        assertEquals("value", contentMap.get("key"));
+
         assertEquals(expectedRequestIssuerIdentity, request.getRequestIssuerIdentity());
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
@@ -128,6 +135,9 @@ public class ExtensionRestRequestTests extends OpenSearchTestCase {
         assertNull(request.getXContentType());
         assertEquals(0, request.content().length());
         assertEquals(expectedRequestIssuerIdentity, request.getRequestIssuerIdentity());
+
+        final ExtensionRestRequest requestWithNoContent = request;
+        assertThrows(OpenSearchParseException.class, () -> requestWithNoContent.contentParser(NamedXContentRegistry.EMPTY));
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             request.writeTo(out);
@@ -164,6 +174,9 @@ public class ExtensionRestRequestTests extends OpenSearchTestCase {
         assertNull(request.getXContentType());
         assertEquals(expectedText, request.content());
         assertEquals(expectedRequestIssuerIdentity, request.getRequestIssuerIdentity());
+
+        final ExtensionRestRequest requestWithNoContentType = request;
+        assertThrows(OpenSearchParseException.class, () -> requestWithNoContentType.contentParser(NamedXContentRegistry.EMPTY));
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             request.writeTo(out);

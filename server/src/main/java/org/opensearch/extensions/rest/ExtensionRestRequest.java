@@ -8,9 +8,13 @@
 
 package org.opensearch.extensions.rest;
 
+import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.identity.PrincipalIdentifierToken;
 import org.opensearch.rest.RestRequest;
@@ -227,6 +231,21 @@ public class ExtensionRestRequest extends TransportRequest {
      */
     public boolean isContentConsumed() {
         return contentConsumed;
+    }
+
+    /**
+     * Gets a parser for the contents of this request if there is content and an xContentType.
+     *
+     * @param xContentRegistry The extension's xContentRegistry
+     * @return A parser for the given content and content type.
+     * @throws OpenSearchParseException on missing body or xContentType.
+     * @throws IOException on a failure creating the parser.
+     */
+    public final XContentParser contentParser(NamedXContentRegistry xContentRegistry) throws IOException {
+        if (!hasContent() || getXContentType() == null) {
+            throw new OpenSearchParseException("There is no request body or the ContentType is invalid.");
+        }
+        return getXContentType().xContent().createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, content.streamInput());
     }
 
     /**
