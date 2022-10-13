@@ -83,9 +83,7 @@ public class ExtensionTokenProcessorTests extends OpenSearchTestCase {
 
         PrincipalIdentifierToken generatedIdentifier;
 
-        String principalName;
-
-        // Create a bad key
+        // Create a new key that does not match
         SecretKey secretKey;
         try {
             KeyGenerator keyGen = KeyGenerator.getInstance("AES");
@@ -117,7 +115,7 @@ public class ExtensionTokenProcessorTests extends OpenSearchTestCase {
 
         String principalName;
 
-        // Create a bad key
+        // Create a key of the wrong type
         SecretKey secretKey;
         try {
             KeyGenerator keyGen = KeyGenerator.getInstance("HmacMD5");
@@ -139,29 +137,36 @@ public class ExtensionTokenProcessorTests extends OpenSearchTestCase {
         assertEquals(ExtensionTokenProcessor.INVALID_KEY_MESSAGE, exception.getMessage());
     }
 
-    // public void testExtractPrincipalWithNullToken() {
-    // String extensionUniqueId1 = "ext_1";
-    // ExtensionTokenProcessor extensionTokenProcessor = new ExtensionTokenProcessor(extensionUniqueId1);
+     public void testGeneratePrincipalWithNullPrincipal() {
+     String extensionUniqueId1 = "ext_1";
+     ExtensionTokenProcessor extensionTokenProcessor = new ExtensionTokenProcessor(extensionUniqueId1);
 
-    // Exception exception = assertThrows(IllegalArgumentException.class, () -> extensionTokenProcessor.extractPrincipal(null));
+     Exception exception = assertThrows(NullPointerException.class, () -> extensionTokenProcessor.generateToken(null));
 
-    // assertFalse(exception.getMessage().isEmpty());
-    // assertEquals(ExtensionTokenProcessor.INVALID_TOKEN_MESSAGE, exception.getMessage());
-    // }
+     assertFalse(exception.getMessage().isEmpty());
+     assertEquals(ExtensionTokenProcessor.INVALID_PRINCIPAL_MESSAGE, exception.getMessage());
+     }
 
-    // public void testExtractPrincipalWithTokenInvalidExtension() {
-    // String extensionUniqueId1 = "ext_1";
-    // String extensionUniqueId2 = "ext_2";
-    // String token = userPrincipal.getName() + ":" + extensionUniqueId1;
-    // PrincipalIdentifierToken principalIdentifierToken = new PrincipalIdentifierToken(token);
-    // ExtensionTokenProcessor extensionTokenProcessor = new ExtensionTokenProcessor(extensionUniqueId2);
+     public void testExtractPrincipalWithTokenInvalidExtension() throws InvalidAlgorithmParameterException, NoSuchPaddingException, IllegalBlockSizeException, NoSuchAlgorithmException, BadPaddingException, IOException, InvalidKeyException {
+     String extensionUniqueId1 = "ext_1";
+     String extensionUniqueId2 = "ext_2";
+     String token = userPrincipal.getName() + ":" + extensionUniqueId1;
 
-    // Exception exception = assertThrows(
-    // IllegalArgumentException.class,
-    // () -> extensionTokenProcessor.extractPrincipal(principalIdentifierToken)
-    // );
+     ExtensionTokenProcessor extensionTokenProcessor1 = new ExtensionTokenProcessor(extensionUniqueId1);
+     ExtensionTokenProcessor extensionTokenProcessor2 = new ExtensionTokenProcessor(extensionUniqueId2);
 
-    // assertFalse(exception.getMessage().isEmpty());
-    // assertEquals(ExtensionTokenProcessor.INVALID_EXTENSION_MESSAGE, exception.getMessage());
-    // }
+
+     PrincipalIdentifierToken generatedIdentifier1 = extensionTokenProcessor1.generateToken(userPrincipal);
+     PrincipalIdentifierToken generatedIdentifier2 = extensionTokenProcessor2.generateToken(userPrincipal);
+     SecretKey secretKey1 = extensionTokenProcessor1.getSecretKey();
+     SecretKey secretKey2 = extensionTokenProcessor2.getSecretKey();
+
+     Exception exception = assertThrows(
+     IllegalArgumentException.class,
+     () -> extensionTokenProcessor1.extractPrincipal(generatedIdentifier2, secretKey2)
+     );
+
+     assertFalse(exception.getMessage().isEmpty());
+     assertEquals(ExtensionTokenProcessor.INVALID_EXTENSION_MESSAGE, exception.getMessage());
+     }
 }

@@ -33,7 +33,7 @@ public class ExtensionTokenProcessor {
     public static final String INVALID_TOKEN_MESSAGE = "Token must not be null and must be a colon-separated String";
     public static final String INVALID_EXTENSION_MESSAGE = "Token passed here is for a different extension";
     public static final String INVALID_ALGO_MESSAGE = "Failed to create a token because an invalid hashing algorithm was used.";
-    public static final String INVALID_PRINCIPAL_MESSAGE = "Token passed here is for a different principal.";
+    public static final String INVALID_PRINCIPAL_MESSAGE = "Principal passed here does not have a name.";
     public static final String INVALID_KEY_MESSAGE = "Could not verify the authenticity of the provided key.";
     public static final String INVALID_TAG_MESSAGE = "Token extraction could not be processed because of an invalid tag.";
     public static final int KEY_SIZE_BITS = 256;
@@ -101,7 +101,12 @@ public class ExtensionTokenProcessor {
 
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         output.write(this.extensionUniqueId.getBytes());
-        output.write(principal.getName().getBytes());
+        try {
+            output.write(principal.getName().getBytes());
+        } catch (NullPointerException ex) {
+            throw new NullPointerException(INVALID_PRINCIPAL_MESSAGE);
+        }
+
         byte[] combinedAttributes = output.toByteArray();
 
         SecretKey secretKey = generateKey();
@@ -174,8 +179,12 @@ public class ExtensionTokenProcessor {
             throw new AEADBadTagException(INVALID_TAG_MESSAGE);
         }
 
-        String decoded = new String(combinedEncoding, StandardCharsets.UTF_8).replace(this.extensionUniqueId, "");
-        return decoded;
+        String decodedPrincipal = new String(combinedEncoding, StandardCharsets.UTF_8).replace(this.extensionUniqueId, "");
+        String decodedExtensionsID = new String(combinedEncoding, StandardCharsets.UTF_8).replace(decodedPrincipal, "");
+        if (decodedExtensionsID.equals(this.extensionUniqueId) == false){
+            throw new IllegalArgumentException(INVALID_EXTENSION_MESSAGE);
+        }
+        return decodedPrincipal;
     }
 
     /**
