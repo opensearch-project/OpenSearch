@@ -175,6 +175,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
  - Pass REST params and content to extensions ([#4633](https://github.com/opensearch-project/OpenSearch/pull/4633))
  - Return consumed params and content from extensions ([#4705](https://github.com/opensearch-project/OpenSearch/pull/4705))
  - Modified EnvironmentSettingsRequest to pass entire Settings object ([#4731](https://github.com/opensearch-project/OpenSearch/pull/4731))
+ - Added contentParser method to ExtensionRestRequest ([#4760](https://github.com/opensearch-project/OpenSearch/pull/4760))
 
 ## [2.x]
 
