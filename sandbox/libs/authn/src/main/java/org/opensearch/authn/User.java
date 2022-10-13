@@ -7,10 +7,11 @@ package org.opensearch.authn;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import java.security.Principal;
 import java.util.Collections;
 import java.util.Map;
 
-public class User {
+public class User implements Subject {
 
     @JsonProperty(value = "primary_principal")
     private StringPrincipal primaryPrincipal;
@@ -19,8 +20,9 @@ public class User {
     private String bcryptHash;
     private Map<String, String> attributes = Collections.emptyMap();
 
+    @Override
     @JsonProperty(value = "primary_principal")
-    public StringPrincipal getPrimaryPrincipal() {
+    public StringPrincipal getPrincipal() {
         return primaryPrincipal;
     }
 
@@ -49,6 +51,11 @@ public class User {
 
     @Override
     public String toString() {
-        return "InternalSubject [primaryPrincipal=" + primaryPrincipal + ", bcryptHash=" + bcryptHash + ", attributes=" + attributes + "]";
+        return "User [primaryPrincipal=" + primaryPrincipal + ", bcryptHash=" + bcryptHash + ", attributes=" + attributes + "]";
+    }
+
+    @Override
+    public void login(AuthenticationToken token) {
+
     }
 }

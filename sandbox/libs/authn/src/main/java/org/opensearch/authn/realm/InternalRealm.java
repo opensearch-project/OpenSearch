@@ -85,7 +85,7 @@ public class InternalRealm extends AuthenticatingRealm {
 
             // Verify the user
             SimpleAuthenticationInfo sai = new SimpleAuthenticationInfo(
-                userRecord.getPrimaryPrincipal(),
+                userRecord.getPrincipal(),
                 userRecord.getBcryptHash(),
                 realmName
             );

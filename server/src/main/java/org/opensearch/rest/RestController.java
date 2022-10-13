@@ -404,31 +404,32 @@ public class RestController implements HttpServerTransport.Dispatcher {
                     logger.info("Getting sys prop sandbox.enabled = " + System.getProperty("sandbox.enabled"));
                     // For now, Only do Basic Auth when sandbox is enabled.
                     // This `if` should be removed once we integrate it with core
-                    if (System.getProperty("sandbox.enabled").equals("true")) {
-                        // Following block of code handles Basic Auth
-                        final Optional<String> authHeader = request.getHeaders()
-                            .getOrDefault(HttpHeaderToken.HEADER_NAME, Collections.emptyList())
-                            .stream()
-                            .findFirst();
+//                    if (System.getProperty("sandbox.enabled").equals("true")) {
+                    // Following block of code handles Basic Auth
+                    final Optional<String> authHeader = request.getHeaders()
+                        .getOrDefault(HttpHeaderToken.HEADER_NAME, Collections.emptyList())
+                        .stream()
+                        .findFirst();
 
-                        if (authHeader.isPresent()) {
-                            try {
-                                HttpHeaderToken token = new HttpHeaderToken(authHeader.get());
-                                // TODO: Find out the instance to be used
-                                InternalRealm realm = InternalRealm.INSTANCE;
-                                realm.authenticateWithToken(token);
-                                logger.info("Reached Basic auth point with token = "+ token);
-                            } catch (final Exception e) {
-                                final BytesRestResponse bytesRestResponse = BytesRestResponse.createSimpleErrorResponse(
-                                    channel,
-                                    RestStatus.UNAUTHORIZED,
-                                    e.getMessage()
-                                );
-                                channel.sendResponse(bytesRestResponse);
-                                return;
-                            }
+                    if (authHeader.isPresent()) {
+                        try {
+                            HttpHeaderToken token = new HttpHeaderToken(authHeader.get());
+                            // TODO: Find out the instance to be used
+                            InternalRealm realm = InternalRealm.INSTANCE;
+                            realm.authenticateWithToken(token);
+                            logger.info("Reached Basic auth point with token = "+ token);
+                        } catch (final Exception e) {
+                            final BytesRestResponse bytesRestResponse = BytesRestResponse.createSimpleErrorResponse(
+                                channel,
+                                RestStatus.UNAUTHORIZED,
+                                e.getMessage()
+                            );
+                            channel.sendResponse(bytesRestResponse);
+                            return;
                         }
                     }
+//                    }
+//                    }
 
                     dispatchRequest(request, channel, handler);
                     return;

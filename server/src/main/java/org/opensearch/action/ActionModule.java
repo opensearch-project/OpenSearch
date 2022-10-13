@@ -296,6 +296,7 @@ import org.opensearch.plugins.ActionPlugin.ActionHandler;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
 import org.opensearch.rest.RestHeaderDefinition;
+import org.opensearch.rest.SecurityRestFilter;
 import org.opensearch.rest.action.RestFieldCapabilitiesAction;
 import org.opensearch.rest.action.RestMainAction;
 import org.opensearch.rest.action.admin.cluster.RestAddVotingConfigExclusionAction;
@@ -475,6 +476,8 @@ public class ActionModule extends AbstractModule {
     private final RequestValidators<IndicesAliasesRequest> indicesAliasesRequestRequestValidators;
     private final ThreadPool threadPool;
 
+    private final SecurityRestFilter securityRestFilter;
+
     public ActionModule(
         Settings settings,
         IndexNameExpressionResolver indexNameExpressionResolver,
@@ -504,6 +507,7 @@ public class ActionModule extends AbstractModule {
             Stream.of(new RestHeaderDefinition(Task.X_OPAQUE_ID, false))
         ).collect(Collectors.toSet());
         UnaryOperator<RestHandler> restWrapper = null;
+        // Only one plugin is allowed to have a rest wrapper. i.e. Security plugin
         for (ActionPlugin plugin : actionPlugins) {
             UnaryOperator<RestHandler> newRestWrapper = plugin.getRestHandlerWrapper(threadPool.getThreadContext());
             if (newRestWrapper != null) {
@@ -514,6 +518,15 @@ public class ActionModule extends AbstractModule {
                 restWrapper = newRestWrapper;
             }
         }
+
+        // Adding a wrapper to be used for embedded security.
+        // If clause should be removed once this feature is embedded in core
+        securityRestFilter = new SecurityRestFilter();
+//        if(System.getProperty("sandbox.enabled").equals("true")){
+            restWrapper = (restHandler) -> securityRestFilter.wrap(restHandler);
+            logger.debug("Using REST wrapper from embedded Security plugin");
+//        }
+
         mappingRequestValidators = new RequestValidators<>(
             actionPlugins.stream().flatMap(p -> p.mappingRequestValidators().stream()).collect(Collectors.toList())
         );
