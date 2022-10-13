@@ -156,9 +156,7 @@ public class ExtensionTokenProcessorTests extends OpenSearchTestCase {
         ExtensionTokenProcessor extensionTokenProcessor1 = new ExtensionTokenProcessor(extensionUniqueId1);
         ExtensionTokenProcessor extensionTokenProcessor2 = new ExtensionTokenProcessor(extensionUniqueId2);
 
-        PrincipalIdentifierToken generatedIdentifier1 = extensionTokenProcessor1.generateToken(userPrincipal);
         PrincipalIdentifierToken generatedIdentifier2 = extensionTokenProcessor2.generateToken(userPrincipal);
-        SecretKey secretKey1 = extensionTokenProcessor1.getSecretKey();
         SecretKey secretKey2 = extensionTokenProcessor2.getSecretKey();
 
         Exception exception = assertThrows(
