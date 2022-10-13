@@ -7,21 +7,25 @@ package org.opensearch.identity;
 
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.security.Principal;
+
 import java.io.IOException;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
-import java.security.Principal;
+import java.security.SecureRandom;
 
-import javax.crypto.SecretKey;
+import javax.crypto.KeyGenerator;
+import javax.crypto.NoSuchPaddingException;
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
-import javax.crypto.NoSuchPaddingException;
+import javax.crypto.AEADBadTagException;
+import javax.crypto.SecretKey;
 
 public class ExtensionTokenProcessorTests extends OpenSearchTestCase {
 
     private static final String userName = "user1";
-    private static final Principal userPrincipal = () -> userName; 
+    private static final Principal userPrincipal = () -> userName;
 
     public void testGenerateToken() {
 
@@ -33,10 +37,9 @@ public class ExtensionTokenProcessorTests extends OpenSearchTestCase {
 
         try {
             generatedIdentifier = extensionTokenProcessor.generateToken(userPrincipal);
-        } catch (InvalidKeyException | NoSuchAlgorithmException | NoSuchPaddingException
-                | InvalidAlgorithmParameterException | IllegalBlockSizeException | BadPaddingException
-                | IOException e) {
-       
+        } catch (InvalidKeyException | NoSuchAlgorithmException | InvalidAlgorithmParameterException | IOException | NoSuchPaddingException
+            | IllegalBlockSizeException | BadPaddingException e) {
+
             System.out.println("Token Generation Test Failed");
             e.printStackTrace();
             throw new Error(e);
@@ -55,49 +58,110 @@ public class ExtensionTokenProcessorTests extends OpenSearchTestCase {
 
         String principalName;
 
-        SecretKey secretKey; 
+        SecretKey secretKey;
 
         try {
             generatedIdentifier = extensionTokenProcessor.generateToken(userPrincipal);
-            secretKey = extensionTokenProcessor.getSecretKey(); 
+            secretKey = extensionTokenProcessor.getSecretKey();
             principalName = extensionTokenProcessor.extractPrincipal(generatedIdentifier, secretKey);
-        } catch (InvalidKeyException | IllegalArgumentException | InvalidAlgorithmParameterException
-                | IllegalBlockSizeException | BadPaddingException | NoSuchAlgorithmException
-                | NoSuchPaddingException | IOException e) {
-           
+        } catch (InvalidKeyException | IllegalArgumentException | InvalidAlgorithmParameterException | IllegalBlockSizeException
+            | BadPaddingException | NoSuchAlgorithmException | NoSuchPaddingException | IOException e) {
+
             System.out.println("Name extraction or ID generation failed");
             e.printStackTrace();
             throw new Error(e);
-                }
-        
+        }
 
         assertEquals(userName, principalName);
     }
 
+    public void testBadAEADTag() {
+
+        String extensionUniqueId = "ext_2";
+
+        ExtensionTokenProcessor extensionTokenProcessor = new ExtensionTokenProcessor(extensionUniqueId);
+
+        PrincipalIdentifierToken generatedIdentifier;
+
+        String principalName;
+
+        // Create a bad key
+        SecretKey secretKey;
+        try {
+            KeyGenerator keyGen = KeyGenerator.getInstance("AES");
+            keyGen.init(128, SecureRandom.getInstanceStrong());
+            secretKey = keyGen.generateKey();
+            generatedIdentifier = extensionTokenProcessor.generateToken(userPrincipal);
+        } catch (InvalidKeyException | IllegalArgumentException | InvalidAlgorithmParameterException | IllegalBlockSizeException
+            | BadPaddingException | NoSuchAlgorithmException | NoSuchPaddingException | IOException ex) {
+            System.out.println("Could not complete tag test");
+            throw new Error(ex);
+        }
+
+        Exception exception = assertThrows(
+            AEADBadTagException.class,
+            () -> extensionTokenProcessor.extractPrincipal(generatedIdentifier, secretKey)
+        );
+
+        assertFalse(exception.getMessage().isEmpty());
+        assertEquals(ExtensionTokenProcessor.INVALID_TAG_MESSAGE, exception.getMessage());
+    }
+
+    public void testBadKey() {
+
+        String extensionUniqueId = "ext_2";
+
+        ExtensionTokenProcessor extensionTokenProcessor = new ExtensionTokenProcessor(extensionUniqueId);
+
+        PrincipalIdentifierToken generatedIdentifier;
+
+        String principalName;
+
+        // Create a bad key
+        SecretKey secretKey;
+        try {
+            KeyGenerator keyGen = KeyGenerator.getInstance("HmacMD5");
+            keyGen.init(128, SecureRandom.getInstanceStrong());
+            secretKey = keyGen.generateKey();
+            generatedIdentifier = extensionTokenProcessor.generateToken(userPrincipal);
+        } catch (InvalidKeyException | IllegalArgumentException | InvalidAlgorithmParameterException | IllegalBlockSizeException
+            | BadPaddingException | NoSuchAlgorithmException | NoSuchPaddingException | IOException ex) {
+            System.out.println("Could not complete bad key test");
+            throw new Error(ex);
+        }
+
+        Exception exception = assertThrows(
+            InvalidKeyException.class,
+            () -> extensionTokenProcessor.extractPrincipal(generatedIdentifier, secretKey)
+        );
+
+        assertFalse(exception.getMessage().isEmpty());
+        assertEquals(ExtensionTokenProcessor.INVALID_KEY_MESSAGE, exception.getMessage());
+    }
 
     // public void testExtractPrincipalWithNullToken() {
-    //     String extensionUniqueId1 = "ext_1";
-    //     ExtensionTokenProcessor extensionTokenProcessor = new ExtensionTokenProcessor(extensionUniqueId1);
+    // String extensionUniqueId1 = "ext_1";
+    // ExtensionTokenProcessor extensionTokenProcessor = new ExtensionTokenProcessor(extensionUniqueId1);
 
-    //     Exception exception = assertThrows(IllegalArgumentException.class, () -> extensionTokenProcessor.extractPrincipal(null));
+    // Exception exception = assertThrows(IllegalArgumentException.class, () -> extensionTokenProcessor.extractPrincipal(null));
 
-    //     assertFalse(exception.getMessage().isEmpty());
-    //     assertEquals(ExtensionTokenProcessor.INVALID_TOKEN_MESSAGE, exception.getMessage());
+    // assertFalse(exception.getMessage().isEmpty());
+    // assertEquals(ExtensionTokenProcessor.INVALID_TOKEN_MESSAGE, exception.getMessage());
     // }
 
     // public void testExtractPrincipalWithTokenInvalidExtension() {
-    //     String extensionUniqueId1 = "ext_1";
-    //     String extensionUniqueId2 = "ext_2";
-    //     String token = userPrincipal.getName() + ":" + extensionUniqueId1;
-    //     PrincipalIdentifierToken principalIdentifierToken = new PrincipalIdentifierToken(token);
-    //     ExtensionTokenProcessor extensionTokenProcessor = new ExtensionTokenProcessor(extensionUniqueId2);
+    // String extensionUniqueId1 = "ext_1";
+    // String extensionUniqueId2 = "ext_2";
+    // String token = userPrincipal.getName() + ":" + extensionUniqueId1;
+    // PrincipalIdentifierToken principalIdentifierToken = new PrincipalIdentifierToken(token);
+    // ExtensionTokenProcessor extensionTokenProcessor = new ExtensionTokenProcessor(extensionUniqueId2);
 
-    //     Exception exception = assertThrows(
-    //         IllegalArgumentException.class,
-    //         () -> extensionTokenProcessor.extractPrincipal(principalIdentifierToken)
-    //     );
+    // Exception exception = assertThrows(
+    // IllegalArgumentException.class,
+    // () -> extensionTokenProcessor.extractPrincipal(principalIdentifierToken)
+    // );
 
-    //     assertFalse(exception.getMessage().isEmpty());
-    //     assertEquals(ExtensionTokenProcessor.INVALID_EXTENSION_MESSAGE, exception.getMessage());
+    // assertFalse(exception.getMessage().isEmpty());
+    // assertEquals(ExtensionTokenProcessor.INVALID_EXTENSION_MESSAGE, exception.getMessage());
     // }
 }
