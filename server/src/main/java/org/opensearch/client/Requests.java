@@ -32,6 +32,7 @@
 
 package org.opensearch.client;
 
+import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionStateRequest;
 import org.opensearch.action.admin.cluster.decommission.awareness.get.GetDecommissionStateRequest;
 import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
@@ -567,5 +568,12 @@ public class Requests {
      */
     public static GetDecommissionStateRequest getDecommissionStateRequest() {
         return new GetDecommissionStateRequest();
+    }
+
+    /**
+     * Creates a new delete decommission request.
+     */
+    public static DeleteDecommissionStateRequest deleteDecommissionStateRequest() {
+        return new DeleteDecommissionStateRequest();
     }
 }
