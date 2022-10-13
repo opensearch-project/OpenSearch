@@ -1227,6 +1227,7 @@ public class RestoreService implements ClusterStateApplier {
             .put(IndexSettings.SEARCHABLE_SNAPSHOT_ID_UUID.getKey(), snapshot.getSnapshotId().getUUID())
             .put(IndexSettings.SEARCHABLE_SNAPSHOT_ID_NAME.getKey(), snapshot.getSnapshotId().getName())
             .put(IndexSettings.SEARCHABLE_SNAPSHOT_INDEX_ID.getKey(), indexId.getId())
+            .put(IndexMetadata.APIBlock.READ_ONLY_ALLOW_DELETE.settingName(), true)
             .put(metadata.getSettings())
             .build();
         return IndexMetadata.builder(metadata).settings(newSettings).build();
