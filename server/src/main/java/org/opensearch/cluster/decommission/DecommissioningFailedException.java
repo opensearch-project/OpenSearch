@@ -29,7 +29,7 @@ public class DecommissioningFailedException extends OpenSearchException {
     }
 
     public DecommissioningFailedException(DecommissionAttribute decommissionAttribute, String msg, Throwable cause) {
-        super("Decommission request for [" + (decommissionAttribute == null ? "_na" : decommissionAttribute.toString()) + "] failed because [" + msg + "]", cause);
+        super("Decommission request for [" + (decommissionAttribute == null ? "_na" : decommissionAttribute.toString()) + "] failed because " + msg, cause);
         this.decommissionAttribute = decommissionAttribute;
     }
 
