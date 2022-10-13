@@ -354,6 +354,25 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     }
 
     /**
+     *  A {@link Balancer} used by the {@link BalancedShardsAllocator} to perform allocation operations
+     * @deprecated As of 2.4.0, replaced by {@link LocalShardsBalancer}
+     *
+     * @opensearch.internal
+     */
+    @Deprecated
+    public static class Balancer extends LocalShardsBalancer {
+        public Balancer(
+            Logger logger,
+            RoutingAllocation allocation,
+            boolean movePrimaryFirst,
+            BalancedShardsAllocator.WeightFunction weight,
+            float threshold
+        ) {
+            super(logger, allocation, movePrimaryFirst, weight, threshold);
+        }
+    }
+
+    /**
      * A model index.
      *
      * @opensearch.internal
