@@ -1613,6 +1613,12 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
             org.opensearch.cluster.decommission.NodeDecommissionedException::new,
             164,
             V_3_0_0
+        ),
+        INVALID_ARGUMENT_EXCEPTION(
+            org.opensearch.InvalidArgumentException.class,
+            org.opensearch.InvalidArgumentException::new,
+            165,
+            V_3_0_0
         );
 
         final Class<? extends OpenSearchException> exceptionClass;
