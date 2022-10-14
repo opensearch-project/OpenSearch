@@ -112,7 +112,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
      */
     private final Set<RestHeaderDefinition> headersToCopy;
     private final UsageService usageService;
-    private final RestActionsService restActionsService;
+    private final RestActionsStatusCountService restActionsStatusCountService;
 
     public RestController(
         Set<RestHeaderDefinition> headersToCopy,
@@ -120,7 +120,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         NodeClient client,
         CircuitBreakerService circuitBreakerService,
         UsageService usageService,
-        RestActionsService restActionsService
+        RestActionsStatusCountService restActionsStatusCountService
     ) {
         this.headersToCopy = headersToCopy;
         this.usageService = usageService;
@@ -135,7 +135,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
             "/favicon.ico",
             (request, channel, clnt) -> channel.sendResponse(new BytesRestResponse(RestStatus.OK, "image/x-icon", FAVICON_RESPONSE))
         );
-        this.restActionsService = restActionsService;
+        this.restActionsStatusCountService = restActionsStatusCountService;
     }
 
     /**
@@ -208,7 +208,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
     protected void registerHandler(RestRequest.Method method, String path, RestHandler handler) {
         if (handler instanceof BaseRestHandler) {
             usageService.addRestHandler((BaseRestHandler) handler);
-            restActionsService.addRestHandler((BaseRestHandler) handler);
+            restActionsStatusCountService.addRestHandler((BaseRestHandler) handler);
         }
         registerHandlerNoWrap(method, path, handlerWrapper.apply(handler));
     }
@@ -303,7 +303,13 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(contentLength);
             }
             // iff we could reserve bytes for the request we need to send the response also over this channel
-            responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength, handler, restActionsService);
+            responseChannel = new ResourceHandlingHttpChannel(
+                channel,
+                circuitBreakerService,
+                contentLength,
+                handler,
+                restActionsStatusCountService
+            );
             // TODO: Count requests double in the circuit breaker if they need copying?
             if (handler.allowsUnsafeBuffers() == false) {
                 request.ensureSafeBuffers();
@@ -532,20 +538,20 @@ public class RestController implements HttpServerTransport.Dispatcher {
         private final int contentLength;
         private final AtomicBoolean closed = new AtomicBoolean();
         private final RestHandler restHandler;
-        private final RestActionsService restActionsService;
+        private final RestActionsStatusCountService restActionsStatusCountService;
 
         ResourceHandlingHttpChannel(
             RestChannel delegate,
             CircuitBreakerService circuitBreakerService,
             int contentLength,
             RestHandler restHandler,
-            RestActionsService restActionsService
+            RestActionsStatusCountService restActionsStatusCountService
         ) {
             this.delegate = delegate;
             this.circuitBreakerService = circuitBreakerService;
             this.contentLength = contentLength;
             this.restHandler = restHandler;
-            this.restActionsService = restActionsService;
+            this.restActionsStatusCountService = restActionsStatusCountService;
         }
 
         @Override
@@ -588,7 +594,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         public void sendResponse(RestResponse response) {
             close();
             delegate.sendResponse(response);
-            if (restHandler instanceof BaseRestHandler) restActionsService.putStatus(
+            if (restHandler instanceof BaseRestHandler) restActionsStatusCountService.putStatus(
                 ((BaseRestHandler) restHandler).getName(),
                 response.status()
             );

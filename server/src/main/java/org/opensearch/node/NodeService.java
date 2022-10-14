@@ -51,7 +51,7 @@ import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.monitor.MonitorService;
 import org.opensearch.plugins.PluginsService;
-import org.opensearch.rest.RestActionsService;
+import org.opensearch.rest.RestActionsStatusCountService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.aggregations.support.AggregationUsageService;
 import org.opensearch.threadpool.ThreadPool;
@@ -83,7 +83,7 @@ public class NodeService implements Closeable {
     private final SearchTransportService searchTransportService;
     private final IndexingPressureService indexingPressureService;
     private final AggregationUsageService aggregationUsageService;
-    private final RestActionsService restActionsService;
+    private final RestActionsStatusCountService restActionsStatusCountService;
 
     private final Discovery discovery;
 
@@ -105,7 +105,7 @@ public class NodeService implements Closeable {
         SearchTransportService searchTransportService,
         IndexingPressureService indexingPressureService,
         AggregationUsageService aggregationUsageService,
-        RestActionsService restActionsService
+        RestActionsStatusCountService restActionsStatusCountService
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -123,7 +123,7 @@ public class NodeService implements Closeable {
         this.searchTransportService = searchTransportService;
         this.indexingPressureService = indexingPressureService;
         this.aggregationUsageService = aggregationUsageService;
-        this.restActionsService = restActionsService;
+        this.restActionsStatusCountService = restActionsStatusCountService;
         clusterService.addStateApplier(ingestService);
     }
 
@@ -199,7 +199,7 @@ public class NodeService implements Closeable {
             scriptCache ? scriptService.cacheStats() : null,
             indexingPressure ? this.indexingPressureService.nodeStats() : null,
             shardIndexingPressure ? this.indexingPressureService.shardStats(indices) : null,
-            restActions ? this.restActionsService.stats(restActionsFilters) : null
+            restActions ? this.restActionsStatusCountService.stats(restActionsFilters) : null
         );
     }
 

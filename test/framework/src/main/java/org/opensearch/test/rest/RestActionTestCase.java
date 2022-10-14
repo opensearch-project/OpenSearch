@@ -40,7 +40,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.client.node.NodeClient;
-import org.opensearch.rest.RestActionsService;
+import org.opensearch.rest.RestActionsStatusCountService;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.tasks.Task;
@@ -72,7 +72,7 @@ public abstract class RestActionTestCase extends OpenSearchTestCase {
             verifyingClient,
             new NoneCircuitBreakerService(),
             new UsageService(),
-            new RestActionsService()
+            new RestActionsStatusCountService()
         );
     }
 
