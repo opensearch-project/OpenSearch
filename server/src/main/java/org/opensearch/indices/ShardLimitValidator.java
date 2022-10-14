@@ -67,7 +67,7 @@ public class ShardLimitValidator {
 
     public static final Setting<Boolean> SETTING_CLUSTER_IGNORE_HIDDEN_INDEXES = Setting.boolSetting(
         "cluster.ignore_hidden_indexes",
-        true,
+        false,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
