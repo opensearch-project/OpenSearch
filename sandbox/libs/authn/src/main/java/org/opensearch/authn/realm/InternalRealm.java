@@ -84,11 +84,7 @@ public class InternalRealm extends AuthenticatingRealm {
             // Check for other things, like a locked account, expired password, etc.
 
             // Verify the user
-            SimpleAuthenticationInfo sai = new SimpleAuthenticationInfo(
-                userRecord.getPrincipal(),
-                userRecord.getBcryptHash(),
-                realmName
-            );
+            SimpleAuthenticationInfo sai = new SimpleAuthenticationInfo(userRecord.getPrincipal(), userRecord.getBcryptHash(), realmName);
             boolean successfulAuthentication = getCredentialsMatcher().doCredentialsMatch(token, sai);
 
             if (successfulAuthentication) {
@@ -119,7 +115,7 @@ public class InternalRealm extends AuthenticatingRealm {
                 isAuthenticationSuccessful = handleBasicAuth(token);
             }
 
-            // TODO Handle other type of auths, and see if we can use switch case here
+            // TODO: Handle other type of auths, and see if we can use switch case here
 
             // Unsupported auth header found
             if (isAuthenticationSuccessful == null) {
@@ -127,11 +123,17 @@ public class InternalRealm extends AuthenticatingRealm {
             } else if (!isAuthenticationSuccessful) {
                 throw new AuthenticationException("Authentication finally failed");
             }
-        } catch (Throwable e){
+        } catch (Throwable e) {
             throw e;
         }
     }
 
+    /**
+     * Handles authentication for Basic Auth type
+     * @param token the basic auth token
+     * @return true if authentication was successful, false otherwise
+     * @throws AuthenticationException if Authentication failed
+     */
     private boolean handleBasicAuth(final HttpHeaderToken token) throws AuthenticationException {
 
         final byte[] decodedAuthHeader = Base64.getDecoder().decode(token.getHeaderValue().substring("Basic".length()).trim());
