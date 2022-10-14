@@ -137,7 +137,7 @@ public class InternalRealm extends AuthenticatingRealm {
     private boolean handleBasicAuth(final HttpHeaderToken token) throws AuthenticationException {
 
         final byte[] decodedAuthHeader = Base64.getDecoder().decode(token.getHeaderValue().substring("Basic".length()).trim());
-        final String[] decodedUserNamePassword = new String(decodedAuthHeader).split(":");
+        final String[] decodedUserNamePassword = decodedAuthHeader.toString().split(":");
 
         UsernamePasswordToken usernamePasswordToken = new UsernamePasswordToken(decodedUserNamePassword[0], decodedUserNamePassword[1]);
 
