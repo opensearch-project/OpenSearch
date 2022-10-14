@@ -76,6 +76,12 @@ grant codeBase "${codebase.opensearch-plugin-classloader}" {
 
 grant codeBase "${codebase.jackson-databind}" {
   // needed by jackson-databind ObjectMapper.readValue
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+};
+
+grant codeBase "${codebase.jackson-databind}" {
+  // needed by jackson-databind ObjectMapper.readValue
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
   permission java.lang.RuntimePermission "accessDeclaredMembers";
 };
