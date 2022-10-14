@@ -24,9 +24,9 @@ import java.util.Objects;
  */
 public class RegisterTransportActionsRequest extends TransportRequest {
     private String uniqueId;
-    private Map<String, Class> transportActions;
+    private Map<String, Class<?>> transportActions;
 
-    public RegisterTransportActionsRequest(String uniqueId, Map<String, Class> transportActions) {
+    public RegisterTransportActionsRequest(String uniqueId, Map<String, Class<?>> transportActions) {
         this.uniqueId = uniqueId;
         this.transportActions = new HashMap<>(transportActions);
     }
@@ -34,12 +34,12 @@ public class RegisterTransportActionsRequest extends TransportRequest {
     public RegisterTransportActionsRequest(StreamInput in) throws IOException {
         super(in);
         this.uniqueId = in.readString();
-        Map<String, Class> actions = new HashMap<>();
+        Map<String, Class<?>> actions = new HashMap<>();
         int actionCount = in.readVInt();
         for (int i = 0; i < actionCount; i++) {
             try {
                 String actionName = in.readString();
-                Class transportAction = Class.forName(in.readString());
+                Class<?> transportAction = Class.forName(in.readString());
                 actions.put(actionName, transportAction);
             } catch (ClassNotFoundException e) {
                 throw new IllegalArgumentException("Could not read transport action");
@@ -52,7 +52,7 @@ public class RegisterTransportActionsRequest extends TransportRequest {
         return uniqueId;
     }
 
-    public Map<String, Class> getTransportActions() {
+    public Map<String, Class<?>> getTransportActions() {
         return transportActions;
     }
 
@@ -61,7 +61,7 @@ public class RegisterTransportActionsRequest extends TransportRequest {
         super.writeTo(out);
         out.writeString(uniqueId);
         out.writeVInt(this.transportActions.size());
-        for (Map.Entry<String, Class> action : transportActions.entrySet()) {
+        for (Map.Entry<String, Class<?>> action : transportActions.entrySet()) {
             out.writeString(action.getKey());
             out.writeString(action.getValue().getName());
         }
