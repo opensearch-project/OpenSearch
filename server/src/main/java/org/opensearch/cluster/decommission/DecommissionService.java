@@ -395,26 +395,31 @@ public class DecommissionService {
         Map<String, List<String>> forcedAwarenessAttributes
     ) {
         String msg = null;
-        if (awarenessAttributes == null) {
-            msg = "awareness attribute not set to the cluster";
-        } else if (forcedAwarenessAttributes == null) {
-            msg = "forced awareness attribute not set to the cluster";
-        } else if (awarenessAttributes.contains(decommissionAttribute.attributeName()) == false) {
-            msg = "invalid awareness attribute requested for decommissioning, eligible attributes are ["
-                + awarenessAttributes.toString()
-                + "]";
-        } else if (forcedAwarenessAttributes.containsKey(decommissionAttribute.attributeName()) == false) {
-            msg = "forced awareness attribute [" + forcedAwarenessAttributes.toString() + "] doesn't have the decommissioning attribute";
-        } else if (forcedAwarenessAttributes.get(decommissionAttribute.attributeName())
-            .contains(decommissionAttribute.attributeValue()) == false) {
-                msg = "invalid awareness attribute value requested for decommissioning. Eligible forced awareness attributes ["
-                    + forcedAwarenessAttributes.toString()
+
+        if (awarenessAttributes == null
+            || forcedAwarenessAttributes == null
+            || awarenessAttributes.isEmpty()
+            || forcedAwarenessAttributes.isEmpty()) {
+            msg = "awareness attribute ["
+                + awarenessAttributes
+                + "] and forced awareness attribute ["
+                + forcedAwarenessAttributes
+                + "] must be set to execute decommissioning";
+        } else if (awarenessAttributes.contains(decommissionAttribute.attributeName()) == false
+            || forcedAwarenessAttributes.containsKey(decommissionAttribute.attributeName()) == false) {
+                msg = "invalid awareness attribute requested for decommissioning, eligible attributes are ["
+                    + forcedAwarenessAttributes
                     + "]";
-            } else if (forcedAwarenessAttributes.get(decommissionAttribute.attributeName()).size() < 3) {
-                msg = "total awareness attribute value set to cluster is ["
-                    + forcedAwarenessAttributes.get(decommissionAttribute.attributeName()).size()
-                    + "] which is less than minimum attribute value count required [3]";
-            }
+            } else if (forcedAwarenessAttributes.get(decommissionAttribute.attributeName())
+                .contains(decommissionAttribute.attributeValue()) == false) {
+                    msg = "invalid awareness attribute value requested for decommissioning. Eligible forced awareness attributes ["
+                        + forcedAwarenessAttributes
+                        + "]";
+                } else if (forcedAwarenessAttributes.get(decommissionAttribute.attributeName()).size() < 3) {
+                    msg = "total awareness attribute value set to cluster is ["
+                        + forcedAwarenessAttributes.get(decommissionAttribute.attributeName()).size()
+                        + "] which is less than minimum attribute value count required [3]";
+                }
 
         if (msg != null) {
             throw new DecommissioningFailedException(decommissionAttribute, msg);
