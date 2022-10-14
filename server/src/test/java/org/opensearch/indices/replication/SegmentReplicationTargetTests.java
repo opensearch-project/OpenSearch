@@ -27,7 +27,6 @@ import org.apache.lucene.util.Version;
 import org.junit.Assert;
 import org.mockito.Mockito;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
@@ -40,6 +39,7 @@ import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.store.StoreTests;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
+import org.opensearch.indices.replication.common.ReplicationFailedException;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.DummyShardLock;
 import org.opensearch.test.IndexSettingsModule;
@@ -199,7 +199,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
             @Override
             public void onFailure(Exception e) {
                 assertEquals(exception, e.getCause().getCause());
-                segrepTarget.fail(new OpenSearchException(e), false);
+                segrepTarget.fail(new ReplicationFailedException(e), false);
             }
         });
     }
@@ -242,7 +242,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
             @Override
             public void onFailure(Exception e) {
                 assertEquals(exception, e.getCause().getCause());
-                segrepTarget.fail(new OpenSearchException(e), false);
+                segrepTarget.fail(new ReplicationFailedException(e), false);
             }
         });
     }
@@ -287,7 +287,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
             @Override
             public void onFailure(Exception e) {
                 assertEquals(exception, e.getCause());
-                segrepTarget.fail(new OpenSearchException(e), false);
+                segrepTarget.fail(new ReplicationFailedException(e), false);
             }
         });
     }
@@ -332,7 +332,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
             @Override
             public void onFailure(Exception e) {
                 assertEquals(exception, e.getCause());
-                segrepTarget.fail(new OpenSearchException(e), false);
+                segrepTarget.fail(new ReplicationFailedException(e), false);
             }
         });
     }
@@ -374,7 +374,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
             @Override
             public void onFailure(Exception e) {
                 assert (e instanceof IllegalStateException);
-                segrepTarget.fail(new OpenSearchException(e), false);
+                segrepTarget.fail(new ReplicationFailedException(e), false);
             }
         });
     }
