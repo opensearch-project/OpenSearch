@@ -1,8 +1,6 @@
 /*
- *
- *  * Copyright OpenSearch Contributors
- *  * SPDX-License-Identifier: Apache-2.0
- *
+ * Copyright OpenSearch Contributors
+ * SPDX-License-Identifier: Apache-2.0
  */
 
 package org.opensearch.rest;
@@ -10,7 +8,6 @@ package org.opensearch.rest;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.authn.HttpHeaderToken;
-import org.opensearch.authn.realm.InternalRealm;
 import org.opensearch.client.node.NodeClient;
 
 import java.io.IOException;
@@ -18,6 +15,9 @@ import java.util.Collections;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import static org.opensearch.node.Node.INTERNAL_REALM;
+
 
 /**
  * Adds a wrapper to all rest requests to add authentication mechanism
@@ -45,14 +45,10 @@ public class SecurityRestFilter {
      * @return the RestHandler wrapper to original Rest Handler
      */
     public RestHandler wrap(RestHandler original) {
-        return new RestHandler() {
-
-            @Override
-            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-                if (checkAndAuthenticateRequest(request, channel, client)) {
-                    // TODO: Do allowlisting and isAdmin check
-                    original.handleRequest(request, channel, client);
-                }
+        return (request, channel, client) -> {
+            if (checkAndAuthenticateRequest(request, channel, client)) {
+                // TODO: Do allowlisting and isAdmin check
+                original.handleRequest(request, channel, client);
             }
         };
     }
@@ -65,7 +61,7 @@ public class SecurityRestFilter {
      * @param channel the channel to be used to proceed with request handling
      * @param client the node the that handles the request
      * @return true if authentication was successful, false otherwise
-     * @throws Exception
+     * @throws Exception generic exception rethrown in case authenticate method throws an exception
      */
     private boolean checkAndAuthenticateRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         Matcher matcher = PATTERN_PATH_PREFIX.matcher(request.path());
@@ -85,7 +81,7 @@ public class SecurityRestFilter {
      * @param channel the channel to send the response on
      * @param client the client to be used
      * @return true if authentication was successful, false otherwise
-     * @throws IOException
+     * @throws IOException when an exception is raised writing response to channel
      */
     private boolean authenticate(RestRequest request, RestChannel channel, NodeClient client) throws IOException {
 
@@ -97,10 +93,7 @@ public class SecurityRestFilter {
         if (authHeader.isPresent()) {
             try {
                 HttpHeaderToken token = new HttpHeaderToken(authHeader.get());
-                // TODO: Find out the correct realm instance to be used
-                InternalRealm realm = InternalRealm.INSTANCE;
-                realm.authenticateWithToken(token);
-                logger.info("reached Security rest filter");
+                INTERNAL_REALM.authenticateWithToken(token);
                 return true;
             } catch (final Exception e) {
                 final BytesRestResponse bytesRestResponse = BytesRestResponse.createSimpleErrorResponse(
@@ -112,7 +105,14 @@ public class SecurityRestFilter {
                 return false;
             }
         }
-        // TODO: Should it return false or should it throw an exception
+        logger.info("Authentication finally failed due to missing auth header");
+        // TODO: Is this response correct
+        final BytesRestResponse bytesRestResponse = BytesRestResponse.createSimpleErrorResponse(
+            channel,
+            RestStatus.BAD_REQUEST,
+            "Authentication failed: Missing Credentials"
+        );
+        channel.sendResponse(bytesRestResponse);
         return false;
     }
 
