@@ -17,7 +17,7 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public class InvalidArgumentException extends OpenSearchException{
+public class InvalidArgumentException extends OpenSearchException {
     public InvalidArgumentException(String message) {
         super(message);
     }
