@@ -120,8 +120,6 @@ dependencies {
   api "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
   api "org.apache.lucene:lucene-suggest:${versions.lucene}"
 
-  api 'org.apache.shiro:shiro-core:1.9.1'
-
   // utilities
   api project(":libs:opensearch-cli")
   api 'com.carrotsearch:hppc:0.8.1'
