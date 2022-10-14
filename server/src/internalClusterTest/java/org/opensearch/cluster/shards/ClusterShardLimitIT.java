@@ -537,29 +537,41 @@ public class ClusterShardLimitIT extends OpenSearchIntegTestCase {
     public void testIgnoreHiddenSettingOnMultipleNodes() throws IOException, InterruptedException {
         int maxAllowedShardsPerNode = 10, indexPrimaryShards = 11, indexReplicaShards = 1;
 
-        InternalTestCluster cluster = new InternalTestCluster(randomLong(), createTempDir(), true, true, 0, 0, "cluster", new NodeConfigurationSource() {
-            @Override
-            public Settings nodeSettings(int nodeOrdinal) {
-                return Settings.builder()
-                    .put(ClusterShardLimitIT.this.nodeSettings(nodeOrdinal))
-                    .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType())
-                    .build();
-            }
+        InternalTestCluster cluster = new InternalTestCluster(
+            randomLong(),
+            createTempDir(),
+            true,
+            true,
+            0,
+            0,
+            "cluster",
+            new NodeConfigurationSource() {
+                @Override
+                public Settings nodeSettings(int nodeOrdinal) {
+                    return Settings.builder()
+                        .put(ClusterShardLimitIT.this.nodeSettings(nodeOrdinal))
+                        .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType())
+                        .build();
+                }
 
-            @Override
-            public Path nodeConfigPath(int nodeOrdinal) {
-                return null;
-            }
-        }, 0, "cluster-", Arrays.asList(
-            TestSeedPlugin.class,
-            MockHttpTransport.TestPlugin.class,
-            MockTransportService.TestPlugin.class,
-            MockNioTransportPlugin.class,
-            InternalSettingsPlugin.class,
-            MockRepository.Plugin.class
-        ), Function.identity());
+                @Override
+                public Path nodeConfigPath(int nodeOrdinal) {
+                    return null;
+                }
+            },
+            0,
+            "cluster-",
+            Arrays.asList(
+                TestSeedPlugin.class,
+                MockHttpTransport.TestPlugin.class,
+                MockTransportService.TestPlugin.class,
+                MockNioTransportPlugin.class,
+                InternalSettingsPlugin.class,
+                MockRepository.Plugin.class
+            ),
+            Function.identity()
+        );
         cluster.beforeTest(random());
-
 
         // Starting 3 ClusterManagerOnlyNode nodes
         cluster.startClusterManagerOnlyNode(Settings.builder().put("cluster.ignore_hidden_indexes", true).build());
@@ -571,13 +583,22 @@ public class ClusterShardLimitIT extends OpenSearchIntegTestCase {
         cluster.startDataOnlyNode(Settings.builder().put("cluster.ignore_hidden_indexes", false).build());
 
         // Setting max shards per node to be 10
-        cluster.client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder().put(shardsPerNodeKey, maxAllowedShardsPerNode)).get();
+        cluster.client()
+            .admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().put(shardsPerNodeKey, maxAllowedShardsPerNode))
+            .get();
 
         // Creating an index starting with dot having shards greater thn the desired node limit
-        cluster.client().admin().indices().prepareCreate(".test-index").setSettings(Settings.builder()
-            .put(SETTING_NUMBER_OF_SHARDS, indexPrimaryShards)
-            .put(SETTING_NUMBER_OF_REPLICAS, indexReplicaShards)).get();
-
+        cluster.client()
+            .admin()
+            .indices()
+            .prepareCreate(".test-index")
+            .setSettings(
+                Settings.builder().put(SETTING_NUMBER_OF_SHARDS, indexPrimaryShards).put(SETTING_NUMBER_OF_REPLICAS, indexReplicaShards)
+            )
+            .get();
 
         // As active ClusterManagerNode setting takes precedence killing the active one.
         // This would be the first one where cluster.ignore_hidden_indexes is true because the above calls are blocking.
@@ -588,9 +609,14 @@ public class ClusterShardLimitIT extends OpenSearchIntegTestCase {
 
         // Creating an index starting with dot having shards greater thn the desired node limit
         try {
-            cluster.client().admin().indices().prepareCreate(".test-index1").setSettings(Settings.builder()
-                .put(SETTING_NUMBER_OF_SHARDS, indexPrimaryShards)
-                .put(SETTING_NUMBER_OF_REPLICAS, indexReplicaShards)).get();
+            cluster.client()
+                .admin()
+                .indices()
+                .prepareCreate(".test-index1")
+                .setSettings(
+                    Settings.builder().put(SETTING_NUMBER_OF_SHARDS, indexPrimaryShards).put(SETTING_NUMBER_OF_REPLICAS, indexReplicaShards)
+                )
+                .get();
         } catch (IllegalArgumentException e) {
             ClusterHealthResponse clusterHealth = cluster.client().admin().cluster().prepareHealth().get();
             int currentActiveShards = clusterHealth.getActiveShards();
