@@ -522,10 +522,9 @@ public class ActionModule extends AbstractModule {
         // Adding a wrapper to be used for embedded security.
         // If clause should be removed once this feature is embedded in core
         securityRestFilter = new SecurityRestFilter();
-//        if(System.getProperty("sandbox.enabled").equals("true")){
-            restWrapper = (restHandler) -> securityRestFilter.wrap(restHandler);
-            logger.debug("Using REST wrapper from embedded Security plugin");
-//        }
+        // TODO: Add a check to enable following only when sandbox is enabled
+        restWrapper = (restHandler) -> securityRestFilter.wrap(restHandler);
+        logger.debug("Using REST wrapper from embedded Security plugin");
 
         mappingRequestValidators = new RequestValidators<>(
             actionPlugins.stream().flatMap(p -> p.mappingRequestValidators().stream()).collect(Collectors.toList())
