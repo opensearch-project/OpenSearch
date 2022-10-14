@@ -15,10 +15,9 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
-import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionRequest;
+import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionStateResponse;
 import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionResponse;
 import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsRequest;
-import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.coordination.CoordinationMetadata;
@@ -139,7 +138,7 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
                 countDownLatch.countDown();
             }
         };
-        decommissionService.startDecommissionAction(new DecommissionRequest(decommissionAttribute), listener);
+        decommissionService.startDecommissionAction(decommissionAttribute, listener);
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
     }
 
@@ -166,7 +165,7 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
                 countDownLatch.countDown();
             }
         };
-        decommissionService.startDecommissionAction(new DecommissionRequest(decommissionAttribute), listener);
+        decommissionService.startDecommissionAction(decommissionAttribute, listener);
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
     }
 
@@ -203,8 +202,7 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
                 countDownLatch.countDown();
             }
         };
-        DecommissionRequest request = new DecommissionRequest(new DecommissionAttribute("zone", "zone_2"));
-        decommissionService.startDecommissionAction(request, listener);
+        decommissionService.startDecommissionAction(new DecommissionAttribute("zone", "zone_2"), listener);
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
     }
 
@@ -219,9 +217,9 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
             .metadata(Metadata.builder().putCustom(DecommissionAttributeMetadata.TYPE, decommissionAttributeMetadata).build())
             .build();
 
-        ActionListener<AcknowledgedResponse> listener = new ActionListener<AcknowledgedResponse>() {
+        ActionListener<DeleteDecommissionStateResponse> listener = new ActionListener<>() {
             @Override
-            public void onResponse(AcknowledgedResponse decommissionResponse) {
+            public void onResponse(DeleteDecommissionStateResponse decommissionResponse) {
                 DecommissionAttributeMetadata metadata = clusterService.state().metadata().custom(DecommissionAttributeMetadata.TYPE);
                 assertNull(metadata);
                 countDownLatch.countDown();
@@ -270,9 +268,9 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
 
     public void testClusterUpdateTaskForDeletingDecommission() throws InterruptedException {
         final CountDownLatch countDownLatch = new CountDownLatch(1);
-        ActionListener<AcknowledgedResponse> listener = new ActionListener<>() {
+        ActionListener<DeleteDecommissionStateResponse> listener = new ActionListener<>() {
             @Override
-            public void onResponse(AcknowledgedResponse response) {
+            public void onResponse(DeleteDecommissionStateResponse response) {
                 assertTrue(response.isAcknowledged());
                 assertNull(clusterService.state().metadata().decommissionAttributeMetadata());
                 countDownLatch.countDown();
