@@ -95,6 +95,9 @@ import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRespons
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsRequestBuilder;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.delete.ClusterDeleteWeightedRoutingRequest;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.delete.ClusterDeleteWeightedRoutingRequestBuilder;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.delete.ClusterDeleteWeightedRoutingResponse;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.get.ClusterGetWeightedRoutingRequest;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.get.ClusterGetWeightedRoutingRequestBuilder;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.get.ClusterGetWeightedRoutingResponse;
@@ -836,6 +839,21 @@ public interface ClusterAdminClient extends OpenSearchClient {
      * Gets weights for weighted round-robin search routing policy.
      */
     ClusterGetWeightedRoutingRequestBuilder prepareGetWeightedRouting();
+
+    /**
+     * Deletes weights for weighted round-robin search routing policy.
+     */
+    ActionFuture<ClusterDeleteWeightedRoutingResponse> deleteWeightedRouting(ClusterDeleteWeightedRoutingRequest request);
+
+    /**
+     * Deletes weights for weighted round-robin search routing policy.
+     */
+    void deleteWeightedRouting(ClusterDeleteWeightedRoutingRequest request, ActionListener<ClusterDeleteWeightedRoutingResponse> listener);
+
+    /**
+     * Deletes weights for weighted round-robin search routing policy.
+     */
+    ClusterDeleteWeightedRoutingRequestBuilder prepareDeleteWeightedRouting();
 
     /**
      * Decommission awareness attribute
