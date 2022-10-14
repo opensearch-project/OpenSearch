@@ -9,7 +9,6 @@ import java.security.Principal;
 import java.util.Objects;
 
 import org.opensearch.authn.Subject;
-import org.opensearch.authn.AuthenticationToken;
 import org.opensearch.authn.Principals;
 
 /**
@@ -44,8 +43,4 @@ public class NoopSubject implements Subject {
         return "NoopSubject(principal=" + getPrincipal() + ")";
     }
 
-    @Override
-    public void login(final AuthenticationToken token) {
-        // Noop subject is always logged in, and all authentication tokens are accepted
-    }
 }
