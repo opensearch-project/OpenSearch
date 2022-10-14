@@ -59,7 +59,7 @@ public class InternalUsersStore {
                         throw new RuntimeException(e);
                     }
                 });
-                
+
                 internalUsersMap.put(primaryPrincipal, user);
             }
         } catch (IOException e) {

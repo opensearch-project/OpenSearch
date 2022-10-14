@@ -4,11 +4,6 @@
  */
 
 package org.opensearch.authn;
-<<<<<<< HEAD
-=======
-
-import org.opensearch.authn.StringPrincipal;
->>>>>>> a4c957e6722 (Integrate new changes with existing identity classes)
 
 import java.security.Principal;
 

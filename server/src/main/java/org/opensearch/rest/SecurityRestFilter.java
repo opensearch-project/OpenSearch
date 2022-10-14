@@ -18,7 +18,6 @@ import java.util.regex.Pattern;
 
 import static org.opensearch.node.Node.INTERNAL_REALM;
 
-
 /**
  * Adds a wrapper to all rest requests to add authentication mechanism
  *
