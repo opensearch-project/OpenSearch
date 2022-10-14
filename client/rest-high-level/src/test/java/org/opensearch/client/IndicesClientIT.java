@@ -1437,7 +1437,7 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
         assertThat(
             exception.getMessage(),
             startsWith(
-                "OpenSearch exception [type=illegal_argument_exception, "
+                "OpenSearch exception [type=invalid_argument_exception, "
                     + "reason=final index setting [index.number_of_shards], not updateable"
             )
         );
@@ -1471,7 +1471,7 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
                 highLevelClient().indices()::putSettingsAsync
             )
         );
-        assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(exception.status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
         assertThat(
             exception.getMessage(),
             equalTo(
