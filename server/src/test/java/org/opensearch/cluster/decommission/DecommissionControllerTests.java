@@ -280,7 +280,9 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
 
     public void testSetWeightsForDecommission() {
         TransportService mockTransportService = Mockito.mock(TransportService.class);
-        Mockito.when(mockTransportService.getLocalNode()).thenReturn(Mockito.mock(DiscoveryNode.class));
+        DiscoveryNode localNode = Mockito.mock(DiscoveryNode.class);
+        Mockito.when(localNode.isClusterManagerNode()).thenReturn(true);
+        Mockito.when(mockTransportService.getLocalNode()).thenReturn(localNode);
         decommissionController = new DecommissionController(clusterService, mockTransportService, allocationService, threadPool);
 
         Map<String, Double> weights = Map.of("zone-1", 0.0, "zone-2", 1.0, "zone-3", 1.0);
@@ -301,6 +303,21 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
         assertEquals(0.0, request.getWeightedRouting().weights().get("zone-1"), 0.0);
         assertEquals(1.0, request.getWeightedRouting().weights().get("zone-2"), 0.0);
         assertEquals(1.0, request.getWeightedRouting().weights().get("zone-3"), 0.0);
+    }
+
+    public void testSetWeightsForDecommissionWhenNotClusterManagerNode() {
+        TransportService mockTransportService = Mockito.mock(TransportService.class);
+        DiscoveryNode localNode = Mockito.mock(DiscoveryNode.class);
+        Mockito.when(localNode.isClusterManagerNode()).thenReturn(false);
+        Mockito.when(mockTransportService.getLocalNode()).thenReturn(localNode);
+        decommissionController = new DecommissionController(clusterService, mockTransportService, allocationService, threadPool);
+
+        Map<String, Double> weights = Map.of("zone-1", 0.0, "zone-2", 1.0, "zone-3", 1.0);
+
+        expectThrows(
+            AssertionError.class,
+            () -> decommissionController.setRoutingWeights("zone", weights, Mockito.mock(ActionListener.class))
+        );
     }
 
     private static class AdjustConfigurationForExclusions implements ClusterStateObserver.Listener {
