@@ -30,6 +30,7 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionRequest> {
 
     public static final TimeValue DEFAULT_NODE_DRAINING_TIMEOUT = TimeValue.timeValueSeconds(300);
+    // Max Value allowed to be passed for Draining timeout
     public static final TimeValue MAX_NODE_DRAINING_TIMEOUT = TimeValue.timeValueSeconds(900);
 
     private DecommissionAttribute decommissionAttribute;
@@ -103,10 +104,9 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
             validationException = addValidationError("attribute value is missing", validationException);
         }
         if (drainingTimeout.getSeconds() < 0 || drainingTimeout.getSeconds() > MAX_NODE_DRAINING_TIMEOUT.getSeconds()) {
-            final String validationMessage = String.format(
-                "Invalid draining timeout - Accepted range [0, %s]",
-                MAX_NODE_DRAINING_TIMEOUT.getSeconds()
-            );
+            final String validationMessage = "Invalid draining timeout - Accepted range [0, "
+                + MAX_NODE_DRAINING_TIMEOUT.getSeconds()
+                + "] Seconds";
             validationException = addValidationError(validationMessage, validationException);
         }
         return validationException;
