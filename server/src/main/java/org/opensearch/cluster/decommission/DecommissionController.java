@@ -284,11 +284,13 @@ public class DecommissionController {
         Map<String, Double> awarenessAttributeToWeightMap,
         ActionListener<ClusterPutWeightedRoutingResponse> listener
     ) {
-        // WRR transport action will validate invalid weights
+        // Weighted Routing transport action will validate invalid weights
         final ClusterPutWeightedRoutingRequest clusterPutRoutingWeightRequest = new ClusterPutWeightedRoutingRequest(
             awarenessAttributeName
         );
+
         clusterPutRoutingWeightRequest.setWeightedRouting(new WeightedRouting(awarenessAttributeName, awarenessAttributeToWeightMap));
+        assert transportService.getLocalNode().isClusterManagerNode();
 
         transportService.sendRequest(
             transportService.getLocalNode(),
@@ -310,7 +312,7 @@ public class DecommissionController {
 
                 @Override
                 public String executor() {
-                    return ThreadPool.Names.SAME;
+                    return ThreadPool.Names.GENERIC;
                 }
 
                 @Override

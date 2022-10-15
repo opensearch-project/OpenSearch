@@ -30,6 +30,7 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionRequest> {
 
     public static final TimeValue DEFAULT_NODE_DRAINING_TIMEOUT = TimeValue.timeValueSeconds(300);
+    public static final TimeValue MAX_NODE_DRAINING_TIMEOUT = TimeValue.timeValueSeconds(900);
 
     private DecommissionAttribute decommissionAttribute;
 
@@ -38,7 +39,7 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
     public DecommissionRequest() {}
 
     public DecommissionRequest(DecommissionAttribute decommissionAttribute) {
-        this.decommissionAttribute = decommissionAttribute;
+        this(decommissionAttribute, DEFAULT_NODE_DRAINING_TIMEOUT);
     }
 
     public DecommissionRequest(DecommissionAttribute decommissionAttribute, TimeValue drainingTimeout) {
@@ -101,8 +102,12 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
         if (decommissionAttribute.attributeValue() == null || Strings.isEmpty(decommissionAttribute.attributeValue())) {
             validationException = addValidationError("attribute value is missing", validationException);
         }
-        if (drainingTimeout.getSeconds() < 0) {
-            validationException = addValidationError("Invalid draining timeout - " + drainingTimeout.getSeconds(), validationException);
+        if (drainingTimeout.getSeconds() < 0 || drainingTimeout.getSeconds() > MAX_NODE_DRAINING_TIMEOUT.getSeconds()) {
+            final String validationMessage = String.format(
+                "Invalid draining timeout - Accepted range [0, %s]",
+                MAX_NODE_DRAINING_TIMEOUT.getSeconds()
+            );
+            validationException = addValidationError(validationMessage, validationException);
         }
         return validationException;
     }
