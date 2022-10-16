@@ -202,9 +202,10 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
         DecommissionAttributeMetadata metadata = decommissionedNodeClusterService.state().metadata().custom(DecommissionAttributeMetadata.TYPE);
         // The decommissioned node would not be having status as SUCCESS as it was kicked out later
         // and not receiving any further state updates
+        // This also helps to test metadata status updates was received by this node until it got kicked by the leader
         assertEquals(metadata.decommissionAttribute(), decommissionAttribute);
         assertNotNull(metadata.status());
-        assertNotEquals(metadata.status(), DecommissionStatus.SUCCESSFUL);
+        assertEquals(metadata.status(), DecommissionStatus.IN_PROGRESS);
 
         // assert the node has decommissioned attribute
         assertEquals(decommissionedNodeClusterService.localNode().getAttributes().get("zone"), "a");
