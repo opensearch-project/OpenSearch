@@ -128,7 +128,7 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
             DiscoveryNode node = discoveryNodeIterator.next();
             assertNotEquals(node.getAttributes().get("zone"), "c");
 
-            // assert all the nodes has status as SUCCESSFUL node
+            // assert all the nodes has status as SUCCESSFUL
             ClusterService localNodeClusterService = internalCluster().getInstance(ClusterService.class, node.getName());
             assertEquals(
                 localNodeClusterService.state().metadata().decommissionAttributeMetadata().status(),
