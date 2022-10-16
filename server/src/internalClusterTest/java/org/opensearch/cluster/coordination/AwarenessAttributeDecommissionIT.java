@@ -138,7 +138,7 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
 
         // assert status on decommissioned node
         // Here we will verify that until it got kicked out, it received appropriate status updates
-        // decommissioned nodes hence will have status as IN_PROGRESS as it will kicked out later after this
+        // decommissioned nodes hence will have status as IN_PROGRESS as it will be kicked out later after this
         // and won't receive status update to SUCCESSFUL
         String randomDecommissionedNode = randomFrom(clusterManagerNodes.get(2), dataNodes.get(2));
         ClusterService decommissionedNodeClusterService = internalCluster().getInstance(ClusterService.class, randomDecommissionedNode);
