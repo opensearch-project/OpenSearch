@@ -8,10 +8,8 @@
 
 package org.opensearch.action.admin.cluster.decommission.awareness.get;
 
-import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionRequestBuilder;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
-import org.opensearch.cluster.decommission.DecommissionAttribute;
 
 /**
  * Get decommission request builder

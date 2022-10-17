@@ -8,10 +8,8 @@
 
 package org.opensearch.action.admin.cluster.decommission.awareness.get;
 
-import org.apache.logging.log4j.util.Strings;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.ActionResponse;
-import org.opensearch.cluster.decommission.DecommissionAttribute;
 import org.opensearch.cluster.decommission.DecommissionStatus;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -91,9 +89,7 @@ public class GetDecommissionStateResponse extends ActionResponse implements ToXC
             if (token == XContentParser.Token.FIELD_NAME) {
                 attributeValue = parser.currentName();
                 if (parser.nextToken() != XContentParser.Token.VALUE_STRING) {
-                    throw new OpenSearchParseException(
-                        "failed to parse status of decommissioning, expected string but found unknown type"
-                    );
+                    throw new OpenSearchParseException("failed to parse status of decommissioning, expected string but found unknown type");
                 }
                 status = DecommissionStatus.fromString(parser.text().toLowerCase(Locale.ROOT));
             } else {

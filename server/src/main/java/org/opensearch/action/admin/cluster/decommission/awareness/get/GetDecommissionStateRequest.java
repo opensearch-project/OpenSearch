@@ -9,7 +9,6 @@
 package org.opensearch.action.admin.cluster.decommission.awareness.get;
 
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadRequest;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;

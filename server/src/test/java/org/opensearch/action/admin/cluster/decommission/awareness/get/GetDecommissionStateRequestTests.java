@@ -17,7 +17,11 @@ public class GetDecommissionStateRequestTests extends OpenSearchTestCase {
     public void testSerialization() throws IOException {
         String attributeName = "zone";
         final GetDecommissionStateRequest originalRequest = new GetDecommissionStateRequest(attributeName);
-        final GetDecommissionStateRequest deserialized = copyWriteable(originalRequest, writableRegistry(), GetDecommissionStateRequest::new);
+        final GetDecommissionStateRequest deserialized = copyWriteable(
+            originalRequest,
+            writableRegistry(),
+            GetDecommissionStateRequest::new
+        );
         assertEquals(deserialized.attributeName(), originalRequest.attributeName());
     }
 
