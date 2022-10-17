@@ -49,15 +49,24 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testCreateSearchableSnapshot() throws Exception {
+        final int numReplicasIndex1 = randomIntBetween(1, 4);
+        final int numReplicasIndex2 = randomIntBetween(0, 2);
+        internalCluster().ensureAtLeastNumDataNodes(Math.max(numReplicasIndex1, numReplicasIndex2) + 1);
         final Client client = client();
         createRepository("test-repo", "fs");
         createIndex(
             "test-idx-1",
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "0").put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "1").build()
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, Integer.toString(numReplicasIndex1))
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "1")
+                .build()
         );
         createIndex(
             "test-idx-2",
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "0").put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "1").build()
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, Integer.toString(numReplicasIndex2))
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "1")
+                .build()
         );
         ensureGreen();
         indexRandomDocs("test-idx-1", 100);
