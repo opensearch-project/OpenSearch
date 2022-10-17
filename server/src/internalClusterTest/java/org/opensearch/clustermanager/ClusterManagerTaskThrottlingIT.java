@@ -28,15 +28,15 @@ public class ClusterManagerTaskThrottlingIT extends OpenSearchIntegTestCase {
 
     /*
      * This integ test will test end-end cluster manager throttling feature for
-     * remote master.
+     * remote cluster manager.
      *
-     * It will check the number of request coming to master node
-     * should be total number of requests + throttled requests from master.
-     * This will ensure the end-end feature is working as master is throwing
+     * It will check the number of request coming to cluster manager node
+     * should be total number of requests + throttled requests from cluster manager.
+     * This will ensure the end-end feature is working as cluster manager is throwing
      * Throttling exception and data node is performing retries on it.
      *
      */
-    public void testThrottlingForRemoteMaster() throws Exception {
+    public void testThrottlingForRemoteClusterManager() throws Exception {
         try {
             internalCluster().beforeTest(random());
             String clusterManagerNode = internalCluster().startClusterManagerOnlyNode();
@@ -45,17 +45,17 @@ public class ClusterManagerTaskThrottlingIT extends OpenSearchIntegTestCase {
             createIndex("test");
             setPutMappingThrottlingLimit(throttlingLimit);
 
-            TransportService masterTransportService = (internalCluster().getInstance(TransportService.class, clusterManagerNode));
-            AtomicInteger requestCountOnMaster = new AtomicInteger();
+            TransportService clusterManagerTransportService = (internalCluster().getInstance(TransportService.class, clusterManagerNode));
+            AtomicInteger requestCountOnClusterManager = new AtomicInteger();
             AtomicInteger throttledRequest = new AtomicInteger();
             int totalRequest = randomIntBetween(throttlingLimit, 5 * throttlingLimit);
             CountDownLatch latch = new CountDownLatch(totalRequest);
 
-            masterTransportService.addMessageListener(new TransportMessageListener() {
+            clusterManagerTransportService.addMessageListener(new TransportMessageListener() {
                 @Override
                 public void onRequestReceived(long requestId, String action) {
                     if (action.contains("mapping")) {
-                        requestCountOnMaster.incrementAndGet();
+                        requestCountOnClusterManager.incrementAndGet();
                     }
                 }
 
@@ -84,7 +84,7 @@ public class ClusterManagerTaskThrottlingIT extends OpenSearchIntegTestCase {
             executePutMappingRequests(totalRequest, dataNode, listener);
             latch.await();
 
-            assertEquals(totalRequest + throttledRequest.get(), requestCountOnMaster.get());
+            assertEquals(totalRequest + throttledRequest.get(), requestCountOnClusterManager.get());
             assertBusy(
                 () -> { assertEquals(clusterService().getMasterService().numberOfThrottledPendingTasks(), throttledRequest.get()); }
             );
