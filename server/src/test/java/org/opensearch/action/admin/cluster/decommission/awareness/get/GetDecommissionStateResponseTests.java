@@ -19,14 +19,12 @@ public class GetDecommissionStateResponseTests extends AbstractXContentTestCase<
     @Override
     protected GetDecommissionStateResponse createTestInstance() {
         DecommissionStatus status = null;
-        DecommissionAttribute decommissionAttribute = null;
+        String attributeValue = null;
         if (randomBoolean()) {
             status = randomFrom(DecommissionStatus.values());
-            String attributeName = randomAlphaOfLength(10);
-            String attributeValue = randomAlphaOfLength(10);
-            decommissionAttribute = new DecommissionAttribute(attributeName, attributeValue);
+            attributeValue = randomAlphaOfLength(10);
         }
-        return new GetDecommissionStateResponse(decommissionAttribute, status);
+        return new GetDecommissionStateResponse(attributeValue, status);
     }
 
     @Override

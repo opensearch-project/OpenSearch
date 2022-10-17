@@ -73,7 +73,7 @@ public class TransportGetDecommissionStateAction extends TransportClusterManager
         if (decommissionAttributeMetadata != null && request.attributeName().equals(decommissionAttributeMetadata.decommissionAttribute().attributeName())) {
             listener.onResponse(
                 new GetDecommissionStateResponse(
-                    decommissionAttributeMetadata.decommissionAttribute(),
+                    decommissionAttributeMetadata.decommissionAttribute().attributeValue(),
                     decommissionAttributeMetadata.status()
                 )
             );
