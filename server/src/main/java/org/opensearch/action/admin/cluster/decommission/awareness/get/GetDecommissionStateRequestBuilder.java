@@ -8,8 +8,10 @@
 
 package org.opensearch.action.admin.cluster.decommission.awareness.get;
 
+import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionRequestBuilder;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
+import org.opensearch.cluster.decommission.DecommissionAttribute;
 
 /**
  * Get decommission request builder
@@ -26,5 +28,14 @@ public class GetDecommissionStateRequestBuilder extends ClusterManagerNodeReadOp
      */
     public GetDecommissionStateRequestBuilder(OpenSearchClient client, GetDecommissionStateAction action) {
         super(client, action, new GetDecommissionStateRequest());
+    }
+
+    /**
+     * @param attributeName name of attribute
+     * @return current object
+     */
+    public GetDecommissionStateRequestBuilder setAttributeName(String attributeName) {
+        request.attributeName(attributeName);
+        return this;
     }
 }

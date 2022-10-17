@@ -17,6 +17,7 @@ import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.decommission.DecommissionAttributeMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.Strings;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.threadpool.ThreadPool;
@@ -69,7 +70,7 @@ public class TransportGetDecommissionStateAction extends TransportClusterManager
         ActionListener<GetDecommissionStateResponse> listener
     ) throws Exception {
         DecommissionAttributeMetadata decommissionAttributeMetadata = state.metadata().decommissionAttributeMetadata();
-        if (decommissionAttributeMetadata != null) {
+        if (decommissionAttributeMetadata != null && request.attributeName().equals(decommissionAttributeMetadata.decommissionAttribute().attributeName())) {
             listener.onResponse(
                 new GetDecommissionStateResponse(
                     decommissionAttributeMetadata.decommissionAttribute(),

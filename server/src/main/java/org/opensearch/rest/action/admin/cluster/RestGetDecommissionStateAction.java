@@ -18,7 +18,9 @@ import org.opensearch.rest.action.RestToXContentListener;
 import java.io.IOException;
 import java.util.List;
 
+import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
+import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
 /**
@@ -30,7 +32,7 @@ public class RestGetDecommissionStateAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(GET, "/_cluster/decommission/awareness/_status"));
+        return singletonList(new Route(GET, "/_cluster/decommission/awareness/{awareness_attribute_name}/_status"));
     }
 
     @Override
@@ -41,6 +43,8 @@ public class RestGetDecommissionStateAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         GetDecommissionStateRequest getDecommissionStateRequest = Requests.getDecommissionStateRequest();
+        String attributeName = request.param("awareness_attribute_name");
+        getDecommissionStateRequest.attributeName(attributeName);
         return channel -> client.admin().cluster().getDecommission(getDecommissionStateRequest, new RestToXContentListener<>(channel));
     }
 }
