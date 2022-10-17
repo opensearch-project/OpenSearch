@@ -93,7 +93,7 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
                 validateAndSetStatus(DecommissionStatus.INIT, newStatus);
                 break;
             case IN_PROGRESS:
-                validateAndSetStatus(DecommissionStatus.INIT, newStatus);
+                validateAndSetStatus(DecommissionStatus.DRAINING, newStatus);
                 break;
             case SUCCESSFUL:
                 validateAndSetStatus(DecommissionStatus.IN_PROGRESS, newStatus);

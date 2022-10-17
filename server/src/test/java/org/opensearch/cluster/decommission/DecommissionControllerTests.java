@@ -300,6 +300,7 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
                 @Override
                 public void onFailure(Exception e) {
                     fail("decommission status update failed");
+                    countDownLatch.countDown();
                 }
             }
         );
