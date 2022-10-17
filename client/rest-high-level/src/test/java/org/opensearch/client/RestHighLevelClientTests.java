@@ -889,6 +889,7 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
             "remote_store.restore",
             "cluster.put_weighted_routing",
             "cluster.get_weighted_routing",
+            "cluster.delete_weighted_routing",
             "cluster.put_decommission_awareness",
             "cluster.get_decommission_awareness",
             "cluster.delete_decommission_awareness", };

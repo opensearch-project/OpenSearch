@@ -11,7 +11,6 @@ package org.opensearch.indices.replication.common;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.RateLimiter;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ChannelActionListener;
 import org.opensearch.common.CheckedFunction;
@@ -78,7 +77,7 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
         return cancellableThreads;
     }
 
-    public abstract void notifyListener(OpenSearchException e, boolean sendShardFailure);
+    public abstract void notifyListener(ReplicationFailedException e, boolean sendShardFailure);
 
     public ReplicationTarget(String name, IndexShard indexShard, ReplicationLuceneIndex stateIndex, ReplicationListener listener) {
         super(name);
@@ -170,7 +169,7 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
      * @param e                exception that encapsulates the failure
      * @param sendShardFailure indicates whether to notify the master of the shard failure
      */
-    public void fail(OpenSearchException e, boolean sendShardFailure) {
+    public void fail(ReplicationFailedException e, boolean sendShardFailure) {
         if (finished.compareAndSet(false, true)) {
             try {
                 notifyListener(e, sendShardFailure);
@@ -187,7 +186,7 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
 
     protected void ensureRefCount() {
         if (refCount() <= 0) {
-            throw new OpenSearchException(
+            throw new ReplicationFailedException(
                 "ReplicationTarget is used but it's refcount is 0. Probably a mismatch between incRef/decRef calls"
             );
         }
