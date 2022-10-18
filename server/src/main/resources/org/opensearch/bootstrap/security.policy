@@ -80,6 +80,10 @@ grant codeBase "${codebase.jackson-databind}" {
   permission java.lang.RuntimePermission "accessDeclaredMembers";
 };
 
+grant codeBase "${codebase.cxf-rt-rs-security-jose}" {
+  permission java.lang.RuntimePermission "setContextClassLoader";
+};
+
 grant codeBase "${codebase.jna}" {
   // for registering native methods
   permission java.lang.RuntimePermission "accessDeclaredMembers";
