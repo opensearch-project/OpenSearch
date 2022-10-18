@@ -8,10 +8,16 @@
     "url": {
       "paths": [
         {
-          "path": "/_cluster/decommission/awareness/_status",
-          "methods": [
+          "path":"/_cluster/decommission/awareness/{awareness_attribute_name}/_status",
+          "methods":[
             "GET"
-          ]
+          ],
+          "parts":{
+            "awareness_attribute_name":{
+              "type":"string",
+              "description":"Awareness attribute name"
+            }
+          }
         }
       ]
     }
