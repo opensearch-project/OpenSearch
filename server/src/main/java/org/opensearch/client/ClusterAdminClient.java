@@ -873,17 +873,17 @@ public interface ClusterAdminClient extends OpenSearchClient {
     /**
      * Get Decommissioned attribute
      */
-    ActionFuture<GetDecommissionStateResponse> getDecommission(GetDecommissionStateRequest request);
+    ActionFuture<GetDecommissionStateResponse> getDecommissionState(GetDecommissionStateRequest request);
 
     /**
      * Get Decommissioned attribute
      */
-    void getDecommission(GetDecommissionStateRequest request, ActionListener<GetDecommissionStateResponse> listener);
+    void getDecommissionState(GetDecommissionStateRequest request, ActionListener<GetDecommissionStateResponse> listener);
 
     /**
      * Get Decommissioned attribute
      */
-    GetDecommissionStateRequestBuilder prepareGetDecommission();
+    GetDecommissionStateRequestBuilder prepareGetDecommissionState();
 
     /**
      * Deletes the decommission metadata.
