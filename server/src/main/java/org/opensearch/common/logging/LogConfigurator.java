@@ -319,6 +319,7 @@ public class LogConfigurator {
      */
     @SuppressForbidden(reason = "sets system property for logging configuration")
     private static void setLogConfigurationSystemProperty(final Path logsPath, final Settings settings) {
+        System.setProperty("java.util.logging.manager", "org.apache.logging.log4j.jul.LogManager");
         System.setProperty("opensearch.logs.base_path", logsPath.toString());
         System.setProperty("opensearch.logs.cluster_name", ClusterName.CLUSTER_NAME_SETTING.get(settings).value());
         System.setProperty("opensearch.logs.node_name", Node.NODE_NAME_SETTING.get(settings));
