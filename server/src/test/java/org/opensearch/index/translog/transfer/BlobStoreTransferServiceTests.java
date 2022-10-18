@@ -24,7 +24,9 @@ import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -45,20 +47,18 @@ public class BlobStoreTransferServiceTests extends OpenSearchTestCase {
     }
 
     public void testUploadBlob() throws IOException {
-        FileSnapshot.TransferFileSnapshot transferFileSnapshot = new FileSnapshot.TransferFileSnapshot(
-            createTempFile(),
-            randomNonNegativeLong()
-        );
+        Path testFile = createTempFile();
+        Files.write(testFile, randomByteArrayOfLength(128), StandardOpenOption.APPEND);
+        FileSnapshot.TransferFileSnapshot transferFileSnapshot = new FileSnapshot.TransferFileSnapshot(testFile, randomNonNegativeLong());
         TransferService transferService = new BlobStoreTransferService(repository.blobStore(), executorService);
         transferService.uploadBlob(transferFileSnapshot, repository.basePath());
     }
 
     public void testUploadBlobAsync() throws IOException, InterruptedException {
+        Path testFile = createTempFile();
+        Files.write(testFile, randomByteArrayOfLength(128), StandardOpenOption.APPEND);
         AtomicBoolean succeeded = new AtomicBoolean(false);
-        FileSnapshot.TransferFileSnapshot transferFileSnapshot = new FileSnapshot.TransferFileSnapshot(
-            createTempFile(),
-            randomNonNegativeLong()
-        );
+        FileSnapshot.TransferFileSnapshot transferFileSnapshot = new FileSnapshot.TransferFileSnapshot(testFile, randomNonNegativeLong());
         CountDownLatch latch = new CountDownLatch(1);
         TransferService transferService = new BlobStoreTransferService(repository.blobStore(), executorService);
         transferService.uploadBlobAsync(transferFileSnapshot, repository.basePath(), new LatchedActionListener<>(new ActionListener<>() {
@@ -74,7 +74,7 @@ public class BlobStoreTransferServiceTests extends OpenSearchTestCase {
                 throw new AssertionError("Failed to perform uploadBlobAsync", e);
             }
         }, latch));
-        latch.await(100, TimeUnit.MILLISECONDS);
+        latch.await(1000, TimeUnit.MILLISECONDS);
         assertEquals(true, succeeded.get());
     }
 

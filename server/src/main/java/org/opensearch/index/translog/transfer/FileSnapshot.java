@@ -40,7 +40,7 @@ public class FileSnapshot implements Closeable {
 
     public FileSnapshot(Path path) throws IOException {
         Objects.requireNonNull(path);
-        this.name = path.toString();
+        this.name = path.getFileName().toString();
         this.path = path;
         this.fileChannel = FileChannel.open(path, StandardOpenOption.READ);
     }
@@ -61,7 +61,7 @@ public class FileSnapshot implements Closeable {
     }
 
     public long getContentLength() throws IOException {
-        return fileChannel == null ? fileChannel.size() : content.length;
+        return fileChannel == null ? content.length : fileChannel.size();
     }
 
     public InputStream inputStream() throws IOException {
