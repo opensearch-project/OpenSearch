@@ -196,7 +196,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
         }
 
         final Class<?>[] parameterTypes = newFactory.getParameterTypes();
-        for (int count = 0; count < newFactory.getParameterCount(); ++count) {
+        for (int count = 0; count < parameterTypes.length; ++count) {
             writer.visitField(
                 Opcodes.ACC_PRIVATE | Opcodes.ACC_FINAL,
                 "$arg" + count,
@@ -265,7 +265,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
         adapter.newInstance(WriterConstants.CLASS_TYPE);
         adapter.dup();
 
-        for (int count = 0; count < newFactory.getParameterCount(); ++count) {
+        for (int count = 0; count < parameterTypes.length; ++count) {
             adapter.loadThis();
             adapter.getField(Type.getType("L" + className + ";"), "$arg" + count, Type.getType(parameterTypes[count]));
         }

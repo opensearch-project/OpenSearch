@@ -2169,7 +2169,7 @@ public final class PainlessLookupBuilder {
             }
 
             final Class<?>[] typeParameters = javaMethod.getParameterTypes();
-            for (int typeParameterCount = 0; typeParameterCount < javaMethod.getParameterCount(); ++typeParameterCount) {
+            for (int typeParameterCount = 0; typeParameterCount < typeParameters.length; ++typeParameterCount) {
                 bridgeMethodWriter.loadArg(typeParameterCount + bridgeTypeParameterOffset);
                 Class<?> typeParameter = typeParameters[typeParameterCount];
 
