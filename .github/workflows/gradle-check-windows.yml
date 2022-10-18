@@ -1,0 +1,54 @@
+name: Gradle Check Windows (Jenkins)
+on:
+  schedule:
+    - cron: 0 0 * * *
+
+jobs:
+  gradle-check:
+    runs-on: windows-latest
+    timeout-minutes: 160
+    steps:
+      - name: Checkout OpenSearch repo
+        uses: actions/checkout@v2
+        with:
+          ref: main
+
+      - name: Setup environment variables (Cron Schedule)
+        if: github.event_name == 'schedule'
+        run: |
+          repo_url="https://github.com/opensearch-project/OpenSearch"
+          ref_id=$(git rev-parse HEAD)
+          branch_name=$(git rev-parse --abbrev-ref HEAD)
+          echo "pr_from_sha=$ref_id" >> $GITHUB_ENV
+          echo "pr_from_clone_url=$repo_url" >> $GITHUB_ENV
+          echo "pr_to_clone_url=$repo_url" >> $GITHUB_ENV
+          echo "pr_title=Cron trigger $branch_name $ref_id $repo_url" >> $GITHUB_ENV
+          echo "pr_number=Null" >> $GITHUB_ENV
+          echo "platform=windows" >> $GITHUB_ENV
+
+      - name: Checkout opensearch-build repo
+        uses: actions/checkout@v2
+        with:
+          repository: opensearch-project/opensearch-build
+          ref: main
+          path: opensearch-build
+
+      - name: Trigger jenkins workflow to run gradle check
+        run: |
+          set -e
+          set -o pipefail
+          bash opensearch-build/scripts/gradle/gradle-check.sh ${{ secrets.JENKINS_GRADLE_CHECK_GENERIC_WEBHOOK_TOKEN }} | tee -a gradle-check.log
+
+      - name: Setup Result Status
+        if: always()
+        run: |
+          WORKFLOW_URL=`cat gradle-check.log | grep 'WORKFLOW_URL' | awk '{print $2}'`
+          RESULT=`cat gradle-check.log | grep 'Result:' | awk '{print $2}'`
+          echo "workflow_url=$WORKFLOW_URL" >> $GITHUB_ENV
+          echo "result=$RESULT" >> $GITHUB_ENV
+
+      - name: Upload Coverage Report
+        if: success()
+        uses: codecov/codecov-action@v2
+        with:
+          files: ./codeCoverage.xml

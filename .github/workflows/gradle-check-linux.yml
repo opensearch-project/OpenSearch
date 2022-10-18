@@ -1,4 +1,4 @@
-name: Gradle Check (Jenkins)
+name: Gradle Check Linux (Jenkins)
 on:
   push:
     branches-ignore:
@@ -30,6 +30,7 @@ jobs:
             echo "pr_to_clone_url=$(jq --raw-output .pull_request.base.repo.clone_url $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
             echo "pr_title=$(jq --raw-output .pull_request.title $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
             echo "pr_number=$(jq --raw-output .pull_request.number $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
+            echo "platform=linux" >> $GITHUB_ENV
 
       - name: Setup environment variables (Push)
         if: github.event_name == 'push'
@@ -42,6 +43,7 @@ jobs:
             echo "pr_to_clone_url=$repo_url" >> $GITHUB_ENV
             echo "pr_title=Push trigger $branch_name $ref_id $repo_url" >> $GITHUB_ENV
             echo "pr_number=Null" >> $GITHUB_ENV
+            echo "platform=linux" >> $GITHUB_ENV
 
       - name: Checkout opensearch-build repo
         uses: actions/checkout@v2
