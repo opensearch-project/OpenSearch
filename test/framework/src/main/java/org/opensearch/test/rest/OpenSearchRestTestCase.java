@@ -37,12 +37,14 @@ import org.apache.hc.client5.http.classic.methods.HttpPut;
 import org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManager;
 import org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManagerBuilder;
 import org.apache.hc.client5.http.ssl.ClientTlsStrategyBuilder;
+import org.apache.hc.core5.function.Factory;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.http.HttpStatus;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.apache.hc.core5.http.message.BasicHeader;
 import org.apache.hc.core5.http.nio.ssl.TlsStrategy;
+import org.apache.hc.core5.reactor.ssl.TlsDetails;
 import org.apache.hc.core5.ssl.SSLContexts;
 import org.apache.hc.core5.util.Timeout;
 import org.apache.lucene.util.SetOnce;
@@ -85,6 +87,8 @@ import org.junit.AfterClass;
 import org.junit.Before;
 
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLEngine;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -851,7 +855,16 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
                 }
                 final SSLContext sslcontext = SSLContexts.custom().loadTrustMaterial(keyStore, null).build();
                 builder.setHttpClientConfigCallback(httpClientBuilder -> {
-                    final TlsStrategy tlsStrategy = ClientTlsStrategyBuilder.create().setSslContext(sslcontext).build();
+                    final TlsStrategy tlsStrategy = ClientTlsStrategyBuilder.create()
+                        .setSslContext(sslcontext)
+                        // See please https://issues.apache.org/jira/browse/HTTPCLIENT-2219
+                        .setTlsDetailsFactory(new Factory<SSLEngine, TlsDetails>() {
+                            @Override
+                            public TlsDetails create(final SSLEngine sslEngine) {
+                                return new TlsDetails(sslEngine.getSession(), sslEngine.getApplicationProtocol());
+                            }
+                        })
+                        .build();
 
                     final PoolingAsyncClientConnectionManager connectionManager = PoolingAsyncClientConnectionManagerBuilder.create()
                         .setTlsStrategy(tlsStrategy)

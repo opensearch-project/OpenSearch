@@ -32,8 +32,10 @@
 
 package org.opensearch.client;
 
+import org.apache.hc.core5.function.Factory;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.nio.ssl.TlsStrategy;
+import org.apache.hc.core5.reactor.ssl.TlsDetails;
 import org.apache.hc.core5.util.Timeout;
 import org.apache.hc.client5.http.async.HttpAsyncClient;
 import org.apache.hc.client5.http.auth.CredentialsProvider;
@@ -48,6 +50,7 @@ import org.apache.hc.client5.http.impl.async.CloseableHttpAsyncClient;
 import org.apache.hc.client5.http.impl.async.HttpAsyncClientBuilder;
 
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLEngine;
 
 import java.security.AccessController;
 import java.security.NoSuchAlgorithmException;
@@ -311,7 +314,16 @@ public final class RestClientBuilder {
         }
 
         try {
-            final TlsStrategy tlsStrategy = ClientTlsStrategyBuilder.create().setSslContext(SSLContext.getDefault()).build();
+            final TlsStrategy tlsStrategy = ClientTlsStrategyBuilder.create()
+                .setSslContext(SSLContext.getDefault())
+                // See please https://issues.apache.org/jira/browse/HTTPCLIENT-2219
+                .setTlsDetailsFactory(new Factory<SSLEngine, TlsDetails>() {
+                    @Override
+                    public TlsDetails create(final SSLEngine sslEngine) {
+                        return new TlsDetails(sslEngine.getSession(), sslEngine.getApplicationProtocol());
+                    }
+                })
+                .build();
 
             final PoolingAsyncClientConnectionManager connectionManager = PoolingAsyncClientConnectionManagerBuilder.create()
                 .setMaxConnPerRoute(DEFAULT_MAX_CONN_PER_ROUTE)

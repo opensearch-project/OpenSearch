@@ -35,7 +35,9 @@ package org.opensearch.index.reindex;
 import org.apache.hc.client5.http.ssl.ClientTlsStrategyBuilder;
 import org.apache.hc.client5.http.ssl.DefaultHostnameVerifier;
 import org.apache.hc.client5.http.ssl.NoopHostnameVerifier;
+import org.apache.hc.core5.function.Factory;
 import org.apache.hc.core5.http.nio.ssl.TlsStrategy;
+import org.apache.hc.core5.reactor.ssl.TlsDetails;
 import org.opensearch.common.settings.SecureSetting;
 import org.opensearch.common.settings.SecureString;
 import org.opensearch.common.settings.Setting;
@@ -50,6 +52,8 @@ import org.opensearch.watcher.ResourceWatcherService;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLEngine;
+
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
@@ -178,6 +182,13 @@ class ReindexSslConfig {
             .setHostnameVerifier(hostnameVerifier)
             .setCiphers(cipherSuites)
             .setTlsVersions(protocols)
+            // See please https://issues.apache.org/jira/browse/HTTPCLIENT-2219
+            .setTlsDetailsFactory(new Factory<SSLEngine, TlsDetails>() {
+                @Override
+                public TlsDetails create(final SSLEngine sslEngine) {
+                    return new TlsDetails(sslEngine.getSession(), sslEngine.getApplicationProtocol());
+                }
+            })
             .build();
 
     }
