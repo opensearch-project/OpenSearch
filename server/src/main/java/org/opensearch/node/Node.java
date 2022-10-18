@@ -36,7 +36,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
-import org.opensearch.authn.realm.InternalRealm;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.index.IndexModule;
@@ -350,9 +349,6 @@ public class Node implements Closeable {
     private final NodeService nodeService;
     final NamedWriteableRegistry namedWriteableRegistry;
     private final AtomicReference<RunnableTaskExecutionListener> runnableTaskListener;
-
-    // TODO: Find out the correct realm instance to be used
-    public static final InternalRealm INTERNAL_REALM = InternalRealm.INSTANCE;
 
     public Node(Environment environment) {
         this(environment, Collections.emptyList(), true);
