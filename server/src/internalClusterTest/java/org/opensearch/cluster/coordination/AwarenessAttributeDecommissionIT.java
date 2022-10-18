@@ -40,7 +40,6 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 
 import static org.opensearch.test.NodeRoles.onlyRole;
-import static org.opensearch.test.OpenSearchIntegTestCase.client;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoTimeout;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
@@ -113,9 +112,11 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get();
 
         // assert that decommission status is successful
-        GetDecommissionStateResponse response = client().execute(GetDecommissionStateAction.INSTANCE, new GetDecommissionStateRequest())
-            .get();
-        assertEquals(response.getDecommissionedAttribute(), decommissionAttribute);
+        GetDecommissionStateResponse response = client().execute(
+            GetDecommissionStateAction.INSTANCE,
+            new GetDecommissionStateRequest(decommissionAttribute.attributeName())
+        ).get();
+        assertEquals(response.getAttributeValue(), decommissionAttribute.attributeValue());
         assertEquals(response.getDecommissionStatus(), DecommissionStatus.SUCCESSFUL);
 
         ClusterState clusterState = client(clusterManagerNodes.get(0)).admin().cluster().prepareState().execute().actionGet().getState();
