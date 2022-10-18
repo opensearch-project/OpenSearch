@@ -423,9 +423,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
 
     private void writeNeedsMethods(Class<?> clazz, ClassWriter writer, Set<String> extractedVariables) {
         for (Method method : clazz.getMethods()) {
-            if (method.getName().startsWith("needs")
-                && method.getReturnType().equals(boolean.class)
-                && method.getParameterCount() == 0) {
+            if (method.getName().startsWith("needs") && method.getReturnType().equals(boolean.class) && method.getParameterCount() == 0) {
                 String name = method.getName();
                 name = name.substring(5);
                 name = Character.toLowerCase(name.charAt(0)) + name.substring(1);
