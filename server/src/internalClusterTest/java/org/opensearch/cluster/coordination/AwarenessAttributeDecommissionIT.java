@@ -391,8 +391,10 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
         }
 
         // assert that decommission status is successful
-        GetDecommissionStateResponse response = client().execute(GetDecommissionStateAction.INSTANCE, new GetDecommissionStateRequest(decommissionAttribute.attributeName()))
-            .get();
+        GetDecommissionStateResponse response = client().execute(
+            GetDecommissionStateAction.INSTANCE,
+            new GetDecommissionStateRequest(decommissionAttribute.attributeName())
+        ).get();
         assertEquals(response.getAttributeValue(), decommissionAttribute.attributeValue());
         assertEquals(response.getDecommissionStatus(), DecommissionStatus.SUCCESSFUL);
 
