@@ -420,21 +420,22 @@ public class DecommissionService {
     private static void ensureToBeDecommissionedAttributeWeighedAway(ClusterState state, DecommissionAttribute decommissionAttribute) {
         String msg = null;
         WeightedRoutingMetadata weightedRoutingMetadata = state.metadata().weightedRoutingMetadata();
-        if (weightedRoutingMetadata != null) {
-            WeightedRouting weightedRouting = weightedRoutingMetadata.getWeightedRouting();
-            if (weightedRouting.attributeName().equals(decommissionAttribute.attributeName())) {
-                Double attributeValueWeight = weightedRouting.weights().get(decommissionAttribute.attributeValue());
-                if (attributeValueWeight == null || attributeValueWeight != 0.0) {
-                    msg = "weight for decommissioned attribute is expected to be [0.0] but found [" + attributeValueWeight + "]";
-                }
-            } else {
-                msg = "no weights are specified to attribute [" + decommissionAttribute.attributeName() + "]";
-            }
-        } else {
-            msg = "no weights are set to the attribute. Please set appropriate weights before triggering decommission action";
+        if (weightedRoutingMetadata == null) {
+            throw new DecommissioningFailedException(decommissionAttribute,
+                "no weights are set to the attribute. Please set appropriate weights before triggering decommission action"
+            );
         }
-        if (msg != null) {
-            throw new DecommissioningFailedException(decommissionAttribute, msg);
+        WeightedRouting weightedRouting = weightedRoutingMetadata.getWeightedRouting();
+        if (weightedRouting.attributeName().equals(decommissionAttribute.attributeName()) == false) {
+            throw new DecommissioningFailedException(decommissionAttribute,
+                "no weights are specified to attribute [" + decommissionAttribute.attributeName() + "]"
+            );
+        }
+        Double attributeValueWeight = weightedRouting.weights().get(decommissionAttribute.attributeValue());
+        if (attributeValueWeight == null || attributeValueWeight.equals(0.0)) {
+            throw new DecommissioningFailedException(decommissionAttribute,
+                "weight for decommissioned attribute is expected to be [0.0] but found [" + attributeValueWeight + "]"
+            );
         }
     }
 
