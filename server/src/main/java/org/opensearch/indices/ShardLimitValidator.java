@@ -118,7 +118,7 @@ public class ShardLimitValidator {
         Further also validates if the cluster.ignore_dot_indexes is set to true.
         If so then it does not validate any index which starts with '.'.
         */
-        if ((systemIndices.validateSystemIndex(indexName) || validateDotIndex(indexName)) && !isDataStreamIndex(indexName)) {
+        if (shouldIndexBeIgnored(indexName)) {
             return;
         }
 
@@ -152,8 +152,7 @@ public class ShardLimitValidator {
             If so then it does not validate any index which starts with '.'
             however data-stream indexes are still validated.
             */
-            .filter(index -> !systemIndices.validateSystemIndex(index.getName()))
-            .filter(index -> !(validateDotIndex(index.getName()) && !isDataStreamIndex(index.getName())))
+            .filter(index -> !shouldIndexBeIgnored(index.getName()))
             .filter(index -> currentState.metadata().index(index).getState().equals(IndexMetadata.State.CLOSE))
             .mapToInt(index -> getTotalShardCount(currentState, index))
             .sum();
@@ -172,13 +171,25 @@ public class ShardLimitValidator {
     }
 
     /**
-     * Returns true if the cluster.ignore_dot_indexes property is set to true and the index name
-     * starts with '.' else false.
+     * Returns true if the index should be ignored during validation.
+     * Index is ignored if it is a system index or if cluster.ignore_dot_indexes is set to true
+     * then indexes which are starting with dot and are not data stream index are ignored.
+     *
+     * @param indexName  The index which needs to be validated.
+     */
+    private boolean shouldIndexBeIgnored(String indexName) {
+        if (this.ignoreDotIndexes) {
+            return validateDotIndex(indexName) && !isDataStreamIndex(indexName);
+        } else return systemIndices.validateSystemIndex(indexName);
+    }
+
+    /**
+     * Returns true if the index name starts with '.' else false.
      *
      * @param indexName  The index which needs to be validated.
      */
     private boolean validateDotIndex(String indexName) {
-        return this.ignoreDotIndexes && indexName.charAt(0) == '.';
+        return indexName.charAt(0) == '.';
     }
 
     /**
