@@ -2,11 +2,13 @@
 
 [![Chat](https://img.shields.io/badge/chat-on%20forums-blue)](https://forum.opensearch.org/c/opensearch/)
 [![Documentation](https://img.shields.io/badge/documentation-reference-blue)](https://opensearch.org/docs/latest/opensearch/index/)
-[![codecov](https://codecov.io/gh/opensearch-project/OpenSearch/branch/main/graph/badge.svg)](https://codecov.io/gh/opensearch-project/OpenSearch)
-[![GHA gradle check](https://github.com/opensearch-project/OpenSearch/actions/workflows/gradle-check.yml/badge.svg)](https://github.com/opensearch-project/OpenSearch/actions/workflows/gradle-check.yml)
-[![GHA validate pull request](https://github.com/opensearch-project/OpenSearch/actions/workflows/wrapper.yml/badge.svg)](https://github.com/opensearch-project/OpenSearch/actions/workflows/wrapper.yml)
-[![GHA precommit](https://github.com/opensearch-project/OpenSearch/actions/workflows/precommit.yml/badge.svg)](https://github.com/opensearch-project/OpenSearch/actions/workflows/precommit.yml)
-[![Jenkins gradle check job](https://img.shields.io/jenkins/build?jobUrl=https%3A%2F%2Fbuild.ci.opensearch.org%2Fjob%2Fgradle-check%2F&label=Jenkins%20Gradle%20Check)](https://build.ci.opensearch.org/job/gradle-check/)
+[![](https://img.shields.io/github/issues/opensearch-project/opensearch/untriaged?labelColor=red)](https://github.com/opensearch-project/opensearch/issues?q=is%3Aissue+is%3Aopen+label%3A"untriaged")
+[![](https://img.shields.io/github/issues/opensearch-project/opensearch/security%20vulnerability?labelColor=red)](https://github.com/opensearch-project/opensearch/issues?q=is%3Aissue+is%3Aopen+label%3A"security%20vulnerability")
+[![](https://img.shields.io/github/issues/opensearch-project/opensearch)](https://github.com/opensearch-project/opensearch/issues)
+[![](https://img.shields.io/github/issues-pr/opensearch-project/opensearch)](https://github.com/opensearch-project/opensearch/pulls)
+[![](https://img.shields.io/codecov/c/gh/opensearch-project/opensearch)](https://app.codecov.io/gh/opensearch-project/opensearch)
+[![](https://img.shields.io/github/issues/opensearch-project/opensearch/v2.4.0)](https://github.com/opensearch-project/opensearch/issues?q=is%3Aissue+is%3Aopen+label%3A"v2.4.0")
+[![](https://img.shields.io/github/issues/opensearch-project/opensearch/v3.0.0)](https://github.com/opensearch-project/opensearch/issues?q=is%3Aissue+is%3Aopen+label%3A"v3.0.0")
 
 - [Welcome!](#welcome)
 - [Project Resources](#project-resources)
