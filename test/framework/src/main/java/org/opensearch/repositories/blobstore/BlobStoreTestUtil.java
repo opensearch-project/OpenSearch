@@ -136,7 +136,7 @@ public final class BlobStoreTestUtil {
                     XContentParser parser = XContentType.JSON.xContent()
                         .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, blob)
                 ) {
-                    repositoryData = RepositoryData.snapshotsFromXContent(parser, latestGen, false);
+                    repositoryData = RepositoryData.snapshotsFromXContent(parser, latestGen);
                 }
                 assertIndexUUIDs(repository, repositoryData);
                 assertSnapshotUUIDs(repository, repositoryData);

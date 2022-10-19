@@ -27,4 +27,13 @@ public class GetDecommissionStateRequestBuilder extends ClusterManagerNodeReadOp
     public GetDecommissionStateRequestBuilder(OpenSearchClient client, GetDecommissionStateAction action) {
         super(client, action, new GetDecommissionStateRequest());
     }
+
+    /**
+     * @param attributeName name of attribute
+     * @return current object
+     */
+    public GetDecommissionStateRequestBuilder setAttributeName(String attributeName) {
+        request.attributeName(attributeName);
+        return this;
+    }
 }

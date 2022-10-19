@@ -114,7 +114,7 @@ public final class RepositoryCleanupInProgress extends AbstractNamedDiffable<Clu
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return LegacyESVersion.V_7_4_0;
+        return LegacyESVersion.fromId(7040099);
     }
 
     /**

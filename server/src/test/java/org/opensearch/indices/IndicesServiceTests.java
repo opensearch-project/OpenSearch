@@ -66,7 +66,6 @@ import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.Mapper;
 import org.opensearch.index.mapper.MapperService;
-import org.opensearch.index.mapper.NestedPathFieldMapper;
 import org.opensearch.index.shard.IllegalIndexShardStateException;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
@@ -79,7 +78,6 @@ import org.opensearch.plugins.MapperPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.test.IndexSettingsModule;
-import org.opensearch.test.VersionUtils;
 import org.opensearch.test.hamcrest.RegexMatcher;
 
 import java.io.IOException;
@@ -565,16 +563,9 @@ public class IndicesServiceTests extends OpenSearchSingleNodeTestCase {
 
     public void testIsMetadataField() {
         IndicesService indicesService = getIndicesService();
-        final Version randVersion = VersionUtils.randomIndexCompatibleVersion(random());
-        assertFalse(indicesService.isMetadataField(randVersion, randomAlphaOfLengthBetween(10, 15)));
+        assertFalse(indicesService.isMetadataField(randomAlphaOfLengthBetween(10, 15)));
         for (String builtIn : IndicesModule.getBuiltInMetadataFields()) {
-            if (NestedPathFieldMapper.NAME.equals(builtIn) && randVersion.before(Version.V_2_0_0)) {
-                continue;   // nested field mapper does not exist prior to 2.0
-            }
-            assertTrue(
-                "Expected " + builtIn + " to be a metadata field for version " + randVersion,
-                indicesService.isMetadataField(randVersion, builtIn)
-            );
+            assertTrue(indicesService.isMetadataField(builtIn));
         }
     }
 

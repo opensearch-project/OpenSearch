@@ -33,7 +33,6 @@ package org.opensearch.search.suggest;
 
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.SetOnce;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.ParsingException;
@@ -53,8 +52,6 @@ import org.opensearch.search.aggregations.Aggregation;
 import org.opensearch.search.suggest.Suggest.Suggestion.Entry;
 import org.opensearch.search.suggest.Suggest.Suggestion.Entry.Option;
 import org.opensearch.search.suggest.completion.CompletionSuggestion;
-import org.opensearch.search.suggest.phrase.PhraseSuggestion;
-import org.opensearch.search.suggest.term.TermSuggestion;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -101,36 +98,11 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
     }
 
     public Suggest(StreamInput in) throws IOException {
-        // in older versions, Suggestion types were serialized as Streamable
-        if (in.getVersion().before(LegacyESVersion.V_7_0_0)) {
-            final int size = in.readVInt();
-            suggestions = new ArrayList<>(size);
-            for (int i = 0; i < size; i++) {
-                Suggestion<? extends Entry<? extends Option>> suggestion;
-                final int type = in.readVInt();
-                switch (type) {
-                    case TermSuggestion.TYPE:
-                        suggestion = new TermSuggestion(in);
-                        break;
-                    case CompletionSuggestion.TYPE:
-                        suggestion = new CompletionSuggestion(in);
-                        break;
-                    case PhraseSuggestion.TYPE:
-                        suggestion = new PhraseSuggestion(in);
-                        break;
-                    default:
-                        throw new IllegalArgumentException("Unknown suggestion type with ordinal " + type);
-                }
-                suggestions.add(suggestion);
-            }
-        } else {
-            int suggestionCount = in.readVInt();
-            suggestions = new ArrayList<>(suggestionCount);
-            for (int i = 0; i < suggestionCount; i++) {
-                suggestions.add(in.readNamedWriteable(Suggestion.class));
-            }
+        int suggestionCount = in.readVInt();
+        suggestions = new ArrayList<>(suggestionCount);
+        for (int i = 0; i < suggestionCount; i++) {
+            suggestions.add(in.readNamedWriteable(Suggestion.class));
         }
-
         hasScoreDocs = filter(CompletionSuggestion.class).stream().anyMatch(CompletionSuggestion::hasScoreDocs);
     }
 
@@ -169,18 +141,9 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        // in older versions, Suggestion types were serialized as Streamable
-        if (out.getVersion().before(LegacyESVersion.V_7_0_0)) {
-            out.writeVInt(suggestions.size());
-            for (Suggestion<?> command : suggestions) {
-                out.writeVInt(command.getWriteableType());
-                command.writeTo(out);
-            }
-        } else {
-            out.writeVInt(suggestions.size());
-            for (Suggestion<? extends Entry<? extends Option>> suggestion : suggestions) {
-                out.writeNamedWriteable(suggestion);
-            }
+        out.writeVInt(suggestions.size());
+        for (Suggestion<? extends Entry<? extends Option>> suggestion : suggestions) {
+            out.writeNamedWriteable(suggestion);
         }
     }
 
@@ -284,13 +247,6 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         public Suggestion(StreamInput in) throws IOException {
             name = in.readString();
             size = in.readVInt();
-
-            // this is a hack to work around slightly different serialization order of earlier versions of TermSuggestion
-            if (in.getVersion().before(LegacyESVersion.V_7_0_0) && this instanceof TermSuggestion) {
-                TermSuggestion t = (TermSuggestion) this;
-                t.setSort(SortBy.readFromStream(in));
-            }
-
             int entriesCount = in.readVInt();
             entries.clear();
             for (int i = 0; i < entriesCount; i++) {
@@ -398,13 +354,6 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(name);
             out.writeVInt(size);
-
-            // this is a hack to work around slightly different serialization order in older versions of TermSuggestion
-            if (out.getVersion().before(LegacyESVersion.V_7_0_0) && this instanceof TermSuggestion) {
-                TermSuggestion termSuggestion = (TermSuggestion) this;
-                termSuggestion.getSort().writeTo(out);
-            }
-
             out.writeVInt(entries.size());
             for (Entry<?> entry : entries) {
                 entry.writeTo(out);

@@ -84,7 +84,9 @@ import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.Index;
+import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
@@ -391,16 +393,6 @@ public class RestoreService implements ClusterStateApplier {
                     @Override
                     public ClusterState execute(ClusterState currentState) {
                         RestoreInProgress restoreInProgress = currentState.custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY);
-                        if (currentState.getNodes().getMinNodeVersion().before(LegacyESVersion.V_7_0_0)) {
-                            // Check if another restore process is already running - cannot run two restore processes at the
-                            // same time in versions prior to 7.0
-                            if (restoreInProgress.isEmpty() == false) {
-                                throw new ConcurrentSnapshotExecutionException(
-                                    snapshot,
-                                    "Restore process is already running in this cluster"
-                                );
-                            }
-                        }
                         // Check if the snapshot to restore is currently being deleted
                         SnapshotDeletionsInProgress deletionsInProgress = currentState.custom(
                             SnapshotDeletionsInProgress.TYPE,
@@ -431,20 +423,30 @@ public class RestoreService implements ClusterStateApplier {
                                 .getMaxNodeVersion()
                                 .minimumIndexCompatibilityVersion();
                             for (Map.Entry<String, String> indexEntry : indices.entrySet()) {
+                                String renamedIndexName = indexEntry.getKey();
                                 String index = indexEntry.getValue();
                                 boolean partial = checkPartial(index);
-                                SnapshotRecoverySource recoverySource = new SnapshotRecoverySource(
+
+                                IndexMetadata snapshotIndexMetadata = updateIndexSettings(
+                                    metadata.index(index),
+                                    request.indexSettings(),
+                                    request.ignoreIndexSettings()
+                                );
+                                final boolean isSearchableSnapshot = FeatureFlags.isEnabled(FeatureFlags.SEARCHABLE_SNAPSHOT)
+                                    && IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey().equals(request.storageType().toString());
+                                if (isSearchableSnapshot) {
+                                    snapshotIndexMetadata = addSnapshotToIndexSettings(
+                                        snapshotIndexMetadata,
+                                        snapshot,
+                                        repositoryData.resolveIndexId(index)
+                                    );
+                                }
+                                final SnapshotRecoverySource recoverySource = new SnapshotRecoverySource(
                                     restoreUUID,
                                     snapshot,
                                     snapshotInfo.version(),
-                                    repositoryData.resolveIndexId(index)
-                                );
-                                String renamedIndexName = indexEntry.getKey();
-                                IndexMetadata snapshotIndexMetadata = metadata.index(index);
-                                snapshotIndexMetadata = updateIndexSettings(
-                                    snapshotIndexMetadata,
-                                    request.indexSettings(),
-                                    request.ignoreIndexSettings()
+                                    repositoryData.resolveIndexId(index),
+                                    isSearchableSnapshot
                                 );
                                 try {
                                     snapshotIndexMetadata = metadataIndexUpgradeService.upgradeIndexMetadata(
@@ -1216,5 +1218,17 @@ public class RestoreService implements ClusterStateApplier {
         } catch (Exception t) {
             logger.warn("Failed to update restore state ", t);
         }
+    }
+
+    private static IndexMetadata addSnapshotToIndexSettings(IndexMetadata metadata, Snapshot snapshot, IndexId indexId) {
+        final Settings newSettings = Settings.builder()
+            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey())
+            .put(IndexSettings.SEARCHABLE_SNAPSHOT_REPOSITORY.getKey(), snapshot.getRepository())
+            .put(IndexSettings.SEARCHABLE_SNAPSHOT_ID_UUID.getKey(), snapshot.getSnapshotId().getUUID())
+            .put(IndexSettings.SEARCHABLE_SNAPSHOT_ID_NAME.getKey(), snapshot.getSnapshotId().getName())
+            .put(IndexSettings.SEARCHABLE_SNAPSHOT_INDEX_ID.getKey(), indexId.getId())
+            .put(metadata.getSettings())
+            .build();
+        return IndexMetadata.builder(metadata).settings(newSettings).build();
     }
 }
