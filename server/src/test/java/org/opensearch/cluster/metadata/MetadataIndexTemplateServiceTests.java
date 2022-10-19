@@ -45,6 +45,7 @@ import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
@@ -378,8 +379,8 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
         assertThat(state.metadata().componentTemplates().get("foo"), equalTo(componentTemplate));
 
         final ClusterState throwState = ClusterState.builder(state).build();
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
+        SettingsException e = expectThrows(
+            SettingsException.class,
             () -> metadataIndexTemplateService.addComponentTemplate(throwState, true, "foo", componentTemplate)
         );
         assertThat(e.getMessage(), containsString("component template [foo] already exists"));
@@ -416,7 +417,7 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
         );
         ComponentTemplate componentTemplate4 = new ComponentTemplate(template, 1L, new HashMap<>());
         expectThrows(
-            IllegalArgumentException.class,
+            SettingsException.class,
             () -> metadataIndexTemplateService.addComponentTemplate(throwState, true, "foo2", componentTemplate4)
         );
     }

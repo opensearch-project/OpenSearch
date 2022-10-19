@@ -496,15 +496,10 @@ public class Setting<T> implements ToXContentObject {
             }
             return parsed;
         } catch (OpenSearchParseException ex) {
-            throw new IllegalArgumentException(ex.getMessage(), ex);
-        } catch (NumberFormatException ex) {
+            throw new SettingsException(ex.getMessage(), ex);
+        }   catch (Exception ex) {
             String err = "Failed to parse value" + (isFiltered() ? "" : " [" + value + "]") + " for setting [" + getKey() + "]";
-            throw new IllegalArgumentException(err, ex);
-        } catch (IllegalArgumentException ex) {
-            throw ex;
-        } catch (Exception t) {
-            String err = "Failed to parse value" + (isFiltered() ? "" : " [" + value + "]") + " for setting [" + getKey() + "]";
-            throw new IllegalArgumentException(err, t);
+            throw new SettingsException(err, ex);
         }
     }
 

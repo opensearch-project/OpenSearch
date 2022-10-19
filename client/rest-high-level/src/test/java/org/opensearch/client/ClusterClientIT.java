@@ -159,10 +159,10 @@ public class ClusterClientIT extends OpenSearchRestHighLevelClientTestCase {
                 highLevelClient().cluster()::putSettingsAsync
             )
         );
-        assertThat(exception.status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
+        assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(
             exception.getMessage(),
-            equalTo("OpenSearch exception [type=invalid_argument_exception, reason=transient setting [" + setting + "], not recognized]")
+            equalTo("OpenSearch exception [type=settings_exception, reason=transient setting [" + setting + "], not recognized]")
         );
     }
 

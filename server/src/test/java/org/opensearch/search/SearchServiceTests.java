@@ -59,6 +59,7 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.common.xcontent.XContentBuilder;
@@ -1071,8 +1072,8 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
             )
         ).actionGet();
 
-        IllegalArgumentException iae = expectThrows(
-            IllegalArgumentException.class,
+        SettingsException iae = expectThrows(
+            SettingsException.class,
             () -> client().admin()
                 .indices()
                 .prepareUpdateSettings("throttled_threadpool_index")

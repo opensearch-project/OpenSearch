@@ -202,7 +202,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                     Map<String, Settings> groups = s.getAsGroups();
                     for (String key : SimilarityService.BUILT_IN.keySet()) {
                         if (groups.containsKey(key)) {
-                            throw new IllegalArgumentException(
+                            throw new SettingsException(
                                 "illegal value for [index.similarity." + key + "] cannot redefine built-in similarity"
                             );
                         }
@@ -247,7 +247,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
     @Override
     protected void validateSettingKey(Setting setting) {
         if (setting.getKey().startsWith("index.") == false) {
-            throw new IllegalArgumentException("illegal settings key: [" + setting.getKey() + "] must start with [index.]");
+            throw new SettingsException("illegal settings key: [" + setting.getKey() + "] must start with [index.]");
         }
         super.validateSettingKey(setting);
     }
