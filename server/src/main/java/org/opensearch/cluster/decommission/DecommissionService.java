@@ -418,22 +418,24 @@ public class DecommissionService {
     }
 
     private static void ensureToBeDecommissionedAttributeWeighedAway(ClusterState state, DecommissionAttribute decommissionAttribute) {
-        String msg = null;
         WeightedRoutingMetadata weightedRoutingMetadata = state.metadata().weightedRoutingMetadata();
         if (weightedRoutingMetadata == null) {
-            throw new DecommissioningFailedException(decommissionAttribute,
+            throw new DecommissioningFailedException(
+                decommissionAttribute,
                 "no weights are set to the attribute. Please set appropriate weights before triggering decommission action"
             );
         }
         WeightedRouting weightedRouting = weightedRoutingMetadata.getWeightedRouting();
         if (weightedRouting.attributeName().equals(decommissionAttribute.attributeName()) == false) {
-            throw new DecommissioningFailedException(decommissionAttribute,
+            throw new DecommissioningFailedException(
+                decommissionAttribute,
                 "no weights are specified to attribute [" + decommissionAttribute.attributeName() + "]"
             );
         }
         Double attributeValueWeight = weightedRouting.weights().get(decommissionAttribute.attributeValue());
         if (attributeValueWeight == null || attributeValueWeight.equals(0.0)) {
-            throw new DecommissioningFailedException(decommissionAttribute,
+            throw new DecommissioningFailedException(
+                decommissionAttribute,
                 "weight for decommissioned attribute is expected to be [0.0] but found [" + attributeValueWeight + "]"
             );
         }

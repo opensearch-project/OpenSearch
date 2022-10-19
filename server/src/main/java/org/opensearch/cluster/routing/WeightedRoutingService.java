@@ -71,7 +71,7 @@ public class WeightedRoutingService {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 // verify currently no decommission action is ongoing
-                ensureNoDecommissionActionOngoing(currentState);
+                ensureNoOngoingDecommissionAction(currentState);
                 Metadata metadata = currentState.metadata();
                 Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
                 WeightedRoutingMetadata weightedRoutingMetadata = metadata.custom(WeightedRoutingMetadata.TYPE);
@@ -159,7 +159,7 @@ public class WeightedRoutingService {
         }
     }
 
-    public void ensureNoDecommissionActionOngoing(ClusterState state) {
+    public void ensureNoOngoingDecommissionAction(ClusterState state) {
         DecommissionAttributeMetadata decommissionAttributeMetadata = state.metadata().decommissionAttributeMetadata();
         if (decommissionAttributeMetadata != null && decommissionAttributeMetadata.status().equals(DecommissionStatus.FAILED) == false) {
             throw new IllegalStateException(
