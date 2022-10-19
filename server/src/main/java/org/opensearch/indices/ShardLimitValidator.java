@@ -33,6 +33,7 @@
 package org.opensearch.indices;
 
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.DataStream;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.ValidationException;
@@ -64,12 +65,23 @@ public class ShardLimitValidator {
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
+
+    public static final Setting<Boolean> SETTING_CLUSTER_IGNORE_DOT_INDEXES = Setting.boolSetting(
+        "cluster.ignore_dot_indexes",
+        false,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     protected final AtomicInteger shardLimitPerNode = new AtomicInteger();
     private final SystemIndices systemIndices;
+    private volatile boolean ignoreDotIndexes;
 
     public ShardLimitValidator(final Settings settings, ClusterService clusterService, SystemIndices systemIndices) {
         this.shardLimitPerNode.set(SETTING_CLUSTER_MAX_SHARDS_PER_NODE.get(settings));
+        this.ignoreDotIndexes = SETTING_CLUSTER_IGNORE_DOT_INDEXES.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(SETTING_CLUSTER_MAX_SHARDS_PER_NODE, this::setShardLimitPerNode);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(SETTING_CLUSTER_IGNORE_DOT_INDEXES, this::setIgnoreDotIndexes);
         this.systemIndices = systemIndices;
     }
 
@@ -85,8 +97,15 @@ public class ShardLimitValidator {
         return shardLimitPerNode.get();
     }
 
+    private void setIgnoreDotIndexes(boolean newValue) {
+        this.ignoreDotIndexes = newValue;
+    }
+
     /**
      * Checks whether an index can be created without going over the cluster shard limit.
+     * Validate shard limit only for non system indices as it is not hard limit anyways.
+     * Further also validates if the cluster.ignore_dot_indexes is set to true.
+     * If so then it does not validate any index which starts with '.' except data-stream index.
      *
      * @param indexName      the name of the index being created
      * @param settings       the settings of the index to be created
@@ -94,8 +113,12 @@ public class ShardLimitValidator {
      * @throws ValidationException if creating this index would put the cluster over the cluster shard limit
      */
     public void validateShardLimit(final String indexName, final Settings settings, final ClusterState state) {
-        // Validate shard limit only for non system indices as it is not hard limit anyways
-        if (systemIndices.validateSystemIndex(indexName)) {
+        /*
+        Validate shard limit only for non system indices as it is not hard limit anyways.
+        Further also validates if the cluster.ignore_dot_indexes is set to true.
+        If so then it does not validate any index which starts with '.'.
+        */
+        if (shouldIndexBeIgnored(indexName)) {
             return;
         }
 
@@ -113,7 +136,9 @@ public class ShardLimitValidator {
 
     /**
      * Validates whether a list of indices can be opened without going over the cluster shard limit.  Only counts indices which are
-     * currently closed and will be opened, ignores indices which are already open.
+     * currently closed and will be opened, ignores indices which are already open. Adding to this it validates the
+     * shard limit only for non system indices and if the cluster.ignore_dot_indexes property is set to true
+     * then the indexes starting with '.' are ignored except the data-stream indexes.
      *
      * @param currentState The current cluster state.
      * @param indicesToOpen The indices which are to be opened.
@@ -121,8 +146,13 @@ public class ShardLimitValidator {
      */
     public void validateShardLimit(ClusterState currentState, Index[] indicesToOpen) {
         int shardsToOpen = Arrays.stream(indicesToOpen)
-            // Validate shard limit only for non system indices as it is not hard limit anyways
-            .filter(index -> !systemIndices.validateSystemIndex(index.getName()))
+            /*
+            Validate shard limit only for non system indices as it is not hard limit anyways.
+            Further also validates if the cluster.ignore_dot_indexes is set to true.
+            If so then it does not validate any index which starts with '.'
+            however data-stream indexes are still validated.
+            */
+            .filter(index -> !shouldIndexBeIgnored(index.getName()))
             .filter(index -> currentState.metadata().index(index).getState().equals(IndexMetadata.State.CLOSE))
             .mapToInt(index -> getTotalShardCount(currentState, index))
             .sum();
@@ -138,6 +168,37 @@ public class ShardLimitValidator {
     private static int getTotalShardCount(ClusterState state, Index index) {
         IndexMetadata indexMetadata = state.metadata().index(index);
         return indexMetadata.getNumberOfShards() * (1 + indexMetadata.getNumberOfReplicas());
+    }
+
+    /**
+     * Returns true if the index should be ignored during validation.
+     * Index is ignored if it is a system index or if cluster.ignore_dot_indexes is set to true
+     * then indexes which are starting with dot and are not data stream index are ignored.
+     *
+     * @param indexName  The index which needs to be validated.
+     */
+    private boolean shouldIndexBeIgnored(String indexName) {
+        if (this.ignoreDotIndexes) {
+            return validateDotIndex(indexName) && !isDataStreamIndex(indexName);
+        } else return systemIndices.validateSystemIndex(indexName);
+    }
+
+    /**
+     * Returns true if the index name starts with '.' else false.
+     *
+     * @param indexName  The index which needs to be validated.
+     */
+    private boolean validateDotIndex(String indexName) {
+        return indexName.charAt(0) == '.';
+    }
+
+    /**
+     * Returns true if the index is dataStreamIndex false otherwise.
+     *
+     * @param indexName  The index which needs to be validated.
+     */
+    private boolean isDataStreamIndex(String indexName) {
+        return indexName.startsWith(DataStream.BACKING_INDEX_PREFIX);
     }
 
     /**
