@@ -50,6 +50,7 @@ import static org.opensearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode
 import static org.hamcrest.Matchers.is;
 
 public class GeoPointParsingTests extends OpenSearchTestCase {
+    private static final String ERR_MSG_INVALID_FIELDS = "field must be either [lon|lat], [type|coordinates], or [geohash]";
     private static final double TOLERANCE = 1E-5;
 
     public void testGeoPointReset() throws IOException {
@@ -142,12 +143,12 @@ public class GeoPointParsingTests extends OpenSearchTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
             parser.nextToken();
             Exception e = expectThrows(OpenSearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
-            assertThat(e.getMessage(), is("field must be either [lat], [lon] or [geohash]"));
+            assertThat(e.getMessage(), is(ERR_MSG_INVALID_FIELDS));
         }
         try (XContentParser parser2 = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
             parser2.nextToken();
             Exception e = expectThrows(OpenSearchParseException.class, () -> GeoUtils.parseGeoPoint(toObject(parser2), randomBoolean()));
-            assertThat(e.getMessage(), is("field must be either [lat], [lon] or [geohash]"));
+            assertThat(e.getMessage(), is(ERR_MSG_INVALID_FIELDS));
         }
     }
 
@@ -160,12 +161,12 @@ public class GeoPointParsingTests extends OpenSearchTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
             parser.nextToken();
             Exception e = expectThrows(OpenSearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
-            assertThat(e.getMessage(), is("field must be either lat/lon or geohash"));
+            assertThat(e.getMessage(), is(ERR_MSG_INVALID_FIELDS));
         }
         try (XContentParser parser2 = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
             parser2.nextToken();
             Exception e = expectThrows(OpenSearchParseException.class, () -> GeoUtils.parseGeoPoint(toObject(parser2), randomBoolean()));
-            assertThat(e.getMessage(), is("field must be either lat/lon or geohash"));
+            assertThat(e.getMessage(), is(ERR_MSG_INVALID_FIELDS));
         }
     }
 
@@ -179,12 +180,12 @@ public class GeoPointParsingTests extends OpenSearchTestCase {
             parser.nextToken();
 
             Exception e = expectThrows(OpenSearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
-            assertThat(e.getMessage(), is("field must be either lat/lon or geohash"));
+            assertThat(e.getMessage(), is(ERR_MSG_INVALID_FIELDS));
         }
         try (XContentParser parser2 = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
             parser2.nextToken();
             Exception e = expectThrows(OpenSearchParseException.class, () -> GeoUtils.parseGeoPoint(toObject(parser2), randomBoolean()));
-            assertThat(e.getMessage(), is("field must be either lat/lon or geohash"));
+            assertThat(e.getMessage(), is(ERR_MSG_INVALID_FIELDS));
         }
     }
 
@@ -197,13 +198,13 @@ public class GeoPointParsingTests extends OpenSearchTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
             parser.nextToken();
             Exception e = expectThrows(OpenSearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
-            assertThat(e.getMessage(), is("field must be either [lat], [lon] or [geohash]"));
+            assertThat(e.getMessage(), is(ERR_MSG_INVALID_FIELDS));
         }
 
         try (XContentParser parser2 = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
             parser2.nextToken();
             Exception e = expectThrows(OpenSearchParseException.class, () -> GeoUtils.parseGeoPoint(toObject(parser2), randomBoolean()));
-            assertThat(e.getMessage(), is("field must be either [lat], [lon] or [geohash]"));
+            assertThat(e.getMessage(), is(ERR_MSG_INVALID_FIELDS));
         }
     }
 
