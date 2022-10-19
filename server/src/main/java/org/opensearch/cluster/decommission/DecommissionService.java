@@ -433,7 +433,7 @@ public class DecommissionService {
             );
         }
         Double attributeValueWeight = weightedRouting.weights().get(decommissionAttribute.attributeValue());
-        if (attributeValueWeight == null || attributeValueWeight.equals(0.0)) {
+        if (attributeValueWeight == null || attributeValueWeight.equals(0.0) == false) {
             throw new DecommissioningFailedException(
                 decommissionAttribute,
                 "weight for decommissioned attribute is expected to be [0.0] but found [" + attributeValueWeight + "]"
