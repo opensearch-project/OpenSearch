@@ -40,6 +40,7 @@ import org.apache.hc.client5.http.impl.auth.BasicCredentialsProvider;
 import org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManager;
 import org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManagerBuilder;
 import org.apache.hc.client5.http.ssl.ClientTlsStrategyBuilder;
+import org.apache.hc.core5.function.Factory;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpEntity;
@@ -51,6 +52,7 @@ import org.apache.hc.core5.http.message.BasicHeader;
 import org.apache.hc.core5.http.message.RequestLine;
 import org.apache.hc.core5.http.nio.ssl.TlsStrategy;
 import org.apache.hc.core5.reactor.IOReactorConfig;
+import org.apache.hc.core5.reactor.ssl.TlsDetails;
 import org.apache.hc.core5.ssl.SSLContextBuilder;
 import org.apache.hc.core5.ssl.SSLContexts;
 import org.apache.hc.core5.util.Timeout;
@@ -67,6 +69,8 @@ import org.opensearch.client.RestClientBuilder;
 import org.opensearch.client.RestClientBuilder.HttpClientConfigCallback;
 
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLEngine;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -429,6 +433,13 @@ public class RestClientDocumentation {
                             HttpAsyncClientBuilder httpClientBuilder) {
                         final TlsStrategy tlsStrategy = ClientTlsStrategyBuilder.create()
                                 .setSslContext(sslContext)
+                                // See https://issues.apache.org/jira/browse/HTTPCLIENT-2219
+                                .setTlsDetailsFactory(new Factory<SSLEngine, TlsDetails>() {
+                                    @Override
+                                    public TlsDetails create(final SSLEngine sslEngine) {
+                                        return new TlsDetails(sslEngine.getSession(), sslEngine.getApplicationProtocol());
+                                    }
+                                })
                                 .build();
 
                         final PoolingAsyncClientConnectionManager connectionManager = PoolingAsyncClientConnectionManagerBuilder.create()
@@ -463,6 +474,13 @@ public class RestClientDocumentation {
                         HttpAsyncClientBuilder httpClientBuilder) {
                         final TlsStrategy tlsStrategy = ClientTlsStrategyBuilder.create()
                                 .setSslContext(sslContext)
+                                // See please https://issues.apache.org/jira/browse/HTTPCLIENT-2219
+                                .setTlsDetailsFactory(new Factory<SSLEngine, TlsDetails>() {
+                                    @Override
+                                    public TlsDetails create(final SSLEngine sslEngine) {
+                                        return new TlsDetails(sslEngine.getSession(), sslEngine.getApplicationProtocol());
+                                    }
+                                })
                                 .build();
 
                         final PoolingAsyncClientConnectionManager connectionManager = PoolingAsyncClientConnectionManagerBuilder.create()
