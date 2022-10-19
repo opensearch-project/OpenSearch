@@ -163,6 +163,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
   - Addition of GeoShape ValueSource level code interfaces for accessing the DocValues.
   - Addition of Missing Value feature in the GeoShape Aggregations.
 - Install and configure Log4j JUL Adapter for Lucene 9.4 ([#4754](https://github.com/opensearch-project/OpenSearch/pull/4754))
+- Added feature to ignore indexes starting with dot during shard limit validation.([#4695](https://github.com/opensearch-project/OpenSearch/pull/4695))
 ### Changed
 ### Deprecated
 ### Removed
