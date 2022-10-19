@@ -79,13 +79,13 @@ public class OpenSearchLoggerUsageTests extends OpenSearchTestCase {
         }
     }
 
-    public void testLoggerUsageCheckerCompatibilityWithLog4j2Logger() throws NoSuchMethodException {
+    public void testLoggerUsageCheckerCompatibilityWithLog4j2Logger() {
         for (Method method : Logger.class.getMethods()) {
             if (OpenSearchLoggerUsageChecker.LOGGER_METHODS.contains(method.getName())) {
                 assertThat(method.getParameterCount(), greaterThanOrEqualTo(1));
                 final Class<?>[] parameterTypes = method.getParameterTypes();
                 int markerOffset = parameterTypes[0].equals(Marker.class) ? 1 : 0;
-                int paramLength = method.getParameterCount() - markerOffset;
+                int paramLength = parameterTypes.length - markerOffset;
                 if (method.isVarArgs()) {
                     assertEquals(2, paramLength);
                     assertEquals(String.class, parameterTypes[markerOffset]);
@@ -121,8 +121,8 @@ public class OpenSearchLoggerUsageTests extends OpenSearchTestCase {
             assertEquals(String.class, parameterTypes[0]);
             assertThat(parameterTypes[1], is(oneOf(String[].class, Object[].class, Object.class)));
 
-            if (constructor.getParameterCount() > 2) {
-                assertEquals(3, constructor.getParameterCount());
+            if (parameterTypes.length > 2) {
+                assertEquals(3, parameterTypes.length);
                 if (parameterTypes[1].equals(Object.class)) {
                     assertEquals(Object.class, parameterTypes[2]);
                 } else {
