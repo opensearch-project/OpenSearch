@@ -247,6 +247,62 @@ public class ClusterShardLimitIT extends OpenSearchIntegTestCase {
         assertFalse(clusterState.getMetadata().hasIndex(".test-index"));
     }
 
+    /**
+     * The test checks if the index starting with the .ds- can be created if the node has
+     * number of shards equivalent to the cluster.max_shards_per_node and the cluster.ignore_hidden_indexes
+     * setting is set to true. If the cluster.ignore_hidden_indexes is set to true index creation of
+     * indexes starting with dot would only succeed and dataStream indexes would still have validation applied.
+     */
+    public void testIndexCreationOverLimitForDataStreamIndexes() {
+        int dataNodes = client().admin().cluster().prepareState().get().getState().getNodes().getDataNodes().size();
+        int maxAllowedShards = dataNodes * dataNodes;
+
+        // Setting the cluster.max_shards_per_node setting according to the data node count.
+        setShardsPerNode(dataNodes);
+        setIgnoreHiddenIndex(true);
+
+        /*
+            Create an index that will bring us up to the limit. It would create index with primary equal to the
+            dataNodes * dataNodes so that cluster.max_shards_per_node setting is reached.
+         */
+        createIndex(
+            "test",
+            Settings.builder()
+                .put(indexSettings())
+                .put(SETTING_NUMBER_OF_SHARDS, maxAllowedShards)
+                .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                .build()
+        );
+
+        // Getting total active shards in the cluster.
+        int currentActiveShards = client().admin().cluster().prepareHealth().get().getActiveShards();
+
+        // Getting cluster.max_shards_per_node setting
+        ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+        String maxShardsPerNode = clusterState.getMetadata()
+            .settings()
+            .get(ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey());
+
+        // Checking if the total shards created are equivalent to dataNodes * cluster.max_shards_per_node
+        assertEquals(dataNodes * Integer.parseInt(maxShardsPerNode), currentActiveShards);
+
+        int extraShardCount = 1;
+        try {
+            createIndex(
+                ".ds-test-index",
+                Settings.builder()
+                    .put(indexSettings())
+                    .put(SETTING_NUMBER_OF_SHARDS, extraShardCount)
+                    .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                    .build()
+            );
+        } catch (IllegalArgumentException e) {
+            verifyException(maxAllowedShards, currentActiveShards, extraShardCount, e);
+        }
+        clusterState = client().admin().cluster().prepareState().get().getState();
+        assertFalse(clusterState.getMetadata().hasIndex(".ds-test-index"));
+    }
+
     public void testIndexCreationOverLimitFromTemplate() {
         int dataNodes = client().admin().cluster().prepareState().get().getState().getNodes().getDataNodes().size();
 

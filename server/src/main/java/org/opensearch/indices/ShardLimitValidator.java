@@ -33,6 +33,7 @@
 package org.opensearch.indices;
 
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.DataStream;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.ValidationException;
@@ -104,7 +105,7 @@ public class ShardLimitValidator {
      * Checks whether an index can be created without going over the cluster shard limit.
      * Validate shard limit only for non system indices as it is not hard limit anyways.
      * Further also validates if the cluster.ignore_hidden_indexes is set to true.
-     * If so then it does not validate any index which starts with '.'
+     * If so then it does not validate any index which starts with '.' except data-stream index.
      *
      * @param indexName      the name of the index being created
      * @param settings       the settings of the index to be created
@@ -117,7 +118,7 @@ public class ShardLimitValidator {
         Further also validates if the cluster.ignore_hidden_indexes is set to true.
         If so then it does not validate any index which starts with '.'.
         */
-        if (systemIndices.validateSystemIndex(indexName) || validateHiddenIndex(indexName)) {
+        if ((systemIndices.validateSystemIndex(indexName) || validateHiddenIndex(indexName)) && !isDataStreamIndex(indexName)) {
             return;
         }
 
@@ -137,7 +138,7 @@ public class ShardLimitValidator {
      * Validates whether a list of indices can be opened without going over the cluster shard limit.  Only counts indices which are
      * currently closed and will be opened, ignores indices which are already open. Adding to this it validates the
      * shard limit only for non system indices and if the cluster.ignore_hidden_indexes property is set to true
-     * then the indexes starting with '.' are also ignored.
+     * then the indexes starting with '.' are ignored except the data-stream indexes.
      *
      * @param currentState The current cluster state.
      * @param indicesToOpen The indices which are to be opened.
@@ -148,10 +149,11 @@ public class ShardLimitValidator {
             /*
             Validate shard limit only for non system indices as it is not hard limit anyways.
             Further also validates if the cluster.ignore_hidden_indexes is set to true.
-            If so then it does not validate any index which starts with '.'.
+            If so then it does not validate any index which starts with '.'
+            however data-stream indexes are still validated.
             */
             .filter(index -> !systemIndices.validateSystemIndex(index.getName()))
-            .filter(index -> !(validateHiddenIndex(index.getName())))
+            .filter(index -> !(validateHiddenIndex(index.getName()) && !isDataStreamIndex(index.getName())))
             .filter(index -> currentState.metadata().index(index).getState().equals(IndexMetadata.State.CLOSE))
             .mapToInt(index -> getTotalShardCount(currentState, index))
             .sum();
@@ -177,6 +179,15 @@ public class ShardLimitValidator {
      */
     private boolean validateHiddenIndex(String indexName) {
         return this.ignoreHiddenIndexes && indexName.charAt(0) == '.';
+    }
+
+    /**
+     * Returns true if the index is dataStreamIndex false otherwise.
+     *
+     * @param indexName  The index which needs to be validated.
+     */
+    private boolean isDataStreamIndex(String indexName) {
+        return indexName.startsWith(DataStream.BACKING_INDEX_PREFIX);
     }
 
     /**
