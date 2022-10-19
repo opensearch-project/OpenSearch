@@ -59,7 +59,7 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_RE
 import static org.opensearch.cluster.metadata.MetadataIndexStateServiceTests.addClosedIndex;
 import static org.opensearch.cluster.metadata.MetadataIndexStateServiceTests.addOpenedIndex;
 import static org.opensearch.cluster.shards.ShardCounts.forDataNodeCount;
-import static org.opensearch.indices.ShardLimitValidator.SETTING_CLUSTER_IGNORE_HIDDEN_INDEXES;
+import static org.opensearch.indices.ShardLimitValidator.SETTING_CLUSTER_IGNORE_DOT_INDEXES;
 import static org.opensearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -153,10 +153,10 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
     }
 
     /**
-     * This test validates that hidden index creation Succeeds
-     * when the setting cluster.ignore_hidden_indexes is set to true.
+     * This test validates that index starting with dot creation Succeeds
+     * when the setting cluster.ignore_dot_indexes is set to true.
      */
-    public void testHiddenIndexCreationSucceeds() {
+    public void testDotIndexCreationSucceeds() {
         final ShardLimitValidator shardLimitValidator = createTestShardLimitService(1, true);
         final Settings settings = Settings.builder()
             .put(SETTING_VERSION_CREATED, Version.CURRENT)
@@ -168,10 +168,10 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
     }
 
     /**
-     * This test validates that hidden index creation fails
-     * when the setting cluster.ignore_hidden_indexes is set to false.
+     * This test validates that index starting with dot creation fails
+     * when the setting cluster.ignore_dot_indexes is set to false.
      */
-    public void testHiddenIndexCreationFails() {
+    public void testDotIndexCreationFails() {
         final ShardLimitValidator shardLimitValidator = createTestShardLimitService(1, false);
         final Settings settings = Settings.builder()
             .put(SETTING_VERSION_CREATED, Version.CURRENT)
@@ -197,7 +197,7 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
 
     /**
      * This test validates that dataStream index creation fails
-     * when the cluster.ignore_hidden_indexes is set to true, and we reach the max shard per node limit.
+     * when the cluster.ignore_dot_indexes is set to true, and we reach the max shard per node limit.
      */
     public void testDataStreamIndexCreationFails() {
         final ShardLimitValidator shardLimitValidator = createTestShardLimitService(1, true);
@@ -225,7 +225,7 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
 
     /**
      * This test validates that dataStream index creation succeeds
-     * when the cluster.ignore_hidden_indexes is set to true, and we don't reach the max shard per node limit.
+     * when the cluster.ignore_dot_indexes is set to true, and we don't reach the max shard per node limit.
      */
     public void testDataStreamIndexCreationSucceeds() {
         final ShardLimitValidator shardLimitValidator = createTestShardLimitService(4, true);
@@ -308,9 +308,9 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
     /**
      * This test validates that index having '.' in the first character
      * opening of such indexes succeeds even when it exceeds the cluster max shard limit if the
-     * cluster.ignore_hidden_indexes setting is set to true.
+     * cluster.ignore_dot_indexes setting is set to true.
      */
-    public void testHiddenIndexOpeningSucceeds() {
+    public void testDotIndexOpeningSucceeds() {
         int nodesInCluster = randomIntBetween(2, 90);
         ShardCounts counts = forDataNodeCount(nodesInCluster);
         ClusterState state = createClusterForShardLimitTest(
@@ -318,7 +318,7 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
             randomAlphaOfLengthBetween(5, 15),
             counts.getFirstIndexShards(),
             counts.getFirstIndexReplicas(),
-            ".test-index",               // Adding closed hidden index to cluster state
+            ".test-index",               // Adding closed index starting with dot to cluster state
             counts.getFailingIndexShards(),
             counts.getFailingIndexReplicas()
         );
@@ -336,9 +336,9 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
     /**
      * This test validates that index having '.' in the first character
      * opening fails when it exceeds the cluster max shard limit if the
-     * cluster.ignore_hidden_indexes is set to false.
+     * cluster.ignore_dot_indexes is set to false.
      */
-    public void testHiddenIndexOpeningFails() {
+    public void testDotIndexOpeningFails() {
         int nodesInCluster = randomIntBetween(2, 90);
         ShardCounts counts = forDataNodeCount(nodesInCluster);
         ClusterState state = createClusterForShardLimitTest(
@@ -346,7 +346,7 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
             randomAlphaOfLengthBetween(5, 15),
             counts.getFirstIndexShards(),
             counts.getFirstIndexReplicas(),
-            ".test-index",               // Adding closed hidden index to cluster state
+            ".test-index",               // Adding closed index starting with dot to cluster state
             counts.getFailingIndexShards(),
             counts.getFailingIndexReplicas()
         );
@@ -379,7 +379,7 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
     /**
      * This test validates that index starting with '.ds-'
      * opening fails when it exceeds the cluster max shard limit if the
-     * cluster.ignore_hidden_indexes is set to true.
+     * cluster.ignore_dot_indexes is set to true.
      */
     public void testDataStreamIndexOpeningFails() {
         int nodesInCluster = randomIntBetween(2, 90);
@@ -389,7 +389,7 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
             randomAlphaOfLengthBetween(5, 15),
             counts.getFirstIndexShards(),
             counts.getFirstIndexReplicas(),
-            ".ds-test-index",               // Adding closed hidden index to cluster state
+            ".ds-test-index",               // Adding closed data stream index to cluster state
             counts.getFailingIndexShards(),
             counts.getFailingIndexReplicas()
         );
@@ -493,15 +493,15 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
      * Creates a {@link ShardLimitValidator} for testing with the given setting and a mocked cluster service.
      *
      * @param maxShardsPerNode the value to use for the max shards per node setting
-     * @param ignoreHiddenIndexes validates if hidden index should be ignored or not
+     * @param ignoreDotIndexes validates if index starting with dot should be ignored or not
      * @return a test instance
      */
-    public static ShardLimitValidator createTestShardLimitService(int maxShardsPerNode, boolean ignoreHiddenIndexes) {
+    public static ShardLimitValidator createTestShardLimitService(int maxShardsPerNode, boolean ignoreDotIndexes) {
         // Use a mocked clusterService - for unit tests we won't be updating the setting anyway.
         ClusterService clusterService = mock(ClusterService.class);
         Settings limitOnlySettings = Settings.builder()
             .put(SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), maxShardsPerNode)
-            .put(SETTING_CLUSTER_IGNORE_HIDDEN_INDEXES.getKey(), ignoreHiddenIndexes)
+            .put(SETTING_CLUSTER_IGNORE_DOT_INDEXES.getKey(), ignoreDotIndexes)
             .build();
         when(clusterService.getClusterSettings()).thenReturn(
             new ClusterSettings(limitOnlySettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
@@ -514,18 +514,18 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
      * Creates a {@link ShardLimitValidator} for testing with the given setting and a given cluster service.
      *
      * @param maxShardsPerNode the value to use for the max shards per node setting
-     * @param ignoreHiddenIndexes validates if hidden index should be ignored or not
+     * @param ignoreDotIndexes validates if index starting with dot should be ignored or not
      * @param clusterService   the cluster service to use
      * @return a test instance
      */
     public static ShardLimitValidator createTestShardLimitService(
         int maxShardsPerNode,
-        boolean ignoreHiddenIndexes,
+        boolean ignoreDotIndexes,
         ClusterService clusterService
     ) {
         Settings limitOnlySettings = Settings.builder()
             .put(SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), maxShardsPerNode)
-            .put(SETTING_CLUSTER_IGNORE_HIDDEN_INDEXES.getKey(), ignoreHiddenIndexes)
+            .put(SETTING_CLUSTER_IGNORE_DOT_INDEXES.getKey(), ignoreDotIndexes)
             .build();
 
         return new ShardLimitValidator(limitOnlySettings, clusterService, new SystemIndices(emptyMap()));

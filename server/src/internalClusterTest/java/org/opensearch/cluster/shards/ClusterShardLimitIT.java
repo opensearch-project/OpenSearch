@@ -76,16 +76,16 @@ import static org.hamcrest.Matchers.greaterThan;
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)
 public class ClusterShardLimitIT extends OpenSearchIntegTestCase {
     private static final String shardsPerNodeKey = ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey();
-    private static final String ignoreHiddenIndexKey = ShardLimitValidator.SETTING_CLUSTER_IGNORE_HIDDEN_INDEXES.getKey();
+    private static final String ignoreDotIndexKey = ShardLimitValidator.SETTING_CLUSTER_IGNORE_DOT_INDEXES.getKey();
 
     public void testSettingClusterMaxShards() {
         int shardsPerNode = between(1, 500_000);
         setShardsPerNode(shardsPerNode);
     }
 
-    public void testSettingIgnoreHiddenIndexes() {
-        boolean ignoreHiddenIndexes = randomBoolean();
-        setIgnoreHiddenIndex(ignoreHiddenIndexes);
+    public void testSettingIgnoreDotIndexes() {
+        boolean ignoreDotIndexes = randomBoolean();
+        setIgnoreDotIndex(ignoreDotIndexes);
     }
 
     public void testMinimumPerNode() {
@@ -147,16 +147,16 @@ public class ClusterShardLimitIT extends OpenSearchIntegTestCase {
 
     /**
      * The test checks if the index starting with the dot can be created if the node has
-     * number of shards equivalent to the cluster.max_shards_per_node and the cluster.ignore_hidden_indexes
-     * setting is set to true. If the cluster.ignore_hidden_indexes is set to true index creation of
+     * number of shards equivalent to the cluster.max_shards_per_node and the cluster.ignore_Dot_indexes
+     * setting is set to true. If the cluster.ignore_Dot_indexes is set to true index creation of
      * indexes starting with dot would succeed.
      */
-    public void testIndexCreationOverLimitForHiddenIndexesSucceeds() {
+    public void testIndexCreationOverLimitForDotIndexesSucceeds() {
         int dataNodes = client().admin().cluster().prepareState().get().getState().getNodes().getDataNodes().size();
 
         // Setting the cluster.max_shards_per_node setting according to the data node count.
         setShardsPerNode(dataNodes);
-        setIgnoreHiddenIndex(true);
+        setIgnoreDotIndex(true);
 
         /*
             Create an index that will bring us up to the limit. It would create index with primary equal to the
@@ -194,11 +194,11 @@ public class ClusterShardLimitIT extends OpenSearchIntegTestCase {
 
     /**
      * The test checks if the index starting with the dot should not be created if the node has
-     * number of shards equivalent to the cluster.max_shards_per_node and the cluster.ignore_hidden_indexes
-     * setting is set to false. If the cluster.ignore_hidden_indexes is set to false index creation of
+     * number of shards equivalent to the cluster.max_shards_per_node and the cluster.ignore_Dot_indexes
+     * setting is set to false. If the cluster.ignore_Dot_indexes is set to false index creation of
      * indexes starting with dot would fail as well.
      */
-    public void testIndexCreationOverLimitForHiddenIndexesFail() {
+    public void testIndexCreationOverLimitForDotIndexesFail() {
         int dataNodes = client().admin().cluster().prepareState().get().getState().getNodes().getDataNodes().size();
         int maxAllowedShards = dataNodes * dataNodes;
 
@@ -249,8 +249,8 @@ public class ClusterShardLimitIT extends OpenSearchIntegTestCase {
 
     /**
      * The test checks if the index starting with the .ds- can be created if the node has
-     * number of shards equivalent to the cluster.max_shards_per_node and the cluster.ignore_hidden_indexes
-     * setting is set to true. If the cluster.ignore_hidden_indexes is set to true index creation of
+     * number of shards equivalent to the cluster.max_shards_per_node and the cluster.ignore_Dot_indexes
+     * setting is set to true. If the cluster.ignore_Dot_indexes is set to true index creation of
      * indexes starting with dot would only succeed and dataStream indexes would still have validation applied.
      */
     public void testIndexCreationOverLimitForDataStreamIndexes() {
@@ -259,7 +259,7 @@ public class ClusterShardLimitIT extends OpenSearchIntegTestCase {
 
         // Setting the cluster.max_shards_per_node setting according to the data node count.
         setShardsPerNode(dataNodes);
-        setIgnoreHiddenIndex(true);
+        setIgnoreDotIndex(true);
 
         /*
             Create an index that will bring us up to the limit. It would create index with primary equal to the
@@ -590,7 +590,7 @@ public class ClusterShardLimitIT extends OpenSearchIntegTestCase {
         assertFalse(clusterState.getMetadata().hasIndex("snapshot-index"));
     }
 
-    public void testIgnoreHiddenSettingOnMultipleNodes() throws IOException, InterruptedException {
+    public void testIgnoreDotSettingOnMultipleNodes() throws IOException, InterruptedException {
         int maxAllowedShardsPerNode = 10, indexPrimaryShards = 11, indexReplicaShards = 1;
 
         InternalTestCluster cluster = new InternalTestCluster(
@@ -630,13 +630,13 @@ public class ClusterShardLimitIT extends OpenSearchIntegTestCase {
         cluster.beforeTest(random());
 
         // Starting 3 ClusterManagerOnlyNode nodes
-        cluster.startClusterManagerOnlyNode(Settings.builder().put("cluster.ignore_hidden_indexes", true).build());
-        cluster.startClusterManagerOnlyNode(Settings.builder().put("cluster.ignore_hidden_indexes", false).build());
-        cluster.startClusterManagerOnlyNode(Settings.builder().put("cluster.ignore_hidden_indexes", false).build());
+        cluster.startClusterManagerOnlyNode(Settings.builder().put("cluster.ignore_dot_indexes", true).build());
+        cluster.startClusterManagerOnlyNode(Settings.builder().put("cluster.ignore_dot_indexes", false).build());
+        cluster.startClusterManagerOnlyNode(Settings.builder().put("cluster.ignore_dot_indexes", false).build());
 
         // Starting 2 data nodes
-        cluster.startDataOnlyNode(Settings.builder().put("cluster.ignore_hidden_indexes", false).build());
-        cluster.startDataOnlyNode(Settings.builder().put("cluster.ignore_hidden_indexes", false).build());
+        cluster.startDataOnlyNode(Settings.builder().put("cluster.ignore_dot_indexes", false).build());
+        cluster.startDataOnlyNode(Settings.builder().put("cluster.ignore_dot_indexes", false).build());
 
         // Setting max shards per node to be 10
         cluster.client()
@@ -657,7 +657,7 @@ public class ClusterShardLimitIT extends OpenSearchIntegTestCase {
             .get();
 
         // As active ClusterManagerNode setting takes precedence killing the active one.
-        // This would be the first one where cluster.ignore_hidden_indexes is true because the above calls are blocking.
+        // This would be the first one where cluster.ignore_dot_indexes is true because the above calls are blocking.
         cluster.stopCurrentClusterManagerNode();
 
         // Waiting for all shards to get assigned
@@ -727,23 +727,23 @@ public class ClusterShardLimitIT extends OpenSearchIntegTestCase {
         }
     }
 
-    private void setIgnoreHiddenIndex(boolean ignoreHiddenIndex) {
+    private void setIgnoreDotIndex(boolean ignoreDotIndex) {
         try {
             ClusterUpdateSettingsResponse response;
             if (frequently()) {
                 response = client().admin()
                     .cluster()
                     .prepareUpdateSettings()
-                    .setPersistentSettings(Settings.builder().put(ignoreHiddenIndexKey, ignoreHiddenIndex).build())
+                    .setPersistentSettings(Settings.builder().put(ignoreDotIndexKey, ignoreDotIndex).build())
                     .get();
-                assertEquals(ignoreHiddenIndex, response.getPersistentSettings().getAsBoolean(ignoreHiddenIndexKey, true));
+                assertEquals(ignoreDotIndex, response.getPersistentSettings().getAsBoolean(ignoreDotIndexKey, true));
             } else {
                 response = client().admin()
                     .cluster()
                     .prepareUpdateSettings()
-                    .setTransientSettings(Settings.builder().put(ignoreHiddenIndexKey, ignoreHiddenIndex).build())
+                    .setTransientSettings(Settings.builder().put(ignoreDotIndexKey, ignoreDotIndex).build())
                     .get();
-                assertEquals(ignoreHiddenIndex, response.getTransientSettings().getAsBoolean(ignoreHiddenIndexKey, true));
+                assertEquals(ignoreDotIndex, response.getTransientSettings().getAsBoolean(ignoreDotIndexKey, true));
             }
         } catch (IllegalArgumentException ex) {
             fail(ex.getMessage());
