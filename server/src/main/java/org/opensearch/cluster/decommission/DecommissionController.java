@@ -22,9 +22,6 @@ import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsAction;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
-import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterAddWeightedRoutingAction;
-import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingRequest;
-import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.ClusterStateTaskConfig;
@@ -33,7 +30,6 @@ import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.coordination.NodeRemovalClusterStateTaskExecutor;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.cluster.routing.WeightedRouting;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
@@ -281,50 +277,6 @@ public class DecommissionController {
                 listener.onResponse(decommissionAttributeMetadata.status());
             }
         });
-    }
-
-    void setRoutingWeights(
-        String awarenessAttributeName,
-        Map<String, Double> awarenessAttributeToWeightMap,
-        ActionListener<ClusterPutWeightedRoutingResponse> listener
-    ) {
-        // Weighted Routing transport action will validate invalid weights
-        final ClusterPutWeightedRoutingRequest clusterPutRoutingWeightRequest = new ClusterPutWeightedRoutingRequest(
-            awarenessAttributeName
-        );
-
-        clusterPutRoutingWeightRequest.setWeightedRouting(new WeightedRouting(awarenessAttributeName, awarenessAttributeToWeightMap));
-        assert transportService.getLocalNode().isClusterManagerNode();
-
-        transportService.sendRequest(
-            transportService.getLocalNode(),
-            ClusterAddWeightedRoutingAction.NAME,
-            clusterPutRoutingWeightRequest,
-            new TransportResponseHandler<ClusterPutWeightedRoutingResponse>() {
-                @Override
-                public void handleResponse(ClusterPutWeightedRoutingResponse response) {
-                    logger.info("Weights are successfully set. [{}]", clusterPutRoutingWeightRequest.getWeightedRouting().weights());
-                    listener.onResponse(response);
-                }
-
-                @Override
-                public void handleException(TransportException exp) {
-                    // Logging message on failure. Should we do Retry? If weights are not set should we fail?
-                    logger.error("Failed to set routing weights. ", exp);
-                    listener.onFailure(exp);
-                }
-
-                @Override
-                public String executor() {
-                    return ThreadPool.Names.GENERIC;
-                }
-
-                @Override
-                public ClusterPutWeightedRoutingResponse read(StreamInput in) throws IOException {
-                    return new ClusterPutWeightedRoutingResponse(in);
-                }
-            }
-        );
     }
 
     private void logActiveConnections(NodesStatsResponse nodesStatsResponse) {

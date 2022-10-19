@@ -16,12 +16,12 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionStateResponse;
 import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionResponse;
 import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionRequest;
-import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterService;
@@ -315,7 +315,7 @@ public class DecommissionService {
             public void onResponse(DecommissionStatus status) {
                 logger.info("updated the decommission status to [{}]", status);
                 // set the weights
-                setRoutingWeightsToAwarenessAttribute(decommissionRequest);
+                checkWeightsAndScheduleDecommission(decommissionRequest);
             }
 
             @Override
@@ -334,7 +334,7 @@ public class DecommissionService {
         });
     }
 
-    void setRoutingWeightsToAwarenessAttribute(DecommissionRequest decommissionRequest) {
+    void checkWeightsAndScheduleDecommission(DecommissionRequest decommissionRequest) {
         ClusterState state = clusterService.getClusterApplierService().state();
 
         DecommissionAttributeMetadata decommissionAttributeMetadata = state.metadata().decommissionAttributeMetadata();
@@ -345,30 +345,16 @@ public class DecommissionService {
         assert decommissionAttributeMetadata.status().equals(DecommissionStatus.DRAINING)
             : "Unexpected status encountered while decommissioning nodes.";
         DecommissionAttribute decommissionAttribute = decommissionAttributeMetadata.decommissionAttribute();
-        List<String> awarenessAttributeValues = forcedAwarenessAttributes.get(decommissionAttribute.attributeName());
 
-        Map<String, Double> weights = new HashMap<>();
-        awarenessAttributeValues.forEach(awarenessValue -> {
-            if (awarenessValue.equalsIgnoreCase(decommissionAttribute.attributeValue())) {
-                weights.put(awarenessValue, Double.valueOf(0.0));
-            } else {
-                weights.put(awarenessValue, Double.valueOf(1.0));
-            }
-        });
+        ensureDecommissionedAttributeWeightsAreSet(state, decommissionAttribute);
+        // Schedule the node decommission process after the weights are successfully set.
+        scheduleNodesDecommissionOnTimeout(decommissionRequest.getDrainingTimeout());
+    }
 
-        decommissionController.setRoutingWeights(decommissionAttribute.attributeName(), weights, new ActionListener<>() {
-            @Override
-            public void onResponse(ClusterPutWeightedRoutingResponse response) {
-                // Schedule the node decommission process after the weights are successfully set.
-                scheduleNodesDecommissionOnTimeout(decommissionRequest.getDrainingTimeout());
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                // Weights not successfully set. Fail the decommissioning process.
-                clearVotingConfigExclusionAndUpdateStatus(false, false);
-            }
-        });
+    private void ensureDecommissionedAttributeWeightsAreSet(ClusterState state, DecommissionAttribute decommissionAttribute) {
+        WeightedRoutingMetadata weightedRoutingMetadata = state.metadata().weightedRoutingMetadata();
+        assert weightedRoutingMetadata != null && weightedRoutingMetadata.getWeightedRouting() != null;
+        assert weightedRoutingMetadata.getWeightedRouting().weights().get(decommissionAttribute.attributeValue()) == 0.0;
     }
 
     void scheduleNodesDecommissionOnTimeout(TimeValue timeoutForNodeDraining) {

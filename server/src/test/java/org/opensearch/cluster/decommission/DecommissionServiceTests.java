@@ -23,14 +23,17 @@ import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.coordination.CoordinationMetadata;
 import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.routing.WeightedRouting;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransport;
 import org.opensearch.threadpool.TestThreadPool;
@@ -206,6 +209,76 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
         DecommissionRequest request = new DecommissionRequest(new DecommissionAttribute("zone", "zone_2"));
         decommissionService.startDecommissionAction(request, listener);
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
+    }
+
+    public void testCheckWeightsAndScheduleDecommissionWhenWeightsNotSet() throws InterruptedException {
+        DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "zone-2");
+        DecommissionAttributeMetadata decommissionAttributeMetadata = new DecommissionAttributeMetadata(
+            decommissionAttribute,
+            DecommissionStatus.DRAINING
+        );
+        ClusterState state = ClusterState.builder(new ClusterName("test"))
+            .metadata(Metadata.builder().putCustom(DecommissionAttributeMetadata.TYPE, decommissionAttributeMetadata).build())
+            .build();
+
+        setState(clusterService, state);
+        expectThrows(
+            AssertionError.class,
+            () -> this.decommissionService.checkWeightsAndScheduleDecommission(new DecommissionRequest(decommissionAttribute))
+        );
+    }
+
+    public void testCheckWeightsAndScheduleDecommissionWithIncorrectWeights() {
+        DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "zone-2");
+        DecommissionAttributeMetadata decommissionAttributeMetadata = new DecommissionAttributeMetadata(
+            decommissionAttribute,
+            DecommissionStatus.DRAINING
+        );
+        WeightedRouting weightedRouting = new WeightedRouting("zone", Map.of("zone-1", 0.0, "zone-2", 1.0, "zone-3", 1.0));
+        WeightedRoutingMetadata weightedRoutingMetadata = new WeightedRoutingMetadata(weightedRouting);
+        Metadata metadata = Metadata.builder()
+            .putCustom(DecommissionAttributeMetadata.TYPE, decommissionAttributeMetadata)
+            .putCustom(WeightedRoutingMetadata.TYPE, weightedRoutingMetadata)
+            .build();
+        ClusterState state = ClusterState.builder(new ClusterName("test")).metadata(metadata).build();
+
+        setState(clusterService, state);
+        expectThrows(
+            AssertionError.class,
+            () -> this.decommissionService.checkWeightsAndScheduleDecommission(new DecommissionRequest(decommissionAttribute))
+        );
+    }
+
+    public void testCheckWeightsAndScheduleDecommission() {
+        TransportService mockTransportService = Mockito.mock(TransportService.class);
+        ThreadPool mockThreadPool = Mockito.mock(ThreadPool.class);
+        Mockito.when(mockTransportService.getLocalNode()).thenReturn(Mockito.mock(DiscoveryNode.class));
+        Mockito.when(mockTransportService.getThreadPool()).thenReturn(mockThreadPool);
+        DecommissionService decommissionService = new DecommissionService(
+            Settings.EMPTY,
+            clusterSettings,
+            clusterService,
+            mockTransportService,
+            threadPool,
+            allocationService
+        );
+        DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "zone-2");
+        DecommissionAttributeMetadata decommissionAttributeMetadata = new DecommissionAttributeMetadata(
+            decommissionAttribute,
+            DecommissionStatus.DRAINING
+        );
+        WeightedRouting weightedRouting = new WeightedRouting("zone", Map.of("zone-1", 1.0, "zone-2", 0.0, "zone-3", 1.0));
+        WeightedRoutingMetadata weightedRoutingMetadata = new WeightedRoutingMetadata(weightedRouting);
+        Metadata metadata = Metadata.builder()
+            .putCustom(DecommissionAttributeMetadata.TYPE, decommissionAttributeMetadata)
+            .putCustom(WeightedRoutingMetadata.TYPE, weightedRoutingMetadata)
+            .build();
+        ClusterState state = ClusterState.builder(new ClusterName("test")).metadata(metadata).build();
+
+        setState(clusterService, state);
+        decommissionService.checkWeightsAndScheduleDecommission(new DecommissionRequest(decommissionAttribute));
+
+        Mockito.verify(mockThreadPool).schedule(Mockito.any(Runnable.class), Mockito.any(TimeValue.class), Mockito.anyString());
     }
 
     public void testClearClusterDecommissionState() throws InterruptedException {

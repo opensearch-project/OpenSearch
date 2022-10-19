@@ -88,8 +88,11 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
         }
         // We don't expect that INIT will be new status, as it is registered only when starting the decommission action
         switch (newStatus) {
-            case IN_PROGRESS:
+            case DRAINING:
                 validateStatus(DecommissionStatus.INIT, newStatus);
+                break;
+            case IN_PROGRESS:
+                validateStatus(DecommissionStatus.DRAINING, newStatus);
                 break;
             case SUCCESSFUL:
                 validateStatus(DecommissionStatus.IN_PROGRESS, newStatus);
