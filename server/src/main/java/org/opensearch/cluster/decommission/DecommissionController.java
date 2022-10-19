@@ -257,8 +257,12 @@ public class DecommissionController {
                     decommissionAttributeMetadata.status(),
                     decommissionStatus
                 );
-                // setUpdatedStatus can throw IllegalStateException if the sequence of update is not valid
-                decommissionAttributeMetadata.setUpdatedStatus(decommissionStatus);
+                // validateNewStatus can throw IllegalStateException if the sequence of update is not valid
+                decommissionAttributeMetadata.validateNewStatus(decommissionStatus);
+                decommissionAttributeMetadata = new DecommissionAttributeMetadata(
+                    decommissionAttributeMetadata.decommissionAttribute(),
+                    decommissionStatus
+                );
                 return ClusterState.builder(currentState)
                     .metadata(Metadata.builder(currentState.metadata()).decommissionAttributeMetadata(decommissionAttributeMetadata))
                     .build();
