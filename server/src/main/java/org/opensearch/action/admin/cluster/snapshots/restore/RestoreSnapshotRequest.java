@@ -144,9 +144,6 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
         includeGlobalState = in.readBoolean();
         partial = in.readBoolean();
         includeAliases = in.readBoolean();
-        if (in.getVersion().before(LegacyESVersion.V_7_7_0)) {
-            readSettingsFromStream(in); // formerly the unused settings field
-        }
         indexSettings = readSettingsFromStream(in);
         ignoreIndexSettings = in.readStringArray();
         if (in.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
@@ -170,9 +167,6 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
         out.writeBoolean(includeGlobalState);
         out.writeBoolean(partial);
         out.writeBoolean(includeAliases);
-        if (out.getVersion().before(LegacyESVersion.V_7_7_0)) {
-            writeSettingsToStream(Settings.EMPTY, out); // formerly the unused settings field
-        }
         writeSettingsToStream(indexSettings, out);
         out.writeStringArray(ignoreIndexSettings);
         if (out.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
