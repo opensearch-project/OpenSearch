@@ -433,7 +433,7 @@ public class RestClientDocumentation {
                             HttpAsyncClientBuilder httpClientBuilder) {
                         final TlsStrategy tlsStrategy = ClientTlsStrategyBuilder.create()
                                 .setSslContext(sslContext)
-                                // See please https://issues.apache.org/jira/browse/HTTPCLIENT-2219
+                                // See https://issues.apache.org/jira/browse/HTTPCLIENT-2219
                                 .setTlsDetailsFactory(new Factory<SSLEngine, TlsDetails>() {
                                     @Override
                                     public TlsDetails create(final SSLEngine sslEngine) {
