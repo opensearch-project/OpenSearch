@@ -11,7 +11,6 @@ package org.opensearch.cluster.routing;
 import org.hamcrest.MatcherAssert;
 import org.junit.After;
 import org.junit.Before;
-import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.delete.ClusterDeleteWeightedRoutingRequest;
@@ -358,8 +357,7 @@ public class WeightedRoutingServiceTests extends OpenSearchTestCase {
             }
 
             @Override
-            public void onFailure(Exception e) {
-            }
+            public void onFailure(Exception e) {}
         };
         weightedRoutingService.registerWeightedRoutingMetadata(request.request(), listener);
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));

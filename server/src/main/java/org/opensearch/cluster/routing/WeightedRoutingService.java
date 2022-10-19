@@ -161,12 +161,11 @@ public class WeightedRoutingService {
 
     public void ensureNoDecommissionActionOngoing(ClusterState state) {
         DecommissionAttributeMetadata decommissionAttributeMetadata = state.metadata().decommissionAttributeMetadata();
-        if (decommissionAttributeMetadata != null
-            && decommissionAttributeMetadata.status().equals(DecommissionStatus.FAILED) == false) {
+        if (decommissionAttributeMetadata != null && decommissionAttributeMetadata.status().equals(DecommissionStatus.FAILED) == false) {
             throw new IllegalStateException(
                 "a decommission action is ongoing with status ["
-                + decommissionAttributeMetadata.status().status()
-                + "], cannot update weight during this state"
+                    + decommissionAttributeMetadata.status().status()
+                    + "], cannot update weight during this state"
             );
         }
     }

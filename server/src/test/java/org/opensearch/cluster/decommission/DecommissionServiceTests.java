@@ -15,16 +15,12 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
-import org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
-import org.opensearch.action.admin.cluster.configuration.TransportClearVotingConfigExclusionsAction;
 import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionStateResponse;
 import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionResponse;
 import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsRequest;
-import org.opensearch.action.support.ActionFilters;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.coordination.CoordinationMetadata;
-import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -36,7 +32,6 @@ import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDeci
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransport;
@@ -191,7 +186,10 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
             @Override
             public void onFailure(Exception e) {
                 assertTrue(e instanceof DecommissioningFailedException);
-                assertThat(e.getMessage(), Matchers.containsString("weight for decommissioned attribute is expected to be [0.0] but found [1.0]"));
+                assertThat(
+                    e.getMessage(),
+                    Matchers.containsString("weight for decommissioned attribute is expected to be [0.0] but found [1.0]")
+                );
                 countDownLatch.countDown();
             }
         };
@@ -211,14 +209,18 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
             @Override
             public void onFailure(Exception e) {
                 assertTrue(e instanceof DecommissioningFailedException);
-                assertThat(e.getMessage(), Matchers.containsString("no weights are set to the attribute. Please set appropriate weights before triggering decommission action"));
+                assertThat(
+                    e.getMessage(),
+                    Matchers.containsString(
+                        "no weights are set to the attribute. Please set appropriate weights before triggering decommission action"
+                    )
+                );
                 countDownLatch.countDown();
             }
         };
         decommissionService.startDecommissionAction(decommissionAttribute, listener);
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
     }
-
 
     @SuppressWarnings("unchecked")
     public void testDecommissioningFailedWhenAnotherAttributeDecommissioningSuccessful() throws InterruptedException {

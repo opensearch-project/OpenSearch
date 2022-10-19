@@ -206,7 +206,10 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
                 DecommissioningFailedException.class,
                 () -> client().execute(DecommissionAction.INSTANCE, decommissionRequest).actionGet()
             );
-            assertTrue(ex.getMessage().contains("no weights are set to the attribute. Please set appropriate weights before triggering decommission action"));
+            assertTrue(
+                ex.getMessage()
+                    .contains("no weights are set to the attribute. Please set appropriate weights before triggering decommission action")
+            );
         });
 
         logger.info("--> setting shard routing weights for weighted round robin");
