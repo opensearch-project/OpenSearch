@@ -20,11 +20,13 @@ import org.opensearch.action.admin.cluster.decommission.awareness.get.GetDecommi
 import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionAction;
 import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionRequest;
 import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionResponse;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.decommission.DecommissionAttribute;
 import org.opensearch.cluster.decommission.DecommissionStatus;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
+import org.opensearch.cluster.routing.WeightedRouting;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
@@ -37,6 +39,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 import static org.opensearch.test.NodeRoles.onlyRole;
@@ -102,11 +105,26 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
 
         ensureStableCluster(6);
 
+        logger.info("--> setting shard routing weights for weighted round robin");
+        Map<String, Double> weights = Map.of("a", 2.0, "b", 1.0, "c", 0.0);
+        WeightedRouting weightedRouting = new WeightedRouting("zone", weights);
+
+        ClusterPutWeightedRoutingResponse weightResponse = client().admin()
+            .cluster()
+            .prepareWeightedRouting()
+            .setWeightedRouting(weightedRouting)
+            .get();
+        assertEquals(weightResponse.isAcknowledged(), true);
+
         logger.info("--> starting decommissioning nodes in zone {}", 'c');
         DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "c");
-        DecommissionRequest decommissionRequest = new DecommissionRequest(decommissionAttribute);
+        // Set the timeout to 0 to do immediate Decommission
+        DecommissionRequest decommissionRequest = new DecommissionRequest(decommissionAttribute, TimeValue.timeValueSeconds(0));
         DecommissionResponse decommissionResponse = client().execute(DecommissionAction.INSTANCE, decommissionRequest).get();
         assertTrue(decommissionResponse.isAcknowledged());
+
+        // Keep some delay for scheduler to invoke the decommission flow
+        Thread.sleep(3000);
 
         // Will wait for all events to complete
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get();
@@ -117,7 +135,7 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
             new GetDecommissionStateRequest(decommissionAttribute.attributeName())
         ).get();
         assertEquals(response.getAttributeValue(), decommissionAttribute.attributeValue());
-        assertEquals(response.getDecommissionStatus(), DecommissionStatus.SUCCESSFUL);
+        assertEquals(DecommissionStatus.SUCCESSFUL, response.getDecommissionStatus());
 
         ClusterState clusterState = client(clusterManagerNodes.get(0)).admin().cluster().prepareState().execute().actionGet().getState();
         assertEquals(4, clusterState.nodes().getSize());
