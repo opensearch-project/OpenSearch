@@ -40,8 +40,6 @@ public class ExtensionTokenProcessorTests extends OpenSearchTestCase {
         } catch (InvalidKeyException | NoSuchAlgorithmException | InvalidAlgorithmParameterException | IOException | NoSuchPaddingException
             | IllegalBlockSizeException | BadPaddingException e) {
 
-            System.out.println("Token Generation Test Failed");
-            e.printStackTrace();
             throw new Error(e);
         }
 
@@ -67,8 +65,6 @@ public class ExtensionTokenProcessorTests extends OpenSearchTestCase {
         } catch (InvalidKeyException | IllegalArgumentException | InvalidAlgorithmParameterException | IllegalBlockSizeException
             | BadPaddingException | NoSuchAlgorithmException | NoSuchPaddingException | IOException e) {
 
-            System.out.println("Name extraction or ID generation failed");
-            e.printStackTrace();
             throw new Error(e);
         }
 
@@ -92,7 +88,7 @@ public class ExtensionTokenProcessorTests extends OpenSearchTestCase {
             generatedIdentifier = extensionTokenProcessor.generateToken(userPrincipal);
         } catch (InvalidKeyException | IllegalArgumentException | InvalidAlgorithmParameterException | IllegalBlockSizeException
             | BadPaddingException | NoSuchAlgorithmException | NoSuchPaddingException | IOException ex) {
-            System.out.println("Could not complete tag test");
+
             throw new Error(ex);
         }
 
@@ -124,7 +120,7 @@ public class ExtensionTokenProcessorTests extends OpenSearchTestCase {
             generatedIdentifier = extensionTokenProcessor.generateToken(userPrincipal);
         } catch (InvalidKeyException | IllegalArgumentException | InvalidAlgorithmParameterException | IllegalBlockSizeException
             | BadPaddingException | NoSuchAlgorithmException | NoSuchPaddingException | IOException ex) {
-            System.out.println("Could not complete bad key test");
+
             throw new Error(ex);
         }
 
