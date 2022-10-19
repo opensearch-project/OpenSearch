@@ -272,6 +272,76 @@ public class PublishTests extends GradleUnitTestCase {
     }
 
     /**
+     * If the `group` is defined in gradle's allprojects section then it does not have to defined in publications.
+     */
+    @Test
+    public void allProjectsGroup() throws IOException, URISyntaxException, XmlPullParserException {
+        GradleRunner runner = prepareGradleRunnerFromTemplate("allProjectsGroup.gradle", "build", ZIP_PUBLISH_TASK);
+        BuildResult result = runner.build();
+
+        /** Check if build and {@value ZIP_PUBLISH_TASK} tasks have run well */
+        assertEquals(SUCCESS, result.task(":" + "build").getOutcome());
+        assertEquals(SUCCESS, result.task(":" + ZIP_PUBLISH_TASK).getOutcome());
+
+        // Parse the maven file and validate default values
+        MavenXpp3Reader reader = new MavenXpp3Reader();
+        Model model = reader.read(
+            new FileReader(
+                new File(
+                    projectDir.getRoot(),
+                    String.join(
+                        File.separator,
+                        "build",
+                        "local-staging-repo",
+                        "org",
+                        "opensearch",
+                        PROJECT_NAME,
+                        "2.0.0.0",
+                        PROJECT_NAME + "-2.0.0.0.pom"
+                    )
+                )
+            )
+        );
+        assertEquals(model.getVersion(), "2.0.0.0");
+        assertEquals(model.getGroupId(), "org.opensearch");
+    }
+
+    /**
+     * The groupId value can be defined on several levels. This tests that the most internal level outweighs other levels.
+     */
+    @Test
+    public void groupPriorityLevel() throws IOException, URISyntaxException, XmlPullParserException {
+        GradleRunner runner = prepareGradleRunnerFromTemplate("groupPriorityLevel.gradle", "build", ZIP_PUBLISH_TASK);
+        BuildResult result = runner.build();
+
+        /** Check if build and {@value ZIP_PUBLISH_TASK} tasks have run well */
+        assertEquals(SUCCESS, result.task(":" + "build").getOutcome());
+        assertEquals(SUCCESS, result.task(":" + ZIP_PUBLISH_TASK).getOutcome());
+
+        // Parse the maven file and validate default values
+        MavenXpp3Reader reader = new MavenXpp3Reader();
+        Model model = reader.read(
+            new FileReader(
+                new File(
+                    projectDir.getRoot(),
+                    String.join(
+                        File.separator,
+                        "build",
+                        "local-staging-repo",
+                        "level",
+                        "3",
+                        PROJECT_NAME,
+                        "2.0.0.0",
+                        PROJECT_NAME + "-2.0.0.0.pom"
+                    )
+                )
+            )
+        );
+        assertEquals(model.getVersion(), "2.0.0.0");
+        assertEquals(model.getGroupId(), "level.3");
+    }
+
+    /**
      * In this case the Publication entity is completely missing but still the POM file is generated using the default
      * values including the groupId and version values obtained from the Gradle project object.
      */
