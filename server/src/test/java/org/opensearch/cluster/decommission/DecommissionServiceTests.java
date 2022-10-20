@@ -16,7 +16,6 @@ import org.mockito.Mockito;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionStateResponse;
-import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionRequest;
 import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionResponse;
 import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsRequest;
 import org.opensearch.cluster.ClusterName;
@@ -33,7 +32,7 @@ import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDeci
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.TimeValue;
+import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransport;
 import org.opensearch.threadpool.TestThreadPool;
@@ -142,7 +141,7 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
                 countDownLatch.countDown();
             }
         };
-        decommissionService.startDecommissionAction(new DecommissionRequest(decommissionAttribute), listener);
+        decommissionService.startDecommissionAction(decommissionAttribute, listener);
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
     }
 
@@ -169,7 +168,57 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
                 countDownLatch.countDown();
             }
         };
-        decommissionService.startDecommissionAction(new DecommissionRequest(decommissionAttribute), listener);
+        decommissionService.startDecommissionAction(decommissionAttribute, listener);
+        assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
+    }
+
+    public void testDecommissionNotStartedWithoutWeighingAwayAttribute_1() throws InterruptedException {
+        Map<String, Double> weights = Map.of("zone_1", 1.0, "zone_2", 1.0, "zone_3", 0.0);
+        setWeightedRoutingWeights(weights);
+        final CountDownLatch countDownLatch = new CountDownLatch(1);
+        DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "zone_1");
+        ActionListener<DecommissionResponse> listener = new ActionListener<DecommissionResponse>() {
+            @Override
+            public void onResponse(DecommissionResponse decommissionResponse) {
+                fail("on response shouldn't have been called");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assertTrue(e instanceof DecommissioningFailedException);
+                assertThat(
+                    e.getMessage(),
+                    Matchers.containsString("weight for decommissioned attribute is expected to be [0.0] but found [1.0]")
+                );
+                countDownLatch.countDown();
+            }
+        };
+        decommissionService.startDecommissionAction(decommissionAttribute, listener);
+        assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
+    }
+
+    public void testDecommissionNotStartedWithoutWeighingAwayAttribute_2() throws InterruptedException {
+        final CountDownLatch countDownLatch = new CountDownLatch(1);
+        DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "zone_1");
+        ActionListener<DecommissionResponse> listener = new ActionListener<DecommissionResponse>() {
+            @Override
+            public void onResponse(DecommissionResponse decommissionResponse) {
+                fail("on response shouldn't have been called");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assertTrue(e instanceof DecommissioningFailedException);
+                assertThat(
+                    e.getMessage(),
+                    Matchers.containsString(
+                        "no weights are set to the attribute. Please set appropriate weights before triggering decommission action"
+                    )
+                );
+                countDownLatch.countDown();
+            }
+        };
+        decommissionService.startDecommissionAction(decommissionAttribute, listener);
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
     }
 
@@ -206,41 +255,8 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
                 countDownLatch.countDown();
             }
         };
-        DecommissionRequest request = new DecommissionRequest(new DecommissionAttribute("zone", "zone_2"));
-        decommissionService.startDecommissionAction(request, listener);
+        decommissionService.startDecommissionAction(new DecommissionAttribute("zone", "zone_2"), listener);
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
-    }
-
-    public void testCheckWeightsAndScheduleDecommission() {
-        TransportService mockTransportService = Mockito.mock(TransportService.class);
-        ThreadPool mockThreadPool = Mockito.mock(ThreadPool.class);
-        Mockito.when(mockTransportService.getLocalNode()).thenReturn(Mockito.mock(DiscoveryNode.class));
-        Mockito.when(mockTransportService.getThreadPool()).thenReturn(mockThreadPool);
-        DecommissionService decommissionService = new DecommissionService(
-            Settings.EMPTY,
-            clusterSettings,
-            clusterService,
-            mockTransportService,
-            threadPool,
-            allocationService
-        );
-        DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "zone-2");
-        DecommissionAttributeMetadata decommissionAttributeMetadata = new DecommissionAttributeMetadata(
-            decommissionAttribute,
-            DecommissionStatus.DRAINING
-        );
-        WeightedRouting weightedRouting = new WeightedRouting("zone", Map.of("zone-1", 1.0, "zone-2", 0.0, "zone-3", 1.0));
-        WeightedRoutingMetadata weightedRoutingMetadata = new WeightedRoutingMetadata(weightedRouting);
-        Metadata metadata = Metadata.builder()
-            .putCustom(DecommissionAttributeMetadata.TYPE, decommissionAttributeMetadata)
-            .putCustom(WeightedRoutingMetadata.TYPE, weightedRoutingMetadata)
-            .build();
-        ClusterState state = ClusterState.builder(new ClusterName("test")).metadata(metadata).build();
-
-        setState(clusterService, state);
-        decommissionService.checkDecommissionAttributeAndScheduleDecommission(new DecommissionRequest(decommissionAttribute));
-
-        Mockito.verify(mockThreadPool).schedule(Mockito.any(Runnable.class), Mockito.any(TimeValue.class), Mockito.anyString());
     }
 
     public void testClearClusterDecommissionState() throws InterruptedException {
@@ -321,6 +337,17 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
         };
         decommissionService.deleteDecommissionState(listener);
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
+    }
+
+    private void setWeightedRoutingWeights(Map<String, Double> weights) {
+        ClusterState clusterState = clusterService.state();
+        WeightedRouting weightedRouting = new WeightedRouting("zone", weights);
+        WeightedRoutingMetadata weightedRoutingMetadata = new WeightedRoutingMetadata(weightedRouting);
+        Metadata.Builder metadataBuilder = Metadata.builder(clusterState.metadata());
+        metadataBuilder.putCustom(WeightedRoutingMetadata.TYPE, weightedRoutingMetadata);
+        clusterState = ClusterState.builder(clusterState).metadata(metadataBuilder).build();
+        ClusterState.Builder builder = ClusterState.builder(clusterState);
+        ClusterServiceUtils.setState(clusterService, builder);
     }
 
     private ClusterState addDataNodes(ClusterState clusterState, String zone, String... nodeIds) {
