@@ -53,7 +53,7 @@ public class RestDecommissionActionTests extends RestActionTestCase {
         DecommissionRequest request = action.createRequest(deprecatedRequest);
         assertEquals(request.getDecommissionAttribute().attributeName(), "zone");
         assertEquals(request.getDecommissionAttribute().attributeValue(), "zone-1");
-        assertEquals(request.getDrainingTimeout().getSeconds(), DecommissionRequest.DEFAULT_NODE_DRAINING_TIMEOUT);
+        assertEquals(request.getDrainingTimeout().getSeconds(), DecommissionRequest.DEFAULT_NODE_DRAINING_TIMEOUT.getSeconds());
         assertEquals(deprecatedRequest.getHttpRequest().method(), RestRequest.Method.PUT);
     }
 
