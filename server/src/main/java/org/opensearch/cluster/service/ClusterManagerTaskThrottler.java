@@ -108,11 +108,8 @@ public class ClusterManagerTaskThrottler implements TaskBatcherListener {
     }
 
     void validateSetting(final Settings settings) {
-        /**
-         * TODO: Change the version number of check as per version in which this change will be merged.
-         */
-        if (minNodeVersionSupplier.get().compareTo(Version.V_3_0_0) < 0) {
-            throw new IllegalArgumentException("All the nodes in cluster should be on version later than or equal to 3.0.0");
+        if (minNodeVersionSupplier.get().compareTo(Version.V_2_4_0) < 0) {
+            throw new IllegalArgumentException("All the nodes in cluster should be on version later than or equal to 2.4.0");
         }
         Map<String, Settings> groups = settings.getAsGroups();
         for (String key : groups.keySet()) {

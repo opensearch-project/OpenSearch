@@ -61,7 +61,7 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
             buildNewFakeTransportAddress(),
             Collections.emptyMap(),
             Collections.singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
-            Version.V_3_0_0
+            Version.V_2_4_0
         );
         allNodes = new DiscoveryNode[] { localNode };
         throttlingStats = new ClusterManagerThrottlingStats();
@@ -94,7 +94,7 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
     }
 
     public void testValidateSettingsForDifferentVersion() {
-        DiscoveryNode clusterManagerNode = getClusterManagerNode(Version.V_3_0_0);
+        DiscoveryNode clusterManagerNode = getClusterManagerNode(Version.V_2_4_0);
         DiscoveryNode dataNode = getDataNode(Version.V_1_0_0);
         setState(
             clusterService,
@@ -117,8 +117,8 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
     }
 
     public void testValidateSettingsForTaskWihtoutRetryOnDataNode() {
-        DiscoveryNode clusterManagerNode = getClusterManagerNode(Version.V_3_0_0);
-        DiscoveryNode dataNode = getDataNode(Version.V_3_0_0);
+        DiscoveryNode clusterManagerNode = getClusterManagerNode(Version.V_2_4_0);
+        DiscoveryNode dataNode = getDataNode(Version.V_2_4_0);
         setState(
             clusterService,
             ClusterStateCreationUtils.state(clusterManagerNode, clusterManagerNode, new DiscoveryNode[] { clusterManagerNode, dataNode })
@@ -140,8 +140,8 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
     }
 
     public void testValidateSettingsForUnknownTask() {
-        DiscoveryNode clusterManagerNode = getClusterManagerNode(Version.V_3_0_0);
-        DiscoveryNode dataNode = getDataNode(Version.V_3_0_0);
+        DiscoveryNode clusterManagerNode = getClusterManagerNode(Version.V_2_4_0);
+        DiscoveryNode dataNode = getDataNode(Version.V_2_4_0);
         setState(
             clusterService,
             ClusterStateCreationUtils.state(clusterManagerNode, clusterManagerNode, new DiscoveryNode[] { clusterManagerNode, dataNode })
@@ -162,8 +162,8 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
     }
 
     public void testUpdateThrottlingLimitForBasicSanity() {
-        DiscoveryNode clusterManagerNode = getClusterManagerNode(Version.V_3_0_0);
-        DiscoveryNode dataNode = getDataNode(Version.V_3_0_0);
+        DiscoveryNode clusterManagerNode = getClusterManagerNode(Version.V_2_4_0);
+        DiscoveryNode dataNode = getDataNode(Version.V_2_4_0);
         setState(
             clusterService,
             ClusterStateCreationUtils.state(clusterManagerNode, clusterManagerNode, new DiscoveryNode[] { clusterManagerNode, dataNode })
@@ -191,8 +191,8 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
     }
 
     public void testValidateSettingForLimit() {
-        DiscoveryNode clusterManagerNode = getClusterManagerNode(Version.V_3_0_0);
-        DiscoveryNode dataNode = getDataNode(Version.V_3_0_0);
+        DiscoveryNode clusterManagerNode = getClusterManagerNode(Version.V_2_4_0);
+        DiscoveryNode dataNode = getDataNode(Version.V_2_4_0);
         setState(
             clusterService,
             ClusterStateCreationUtils.state(clusterManagerNode, clusterManagerNode, new DiscoveryNode[] { clusterManagerNode, dataNode })
