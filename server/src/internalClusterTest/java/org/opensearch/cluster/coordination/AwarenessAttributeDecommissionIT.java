@@ -20,13 +20,11 @@ import org.opensearch.action.admin.cluster.decommission.awareness.get.GetDecommi
 import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionAction;
 import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionRequest;
 import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionResponse;
-import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.decommission.DecommissionAttribute;
 import org.opensearch.cluster.decommission.DecommissionStatus;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
-import org.opensearch.cluster.routing.WeightedRouting;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
@@ -39,7 +37,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 import static org.opensearch.test.NodeRoles.onlyRole;

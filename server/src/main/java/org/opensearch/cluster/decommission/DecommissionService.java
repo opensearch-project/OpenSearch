@@ -345,11 +345,10 @@ public class DecommissionService {
             : "Unexpected status encountered while decommissioning nodes.";
 
         // Schedule the node decommission process after the weights are successfully set.
-        scheduleNodesDecommissionOnTimeout(decommissionRequest.getDrainingTimeout());
+        scheduleNodesDecommissionOnTimeout(state, decommissionRequest.getDrainingTimeout());
     }
 
-    void scheduleNodesDecommissionOnTimeout(TimeValue timeoutForNodeDraining) {
-        ClusterState state = clusterService.getClusterApplierService().state();
+    void scheduleNodesDecommissionOnTimeout(ClusterState state, TimeValue timeoutForNodeDraining) {
         // this method ensures no matter what, we always exit from this function after clearing the voting config exclusion
         DecommissionAttributeMetadata decommissionAttributeMetadata = state.metadata().decommissionAttributeMetadata();
         DecommissionAttribute decommissionAttribute = decommissionAttributeMetadata.decommissionAttribute();

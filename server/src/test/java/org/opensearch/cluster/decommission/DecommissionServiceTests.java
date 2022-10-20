@@ -211,44 +211,6 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
     }
 
-    public void testCheckWeightsAndScheduleDecommissionWhenWeightsNotSet() throws InterruptedException {
-        DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "zone-2");
-        DecommissionAttributeMetadata decommissionAttributeMetadata = new DecommissionAttributeMetadata(
-            decommissionAttribute,
-            DecommissionStatus.DRAINING
-        );
-        ClusterState state = ClusterState.builder(new ClusterName("test"))
-            .metadata(Metadata.builder().putCustom(DecommissionAttributeMetadata.TYPE, decommissionAttributeMetadata).build())
-            .build();
-
-        setState(clusterService, state);
-        expectThrows(
-            AssertionError.class,
-            () -> this.decommissionService.checkWeightsAndScheduleDecommission(new DecommissionRequest(decommissionAttribute))
-        );
-    }
-
-    public void testCheckWeightsAndScheduleDecommissionWithIncorrectWeights() {
-        DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "zone-2");
-        DecommissionAttributeMetadata decommissionAttributeMetadata = new DecommissionAttributeMetadata(
-            decommissionAttribute,
-            DecommissionStatus.DRAINING
-        );
-        WeightedRouting weightedRouting = new WeightedRouting("zone", Map.of("zone-1", 0.0, "zone-2", 1.0, "zone-3", 1.0));
-        WeightedRoutingMetadata weightedRoutingMetadata = new WeightedRoutingMetadata(weightedRouting);
-        Metadata metadata = Metadata.builder()
-            .putCustom(DecommissionAttributeMetadata.TYPE, decommissionAttributeMetadata)
-            .putCustom(WeightedRoutingMetadata.TYPE, weightedRoutingMetadata)
-            .build();
-        ClusterState state = ClusterState.builder(new ClusterName("test")).metadata(metadata).build();
-
-        setState(clusterService, state);
-        expectThrows(
-            AssertionError.class,
-            () -> this.decommissionService.checkWeightsAndScheduleDecommission(new DecommissionRequest(decommissionAttribute))
-        );
-    }
-
     public void testCheckWeightsAndScheduleDecommission() {
         TransportService mockTransportService = Mockito.mock(TransportService.class);
         ThreadPool mockThreadPool = Mockito.mock(ThreadPool.class);
