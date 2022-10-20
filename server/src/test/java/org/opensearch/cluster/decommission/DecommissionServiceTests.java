@@ -238,7 +238,7 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
         ClusterState state = ClusterState.builder(new ClusterName("test")).metadata(metadata).build();
 
         setState(clusterService, state);
-        decommissionService.checkWeightsAndScheduleDecommission(new DecommissionRequest(decommissionAttribute));
+        decommissionService.checkDecommissionAttributeAndScheduleDecommission(new DecommissionRequest(decommissionAttribute));
 
         Mockito.verify(mockThreadPool).schedule(Mockito.any(Runnable.class), Mockito.any(TimeValue.class), Mockito.anyString());
     }

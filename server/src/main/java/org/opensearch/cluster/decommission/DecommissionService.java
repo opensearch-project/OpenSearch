@@ -314,7 +314,7 @@ public class DecommissionService {
             public void onResponse(DecommissionStatus status) {
                 logger.info("updated the decommission status to [{}]", status);
                 // set the weights
-                checkWeightsAndScheduleDecommission(decommissionRequest);
+                checkDecommissionAttributeAndScheduleDecommission(decommissionRequest);
             }
 
             @Override
@@ -333,7 +333,7 @@ public class DecommissionService {
         });
     }
 
-    void checkWeightsAndScheduleDecommission(DecommissionRequest decommissionRequest) {
+    void checkDecommissionAttributeAndScheduleDecommission(DecommissionRequest decommissionRequest) {
         ClusterState state = clusterService.getClusterApplierService().state();
 
         DecommissionAttributeMetadata decommissionAttributeMetadata = state.metadata().decommissionAttributeMetadata();
@@ -360,11 +360,11 @@ public class DecommissionService {
             // Log active connections.
             decommissionController.getActiveRequestCountOnDecommissionedNodes(decommissionedNodes);
             // Call to fail the decommission nodes
-            failDecommissionedNodes(clusterService.getClusterApplierService().state(), decommissionAttribute);
+            failDecommissionedNodes(decommissionedNodes, decommissionAttribute);
         }, timeoutForNodeDraining, ThreadPool.Names.GENERIC);
     }
 
-    private void failDecommissionedNodes(ClusterState state, DecommissionAttribute decommissionAttribute) {
+    private void failDecommissionedNodes(Set<DiscoveryNode> decommissionedNodes, DecommissionAttribute decommissionAttribute) {
 
         // Weighing away is complete. We have allowed the nodes to be drained. Let's move decommission status to IN_PROGRESS.
         decommissionController.updateMetadataWithDecommissionStatus(DecommissionStatus.IN_PROGRESS, new ActionListener<>() {
@@ -373,7 +373,7 @@ public class DecommissionService {
                 logger.info("updated the decommission status to [{}]", status);
                 // execute nodes decommissioning
                 decommissionController.removeDecommissionedNodes(
-                    filterNodesWithDecommissionAttribute(clusterService.getClusterApplierService().state(), decommissionAttribute, false),
+                    decommissionedNodes,
                     "nodes-decommissioned",
                     TimeValue.timeValueSeconds(120L),
                     new ActionListener<Void>() {
