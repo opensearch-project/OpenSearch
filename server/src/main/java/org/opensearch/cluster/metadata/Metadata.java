@@ -185,7 +185,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         false,
         false,
         RestStatus.FORBIDDEN,
-        EnumSet.of(ClusterBlockLevel.CREATE_NEW_INDEX)
+        EnumSet.of(ClusterBlockLevel.CREATE_INDEX)
     );
 
     public static final Setting<Boolean> SETTING_READ_ONLY_ALLOW_DELETE_SETTING = Setting.boolSetting(

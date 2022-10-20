@@ -206,7 +206,7 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
     }
 
     public IndexCreateBlockException createIndexBlockedException(ClusterBlockLevel level) {
-        if (globalBlocked(level) == false) {
+        if (!globalBlocked(level)) {
             return null;
         }
         return new IndexCreateBlockException(global(level));

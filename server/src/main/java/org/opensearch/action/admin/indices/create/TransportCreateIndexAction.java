@@ -95,7 +95,7 @@ public class TransportCreateIndexAction extends TransportClusterManagerNodeActio
             .indexBlockedException(ClusterBlockLevel.METADATA_WRITE, request.index());
 
         if (clusterBlockException == null) {
-            return state.blocks().createIndexBlockedException(ClusterBlockLevel.CREATE_NEW_INDEX);
+            return state.blocks().createIndexBlockedException(ClusterBlockLevel.CREATE_INDEX);
         }
         return clusterBlockException;
     }

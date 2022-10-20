@@ -44,7 +44,7 @@ public enum ClusterBlockLevel {
     WRITE,
     METADATA_READ,
     METADATA_WRITE,
-    CREATE_NEW_INDEX;
+    CREATE_INDEX;
 
     public static final EnumSet<ClusterBlockLevel> ALL = EnumSet.allOf(ClusterBlockLevel.class);
     public static final EnumSet<ClusterBlockLevel> READ_WRITE = EnumSet.of(READ, WRITE);
