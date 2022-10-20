@@ -154,6 +154,14 @@ public abstract class RetryableAction<Response> {
 
     public void onFinished() {}
 
+    /**
+     * Retry able task may want to throw different Exception on timeout,
+     * they can override it method for that.
+     */
+    public Exception getTimeoutException(Exception e) {
+        return e;
+    }
+
     private class RetryingListener implements ActionListener<Response> {
 
         private static final int MAX_EXCEPTIONS = 4;
@@ -183,7 +191,7 @@ public abstract class RetryableAction<Response> {
                         () -> new ParameterizedMessage("retryable action timed out after {}", TimeValue.timeValueMillis(elapsedMillis)),
                         e
                     );
-                    onFinalFailure(e);
+                    onFinalFailure(getTimeoutException(e));
                 } else {
                     addException(e);
 
