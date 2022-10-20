@@ -89,19 +89,16 @@ public class S3RepositoryTests extends OpenSearchTestCase {
         createS3Repo(getRepositoryMetadata(s3)).close();
         // buffer < 5mb should fail
         final Settings s4 = bufferAndChunkSettings(4, 10);
-        final SettingsException e2 = expectThrows(
-            SettingsException.class,
-            () -> createS3Repo(getRepositoryMetadata(s4)).close()
-        );
+        final SettingsException e2 = expectThrows(SettingsException.class, () -> createS3Repo(getRepositoryMetadata(s4)).close());
         assertThat(e2.getCause(), Matchers.instanceOf(IllegalArgumentException.class));
         assertThat(e2.getCause().getMessage(), containsString("failed to parse value [4mb] for setting [buffer_size], must be >= [5mb]"));
         final Settings s5 = bufferAndChunkSettings(5, 6000000);
-        final SettingsException e3 = expectThrows(
-            SettingsException.class,
-            () -> createS3Repo(getRepositoryMetadata(s5)).close()
-        );
+        final SettingsException e3 = expectThrows(SettingsException.class, () -> createS3Repo(getRepositoryMetadata(s5)).close());
         assertThat(e3.getCause(), Matchers.instanceOf(IllegalArgumentException.class));
-        assertThat(e3.getCause().getMessage(), containsString("failed to parse value [6000000mb] for setting [chunk_size], must be <= [5tb]"));
+        assertThat(
+            e3.getCause().getMessage(),
+            containsString("failed to parse value [6000000mb] for setting [chunk_size], must be <= [5tb]")
+        );
     }
 
     private Settings bufferAndChunkSettings(long buffer, long chunk) {
