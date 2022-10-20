@@ -280,9 +280,7 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
             decommissionAttribute,
             DecommissionStatus.DRAINING
         );
-        Metadata metadata = Metadata.builder()
-            .putCustom(DecommissionAttributeMetadata.TYPE, decommissionAttributeMetadata)
-            .build();
+        Metadata metadata = Metadata.builder().putCustom(DecommissionAttributeMetadata.TYPE, decommissionAttributeMetadata).build();
         ClusterState state = ClusterState.builder(new ClusterName("test")).metadata(metadata).build();
 
         setState(clusterService, state);
