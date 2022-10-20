@@ -21,7 +21,6 @@ import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.metadata.Metadata;
-import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterService;
@@ -212,7 +211,7 @@ public class DecommissionService {
                         // and to-be-decommissioned cluster manager is no more part of Voting Configuration and no more to-be-decommission
                         // nodes can be part of Voting Config
                         listener.onResponse(new DecommissionResponse(true));
-                        drainNodesWithDecommissionedAttribute(clusterService.getClusterApplierService().state(), decommissionRequest);
+                        drainNodesWithDecommissionedAttribute(decommissionRequest);
                     }
                 } else {
                     // explicitly calling listener.onFailure with NotClusterManagerException as the local node is not the cluster manager
@@ -309,7 +308,7 @@ public class DecommissionService {
         }
     }
 
-    private void drainNodesWithDecommissionedAttribute(ClusterState state, DecommissionRequest decommissionRequest) {
+    private void drainNodesWithDecommissionedAttribute(DecommissionRequest decommissionRequest) {
         decommissionController.updateMetadataWithDecommissionStatus(DecommissionStatus.DRAINING, new ActionListener<>() {
             @Override
             public void onResponse(DecommissionStatus status) {
@@ -344,17 +343,9 @@ public class DecommissionService {
         }
         assert decommissionAttributeMetadata.status().equals(DecommissionStatus.DRAINING)
             : "Unexpected status encountered while decommissioning nodes.";
-        DecommissionAttribute decommissionAttribute = decommissionAttributeMetadata.decommissionAttribute();
 
-        ensureDecommissionedAttributeWeightsAreSet(state, decommissionAttribute);
         // Schedule the node decommission process after the weights are successfully set.
         scheduleNodesDecommissionOnTimeout(decommissionRequest.getDrainingTimeout());
-    }
-
-    private void ensureDecommissionedAttributeWeightsAreSet(ClusterState state, DecommissionAttribute decommissionAttribute) {
-        WeightedRoutingMetadata weightedRoutingMetadata = state.metadata().weightedRoutingMetadata();
-        assert weightedRoutingMetadata != null && weightedRoutingMetadata.getWeightedRouting() != null;
-        assert weightedRoutingMetadata.getWeightedRouting().weights().get(decommissionAttribute.attributeValue()) == 0.0;
     }
 
     void scheduleNodesDecommissionOnTimeout(TimeValue timeoutForNodeDraining) {
@@ -366,11 +357,12 @@ public class DecommissionService {
         Set<DiscoveryNode> decommissionedNodes = filterNodesWithDecommissionAttribute(state, decommissionAttribute, false);
         // Wait for timeout to happen. Log the active connection before decommissioning of nodes.
         transportService.getThreadPool().schedule(() -> {
+
             // Log active connections.
             decommissionController.getActiveRequestCountOnDecommissionedNodes(decommissionedNodes);
             // Call to fail the decommission nodes
             failDecommissionedNodes(clusterService.getClusterApplierService().state(), decommissionAttribute);
-        }, timeoutForNodeDraining, org.opensearch.threadpool.ThreadPool.Names.SAME);
+        }, timeoutForNodeDraining, ThreadPool.Names.GENERIC);
     }
 
     private void failDecommissionedNodes(ClusterState state, DecommissionAttribute decommissionAttribute) {

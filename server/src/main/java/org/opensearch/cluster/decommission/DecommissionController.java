@@ -299,7 +299,6 @@ public class DecommissionController {
         if (decommissionedNodes == null || decommissionedNodes.isEmpty()) {
             return;
         }
-
         String[] nodes = decommissionedNodes.stream().map(DiscoveryNode::getId).toArray(String[]::new);
         if (nodes.length == 0) {
             return;
@@ -321,7 +320,7 @@ public class DecommissionController {
 
                 @Override
                 public void handleException(TransportException exp) {
-                    logger.warn("Failure occurred while dumping connection for decommission nodes - [{}]", exp.unwrapCause().getMessage());
+                    logger.warn("Failure occurred while dumping connection for decommission nodes - [{}]", exp.unwrapCause().getStackTrace());
                 }
 
                 @Override
