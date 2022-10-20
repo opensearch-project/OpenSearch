@@ -33,8 +33,6 @@
 package org.opensearch.search.aggregations.pipeline;
 
 import org.opensearch.common.collect.EvictingQueue;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalAggregation.ReduceContext;
@@ -45,7 +43,6 @@ import org.opensearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.opensearch.search.aggregations.bucket.histogram.HistogramFactory;
 import org.opensearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.ListIterator;
@@ -86,34 +83,6 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
         this.model = model;
         this.predict = predict;
         this.minimize = minimize;
-    }
-
-    /**
-     * Read from a stream.
-     */
-    public MovAvgPipelineAggregator(StreamInput in) throws IOException {
-        super(in);
-        formatter = in.readNamedWriteable(DocValueFormat.class);
-        gapPolicy = GapPolicy.readFrom(in);
-        window = in.readVInt();
-        predict = in.readVInt();
-        model = in.readNamedWriteable(MovAvgModel.class);
-        minimize = in.readBoolean();
-    }
-
-    @Override
-    public void doWriteTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteable(formatter);
-        gapPolicy.writeTo(out);
-        out.writeVInt(window);
-        out.writeVInt(predict);
-        out.writeNamedWriteable(model);
-        out.writeBoolean(minimize);
-    }
-
-    @Override
-    public String getWriteableName() {
-        return MovAvgPipelineAggregationBuilder.NAME;
     }
 
     @Override

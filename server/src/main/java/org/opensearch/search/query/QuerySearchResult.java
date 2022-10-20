@@ -34,7 +34,6 @@ package org.opensearch.search.query;
 
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TotalHits;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.common.io.stream.DelayableWriteable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -373,10 +372,8 @@ public final class QuerySearchResult extends SearchPhaseResult {
         hasProfileResults = profileShardResults != null;
         serviceTimeEWMA = in.readZLong();
         nodeQueueSize = in.readInt();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
-            setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
-            setRescoreDocIds(new RescoreDocIds(in));
-        }
+        setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
+        setRescoreDocIds(new RescoreDocIds(in));
     }
 
     @Override
@@ -424,10 +421,8 @@ public final class QuerySearchResult extends SearchPhaseResult {
         out.writeOptionalWriteable(profileShardResults);
         out.writeZLong(serviceTimeEWMA);
         out.writeInt(nodeQueueSize);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
-            out.writeOptionalWriteable(getShardSearchRequest());
-            getRescoreDocIds().writeTo(out);
-        }
+        out.writeOptionalWriteable(getShardSearchRequest());
+        getRescoreDocIds().writeTo(out);
     }
 
     public TotalHits getTotalHits() {
