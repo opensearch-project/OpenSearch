@@ -8,6 +8,7 @@
 
 package org.opensearch.index.translog.transfer;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.mockito.Mockito;
 import org.opensearch.action.ActionListener;
 import org.opensearch.common.blobstore.BlobPath;
@@ -28,6 +29,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 
+@LuceneTestCase.SuppressFileSystems("*")
 public class TranslogTransferManagerTests extends OpenSearchTestCase {
 
     private TransferService transferService;
@@ -77,6 +79,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
             },
             r -> r
         );
+
         assertTrue(translogTransferManager.transferSnapshot(createTransferSnapshot(), new TranslogTransferListener() {
             @Override
             public void onUploadComplete(TransferSnapshot transferSnapshot) {
