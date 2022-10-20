@@ -9,6 +9,7 @@
 package org.opensearch.extensions;
 
 import org.junit.Before;
+import org.opensearch.action.admin.indices.create.AutoCreateAction.TransportAction;
 import org.opensearch.common.collect.Map;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
@@ -21,7 +22,7 @@ public class RegisterTransportActionsRequestTests extends OpenSearchTestCase {
 
     @Before
     public void setup() {
-        this.originalRequest = new RegisterTransportActionsRequest("extension-uniqueId", Map.of("testAction", Map.class));
+        this.originalRequest = new RegisterTransportActionsRequest("extension-uniqueId", Map.of("testAction", TransportAction.class));
     }
 
     public void testRegisterTransportActionsRequest() throws IOException {
@@ -39,7 +40,7 @@ public class RegisterTransportActionsRequestTests extends OpenSearchTestCase {
     public void testToString() {
         assertEquals(
             originalRequest.toString(),
-            "TransportActionsRequest{uniqueId=extension-uniqueId, actions={testAction=class org.opensearch.common.collect.Map}}"
+            "TransportActionsRequest{uniqueId=extension-uniqueId, actions={testAction=class org.opensearch.action.admin.indices.create.AutoCreateAction.TransportAction}}"
         );
     }
 }
