@@ -19,13 +19,11 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Introduce experimental searchable snapshot API ([#4680](https://github.com/opensearch-project/OpenSearch/pull/4680))
 
 ### Dependencies
-<<<<<<< HEAD
 - Bumps `com.diffplug.spotless` from 6.9.1 to 6.10.0
 - Bumps `xmlbeans` from 5.1.0 to 5.1.1
 - Bumps `hadoop-hdfs` from 3.3.3 to 3.3.4
 - Bump protobuf-java to 3.21.7 in repository-gcs and repository-hdfs ([#4790](https://github.com/opensearch-project/OpenSearch/pull/4790))
 
->>>>>>> fce34ce68d7... Bump protobuf-java to 3.21.7 in repository-gcs and repository-hdfs. (#4790)
 ### Changed
 - Dependency updates (httpcore, mockito, slf4j, httpasyncclient, commons-codec) ([#4308](https://github.com/opensearch-project/OpenSearch/pull/4308))
 - Use RemoteSegmentStoreDirectory instead of RemoteDirectory ([#4240](https://github.com/opensearch-project/OpenSearch/pull/4240))
