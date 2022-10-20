@@ -94,11 +94,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
 
     public QuerySearchResult(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
-            isNull = in.readBoolean();
-        } else {
-            isNull = false;
-        }
+        isNull = in.readBoolean();
         if (isNull == false) {
             ShardSearchContextId id = new ShardSearchContextId(in);
             readFromWithId(id, in);
@@ -354,14 +350,8 @@ public final class QuerySearchResult extends SearchPhaseResult {
             }
         }
         setTopDocs(readTopDocs(in));
-        if (in.getVersion().before(LegacyESVersion.V_7_7_0)) {
-            if (hasAggs = in.readBoolean()) {
-                aggregations = DelayableWriteable.referencing(InternalAggregations.readFrom(in));
-            }
-        } else {
-            if (hasAggs = in.readBoolean()) {
-                aggregations = DelayableWriteable.delayed(InternalAggregations::readFrom, in);
-            }
+        if (hasAggs = in.readBoolean()) {
+            aggregations = DelayableWriteable.delayed(InternalAggregations::readFrom, in);
         }
         if (in.readBoolean()) {
             suggest = new Suggest(in);
@@ -378,9 +368,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
-            out.writeBoolean(isNull);
-        }
+        out.writeBoolean(isNull);
         if (isNull == false) {
             contextId.writeTo(out);
             writeToNoId(out);
@@ -403,12 +391,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            if (out.getVersion().before(LegacyESVersion.V_7_7_0)) {
-                InternalAggregations aggs = aggregations.expand();
-                aggs.writeTo(out);
-            } else {
-                aggregations.writeTo(out);
-            }
+            aggregations.writeTo(out);
         }
         if (suggest == null) {
             out.writeBoolean(false);
