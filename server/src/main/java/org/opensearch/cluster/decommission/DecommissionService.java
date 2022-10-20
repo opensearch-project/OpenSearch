@@ -21,7 +21,9 @@ import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.routing.WeightedRouting;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
@@ -131,6 +133,8 @@ public class DecommissionService {
                 DecommissionAttributeMetadata decommissionAttributeMetadata = currentState.metadata().decommissionAttributeMetadata();
                 // check that request is eligible to proceed
                 ensureEligibleRequest(decommissionAttributeMetadata, decommissionAttribute);
+                // ensure attribute is weighed away
+                ensureToBeDecommissionedAttributeWeighedAway(currentState, decommissionAttribute);
                 decommissionAttributeMetadata = new DecommissionAttributeMetadata(decommissionAttribute);
                 logger.info("registering decommission metadata [{}] to execute action", decommissionAttributeMetadata.toString());
                 return ClusterState.builder(currentState)
@@ -468,6 +472,30 @@ public class DecommissionService {
 
         if (msg != null) {
             throw new DecommissioningFailedException(decommissionAttribute, msg);
+        }
+    }
+
+    private static void ensureToBeDecommissionedAttributeWeighedAway(ClusterState state, DecommissionAttribute decommissionAttribute) {
+        WeightedRoutingMetadata weightedRoutingMetadata = state.metadata().weightedRoutingMetadata();
+        if (weightedRoutingMetadata == null) {
+            throw new DecommissioningFailedException(
+                decommissionAttribute,
+                "no weights are set to the attribute. Please set appropriate weights before triggering decommission action"
+            );
+        }
+        WeightedRouting weightedRouting = weightedRoutingMetadata.getWeightedRouting();
+        if (weightedRouting.attributeName().equals(decommissionAttribute.attributeName()) == false) {
+            throw new DecommissioningFailedException(
+                decommissionAttribute,
+                "no weights are specified to attribute [" + decommissionAttribute.attributeName() + "]"
+            );
+        }
+        Double attributeValueWeight = weightedRouting.weights().get(decommissionAttribute.attributeValue());
+        if (attributeValueWeight == null || attributeValueWeight.equals(0.0) == false) {
+            throw new DecommissioningFailedException(
+                decommissionAttribute,
+                "weight for decommissioned attribute is expected to be [0.0] but found [" + attributeValueWeight + "]"
+            );
         }
     }
 

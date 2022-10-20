@@ -20,11 +20,15 @@ import org.opensearch.action.admin.cluster.decommission.awareness.get.GetDecommi
 import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionAction;
 import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionRequest;
 import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionResponse;
+import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.decommission.DecommissionAttribute;
 import org.opensearch.cluster.decommission.DecommissionStatus;
+import org.opensearch.cluster.decommission.DecommissioningFailedException;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
+import org.opensearch.cluster.routing.WeightedRouting;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
@@ -37,6 +41,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 import static org.opensearch.test.NodeRoles.onlyRole;
@@ -101,6 +106,17 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
         );
 
         ensureStableCluster(6);
+
+        logger.info("--> setting shard routing weights for weighted round robin");
+        Map<String, Double> weights = Map.of("a", 1.0, "b", 1.0, "c", 0.0);
+        WeightedRouting weightedRouting = new WeightedRouting("zone", weights);
+
+        ClusterPutWeightedRoutingResponse weightedRoutingResponse = client().admin()
+            .cluster()
+            .prepareWeightedRouting()
+            .setWeightedRouting(weightedRouting)
+            .get();
+        assertTrue(weightedRoutingResponse.isAcknowledged());
 
         logger.info("--> starting decommissioning nodes in zone {}", 'c');
         DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "c");
@@ -177,5 +193,58 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
         // will wait for cluster to stabilise with a timeout of 2 min (findPeerInterval for decommissioned nodes)
         // as by then all nodes should have joined the cluster
         ensureStableCluster(6, TimeValue.timeValueMinutes(2));
+    }
+
+    public void testDecommissionFailedWhenAttributeNotWeighedAway() throws Exception {
+        Settings commonSettings = Settings.builder()
+            .put("cluster.routing.allocation.awareness.attributes", "zone")
+            .put("cluster.routing.allocation.awareness.force.zone.values", "a,b,c")
+            .build();
+        // Start 3 cluster manager eligible nodes
+        internalCluster().startClusterManagerOnlyNodes(3, Settings.builder().put(commonSettings).build());
+        // start 3 data nodes
+        internalCluster().startDataOnlyNodes(3, Settings.builder().put(commonSettings).build());
+        ensureStableCluster(6);
+        ClusterHealthResponse health = client().admin()
+            .cluster()
+            .prepareHealth()
+            .setWaitForEvents(Priority.LANGUID)
+            .setWaitForGreenStatus()
+            .setWaitForNodes(Integer.toString(6))
+            .execute()
+            .actionGet();
+        assertFalse(health.isTimedOut());
+
+        DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "c");
+        DecommissionRequest decommissionRequest = new DecommissionRequest(decommissionAttribute);
+        assertBusy(() -> {
+            DecommissioningFailedException ex = expectThrows(
+                DecommissioningFailedException.class,
+                () -> client().execute(DecommissionAction.INSTANCE, decommissionRequest).actionGet()
+            );
+            assertTrue(
+                ex.getMessage()
+                    .contains("no weights are set to the attribute. Please set appropriate weights before triggering decommission action")
+            );
+        });
+
+        logger.info("--> setting shard routing weights for weighted round robin");
+        Map<String, Double> weights = Map.of("a", 1.0, "b", 1.0, "c", 1.0);
+        WeightedRouting weightedRouting = new WeightedRouting("zone", weights);
+
+        ClusterPutWeightedRoutingResponse weightedRoutingResponse = client().admin()
+            .cluster()
+            .prepareWeightedRouting()
+            .setWeightedRouting(weightedRouting)
+            .get();
+        assertTrue(weightedRoutingResponse.isAcknowledged());
+
+        assertBusy(() -> {
+            DecommissioningFailedException ex = expectThrows(
+                DecommissioningFailedException.class,
+                () -> client().execute(DecommissionAction.INSTANCE, decommissionRequest).actionGet()
+            );
+            assertTrue(ex.getMessage().contains("weight for decommissioned attribute is expected to be [0.0] but found [1.0]"));
+        });
     }
 }
