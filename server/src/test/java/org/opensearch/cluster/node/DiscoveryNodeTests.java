@@ -32,7 +32,6 @@
 
 package org.opensearch.cluster.node;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
@@ -153,11 +152,11 @@ public class DiscoveryNodeTests extends OpenSearchTestCase {
 
         {
             BytesStreamOutput streamOutput = new BytesStreamOutput();
-            streamOutput.setVersion(LegacyESVersion.V_7_9_0);
+            streamOutput.setVersion(Version.V_2_0_0);
             node.writeTo(streamOutput);
 
             StreamInput in = StreamInput.wrap(streamOutput.bytes().toBytesRef().bytes);
-            in.setVersion(LegacyESVersion.V_7_9_0);
+            in.setVersion(Version.V_2_0_0);
             DiscoveryNode serialized = new DiscoveryNode(in);
             assertThat(serialized.getRoles().stream().map(DiscoveryNodeRole::roleName).collect(Collectors.joining()), equalTo("data"));
         }

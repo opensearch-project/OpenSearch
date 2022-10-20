@@ -44,7 +44,6 @@ import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.xcontent.ToXContentFragment;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.index.shard.ShardId;
-import org.opensearch.index.store.StoreStats;
 
 import java.io.IOException;
 import java.util.Map;
@@ -100,11 +99,7 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         Map<String, Long> sizeMap = in.readMap(StreamInput::readString, StreamInput::readLong);
         Map<ShardRouting, String> routingMap = in.readMap(ShardRouting::new, StreamInput::readString);
         Map<NodeAndPath, ReservedSpace> reservedSpaceMap;
-        if (in.getVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)) {
-            reservedSpaceMap = in.readMap(NodeAndPath::new, ReservedSpace::new);
-        } else {
-            reservedSpaceMap = org.opensearch.common.collect.Map.of();
-        }
+        reservedSpaceMap = in.readMap(NodeAndPath::new, ReservedSpace::new);
 
         ImmutableOpenMap.Builder<String, DiskUsage> leastBuilder = ImmutableOpenMap.builder();
         this.leastAvailableSpaceUsage = leastBuilder.putAll(leastMap).build();
@@ -128,9 +123,7 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         out.writeMap(this.mostAvailableSpaceUsage, StreamOutput::writeString, (o, v) -> v.writeTo(o));
         out.writeMap(this.shardSizes, StreamOutput::writeString, (o, v) -> out.writeLong(v == null ? -1 : v));
         out.writeMap(this.routingToDataPath, (o, k) -> k.writeTo(o), StreamOutput::writeString);
-        if (out.getVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)) {
-            out.writeMap(this.reservedSpace);
-        }
+        out.writeMap(this.reservedSpace);
     }
 
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {

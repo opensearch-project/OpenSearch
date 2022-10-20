@@ -192,11 +192,8 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
         this.processorTag = in.readString();
         this.ingestDocument = in.readOptionalWriteable(WriteableIngestDocument::new);
         this.failure = in.readException();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
-            this.description = in.readOptionalString();
-        } else {
-            this.description = null;
-        }
+        this.description = in.readOptionalString();
+
         if (in.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
             this.type = in.readString();
             boolean hasConditional = in.readBoolean();
@@ -216,9 +213,8 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
         out.writeString(processorTag);
         out.writeOptionalWriteable(ingestDocument);
         out.writeException(failure);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
-            out.writeOptionalString(description);
-        }
+        out.writeOptionalString(description);
+
         if (out.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
             out.writeString(type);
             out.writeBoolean(conditionalWithResult != null);

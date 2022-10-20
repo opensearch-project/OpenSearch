@@ -36,7 +36,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SparseFixedBitSet;
 import org.opensearch.Assertions;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.ResourceAlreadyExistsException;
@@ -455,11 +454,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         createIndexRequest.index(index);
         createIndexRequest.cause("auto(bulk api)");
         createIndexRequest.clusterManagerNodeTimeout(timeout);
-        if (minNodeVersion.onOrAfter(LegacyESVersion.V_7_8_0)) {
-            client.execute(AutoCreateAction.INSTANCE, createIndexRequest, listener);
-        } else {
-            client.admin().indices().create(createIndexRequest, listener);
-        }
+        client.execute(AutoCreateAction.INSTANCE, createIndexRequest, listener);
     }
 
     private boolean setResponseFailureIfIndexMatches(
