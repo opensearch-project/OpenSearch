@@ -34,7 +34,7 @@ public class ElapsedTimeTrackerTests extends OpenSearchTestCase {
         Task task = createMockTaskWithResourceStats(SearchShardTask.class, 1, 1, 0);
         ElapsedTimeTracker tracker = new ElapsedTimeTracker(mockSettings, () -> 200000000);
 
-        Optional<TaskCancellation.Reason> reason = tracker.cancellationReason(task);
+        Optional<TaskCancellation.Reason> reason = tracker.checkAndMaybeGetCancellationReason(task);
         assertTrue(reason.isPresent());
         assertEquals(1, reason.get().getCancellationScore());
         assertEquals("elapsed time exceeded [200ms >= 100ms]", reason.get().getMessage());
@@ -44,7 +44,7 @@ public class ElapsedTimeTrackerTests extends OpenSearchTestCase {
         Task task = createMockTaskWithResourceStats(SearchShardTask.class, 1, 1, 150000000);
         ElapsedTimeTracker tracker = new ElapsedTimeTracker(mockSettings, () -> 200000000);
 
-        Optional<TaskCancellation.Reason> reason = tracker.cancellationReason(task);
+        Optional<TaskCancellation.Reason> reason = tracker.checkAndMaybeGetCancellationReason(task);
         assertFalse(reason.isPresent());
     }
 }

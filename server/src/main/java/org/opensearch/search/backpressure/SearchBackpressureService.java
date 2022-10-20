@@ -215,7 +215,7 @@ public class SearchBackpressureService extends AbstractLifecycleComponent
         List<Runnable> callbacks = new ArrayList<>();
 
         for (TaskResourceUsageTracker tracker : taskResourceUsageTrackers) {
-            Optional<TaskCancellation.Reason> reason = tracker.cancellationReason(task);
+            Optional<TaskCancellation.Reason> reason = tracker.checkAndMaybeGetCancellationReason(task);
             if (reason.isPresent()) {
                 reasons.add(reason.get());
                 callbacks.add(tracker::incrementCancellations);

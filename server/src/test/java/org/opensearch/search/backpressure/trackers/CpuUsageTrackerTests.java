@@ -33,7 +33,7 @@ public class CpuUsageTrackerTests extends OpenSearchTestCase {
         Task task = createMockTaskWithResourceStats(SearchShardTask.class, 200000000, 200);
         CpuUsageTracker tracker = new CpuUsageTracker(mockSettings);
 
-        Optional<TaskCancellation.Reason> reason = tracker.cancellationReason(task);
+        Optional<TaskCancellation.Reason> reason = tracker.checkAndMaybeGetCancellationReason(task);
         assertTrue(reason.isPresent());
         assertEquals(1, reason.get().getCancellationScore());
         assertEquals("cpu usage exceeded [200ms >= 15ms]", reason.get().getMessage());
@@ -43,7 +43,7 @@ public class CpuUsageTrackerTests extends OpenSearchTestCase {
         Task task = createMockTaskWithResourceStats(SearchShardTask.class, 5000000, 200);
         CpuUsageTracker tracker = new CpuUsageTracker(mockSettings);
 
-        Optional<TaskCancellation.Reason> reason = tracker.cancellationReason(task);
+        Optional<TaskCancellation.Reason> reason = tracker.checkAndMaybeGetCancellationReason(task);
         assertFalse(reason.isPresent());
     }
 }

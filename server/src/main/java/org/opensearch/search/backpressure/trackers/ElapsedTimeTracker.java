@@ -17,14 +17,14 @@ import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
 
+import static org.opensearch.search.backpressure.trackers.TaskResourceUsageTrackerType.ELAPSED_TIME_TRACKER;
+
 /**
  * ElapsedTimeTracker evaluates if the task has been running for more time than allowed.
  *
  * @opensearch.internal
  */
 public class ElapsedTimeTracker extends TaskResourceUsageTracker {
-    public static final String NAME = "elapsed_time_tracker";
-
     private final LongSupplier timeNanosSupplier;
     private final LongSupplier elapsedTimeNanosThresholdSupplier;
 
@@ -35,14 +35,11 @@ public class ElapsedTimeTracker extends TaskResourceUsageTracker {
 
     @Override
     public String name() {
-        return NAME;
+        return ELAPSED_TIME_TRACKER.getName();
     }
 
     @Override
-    public void update(Task task) {}
-
-    @Override
-    public Optional<TaskCancellation.Reason> cancellationReason(Task task) {
+    public Optional<TaskCancellation.Reason> checkAndMaybeGetCancellationReason(Task task) {
         long usage = timeNanosSupplier.getAsLong() - task.getStartTimeNanos();
         long threshold = elapsedTimeNanosThresholdSupplier.getAsLong();
 

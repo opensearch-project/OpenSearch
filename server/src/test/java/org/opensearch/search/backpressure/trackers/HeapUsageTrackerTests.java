@@ -44,7 +44,7 @@ public class HeapUsageTrackerTests extends OpenSearchTestCase {
 
         // Task that has heap usage >= heapBytesThreshold and (movingAverage * heapVariance).
         task = createMockTaskWithResourceStats(SearchShardTask.class, 1, 200);
-        Optional<TaskCancellation.Reason> reason = tracker.cancellationReason(task);
+        Optional<TaskCancellation.Reason> reason = tracker.checkAndMaybeGetCancellationReason(task);
         assertTrue(reason.isPresent());
         assertEquals(4, reason.get().getCancellationScore());
         assertEquals("heap usage exceeded [200b >= 100b]", reason.get().getMessage());
@@ -59,7 +59,7 @@ public class HeapUsageTrackerTests extends OpenSearchTestCase {
         task = createMockTaskWithResourceStats(SearchShardTask.class, 1, 99);
 
         // Not enough observations.
-        reason = tracker.cancellationReason(task);
+        reason = tracker.checkAndMaybeGetCancellationReason(task);
         assertFalse(reason.isPresent());
 
         // Record enough observations to make the moving average 'ready'.
@@ -68,13 +68,13 @@ public class HeapUsageTrackerTests extends OpenSearchTestCase {
         }
 
         // Task with heap usage < heapBytesThreshold should not be cancelled.
-        reason = tracker.cancellationReason(task);
+        reason = tracker.checkAndMaybeGetCancellationReason(task);
         assertFalse(reason.isPresent());
 
         // Task with heap usage between heapBytesThreshold and (movingAverage * heapVariance) should not be cancelled.
         double allowedHeapUsage = 99.0 * 2.0;
         task = createMockTaskWithResourceStats(SearchShardTask.class, 1, randomLongBetween(99, (long) allowedHeapUsage - 1));
-        reason = tracker.cancellationReason(task);
+        reason = tracker.checkAndMaybeGetCancellationReason(task);
         assertFalse(reason.isPresent());
     }
 }

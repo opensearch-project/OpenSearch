@@ -17,14 +17,14 @@ import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
 
+import static org.opensearch.search.backpressure.trackers.TaskResourceUsageTrackerType.CPU_USAGE_TRACKER;
+
 /**
  * CpuUsageTracker evaluates if the task has consumed too many CPU cycles than allowed.
  *
  * @opensearch.internal
  */
 public class CpuUsageTracker extends TaskResourceUsageTracker {
-    public static final String NAME = "cpu_usage_tracker";
-
     private final LongSupplier cpuTimeNanosThresholdSupplier;
 
     public CpuUsageTracker(SearchBackpressureSettings settings) {
@@ -33,14 +33,11 @@ public class CpuUsageTracker extends TaskResourceUsageTracker {
 
     @Override
     public String name() {
-        return NAME;
+        return CPU_USAGE_TRACKER.getName();
     }
 
     @Override
-    public void update(Task task) {}
-
-    @Override
-    public Optional<TaskCancellation.Reason> cancellationReason(Task task) {
+    public Optional<TaskCancellation.Reason> checkAndMaybeGetCancellationReason(Task task) {
         long usage = task.getTotalResourceStats().getCpuTimeInNanos();
         long threshold = cpuTimeNanosThresholdSupplier.getAsLong();
 

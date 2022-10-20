@@ -20,6 +20,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.DoubleSupplier;
 import java.util.function.LongSupplier;
 
+import static org.opensearch.search.backpressure.trackers.TaskResourceUsageTrackerType.HEAP_USAGE_TRACKER;
+
 /**
  * HeapUsageTracker evaluates if the task has consumed too much heap than allowed.
  * It also compares the task's heap usage against a historical moving average of previously completed tasks.
@@ -27,8 +29,6 @@ import java.util.function.LongSupplier;
  * @opensearch.internal
  */
 public class HeapUsageTracker extends TaskResourceUsageTracker implements SearchShardTaskSettings.Listener {
-    public static final String NAME = "heap_usage_tracker";
-
     private final LongSupplier heapBytesThresholdSupplier;
     private final DoubleSupplier heapVarianceThresholdSupplier;
     private final AtomicReference<MovingAverage> movingAverageReference;
@@ -44,7 +44,7 @@ public class HeapUsageTracker extends TaskResourceUsageTracker implements Search
 
     @Override
     public String name() {
-        return NAME;
+        return HEAP_USAGE_TRACKER.getName();
     }
 
     @Override
@@ -53,7 +53,7 @@ public class HeapUsageTracker extends TaskResourceUsageTracker implements Search
     }
 
     @Override
-    public Optional<TaskCancellation.Reason> cancellationReason(Task task) {
+    public Optional<TaskCancellation.Reason> checkAndMaybeGetCancellationReason(Task task) {
         MovingAverage movingAverage = movingAverageReference.get();
 
         // There haven't been enough measurements.

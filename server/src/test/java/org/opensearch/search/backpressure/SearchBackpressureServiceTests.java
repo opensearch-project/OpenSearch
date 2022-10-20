@@ -132,7 +132,7 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
             public void update(Task task) {}
 
             @Override
-            public Optional<TaskCancellation.Reason> cancellationReason(Task task) {
+            public Optional<TaskCancellation.Reason> checkAndMaybeGetCancellationReason(Task task) {
                 if (task.getTotalResourceStats().getCpuTimeInNanos() < 300) {
                     return Optional.empty();
                 }
