@@ -16,6 +16,7 @@ import org.mockito.Mockito;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionStateResponse;
+import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionRequest;
 import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionResponse;
 import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsRequest;
 import org.opensearch.cluster.ClusterName;
@@ -32,6 +33,7 @@ import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDeci
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransport;
@@ -141,7 +143,7 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
                 countDownLatch.countDown();
             }
         };
-        decommissionService.startDecommissionAction(decommissionAttribute, listener);
+        decommissionService.startDecommissionAction(new DecommissionRequest(decommissionAttribute), listener);
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
     }
 
@@ -168,7 +170,7 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
                 countDownLatch.countDown();
             }
         };
-        decommissionService.startDecommissionAction(decommissionAttribute, listener);
+        decommissionService.startDecommissionAction(new DecommissionRequest(decommissionAttribute), listener);
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
     }
 
@@ -193,7 +195,7 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
                 countDownLatch.countDown();
             }
         };
-        decommissionService.startDecommissionAction(decommissionAttribute, listener);
+        decommissionService.startDecommissionAction(new DecommissionRequest(decommissionAttribute), listener);
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
     }
 
@@ -218,7 +220,7 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
                 countDownLatch.countDown();
             }
         };
-        decommissionService.startDecommissionAction(decommissionAttribute, listener);
+        decommissionService.startDecommissionAction(new DecommissionRequest(decommissionAttribute), listener);
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
     }
 
@@ -255,8 +257,38 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
                 countDownLatch.countDown();
             }
         };
-        decommissionService.startDecommissionAction(new DecommissionAttribute("zone", "zone_2"), listener);
+        DecommissionRequest request = new DecommissionRequest(new DecommissionAttribute("zone", "zone_2"));
+        decommissionService.startDecommissionAction(request, listener);
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
+    }
+
+    public void checkDecommissionAttributeAndScheduleDecommission() {
+        TransportService mockTransportService = Mockito.mock(TransportService.class);
+        ThreadPool mockThreadPool = Mockito.mock(ThreadPool.class);
+        Mockito.when(mockTransportService.getLocalNode()).thenReturn(Mockito.mock(DiscoveryNode.class));
+        Mockito.when(mockTransportService.getThreadPool()).thenReturn(mockThreadPool);
+        DecommissionService decommissionService = new DecommissionService(
+            Settings.EMPTY,
+            clusterSettings,
+            clusterService,
+            mockTransportService,
+            threadPool,
+            allocationService
+        );
+        DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "zone-2");
+        DecommissionAttributeMetadata decommissionAttributeMetadata = new DecommissionAttributeMetadata(
+            decommissionAttribute,
+            DecommissionStatus.DRAINING
+        );
+        Metadata metadata = Metadata.builder()
+            .putCustom(DecommissionAttributeMetadata.TYPE, decommissionAttributeMetadata)
+            .build();
+        ClusterState state = ClusterState.builder(new ClusterName("test")).metadata(metadata).build();
+
+        setState(clusterService, state);
+        decommissionService.checkDecommissionAttributeAndScheduleDecommission(new DecommissionRequest(decommissionAttribute));
+
+        Mockito.verify(mockThreadPool).schedule(Mockito.any(Runnable.class), Mockito.any(TimeValue.class), Mockito.anyString());
     }
 
     public void testClearClusterDecommissionState() throws InterruptedException {
