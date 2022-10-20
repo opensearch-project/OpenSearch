@@ -109,7 +109,7 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
         DecommissionResponse decommissionResponse = client().execute(DecommissionAction.INSTANCE, decommissionRequest).get();
         assertTrue(decommissionResponse.isAcknowledged());
 
-        logger.info("--> Recieved decommissioning nodes in zone {}", 'c');
+        logger.info("--> Received decommissioning nodes in zone {}", 'c');
         // Keep some delay for scheduler to invoke decommission flow
         Thread.sleep(100);
 
