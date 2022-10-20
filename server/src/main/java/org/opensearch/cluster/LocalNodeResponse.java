@@ -57,4 +57,11 @@ public class LocalNodeResponse extends TransportResponse {
         return Objects.hash(localNode);
     }
 
+    /**
+     * Get the local node
+     */
+    public DiscoveryNode getLocalNode() {
+        return this.localNode;
+    }
+
 }
