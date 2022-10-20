@@ -142,13 +142,12 @@ public class AllocationBenchmark {
     public int targetNodes;
     public int clusterConcurrentRecoveries;
 
-    private AllocationService initialClusterStrategy;
     private AllocationService clusterExcludeStrategy;
     private AllocationService clusterZoneAwareExcludeStrategy;
     private ClusterState initialClusterState;
 
     @Setup
-    public void setUp() throws Exception {
+    public void setUp() {
         final String[] params = indicesShardsReplicasSourceTargetRecoveries.split("\\|");
         numIndices = toInt(params[0]);
         numShards = toInt(params[1]);
@@ -159,7 +158,7 @@ public class AllocationBenchmark {
 
         int totalShardCount = (numReplicas + 1) * numShards * numIndices;
 
-        initialClusterStrategy = Allocators.createAllocationService(
+        AllocationService initialClusterStrategy = Allocators.createAllocationService(
             Settings.builder()
                 .put("cluster.routing.allocation.awareness.attributes", "zone")
                 .put("cluster.routing.allocation.node_concurrent_recoveries", "20")
@@ -219,11 +218,11 @@ public class AllocationBenchmark {
     }
 
     private int toInt(String v) {
-        return Integer.valueOf(v.trim());
+        return Integer.parseInt(v.trim());
     }
 
     @Benchmark
-    public ClusterState measureExclusionOnZoneAwareStartedShard() throws Exception {
+    public ClusterState measureExclusionOnZoneAwareStartedShard() {
         ClusterState clusterState = initialClusterState;
         clusterZoneAwareExcludeStrategy = Allocators.createAllocationService(
             Settings.builder()
@@ -238,7 +237,7 @@ public class AllocationBenchmark {
     }
 
     @Benchmark
-    public ClusterState measureShardRelocationComplete() throws Exception {
+    public ClusterState measureShardRelocationComplete() {
         ClusterState clusterState = initialClusterState;
         clusterZoneAwareExcludeStrategy = Allocators.createAllocationService(
             Settings.builder()
