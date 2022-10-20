@@ -321,8 +321,7 @@ public class DecommissionController {
                 @Override
                 public void handleException(TransportException exp) {
                     logger.warn(
-                        "Failure occurred while dumping connection for decommission nodes - [{}]",
-                        exp.unwrapCause().getStackTrace()
+                        "Failure occurred while dumping connection for decommission nodes - [{}]", exp.unwrapCause()
                     );
                 }
 
