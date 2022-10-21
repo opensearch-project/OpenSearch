@@ -52,6 +52,7 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopFieldDocs;
+import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.join.QueryBitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.join.ToParentBlockJoinQuery;
@@ -340,7 +341,13 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
             randomBoolean() ? numDocs : randomIntBetween(10, numDocs),
             new Sort(sortField)
         );
-        assertEquals(numDocs, topDocs.totalHits.value);
+        // As of Lucene 9.0.0, totalHits may be a lower bound
+        if (topDocs.totalHits.relation == TotalHits.Relation.EQUAL_TO) {
+            assertEquals(numDocs, topDocs.totalHits.value);
+        } else {
+            assertTrue(1000 <= topDocs.totalHits.value);
+            assertTrue(numDocs >= topDocs.totalHits.value);
+        }
         BytesRef previousValue = first ? null : reverse ? UnicodeUtil.BIG_TERM : new BytesRef();
         for (int i = 0; i < topDocs.scoreDocs.length; ++i) {
             final String docValue = searcher.doc(topDocs.scoreDocs[i].doc).get("value");
