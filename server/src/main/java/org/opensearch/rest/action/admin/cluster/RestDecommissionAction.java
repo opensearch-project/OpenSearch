@@ -52,7 +52,7 @@ public class RestDecommissionAction extends BaseRestHandler {
         String attributeValue = request.param("awareness_attribute_value");
         // Check if we have no delay set.
         boolean noDelay = request.paramAsBoolean("no_delay", false);
-        TimeValue delayTimeout = request.paramAsTime("delay_timeout", DecommissionRequest.DEFAULT_NODE_DRAINING_TIMEOUT);
+        TimeValue delayTimeout = DecommissionRequest.DEFAULT_NODE_DRAINING_TIMEOUT;
         if (noDelay) {
             decommissionRequest.setNoDelay(noDelay);
             delayTimeout = TimeValue.timeValueSeconds(0);
