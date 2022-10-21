@@ -404,29 +404,38 @@ public class DecommissionService {
             || forcedAwarenessAttributes == null
             || awarenessAttributes.isEmpty()
             || forcedAwarenessAttributes.isEmpty()) {
-            msg = "awareness attribute ["
-                + awarenessAttributes
-                + "] and forced awareness attribute ["
-                + forcedAwarenessAttributes
-                + "] must be set to execute decommissioning";
-        } else if (awarenessAttributes.contains(decommissionAttribute.attributeName()) == false
-            || forcedAwarenessAttributes.containsKey(decommissionAttribute.attributeName()) == false) {
-                msg = "invalid awareness attribute requested for decommissioning, eligible attributes are ["
+            throw new DecommissioningFailedException(
+                decommissionAttribute,
+                "awareness attribute ["
+                    + awarenessAttributes
+                    + "] and forced awareness attribute ["
                     + forcedAwarenessAttributes
-                    + "]";
-            } else if (forcedAwarenessAttributes.get(decommissionAttribute.attributeName())
-                .contains(decommissionAttribute.attributeValue()) == false) {
-                    msg = "invalid awareness attribute value requested for decommissioning. Eligible forced awareness attributes ["
-                        + forcedAwarenessAttributes
-                        + "]";
-                } else if (forcedAwarenessAttributes.get(decommissionAttribute.attributeName()).size() < 3) {
-                    msg = "total awareness attribute value set to cluster is ["
-                        + forcedAwarenessAttributes.get(decommissionAttribute.attributeName()).size()
-                        + "] which is less than minimum attribute value count required [3]";
-                }
-
-        if (msg != null) {
-            throw new DecommissioningFailedException(decommissionAttribute, msg);
+                    + "] must be set to execute decommissioning"
+            );
+        }
+        if (awarenessAttributes.contains(decommissionAttribute.attributeName()) == false
+            || forcedAwarenessAttributes.containsKey(decommissionAttribute.attributeName()) == false) {
+            throw new DecommissioningFailedException(
+                decommissionAttribute,
+                "invalid awareness attribute requested for decommissioning, eligible attributes are [" + forcedAwarenessAttributes + "]"
+            );
+        }
+        if (forcedAwarenessAttributes.get(decommissionAttribute.attributeName())
+            .contains(decommissionAttribute.attributeValue()) == false) {
+            throw new DecommissioningFailedException(
+                decommissionAttribute,
+                "invalid awareness attribute value requested for decommissioning. Eligible forced awareness attributes ["
+                    + forcedAwarenessAttributes
+                    + "]"
+            );
+        }
+        if (forcedAwarenessAttributes.get(decommissionAttribute.attributeName()).size() < 3) {
+            throw new DecommissioningFailedException(
+                decommissionAttribute,
+                "total awareness attribute value set to cluster is ["
+                    + forcedAwarenessAttributes.get(decommissionAttribute.attributeName()).size()
+                    + "] which is less than minimum attribute value count required [3]"
+            );
         }
     }
 
