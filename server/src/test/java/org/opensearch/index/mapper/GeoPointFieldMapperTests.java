@@ -352,6 +352,59 @@ public class GeoPointFieldMapperTests extends FieldMapperTestCase2<GeoPointField
         );
     }
 
+    public void testGeoJsonSingleValue() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        ParsedDocument doc = mapper.parse(
+            source(b -> b.startObject("field").field("type", "Point").array("coordinates", new double[] { 1.1, 1.2 }).endObject())
+        );
+        assertThat(doc.rootDoc().getField("field"), notNullValue());
+    }
+
+    public void testGeoJsonArray() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        ParsedDocument doc = mapper.parse(
+            source(
+                b -> b.startArray("field")
+                    .startObject()
+                    .field("type", "Point")
+                    .array("coordinates", new double[] { 1.1, 1.2 })
+                    .endObject()
+                    .startObject()
+                    .field("type", "Point")
+                    .array("coordinates", new double[] { 1.3, 1.4 })
+                    .endObject()
+                    .endArray()
+            )
+        );
+        assertThat(doc.rootDoc().getField("field"), notNullValue());
+        assertThat(doc.rootDoc().getFields("field"), arrayWithSize(4));
+    }
+
+    public void testGeoJsonIgnoreZValue() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_point").field("ignore_z_value", true)));
+        ParsedDocument doc = mapper.parse(
+            source(b -> b.startObject("field").field("type", "Point").array("coordinates", new double[] { 1.1, 1.2, 1.3 }).endObject())
+        );
+        assertThat(doc.rootDoc().getField("field"), notNullValue());
+    }
+
+    public void testGeoJsonZValueException() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_point").field("ignore_z_value", false)));
+        Exception e = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(
+                source(b -> b.startObject("field").field("type", "Point").array("coordinates", new double[] { 1.1, 1.2, 1.3 }).endObject())
+            )
+        );
+        assertThat(e.getCause().getMessage(), containsString("but [ignore_z_value] parameter is [false]"));
+    }
+
+    public void testGeoJsonIgnoreInvalidForm() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_point").field("ignore_malformed", "true")));
+        ParsedDocument doc = mapper.parse(source(b -> b.startObject("field").array("coordinates", new double[] { 1.1, 1.2 }).endObject()));
+        assertThat(doc.rootDoc().getField("field"), nullValue());
+    }
+
     @Override
     protected GeoPointFieldMapper.Builder newBuilder() {
         return new GeoPointFieldMapper.Builder("geo");
