@@ -103,6 +103,11 @@ public class FileSnapshot implements Closeable {
         IOUtils.close(fileChannel);
     }
 
+    /**
+     * Snapshot of a single file with primary term that gets transferred
+     *
+     * @opensearch.internal
+     */
     public static class TransferFileSnapshot extends FileSnapshot {
 
         private final long primaryTerm;
@@ -138,6 +143,11 @@ public class FileSnapshot implements Closeable {
         }
     }
 
+    /**
+     * Snapshot of a single .tlg file that gets transferred
+     *
+     * @opensearch.internal
+     */
     public static class TranslogFileSnapshot extends TransferFileSnapshot {
 
         private final long generation;
@@ -168,6 +178,11 @@ public class FileSnapshot implements Closeable {
         }
     }
 
+    /**
+     * Snapshot of a single .ckp file that gets transferred
+     *
+     * @opensearch.internal
+     */
     public static class CheckpointFileSnapshot extends TransferFileSnapshot {
 
         private final long generation;
