@@ -31,7 +31,6 @@
 
 package org.opensearch.snapshots;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.ShardOperationFailedException;
 import org.opensearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
@@ -68,8 +67,6 @@ import java.util.stream.Collectors;
  * @opensearch.internal
  */
 public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent, Writeable {
-
-    public static final Version DATA_STREAMS_IN_SNAPSHOT = LegacyESVersion.V_7_9_0;
 
     public static final String CONTEXT_MODE_PARAM = "context_mode";
     public static final String CONTEXT_MODE_SNAPSHOT = "SNAPSHOT";
@@ -401,11 +398,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         version = in.readBoolean() ? Version.readVersion(in) : null;
         includeGlobalState = in.readOptionalBoolean();
         userMetadata = in.readMap();
-        if (in.getVersion().onOrAfter(DATA_STREAMS_IN_SNAPSHOT)) {
-            dataStreams = in.readStringList();
-        } else {
-            dataStreams = Collections.emptyList();
-        }
+        dataStreams = in.readStringList();
     }
 
     /**
@@ -836,9 +829,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         }
         out.writeOptionalBoolean(includeGlobalState);
         out.writeMap(userMetadata);
-        if (out.getVersion().onOrAfter(DATA_STREAMS_IN_SNAPSHOT)) {
-            out.writeStringCollection(dataStreams);
-        }
+        out.writeStringCollection(dataStreams);
     }
 
     private static SnapshotState snapshotState(final String reason, final List<SnapshotShardFailure> shardFailures) {

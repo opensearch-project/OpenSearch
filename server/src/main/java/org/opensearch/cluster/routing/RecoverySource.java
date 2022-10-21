@@ -287,7 +287,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             } else {
                 index = new IndexId(in.readString(), IndexMetadata.INDEX_UUID_NA_VALUE);
             }
-            if (FeatureFlags.isEnabled(FeatureFlags.SEARCHABLE_SNAPSHOT) && in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            if (FeatureFlags.isEnabled(FeatureFlags.SEARCHABLE_SNAPSHOT) && in.getVersion().onOrAfter(Version.V_2_4_0)) {
                 isSearchableSnapshot = in.readBoolean();
             } else {
                 isSearchableSnapshot = false;
@@ -330,7 +330,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             } else {
                 out.writeString(index.getName());
             }
-            if (FeatureFlags.isEnabled(FeatureFlags.SEARCHABLE_SNAPSHOT) && out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            if (FeatureFlags.isEnabled(FeatureFlags.SEARCHABLE_SNAPSHOT) && out.getVersion().onOrAfter(Version.V_2_4_0)) {
                 out.writeBoolean(isSearchableSnapshot);
             }
         }

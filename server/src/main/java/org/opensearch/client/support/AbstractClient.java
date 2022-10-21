@@ -122,6 +122,10 @@ import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsAction;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsRequestBuilder;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.delete.ClusterDeleteWeightedRoutingAction;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.delete.ClusterDeleteWeightedRoutingRequest;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.delete.ClusterDeleteWeightedRoutingRequestBuilder;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.delete.ClusterDeleteWeightedRoutingResponse;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.get.ClusterGetWeightedRoutingAction;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.get.ClusterGetWeightedRoutingRequest;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.get.ClusterGetWeightedRoutingRequestBuilder;
@@ -1329,6 +1333,24 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
+        public ActionFuture<ClusterDeleteWeightedRoutingResponse> deleteWeightedRouting(ClusterDeleteWeightedRoutingRequest request) {
+            return execute(ClusterDeleteWeightedRoutingAction.INSTANCE, request);
+        }
+
+        @Override
+        public void deleteWeightedRouting(
+            ClusterDeleteWeightedRoutingRequest request,
+            ActionListener<ClusterDeleteWeightedRoutingResponse> listener
+        ) {
+            execute(ClusterDeleteWeightedRoutingAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public ClusterDeleteWeightedRoutingRequestBuilder prepareDeleteWeightedRouting() {
+            return new ClusterDeleteWeightedRoutingRequestBuilder(this, ClusterDeleteWeightedRoutingAction.INSTANCE);
+        }
+
+        @Override
         public void deleteDanglingIndex(DeleteDanglingIndexRequest request, ActionListener<AcknowledgedResponse> listener) {
             execute(DeleteDanglingIndexAction.INSTANCE, request, listener);
         }
@@ -1395,17 +1417,17 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public ActionFuture<GetDecommissionStateResponse> getDecommission(GetDecommissionStateRequest request) {
+        public ActionFuture<GetDecommissionStateResponse> getDecommissionState(GetDecommissionStateRequest request) {
             return execute(GetDecommissionStateAction.INSTANCE, request);
         }
 
         @Override
-        public void getDecommission(GetDecommissionStateRequest request, ActionListener<GetDecommissionStateResponse> listener) {
+        public void getDecommissionState(GetDecommissionStateRequest request, ActionListener<GetDecommissionStateResponse> listener) {
             execute(GetDecommissionStateAction.INSTANCE, request, listener);
         }
 
         @Override
-        public GetDecommissionStateRequestBuilder prepareGetDecommission() {
+        public GetDecommissionStateRequestBuilder prepareGetDecommissionState() {
             return new GetDecommissionStateRequestBuilder(this, GetDecommissionStateAction.INSTANCE);
         }
 

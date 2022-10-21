@@ -35,7 +35,9 @@ group = 'hdfs'
 dependencies {
   api("org.apache.hadoop:hadoop-minicluster:3.3.4") {
     exclude module: 'websocket-client'
+    exclude module: 'jettison'
   }
+  api "org.codehaus.jettison:jettison:${versions.jettison}"
   api "org.apache.commons:commons-compress:1.21"
   api "commons-codec:commons-codec:${versions.commonscodec}"
   api "org.apache.logging.log4j:log4j-core:${versions.log4j}"
