@@ -1623,14 +1623,11 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
             164,
             V_2_4_0
         ),
-        /**
-         * TODO: Change the version number of check as per version in which this change will be merged.
-         */
-        MASTER_TASK_THROTTLED_EXCEPTION(
+        CLUSTER_MANAGER_TASK_THROTTLED_EXCEPTION(
             ClusterManagerThrottlingException.class,
             ClusterManagerThrottlingException::new,
             165,
-            Version.V_3_0_0
+            Version.V_2_4_0
         );
 
         final Class<? extends OpenSearchException> exceptionClass;

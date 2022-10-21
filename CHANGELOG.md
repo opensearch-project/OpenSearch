@@ -28,6 +28,13 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Recommissioning of zone. REST layer support. ([#4624](https://github.com/opensearch-project/OpenSearch/pull/4604))
 - Build no-jdk distributions as part of release build ([#4902](https://github.com/opensearch-project/OpenSearch/pull/4902))
 - Use getParameterCount instead of getParameterTypes ([#4821](https://github.com/opensearch-project/OpenSearch/pull/4821))
+- Add Cluster manager task throttling framework. Cluster manager node will throttle task submission based on throttling thresholds.
+  This throttling will be at task type level. Data nodes will perform retries on these throttling exception with exponential delay. (PR: [#4986](https://github.com/opensearch-project/OpenSearch/pull/4986)) ( Issue : [#479](https://github.com/opensearch-project/OpenSearch/issues/479))
+    - Throttling Exception / New Backoff policy([#3527](https://github.com/opensearch-project/OpenSearch/pull/3527))
+    - Cluster Manager node side change([#3882](https://github.com/opensearch-project/OpenSearch/pull/3882))
+    - Data node side change([#4204](https://github.com/opensearch-project/OpenSearch/pull/4204))
+    - on-boarding of tasks([#4542](https://github.com/opensearch-project/OpenSearch/pull/4542))
+    - Integs ([4588](https://github.com/opensearch-project/OpenSearch/pull/4588))
 
 ### Dependencies
 - Bumps `com.diffplug.spotless` from 6.9.1 to 6.10.0
