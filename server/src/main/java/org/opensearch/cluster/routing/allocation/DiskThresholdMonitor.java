@@ -56,7 +56,6 @@ import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.set.Sets;
-import org.opensearch.index.IndexModule;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -357,7 +356,6 @@ public class DiskThresholdMonitor {
         final Set<String> indicesToAutoRelease = StreamSupport.stream(state.routingTable().indicesRouting().spliterator(), false)
             .map(c -> c.key)
             .filter(index -> indicesNotToAutoRelease.contains(index) == false)
-            .filter(index -> !state.getMetadata().settings().get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey()).equals(IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey()))
             .filter(index -> state.getBlocks().hasIndexBlock(index, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
             .collect(Collectors.toSet());
 

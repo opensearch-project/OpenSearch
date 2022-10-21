@@ -33,6 +33,7 @@ package org.opensearch.index.engine;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.Version;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
@@ -217,7 +218,9 @@ public class ReadOnlyEngineTests extends EngineTestCase {
             EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
             store.createEmpty(Version.CURRENT.luceneVersion);
             try (ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(config, null, new TranslogStats(), true, Function.identity(), true)) {
-                Class<? extends Throwable> expectedException = UnsupportedOperationException.class;
+                Class<? extends Throwable> expectedException = LuceneTestCase.TEST_ASSERTS_ENABLED
+                    ? AssertionError.class
+                    : UnsupportedOperationException.class;
                 expectThrows(expectedException, () -> readOnlyEngine.index(null));
                 expectThrows(expectedException, () -> readOnlyEngine.delete(null));
                 expectThrows(expectedException, () -> readOnlyEngine.noOp(null));
