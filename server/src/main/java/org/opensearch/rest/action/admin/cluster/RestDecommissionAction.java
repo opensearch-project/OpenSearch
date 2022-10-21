@@ -55,7 +55,7 @@ public class RestDecommissionAction extends BaseRestHandler {
         TimeValue delayTimeout = DecommissionRequest.DEFAULT_NODE_DRAINING_TIMEOUT;
         if (noDelay) {
             decommissionRequest.setNoDelay(noDelay);
-            delayTimeout = TimeValue.timeValueSeconds(0);
+            delayTimeout = TimeValue.ZERO;
         }
         decommissionRequest.setDecommissionAttribute(new DecommissionAttribute(attributeName, attributeValue));
         return decommissionRequest.setDelayTimeout(delayTimeout);

@@ -128,7 +128,7 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
 
         logger.info("--> Received decommissioning nodes in zone {}", 'c');
         // Keep some delay for scheduler to invoke decommission flow
-        Thread.sleep(300);
+        Thread.sleep(500);
 
         // Will wait for all events to complete
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get();
