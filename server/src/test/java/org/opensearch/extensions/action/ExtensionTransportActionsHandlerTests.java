@@ -11,6 +11,7 @@ package org.opensearch.extensions.action;
 import org.junit.After;
 import org.junit.Before;
 import org.opensearch.Version;
+import org.opensearch.action.admin.indices.create.AutoCreateAction.TransportAction;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
@@ -129,10 +130,7 @@ public class ExtensionTransportActionsHandlerTests extends OpenSearchTestCase {
 
     public void testRegisterTransportActionsRequest() {
         String action = "test-action";
-        RegisterTransportActionsRequest request = new RegisterTransportActionsRequest(
-            "uniqueid1",
-            Map.of(action, ExtensionTransportActionsHandlerTests.class)
-        );
+        RegisterTransportActionsRequest request = new RegisterTransportActionsRequest("uniqueid1", Map.of(action, TransportAction.class));
         ExtensionBooleanResponse response = (ExtensionBooleanResponse) extensionTransportActionsHandler
             .handleRegisterTransportActionsRequest(request);
         assertTrue(response.getStatus());
@@ -165,7 +163,7 @@ public class ExtensionTransportActionsHandlerTests extends OpenSearchTestCase {
         // Register Action
         RegisterTransportActionsRequest registerRequest = new RegisterTransportActionsRequest(
             "uniqueid1",
-            Map.of(action, ExtensionTransportActionsHandlerTests.class)
+            Map.of(action, TransportAction.class)
         );
         ExtensionBooleanResponse response = (ExtensionBooleanResponse) extensionTransportActionsHandler
             .handleRegisterTransportActionsRequest(registerRequest);
