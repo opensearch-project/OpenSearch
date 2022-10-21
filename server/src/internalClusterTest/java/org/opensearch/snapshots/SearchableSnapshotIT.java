@@ -53,6 +53,13 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         return false;
     }
 
+    @Override
+    protected Settings.Builder randomRepositorySettings() {
+        final Settings.Builder settings = Settings.builder();
+        settings.put("location", randomRepoPath()).put("compress", randomBoolean());
+        return settings;
+    }
+
     public void testCreateSearchableSnapshot() throws Exception {
         final int numReplicasIndex1 = randomIntBetween(1, 4);
         final int numReplicasIndex2 = randomIntBetween(0, 2);
@@ -91,6 +98,8 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         );
 
         assertTrue(client.admin().indices().prepareDelete("test-idx-1", "test-idx-2").get().isAcknowledged());
+
+        internalCluster().ensureAtLeastNumSearchNodes(Math.max(numReplicasIndex1, numReplicasIndex2) + 1);
 
         logger.info("--> restore indices as 'remote_snapshot'");
         client.admin()
