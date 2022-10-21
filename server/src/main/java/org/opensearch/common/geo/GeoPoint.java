@@ -119,7 +119,11 @@ public class GeoPoint implements ToXContentFragment {
     public GeoPoint resetFromCoordinates(String value, final boolean ignoreZValue) {
         String[] vals = value.split(",");
         if (vals.length > 3) {
-            throw new OpenSearchParseException("failed to parse [{}], expected 2 or 3 coordinates " + "but found: [{}]", vals.length);
+            throw new OpenSearchParseException(
+                "failed to parse [{}], expected 2 or 3 coordinates " + "but found: [{}]",
+                value,
+                vals.length
+            );
         }
         final double lat;
         final double lon;

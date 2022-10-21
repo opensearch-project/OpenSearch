@@ -79,35 +79,29 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
     /**
      * Returns instance of the metadata with updated status
      * @param newStatus status to be updated with
-     * @return instance with valid status
      */
     // synchronized is strictly speaking not needed (this is called by a single thread), but just to be safe
-    public synchronized DecommissionAttributeMetadata setUpdatedStatus(DecommissionStatus newStatus) {
-        // if the current status is the expected status already, we return the same instance
-        if (newStatus.equals(status)) {
-            return this;
+    public synchronized void validateNewStatus(DecommissionStatus newStatus) {
+        // if the current status is the expected status already or new status is FAILED, we let the check pass
+        if (newStatus.equals(status) || newStatus.equals(DecommissionStatus.FAILED)) {
+            return;
         }
         // We don't expect that INIT will be new status, as it is registered only when starting the decommission action
         switch (newStatus) {
             case IN_PROGRESS:
-                validateAndSetStatus(DecommissionStatus.INIT, newStatus);
+                validateStatus(DecommissionStatus.INIT, newStatus);
                 break;
             case SUCCESSFUL:
-                validateAndSetStatus(DecommissionStatus.IN_PROGRESS, newStatus);
-                break;
-            case FAILED:
-                // we don't need to validate here and directly update status to FAILED
-                this.status = newStatus;
+                validateStatus(DecommissionStatus.IN_PROGRESS, newStatus);
                 break;
             default:
                 throw new IllegalArgumentException(
                     "illegal decommission status [" + newStatus.status() + "] requested for updating metadata"
                 );
         }
-        return this;
     }
 
-    private void validateAndSetStatus(DecommissionStatus expected, DecommissionStatus next) {
+    private void validateStatus(DecommissionStatus expected, DecommissionStatus next) {
         if (status.equals(expected) == false) {
             assert false : "can't move decommission status to ["
                 + next
@@ -120,7 +114,6 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
                 "can't move decommission status to [" + next + "]. current status: [" + status + "] (expected [" + expected + "])"
             );
         }
-        status = next;
     }
 
     @Override
