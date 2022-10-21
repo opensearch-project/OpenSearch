@@ -34,6 +34,13 @@ public class LocalNodeResponse extends TransportResponse {
         this.localNode = new DiscoveryNode(in);
     }
 
+    /**
+     * Get the local node
+     */
+    public DiscoveryNode getLocalNode() {
+        return this.localNode;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         this.localNode.writeTo(out);
@@ -56,12 +63,4 @@ public class LocalNodeResponse extends TransportResponse {
     public int hashCode() {
         return Objects.hash(localNode);
     }
-
-    /**
-     * Get the local node
-     */
-    public DiscoveryNode getLocalNode() {
-        return this.localNode;
-    }
-
 }
