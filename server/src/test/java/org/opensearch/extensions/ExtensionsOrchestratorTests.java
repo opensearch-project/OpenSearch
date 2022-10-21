@@ -485,6 +485,22 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         assertEquals("Test failure", extensionsOrchestrator.listener.getExceptionList().get(0).getMessage());
     }
 
+    public void testLocalNodeResponse() throws Exception {
+
+        LocalNodeResponse localNodeResponse = new LocalNodeResponse(clusterService);
+        assertEquals(clusterService.localNode(), localNodeResponse.getLocalNode());
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            localNodeResponse.writeTo(out);
+            out.flush();
+            try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
+
+                localNodeResponse = new LocalNodeResponse(in);
+                assertEquals(clusterService.localNode(), localNodeResponse.getLocalNode());
+            }
+        }
+    }
+
     public void testEnvironmentSettingsResponse() throws Exception {
 
         // Test EnvironmentSettingsResponse arg constructor
