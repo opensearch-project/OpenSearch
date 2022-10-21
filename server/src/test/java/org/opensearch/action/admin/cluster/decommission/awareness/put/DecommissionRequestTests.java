@@ -26,7 +26,7 @@ public class DecommissionRequestTests extends OpenSearchTestCase {
         final DecommissionRequest deserialized = copyWriteable(originalRequest, writableRegistry(), DecommissionRequest::new);
 
         assertEquals(deserialized.getDecommissionAttribute(), originalRequest.getDecommissionAttribute());
-        assertEquals(deserialized.getDrainingTimeout(), originalRequest.getDrainingTimeout());
+        assertEquals(deserialized.getDelayTimeout(), originalRequest.getDelayTimeout());
     }
 
     public void testValidation() {
@@ -49,6 +49,26 @@ public class DecommissionRequestTests extends OpenSearchTestCase {
             ActionRequestValidationException e = request.validate();
             assertNotNull(e);
             assertTrue(e.getMessage().contains("attribute value is missing"));
+        }
+        {
+            String attributeName = "zone";
+            String attributeValue = "test";
+            DecommissionAttribute decommissionAttribute = new DecommissionAttribute(attributeName, attributeValue);
+
+            final DecommissionRequest request = new DecommissionRequest(decommissionAttribute, TimeValue.timeValueSeconds(30));
+            request.setNoDelay(true);
+            ActionRequestValidationException e = request.validate();
+            assertNotNull(e);
+            assertTrue(e.getMessage().contains("Invalid decommission request."));
+        }
+        {
+            String attributeName = "zone";
+            String attributeValue = "test";
+            DecommissionAttribute decommissionAttribute = new DecommissionAttribute(attributeName, attributeValue);
+            final DecommissionRequest request = new DecommissionRequest(decommissionAttribute, TimeValue.timeValueSeconds(1000));
+            ActionRequestValidationException e = request.validate();
+            assertNotNull(e);
+            assertTrue(e.getMessage().contains("Invalid draining timeout"));
         }
         {
             String attributeName = "zone";

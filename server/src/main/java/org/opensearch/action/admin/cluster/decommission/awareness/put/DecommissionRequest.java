@@ -35,7 +35,10 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
 
     private DecommissionAttribute decommissionAttribute;
 
-    private TimeValue drainingTimeout = DEFAULT_NODE_DRAINING_TIMEOUT;
+    private TimeValue delayTimeout = DEFAULT_NODE_DRAINING_TIMEOUT;
+
+    // holder for no_delay param. To avoid draining time timeout.
+    private boolean noDelay = false;
 
     public DecommissionRequest() {}
 
@@ -43,22 +46,23 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
         this(decommissionAttribute, DEFAULT_NODE_DRAINING_TIMEOUT);
     }
 
-    public DecommissionRequest(DecommissionAttribute decommissionAttribute, TimeValue drainingTimeout) {
+    public DecommissionRequest(DecommissionAttribute decommissionAttribute, TimeValue delayTimeout) {
         this.decommissionAttribute = decommissionAttribute;
-        this.drainingTimeout = drainingTimeout;
+        this.delayTimeout = delayTimeout;
+
     }
 
     public DecommissionRequest(StreamInput in) throws IOException {
         super(in);
         decommissionAttribute = new DecommissionAttribute(in);
-        this.drainingTimeout = in.readTimeValue();
+        this.delayTimeout = in.readTimeValue();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         decommissionAttribute.writeTo(out);
-        out.writeTimeValue(drainingTimeout);
+        out.writeTimeValue(delayTimeout);
     }
 
     /**
@@ -78,8 +82,8 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
      * @param timeout time out for the request
      * @return this request
      */
-    public DecommissionRequest setDrainingTimeout(TimeValue timeout) {
-        this.drainingTimeout = timeout;
+    public DecommissionRequest setDelayTimeout(TimeValue timeout) {
+        this.delayTimeout = timeout;
         return this;
     }
 
@@ -90,8 +94,16 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
         return this.decommissionAttribute;
     }
 
-    public TimeValue getDrainingTimeout() {
-        return this.drainingTimeout;
+    public TimeValue getDelayTimeout() {
+        return this.delayTimeout;
+    }
+
+    public void setNoDelay(boolean noDelay) {
+        this.noDelay = noDelay;
+    }
+
+    public boolean isNoDelay() {
+        return noDelay;
     }
 
     @Override
@@ -103,7 +115,13 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
         if (decommissionAttribute.attributeValue() == null || Strings.isEmpty(decommissionAttribute.attributeValue())) {
             validationException = addValidationError("attribute value is missing", validationException);
         }
-        if (drainingTimeout.getSeconds() < 0 || drainingTimeout.getSeconds() > MAX_NODE_DRAINING_TIMEOUT.getSeconds()) {
+        if (noDelay && delayTimeout.getSeconds() > 0) {
+            final String validationMessage = "Invalid decommission request. no_delay is true and delay_timeout is set to "
+                + delayTimeout.getSeconds()
+                + "] Seconds";
+            validationException = addValidationError(validationMessage, validationException);
+        }
+        if (delayTimeout.getSeconds() < 0 || delayTimeout.getSeconds() > MAX_NODE_DRAINING_TIMEOUT.getSeconds()) {
             final String validationMessage = "Invalid draining timeout - Accepted range [0, "
                 + MAX_NODE_DRAINING_TIMEOUT.getSeconds()
                 + "] Seconds";

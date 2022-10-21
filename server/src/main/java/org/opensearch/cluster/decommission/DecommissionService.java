@@ -339,28 +339,34 @@ public class DecommissionService {
 
     void checkDecommissionAttributeAndScheduleDecommission(DecommissionRequest decommissionRequest) {
         ClusterState state = clusterService.getClusterApplierService().state();
-
         DecommissionAttributeMetadata decommissionAttributeMetadata = state.metadata().decommissionAttributeMetadata();
         if (decommissionAttributeMetadata == null) {
-            clearVotingConfigExclusionAndUpdateStatus(false, false);
             return;
         }
         assert decommissionAttributeMetadata.status().equals(DecommissionStatus.DRAINING)
             : "Unexpected status encountered while decommissioning nodes.";
 
-        // Schedule the node decommission process after the weights are successfully set.
-        scheduleNodesDecommissionOnTimeout(state, decommissionRequest.getDrainingTimeout());
+        Set<DiscoveryNode> decommissionedNodes = filterNodesWithDecommissionAttribute(
+            state,
+            decommissionRequest.getDecommissionAttribute(),
+            false
+        );
+        if (decommissionRequest.isNoDelay()) {
+            // Call to fail the decommission nodes
+            failDecommissionedNodes(decommissionedNodes, decommissionRequest.getDecommissionAttribute());
+        } else {
+            // Schedule the node decommission process after the weights are successfully set.
+            scheduleNodesDecommissionOnTimeout(state, decommissionRequest.getDelayTimeout(), decommissionedNodes);
+        }
     }
 
-    void scheduleNodesDecommissionOnTimeout(ClusterState state, TimeValue timeoutForNodeDraining) {
-        // this method ensures no matter what, we always exit from this function after clearing the voting config exclusion
+    void scheduleNodesDecommissionOnTimeout(ClusterState state, TimeValue timeoutForNodeDraining, Set<DiscoveryNode> decommissionedNodes) {
+        // This method ensures no matter what, we always exit from this function after clearing the voting config exclusion
         DecommissionAttributeMetadata decommissionAttributeMetadata = state.metadata().decommissionAttributeMetadata();
         DecommissionAttribute decommissionAttribute = decommissionAttributeMetadata.decommissionAttribute();
 
-        Set<DiscoveryNode> decommissionedNodes = filterNodesWithDecommissionAttribute(state, decommissionAttribute, false);
         // Wait for timeout to happen. Log the active connection before decommissioning of nodes.
         transportService.getThreadPool().schedule(() -> {
-
             // Log active connections.
             decommissionController.getActiveRequestCountOnDecommissionedNodes(decommissionedNodes);
             // Call to fail the decommission nodes

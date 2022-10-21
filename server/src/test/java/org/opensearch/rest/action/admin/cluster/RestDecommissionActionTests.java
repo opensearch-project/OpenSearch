@@ -39,7 +39,7 @@ public class RestDecommissionActionTests extends RestActionTestCase {
         DecommissionRequest request = action.createRequest(deprecatedRequest);
         assertEquals(request.getDecommissionAttribute().attributeName(), "zone");
         assertEquals(request.getDecommissionAttribute().attributeValue(), "zone-1");
-        assertEquals(request.getDrainingTimeout().getSeconds(), 60);
+        assertEquals(request.getDelayTimeout().getSeconds(), 60);
         assertEquals(deprecatedRequest.getHttpRequest().method(), RestRequest.Method.PUT);
     }
 
@@ -53,7 +53,22 @@ public class RestDecommissionActionTests extends RestActionTestCase {
         DecommissionRequest request = action.createRequest(deprecatedRequest);
         assertEquals(request.getDecommissionAttribute().attributeName(), "zone");
         assertEquals(request.getDecommissionAttribute().attributeValue(), "zone-1");
-        assertEquals(request.getDrainingTimeout().getSeconds(), DecommissionRequest.DEFAULT_NODE_DRAINING_TIMEOUT.getSeconds());
+        assertEquals(request.getDelayTimeout().getSeconds(), DecommissionRequest.DEFAULT_NODE_DRAINING_TIMEOUT.getSeconds());
+        assertEquals(deprecatedRequest.getHttpRequest().method(), RestRequest.Method.PUT);
+    }
+
+    public void testCreateRequestWithNoDelay() throws IOException {
+        Map<String, String> params = new HashMap<>();
+        params.put("awareness_attribute_name", "zone");
+        params.put("awareness_attribute_value", "zone-1");
+        params.put("no_delay", "true");
+
+        RestRequest deprecatedRequest = buildRestRequest(params);
+
+        DecommissionRequest request = action.createRequest(deprecatedRequest);
+        assertEquals(request.getDecommissionAttribute().attributeName(), "zone");
+        assertEquals(request.getDecommissionAttribute().attributeValue(), "zone-1");
+        assertEquals(request.getDelayTimeout().getSeconds(), 0);
         assertEquals(deprecatedRequest.getHttpRequest().method(), RestRequest.Method.PUT);
     }
 
