@@ -32,7 +32,12 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Added precommit support for MacOS ([#4682](https://github.com/opensearch-project/OpenSearch/pull/4682))
 - Recommission API changes for service layer ([#4320](https://github.com/opensearch-project/OpenSearch/pull/4320))
 - Update GeoGrid base class access modifier to support extensibility ([#4572](https://github.com/opensearch-project/OpenSearch/pull/4572))
-
+- Add Cluster manager task throttling framework ([#479](https://github.com/opensearch-project/OpenSearch/issues/479))
+  - Throttling Exception / New Backoff policy([#3527](https://github.com/opensearch-project/OpenSearch/pull/3527))
+  - Cluster Manager node side change([#3882](https://github.com/opensearch-project/OpenSearch/pull/3882))
+  - Data node side change([#4204](https://github.com/opensearch-project/OpenSearch/pull/4204))
+  - on-boarding of tasks([#4542](https://github.com/opensearch-project/OpenSearch/pull/4542))
+  - Integs ([4588](https://github.com/opensearch-project/OpenSearch/pull/4588))
 ### Dependencies
 - Bumps `log4j-core` from 2.18.0 to 2.19.0
 - Bumps `reactor-netty-http` from 1.0.18 to 1.0.23
