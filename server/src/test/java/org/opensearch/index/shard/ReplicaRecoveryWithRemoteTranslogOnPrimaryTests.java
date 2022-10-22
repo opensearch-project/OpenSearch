@@ -91,8 +91,9 @@ public class ReplicaRecoveryWithRemoteTranslogOnPrimaryTests extends OpenSearchI
             assertEquals(NRTReplicationEngine.class, replica.getEngine().getClass());
 
             // Step 3 - Check replica's translog has no operations
-            assertEquals(WriteOnlyTranslogManager.class, replica.getEngine().translogManager().getClass());
-            WriteOnlyTranslogManager replicaTranslogManager = (WriteOnlyTranslogManager) replica.getEngine().translogManager();
+            assertEquals(WriteOnlyTranslogManager.class, ((NRTReplicationEngine) replica.getEngine()).translogManager().getClass());
+            WriteOnlyTranslogManager replicaTranslogManager = (WriteOnlyTranslogManager) ((NRTReplicationEngine) replica.getEngine())
+                .translogManager();
             assertEquals(0, replicaTranslogManager.getTranslog().totalOperations());
 
             // Adding this for close to succeed
