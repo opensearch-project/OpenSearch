@@ -11,6 +11,7 @@ out/
 !.idea/inspectionProfiles/Project_Default.xml
 !.idea/runConfigurations/Debug_OpenSearch.xml
 !.idea/vcs.xml
+!.idea/icon.svg
 
 # These files are generated in the main tree by IntelliJ
 benchmarks/src/main/generated/*
