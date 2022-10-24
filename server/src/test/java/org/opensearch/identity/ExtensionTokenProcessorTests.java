@@ -21,6 +21,7 @@ import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.AEADBadTagException;
 import javax.crypto.SecretKey;
+
 public class ExtensionTokenProcessorTests extends OpenSearchTestCase {
 
     private static final String userName = "user1";
