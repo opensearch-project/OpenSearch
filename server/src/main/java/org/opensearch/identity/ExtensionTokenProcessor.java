@@ -86,15 +86,6 @@ public class ExtensionTokenProcessor {
 
     /**
      * Create a two-way encrypted access token for given principal for this extension
-     * @param: principal being sent to the extension
-     * @return token generated from principal
-     * @throws NoSuchPaddingException
-     * @throws NoSuchAlgorithmException
-     * @throws InvalidAlgorithmParameterException
-     * @throws InvalidKeyException
-     * @throws BadPaddingException
-     * @throws IllegalBlockSizeException
-     * @throws IOException
      */
     public PrincipalIdentifierToken generateToken(Principal principal) throws NoSuchAlgorithmException, NoSuchPaddingException,
         InvalidKeyException, InvalidAlgorithmParameterException, IllegalBlockSizeException, BadPaddingException, IOException {
@@ -129,15 +120,6 @@ public class ExtensionTokenProcessor {
 
     /**
      * Decrypt the token and extract Principal
-     * @param token the requester identity token, should not be null
-     * @return Principal
-     * @throws InvalidAlgorithmParameterException
-     * @throws InvalidKeyException
-     * @throws BadPaddingException
-     * @throws IllegalBlockSizeException
-     * @throws NoSuchPaddingException
-     * @throws NoSuchAlgorithmException
-     *
      * @opensearch.internal
      */
     public String extractPrincipal(PrincipalIdentifierToken token, SecretKey secretKey) throws IllegalArgumentException,
@@ -181,8 +163,6 @@ public class ExtensionTokenProcessor {
 
     /**
      * Checks validity of the requester identifier token
-     * @param token The requester identifier token
-     * @throws IllegalArgumentException when token is invalid
      *
      * This method contains a placeholder implementation.
      * More concrete implementation will be covered in https://github.com/opensearch-project/OpenSearch/issues/4485
