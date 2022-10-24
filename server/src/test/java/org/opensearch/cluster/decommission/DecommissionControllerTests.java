@@ -241,43 +241,45 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
     }
 
     public void testSuccessfulDecommissionStatusMetadataUpdate() throws InterruptedException {
-        Map<DecommissionStatus, DecommissionStatus> decommissionStateTransitionMap = Map.of(
+        Map<DecommissionStatus, Set<DecommissionStatus>> decommissionStateTransitionMap = Map.of(
             DecommissionStatus.INIT,
+            Set.of(DecommissionStatus.DRAINING, DecommissionStatus.IN_PROGRESS),
             DecommissionStatus.DRAINING,
-            DecommissionStatus.INIT,
+            Set.of(DecommissionStatus.IN_PROGRESS),
             DecommissionStatus.IN_PROGRESS,
-            DecommissionStatus.DRAINING,
-            DecommissionStatus.IN_PROGRESS,
-            DecommissionStatus.IN_PROGRESS,
-            DecommissionStatus.SUCCESSFUL
+            Set.of(DecommissionStatus.SUCCESSFUL)
         );
 
-        for (Map.Entry<DecommissionStatus, DecommissionStatus> entry : decommissionStateTransitionMap.entrySet()) {
-            verifyDecommissionStatusTransition(entry);
+        for (Map.Entry<DecommissionStatus, Set<DecommissionStatus>> entry : decommissionStateTransitionMap.entrySet()) {
+            for (DecommissionStatus val : entry.getValue()) {
+                verifyDecommissionStatusTransition(entry.getKey(), val);
+            }
         }
     }
 
     public void testSuccessfulDecommissionStatusMetadataUpdateForFailedState() throws InterruptedException {
-        Map<DecommissionStatus, DecommissionStatus> decommissionStateTransitionMap = Map.of(
+        Map<DecommissionStatus, Set<DecommissionStatus>> decommissionStateTransitionMap = Map.of(
             DecommissionStatus.INIT,
-            DecommissionStatus.FAILED,
+            Set.of(DecommissionStatus.FAILED),
             DecommissionStatus.DRAINING,
-            DecommissionStatus.FAILED,
+            Set.of(DecommissionStatus.FAILED),
             DecommissionStatus.IN_PROGRESS,
-            DecommissionStatus.FAILED
+            Set.of(DecommissionStatus.FAILED)
         );
 
-        for (Map.Entry<DecommissionStatus, DecommissionStatus> entry : decommissionStateTransitionMap.entrySet()) {
-            verifyDecommissionStatusTransition(entry);
+        for (Map.Entry<DecommissionStatus, Set<DecommissionStatus>> entry : decommissionStateTransitionMap.entrySet()) {
+            for (DecommissionStatus val : entry.getValue()) {
+                verifyDecommissionStatusTransition(entry.getKey(), val);
+            }
         }
     }
 
-    private void verifyDecommissionStatusTransition(Map.Entry<DecommissionStatus, DecommissionStatus> oldToNewDecommissionStatusEntry)
+    private void verifyDecommissionStatusTransition(DecommissionStatus currentStatus, DecommissionStatus newStatus)
         throws InterruptedException {
         final CountDownLatch countDownLatch = new CountDownLatch(1);
         DecommissionAttributeMetadata oldMetadata = new DecommissionAttributeMetadata(
             new DecommissionAttribute("zone", "zone-1"),
-            oldToNewDecommissionStatusEntry.getKey()
+            currentStatus
         );
         ClusterState state = clusterService.state();
         Metadata metadata = state.metadata();
@@ -286,26 +288,23 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
         state = ClusterState.builder(state).metadata(mdBuilder).build();
         setState(clusterService, state);
 
-        decommissionController.updateMetadataWithDecommissionStatus(
-            oldToNewDecommissionStatusEntry.getValue(),
-            new ActionListener<DecommissionStatus>() {
-                @Override
-                public void onResponse(DecommissionStatus status) {
-                    assertEquals(oldToNewDecommissionStatusEntry.getValue(), status);
-                    countDownLatch.countDown();
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    fail("decommission status update failed");
-                    countDownLatch.countDown();
-                }
+        decommissionController.updateMetadataWithDecommissionStatus(newStatus, new ActionListener<DecommissionStatus>() {
+            @Override
+            public void onResponse(DecommissionStatus status) {
+                assertEquals(newStatus, status);
+                countDownLatch.countDown();
             }
-        );
+
+            @Override
+            public void onFailure(Exception e) {
+                fail("decommission status update failed");
+                countDownLatch.countDown();
+            }
+        });
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
         ClusterState newState = clusterService.getClusterApplierService().state();
         DecommissionAttributeMetadata decommissionAttributeMetadata = newState.metadata().decommissionAttributeMetadata();
-        assertEquals(decommissionAttributeMetadata.status(), oldToNewDecommissionStatusEntry.getValue());
+        assertEquals(decommissionAttributeMetadata.status(), newStatus);
     }
 
     private static class AdjustConfigurationForExclusions implements ClusterStateObserver.Listener {
