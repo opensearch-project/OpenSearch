@@ -27,4 +27,4 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-// include ":distribution:bwc:bugfix" This prevents building
+include ":distribution:bwc:bugfix"
