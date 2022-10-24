@@ -102,7 +102,7 @@ public class ExtensionTokenProcessor {
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         output.write(this.extensionUniqueId.getBytes(StandardCharsets.UTF_8));
         try {
-            output.write(principal.getName().getBytes(StandardCharsets.UTF_8)));
+            output.write(principal.getName().getBytes(StandardCharsets.UTF_8));
         } catch (NullPointerException ex) {
             throw new NullPointerException(INVALID_PRINCIPAL_MESSAGE);
         }
