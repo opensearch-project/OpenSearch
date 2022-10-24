@@ -100,9 +100,9 @@ public class ExtensionTokenProcessor {
         InvalidKeyException, InvalidAlgorithmParameterException, IllegalBlockSizeException, BadPaddingException, IOException {
 
         ByteArrayOutputStream output = new ByteArrayOutputStream();
-        output.write(this.extensionUniqueId.getBytes());
+        output.write(this.extensionUniqueId.getBytes(StandardCharsets.UTF_8));
         try {
-            output.write(principal.getName().getBytes());
+            output.write(principal.getName().getBytes(StandardCharsets.UTF_8)));
         } catch (NullPointerException ex) {
             throw new NullPointerException(INVALID_PRINCIPAL_MESSAGE);
         }
@@ -125,14 +125,6 @@ public class ExtensionTokenProcessor {
 
         String s = Base64.getEncoder().encodeToString(combinedEncodingWithIV);
         return new PrincipalIdentifierToken(s);
-    }
-
-    public static String hex(byte[] bytes) {
-        StringBuilder result = new StringBuilder();
-        for (byte b : bytes) {
-            result.append(String.format("%02x", b));
-        }
-        return result.toString();
     }
 
     /**
