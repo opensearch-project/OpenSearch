@@ -39,6 +39,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Add dev guide for dealing with flakey tests ([4868](https://github.com/opensearch-project/OpenSearch/pull/4868))
 - Update pull request template ([#4851](https://github.com/opensearch-project/OpenSearch/pull/4851))
 - Added missing no-jdk distributions ([#4722](https://github.com/opensearch-project/OpenSearch/pull/4722))
+- Add dev help in gradle check CI failures ([4872](https://github.com/opensearch-project/OpenSearch/pull/4872))
 - Copy `build.sh` over from opensearch-build ([#4887](https://github.com/opensearch-project/OpenSearch/pull/4887))
 
 ### Dependencies
