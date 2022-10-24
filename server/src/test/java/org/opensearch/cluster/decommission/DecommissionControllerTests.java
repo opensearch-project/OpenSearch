@@ -244,6 +244,8 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
         Map<DecommissionStatus, DecommissionStatus> decommissionStateTransitionMap = Map.of(
             DecommissionStatus.INIT,
             DecommissionStatus.DRAINING,
+            DecommissionStatus.INIT,
+            DecommissionStatus.IN_PROGRESS,
             DecommissionStatus.DRAINING,
             DecommissionStatus.IN_PROGRESS,
             DecommissionStatus.IN_PROGRESS,

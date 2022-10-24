@@ -121,7 +121,7 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
         logger.info("--> starting decommissioning nodes in zone {}", 'c');
         DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "c");
         // Set the timeout to 0 to do immediate Decommission
-        DecommissionRequest decommissionRequest = new DecommissionRequest(decommissionAttribute, TimeValue.timeValueSeconds(0));
+        DecommissionRequest decommissionRequest = new DecommissionRequest(decommissionAttribute);
         decommissionRequest.setNoDelay(true);
         DecommissionResponse decommissionResponse = client().execute(DecommissionAction.INSTANCE, decommissionRequest).get();
         assertTrue(decommissionResponse.isAcknowledged());
@@ -218,6 +218,7 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
 
         DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "c");
         DecommissionRequest decommissionRequest = new DecommissionRequest(decommissionAttribute);
+        decommissionRequest.setNoDelay(true);
         assertBusy(() -> {
             DecommissioningFailedException ex = expectThrows(
                 DecommissioningFailedException.class,

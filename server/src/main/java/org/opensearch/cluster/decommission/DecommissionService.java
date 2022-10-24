@@ -312,32 +312,44 @@ public class DecommissionService {
         }
     }
 
-    private void drainNodesWithDecommissionedAttribute(DecommissionRequest decommissionRequest) {
-        decommissionController.updateMetadataWithDecommissionStatus(DecommissionStatus.DRAINING, new ActionListener<>() {
-            @Override
-            public void onResponse(DecommissionStatus status) {
-                logger.info("updated the decommission status to [{}]", status);
-                // set the weights
-                checkDecommissionAttributeAndScheduleDecommission(decommissionRequest);
-            }
+    void drainNodesWithDecommissionedAttribute(DecommissionRequest decommissionRequest) {
+        ClusterState state = clusterService.getClusterApplierService().state();
+        Set<DiscoveryNode> decommissionedNodes = filterNodesWithDecommissionAttribute(
+            state,
+            decommissionRequest.getDecommissionAttribute(),
+            false
+        );
 
-            @Override
-            public void onFailure(Exception e) {
-                logger.error(
-                    () -> new ParameterizedMessage(
-                        "failed to update decommission status for attribute [{}] to [{}]",
-                        decommissionRequest.getDecommissionAttribute().toString(),
-                        DecommissionStatus.DRAINING
-                    ),
-                    e
-                );
-                // since we are not able to update the status, we will clear the voting config exclusion we have set earlier
-                clearVotingConfigExclusionAndUpdateStatus(false, false);
-            }
-        });
+        if (decommissionRequest.isNoDelay()) {
+            // Call to fail the decommission nodes
+            failDecommissionedNodes(decommissionedNodes, decommissionRequest.getDecommissionAttribute());
+        } else {
+            decommissionController.updateMetadataWithDecommissionStatus(DecommissionStatus.DRAINING, new ActionListener<>() {
+                @Override
+                public void onResponse(DecommissionStatus status) {
+                    logger.info("updated the decommission status to [{}]", status);
+                    // set the weights
+                    scheduleNodesDecommissionOnTimeout(decommissionedNodes, decommissionRequest.getDelayTimeout());
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.error(
+                        () -> new ParameterizedMessage(
+                            "failed to update decommission status for attribute [{}] to [{}]",
+                            decommissionRequest.getDecommissionAttribute().toString(),
+                            DecommissionStatus.DRAINING
+                        ),
+                        e
+                    );
+                    // since we are not able to update the status, we will clear the voting config exclusion we have set earlier
+                    clearVotingConfigExclusionAndUpdateStatus(false, false);
+                }
+            });
+        }
     }
 
-    void checkDecommissionAttributeAndScheduleDecommission(DecommissionRequest decommissionRequest) {
+    void scheduleNodesDecommissionOnTimeout(Set<DiscoveryNode> decommissionedNodes, TimeValue timeoutForNodeDraining) {
         ClusterState state = clusterService.getClusterApplierService().state();
         DecommissionAttributeMetadata decommissionAttributeMetadata = state.metadata().decommissionAttributeMetadata();
         if (decommissionAttributeMetadata == null) {
@@ -346,23 +358,7 @@ public class DecommissionService {
         assert decommissionAttributeMetadata.status().equals(DecommissionStatus.DRAINING)
             : "Unexpected status encountered while decommissioning nodes.";
 
-        Set<DiscoveryNode> decommissionedNodes = filterNodesWithDecommissionAttribute(
-            state,
-            decommissionRequest.getDecommissionAttribute(),
-            false
-        );
-        if (decommissionRequest.isNoDelay()) {
-            // Call to fail the decommission nodes
-            failDecommissionedNodes(decommissionedNodes, decommissionRequest.getDecommissionAttribute());
-        } else {
-            // Schedule the node decommission process after the weights are successfully set.
-            scheduleNodesDecommissionOnTimeout(state, decommissionRequest.getDelayTimeout(), decommissionedNodes);
-        }
-    }
-
-    void scheduleNodesDecommissionOnTimeout(ClusterState state, TimeValue timeoutForNodeDraining, Set<DiscoveryNode> decommissionedNodes) {
         // This method ensures no matter what, we always exit from this function after clearing the voting config exclusion
-        DecommissionAttributeMetadata decommissionAttributeMetadata = state.metadata().decommissionAttributeMetadata();
         DecommissionAttribute decommissionAttribute = decommissionAttributeMetadata.decommissionAttribute();
 
         // Wait for timeout to happen. Log the active connection before decommissioning of nodes.

@@ -24,6 +24,7 @@ import org.opensearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.EnumSet;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Contains metadata about decommission attribute
@@ -89,13 +90,13 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
         // We don't expect that INIT will be new status, as it is registered only when starting the decommission action
         switch (newStatus) {
             case DRAINING:
-                validateStatus(DecommissionStatus.INIT, newStatus);
+                validateStatus(Set.of(DecommissionStatus.INIT), newStatus);
                 break;
             case IN_PROGRESS:
-                validateStatus(DecommissionStatus.DRAINING, newStatus);
+                validateStatus(Set.of(DecommissionStatus.DRAINING, DecommissionStatus.INIT), newStatus);
                 break;
             case SUCCESSFUL:
-                validateStatus(DecommissionStatus.IN_PROGRESS, newStatus);
+                validateStatus(Set.of(DecommissionStatus.IN_PROGRESS), newStatus);
                 break;
             default:
                 throw new IllegalArgumentException(
@@ -104,17 +105,17 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
         }
     }
 
-    private void validateStatus(DecommissionStatus expected, DecommissionStatus next) {
-        if (status.equals(expected) == false) {
+    private void validateStatus(Set<DecommissionStatus> expectedStatuses, DecommissionStatus next) {
+        if (expectedStatuses.contains(status) == false) {
             assert false : "can't move decommission status to ["
                 + next
                 + "]. current status: ["
                 + status
-                + "] (expected ["
-                + expected
+                + "] (allowed statuses ["
+                + expectedStatuses
                 + "])";
             throw new IllegalStateException(
-                "can't move decommission status to [" + next + "]. current status: [" + status + "] (expected [" + expected + "])"
+                "can't move decommission status to [" + next + "]. current status: [" + status + "] (expected [" + expectedStatuses + "])"
             );
         }
     }

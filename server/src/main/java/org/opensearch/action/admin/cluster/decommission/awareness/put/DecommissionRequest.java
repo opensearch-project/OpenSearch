@@ -30,8 +30,6 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionRequest> {
 
     public static final TimeValue DEFAULT_NODE_DRAINING_TIMEOUT = TimeValue.timeValueSeconds(120);
-    // Max Value allowed to be passed for Draining timeout
-    public static final TimeValue MAX_NODE_DRAINING_TIMEOUT = TimeValue.timeValueSeconds(900);
 
     private DecommissionAttribute decommissionAttribute;
 
@@ -43,13 +41,7 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
     public DecommissionRequest() {}
 
     public DecommissionRequest(DecommissionAttribute decommissionAttribute) {
-        this(decommissionAttribute, DEFAULT_NODE_DRAINING_TIMEOUT);
-    }
-
-    public DecommissionRequest(DecommissionAttribute decommissionAttribute, TimeValue delayTimeout) {
         this.decommissionAttribute = decommissionAttribute;
-        this.delayTimeout = delayTimeout;
-
     }
 
     public DecommissionRequest(StreamInput in) throws IOException {
@@ -77,17 +69,6 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
     }
 
     /**
-     * Sets the timeout for the request
-     *
-     * @param timeout time out for the request
-     * @return this request
-     */
-    public DecommissionRequest setDelayTimeout(TimeValue timeout) {
-        this.delayTimeout = timeout;
-        return this;
-    }
-
-    /**
      * @return Returns the decommission attribute key-value
      */
     public DecommissionAttribute getDecommissionAttribute() {
@@ -99,6 +80,7 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
     }
 
     public void setNoDelay(boolean noDelay) {
+        this.delayTimeout = TimeValue.ZERO;
         this.noDelay = noDelay;
     }
 
@@ -115,15 +97,11 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
         if (decommissionAttribute.attributeValue() == null || Strings.isEmpty(decommissionAttribute.attributeValue())) {
             validationException = addValidationError("attribute value is missing", validationException);
         }
+        // This validation should not fail since we are not allowing delay timeout to be set externally.
+        // Still keeping it for double check.
         if (noDelay && delayTimeout.getSeconds() > 0) {
             final String validationMessage = "Invalid decommission request. no_delay is true and delay_timeout is set to "
                 + delayTimeout.getSeconds()
-                + "] Seconds";
-            validationException = addValidationError(validationMessage, validationException);
-        }
-        if (delayTimeout.getSeconds() < 0 || delayTimeout.getSeconds() > MAX_NODE_DRAINING_TIMEOUT.getSeconds()) {
-            final String validationMessage = "Invalid draining timeout - Accepted range [0, "
-                + MAX_NODE_DRAINING_TIMEOUT.getSeconds()
                 + "] Seconds";
             validationException = addValidationError(validationMessage, validationException);
         }

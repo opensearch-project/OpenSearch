@@ -21,7 +21,7 @@ public class DecommissionRequestTests extends OpenSearchTestCase {
         String attributeName = "zone";
         String attributeValue = "zone-1";
         DecommissionAttribute decommissionAttribute = new DecommissionAttribute(attributeName, attributeValue);
-        final DecommissionRequest originalRequest = new DecommissionRequest(decommissionAttribute, TimeValue.timeValueSeconds(30));
+        final DecommissionRequest originalRequest = new DecommissionRequest(decommissionAttribute);
 
         final DecommissionRequest deserialized = copyWriteable(originalRequest, writableRegistry(), DecommissionRequest::new);
 
@@ -35,7 +35,7 @@ public class DecommissionRequestTests extends OpenSearchTestCase {
             String attributeValue = "test";
             DecommissionAttribute decommissionAttribute = new DecommissionAttribute(attributeName, attributeValue);
 
-            final DecommissionRequest request = new DecommissionRequest(decommissionAttribute, TimeValue.timeValueSeconds(30));
+            final DecommissionRequest request = new DecommissionRequest(decommissionAttribute);
             ActionRequestValidationException e = request.validate();
             assertNotNull(e);
             assertTrue(e.getMessage().contains("attribute name is missing"));
@@ -45,7 +45,7 @@ public class DecommissionRequestTests extends OpenSearchTestCase {
             String attributeValue = "";
             DecommissionAttribute decommissionAttribute = new DecommissionAttribute(attributeName, attributeValue);
 
-            final DecommissionRequest request = new DecommissionRequest(decommissionAttribute, TimeValue.timeValueSeconds(30));
+            final DecommissionRequest request = new DecommissionRequest(decommissionAttribute);
             ActionRequestValidationException e = request.validate();
             assertNotNull(e);
             assertTrue(e.getMessage().contains("attribute value is missing"));
@@ -55,29 +55,21 @@ public class DecommissionRequestTests extends OpenSearchTestCase {
             String attributeValue = "test";
             DecommissionAttribute decommissionAttribute = new DecommissionAttribute(attributeName, attributeValue);
 
-            final DecommissionRequest request = new DecommissionRequest(decommissionAttribute, TimeValue.timeValueSeconds(30));
+            final DecommissionRequest request = new DecommissionRequest(decommissionAttribute);
             request.setNoDelay(true);
             ActionRequestValidationException e = request.validate();
-            assertNotNull(e);
-            assertTrue(e.getMessage().contains("Invalid decommission request."));
-        }
-        {
-            String attributeName = "zone";
-            String attributeValue = "test";
-            DecommissionAttribute decommissionAttribute = new DecommissionAttribute(attributeName, attributeValue);
-            final DecommissionRequest request = new DecommissionRequest(decommissionAttribute, TimeValue.timeValueSeconds(1000));
-            ActionRequestValidationException e = request.validate();
-            assertNotNull(e);
-            assertTrue(e.getMessage().contains("Invalid draining timeout"));
+            assertNull(e);
+            assertEquals(TimeValue.ZERO, request.getDelayTimeout());
         }
         {
             String attributeName = "zone";
             String attributeValue = "test";
             DecommissionAttribute decommissionAttribute = new DecommissionAttribute(attributeName, attributeValue);
 
-            final DecommissionRequest request = new DecommissionRequest(decommissionAttribute, TimeValue.timeValueSeconds(30));
+            final DecommissionRequest request = new DecommissionRequest(decommissionAttribute);
             ActionRequestValidationException e = request.validate();
             assertNull(e);
+            assertEquals(DecommissionRequest.DEFAULT_NODE_DRAINING_TIMEOUT, request.getDelayTimeout());
         }
     }
 }
