@@ -16,6 +16,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Bumps `xmlbeans` from 5.1.0 to 5.1.1
 - Bumps `commons-configuration2` from 2.7 to 2.8
 - Exclude jettison version brought in with hadoop-minicluster. ([#4787](https://github.com/opensearch-project/OpenSearch/pull/4787))
+- Updating bundled JDK to 11.0.16.1+1 and 8u345-b01 ([#4888](https://github.com/opensearch-project/OpenSearch/pull/4888))
 - Bump protobuf-java to 3.21.7 in repository-gcs and repository-hdfs ([#]())
 
 ### Changed
