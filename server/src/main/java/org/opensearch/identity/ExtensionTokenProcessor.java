@@ -74,7 +74,6 @@ public class ExtensionTokenProcessor {
 
     /**
      * Creates a new initialization vector for encryption--CAN ONLY BE USED ONCE PER KEY
-     * @returns A new initialization vector
      */
     public byte[] generateInitializationVector() {
 
