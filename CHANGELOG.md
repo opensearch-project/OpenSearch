@@ -40,6 +40,8 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Update pull request template ([#4851](https://github.com/opensearch-project/OpenSearch/pull/4851))
 - Added missing no-jdk distributions ([#4722](https://github.com/opensearch-project/OpenSearch/pull/4722))
 - Copy `build.sh` over from opensearch-build ([#4887](https://github.com/opensearch-project/OpenSearch/pull/4887))
+### Dependencies
+- Bumps `protobuf-java` from 3.21.7 to 3.21.8
 
 ### Dependencies
 - Bumps `log4j-core` from 2.18.0 to 2.19.0
