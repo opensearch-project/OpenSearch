@@ -48,5 +48,5 @@ dependencies {
   api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
   api 'net.minidev:json-smart:2.4.8'
   api "org.mockito:mockito-core:${versions.mockito}"
-  api "com.google.protobuf:protobuf-java:3.21.7"
+  api "com.google.protobuf:protobuf-java:3.21.8"
 }
