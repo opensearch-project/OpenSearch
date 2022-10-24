@@ -28,7 +28,6 @@ public class ExtensionTokenProcessorTests extends OpenSearchTestCase {
 
     public void testGenerateToken() {
 
-        System.out.println("Start of the extension token tests");
         String extensionUniqueId = "ext_1";
         ExtensionTokenProcessor extensionTokenProcessor = new ExtensionTokenProcessor(extensionUniqueId);
 
@@ -43,7 +42,6 @@ public class ExtensionTokenProcessorTests extends OpenSearchTestCase {
         }
 
         assertNotEquals(null, generatedIdentifier);
-        System.out.println(generatedIdentifier.getToken());
     }
 
     public void testExtractPrincipal() {

@@ -31,7 +31,7 @@ public class PrincipalIdentifierTokenTests extends OpenSearchTestCase {
             principalIdentifierToken = extensionTokenProcessor.generateToken(principal);
         } catch (InvalidKeyException | NoSuchAlgorithmException | NoSuchPaddingException | InvalidAlgorithmParameterException
             | IllegalBlockSizeException | BadPaddingException e) {
-            e.printStackTrace();
+
             throw new Error(e);
         }
 
