@@ -609,7 +609,8 @@ public class Node implements Closeable {
                 .collect(Collectors.toList());
 
             final Map<String, IndexStorePlugin.DirectoryFactory> builtInDirectoryFactories = IndexModule.createBuiltInDirectoryFactories(
-                repositoriesServiceReference::get
+                repositoriesServiceReference::get,
+                threadPool
             );
             final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories = new HashMap<>();
             pluginsService.filterPlugins(IndexStorePlugin.class)
