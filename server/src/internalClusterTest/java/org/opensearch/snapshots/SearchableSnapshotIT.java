@@ -4,17 +4,19 @@
  */
 package org.opensearch.snapshots;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.List;
-
+import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.hamcrest.MatcherAssert;
 import org.junit.BeforeClass;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
+import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.opensearch.action.delete.DeleteRequest;
+import org.opensearch.action.get.GetRequest;
+import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.GroupShardsIterator;
 import org.opensearch.cluster.routing.ShardIterator;
@@ -23,9 +25,13 @@ import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.Index;
+import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.monitor.fs.FsInfo;
 
-import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.concurrent.ExecutionException;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -102,6 +108,86 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertDocCount("test-idx-1-copy", 100L);
         assertDocCount("test-idx-2-copy", 100L);
         assertIndexDirectoryDoesNotExist("test-idx-1-copy", "test-idx-2-copy");
+    }
+
+    public void testIndexSearchableSnapshot() throws Exception {
+        disableRepoConsistencyCheck("reason");
+        boolean exceptionThrown = false;
+        final int numReplicasIndex1 = randomIntBetween(1, 4);
+        internalCluster().ensureAtLeastNumDataNodes(Math.max(numReplicasIndex1, 0) + 1);
+        final Client client = client();
+        String index = "test-idx-4";
+        createRepository("test-repo", "fs");
+        createIndex(
+            index,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, Integer.toString(numReplicasIndex1))
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "1")
+                .put(IndexMetadata.APIBlock.WRITE.settingName(), true)
+                .build()
+        );
+        ensureGreen();
+        IndexRequestBuilder builder = client().prepareIndex(index).setId(Integer.toString(1)).setSource("field1", "bar ");
+        try {
+            client().index(builder.request()).get(); // should throw exception
+            assertTrue(false); // this should never be called
+        } catch (ExecutionException e) {
+            assertEquals(ClusterBlockException.class, e.getCause().getClass());
+        }
+
+    }
+
+    public void testDeleteDocSearchableSnapshot() throws Exception {
+        disableRepoConsistencyCheck("reason");
+        boolean exceptionThrown = false;
+        final int numReplicasIndex1 = randomIntBetween(1, 4);
+        internalCluster().ensureAtLeastNumDataNodes(Math.max(numReplicasIndex1, 0) + 1);
+        String index = "test-idx-5";
+        createRepository("test-repo", "fs");
+        createIndex(
+            index,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, Integer.toString(numReplicasIndex1))
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "1")
+                .put(IndexMetadata.APIBlock.WRITE.settingName(), true)
+                .build()
+        );
+        ensureGreen();
+        String docId = "1";
+        client().prepareIndex(index).setId(docId).setSource("field1", "bar ");
+        try {
+            client().delete(new DeleteRequest(index, docId)).get(); // should throw exception
+            assertTrue(false); // this should never be called
+        } catch (ExecutionException e) {
+            assertEquals(ClusterBlockException.class, e.getCause().getClass());
+        }
+    }
+
+    public void testDeleteIndexSearchableSnapshot() throws Exception {
+        disableRepoConsistencyCheck("reason");
+        boolean exceptionThrown = false;
+        final int numReplicasIndex1 = randomIntBetween(1, 4);
+        internalCluster().ensureAtLeastNumDataNodes(Math.max(numReplicasIndex1, 0) + 1);
+        String index = "test-idx-6";
+        createRepository("test-repo", "fs");
+        createIndex(
+            index,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, Integer.toString(numReplicasIndex1))
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "1")
+                .put(IndexMetadata.APIBlock.WRITE.settingName(), true)
+                .build()
+        );
+        ensureGreen();
+        String docId = "1";
+        client().prepareIndex(index).setId(docId).setSource("field1", "bar ");
+        client().admin().indices().delete(new DeleteIndexRequest(index)).get();
+        try {
+            client().get(new GetRequest(index, docId)).get(); // throws exception because the index is deleted.
+            assertTrue(false); // this should never be called
+        } catch (ExecutionException e) {
+            assertEquals(IndexNotFoundException.class, e.getCause().getClass());
+        }
     }
 
     /**
