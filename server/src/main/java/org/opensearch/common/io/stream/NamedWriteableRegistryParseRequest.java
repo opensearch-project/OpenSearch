@@ -20,7 +20,7 @@ import java.util.Objects;
  */
 public class NamedWriteableRegistryParseRequest extends TransportRequest {
 
-    private final Class categoryClass;
+    private final Class<? extends NamedWriteable> categoryClass;
     private byte[] context;
 
     /**
@@ -28,7 +28,7 @@ public class NamedWriteableRegistryParseRequest extends TransportRequest {
      * @param context StreamInput object to convert into a byte array and transport to the extension
      * @throws IllegalArgumentException if context bytes could not be read
      */
-    public NamedWriteableRegistryParseRequest(Class categoryClass, StreamInput context) {
+    public NamedWriteableRegistryParseRequest(Class<? extends NamedWriteable> categoryClass, StreamInput context) {
         try {
             byte[] streamInputBytes = context.readAllBytes();
             this.categoryClass = categoryClass;
@@ -42,10 +42,11 @@ public class NamedWriteableRegistryParseRequest extends TransportRequest {
      * @param in StreamInput from which class fields are read from
      * @throws IllegalArgumentException if the fully qualified class name is invalid and the class object cannot be generated at runtime
      */
+    @SuppressWarnings("unchecked")
     public NamedWriteableRegistryParseRequest(StreamInput in) throws IOException {
         super(in);
         try {
-            this.categoryClass = Class.forName(in.readString());
+            this.categoryClass = (Class<? extends NamedWriteable>) Class.forName(in.readString());
             this.context = in.readByteArray();
         } catch (ClassNotFoundException e) {
             throw new IllegalArgumentException("Category class definition not found", e);
@@ -85,7 +86,7 @@ public class NamedWriteableRegistryParseRequest extends TransportRequest {
     /**
      * Returns the class instance of the category class sent over by the SDK
      */
-    public Class getCategoryClass() {
+    public Class<? extends NamedWriteable> getCategoryClass() {
         return this.categoryClass;
     }
 

@@ -22,12 +22,12 @@ import java.util.Objects;
  */
 public class NamedWriteableRegistryResponse extends TransportResponse {
 
-    private final Map<String, Class> registry;
+    private final Map<String, Class<? extends NamedWriteable>> registry;
 
     /**
      * @param registry Map of writeable names and their associated category class
      */
-    public NamedWriteableRegistryResponse(Map<String, Class> registry) {
+    public NamedWriteableRegistryResponse(Map<String, Class<? extends NamedWriteable>> registry) {
         this.registry = new HashMap<>(registry);
     }
 
@@ -35,15 +35,16 @@ public class NamedWriteableRegistryResponse extends TransportResponse {
      * @param in StreamInput from which map entries of writeable names and their associated category classes are read from
      * @throws IllegalArgumentException if the fully qualified class name is invalid and the class object cannot be generated at runtime
      */
+    @SuppressWarnings("unchecked")
     public NamedWriteableRegistryResponse(StreamInput in) throws IOException {
         super(in);
         // Stream output for registry map begins with a variable integer that tells us the number of entries being sent across the wire
-        Map<String, Class> registry = new HashMap<>();
+        Map<String, Class<? extends NamedWriteable>> registry = new HashMap<>();
         int registryEntryCount = in.readVInt();
         for (int i = 0; i < registryEntryCount; i++) {
             try {
                 String name = in.readString();
-                Class categoryClass = Class.forName(in.readString());
+                Class<? extends NamedWriteable> categoryClass = (Class<? extends NamedWriteable>) Class.forName(in.readString());
                 registry.put(name, categoryClass);
             } catch (ClassNotFoundException e) {
                 throw new IllegalArgumentException("Category class definition not found", e);
@@ -57,7 +58,7 @@ public class NamedWriteableRegistryResponse extends TransportResponse {
     public void writeTo(StreamOutput out) throws IOException {
         // Stream out registry size prior to streaming out registry entries
         out.writeVInt(this.registry.size());
-        for (Map.Entry<String, Class> entry : registry.entrySet()) {
+        for (Map.Entry<String, Class<? extends NamedWriteable>> entry : registry.entrySet()) {
             out.writeString(entry.getKey());   // Unique named writeable name
             out.writeString(entry.getValue().getName()); // Fully qualified category class name
         }
@@ -84,7 +85,7 @@ public class NamedWriteableRegistryResponse extends TransportResponse {
     /**
      * Returns a map of writeable names and their associated category class
      */
-    public Map<String, Class> getRegistry() {
+    public Map<String, Class<? extends NamedWriteable>> getRegistry() {
         return Collections.unmodifiableMap(this.registry);
     }
 
