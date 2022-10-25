@@ -18,6 +18,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Exclude jettison version brought in with hadoop-minicluster. ([#4787](https://github.com/opensearch-project/OpenSearch/pull/4787))
 - Updating bundled JDK to 11.0.16.1+1 and 8u345-b01 ([#4888](https://github.com/opensearch-project/OpenSearch/pull/4888))
 - Bump protobuf-java to 3.21.7 in repository-gcs and repository-hdfs ([#]())
+- Upgrade netty to 4.1.84.Final ([#4893](https://github.com/opensearch-project/OpenSearch/pull/4893))
 
 ### Changed
 - Dependency updates (httpcore, mockito, slf4j, httpasyncclient, commons-codec) ([#4308](https://github.com/opensearch-project/OpenSearch/pull/4308))
