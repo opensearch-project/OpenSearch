@@ -24,6 +24,7 @@ import org.opensearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.EnumSet;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Contains metadata about decommission attribute
@@ -79,48 +80,44 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
     /**
      * Returns instance of the metadata with updated status
      * @param newStatus status to be updated with
-     * @return instance with valid status
      */
     // synchronized is strictly speaking not needed (this is called by a single thread), but just to be safe
-    public synchronized DecommissionAttributeMetadata setUpdatedStatus(DecommissionStatus newStatus) {
-        // if the current status is the expected status already, we return the same instance
-        if (newStatus.equals(status)) {
-            return this;
+    public synchronized void validateNewStatus(DecommissionStatus newStatus) {
+        // if the current status is the expected status already or new status is FAILED, we let the check pass
+        if (newStatus.equals(status) || newStatus.equals(DecommissionStatus.FAILED)) {
+            return;
         }
         // We don't expect that INIT will be new status, as it is registered only when starting the decommission action
         switch (newStatus) {
+            case DRAINING:
+                validateStatus(Set.of(DecommissionStatus.INIT), newStatus);
+                break;
             case IN_PROGRESS:
-                validateAndSetStatus(DecommissionStatus.INIT, newStatus);
+                validateStatus(Set.of(DecommissionStatus.DRAINING, DecommissionStatus.INIT), newStatus);
                 break;
             case SUCCESSFUL:
-                validateAndSetStatus(DecommissionStatus.IN_PROGRESS, newStatus);
-                break;
-            case FAILED:
-                // we don't need to validate here and directly update status to FAILED
-                this.status = newStatus;
+                validateStatus(Set.of(DecommissionStatus.IN_PROGRESS), newStatus);
                 break;
             default:
                 throw new IllegalArgumentException(
                     "illegal decommission status [" + newStatus.status() + "] requested for updating metadata"
                 );
         }
-        return this;
     }
 
-    private void validateAndSetStatus(DecommissionStatus expected, DecommissionStatus next) {
-        if (status.equals(expected) == false) {
+    private void validateStatus(Set<DecommissionStatus> expectedStatuses, DecommissionStatus next) {
+        if (expectedStatuses.contains(status) == false) {
             assert false : "can't move decommission status to ["
                 + next
                 + "]. current status: ["
                 + status
-                + "] (expected ["
-                + expected
+                + "] (allowed statuses ["
+                + expectedStatuses
                 + "])";
             throw new IllegalStateException(
-                "can't move decommission status to [" + next + "]. current status: [" + status + "] (expected [" + expected + "])"
+                "can't move decommission status to [" + next + "]. current status: [" + status + "] (expected [" + expectedStatuses + "])"
             );
         }
-        status = next;
     }
 
     @Override

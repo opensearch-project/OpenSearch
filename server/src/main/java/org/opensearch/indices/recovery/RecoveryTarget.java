@@ -37,7 +37,6 @@ import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.opensearch.Assertions;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -45,6 +44,7 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.util.CancellableThreads;
+import org.opensearch.index.IndexModule;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.mapper.MapperException;
 import org.opensearch.index.seqno.ReplicationTracker;
@@ -56,10 +56,11 @@ import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.indices.replication.common.ReplicationCollection;
+import org.opensearch.indices.replication.common.ReplicationFailedException;
+import org.opensearch.indices.replication.common.ReplicationListener;
 import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.indices.replication.common.ReplicationTarget;
-import org.opensearch.indices.replication.common.ReplicationListener;
-import org.opensearch.indices.replication.common.ReplicationCollection;
 
 import java.io.IOException;
 import java.nio.channels.FileChannel;
@@ -135,7 +136,7 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
     }
 
     @Override
-    public void notifyListener(OpenSearchException e, boolean sendShardFailure) {
+    public void notifyListener(ReplicationFailedException e, boolean sendShardFailure) {
         listener.onFailure(state(), new RecoveryFailedException(state(), e.getMessage(), e), sendShardFailure);
     }
 
@@ -355,10 +356,12 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
             try {
                 store.cleanupAndVerify("recovery CleanFilesRequestHandler", sourceMetadata);
 
-                // If Segment Replication is enabled, we need to reuse the primary's translog UUID already stored in the index.
-                // With Segrep, replicas should never create their own commit points. This ensures the index and xlog share the same
-                // UUID without the extra step to associate the index with a new xlog.
-                if (indexShard.indexSettings().isSegRepEnabled()) {
+                // Replicas for segment replication or remote snapshot indices do not create
+                // their own commit points and therefore do not modify the commit user data
+                // in their store. In these cases, reuse the primary's translog UUID.
+                final boolean reuseTranslogUUID = indexShard.indexSettings().isSegRepEnabled()
+                    || IndexModule.Type.REMOTE_SNAPSHOT.match(indexShard.indexSettings());
+                if (reuseTranslogUUID) {
                     final String translogUUID = store.getMetadata().getCommitUserData().get(TRANSLOG_UUID_KEY);
                     Translog.createEmptyTranslog(
                         indexShard.shardPath().resolveTranslog(),

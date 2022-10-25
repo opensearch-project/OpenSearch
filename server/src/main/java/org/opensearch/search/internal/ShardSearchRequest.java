@@ -258,11 +258,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             outboundNetworkTime = in.readVLong();
         }
         clusterAlias = in.readOptionalString();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
-            allowPartialSearchResults = in.readBoolean();
-        } else {
-            allowPartialSearchResults = false;
-        }
+        allowPartialSearchResults = in.readBoolean();
         indexRoutings = in.readStringArray();
         preference = in.readOptionalString();
         if (in.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
@@ -336,9 +332,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             out.writeVLong(outboundNetworkTime);
         }
         out.writeOptionalString(clusterAlias);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
-            out.writeBoolean(allowPartialSearchResults);
-        }
+        out.writeBoolean(allowPartialSearchResults);
         if (asKey == false) {
             out.writeStringArray(indexRoutings);
             out.writeOptionalString(preference);

@@ -13,14 +13,17 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.action.ActionListener;
+import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionStateResponse;
 import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionResponse;
-import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionRequest;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.routing.WeightedRouting;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
@@ -113,13 +116,14 @@ public class DecommissionService {
      * Starts the new decommission request and registers the metadata with status as {@link DecommissionStatus#INIT}
      * Once the status is updated, it tries to exclude to-be-decommissioned cluster manager eligible nodes from Voting Configuration
      *
-     * @param decommissionAttribute register decommission attribute in the metadata request
+     * @param decommissionRequest decommission request Object
      * @param listener register decommission listener
      */
     public void startDecommissionAction(
-        final DecommissionAttribute decommissionAttribute,
+        final DecommissionRequest decommissionRequest,
         final ActionListener<DecommissionResponse> listener
     ) {
+        final DecommissionAttribute decommissionAttribute = decommissionRequest.getDecommissionAttribute();
         // register the metadata with status as INIT as first step
         clusterService.submitStateUpdateTask("decommission [" + decommissionAttribute + "]", new ClusterStateUpdateTask(Priority.URGENT) {
             @Override
@@ -129,6 +133,8 @@ public class DecommissionService {
                 DecommissionAttributeMetadata decommissionAttributeMetadata = currentState.metadata().decommissionAttributeMetadata();
                 // check that request is eligible to proceed
                 ensureEligibleRequest(decommissionAttributeMetadata, decommissionAttribute);
+                // ensure attribute is weighed away
+                ensureToBeDecommissionedAttributeWeighedAway(currentState, decommissionAttribute);
                 decommissionAttributeMetadata = new DecommissionAttributeMetadata(decommissionAttribute);
                 logger.info("registering decommission metadata [{}] to execute action", decommissionAttributeMetadata.toString());
                 return ClusterState.builder(currentState)
@@ -157,15 +163,16 @@ public class DecommissionService {
                     decommissionAttributeMetadata.decommissionAttribute(),
                     decommissionAttributeMetadata.status()
                 );
-                decommissionClusterManagerNodes(decommissionAttributeMetadata.decommissionAttribute(), listener);
+                decommissionClusterManagerNodes(decommissionRequest, listener);
             }
         });
     }
 
     private synchronized void decommissionClusterManagerNodes(
-        final DecommissionAttribute decommissionAttribute,
+        final DecommissionRequest decommissionRequest,
         ActionListener<DecommissionResponse> listener
     ) {
+        final DecommissionAttribute decommissionAttribute = decommissionRequest.getDecommissionAttribute();
         ClusterState state = clusterService.getClusterApplierService().state();
         // since here metadata is already registered with INIT, we can guarantee that no new node with decommission attribute can further
         // join the cluster
@@ -208,7 +215,7 @@ public class DecommissionService {
                         // and to-be-decommissioned cluster manager is no more part of Voting Configuration and no more to-be-decommission
                         // nodes can be part of Voting Config
                         listener.onResponse(new DecommissionResponse(true));
-                        failDecommissionedNodes(clusterService.getClusterApplierService().state());
+                        drainNodesWithDecommissionedAttribute(decommissionRequest);
                     }
                 } else {
                     // explicitly calling listener.onFailure with NotClusterManagerException as the local node is not the cluster manager
@@ -305,17 +312,74 @@ public class DecommissionService {
         }
     }
 
-    private void failDecommissionedNodes(ClusterState state) {
-        // this method ensures no matter what, we always exit from this function after clearing the voting config exclusion
+    void drainNodesWithDecommissionedAttribute(DecommissionRequest decommissionRequest) {
+        ClusterState state = clusterService.getClusterApplierService().state();
+        Set<DiscoveryNode> decommissionedNodes = filterNodesWithDecommissionAttribute(
+            state,
+            decommissionRequest.getDecommissionAttribute(),
+            false
+        );
+
+        if (decommissionRequest.isNoDelay()) {
+            // Call to fail the decommission nodes
+            failDecommissionedNodes(decommissionedNodes, decommissionRequest.getDecommissionAttribute());
+        } else {
+            decommissionController.updateMetadataWithDecommissionStatus(DecommissionStatus.DRAINING, new ActionListener<>() {
+                @Override
+                public void onResponse(DecommissionStatus status) {
+                    logger.info("updated the decommission status to [{}]", status);
+                    // set the weights
+                    scheduleNodesDecommissionOnTimeout(decommissionedNodes, decommissionRequest.getDelayTimeout());
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.error(
+                        () -> new ParameterizedMessage(
+                            "failed to update decommission status for attribute [{}] to [{}]",
+                            decommissionRequest.getDecommissionAttribute().toString(),
+                            DecommissionStatus.DRAINING
+                        ),
+                        e
+                    );
+                    // since we are not able to update the status, we will clear the voting config exclusion we have set earlier
+                    clearVotingConfigExclusionAndUpdateStatus(false, false);
+                }
+            });
+        }
+    }
+
+    void scheduleNodesDecommissionOnTimeout(Set<DiscoveryNode> decommissionedNodes, TimeValue timeoutForNodeDraining) {
+        ClusterState state = clusterService.getClusterApplierService().state();
         DecommissionAttributeMetadata decommissionAttributeMetadata = state.metadata().decommissionAttributeMetadata();
+        if (decommissionAttributeMetadata == null) {
+            return;
+        }
+        assert decommissionAttributeMetadata.status().equals(DecommissionStatus.DRAINING)
+            : "Unexpected status encountered while decommissioning nodes.";
+
+        // This method ensures no matter what, we always exit from this function after clearing the voting config exclusion
         DecommissionAttribute decommissionAttribute = decommissionAttributeMetadata.decommissionAttribute();
+
+        // Wait for timeout to happen. Log the active connection before decommissioning of nodes.
+        transportService.getThreadPool().schedule(() -> {
+            // Log active connections.
+            decommissionController.getActiveRequestCountOnDecommissionedNodes(decommissionedNodes);
+            // Call to fail the decommission nodes
+            failDecommissionedNodes(decommissionedNodes, decommissionAttribute);
+        }, timeoutForNodeDraining, ThreadPool.Names.GENERIC);
+    }
+
+    private void failDecommissionedNodes(Set<DiscoveryNode> decommissionedNodes, DecommissionAttribute decommissionAttribute) {
+
+        // Weighing away is complete. We have allowed the nodes to be drained. Let's move decommission status to IN_PROGRESS.
         decommissionController.updateMetadataWithDecommissionStatus(DecommissionStatus.IN_PROGRESS, new ActionListener<>() {
             @Override
             public void onResponse(DecommissionStatus status) {
                 logger.info("updated the decommission status to [{}]", status);
                 // execute nodes decommissioning
                 decommissionController.removeDecommissionedNodes(
-                    filterNodesWithDecommissionAttribute(clusterService.getClusterApplierService().state(), decommissionAttribute, false),
+                    decommissionedNodes,
                     "nodes-decommissioned",
                     TimeValue.timeValueSeconds(120L),
                     new ActionListener<Void>() {
@@ -389,10 +453,6 @@ public class DecommissionService {
         return nodesWithDecommissionAttribute;
     }
 
-    private static boolean nodeHasDecommissionedAttribute(DiscoveryNode discoveryNode, DecommissionAttribute decommissionAttribute) {
-        return discoveryNode.getAttributes().get(decommissionAttribute.attributeName()).equals(decommissionAttribute.attributeValue());
-    }
-
     private static void validateAwarenessAttribute(
         final DecommissionAttribute decommissionAttribute,
         List<String> awarenessAttributes,
@@ -417,6 +477,30 @@ public class DecommissionService {
         }
     }
 
+    private static void ensureToBeDecommissionedAttributeWeighedAway(ClusterState state, DecommissionAttribute decommissionAttribute) {
+        WeightedRoutingMetadata weightedRoutingMetadata = state.metadata().weightedRoutingMetadata();
+        if (weightedRoutingMetadata == null) {
+            throw new DecommissioningFailedException(
+                decommissionAttribute,
+                "no weights are set to the attribute. Please set appropriate weights before triggering decommission action"
+            );
+        }
+        WeightedRouting weightedRouting = weightedRoutingMetadata.getWeightedRouting();
+        if (weightedRouting.attributeName().equals(decommissionAttribute.attributeName()) == false) {
+            throw new DecommissioningFailedException(
+                decommissionAttribute,
+                "no weights are specified to attribute [" + decommissionAttribute.attributeName() + "]"
+            );
+        }
+        Double attributeValueWeight = weightedRouting.weights().get(decommissionAttribute.attributeValue());
+        if (attributeValueWeight == null || attributeValueWeight.equals(0.0) == false) {
+            throw new DecommissioningFailedException(
+                decommissionAttribute,
+                "weight for decommissioned attribute is expected to be [0.0] but found [" + attributeValueWeight + "]"
+            );
+        }
+    }
+
     private static void ensureEligibleRequest(
         DecommissionAttributeMetadata decommissionAttributeMetadata,
         DecommissionAttribute requestedDecommissionAttribute
@@ -430,6 +514,7 @@ public class DecommissionService {
                     case INIT:
                     case FAILED:
                         break;
+                    case DRAINING:
                     case IN_PROGRESS:
                     case SUCCESSFUL:
                         msg = "same request is already in status [" + decommissionAttributeMetadata.status() + "]";
@@ -447,6 +532,7 @@ public class DecommissionService {
                             + decommissionAttributeMetadata.decommissionAttribute().toString()
                             + "] already successfully decommissioned, recommission before triggering another decommission";
                         break;
+                    case DRAINING:
                     case IN_PROGRESS:
                     case INIT:
                         // it means the decommission has been initiated or is inflight. In that case, will fail new request
@@ -483,7 +569,7 @@ public class DecommissionService {
         };
     }
 
-    public void startRecommissionAction(final ActionListener<AcknowledgedResponse> listener) {
+    public void startRecommissionAction(final ActionListener<DeleteDecommissionStateResponse> listener) {
         /*
          * For abandoned requests, we might not really know if it actually restored the exclusion list.
          * And can land up in cases where even after recommission, exclusions are set(which is unexpected).
@@ -506,7 +592,7 @@ public class DecommissionService {
         }, false);
     }
 
-    void deleteDecommissionState(ActionListener<AcknowledgedResponse> listener) {
+    void deleteDecommissionState(ActionListener<DeleteDecommissionStateResponse> listener) {
         clusterService.submitStateUpdateTask("delete_decommission_state", new ClusterStateUpdateTask(Priority.URGENT) {
             @Override
             public ClusterState execute(ClusterState currentState) {
@@ -527,8 +613,44 @@ public class DecommissionService {
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 // Cluster state processed for deleting the decommission attribute.
                 assert newState.metadata().decommissionAttributeMetadata() == null;
-                listener.onResponse(new AcknowledgedResponse(true));
+                listener.onResponse(new DeleteDecommissionStateResponse(true));
             }
         });
+    }
+
+    /**
+     * Utility method to check if the node has decommissioned attribute
+     *
+     * @param discoveryNode node to check on
+     * @param decommissionAttribute attribute to be checked with
+     * @return true or false based on whether node has decommissioned attribute
+     */
+    public static boolean nodeHasDecommissionedAttribute(DiscoveryNode discoveryNode, DecommissionAttribute decommissionAttribute) {
+        String nodeAttributeValue = discoveryNode.getAttributes().get(decommissionAttribute.attributeName());
+        return nodeAttributeValue != null && nodeAttributeValue.equals(decommissionAttribute.attributeValue());
+    }
+
+    /**
+     * Utility method to check if the node is commissioned or not
+     *
+     * @param discoveryNode node to check on
+     * @param metadata metadata present current which will be used to check the commissioning status of the node
+     * @return if the node is commissioned or not
+     */
+    public static boolean nodeCommissioned(DiscoveryNode discoveryNode, Metadata metadata) {
+        DecommissionAttributeMetadata decommissionAttributeMetadata = metadata.decommissionAttributeMetadata();
+        if (decommissionAttributeMetadata != null) {
+            DecommissionAttribute decommissionAttribute = decommissionAttributeMetadata.decommissionAttribute();
+            DecommissionStatus status = decommissionAttributeMetadata.status();
+            if (decommissionAttribute != null && status != null) {
+                if (nodeHasDecommissionedAttribute(discoveryNode, decommissionAttribute)
+                    && (status.equals(DecommissionStatus.IN_PROGRESS)
+                        || status.equals(DecommissionStatus.SUCCESSFUL)
+                        || status.equals(DecommissionStatus.DRAINING))) {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 }

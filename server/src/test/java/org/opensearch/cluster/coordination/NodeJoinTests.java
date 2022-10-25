@@ -39,6 +39,10 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
+import org.opensearch.cluster.decommission.DecommissionAttribute;
+import org.opensearch.cluster.decommission.DecommissionAttributeMetadata;
+import org.opensearch.cluster.decommission.DecommissionStatus;
+import org.opensearch.cluster.decommission.NodeDecommissionedException;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
@@ -775,11 +779,78 @@ public class NodeJoinTests extends OpenSearchTestCase {
         assertTrue(clusterStateHasNode(node1));
     }
 
+    public void testJoinFailsWhenDecommissioned() {
+        DiscoveryNode node0 = newNode(0, true);
+        DiscoveryNode node1 = newNode(1, true);
+        long initialTerm = randomLongBetween(1, 10);
+        long initialVersion = randomLongBetween(1, 10);
+        setupFakeClusterManagerServiceAndCoordinator(
+            initialTerm,
+            initialStateWithDecommissionedAttribute(
+                initialState(node0, initialTerm, initialVersion, VotingConfiguration.of(node0)),
+                new DecommissionAttribute("zone", "zone1")
+            ),
+            () -> new StatusInfo(HEALTHY, "healthy-info")
+        );
+        assertFalse(isLocalNodeElectedMaster());
+        long newTerm = initialTerm + randomLongBetween(1, 10);
+        joinNodeAndRun(new JoinRequest(node0, newTerm, Optional.of(new Join(node0, node0, newTerm, initialTerm, initialVersion))));
+        assertTrue(isLocalNodeElectedMaster());
+        assertFalse(clusterStateHasNode(node1));
+        joinNodeAndRun(new JoinRequest(node1, newTerm, Optional.of(new Join(node1, node0, newTerm, initialTerm, initialVersion))));
+        assertTrue(isLocalNodeElectedMaster());
+        assertTrue(clusterStateHasNode(node1));
+        DiscoveryNode decommissionedNode = new DiscoveryNode(
+            "data_2",
+            2 + "",
+            buildNewFakeTransportAddress(),
+            Collections.singletonMap("zone", "zone1"),
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
+        );
+        long anotherTerm = newTerm + randomLongBetween(1, 10);
+
+        assertThat(
+            expectThrows(
+                NodeDecommissionedException.class,
+                () -> joinNodeAndRun(new JoinRequest(decommissionedNode, anotherTerm, Optional.empty()))
+            ).getMessage(),
+            containsString("with current status of decommissioning")
+        );
+        assertFalse(clusterStateHasNode(decommissionedNode));
+
+        DiscoveryNode node3 = new DiscoveryNode(
+            "data_3",
+            3 + "",
+            buildNewFakeTransportAddress(),
+            Collections.singletonMap("zone", "zone2"),
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
+        );
+        long termForNode3 = anotherTerm + randomLongBetween(1, 10);
+
+        joinNodeAndRun(new JoinRequest(node3, termForNode3, Optional.empty()));
+        assertTrue(clusterStateHasNode(node3));
+    }
+
     private boolean isLocalNodeElectedMaster() {
         return MasterServiceTests.discoveryState(clusterManagerService).nodes().isLocalNodeElectedMaster();
     }
 
     private boolean clusterStateHasNode(DiscoveryNode node) {
         return node.equals(MasterServiceTests.discoveryState(clusterManagerService).nodes().get(node.getId()));
+    }
+
+    private static ClusterState initialStateWithDecommissionedAttribute(
+        ClusterState clusterState,
+        DecommissionAttribute decommissionAttribute
+    ) {
+        DecommissionAttributeMetadata decommissionAttributeMetadata = new DecommissionAttributeMetadata(
+            decommissionAttribute,
+            DecommissionStatus.SUCCESSFUL
+        );
+        return ClusterState.builder(clusterState)
+            .metadata(Metadata.builder(clusterState.metadata()).decommissionAttributeMetadata(decommissionAttributeMetadata))
+            .build();
     }
 }

@@ -99,6 +99,21 @@ public final class ExceptionsHelper {
         return RestStatus.INTERNAL_SERVER_ERROR;
     }
 
+    public static String summaryMessage(Throwable t) {
+        if (t != null) {
+            if (t instanceof OpenSearchException) {
+                return t.getClass().getSimpleName() + "[" + t.getMessage() + "]";
+            } else if (t instanceof IllegalArgumentException) {
+                return "Invalid argument";
+            } else if (t instanceof JsonParseException) {
+                return "Failed to parse JSON";
+            } else if (t instanceof OpenSearchRejectedExecutionException) {
+                return "Too many requests";
+            }
+        }
+        return "Internal failure";
+    }
+
     public static Throwable unwrapCause(Throwable t) {
         int counter = 0;
         Throwable result = t;

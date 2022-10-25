@@ -90,8 +90,6 @@ public class WeightedRoutingMetadata extends AbstractNamedDiffable<Metadata.Cust
         Map<String, Double> weights = new HashMap<>();
         WeightedRouting weightedRouting = null;
         XContentParser.Token token;
-        // move to the first alias
-        parser.nextToken();
         String awarenessField = null;
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {

@@ -42,21 +42,22 @@
     - [Gradle Plugins](#gradle-plugins)
       - [Distribution Download Plugin](#distribution-download-plugin)
     - [Creating fat-JAR of a Module](#creating-fat-jar-of-a-module)
-  - [Misc](#misc)
-    - [git-secrets](#git-secrets)
-      - [Installation](#installation)
-      - [Configuration](#configuration)
   - [Components](#components)
     - [Build libraries & interfaces](#build-libraries--interfaces)
     - [Clients & Libraries](#clients--libraries)
     - [Plugins](#plugins-1)
-    - [Indexing & search](#indexing--search)
+    - [Indexing & Search](#indexing--search)
     - [Aggregations](#aggregations)
     - [Distributed Framework](#distributed-framework)
-  - [Submitting Changes](#submitting-changes)
-  - [Backports](#backports)
-  - [LineLint](#linelint)
-- [Lucene Snapshots](#lucene-snapshots)
+  - [Misc](#misc)
+    - [Git Secrets](#git-secrets)
+      - [Installation](#installation)
+      - [Configuration](#configuration)
+    - [Submitting Changes](#submitting-changes)
+    - [Backports](#backports)
+    - [LineLint](#linelint)
+    - [Lucene Snapshots](#lucene-snapshots)
+    - [Flakey Tests](#flakey-tests)
 
 # Developer Guide
 
@@ -444,9 +445,81 @@ Refer the installed JAR as any other maven artifact, e.g.
 </dependency>
 ```
 
+## Components
+
+As you work in the OpenSearch repo you may notice issues getting labeled with component labels.  It's a housekeeping task to help group together similar pieces of work.  You can pretty much ignore it, but if you're curious, here's what the different labels mean:
+
+### Build libraries & interfaces
+
+Tasks to make sure the build tasks are useful and packaging and distribution are easy.
+
+Includes:
+
+- Gradle for the Core tasks
+- Groovy scripts
+- build-tools
+- Versioning interfaces
+- Compatibility
+- Javadoc enforcement
+
+
+### Clients & Libraries
+
+APIs and communication mechanisms for external connections to OpenSearch.  This includes the “library” directory in OpenSearch (a set of common functions).
+
+Includes:
+
+- Transport layer
+- High Level and low level Rest Client
+- CLI
+
+### Plugins
+
+Anything touching the plugin infrastructure within core OpenSearch.
+
+Includes:
+
+- API
+- SPI
+- Plugin interfaces
+
+
+### Indexing & Search
+
+The critical path of indexing and search, including:  Measure index and search, performance, Improving the performance of indexing and search, ensure synchronization OpenSearch APIs with upstream Lucene change (e.g. new field types, changing doc values and codex).
+
+Includes:
+
+- Lucene Structures
+- FieldMappers
+- QueryBuilders
+- DocValues
+
+### Aggregations
+
+Making sure OpenSearch can be used as a compute engine.
+
+Includes:
+
+- APIs (suggest supporting a formal API)
+- Framework
+
+### Distributed Framework
+
+Work to make sure that OpenSearch can scale in a distributed manner.
+
+Includes:
+
+- Nodes (Cluster Manager, Data, Compute, Ingest, Discovery, etc.)
+- Replication & Merge Policies (Document, Segment level)
+- Snapshot/Restore (repositories; S3, Azure, GCP, NFS)
+- Translog (e.g., OpenSearch, Kafka, Kinesis)
+- Shard Strategies
+- Circuit Breakers
+
 ## Misc
 
-### git-secrets
+### Git Secrets
 
 Security is our top priority. Avoid checking in credentials.
 
@@ -471,80 +544,16 @@ Then, you need to apply patterns for git-secrets, you can install the AWS standa
 git secrets --register-aws
 ```
 
-## Components
-As you work in the OpenSearch repo you may notice issues getting labeled with component labels.  It's a housekeeping task to help group together similar pieces of work.  You can pretty much ignore it, but if you're curious, here's what the different labels mean:
-
-### Build libraries & interfaces
-Tasks to make sure the build tasks are useful and packaging and distribution are easy.
-
-Includes:
-
-- Gradle for the Core tasks
-- Groovy scripts
-- build-tools
-- Versioning interfaces
-- Compatibility
-- Javadoc enforcement
-
-
-### Clients & Libraries
-APIs and communication mechanisms for external connections to OpenSearch.  This includes the “library” directory in OpenSearch (a set of common functions).
-
-Includes:
-
-- Transport layer
-- High Level and low level Rest Client
-- CLI
-
-### Plugins
-Anything touching the plugin infrastructure within core OpenSearch.
-
-Includes:
-
-- API
-- SPI
-- Plugin interfaces
-
-
-### Indexing & search
-The critical path of indexing and search, including:  Measure index and search, performance, Improving the performance of indexing and search, ensure synchronization OpenSearch APIs with upstream Lucene change (e.g. new field types, changing doc values and codex).
-
-Includes:
-
-- Lucene Structures
-- FieldMappers
-- QueryBuilders
-- DocValues
-
-### Aggregations
-Making sure OpenSearch can be used as a compute engine.
-
-Includes:
-
-- APIs (suggest supporting a formal API)
-- Framework
-
-### Distributed Framework
-Work to make sure that OpenSearch can scale in a distributed manner.
-
-Includes:
-
-- Nodes (Cluster Manager, Data, Compute, Ingest, Discovery, etc.)
-- Replication & Merge Policies (Document, Segment level)
-- Snapshot/Restore (repositories; S3, Azure, GCP, NFS)
-- Translog (e.g., OpenSearch, Kafka, Kinesis)
-- Shard Strategies
-- Circuit Breakers
-
-## Submitting Changes
+### Submitting Changes
 
 See [CONTRIBUTING](CONTRIBUTING.md).
 
-## Backports
+### Backports
 
 The Github workflow in [`backport.yml`](.github/workflows/backport.yml) creates backport PRs automatically when the original PR with an appropriate label `backport <backport-branch-name>` is merged to main with the backport workflow run successfully on the PR. For example, if a PR on main needs to be backported to `1.x` branch, add a label `backport 1.x` to the PR and make sure the backport workflow runs on the PR along with other checks. Once this PR is merged to main, the workflow will create a backport PR to the `1.x` branch.
 
-## LineLint
+### LineLint
+
 A linter in [`code-hygiene.yml`](.github/workflows/code-hygiene.yml) that validates simple newline and whitespace rules in all sorts of files. It can:
 - Recursively check a directory tree for files that do not end in a newline
 - Automatically fix these files by adding a newline or trimming extra newlines.
@@ -559,7 +568,20 @@ Pass a list of files or directories to limit your search.
 
     linelint README.md LICENSE
 
-# Lucene Snapshots
+### Lucene Snapshots
+
 The Github workflow in [lucene-snapshots.yml](.github/workflows/lucene-snapshots.yml) is a Github worfklow executable by maintainers to build a top-down snapshot build of lucene.
-These snapshots are available to test compatibility with upcoming changes to Lucene by updating the version at [version.properties](buildsrc/version.properties) with the `version-snapshot-sha` version.
-Example: `lucene = 10.0.0-snapshot-2e941fc`.
+These snapshots are available to test compatibility with upcoming changes to Lucene by updating the version at [version.properties](buildsrc/version.properties) with the `version-snapshot-sha` version. Example: `lucene = 10.0.0-snapshot-2e941fc`.
+
+### Flakey Tests
+
+OpenSearch has a very large test suite with long running, often failing (flakey), integration tests. Such individual tests are labelled as [Flakey Random Test Failure](https://github.com/opensearch-project/OpenSearch/issues?q=is%3Aopen+is%3Aissue+label%3A%22Flakey+Random+Test+Failure%22). Your help is wanted fixing these!
+
+If you encounter a build/test failure in CI that is unrelated to the change in your pull request, it may be a known flakey test, or a new test failure.
+
+1. Follow failed CI links, and locate the failing test(s).
+2. Copy-paste the failure into a comment of your PR.
+3. Search through [issues](https://github.com/opensearch-project/OpenSearch/issues?q=is%3Aopen+is%3Aissue+label%3A%22Flakey+Random+Test+Failure%22) using the name of the failed test for whether this is a known flakey test. 
+5. If an existing issue is found, paste a link to the known issue in a comment to your PR.
+6. If no existing issue is found, open one.
+7. Retry CI via the GitHub UX or by pushing an update to your PR.
