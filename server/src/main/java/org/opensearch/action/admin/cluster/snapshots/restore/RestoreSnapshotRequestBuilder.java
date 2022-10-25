@@ -248,4 +248,12 @@ public class RestoreSnapshotRequestBuilder extends ClusterManagerNodeOperationRe
         request.ignoreIndexSettings(ignoreIndexSettings);
         return this;
     }
+
+    /**
+     * Sets the storage type
+     */
+    public RestoreSnapshotRequestBuilder setStorageType(RestoreSnapshotRequest.StorageType storageType) {
+        request.storageType(storageType);
+        return this;
+    }
 }

@@ -32,8 +32,6 @@
 
 package org.opensearch.client;
 
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.methods.HttpPut;
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchStatusException;
 import org.opensearch.action.explain.ExplainRequest;
@@ -101,6 +99,8 @@ import org.opensearch.search.sort.SortOrder;
 import org.opensearch.search.suggest.Suggest;
 import org.opensearch.search.suggest.SuggestBuilder;
 import org.opensearch.search.suggest.phrase.PhraseSuggestionBuilder;
+import org.apache.hc.client5.http.classic.methods.HttpPost;
+import org.apache.hc.client5.http.classic.methods.HttpPut;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 

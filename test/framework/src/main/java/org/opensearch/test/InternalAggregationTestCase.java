@@ -144,12 +144,10 @@ import org.opensearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.ValueCountAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.WeightedAvgAggregationBuilder;
-import org.opensearch.search.aggregations.pipeline.AvgBucketPipelineAggregationBuilder;
 import org.opensearch.search.aggregations.pipeline.DerivativePipelineAggregationBuilder;
 import org.opensearch.search.aggregations.pipeline.ExtendedStatsBucketPipelineAggregationBuilder;
 import org.opensearch.search.aggregations.pipeline.InternalBucketMetricValue;
 import org.opensearch.search.aggregations.pipeline.InternalSimpleValue;
-import org.opensearch.search.aggregations.pipeline.MaxBucketPipelineAggregationBuilder;
 import org.opensearch.search.aggregations.pipeline.ParsedBucketMetricValue;
 import org.opensearch.search.aggregations.pipeline.ParsedDerivative;
 import org.opensearch.search.aggregations.pipeline.ParsedExtendedStatsBucket;
@@ -160,7 +158,6 @@ import org.opensearch.search.aggregations.pipeline.PercentilesBucketPipelineAggr
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.opensearch.search.aggregations.pipeline.StatsBucketPipelineAggregationBuilder;
-import org.opensearch.search.aggregations.pipeline.SumBucketPipelineAggregationBuilder;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
 
 import java.io.IOException;
@@ -175,7 +172,6 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.opensearch.common.xcontent.XContentHelper.toXContent;
 import static org.opensearch.search.aggregations.InternalMultiBucketAggregation.countInnerBucket;
@@ -480,60 +476,6 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         final T aggregation = createTestInstanceForXContent();
         final ParsedAggregation parsedAggregation = parseAndAssert(aggregation, randomBoolean(), true);
         assertFromXContent(aggregation, parsedAggregation);
-    }
-
-    public void testMergePipelineTreeForBWCSerialization() {
-        T agg = createTestInstance();
-        PipelineAggregator.PipelineTree pipelineTree = randomPipelineTree(agg);
-        agg.mergePipelineTreeForBWCSerialization(pipelineTree);
-        assertMergedPipelineTreeForBWCSerialization(agg, pipelineTree);
-    }
-
-    public void testMergePipelineTreeTwice() {
-        T agg = createTestInstance();
-        PipelineAggregator.PipelineTree pipelineTree = randomPipelineTree(agg);
-        agg.mergePipelineTreeForBWCSerialization(pipelineTree);
-        agg.mergePipelineTreeForBWCSerialization(randomPipelineTree(agg)); // This should be ignored
-        assertMergedPipelineTreeForBWCSerialization(agg, pipelineTree);
-    }
-
-    public static PipelineAggregator.PipelineTree randomPipelineTree(InternalAggregation aggregation) {
-        Map<String, PipelineTree> subTree = new HashMap<>();
-        aggregation.forEachBucket(bucketAggs -> {
-            for (Aggregation subAgg : bucketAggs) {
-                if (subTree.containsKey(subAgg.getName())) {
-                    continue;
-                }
-                subTree.put(subAgg.getName(), randomPipelineTree((InternalAggregation) subAgg));
-            }
-        });
-        return new PipelineAggregator.PipelineTree(emptyMap(), randomPipelineAggregators());
-    }
-
-    public static List<PipelineAggregator> randomPipelineAggregators() {
-        List<PipelineAggregator> pipelines = new ArrayList<>();
-        if (randomBoolean()) {
-            if (randomBoolean()) {
-                pipelines.add(new MaxBucketPipelineAggregationBuilder("name1", "bucket1").create());
-            }
-            if (randomBoolean()) {
-                pipelines.add(new AvgBucketPipelineAggregationBuilder("name2", "bucket2").create());
-            }
-            if (randomBoolean()) {
-                pipelines.add(new SumBucketPipelineAggregationBuilder("name3", "bucket3").create());
-            }
-        }
-        return pipelines;
-    }
-
-    @SuppressWarnings("deprecation")
-    private void assertMergedPipelineTreeForBWCSerialization(InternalAggregation agg, PipelineAggregator.PipelineTree pipelineTree) {
-        assertThat(agg.pipelineAggregatorsForBwcSerialization(), equalTo(pipelineTree.aggregators()));
-        agg.forEachBucket(bucketAggs -> {
-            for (Aggregation subAgg : bucketAggs) {
-                assertMergedPipelineTreeForBWCSerialization((InternalAggregation) subAgg, pipelineTree.subTree(subAgg.getName()));
-            }
-        });
     }
 
     protected abstract void assertFromXContent(T aggregation, ParsedAggregation parsedAggregation) throws IOException;

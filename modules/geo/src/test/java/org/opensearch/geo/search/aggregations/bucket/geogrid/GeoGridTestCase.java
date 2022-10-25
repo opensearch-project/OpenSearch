@@ -50,16 +50,16 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public abstract class GeoGridTestCase<B extends InternalGeoGridBucket, T extends InternalGeoGrid<B>> extends
-    InternalMultiBucketAggregationTestCase<T> {
+public abstract class GeoGridTestCase<B extends BaseGeoGridBucket, T extends BaseGeoGrid<B>> extends InternalMultiBucketAggregationTestCase<
+    T> {
 
     /**
-     * Instantiate a {@link InternalGeoGrid}-derived class using the same parameters as constructor.
+     * Instantiate a {@link BaseGeoGrid}-derived class using the same parameters as constructor.
      */
-    protected abstract T createInternalGeoGrid(String name, int size, List<InternalGeoGridBucket> buckets, Map<String, Object> metadata);
+    protected abstract T createInternalGeoGrid(String name, int size, List<BaseGeoGridBucket> buckets, Map<String, Object> metadata);
 
     /**
-     * Instantiate a {@link InternalGeoGridBucket}-derived class using the same parameters as constructor.
+     * Instantiate a {@link BaseGeoGridBucket}-derived class using the same parameters as constructor.
      */
     protected abstract B createInternalGeoGridBucket(Long key, long docCount, InternalAggregations aggregations);
 
@@ -117,7 +117,7 @@ public abstract class GeoGridTestCase<B extends InternalGeoGridBucket, T extends
     protected T createTestInstance(String name, Map<String, Object> metadata, InternalAggregations aggregations) {
         final int precision = randomPrecision();
         int size = randomNumberOfBuckets();
-        List<InternalGeoGridBucket> buckets = new ArrayList<>(size);
+        List<BaseGeoGridBucket> buckets = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             double latitude = randomDoubleBetween(-90.0, 90.0, false);
             double longitude = randomDoubleBetween(-180.0, 180.0, false);
@@ -176,7 +176,7 @@ public abstract class GeoGridTestCase<B extends InternalGeoGridBucket, T extends
     protected T mutateInstance(T instance) {
         String name = instance.getName();
         int size = instance.getRequiredSize();
-        List<InternalGeoGridBucket> buckets = instance.getBuckets();
+        List<BaseGeoGridBucket> buckets = instance.getBuckets();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 3)) {
             case 0:
@@ -206,7 +206,7 @@ public abstract class GeoGridTestCase<B extends InternalGeoGridBucket, T extends
     }
 
     public void testCreateFromBuckets() {
-        InternalGeoGrid original = createTestInstance();
+        BaseGeoGrid original = createTestInstance();
         assertThat(original, equalTo(original.create(original.buckets)));
     }
 }

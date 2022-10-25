@@ -32,12 +32,13 @@
 
 package org.opensearch.client;
 
-import org.apache.http.Header;
-import org.apache.http.HttpHost;
-import org.apache.http.client.AuthCache;
-import org.apache.http.impl.auth.BasicScheme;
-import org.apache.http.impl.client.BasicAuthCache;
-import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
+import org.apache.hc.client5.http.auth.AuthCache;
+import org.apache.hc.client5.http.impl.async.CloseableHttpAsyncClient;
+import org.apache.hc.client5.http.impl.auth.BasicAuthCache;
+import org.apache.hc.client5.http.impl.auth.BasicScheme;
+import org.apache.hc.core5.http.Header;
+import org.apache.hc.core5.http.HttpHost;
+import org.apache.hc.core5.reactor.IOReactorStatus;
 import org.opensearch.client.RestClient.NodeTuple;
 
 import java.io.IOException;
@@ -410,10 +411,10 @@ public class RestClientTests extends RestClientTestCase {
         CloseableHttpAsyncClient client = mock(CloseableHttpAsyncClient.class);
         RestClient restClient = new RestClient(client, new Header[] {}, nodes, null, null, null, false, false);
 
-        when(client.isRunning()).thenReturn(true);
+        when(client.getStatus()).thenReturn(IOReactorStatus.ACTIVE);
         assertTrue(restClient.isRunning());
 
-        when(client.isRunning()).thenReturn(false);
+        when(client.getStatus()).thenReturn(IOReactorStatus.INACTIVE);
         assertFalse(restClient.isRunning());
     }
 

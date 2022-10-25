@@ -32,7 +32,6 @@
 
 package org.opensearch.upgrades;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.xcontent.support.XContentMapValues;
@@ -52,10 +51,10 @@ public abstract class AbstractFullClusterRestartTestCase extends OpenSearchRestT
 
     /**
      * @return true if test is running against an old cluster before that last major, in this case
-     * when System.getProperty("tests.is_old_cluster" == true) and oldClusterVersion is before {@link LegacyESVersion#V_7_0_0}
+     * when System.getProperty("tests.is_old_cluster" == true) and oldClusterVersion is before {@link Version#V_2_0_0}
      */
     protected final boolean isRunningAgainstAncientCluster() {
-        return isRunningAgainstOldCluster() && oldClusterVersion.before(LegacyESVersion.V_7_0_0);
+        return isRunningAgainstOldCluster() && oldClusterVersion.before(Version.V_2_0_0);
     }
 
     public static Version getOldClusterVersion() {

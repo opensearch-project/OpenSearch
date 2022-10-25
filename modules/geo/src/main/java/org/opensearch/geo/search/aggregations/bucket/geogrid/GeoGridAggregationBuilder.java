@@ -58,9 +58,9 @@ import java.util.Objects;
 import java.util.function.Function;
 
 /**
- * Base Aggregation Builder for geohash_grid and geotile_grid aggs
+ * Base Aggregation Builder for geogrid aggs
  *
- * @opensearch.internal
+ * @opensearch.api
  */
 public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<GeoGridAggregationBuilder> {
     /* recognized field names in JSON */

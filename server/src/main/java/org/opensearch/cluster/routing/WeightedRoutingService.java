@@ -12,11 +12,15 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.ActionListener;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.delete.ClusterDeleteWeightedRoutingRequest;
 import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.delete.ClusterDeleteWeightedRoutingResponse;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingRequest;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
+import org.opensearch.cluster.decommission.DecommissionAttributeMetadata;
+import org.opensearch.cluster.decommission.DecommissionStatus;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
 import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
@@ -66,6 +70,8 @@ public class WeightedRoutingService {
         clusterService.submitStateUpdateTask("update_weighted_routing", new ClusterStateUpdateTask(Priority.URGENT) {
             @Override
             public ClusterState execute(ClusterState currentState) {
+                // verify currently no decommission action is ongoing
+                ensureNoOngoingDecommissionAction(currentState);
                 Metadata metadata = currentState.metadata();
                 Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
                 WeightedRoutingMetadata weightedRoutingMetadata = metadata.custom(WeightedRoutingMetadata.TYPE);
@@ -106,6 +112,34 @@ public class WeightedRoutingService {
         return newWeightedRoutingMetadata.getWeightedRouting().equals(oldWeightedRoutingMetadata.getWeightedRouting());
     }
 
+    public void deleteWeightedRoutingMetadata(
+        final ClusterDeleteWeightedRoutingRequest request,
+        final ActionListener<ClusterDeleteWeightedRoutingResponse> listener
+    ) {
+        clusterService.submitStateUpdateTask("delete_weighted_routing", new ClusterStateUpdateTask(Priority.URGENT) {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                logger.info("Deleting weighted routing metadata from the cluster state");
+                Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
+                mdBuilder.removeCustom(WeightedRoutingMetadata.TYPE);
+                return ClusterState.builder(currentState).metadata(mdBuilder).build();
+            }
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                logger.error("failed to remove weighted routing metadata from cluster state", e);
+                listener.onFailure(e);
+            }
+
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                logger.debug("cluster weighted routing metadata change is processed by all the nodes");
+                assert newState.metadata().weightedRoutingMetadata() == null;
+                listener.onResponse(new ClusterDeleteWeightedRoutingResponse(true));
+            }
+        });
+    }
+
     List<String> getAwarenessAttributes() {
         return awarenessAttributes;
     }
@@ -122,6 +156,17 @@ public class WeightedRoutingService {
                 validationException
             );
             throw validationException;
+        }
+    }
+
+    public void ensureNoOngoingDecommissionAction(ClusterState state) {
+        DecommissionAttributeMetadata decommissionAttributeMetadata = state.metadata().decommissionAttributeMetadata();
+        if (decommissionAttributeMetadata != null && decommissionAttributeMetadata.status().equals(DecommissionStatus.FAILED) == false) {
+            throw new IllegalStateException(
+                "a decommission action is ongoing with status ["
+                    + decommissionAttributeMetadata.status().status()
+                    + "], cannot update weight during this state"
+            );
         }
     }
 }

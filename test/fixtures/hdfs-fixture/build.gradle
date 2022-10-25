@@ -35,16 +35,18 @@ group = 'hdfs'
 dependencies {
   api("org.apache.hadoop:hadoop-minicluster:3.3.4") {
     exclude module: 'websocket-client'
+    exclude module: 'jettison'
   }
+  api "org.codehaus.jettison:jettison:${versions.jettison}"
   api "org.apache.commons:commons-compress:1.21"
   api "commons-codec:commons-codec:${versions.commonscodec}"
   api "org.apache.logging.log4j:log4j-core:${versions.log4j}"
   api "io.netty:netty-all:${versions.netty}"
-  api 'com.google.code.gson:gson:2.9.0'
+  api 'com.google.code.gson:gson:2.9.1'
   api "org.bouncycastle:bcpkix-jdk15on:${versions.bouncycastle}"
   api "com.fasterxml.jackson.jaxrs:jackson-jaxrs-json-provider:${versions.jackson}"
   api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
   api 'net.minidev:json-smart:2.4.8'
   api "org.mockito:mockito-core:${versions.mockito}"
-  api "com.google.protobuf:protobuf-java:3.21.2"
+  api "com.google.protobuf:protobuf-java:3.21.8"
 }
