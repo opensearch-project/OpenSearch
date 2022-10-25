@@ -35,7 +35,6 @@ public class NamedWriteableRegistryResponse extends TransportResponse {
      * @param in StreamInput from which map entries of writeable names and their associated category classes are read from
      * @throws IllegalArgumentException if the fully qualified class name is invalid and the class object cannot be generated at runtime
      */
-    @SuppressWarnings("unchecked")
     public NamedWriteableRegistryResponse(StreamInput in) throws IOException {
         super(in);
         // Stream output for registry map begins with a variable integer that tells us the number of entries being sent across the wire
@@ -44,6 +43,7 @@ public class NamedWriteableRegistryResponse extends TransportResponse {
         for (int i = 0; i < registryEntryCount; i++) {
             try {
                 String name = in.readString();
+                @SuppressWarnings("unchecked")
                 Class<? extends NamedWriteable> categoryClass = (Class<? extends NamedWriteable>) Class.forName(in.readString());
                 registry.put(name, categoryClass);
             } catch (ClassNotFoundException e) {
