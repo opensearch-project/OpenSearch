@@ -32,14 +32,12 @@
 
 package org.opensearch.index.query;
 
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.Strings;
@@ -183,12 +181,6 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
             boolFilterBuilder.add(newFieldExistsQuery(context, field), BooleanClause.Occur.SHOULD);
         }
         return new ConstantScoreQuery(boolFilterBuilder.build());
-    }
-
-    private static Query newLegacyExistsQuery(QueryShardContext context, String field) {
-        MappedFieldType fieldType = context.fieldMapper(field);
-        String fieldName = fieldType != null ? fieldType.name() : field;
-        return new TermQuery(new Term(FieldNamesFieldMapper.NAME, fieldName));
     }
 
     private static Query newFieldExistsQuery(QueryShardContext context, String field) {
