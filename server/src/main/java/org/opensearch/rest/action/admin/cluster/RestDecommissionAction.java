@@ -49,6 +49,11 @@ public class RestDecommissionAction extends BaseRestHandler {
         DecommissionRequest decommissionRequest = Requests.decommissionRequest();
         String attributeName = request.param("awareness_attribute_name");
         String attributeValue = request.param("awareness_attribute_value");
+        // Check if we have no delay set.
+        boolean noDelay = request.paramAsBoolean("no_delay", false);
+        if (noDelay) {
+            decommissionRequest.setNoDelay(noDelay);
+        }
         return decommissionRequest.setDecommissionAttribute(new DecommissionAttribute(attributeName, attributeValue));
     }
 }
