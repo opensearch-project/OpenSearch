@@ -245,6 +245,7 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
      * @opensearch.internal
      */
     public static class PointParser<P extends ParsedPoint> extends Parser<List<P>> {
+        private static final int MAX_NUMBER_OF_VALUES_IN_ARRAY_FORMAT = 3;
         /**
          * Note that this parser is only used for formatting values.
          */
@@ -287,7 +288,7 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
             if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
                 parser.nextToken();
                 if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
-                    XContentBuilder xContentBuilder = reConstructArrayXContent(parser);
+                    XContentBuilder xContentBuilder = reconstructArrayXContent(parser);
                     try (
                         XContentParser subParser = createParser(
                             parser.getXContentRegistry(),
@@ -328,18 +329,20 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
             return subParser;
         }
 
-        private XContentBuilder reConstructArrayXContent(XContentParser parser) throws IOException {
+        private XContentBuilder reconstructArrayXContent(XContentParser parser) throws IOException {
             XContentBuilder builder = XContentFactory.jsonBuilder().startArray();
-            int count = 0;
+            int numberOfValuesAdded = 0;
             while (parser.currentToken() != XContentParser.Token.END_ARRAY) {
-                if (++count > 3) {
-                    break;
-                }
                 if (parser.currentToken() != XContentParser.Token.VALUE_NUMBER) {
                     throw new OpenSearchParseException("numeric value expected");
                 }
                 builder.value(parser.doubleValue());
                 parser.nextToken();
+
+                // Allows one more value to be added so that the error case can be handled by a parser
+                if (++numberOfValuesAdded > MAX_NUMBER_OF_VALUES_IN_ARRAY_FORMAT) {
+                    break;
+                }
             }
             builder.endArray();
             return builder;
