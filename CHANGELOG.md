@@ -10,6 +10,9 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Add BWC version 1.3.7 ([#4711](https://github.com/opensearch-project/OpenSearch/pull/4711))
 - Bumps `jettison` from 1.5.0 to 1.5.1 ([#4712](https://github.com/opensearch-project/OpenSearch/pull/4712))
 
+### Dependencies
+- Dependency updates: asm 9.3 -> 9.4, bytebuddy 1.12.12 -> 1.12.18 ([#4889](https://github.com/opensearch-project/OpenSearch/pull/4889))
+
 ### Changed
 - Dependency updates (httpcore, mockito, slf4j, httpasyncclient, commons-codec) ([#4308](https://github.com/opensearch-project/OpenSearch/pull/4308))
 - Use RemoteSegmentStoreDirectory instead of RemoteDirectory ([#4240](https://github.com/opensearch-project/OpenSearch/pull/4240))
