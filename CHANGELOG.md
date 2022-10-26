@@ -146,7 +146,6 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
   - Addition of Doc values on the GeoShape Field
   - Addition of GeoShape ValueSource level code interfaces for accessing the DocValues.
   - Addition of Missing Value feature in the GeoShape Aggregations.
-- Added encryption/decryption for principal identifier tokens with extensions ([#4730](https://github.com/opensearch-project/OpenSearch/pull/4730))
 
 ### Changed
 
