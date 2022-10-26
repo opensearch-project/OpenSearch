@@ -93,6 +93,8 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Add BWC version 1.3.7 ([#4709](https://github.com/opensearch-project/OpenSearch/pull/4709))
 - Bump `jettison` from 1.4.1 to 1.5.1 ([#4717](https://github.com/opensearch-project/OpenSearch/pull/4717))
 - Set analyzer to regex query string search ([4219](https://github.com/opensearch-project/OpenSearch/pull/4219))
+- Add dev guide for dealing with flaky tests ([4894](https://github.com/opensearch-project/OpenSearch/pull/4894))
+- Renamed flaky tests ([#4935](https://github.com/opensearch-project/OpenSearch/pull/4935))
 ### Dependencies
 - Update Jackson Databind to 2.13.4.2 (addressing CVE-2022-42003) ([#4781](https://github.com/opensearch-project/OpenSearch/pull/4781))
 - Install and configure Log4j JUL Adapter for Lucene 9.4 ([#4754](https://github.com/opensearch-project/OpenSearch/pull/4754))
