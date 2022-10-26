@@ -458,8 +458,6 @@ public class DecommissionService {
         List<String> awarenessAttributes,
         Map<String, List<String>> forcedAwarenessAttributes
     ) {
-        String msg = null;
-
         if (awarenessAttributes == null
             || forcedAwarenessAttributes == null
             || awarenessAttributes.isEmpty()
