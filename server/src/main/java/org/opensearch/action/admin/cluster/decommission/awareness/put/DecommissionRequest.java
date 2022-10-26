@@ -82,7 +82,9 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
     }
 
     public void setNoDelay(boolean noDelay) {
-        this.delayTimeout = TimeValue.ZERO;
+        if(noDelay) {
+            this.delayTimeout = TimeValue.ZERO;
+        }
         this.noDelay = noDelay;
     }
 
