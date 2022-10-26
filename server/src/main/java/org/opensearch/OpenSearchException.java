@@ -1631,7 +1631,7 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
             org.opensearch.cluster.block.IndexCreateBlockException.class,
             org.opensearch.cluster.block.IndexCreateBlockException::new,
             165,
-            UNKNOWN_VERSION_ADDED
+            V_3_0_0
         );
 
         final Class<? extends OpenSearchException> exceptionClass;
