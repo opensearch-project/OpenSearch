@@ -34,6 +34,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Add dev help in gradle check CI failures ([4872](https://github.com/opensearch-project/OpenSearch/pull/4872))
 - Upgrade netty to 4.1.84.Final ([#4893](https://github.com/opensearch-project/OpenSearch/pull/4893))
 - Dependency updates: asm 9.3 -> 9.4, bytebuddy 1.12.12 -> 1.12.18 ([#4889](https://github.com/opensearch-project/OpenSearch/pull/4889))
+- Bump `tika` from 2.4.0 to 2.5.0 ([#4791](https://github.com/opensearch-project/OpenSearch/pull/4791))
 
 ### Changed
 - Dependency updates (httpcore, mockito, slf4j, httpasyncclient, commons-codec) ([#4308](https://github.com/opensearch-project/OpenSearch/pull/4308))
