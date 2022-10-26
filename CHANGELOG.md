@@ -196,6 +196,8 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
   - Addition of Missing Value feature in the GeoShape Aggregations.
 - Install and configure Log4j JUL Adapter for Lucene 9.4 ([#4754](https://github.com/opensearch-project/OpenSearch/pull/4754))
 - Added feature to ignore indexes starting with dot during shard limit validation.([#4695](https://github.com/opensearch-project/OpenSearch/pull/4695))
+- Added encryption/decryption for principal identifier tokens with extensions ([#4730](https://github.com/opensearch-project/OpenSearch/pull/4730))
+-
 ### Changed
 ### Deprecated
 ### Removed
