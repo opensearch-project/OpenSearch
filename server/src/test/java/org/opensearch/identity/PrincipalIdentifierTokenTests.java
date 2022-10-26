@@ -5,9 +5,6 @@
 
 package org.opensearch.identity;
 
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.io.stream.BytesStreamInput;
-import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -41,19 +38,18 @@ public class PrincipalIdentifierTokenTests extends OpenSearchTestCase {
             throw new Error(e);
         }
 
-
         String expectedToken = principal.getName();
         assertEquals(expectedToken, extractedTokenOne);
 
-//        TODO: Implement this so it compares the same input generating the same token via stream
-//        try (BytesStreamOutput out = new BytesStreamOutput()) {
-//            principalIdentifierToken.writeTo(out);
-//            out.flush();
-//            try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
-//                principalIdentifierToken = new PrincipalIdentifierToken(in);
-//
-//                assertEquals(expectedToken, principalIdentifierToken.getToken());
-//            }
-//        }
+        // TODO: Implement this so it compares the same input generating the same token via stream
+        // try (BytesStreamOutput out = new BytesStreamOutput()) {
+        // principalIdentifierToken.writeTo(out);
+        // out.flush();
+        // try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
+        // principalIdentifierToken = new PrincipalIdentifierToken(in);
+        //
+        // assertEquals(expectedToken, principalIdentifierToken.getToken());
+        // }
+        // }
     }
 }
