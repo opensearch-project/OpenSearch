@@ -294,7 +294,7 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
                 countDownLatch.countDown();
             }
         };
-        decommissionService.startDecommissionAction(decommissionAttribute, listener);
+        decommissionService.startDecommissionAction(new DecommissionRequest(decommissionAttribute), listener);
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
     }
 
