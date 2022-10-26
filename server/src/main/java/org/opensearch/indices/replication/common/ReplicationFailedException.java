@@ -38,4 +38,16 @@ public class ReplicationFailedException extends OpenSearchException {
     public ReplicationFailedException(StreamInput in) throws IOException {
         super(in);
     }
+
+    public ReplicationFailedException(Exception e) {
+        super(e);
+    }
+
+    public ReplicationFailedException(String msg) {
+        super(msg);
+    }
+
+    public ReplicationFailedException(String msg, Throwable cause) {
+        super(msg, cause);
+    }
 }

@@ -57,6 +57,10 @@ public final class HasAttributeNodeSelector implements NodeSelector {
         this.value = value;
     }
 
+    /**
+     * Select the {@link Node}s to which to send requests.
+     * @param nodes the {@link Node}s targeted for the sending requests
+     */
     @Override
     public void select(Iterable<Node> nodes) {
         Iterator<Node> itr = nodes.iterator();
@@ -70,6 +74,10 @@ public final class HasAttributeNodeSelector implements NodeSelector {
         }
     }
 
+    /**
+     * Compare two node selectors for equality
+     * @param o node selector instance to compare with
+     */
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -82,11 +90,17 @@ public final class HasAttributeNodeSelector implements NodeSelector {
         return Objects.equals(key, that.key) && Objects.equals(value, that.value);
     }
 
+    /**
+     * Calculate the hash code of the node selector
+     */
     @Override
     public int hashCode() {
         return Objects.hash(key, value);
     }
 
+    /**
+     * Convert this node selector to string representation
+     */
     @Override
     public String toString() {
         return key + "=" + value;

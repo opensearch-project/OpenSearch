@@ -5,6 +5,8 @@
 
 package org.opensearch.identity;
 
+import org.opensearch.authn.AccessToken;
+
 /**
  * Vends out access tokens
  *

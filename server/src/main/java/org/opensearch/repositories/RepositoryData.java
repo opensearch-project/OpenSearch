@@ -42,7 +42,6 @@ import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentParserUtils;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotState;
-import org.opensearch.snapshots.SnapshotsService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -238,7 +237,6 @@ public final class RepositoryData {
     /**
      * Returns the {@link Version} for the given snapshot or {@code null} if unknown.
      */
-    @Nullable
     public Version getVersion(SnapshotId snapshotId) {
         return snapshotVersions.get(snapshotId.getUUID());
     }
@@ -551,8 +549,6 @@ public final class RepositoryData {
         builder.startObject();
         // write the snapshots list
         builder.startArray(SNAPSHOTS);
-        final boolean shouldWriteIndexGens = SnapshotsService.useIndexGenerations(repoMetaVersion);
-        final boolean shouldWriteShardGens = SnapshotsService.useShardGenerations(repoMetaVersion);
         for (final SnapshotId snapshot : getSnapshotIds()) {
             builder.startObject();
             builder.field(NAME, snapshot.getName());
@@ -562,14 +558,12 @@ public final class RepositoryData {
             if (state != null) {
                 builder.field(STATE, state.value());
             }
-            if (shouldWriteIndexGens) {
-                builder.startObject(INDEX_METADATA_LOOKUP);
-                for (Map.Entry<IndexId, String> entry : indexMetaDataGenerations.lookup.getOrDefault(snapshot, Collections.emptyMap())
-                    .entrySet()) {
-                    builder.field(entry.getKey().getId(), entry.getValue());
-                }
-                builder.endObject();
+            builder.startObject(INDEX_METADATA_LOOKUP);
+            for (Map.Entry<IndexId, String> entry : indexMetaDataGenerations.lookup.getOrDefault(snapshot, Collections.emptyMap())
+                .entrySet()) {
+                builder.field(entry.getKey().getId(), entry.getValue());
             }
+            builder.endObject();
             final Version version = snapshotVersions.get(snapshotUUID);
             if (version != null) {
                 builder.field(VERSION, version.toString());
@@ -589,23 +583,15 @@ public final class RepositoryData {
                 builder.value(snapshotId.getUUID());
             }
             builder.endArray();
-            if (shouldWriteShardGens) {
-                builder.startArray(SHARD_GENERATIONS);
-                for (String gen : shardGenerations.getGens(indexId)) {
-                    builder.value(gen);
-                }
-                builder.endArray();
+            builder.startArray(SHARD_GENERATIONS);
+            for (String gen : shardGenerations.getGens(indexId)) {
+                builder.value(gen);
             }
+            builder.endArray();
             builder.endObject();
         }
         builder.endObject();
-        if (shouldWriteIndexGens) {
-            builder.field(MIN_VERSION, SnapshotsService.INDEX_GEN_IN_REPO_DATA_VERSION.toString());
-            builder.field(INDEX_METADATA_IDENTIFIERS, indexMetaDataGenerations.identifiers);
-        } else if (shouldWriteShardGens) {
-            // Add min version field to make it impossible for older OpenSearch versions to deserialize this object
-            builder.field(MIN_VERSION, SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION.toString());
-        }
+        builder.field(INDEX_METADATA_IDENTIFIERS, indexMetaDataGenerations.identifiers);
         builder.endObject();
         return builder;
     }
@@ -616,12 +602,8 @@ public final class RepositoryData {
 
     /**
      * Reads an instance of {@link RepositoryData} from x-content, loading the snapshots and indices metadata.
-     *
-     * @param fixBrokenShardGens set to {@code true} to filter out broken shard generations read from the {@code parser} via
-     *                           {@link ShardGenerations#fixShardGeneration}. Used to disable fixing broken generations when reading
-     *                           from cached bytes that we trust to not contain broken generations.
      */
-    public static RepositoryData snapshotsFromXContent(XContentParser parser, long genId, boolean fixBrokenShardGens) throws IOException {
+    public static RepositoryData snapshotsFromXContent(XContentParser parser, long genId) throws IOException {
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
 
         final Map<String, SnapshotId> snapshots = new HashMap<>();
@@ -639,16 +621,16 @@ public final class RepositoryData {
                     parseSnapshots(parser, snapshots, snapshotStates, snapshotVersions, indexMetaLookup);
                     break;
                 case INDICES:
-                    parseIndices(parser, fixBrokenShardGens, snapshots, indexSnapshots, indexLookup, shardGenerations);
+                    parseIndices(parser, snapshots, indexSnapshots, indexLookup, shardGenerations);
                     break;
                 case INDEX_METADATA_IDENTIFIERS:
                     XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
                     indexMetaIdentifiers = parser.mapStrings();
                     break;
                 case MIN_VERSION:
-                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.nextToken(), parser);
-                    final Version version = Version.fromString(parser.text());
-                    assert SnapshotsService.useShardGenerations(version);
+                    // ignore min_version
+                    // todo: remove in next version
+                    parser.nextToken();
                     break;
                 default:
                     XContentParserUtils.throwUnknownField(field, parser.getTokenLocation());
@@ -763,7 +745,6 @@ public final class RepositoryData {
      * {@code shardGenerations}.
      *
      * @param parser              x-content parser
-     * @param fixBrokenShardGens  whether or not to fix broken shard generation (see {@link #snapshotsFromXContent} for details)
      * @param snapshots           map of snapshot uuid to {@link SnapshotId} that was populated by {@link #parseSnapshots}
      * @param indexSnapshots      map of {@link IndexId} to list of {@link SnapshotId} that contain the given index
      * @param indexLookup         map of index uuid (as returned by {@link IndexId#getId}) to {@link IndexId}
@@ -771,7 +752,6 @@ public final class RepositoryData {
      */
     private static void parseIndices(
         XContentParser parser,
-        boolean fixBrokenShardGens,
         Map<String, SnapshotId> snapshots,
         Map<IndexId, List<SnapshotId>> indexSnapshots,
         Map<String, IndexId> indexLookup,
@@ -835,9 +815,6 @@ public final class RepositoryData {
             indexLookup.put(indexId.getId(), indexId);
             for (int i = 0; i < gens.size(); i++) {
                 String parsedGen = gens.get(i);
-                if (fixBrokenShardGens) {
-                    parsedGen = ShardGenerations.fixShardGeneration(parsedGen);
-                }
                 if (parsedGen != null) {
                     shardGenerations.put(indexId, i, parsedGen);
                 }

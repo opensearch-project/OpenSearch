@@ -40,7 +40,6 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.nodes.BaseNodeRequest;
 import org.opensearch.action.support.nodes.BaseNodeResponse;
 import org.opensearch.action.support.nodes.BaseNodesRequest;
 import org.opensearch.action.support.nodes.BaseNodesResponse;
@@ -65,6 +64,7 @@ import org.opensearch.index.store.Store;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
@@ -159,7 +159,8 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
                 nodeEnv.availableShardPaths(request.shardId)
             );
             if (shardStateMetadata != null) {
-                if (indicesService.getShardOrNull(shardId) == null) {
+                if (indicesService.getShardOrNull(shardId) == null
+                    && shardStateMetadata.indexDataLocation == ShardStateMetadata.IndexDataLocation.LOCAL) {
                     final String customDataPath;
                     if (request.getCustomDataPath() != null) {
                         customDataPath = request.getCustomDataPath();
@@ -307,7 +308,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
      *
      * @opensearch.internal
      */
-    public static class NodeRequest extends BaseNodeRequest {
+    public static class NodeRequest extends TransportRequest {
 
         private final ShardId shardId;
         @Nullable

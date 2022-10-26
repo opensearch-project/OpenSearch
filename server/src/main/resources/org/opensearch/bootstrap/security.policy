@@ -74,6 +74,12 @@ grant codeBase "${codebase.opensearch-plugin-classloader}" {
   permission java.lang.RuntimePermission "createClassLoader";
 };
 
+grant codeBase "${codebase.jackson-databind}" {
+  // needed by jackson-databind ObjectMapper.readValue
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
+};
+
 grant codeBase "${codebase.jna}" {
   // for registering native methods
   permission java.lang.RuntimePermission "accessDeclaredMembers";

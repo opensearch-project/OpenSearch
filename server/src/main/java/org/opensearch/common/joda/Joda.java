@@ -32,8 +32,6 @@
 
 package org.opensearch.common.joda;
 
-import org.opensearch.LegacyESVersion;
-import org.opensearch.Version;
 import org.opensearch.common.Strings;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.time.DateFormatter;
@@ -387,17 +385,6 @@ public class Joda {
             );
         }
     };
-
-    /**
-     * Checks if a pattern is Joda-style.
-     * Joda style patterns are not always compatible with java.time patterns.
-     * @param version - creation version of the index where pattern was used
-     * @param pattern - the pattern to check
-     * @return - true if pattern is joda style, otherwise false
-     */
-    public static boolean isJodaPattern(Version version, String pattern) {
-        return version.before(LegacyESVersion.V_7_0_0) && pattern.startsWith("8") == false;
-    }
 
     /**
      * parses epcoch timers

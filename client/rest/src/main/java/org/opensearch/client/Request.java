@@ -32,9 +32,9 @@
 
 package org.opensearch.client;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.entity.ContentType;
-import org.apache.http.nio.entity.NStringEntity;
+import org.apache.hc.core5.http.ContentType;
+import org.apache.hc.core5.http.HttpEntity;
+import org.apache.hc.core5.http.io.entity.StringEntity;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -133,7 +133,7 @@ public final class Request {
      * @param entity JSON string to be set as the entity body of the request.
      */
     public void setJsonEntity(String entity) {
-        setEntity(entity == null ? null : new NStringEntity(entity, ContentType.APPLICATION_JSON));
+        setEntity(entity == null ? null : new StringEntity(entity, ContentType.APPLICATION_JSON));
     }
 
     /**
@@ -176,6 +176,9 @@ public final class Request {
         return options;
     }
 
+    /**
+     * Convert request to string representation
+     */
     @Override
     public String toString() {
         StringBuilder b = new StringBuilder();
@@ -192,6 +195,10 @@ public final class Request {
         return b.append('}').toString();
     }
 
+    /**
+     * Compare two requests for equality
+     * @param obj request instance to compare with
+     */
     @Override
     public boolean equals(Object obj) {
         if (obj == null || (obj.getClass() != getClass())) {
@@ -209,6 +216,9 @@ public final class Request {
             && options.equals(other.options);
     }
 
+    /**
+     * Calculate the hash code of the request
+     */
     @Override
     public int hashCode() {
         return Objects.hash(method, endpoint, parameters, entity, options);

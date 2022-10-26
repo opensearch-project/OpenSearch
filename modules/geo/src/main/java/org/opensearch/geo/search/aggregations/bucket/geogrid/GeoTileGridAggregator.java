@@ -48,9 +48,9 @@ import java.util.Map;
  *
  * @opensearch.internal
  */
-public class GeoTileGridAggregator extends GeoGridAggregator<InternalGeoTileGrid> {
+class GeoTileGridAggregator extends GeoGridAggregator<GeoTileGrid> {
 
-    public GeoTileGridAggregator(
+    GeoTileGridAggregator(
         String name,
         AggregatorFactories factories,
         ValuesSource.Numeric valuesSource,
@@ -65,16 +65,17 @@ public class GeoTileGridAggregator extends GeoGridAggregator<InternalGeoTileGrid
     }
 
     @Override
-    InternalGeoTileGrid buildAggregation(String name, int requiredSize, List<InternalGeoGridBucket> buckets, Map<String, Object> metadata) {
-        return new InternalGeoTileGrid(name, requiredSize, buckets, metadata);
+    protected GeoTileGrid buildAggregation(String name, int requiredSize, List<BaseGeoGridBucket> buckets, Map<String, Object> metadata) {
+        return new GeoTileGrid(name, requiredSize, buckets, metadata);
     }
 
     @Override
-    public InternalGeoTileGrid buildEmptyAggregation() {
-        return new InternalGeoTileGrid(name, requiredSize, Collections.emptyList(), metadata());
+    public GeoTileGrid buildEmptyAggregation() {
+        return new GeoTileGrid(name, requiredSize, Collections.emptyList(), metadata());
     }
 
-    InternalGeoGridBucket newEmptyBucket() {
+    @Override
+    protected BaseGeoGridBucket newEmptyBucket() {
         return new InternalGeoTileGridBucket(0, 0, null);
     }
 }

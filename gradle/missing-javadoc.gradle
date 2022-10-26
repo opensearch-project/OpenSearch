@@ -105,6 +105,7 @@ configure([
   project(":libs:opensearch-secure-sm"),
   project(":libs:opensearch-ssl-config"),
   project(":libs:opensearch-x-content"),
+  project(":sandbox:libs:opensearch-authn"),
   project(":modules:aggs-matrix-stats"),
   project(":modules:analysis-common"),
   project(":modules:geo"),

@@ -64,7 +64,7 @@ thirdPartyAudit {
     'com.aayushatharva.brotli4j.encoder.Encoders',
     'com.aayushatharva.brotli4j.encoder.Encoder$Mode',
     'com.aayushatharva.brotli4j.encoder.Encoder$Parameters',
-    
+
     // from io.netty.handler.codec.protobuf.ProtobufDecoder (netty)
     'com.google.protobuf.ExtensionRegistry',
     'com.google.protobuf.MessageLite$Builder',
@@ -83,6 +83,12 @@ thirdPartyAudit {
     'org.bouncycastle.cert.X509v3CertificateBuilder',
     'org.bouncycastle.cert.jcajce.JcaX509CertificateConverter',
     'org.bouncycastle.operator.jcajce.JcaContentSignerBuilder',
+    'org.bouncycastle.openssl.PEMEncryptedKeyPair',
+    'org.bouncycastle.openssl.PEMParser',
+    'org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter',
+    'org.bouncycastle.openssl.jcajce.JceOpenSSLPKCS8DecryptorProviderBuilder',
+    'org.bouncycastle.openssl.jcajce.JcePEMDecryptorProviderBuilder',
+    'org.bouncycastle.pkcs.PKCS8EncryptedPrivateKeyInfo',
 
     // from io.netty.handler.ssl.JettyNpnSslEngine (netty)
     'org.eclipse.jetty.npn.NextProtoNego$ClientProvider',
@@ -102,13 +108,6 @@ thirdPartyAudit {
     'org.jboss.marshalling.MarshallerFactory',
     'org.jboss.marshalling.MarshallingConfiguration',
     'org.jboss.marshalling.Unmarshaller',
-
-    // from io.netty.util.internal.logging.InternalLoggerFactory (netty) - it's optional
-    'org.slf4j.helpers.FormattingTuple',
-    'org.slf4j.helpers.MessageFormatter',
-    'org.slf4j.Logger',
-    'org.slf4j.LoggerFactory',
-    'org.slf4j.spi.LocationAwareLogger',
 
     'com.github.luben.zstd.Zstd',
     'com.google.protobuf.ExtensionRegistryLite',

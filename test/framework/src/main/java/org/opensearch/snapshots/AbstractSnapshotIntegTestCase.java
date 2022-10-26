@@ -419,8 +419,7 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
                 Strings.toString(jsonBuilder).replace(Version.CURRENT.toString(), version.toString())
             ),
-            repositoryData.getGenId(),
-            randomBoolean()
+            repositoryData.getGenId()
         );
         Files.write(
             repoPath.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + repositoryData.getGenId()),
@@ -512,7 +511,7 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
             Collections.emptyList(),
             SnapshotState.FAILED,
             "failed on purpose",
-            SnapshotsService.OLD_SNAPSHOT_FORMAT,
+            Version.V_2_0_0,
             0L,
             0L,
             0,
@@ -527,7 +526,7 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
                 getRepositoryData(repoName).getGenId(),
                 state.metadata(),
                 snapshotInfo,
-                SnapshotsService.OLD_SNAPSHOT_FORMAT,
+                Version.V_2_0_0,
                 Function.identity(),
                 f
             )

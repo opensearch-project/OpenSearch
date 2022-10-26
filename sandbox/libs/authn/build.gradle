@@ -1,0 +1,69 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ *
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
+apply plugin: 'opensearch.build'
+apply plugin: 'opensearch.publish'
+
+dependencies {
+  implementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.jackson}"
+  implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  implementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
+
+  implementation 'org.apache.shiro:shiro-core:1.9.1'
+  // Needed for shiro
+  implementation "org.slf4j:slf4j-api:${versions.slf4j}"
+  implementation "org.bouncycastle:bcprov-jdk15on:${versions.bouncycastle}"
+
+  testImplementation(project(":test:framework")) {
+    exclude group: 'org.opensearch.sandbox', module: 'opensearch-authn'
+  }
+}
+
+tasks.named('forbiddenApisMain').configure {
+  replaceSignatureFiles 'jdk-signatures'
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /jackson-.*/, to: 'jackson'
+}
+
+thirdPartyAudit.ignoreMissingClasses(
+  'org.apache.commons.beanutils.BeanUtilsBean',
+  'org.apache.commons.beanutils.ConvertUtilsBean',
+  'org.apache.commons.beanutils.PropertyUtilsBean',
+  'org.apache.commons.beanutils.SuppressPropertiesBeanIntrospector',
+  'org.apache.commons.configuration2.interpol.ConfigurationInterpolator',
+  'org.slf4j.impl.StaticLoggerBinder',
+  'org.slf4j.impl.StaticMDCBinder',
+  'org.slf4j.impl.StaticMarkerBinder',
+  'org.yaml.snakeyaml.DumperOptions',
+  'org.yaml.snakeyaml.DumperOptions$FlowStyle',
+  'org.yaml.snakeyaml.DumperOptions$LineBreak',
+  'org.yaml.snakeyaml.DumperOptions$ScalarStyle',
+  'org.yaml.snakeyaml.DumperOptions$Version',
+  'org.yaml.snakeyaml.emitter.Emitter',
+  'org.yaml.snakeyaml.error.Mark',
+  'org.yaml.snakeyaml.error.MarkedYAMLException',
+  'org.yaml.snakeyaml.error.YAMLException',
+  'org.yaml.snakeyaml.events.AliasEvent',
+  'org.yaml.snakeyaml.events.CollectionStartEvent',
+  'org.yaml.snakeyaml.events.Event',
+  'org.yaml.snakeyaml.events.Event$ID',
+  'org.yaml.snakeyaml.events.ImplicitTuple',
+  'org.yaml.snakeyaml.events.MappingStartEvent',
+  'org.yaml.snakeyaml.events.NodeEvent',
+  'org.yaml.snakeyaml.events.ScalarEvent',
+  'org.yaml.snakeyaml.nodes.NodeId',
+  'org.yaml.snakeyaml.nodes.Tag',
+  'org.yaml.snakeyaml.parser.ParserImpl',
+  'org.yaml.snakeyaml.resolver.Resolver',
+)

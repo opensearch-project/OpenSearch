@@ -244,10 +244,45 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
     }
 
     public void testSuccessfulDecommissionStatusMetadataUpdate() throws InterruptedException {
+        Map<DecommissionStatus, Set<DecommissionStatus>> decommissionStateTransitionMap = Map.of(
+            DecommissionStatus.INIT,
+            Set.of(DecommissionStatus.DRAINING, DecommissionStatus.IN_PROGRESS),
+            DecommissionStatus.DRAINING,
+            Set.of(DecommissionStatus.IN_PROGRESS),
+            DecommissionStatus.IN_PROGRESS,
+            Set.of(DecommissionStatus.SUCCESSFUL)
+        );
+
+        for (Map.Entry<DecommissionStatus, Set<DecommissionStatus>> entry : decommissionStateTransitionMap.entrySet()) {
+            for (DecommissionStatus val : entry.getValue()) {
+                verifyDecommissionStatusTransition(entry.getKey(), val);
+            }
+        }
+    }
+
+    public void testSuccessfulDecommissionStatusMetadataUpdateForFailedState() throws InterruptedException {
+        Map<DecommissionStatus, Set<DecommissionStatus>> decommissionStateTransitionMap = Map.of(
+            DecommissionStatus.INIT,
+            Set.of(DecommissionStatus.FAILED),
+            DecommissionStatus.DRAINING,
+            Set.of(DecommissionStatus.FAILED),
+            DecommissionStatus.IN_PROGRESS,
+            Set.of(DecommissionStatus.FAILED)
+        );
+
+        for (Map.Entry<DecommissionStatus, Set<DecommissionStatus>> entry : decommissionStateTransitionMap.entrySet()) {
+            for (DecommissionStatus val : entry.getValue()) {
+                verifyDecommissionStatusTransition(entry.getKey(), val);
+            }
+        }
+    }
+
+    private void verifyDecommissionStatusTransition(DecommissionStatus currentStatus, DecommissionStatus newStatus)
+        throws InterruptedException {
         final CountDownLatch countDownLatch = new CountDownLatch(1);
         DecommissionAttributeMetadata oldMetadata = new DecommissionAttributeMetadata(
             new DecommissionAttribute("zone", "zone-1"),
-            DecommissionStatus.IN_PROGRESS
+            currentStatus
         );
         ClusterState state = clusterService.state();
         Metadata metadata = state.metadata();
@@ -256,25 +291,23 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
         state = ClusterState.builder(state).metadata(mdBuilder).build();
         setState(clusterService, state);
 
-        decommissionController.updateMetadataWithDecommissionStatus(
-            DecommissionStatus.SUCCESSFUL,
-            new ActionListener<DecommissionStatus>() {
-                @Override
-                public void onResponse(DecommissionStatus status) {
-                    assertEquals(DecommissionStatus.SUCCESSFUL, status);
-                    countDownLatch.countDown();
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    fail("decommission status update failed");
-                }
+        decommissionController.updateMetadataWithDecommissionStatus(newStatus, new ActionListener<DecommissionStatus>() {
+            @Override
+            public void onResponse(DecommissionStatus status) {
+                assertEquals(newStatus, status);
+                countDownLatch.countDown();
             }
-        );
+
+            @Override
+            public void onFailure(Exception e) {
+                fail("decommission status update failed");
+                countDownLatch.countDown();
+            }
+        });
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
         ClusterState newState = clusterService.getClusterApplierService().state();
         DecommissionAttributeMetadata decommissionAttributeMetadata = newState.metadata().decommissionAttributeMetadata();
-        assertEquals(decommissionAttributeMetadata.status(), DecommissionStatus.SUCCESSFUL);
+        assertEquals(decommissionAttributeMetadata.status(), newStatus);
     }
 
     private static class AdjustConfigurationForExclusions implements ClusterStateObserver.Listener {

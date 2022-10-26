@@ -47,6 +47,7 @@ List projects = [
   'distribution:archives:freebsd-tar',
   'distribution:archives:no-jdk-freebsd-tar',
   'distribution:archives:linux-arm64-tar',
+  'distribution:archives:no-jdk-linux-arm64-tar',
   'distribution:archives:linux-s390x-tar',
   'distribution:archives:linux-tar',
   'distribution:archives:no-jdk-linux-tar',
@@ -57,9 +58,11 @@ List projects = [
   'distribution:docker:docker-build-context',
   'distribution:docker:docker-export',
   'distribution:packages:arm64-deb',
+  'distribution:packages:no-jdk-arm64-deb',
   'distribution:packages:deb',
   'distribution:packages:no-jdk-deb',
   'distribution:packages:arm64-rpm',
+  'distribution:packages:no-jdk-arm64-rpm',
   'distribution:packages:rpm',
   'distribution:packages:no-jdk-rpm',
   'distribution:bwc:bugfix',
@@ -131,6 +134,10 @@ project(':build-tools').projectDir = new File(rootProject.projectDir, 'buildSrc'
 project(':build-tools:reaper').projectDir = new File(rootProject.projectDir, 'buildSrc/reaper')
 
 project(":libs").children.each { libsProject ->
+  libsProject.name = "opensearch-${libsProject.name}"
+}
+
+project(":sandbox:libs").children.each { libsProject ->
   libsProject.name = "opensearch-${libsProject.name}"
 }
 
