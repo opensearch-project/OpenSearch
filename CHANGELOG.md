@@ -20,6 +20,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Bump protobuf-java to 3.21.7 in repository-gcs and repository-hdfs ([#4890](https://github.com/opensearch-project/OpenSearch/pull/4890))
 - Upgrade netty to 4.1.84.Final ([#4893](https://github.com/opensearch-project/OpenSearch/pull/4893))
 - Bump reactor-netty-http to 1.0.24 in repository-azure ([#4920](https://github.com/opensearch-project/OpenSearch/pull/4920))
+- Bump `tika` from 2.4.0 to 2.5.0 ([#4929](https://github.com/opensearch-project/OpenSearch/pull/4929))
 
 ### Changed
 - Dependency updates (httpcore, mockito, slf4j, httpasyncclient, commons-codec) ([#4308](https://github.com/opensearch-project/OpenSearch/pull/4308))
