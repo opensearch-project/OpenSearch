@@ -121,7 +121,6 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
                 .build()
         );
         ensureGreen();
-        indexRandomDocs("test-idx-1", 100);
 
         logger.info("--> snapshot");
         final CreateSnapshotResponse createSnapshotResponse = client.admin()
