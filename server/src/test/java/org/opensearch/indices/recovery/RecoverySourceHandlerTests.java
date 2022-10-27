@@ -691,9 +691,15 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
         ) {
 
             @Override
-            void phase1(IndexCommit snapshot, long startingSeqNo, IntSupplier translogOps, ActionListener<SendFileResult> listener) {
+            void phase1(
+                IndexCommit snapshot,
+                long startingSeqNo,
+                IntSupplier translogOps,
+                ActionListener<SendFileResult> listener,
+                boolean skipCreateRetentionLeaseStep
+            ) {
                 phase1Called.set(true);
-                super.phase1(snapshot, startingSeqNo, translogOps, listener);
+                super.phase1(snapshot, startingSeqNo, translogOps, listener, skipCreateRetentionLeaseStep);
             }
 
             @Override
@@ -993,7 +999,7 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
         final StepListener<RecoverySourceHandler.SendFileResult> phase1Listener = new StepListener<>();
         try {
             final CountDownLatch latch = new CountDownLatch(1);
-            handler.phase1(DirectoryReader.listCommits(dir).get(0), 0, () -> 0, new LatchedActionListener<>(phase1Listener, latch));
+            handler.phase1(DirectoryReader.listCommits(dir).get(0), 0, () -> 0, new LatchedActionListener<>(phase1Listener, latch), false);
             latch.await();
             phase1Listener.result();
         } catch (Exception e) {

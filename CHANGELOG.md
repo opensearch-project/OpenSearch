@@ -109,7 +109,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Migrate client transports to Apache HttpClient / Core 5.x ([#4459](https://github.com/opensearch-project/OpenSearch/pull/4459))
 - Refactored BalancedAllocator.Balancer to LocalShardsBalancer ([#4761](https://github.com/opensearch-project/OpenSearch/pull/4761))
 - Fail weight update when decommission ongoing and fail decommission when attribute not weighed away ([#4839](https://github.com/opensearch-project/OpenSearch/pull/4839))
-- [Remote Store] Remove PRRL creation/deletion in replica peer recovery ([#4954](https://github.com/opensearch-project/OpenSearch/pull/4954))
+- [Remote Store] Remove PRRL creation/deletion in peer recovery of remote store enabled replica ([#4954](https://github.com/opensearch-project/OpenSearch/pull/4954))
 
 ### Deprecated
 ### Removed

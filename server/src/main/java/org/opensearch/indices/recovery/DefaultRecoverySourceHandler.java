@@ -161,7 +161,7 @@ public class DefaultRecoverySourceHandler extends RecoverySourceHandler {
 
                 deleteRetentionLeaseStep.whenComplete(ignored -> {
                     assert Transports.assertNotTransportThread(this + "[phase1]");
-                    phase1(wrappedSafeCommit.get(), startingSeqNo, () -> estimateNumOps, sendFileStep);
+                    phase1(wrappedSafeCommit.get(), startingSeqNo, () -> estimateNumOps, sendFileStep, false);
                 }, onFailure);
 
             } catch (final Exception e) {
