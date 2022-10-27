@@ -97,7 +97,7 @@ import java.util.stream.StreamSupport;
  * RecoverySourceHandler handles the three phases of shard recovery, which is
  * everything relating to copying the segment files as well as sending translog
  * operations across the wire once the segments have been copied.
- *
+ * <p>
  * Note: There is always one source handler per recovery that handles all the
  * file and translog transfer. This handler is completely isolated from other recoveries
  * while the {@link RateLimiter} passed via {@link RecoverySettings} is shared across recoveries
@@ -106,7 +106,7 @@ import java.util.stream.StreamSupport;
  *
  * @opensearch.internal
  */
-public class RecoverySourceHandler {
+public abstract class RecoverySourceHandler {
 
     protected final Logger logger;
     // Shard that is going to be recovered (the "source")
@@ -435,8 +435,9 @@ public class RecoverySourceHandler {
 
     /**
      * Counts the number of history operations from the starting sequence number
-     * @param startingSeqNo   the starting sequence number to count; included
-     * @return                number of history operations
+     *
+     * @param startingSeqNo the starting sequence number to count; included
+     * @return number of history operations
      */
     private int countNumberOfHistoryOperations(long startingSeqNo) throws IOException {
         return shard.countNumberOfHistoryOperations(PEER_RECOVERY_NAME, startingSeqNo, Long.MAX_VALUE);

@@ -215,7 +215,7 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
                 });
             }
         };
-        RecoverySourceHandler handler = new RecoverySourceHandler(
+        RecoverySourceHandler handler = new DefaultRecoverySourceHandler(
             null,
             new AsyncRecoveryTarget(target, recoveryExecutor),
             threadPool,
@@ -296,7 +296,7 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
                 listener.onResponse(checkpointOnTarget.get());
             }
         };
-        RecoverySourceHandler handler = new RecoverySourceHandler(
+        RecoverySourceHandler handler = new DefaultRecoverySourceHandler(
             shard,
             new AsyncRecoveryTarget(recoveryTarget, threadPool.generic()),
             threadPool,
@@ -359,7 +359,7 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
                 }
             }
         };
-        RecoverySourceHandler handler = new RecoverySourceHandler(
+        RecoverySourceHandler handler = new DefaultRecoverySourceHandler(
             shard,
             new AsyncRecoveryTarget(recoveryTarget, threadPool.generic()),
             threadPool,
@@ -433,7 +433,7 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
         Randomness.shuffle(operations);
         List<Translog.Operation> skipOperations = randomSubsetOf(operations);
         Translog.Snapshot snapshot = newTranslogSnapshot(operations, skipOperations);
-        RecoverySourceHandler handler = new RecoverySourceHandler(
+        RecoverySourceHandler handler = new DefaultRecoverySourceHandler(
             shard,
             new AsyncRecoveryTarget(target, recoveryExecutor),
             threadPool,
@@ -552,7 +552,7 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
             failedEngine.set(true);
             return null;
         }).when(mockShard).failShard(any(), any());
-        RecoverySourceHandler handler = new RecoverySourceHandler(
+        RecoverySourceHandler handler = new DefaultRecoverySourceHandler(
             mockShard,
             new AsyncRecoveryTarget(target, recoveryExecutor),
             threadPool,
@@ -627,7 +627,7 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
             failedEngine.set(true);
             return null;
         }).when(mockShard).failShard(any(), any());
-        RecoverySourceHandler handler = new RecoverySourceHandler(
+        RecoverySourceHandler handler = new DefaultRecoverySourceHandler(
             mockShard,
             new AsyncRecoveryTarget(target, recoveryExecutor),
             threadPool,
@@ -786,7 +786,7 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
         };
         final int maxConcurrentChunks = between(1, 8);
         final int chunkSize = between(1, 32);
-        final RecoverySourceHandler handler = new RecoverySourceHandler(
+        final RecoverySourceHandler handler = new DefaultRecoverySourceHandler(
             shard,
             recoveryTarget,
             threadPool,
@@ -859,7 +859,7 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
         };
         final int maxConcurrentChunks = between(1, 4);
         final int chunkSize = between(1, 16);
-        final RecoverySourceHandler handler = new RecoverySourceHandler(
+        final RecoverySourceHandler handler = new DefaultRecoverySourceHandler(
             null,
             new AsyncRecoveryTarget(recoveryTarget, recoveryExecutor),
             threadPool,
@@ -1006,7 +1006,7 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
     public void testVerifySeqNoStatsWhenRecoverWithSyncId() throws Exception {
         IndexShard shard = mock(IndexShard.class);
         when(shard.state()).thenReturn(IndexShardState.STARTED);
-        RecoverySourceHandler handler = new RecoverySourceHandler(
+        RecoverySourceHandler handler = new DefaultRecoverySourceHandler(
             shard,
             new TestRecoveryTargetHandler(),
             threadPool,
