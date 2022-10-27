@@ -12,6 +12,9 @@ setup:
 
 ---
 "Single point test":
+  - skip:
+      version: " - 2.3.99"
+      reason: "geojson format is supported in 2.4 and above"
   - do:
       bulk:
         refresh: true
@@ -75,6 +78,9 @@ setup:
 
 ---
 "Multi points test":
+  - skip:
+      version: " - 2.3.99"
+      reason: "geojson format is supported in 2.4 and above"
   - do:
       bulk:
         refresh: true

@@ -12,6 +12,7 @@ import org.opensearch.action.ActionType;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.cluster.decommission.DecommissionAttribute;
+import org.opensearch.common.unit.TimeValue;
 
 /**
  * Register decommission request builder
@@ -33,6 +34,16 @@ public class DecommissionRequestBuilder extends ClusterManagerNodeOperationReque
      */
     public DecommissionRequestBuilder setDecommissionedAttribute(DecommissionAttribute decommissionAttribute) {
         request.setDecommissionAttribute(decommissionAttribute);
+        return this;
+    }
+
+    public DecommissionRequestBuilder setDelayTimeOut(TimeValue delayTimeOut) {
+        request.setDelayTimeout(delayTimeOut);
+        return this;
+    }
+
+    public DecommissionRequestBuilder setNoDelay(boolean noDelay) {
+        request.setNoDelay(noDelay);
         return this;
     }
 }

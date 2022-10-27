@@ -164,6 +164,12 @@ public class GeoPointFieldMapperTests extends FieldMapperTestCase2<GeoPointField
         assertThat(doc.rootDoc().getFields("field"), arrayWithSize(4));
     }
 
+    public void testLatLonInArrayMoreThanThreeValues() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_point").field("ignore_z_value", true)));
+        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.array("field", 1.2, 1.3, 1.4, 1.5))));
+        assertThat(e.getCause().getMessage(), containsString("[geo_point] field type does not accept more than 3 values"));
+    }
+
     public void testLonLatArray() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         ParsedDocument doc = mapper.parse(source(b -> b.startArray("field").value(1.3).value(1.2).endArray()));
