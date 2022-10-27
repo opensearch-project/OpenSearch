@@ -346,7 +346,13 @@ public abstract class RecoverySourceHandler {
      * segments that are missing. Only segments that have the same size and
      * checksum can be reused
      */
-    void phase1(IndexCommit snapshot, long startingSeqNo, IntSupplier translogOps, ActionListener<SendFileResult> listener) {
+    void phase1(
+        IndexCommit snapshot,
+        long startingSeqNo,
+        IntSupplier translogOps,
+        ActionListener<SendFileResult> listener,
+        boolean skipCreateRetentionLeaseStep
+    ) {
         cancellableThreads.checkForCancel();
         final Store store = shard.store();
         try {
@@ -444,7 +450,12 @@ public abstract class RecoverySourceHandler {
                     listener::onFailure
                 );
 
-                sendFilesStep.whenComplete(r -> createRetentionLease(startingSeqNo, createRetentionLeaseStep), listener::onFailure);
+                // When doing peer recovery of remote store enabled replica, retention leases are not required.
+                if (skipCreateRetentionLeaseStep) {
+                    sendFilesStep.whenComplete(r -> createRetentionLeaseStep.onResponse(null), listener::onFailure);
+                } else {
+                    sendFilesStep.whenComplete(r -> createRetentionLease(startingSeqNo, createRetentionLeaseStep), listener::onFailure);
+                }
 
                 createRetentionLeaseStep.whenComplete(retentionLease -> {
                     final long lastKnownGlobalCheckpoint = shard.getLastKnownGlobalCheckpoint();
