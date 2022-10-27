@@ -87,7 +87,7 @@ public class InternalDistributionArchiveSetupPlugin implements Plugin<Project> {
         configureTarDefaults(project);
     }
 
-    private Action<Task> configure(String name) {
+    static Action<Task> configure(String name) {
         return (Task task) -> task.onlyIf(s -> {
             if (OperatingSystem.current().isWindows()) {
                 // On Windows, include only Windows distributions and integTestZip
