@@ -680,7 +680,7 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
         final AtomicBoolean phase1Called = new AtomicBoolean();
         final AtomicBoolean prepareTargetForTranslogCalled = new AtomicBoolean();
         final AtomicBoolean phase2Called = new AtomicBoolean();
-        final RecoverySourceHandler handler = new RecoverySourceHandler(
+        final RecoverySourceHandler handler = new DefaultRecoverySourceHandler(
             shard,
             mock(RecoveryTargetHandler.class),
             threadPool,
@@ -967,7 +967,7 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
             }
         };
         final StartRecoveryRequest startRecoveryRequest = getStartRecoveryRequest();
-        final RecoverySourceHandler handler = new RecoverySourceHandler(
+        final RecoverySourceHandler handler = new DefaultRecoverySourceHandler(
             shard,
             recoveryTarget,
             threadPool,

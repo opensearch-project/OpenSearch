@@ -21,14 +21,27 @@ public class RecoverySourceHandlerFactory {
         StartRecoveryRequest request,
         RecoverySettings recoverySettings
     ) {
-        return new DefaultRecoverySourceHandler(
-            shard,
-            recoveryTarget,
-            shard.getThreadPool(),
-            request,
-            Math.toIntExact(recoverySettings.getChunkSize().getBytes()),
-            recoverySettings.getMaxConcurrentFileChunks(),
-            recoverySettings.getMaxConcurrentOperations()
-        );
+        boolean isReplicaRecoveryWithRemoteTranslog = request.isPrimaryRelocation() == false && shard.isRemoteTranslogEnabled();
+        if (isReplicaRecoveryWithRemoteTranslog) {
+            return new RemoteStoreReplicaRecoverySourceHandler(
+                shard,
+                recoveryTarget,
+                shard.getThreadPool(),
+                request,
+                Math.toIntExact(recoverySettings.getChunkSize().getBytes()),
+                recoverySettings.getMaxConcurrentFileChunks(),
+                recoverySettings.getMaxConcurrentOperations()
+            );
+        } else {
+            return new DefaultRecoverySourceHandler(
+                shard,
+                recoveryTarget,
+                shard.getThreadPool(),
+                request,
+                Math.toIntExact(recoverySettings.getChunkSize().getBytes()),
+                recoverySettings.getMaxConcurrentFileChunks(),
+                recoverySettings.getMaxConcurrentOperations()
+            );
+        }
     }
 }
