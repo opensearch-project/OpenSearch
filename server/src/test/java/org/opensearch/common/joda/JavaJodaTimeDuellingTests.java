@@ -874,13 +874,6 @@ public class JavaJodaTimeDuellingTests extends OpenSearchTestCase {
         assertSamePrinterOutput(format, javaDate, jodaDate, dateFormatter, jodaDateFormatter);
     }
 
-    private void assertSamePrinterOutput(String format, ZonedDateTime javaDate, DateTime jodaDate, Locale locale) {
-        DateFormatter dateFormatter = DateFormatter.forPattern(format).withLocale(locale);
-        DateFormatter jodaDateFormatter = Joda.forPattern(format).withLocale(locale);
-
-        assertSamePrinterOutput(format, javaDate, jodaDate, dateFormatter, jodaDateFormatter);
-    }
-
     private void assertSamePrinterOutput(
         String format,
         ZonedDateTime javaDate,
@@ -905,12 +898,6 @@ public class JavaJodaTimeDuellingTests extends OpenSearchTestCase {
     private void assertSameDate(String input, String format) {
         DateFormatter jodaFormatter = Joda.forPattern(format);
         DateFormatter javaFormatter = DateFormatter.forPattern(format);
-        assertSameDate(input, format, jodaFormatter, javaFormatter);
-    }
-
-    private void assertSameDate(String input, String format, Locale locale) {
-        DateFormatter jodaFormatter = Joda.forPattern(format).withLocale(locale);
-        DateFormatter javaFormatter = DateFormatter.forPattern(format).withLocale(locale);
         assertSameDate(input, format, jodaFormatter, javaFormatter);
     }
 

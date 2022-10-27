@@ -80,15 +80,10 @@ import org.opensearch.client.RestClient;
 import org.opensearch.client.RestClientBuilder;
 import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.RestoreInProgress;
-import org.opensearch.cluster.SnapshotDeletionsInProgress;
-import org.opensearch.cluster.SnapshotsInProgress;
 import org.opensearch.cluster.coordination.OpenSearchNodeCommand;
 import org.opensearch.cluster.health.ClusterHealthStatus;
-import org.opensearch.cluster.metadata.IndexGraveyard;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
-import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
@@ -141,7 +136,6 @@ import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndicesQueryCache;
 import org.opensearch.indices.IndicesRequestCache;
 import org.opensearch.indices.store.IndicesStore;
-import org.opensearch.ingest.IngestMetadata;
 import org.opensearch.monitor.os.OsInfo;
 import org.opensearch.node.NodeMocksPlugin;
 import org.opensearch.plugins.NetworkPlugin;
@@ -149,7 +143,6 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.rest.action.RestCancellableNodeClient;
 import org.opensearch.script.MockScriptService;
-import org.opensearch.script.ScriptMetadata;
 import org.opensearch.search.MockSearchService;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchService;
@@ -1246,37 +1239,6 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 );
             }
         }
-    }
-
-    private static final Set<String> SAFE_METADATA_CUSTOMS = Collections.unmodifiableSet(
-        new HashSet<>(Arrays.asList(IndexGraveyard.TYPE, IngestMetadata.TYPE, RepositoriesMetadata.TYPE, ScriptMetadata.TYPE))
-    );
-
-    private static final Set<String> SAFE_CUSTOMS = Collections.unmodifiableSet(
-        new HashSet<>(Arrays.asList(RestoreInProgress.TYPE, SnapshotDeletionsInProgress.TYPE, SnapshotsInProgress.TYPE))
-    );
-
-    /**
-     * Remove any customs except for customs that we know all clients understand.
-     *
-     * @param clusterState the cluster state to remove possibly-unknown customs from
-     * @return the cluster state with possibly-unknown customs removed
-     */
-    private ClusterState removePluginCustoms(final ClusterState clusterState) {
-        final ClusterState.Builder builder = ClusterState.builder(clusterState);
-        clusterState.customs().keysIt().forEachRemaining(key -> {
-            if (SAFE_CUSTOMS.contains(key) == false) {
-                builder.removeCustom(key);
-            }
-        });
-        final Metadata.Builder mdBuilder = Metadata.builder(clusterState.metadata());
-        clusterState.metadata().customs().keysIt().forEachRemaining(key -> {
-            if (SAFE_METADATA_CUSTOMS.contains(key) == false) {
-                mdBuilder.removeCustom(key);
-            }
-        });
-        builder.metadata(mdBuilder);
-        return builder.build();
     }
 
     /**
