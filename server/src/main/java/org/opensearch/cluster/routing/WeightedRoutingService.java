@@ -19,7 +19,6 @@ import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPu
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
-import org.opensearch.cluster.decommission.DecommissionAttribute;
 import org.opensearch.cluster.decommission.DecommissionAttributeMetadata;
 import org.opensearch.cluster.decommission.DecommissionStatus;
 import org.opensearch.cluster.metadata.Metadata;
@@ -165,8 +164,14 @@ public class WeightedRoutingService {
         DecommissionAttributeMetadata decommissionAttributeMetadata = state.metadata().decommissionAttributeMetadata();
         if (decommissionAttributeMetadata != null
             && decommissionAttributeMetadata.status().equals(DecommissionStatus.FAILED) == false
-            && Objects.equals(request.getWeightedRouting().attributeName(), decommissionAttributeMetadata.decommissionAttribute().attributeName())
-            && Objects.equals(request.getWeightedRouting().weights().get(decommissionAttributeMetadata.decommissionAttribute().attributeValue()), 0.0) == false) {
+            && Objects.equals(
+                request.getWeightedRouting().attributeName(),
+                decommissionAttributeMetadata.decommissionAttribute().attributeName()
+            )
+            && Objects.equals(
+                request.getWeightedRouting().weights().get(decommissionAttributeMetadata.decommissionAttribute().attributeValue()),
+                0.0
+            ) == false) {
             throw new IllegalStateException(
                 "a decommission action is ongoing with status ["
                     + decommissionAttributeMetadata.status().status()
