@@ -115,10 +115,7 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         createRepository("test-repo", "fs");
         createIndex(
             indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "0")
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "1")
-                .build()
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "0").put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "1").build()
         );
         ensureGreen();
 
@@ -152,8 +149,11 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertIndexingBlocked(indexName);
         assertIndexSettingChangeBlocked(indexName);
         assertTrue(client.admin().indices().prepareDelete(indexName).get().isAcknowledged());
-        assertThrows("Expect index to not exist", IndexNotFoundException.class,
-            () -> client.admin().indices().prepareGetIndex().setIndices(indexName).execute().actionGet());
+        assertThrows(
+            "Expect index to not exist",
+            IndexNotFoundException.class,
+            () -> client.admin().indices().prepareGetIndex().setIndices(indexName).execute().actionGet()
+        );
     }
 
     private void assertIndexingBlocked(String index) {
