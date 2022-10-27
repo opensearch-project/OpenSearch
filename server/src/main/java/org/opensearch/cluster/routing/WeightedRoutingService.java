@@ -19,6 +19,7 @@ import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPu
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
+import org.opensearch.cluster.decommission.DecommissionAttribute;
 import org.opensearch.cluster.decommission.DecommissionAttributeMetadata;
 import org.opensearch.cluster.decommission.DecommissionStatus;
 import org.opensearch.cluster.metadata.Metadata;
@@ -34,6 +35,7 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
 
@@ -70,8 +72,8 @@ public class WeightedRoutingService {
         clusterService.submitStateUpdateTask("update_weighted_routing", new ClusterStateUpdateTask(Priority.URGENT) {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                // verify currently no decommission action is ongoing
-                ensureNoOngoingDecommissionAction(currentState);
+                // verify weights will not be updated for a decommissioned attribute
+                ensureNoWeightUpdateForDecommissionedAttribute(currentState, request);
                 Metadata metadata = currentState.metadata();
                 Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
                 WeightedRoutingMetadata weightedRoutingMetadata = metadata.custom(WeightedRoutingMetadata.TYPE);
@@ -159,9 +161,12 @@ public class WeightedRoutingService {
         }
     }
 
-    public void ensureNoOngoingDecommissionAction(ClusterState state) {
+    public void ensureNoWeightUpdateForDecommissionedAttribute(ClusterState state, ClusterPutWeightedRoutingRequest request) {
         DecommissionAttributeMetadata decommissionAttributeMetadata = state.metadata().decommissionAttributeMetadata();
-        if (decommissionAttributeMetadata != null && decommissionAttributeMetadata.status().equals(DecommissionStatus.FAILED) == false) {
+        if (decommissionAttributeMetadata != null
+            && decommissionAttributeMetadata.status().equals(DecommissionStatus.FAILED) == false
+            && Objects.equals(request.getWeightedRouting().attributeName(), decommissionAttributeMetadata.decommissionAttribute().attributeName())
+            && Objects.equals(request.getWeightedRouting().weights().get(decommissionAttributeMetadata.decommissionAttribute().attributeValue()), 0.0) == false) {
             throw new IllegalStateException(
                 "a decommission action is ongoing with status ["
                     + decommissionAttributeMetadata.status().status()
