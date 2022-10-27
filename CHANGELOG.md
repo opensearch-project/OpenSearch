@@ -175,7 +175,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - [BUG]: Allow decommission to support delay timeout ([#4930](https://github.com/opensearch-project/OpenSearch/pull/4930))
 - Fix failing test: VerifyVersionConstantsIT ([#4946](https://github.com/opensearch-project/OpenSearch/pull/4946))
 - Fixed compression support for h2c protocol ([#4944](https://github.com/opensearch-project/OpenSearch/pull/4944))
-
+- Fix for failing checkExtraction, checkLicense and checkNotice tasks for windows gradle check ([#4941](https://github.com/opensearch-project/OpenSearch/pull/4941))
 ### Security
 - CVE-2022-25857 org.yaml:snakeyaml DOS vulnerability ([#4341](https://github.com/opensearch-project/OpenSearch/pull/4341))
 
