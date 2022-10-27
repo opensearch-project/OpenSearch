@@ -99,6 +99,7 @@ import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.opensearch.indices.recovery.AsyncRecoveryTarget;
+import org.opensearch.indices.recovery.DefaultRecoverySourceHandler;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryFailedException;
 import org.opensearch.indices.recovery.RecoveryResponse;
@@ -864,7 +865,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         int fileChunkSizeInBytes = Math.toIntExact(
             randomBoolean() ? RecoverySettings.DEFAULT_CHUNK_SIZE.getBytes() : randomIntBetween(1, 10 * 1024 * 1024)
         );
-        final RecoverySourceHandler recovery = new RecoverySourceHandler(
+        final RecoverySourceHandler recovery = new DefaultRecoverySourceHandler(
             primary,
             new AsyncRecoveryTarget(recoveryTarget, threadPool.generic()),
             threadPool,
