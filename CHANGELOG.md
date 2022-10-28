@@ -85,7 +85,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Fix a bug on handling an invalid array value for point type field #4900([#4900](https://github.com/opensearch-project/OpenSearch/pull/4900))
 - Fix decommission status update to non leader nodes ([4800](https://github.com/opensearch-project/OpenSearch/pull/4800))
 - Fix bug in AwarenessAttributeDecommissionIT([4822](https://github.com/opensearch-project/OpenSearch/pull/4822))
-
+- Fix for failing checkExtraction, checkLicense and checkNotice tasks for windows gradle check ([#4941](https://github.com/opensearch-project/OpenSearch/pull/4941))
 ### Security
 - CVE-2022-25857 org.yaml:snakeyaml DOS vulnerability ([#4341](https://github.com/opensearch-project/OpenSearch/pull/4341))
 
@@ -128,6 +128,8 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Disable merge on refresh in DiskThresholdDeciderIT ([#4828](https://github.com/opensearch-project/OpenSearch/pull/4828))
 - Better plural stemmer than minimal_english ([#4738](https://github.com/opensearch-project/OpenSearch/pull/4738))
 - Fix AbstractStringFieldDataTestCase tests to account for TotalHits lower bound ([4867](https://github.com/opensearch-project/OpenSearch/pull/4867))
+- [Segment Replication] Fix bug of replica shard's translog not purging on index flush when segment replication is enabled ([4975](https://github.com/opensearch-project/OpenSearch/pull/4975))
+-
 
 ### Security
 
