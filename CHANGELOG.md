@@ -80,7 +80,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Update Apache Lucene to 9.4.1 ([#4922](https://github.com/opensearch-project/OpenSearch/pull/4922))
 - Bump `woodstox-core` to 6.4.0 ([#4947](https://github.com/opensearch-project/OpenSearch/pull/4947))
 - Update Apache Lucene to 9.5.0-snapshot-a4ef70f ([#4979](https://github.com/opensearch-project/OpenSearch/pull/4979))
-- Exclude jetty-http in hadoop-minicluster, upgrade kotlin-stdlib and snakeyaml ([#4963](https://github.com/opensearch-project/OpenSearch/pull/4963))
+- Upgrade jetty-http, kotlin-stdlib and snakeyaml ([#4963](https://github.com/opensearch-project/OpenSearch/pull/4963))
 
 ### Changed
 - Dependency updates (httpcore, mockito, slf4j, httpasyncclient, commons-codec) ([#4308](https://github.com/opensearch-project/OpenSearch/pull/4308))
