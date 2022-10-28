@@ -62,6 +62,8 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
     - on-boarding of tasks([#4542](https://github.com/opensearch-project/OpenSearch/pull/4542))
     - Integs ([4588](https://github.com/opensearch-project/OpenSearch/pull/4588))
 - Integration tests for searchable snapshots ([#5048](https://github.com/opensearch-project/OpenSearch/pull/5048))
+- Update to Gradle 7.6 and JDK-19 ([#4973](https://github.com/opensearch-project/OpenSearch/pull/4973))
+
 ### Dependencies
 - Bumps `log4j-core` from 2.18.0 to 2.19.0
 - Bumps `reactor-netty-http` from 1.0.18 to 1.0.23

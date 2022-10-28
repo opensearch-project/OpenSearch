@@ -31,7 +31,9 @@
 
 package org.opensearch.cluster.coordination;
 
+import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
+import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.common.util.concurrent.PrioritizedOpenSearchThreadPoolExecutor;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -44,25 +46,30 @@ import java.util.concurrent.TimeUnit;
 public class MockSinglePrioritizingExecutor extends PrioritizedOpenSearchThreadPoolExecutor {
 
     public MockSinglePrioritizingExecutor(String name, DeterministicTaskQueue deterministicTaskQueue, ThreadPool threadPool) {
-        super(name, 0, 1, 0L, TimeUnit.MILLISECONDS, r -> new Thread() {
-            @Override
-            public void start() {
-                deterministicTaskQueue.scheduleNow(new Runnable() {
-                    @Override
-                    public void run() {
-                        try {
-                            r.run();
-                        } catch (KillWorkerError kwe) {
-                            // hacks everywhere
-                        }
+        super(name, 0, 1, 0L, TimeUnit.MILLISECONDS, r -> {
+            // This executor used to override Thread::start method so the actual runnable is
+            // being scheduled in the scope of current thread of execution. In JDK-19, the Thread::start
+            // is not called anymore (https://bugs.openjdk.org/browse/JDK-8292027) and there is no
+            // suitable option to alter the executor's behavior in the similar way. The closest we
+            // could get to is to schedule the runnable once the ThreadFactory is being asked to
+            // allocate the new thread.
+            deterministicTaskQueue.scheduleNow(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        r.run();
+                    } catch (KillWorkerError kwe) {
+                        // hacks everywhere
                     }
+                }
 
-                    @Override
-                    public String toString() {
-                        return r.toString();
-                    }
-                });
-            }
+                @Override
+                public String toString() {
+                    return r.toString();
+                }
+            });
+
+            return new Thread(() -> {});
         }, threadPool.getThreadContext(), threadPool.scheduler());
     }
 
@@ -78,6 +85,27 @@ public class MockSinglePrioritizingExecutor extends PrioritizedOpenSearchThreadP
     public boolean awaitTermination(long timeout, TimeUnit unit) {
         // ensures we don't block
         return false;
+    }
+
+    @Override
+    public void execute(Runnable command) {
+        command = wrapRunnable(command);
+        try {
+            super.execute(command);
+        } catch (OpenSearchRejectedExecutionException ex) {
+            if (command instanceof AbstractRunnable) {
+                // If we are an abstract runnable we can handle the rejection
+                // directly and don't need to rethrow it.
+                try {
+                    ((AbstractRunnable) command).onRejection(ex);
+                } finally {
+                    ((AbstractRunnable) command).onAfter();
+
+                }
+            } else {
+                throw ex;
+            }
+        }
     }
 
     private static final class KillWorkerError extends Error {
