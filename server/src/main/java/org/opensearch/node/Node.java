@@ -38,12 +38,15 @@ import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
+import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.extensions.ExtensionsOrchestrator;
 //import org.opensearch.index.store.RemoteDirectoryFactory;
 import org.opensearch.indices.replication.SegmentReplicationSourceFactory;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.indices.replication.SegmentReplicationSourceService;
+import org.opensearch.search.backpressure.SearchBackpressureService;
+import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
 import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.threadpool.RunnableTaskExecutionListener;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
@@ -215,6 +218,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -608,11 +612,23 @@ public class Node implements Closeable {
                 .map(plugin -> (Function<IndexSettings, Optional<EngineFactory>>) plugin::getEngineFactory)
                 .collect(Collectors.toList());
 
-            final Map<String, IndexStorePlugin.DirectoryFactory> indexStoreFactories = pluginsService.filterPlugins(IndexStorePlugin.class)
+            final Map<String, IndexStorePlugin.DirectoryFactory> builtInDirectoryFactories = IndexModule.createBuiltInDirectoryFactories(
+                repositoriesServiceReference::get
+            );
+            final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories = new HashMap<>();
+            pluginsService.filterPlugins(IndexStorePlugin.class)
                 .stream()
                 .map(IndexStorePlugin::getDirectoryFactories)
                 .flatMap(m -> m.entrySet().stream())
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
+                .forEach((k, v) -> {
+                    // do not allow any plugin-provided index store type to conflict with a built-in type
+                    if (builtInDirectoryFactories.containsKey(k)) {
+                        throw new IllegalStateException("registered index store type [" + k + "] conflicts with a built-in type");
+                    }
+                    directoryFactories.put(k, v);
+                });
+            directoryFactories.putAll(builtInDirectoryFactories);
 
             final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories = pluginsService.filterPlugins(
                 IndexStorePlugin.class
@@ -658,7 +674,7 @@ public class Node implements Closeable {
                 client,
                 metaStateService,
                 engineFactoryProviders,
-                indexStoreFactories,
+                Map.copyOf(directoryFactories),
                 searchModule.getValuesSourceRegistry(),
                 recoveryStateFactories,
                 remoteDirectoryFactory
@@ -800,6 +816,23 @@ public class Node implements Closeable {
             // development. Then we can deprecate Getter and Setter for IndexingPressureService in ClusterService (#478).
             clusterService.setIndexingPressureService(indexingPressureService);
 
+            final TaskResourceTrackingService taskResourceTrackingService = new TaskResourceTrackingService(
+                settings,
+                clusterService.getClusterSettings(),
+                threadPool
+            );
+
+            final SearchBackpressureSettings searchBackpressureSettings = new SearchBackpressureSettings(
+                settings,
+                clusterService.getClusterSettings()
+            );
+
+            final SearchBackpressureService searchBackpressureService = new SearchBackpressureService(
+                searchBackpressureSettings,
+                taskResourceTrackingService,
+                threadPool
+            );
+
             final RecoverySettings recoverySettings = new RecoverySettings(settings, settingsModule.getClusterSettings());
             RepositoriesModule repositoriesModule = new RepositoriesModule(
                 this.environment,
@@ -887,7 +920,8 @@ public class Node implements Closeable {
                 responseCollectorService,
                 searchTransportService,
                 indexingPressureService,
-                searchModule.getValuesSourceRegistry().getUsageService()
+                searchModule.getValuesSourceRegistry().getUsageService(),
+                searchBackpressureService
             );
 
             final SearchService searchService = newSearchService(
@@ -946,6 +980,8 @@ public class Node implements Closeable {
                 b.bind(AnalysisRegistry.class).toInstance(analysisModule.getAnalysisRegistry());
                 b.bind(IngestService.class).toInstance(ingestService);
                 b.bind(IndexingPressureService.class).toInstance(indexingPressureService);
+                b.bind(TaskResourceTrackingService.class).toInstance(taskResourceTrackingService);
+                b.bind(SearchBackpressureService.class).toInstance(searchBackpressureService);
                 b.bind(UsageService.class).toInstance(usageService);
                 b.bind(AggregationUsageService.class).toInstance(searchModule.getValuesSourceRegistry().getUsageService());
                 b.bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
@@ -1109,6 +1145,7 @@ public class Node implements Closeable {
         injector.getInstance(SearchService.class).start();
         injector.getInstance(FsHealthService.class).start();
         nodeService.getMonitorService().start();
+        nodeService.getSearchBackpressureService().start();
 
         final ClusterService clusterService = injector.getInstance(ClusterService.class);
 
@@ -1265,6 +1302,7 @@ public class Node implements Closeable {
         injector.getInstance(NodeConnectionsService.class).stop();
         injector.getInstance(FsHealthService.class).stop();
         nodeService.getMonitorService().stop();
+        nodeService.getSearchBackpressureService().stop();
         injector.getInstance(GatewayService.class).stop();
         injector.getInstance(SearchService.class).stop();
         injector.getInstance(TransportService.class).stop();
@@ -1324,6 +1362,7 @@ public class Node implements Closeable {
         toClose.add(injector.getInstance(Discovery.class));
         toClose.add(() -> stopWatch.stop().start("monitor"));
         toClose.add(nodeService.getMonitorService());
+        toClose.add(nodeService.getSearchBackpressureService());
         toClose.add(() -> stopWatch.stop().start("fsHealth"));
         toClose.add(injector.getInstance(FsHealthService.class));
         toClose.add(() -> stopWatch.stop().start("gateway"));

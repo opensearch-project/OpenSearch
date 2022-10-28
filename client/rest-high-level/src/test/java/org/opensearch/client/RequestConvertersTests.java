@@ -32,14 +32,6 @@
 
 package org.opensearch.client;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.client.methods.HttpDelete;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.client.methods.HttpHead;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.methods.HttpPut;
-import org.apache.http.nio.entity.NByteArrayEntity;
-import org.apache.http.util.EntityUtils;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.opensearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
@@ -120,6 +112,14 @@ import org.opensearch.search.suggest.completion.CompletionSuggestionBuilder;
 import org.opensearch.tasks.TaskId;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.RandomObjects;
+import org.apache.hc.client5.http.classic.methods.HttpDelete;
+import org.apache.hc.client5.http.classic.methods.HttpGet;
+import org.apache.hc.client5.http.classic.methods.HttpHead;
+import org.apache.hc.client5.http.classic.methods.HttpPost;
+import org.apache.hc.client5.http.classic.methods.HttpPut;
+import org.apache.hc.core5.http.HttpEntity;
+import org.apache.hc.core5.http.io.entity.ByteArrayEntity;
+import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -733,8 +733,8 @@ public class RequestConvertersTests extends OpenSearchTestCase {
         assertEquals(method, request.getMethod());
 
         HttpEntity entity = request.getEntity();
-        assertTrue(entity instanceof NByteArrayEntity);
-        assertEquals(indexRequest.getContentType().mediaTypeWithoutParameters(), entity.getContentType().getValue());
+        assertTrue(entity instanceof ByteArrayEntity);
+        assertEquals(indexRequest.getContentType().mediaTypeWithoutParameters(), entity.getContentType());
         try (XContentParser parser = createParser(xContentType.xContent(), entity.getContent())) {
             assertEquals(nbFields, parser.map().size());
         }
@@ -805,11 +805,11 @@ public class RequestConvertersTests extends OpenSearchTestCase {
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
 
         HttpEntity entity = request.getEntity();
-        assertTrue(entity instanceof NByteArrayEntity);
+        assertTrue(entity instanceof ByteArrayEntity);
 
         UpdateRequest parsedUpdateRequest = new UpdateRequest();
 
-        XContentType entityContentType = XContentType.fromMediaType(entity.getContentType().getValue());
+        XContentType entityContentType = XContentType.fromMediaType(entity.getContentType());
         try (XContentParser parser = createParser(entityContentType.xContent(), entity.getContent())) {
             parsedUpdateRequest.fromXContent(parser);
         }
@@ -926,7 +926,7 @@ public class RequestConvertersTests extends OpenSearchTestCase {
         assertEquals("/_bulk", request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
-        assertEquals(xContentType.mediaTypeWithoutParameters(), request.getEntity().getContentType().getValue());
+        assertEquals(xContentType.mediaTypeWithoutParameters(), request.getEntity().getContentType());
         byte[] content = new byte[(int) request.getEntity().getContentLength()];
         try (InputStream inputStream = request.getEntity().getContent()) {
             Streams.readFully(inputStream, content);
@@ -979,7 +979,7 @@ public class RequestConvertersTests extends OpenSearchTestCase {
             bulkRequest.add(new DeleteRequest("index", "2"));
 
             Request request = RequestConverters.bulk(bulkRequest);
-            assertEquals(XContentType.JSON.mediaTypeWithoutParameters(), request.getEntity().getContentType().getValue());
+            assertEquals(XContentType.JSON.mediaTypeWithoutParameters(), request.getEntity().getContentType());
         }
         {
             XContentType xContentType = randomFrom(XContentType.JSON, XContentType.SMILE);
@@ -989,7 +989,7 @@ public class RequestConvertersTests extends OpenSearchTestCase {
             bulkRequest.add(new DeleteRequest("index", "2"));
 
             Request request = RequestConverters.bulk(bulkRequest);
-            assertEquals(xContentType.mediaTypeWithoutParameters(), request.getEntity().getContentType().getValue());
+            assertEquals(xContentType.mediaTypeWithoutParameters(), request.getEntity().getContentType());
         }
         {
             XContentType xContentType = randomFrom(XContentType.JSON, XContentType.SMILE);
@@ -1001,7 +1001,7 @@ public class RequestConvertersTests extends OpenSearchTestCase {
             }
 
             Request request = RequestConverters.bulk(new BulkRequest().add(updateRequest));
-            assertEquals(xContentType.mediaTypeWithoutParameters(), request.getEntity().getContentType().getValue());
+            assertEquals(xContentType.mediaTypeWithoutParameters(), request.getEntity().getContentType());
         }
         {
             BulkRequest bulkRequest = new BulkRequest();
@@ -1289,7 +1289,7 @@ public class RequestConvertersTests extends OpenSearchTestCase {
         assertEquals("/_search/scroll", request.getEndpoint());
         assertEquals(0, request.getParameters().size());
         assertToXContentBody(searchScrollRequest, request.getEntity());
-        assertEquals(REQUEST_BODY_CONTENT_TYPE.mediaTypeWithoutParameters(), request.getEntity().getContentType().getValue());
+        assertEquals(REQUEST_BODY_CONTENT_TYPE.mediaTypeWithoutParameters(), request.getEntity().getContentType());
     }
 
     public void testClearScroll() throws IOException {
@@ -1303,7 +1303,7 @@ public class RequestConvertersTests extends OpenSearchTestCase {
         assertEquals("/_search/scroll", request.getEndpoint());
         assertEquals(0, request.getParameters().size());
         assertToXContentBody(clearScrollRequest, request.getEntity());
-        assertEquals(REQUEST_BODY_CONTENT_TYPE.mediaTypeWithoutParameters(), request.getEntity().getContentType().getValue());
+        assertEquals(REQUEST_BODY_CONTENT_TYPE.mediaTypeWithoutParameters(), request.getEntity().getContentType());
     }
 
     public void testCreatePit() throws IOException {
@@ -1324,7 +1324,7 @@ public class RequestConvertersTests extends OpenSearchTestCase {
         assertEquals(endpoint.toString(), request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertToXContentBody(createPitRequest, request.getEntity());
-        assertEquals(REQUEST_BODY_CONTENT_TYPE.mediaTypeWithoutParameters(), request.getEntity().getContentType().getValue());
+        assertEquals(REQUEST_BODY_CONTENT_TYPE.mediaTypeWithoutParameters(), request.getEntity().getContentType());
     }
 
     public void testDeletePit() throws IOException {
@@ -1337,7 +1337,7 @@ public class RequestConvertersTests extends OpenSearchTestCase {
         assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
         assertEquals(endpoint, request.getEndpoint());
         assertToXContentBody(deletePitRequest, request.getEntity());
-        assertEquals(REQUEST_BODY_CONTENT_TYPE.mediaTypeWithoutParameters(), request.getEntity().getContentType().getValue());
+        assertEquals(REQUEST_BODY_CONTENT_TYPE.mediaTypeWithoutParameters(), request.getEntity().getContentType());
     }
 
     public void testDeleteAllPits() {
@@ -1456,7 +1456,7 @@ public class RequestConvertersTests extends OpenSearchTestCase {
 
         HttpEntity actualEntity = multiRequest.getEntity();
         byte[] expectedBytes = MultiSearchTemplateRequest.writeMultiLineFormat(multiSearchTemplateRequest, XContentType.JSON.xContent());
-        assertEquals(XContentType.JSON.mediaTypeWithoutParameters(), actualEntity.getContentType().getValue());
+        assertEquals(XContentType.JSON.mediaTypeWithoutParameters(), actualEntity.getContentType());
         assertEquals(new BytesArray(expectedBytes), new BytesArray(EntityUtils.toByteArray(actualEntity)));
     }
 
@@ -1763,7 +1763,7 @@ public class RequestConvertersTests extends OpenSearchTestCase {
 
     static void assertToXContentBody(ToXContent expectedBody, HttpEntity actualEntity) throws IOException {
         BytesReference expectedBytes = XContentHelper.toXContent(expectedBody, REQUEST_BODY_CONTENT_TYPE, false);
-        assertEquals(XContentType.JSON.mediaTypeWithoutParameters(), actualEntity.getContentType().getValue());
+        assertEquals(XContentType.JSON.mediaTypeWithoutParameters(), actualEntity.getContentType());
         assertEquals(expectedBytes, new BytesArray(EntityUtils.toByteArray(actualEntity)));
     }
 

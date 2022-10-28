@@ -42,6 +42,8 @@ import org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfi
 import org.opensearch.action.admin.cluster.configuration.TransportClearVotingConfigExclusionsAction;
 import org.opensearch.action.admin.cluster.decommission.awareness.get.GetDecommissionStateAction;
 import org.opensearch.action.admin.cluster.decommission.awareness.get.TransportGetDecommissionStateAction;
+import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionStateAction;
+import org.opensearch.action.admin.cluster.decommission.awareness.delete.TransportDeleteDecommissionStateAction;
 import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionAction;
 import org.opensearch.action.admin.cluster.decommission.awareness.put.TransportDecommissionAction;
 import org.opensearch.action.admin.cluster.health.ClusterHealthAction;
@@ -83,6 +85,8 @@ import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
 import org.opensearch.action.admin.cluster.settings.TransportClusterUpdateSettingsAction;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsAction;
 import org.opensearch.action.admin.cluster.shards.TransportClusterSearchShardsAction;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.delete.ClusterDeleteWeightedRoutingAction;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.delete.TransportDeleteWeightedRoutingAction;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.get.ClusterGetWeightedRoutingAction;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.get.TransportGetWeightedRoutingAction;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterAddWeightedRoutingAction;
@@ -302,6 +306,7 @@ import org.opensearch.rest.action.admin.cluster.RestCleanupRepositoryAction;
 import org.opensearch.rest.action.admin.cluster.RestClearVotingConfigExclusionsAction;
 import org.opensearch.rest.action.admin.cluster.RestCloneSnapshotAction;
 import org.opensearch.rest.action.admin.cluster.RestClusterAllocationExplainAction;
+import org.opensearch.rest.action.admin.cluster.RestClusterDeleteWeightedRoutingAction;
 import org.opensearch.rest.action.admin.cluster.RestClusterGetSettingsAction;
 import org.opensearch.rest.action.admin.cluster.RestClusterGetWeightedRoutingAction;
 import org.opensearch.rest.action.admin.cluster.RestClusterHealthAction;
@@ -312,6 +317,7 @@ import org.opensearch.rest.action.admin.cluster.RestClusterStateAction;
 import org.opensearch.rest.action.admin.cluster.RestClusterStatsAction;
 import org.opensearch.rest.action.admin.cluster.RestClusterUpdateSettingsAction;
 import org.opensearch.rest.action.admin.cluster.RestCreateSnapshotAction;
+import org.opensearch.rest.action.admin.cluster.RestDeleteDecommissionStateAction;
 import org.opensearch.rest.action.admin.cluster.RestDeleteRepositoryAction;
 import org.opensearch.rest.action.admin.cluster.RestDeleteSnapshotAction;
 import org.opensearch.rest.action.admin.cluster.RestDeleteStoredScriptAction;
@@ -579,6 +585,7 @@ public class ActionModule extends AbstractModule {
 
         actions.register(ClusterAddWeightedRoutingAction.INSTANCE, TransportAddWeightedRoutingAction.class);
         actions.register(ClusterGetWeightedRoutingAction.INSTANCE, TransportGetWeightedRoutingAction.class);
+        actions.register(ClusterDeleteWeightedRoutingAction.INSTANCE, TransportDeleteWeightedRoutingAction.class);
         actions.register(IndicesStatsAction.INSTANCE, TransportIndicesStatsAction.class);
         actions.register(IndicesSegmentsAction.INSTANCE, TransportIndicesSegmentsAction.class);
         actions.register(IndicesShardStoresAction.INSTANCE, TransportIndicesShardStoresAction.class);
@@ -704,6 +711,7 @@ public class ActionModule extends AbstractModule {
         // Decommission actions
         actions.register(DecommissionAction.INSTANCE, TransportDecommissionAction.class);
         actions.register(GetDecommissionStateAction.INSTANCE, TransportGetDecommissionStateAction.class);
+        actions.register(DeleteDecommissionStateAction.INSTANCE, TransportDeleteDecommissionStateAction.class);
 
         return unmodifiableMap(actions.getRegistry());
     }
@@ -767,8 +775,10 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestCloseIndexAction());
         registerHandler.accept(new RestOpenIndexAction());
         registerHandler.accept(new RestAddIndexBlockAction());
+
         registerHandler.accept(new RestClusterPutWeightedRoutingAction());
         registerHandler.accept(new RestClusterGetWeightedRoutingAction());
+        registerHandler.accept(new RestClusterDeleteWeightedRoutingAction());
 
         registerHandler.accept(new RestUpdateSettingsAction());
         registerHandler.accept(new RestGetSettingsAction());
@@ -884,6 +894,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestDeletePitAction());
         registerHandler.accept(new RestGetAllPitsAction(nodesInCluster));
         registerHandler.accept(new RestPitSegmentsAction(nodesInCluster));
+        registerHandler.accept(new RestDeleteDecommissionStateAction());
 
         for (ActionPlugin plugin : actionPlugins) {
             for (RestHandler handler : plugin.getRestHandlers(

@@ -30,6 +30,14 @@ public class FeatureFlags {
     public static final String REMOTE_STORE = "opensearch.experimental.feature.remote_store.enabled";
 
     /**
+     * Gates the functionality of a new parameter to the snapshot restore API
+     * that allows for creation of a new index type that searches a snapshot
+     * directly in a remote repository without restoring all index data to disk
+     * ahead of time.
+     */
+    public static final String SEARCHABLE_SNAPSHOT = "opensearch.experimental.feature.searchable_snapshot.enabled";
+
+    /**
      * Used to test feature flags whose values are expected to be booleans.
      * This method returns true if the value is "true" (case-insensitive),
      * and false otherwise.

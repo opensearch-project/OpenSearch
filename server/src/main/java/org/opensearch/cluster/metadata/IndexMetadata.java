@@ -149,6 +149,16 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         EnumSet.of(ClusterBlockLevel.METADATA_WRITE, ClusterBlockLevel.WRITE)
     );
 
+    public static final ClusterBlock REMOTE_READ_ONLY_ALLOW_DELETE = new ClusterBlock(
+        13,
+        "remote index is read-only",
+        false,
+        false,
+        true,
+        RestStatus.FORBIDDEN,
+        EnumSet.of(ClusterBlockLevel.METADATA_WRITE, ClusterBlockLevel.WRITE)
+    );
+
     /**
      * The state of the index.
      *
