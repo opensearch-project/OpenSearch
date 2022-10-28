@@ -32,6 +32,7 @@
 
 package org.opensearch.client;
 
+import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionStateRequest;
 import org.opensearch.action.admin.cluster.decommission.awareness.get.GetDecommissionStateRequest;
 import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
@@ -51,6 +52,7 @@ import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.get.ClusterGetWeightedRoutingRequest;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingRequest;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.delete.ClusterDeleteWeightedRoutingRequest;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.opensearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.opensearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
@@ -572,6 +574,15 @@ public class Requests {
     }
 
     /**
+     * Deletes weights for weighted round-robin search routing policy
+     *
+     * @return delete weight request
+     */
+    public static ClusterDeleteWeightedRoutingRequest deleteWeightedRoutingRequest() {
+        return new ClusterDeleteWeightedRoutingRequest();
+    }
+
+    /**
      * Creates a new decommission request.
      *
      * @return returns put decommission request
@@ -587,5 +598,12 @@ public class Requests {
      */
     public static GetDecommissionStateRequest getDecommissionStateRequest() {
         return new GetDecommissionStateRequest();
+    }
+
+    /**
+     * Creates a new delete decommission request.
+     */
+    public static DeleteDecommissionStateRequest deleteDecommissionStateRequest() {
+        return new DeleteDecommissionStateRequest();
     }
 }

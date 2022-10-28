@@ -8,7 +8,6 @@
 
 package org.opensearch.action.admin.cluster.decommission.awareness.get;
 
-import org.opensearch.cluster.decommission.DecommissionAttribute;
 import org.opensearch.cluster.decommission.DecommissionStatus;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.test.AbstractXContentTestCase;
@@ -18,11 +17,13 @@ import java.io.IOException;
 public class GetDecommissionStateResponseTests extends AbstractXContentTestCase<GetDecommissionStateResponse> {
     @Override
     protected GetDecommissionStateResponse createTestInstance() {
-        DecommissionStatus status = randomFrom(DecommissionStatus.values());
-        String attributeName = randomAlphaOfLength(10);
-        String attributeValue = randomAlphaOfLength(10);
-        DecommissionAttribute decommissionAttribute = new DecommissionAttribute(attributeName, attributeValue);
-        return new GetDecommissionStateResponse(decommissionAttribute, status);
+        DecommissionStatus status = null;
+        String attributeValue = null;
+        if (randomBoolean()) {
+            status = randomFrom(DecommissionStatus.values());
+            attributeValue = randomAlphaOfLength(10);
+        }
+        return new GetDecommissionStateResponse(attributeValue, status);
     }
 
     @Override
