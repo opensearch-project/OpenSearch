@@ -745,7 +745,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         String requestType = ExtensionsOrchestrator.REQUEST_OPENSEARCH_NAMED_WRITEABLE_REGISTRY;
 
         // Create response to pass to response handler
-        Map<String, Class> responseRegistry = new HashMap<>();
+        Map<String, Class<? extends NamedWriteable>> responseRegistry = new HashMap<>();
         responseRegistry.put(Example.NAME, Example.class);
         NamedWriteableRegistryResponse response = new NamedWriteableRegistryResponse(responseRegistry);
 
@@ -757,10 +757,11 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         responseHandler.handleResponse(response);
 
         // Ensure that response entries have been processed correctly into their respective maps
-        Map<DiscoveryNode, Map<Class, Map<String, ExtensionReader>>> extensionsRegistry = responseHandler.getExtensionRegistry();
+        Map<DiscoveryNode, Map<Class<? extends NamedWriteable>, Map<String, ExtensionReader>>> extensionsRegistry = responseHandler
+            .getExtensionRegistry();
         assertEquals(extensionsRegistry.size(), 1);
 
-        Map<Class, Map<String, ExtensionReader>> categoryMap = extensionsRegistry.get(extensionNode);
+        Map<Class<? extends NamedWriteable>, Map<String, ExtensionReader>> categoryMap = extensionsRegistry.get(extensionNode);
         assertEquals(categoryMap.size(), 1);
 
         Map<String, ExtensionReader> readerMap = categoryMap.get(Example.class);
@@ -794,7 +795,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         String requestType = ExtensionsOrchestrator.REQUEST_OPENSEARCH_PARSE_NAMED_WRITEABLE;
         List<DiscoveryExtension> extensionsList = new ArrayList<>(extensionsOrchestrator.extensionIdMap.values());
         DiscoveryNode extensionNode = extensionsList.get(0);
-        Class categoryClass = Example.class;
+        Class<? extends NamedWriteable> categoryClass = Example.class;
 
         // convert context into an input stream then stream input for mock
         byte[] context = new byte[0];

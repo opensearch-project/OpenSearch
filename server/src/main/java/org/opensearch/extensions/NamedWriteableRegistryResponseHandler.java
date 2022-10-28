@@ -18,6 +18,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.io.stream.NamedWriteable;
 import org.opensearch.common.io.stream.NamedWriteableRegistryParseRequest;
 import org.opensearch.common.io.stream.NamedWriteableRegistryResponse;
 import org.opensearch.common.io.stream.StreamInput;
@@ -34,7 +35,7 @@ import org.opensearch.transport.TransportService;
 public class NamedWriteableRegistryResponseHandler implements TransportResponseHandler<NamedWriteableRegistryResponse> {
     private static final Logger logger = LogManager.getLogger(NamedWriteableRegistryResponseHandler.class);
 
-    private final Map<DiscoveryNode, Map<Class, Map<String, ExtensionReader>>> extensionRegistry;
+    private final Map<DiscoveryNode, Map<Class<? extends NamedWriteable>, Map<String, ExtensionReader>>> extensionRegistry;
     private final DiscoveryNode extensionNode;
     private final TransportService transportService;
     private final String requestType;
@@ -56,7 +57,7 @@ public class NamedWriteableRegistryResponseHandler implements TransportResponseH
     /**
     * @return A map of the given DiscoveryNode and its inner named writeable registry map
     */
-    public Map<DiscoveryNode, Map<Class, Map<String, ExtensionReader>>> getExtensionRegistry() {
+    public Map<DiscoveryNode, Map<Class<? extends NamedWriteable>, Map<String, ExtensionReader>>> getExtensionRegistry() {
         return Collections.unmodifiableMap(this.extensionRegistry);
     }
 
@@ -68,7 +69,8 @@ public class NamedWriteableRegistryResponseHandler implements TransportResponseH
      * @param context StreamInput object to convert into a byte array and transport to the extension
      * @throws UnknownHostException if connection to the extension node failed
      */
-    public void parseNamedWriteable(DiscoveryNode extensionNode, Class categoryClass, StreamInput context) throws UnknownHostException {
+    public void parseNamedWriteable(DiscoveryNode extensionNode, Class<? extends NamedWriteable> categoryClass, StreamInput context)
+        throws UnknownHostException {
         NamedWriteableRegistryParseResponseHandler namedWriteableRegistryParseResponseHandler =
             new NamedWriteableRegistryParseResponseHandler();
         try {
@@ -98,16 +100,16 @@ public class NamedWriteableRegistryResponseHandler implements TransportResponseH
         if (response.getRegistry().isEmpty() == false) {
 
             // Extension has sent over entries to register, initialize inner category map
-            Map<Class, Map<String, ExtensionReader>> categoryMap = new HashMap<>();
+            Map<Class<? extends NamedWriteable>, Map<String, ExtensionReader>> categoryMap = new HashMap<>();
 
             // Reader map associated with this current category
             Map<String, ExtensionReader> readers = null;
-            Class currentCategory = null;
+            Class<? extends NamedWriteable> currentCategory = null;
 
-            for (Map.Entry<String, Class> entry : response.getRegistry().entrySet()) {
+            for (Map.Entry<String, Class<? extends NamedWriteable>> entry : response.getRegistry().entrySet()) {
 
                 String name = entry.getKey();
-                Class categoryClass = entry.getValue();
+                Class<? extends NamedWriteable> categoryClass = entry.getValue();
                 if (currentCategory != categoryClass) {
                     // After first pass, readers and current category are set
                     if (currentCategory != null) {

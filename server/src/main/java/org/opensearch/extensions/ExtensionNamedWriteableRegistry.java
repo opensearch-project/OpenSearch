@@ -17,6 +17,7 @@ import java.util.Map;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.io.stream.NamedWriteable;
 import org.opensearch.extensions.ExtensionsOrchestrator.OpenSearchRequestType;
 import org.opensearch.transport.TransportService;
 
@@ -29,7 +30,7 @@ public class ExtensionNamedWriteableRegistry {
 
     private static final Logger logger = LogManager.getLogger(ExtensionNamedWriteableRegistry.class);
 
-    private Map<DiscoveryNode, Map<Class, Map<String, ExtensionReader>>> extensionNamedWriteableRegistry;
+    private Map<DiscoveryNode, Map<Class<? extends NamedWriteable>, Map<String, ExtensionReader>>> extensionNamedWriteableRegistry;
     private List<DiscoveryExtension> extensionsInitializedList;
     private TransportService transportService;
 
@@ -54,7 +55,8 @@ public class ExtensionNamedWriteableRegistry {
         // Retrieve named writeable registry entries from each extension
         for (DiscoveryNode extensionNode : extensionsInitializedList) {
             try {
-                Map<DiscoveryNode, Map<Class, Map<String, ExtensionReader>>> extensionRegistry = getNamedWriteables(extensionNode);
+                Map<DiscoveryNode, Map<Class<? extends NamedWriteable>, Map<String, ExtensionReader>>> extensionRegistry =
+                    getNamedWriteables(extensionNode);
                 if (extensionRegistry.isEmpty() == false) {
                     this.extensionNamedWriteableRegistry.putAll(extensionRegistry);
                 }
@@ -74,8 +76,9 @@ public class ExtensionNamedWriteableRegistry {
      * @throws UnknownHostException if connection to the extension node failed
      * @return A map of category classes and their associated names and readers for this discovery node
      */
-    private Map<DiscoveryNode, Map<Class, Map<String, ExtensionReader>>> getNamedWriteables(DiscoveryNode extensionNode)
-        throws UnknownHostException {
+    private Map<DiscoveryNode, Map<Class<? extends NamedWriteable>, Map<String, ExtensionReader>>> getNamedWriteables(
+        DiscoveryNode extensionNode
+    ) throws UnknownHostException {
         NamedWriteableRegistryResponseHandler namedWriteableRegistryResponseHandler = new NamedWriteableRegistryResponseHandler(
             extensionNode,
             transportService,
@@ -104,7 +107,7 @@ public class ExtensionNamedWriteableRegistry {
      * @throws IllegalArgumentException if there is no reader associated with the given category class and name
      * @return A map of the discovery node and its associated extension reader
      */
-    public Map<DiscoveryNode, ExtensionReader> getExtensionReader(Class categoryClass, String name) {
+    public Map<DiscoveryNode, ExtensionReader> getExtensionReader(Class<? extends NamedWriteable> categoryClass, String name) {
 
         ExtensionReader reader = null;
         DiscoveryNode extension = null;
@@ -133,9 +136,11 @@ public class ExtensionNamedWriteableRegistry {
      * @param name Unique name identifying the Writeable object
      * @return The extension reader
      */
-    private ExtensionReader getExtensionReader(DiscoveryNode extensionNode, Class categoryClass, String name) {
+    private ExtensionReader getExtensionReader(DiscoveryNode extensionNode, Class<? extends NamedWriteable> categoryClass, String name) {
         ExtensionReader reader = null;
-        Map<Class, Map<String, ExtensionReader>> categoryMap = this.extensionNamedWriteableRegistry.get(extensionNode);
+        Map<Class<? extends NamedWriteable>, Map<String, ExtensionReader>> categoryMap = this.extensionNamedWriteableRegistry.get(
+            extensionNode
+        );
         if (categoryMap != null) {
             Map<String, ExtensionReader> readerMap = categoryMap.get(categoryClass);
             if (readerMap != null) {
