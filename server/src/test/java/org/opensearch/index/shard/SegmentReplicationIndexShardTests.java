@@ -246,16 +246,36 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             final IndexShard replica = shards.getReplicas().get(0);
             final int numDocs = randomIntBetween(10, 100);
             shards.indexDocs(numDocs);
+            assertEquals(numDocs, primary.translogStats().estimatedNumberOfOperations());
+            assertEquals(numDocs, replica.translogStats().estimatedNumberOfOperations());
+            assertEquals(numDocs, primary.translogStats().getUncommittedOperations());
+            assertEquals(numDocs, replica.translogStats().getUncommittedOperations());
             flushShard(primary, true);
             replicateSegments(primary, shards.getReplicas());
+            assertEquals(0, primary.translogStats().estimatedNumberOfOperations());
+            assertEquals(0, replica.translogStats().estimatedNumberOfOperations());
+            assertEquals(0, primary.translogStats().getUncommittedOperations());
+            assertEquals(0, replica.translogStats().getUncommittedOperations());
 
-            final int totalDocs = numDocs + shards.indexDocs(randomIntBetween(numDocs + 1, numDocs + 10));
-            flushShard(primary);
+            final int additionalDocs = shards.indexDocs(randomIntBetween(numDocs + 1, numDocs + 10));
+
+            final int totalDocs = numDocs + additionalDocs;
+            primary.refresh("test");
+            replicateSegments(primary, shards.getReplicas());
+            assertEquals(additionalDocs, primary.translogStats().estimatedNumberOfOperations());
+            assertEquals(additionalDocs, replica.translogStats().estimatedNumberOfOperations());
+            assertEquals(additionalDocs, primary.translogStats().getUncommittedOperations());
+            assertEquals(additionalDocs, replica.translogStats().getUncommittedOperations());
+            flushShard(primary, true);
             replicateSegments(primary, shards.getReplicas());
 
             assertEqualCommittedSegments(primary, replica);
             assertDocCount(primary, totalDocs);
             assertDocCount(replica, totalDocs);
+            assertEquals(0, primary.translogStats().estimatedNumberOfOperations());
+            assertEquals(0, replica.translogStats().estimatedNumberOfOperations());
+            assertEquals(0, primary.translogStats().getUncommittedOperations());
+            assertEquals(0, replica.translogStats().getUncommittedOperations());
         }
     }
 
@@ -388,16 +408,20 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             // 2. Create ops that are in the replica's xlog, not in the index.
             // index some more into both but don't replicate. replica will have only numDocs searchable, but should have totalDocs
             // persisted.
-            final int totalDocs = numDocs + shards.indexDocs(randomInt(10));
+            final int additonalDocs = shards.indexDocs(randomInt(10));
+            final int totalDocs = numDocs + additonalDocs;
 
             assertDocCounts(oldPrimary, totalDocs, totalDocs);
             for (IndexShard shard : shards.getReplicas()) {
                 assertDocCounts(shard, totalDocs, numDocs);
             }
+            assertEquals(additonalDocs, nextPrimary.translogStats().estimatedNumberOfOperations());
+            assertEquals(additonalDocs, replica.translogStats().estimatedNumberOfOperations());
+            assertEquals(additonalDocs, nextPrimary.translogStats().getUncommittedOperations());
+            assertEquals(additonalDocs, replica.translogStats().getUncommittedOperations());
 
             // promote the replica
             shards.syncGlobalCheckpoint();
-            assertEquals(totalDocs, nextPrimary.translogStats().estimatedNumberOfOperations());
             shards.promoteReplicaToPrimary(nextPrimary);
 
             // close and start the oldPrimary as a replica.
