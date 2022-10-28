@@ -46,19 +46,7 @@ import java.io.StringReader;
 
 public class ASCIIFoldingTokenFilterFactoryTests extends OpenSearchTokenStreamTestCase {
     public void testDefault() throws IOException {
-        OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(
-            Settings.builder()
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .put("index.analysis.filter.my_ascii_folding.type", "asciifolding")
-                .build(),
-            new CommonAnalysisModulePlugin()
-        );
-        TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_ascii_folding");
-        String source = "Ansprüche";
-        String[] expected = new String[] { "Anspruche" };
-        Tokenizer tokenizer = new WhitespaceTokenizer();
-        tokenizer.setReader(new StringReader(source));
-        assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
+        throw new Exception("testDefault is hit.");
     }
 
     public void testPreserveOriginal() throws IOException {
