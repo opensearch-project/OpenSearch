@@ -171,11 +171,14 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Fix 'org.apache.hc.core5.http.ParseException: Invalid protocol version' under JDK 16+ ([#4827](https://github.com/opensearch-project/OpenSearch/pull/4827))
 - [BUG]: flaky test index/80_geo_point/Single point test([#4860](https://github.com/opensearch-project/OpenSearch/pull/4860))
 - Fix bug in SlicedInputStream with zero length ([#4863](https://github.com/opensearch-project/OpenSearch/pull/4863))
+- Fix a bug on handling an invalid array value for point type field ([#4900](https://github.com/opensearch-project/OpenSearch/pull/4900))
+- [Segment Replication] Fix bug of replica shard's translog not purging on index flush when segment replication is enabled ([4928](https://github.com/opensearch-project/OpenSearch/pull/4928))
 - Fix a bug on handling an invalid array value for point type field #4900([#4900](https://github.com/opensearch-project/OpenSearch/pull/4900))
 - [BUG]: Allow decommission to support delay timeout ([#4930](https://github.com/opensearch-project/OpenSearch/pull/4930))
 - Fix failing test: VerifyVersionConstantsIT ([#4946](https://github.com/opensearch-project/OpenSearch/pull/4946))
 - Fixed compression support for h2c protocol ([#4944](https://github.com/opensearch-project/OpenSearch/pull/4944))
 - Fix for failing checkExtraction, checkLicense and checkNotice tasks for windows gradle check ([#4941](https://github.com/opensearch-project/OpenSearch/pull/4941))
+
 ### Security
 - CVE-2022-25857 org.yaml:snakeyaml DOS vulnerability ([#4341](https://github.com/opensearch-project/OpenSearch/pull/4341))
 
