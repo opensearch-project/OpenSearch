@@ -48,6 +48,7 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
         super(in);
         decommissionAttribute = new DecommissionAttribute(in);
         this.delayTimeout = in.readTimeValue();
+        this.noDelay = in.readBoolean();
     }
 
     @Override
@@ -55,6 +56,7 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
         super.writeTo(out);
         decommissionAttribute.writeTo(out);
         out.writeTimeValue(delayTimeout);
+        out.writeBoolean(noDelay);
     }
 
     /**
@@ -75,12 +77,18 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
         return this.decommissionAttribute;
     }
 
+    public void setDelayTimeout(TimeValue delayTimeout) {
+        this.delayTimeout = delayTimeout;
+    }
+
     public TimeValue getDelayTimeout() {
         return this.delayTimeout;
     }
 
     public void setNoDelay(boolean noDelay) {
-        this.delayTimeout = TimeValue.ZERO;
+        if (noDelay) {
+            this.delayTimeout = TimeValue.ZERO;
+        }
         this.noDelay = noDelay;
     }
 

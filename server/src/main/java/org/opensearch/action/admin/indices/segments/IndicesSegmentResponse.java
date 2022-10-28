@@ -36,18 +36,15 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
-import org.apache.lucene.util.Accountable;
 import org.opensearch.action.support.DefaultShardOperationFailedException;
 import org.opensearch.action.support.broadcast.BroadcastResponse;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.index.engine.Segment;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -195,21 +192,6 @@ public class IndicesSegmentResponse extends BroadcastResponse {
             builder.endObject();
         }
         builder.endArray();
-    }
-
-    private static void toXContent(XContentBuilder builder, Accountable tree) throws IOException {
-        builder.startObject();
-        builder.field(Fields.DESCRIPTION, tree.toString());
-        builder.humanReadableField(Fields.SIZE_IN_BYTES, Fields.SIZE, new ByteSizeValue(tree.ramBytesUsed()));
-        Collection<Accountable> children = tree.getChildResources();
-        if (children.isEmpty() == false) {
-            builder.startArray(Fields.CHILDREN);
-            for (Accountable child : children) {
-                toXContent(builder, child);
-            }
-            builder.endArray();
-        }
-        builder.endObject();
     }
 
     /**
