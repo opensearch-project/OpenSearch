@@ -121,7 +121,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Disable merge on refresh in DiskThresholdDeciderIT ([#4828](https://github.com/opensearch-project/OpenSearch/pull/4828))
 - Better plural stemmer than minimal_english ([#4738](https://github.com/opensearch-project/OpenSearch/pull/4738))
 - Fix AbstractStringFieldDataTestCase tests to account for TotalHits lower bound ([4867](https://github.com/opensearch-project/OpenSearch/pull/4867))
-- [Segment Replication] Fix bug of replica shard's translog not purging on index flush when segment replication is enabled ([4974](https://github.com/opensearch-project/OpenSearch/pull/4974))
+- [Segment Replication] Fix bug of replica shard's translog not purging on index flush when segment replication is enabled ([4975](https://github.com/opensearch-project/OpenSearch/pull/4975))
 -
 
 ### Security
