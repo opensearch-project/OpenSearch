@@ -888,7 +888,7 @@ public class OperationRoutingTests extends OpenSearchTestCase {
 
     public void testWeightedOperationRoutingWeightUndefinedForOneZone() throws Exception {
         final int numIndices = 2;
-        final int numShards = 3;
+        final int numShards = 4;
         final int numReplicas = 2;
         // setting up indices
         final String[] indexNames = new String[numIndices];
@@ -952,7 +952,7 @@ public class OperationRoutingTests extends OpenSearchTestCase {
             selectedNodes = new HashSet<>();
             setting = Settings.builder().put("cluster.routing.allocation.awareness.attributes", "zone").build();
 
-            // Updating weighted round robin weights in cluster state
+            // Updating weighted round-robin weights in cluster state
             weights = Map.of("a", 0.0, "b", 1.0);
 
             state = setWeightedRoutingWeights(state, weights);
