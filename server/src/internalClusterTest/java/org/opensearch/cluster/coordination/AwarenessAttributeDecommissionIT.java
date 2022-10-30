@@ -27,15 +27,12 @@ import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
-import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.decommission.DecommissionAttribute;
 import org.opensearch.cluster.decommission.DecommissionAttributeMetadata;
-import org.opensearch.cluster.decommission.DecommissionControllerTests;
 import org.opensearch.cluster.decommission.DecommissionService;
 import org.opensearch.cluster.decommission.DecommissionStatus;
 import org.opensearch.cluster.decommission.DecommissioningFailedException;
 import org.opensearch.cluster.decommission.NodeDecommissionedException;
-import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.routing.WeightedRouting;
@@ -57,17 +54,13 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
-import static org.hamcrest.Matchers.sameInstance;
-import static org.opensearch.cluster.ClusterState.builder;
 import static org.opensearch.test.NodeRoles.onlyRole;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoTimeout;
 
@@ -754,12 +747,20 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
             assertTrue(ex.getMessage().contains("timed out waiting for voting config exclusions"));
         });
 
-        ClusterService leaderClusterService = internalCluster().getInstance(ClusterService.class, internalCluster().getClusterManagerName());
-        ClusterStateObserver clusterStateObserver = new ClusterStateObserver(leaderClusterService, null, logger, client(internalCluster().getClusterManagerName()).threadPool().getThreadContext());
+        ClusterService leaderClusterService = internalCluster().getInstance(
+            ClusterService.class,
+            internalCluster().getClusterManagerName()
+        );
+        ClusterStateObserver clusterStateObserver = new ClusterStateObserver(
+            leaderClusterService,
+            null,
+            logger,
+            client(internalCluster().getClusterManagerName()).threadPool().getThreadContext()
+        );
         CountDownLatch expectedStateLatch = new CountDownLatch(1);
 
         ClusterState currentState = internalCluster().clusterService().state();
-        if(currentState.getVotingConfigExclusions().isEmpty()) {
+        if (currentState.getVotingConfigExclusions().isEmpty()) {
             logger.info("exclusion already cleared");
             expectedStateLatch.countDown();
         } else {
@@ -771,7 +772,7 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
         expectedStateLatch = new CountDownLatch(1);
         currentState = internalCluster().clusterService().state();
         DecommissionAttributeMetadata decommissionAttributeMetadata = currentState.metadata().decommissionAttributeMetadata();
-        if (decommissionAttributeMetadata!=null && decommissionAttributeMetadata.status().equals(DecommissionStatus.FAILED)) {
+        if (decommissionAttributeMetadata != null && decommissionAttributeMetadata.status().equals(DecommissionStatus.FAILED)) {
             logger.info("decommission status has already turned false");
             expectedStateLatch.countDown();
         } else {
