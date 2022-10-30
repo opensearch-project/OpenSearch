@@ -32,7 +32,6 @@
 
 package org.opensearch.cluster.metadata;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.opensearch.ExceptionsHelper;
@@ -94,7 +93,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -592,7 +590,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
                 null,
                 null,
                 null,
-                createTestShardLimitService(randomIntBetween(1, 1000), clusterService),
+                createTestShardLimitService(randomIntBetween(1, 1000), false, clusterService),
                 null,
                 null,
                 threadPool,
@@ -674,7 +672,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
                 null,
                 null,
                 null,
-                createTestShardLimitService(randomIntBetween(1, 1000), clusterService),
+                createTestShardLimitService(randomIntBetween(1, 1000), false, clusterService),
                 null,
                 null,
                 threadPool,
@@ -1090,7 +1088,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             null,
             null,
             null,
-            createTestShardLimitService(randomIntBetween(1, 1000), clusterService),
+            createTestShardLimitService(randomIntBetween(1, 1000), false, clusterService),
             new Environment(Settings.builder().put("path.home", "dummy").build(), null),
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             threadPool,
@@ -1234,7 +1232,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
                 null,
                 null,
                 null,
-                createTestShardLimitService(randomIntBetween(1, 1000), clusterService),
+                createTestShardLimitService(randomIntBetween(1, 1000), false, clusterService),
                 new Environment(Settings.builder().put("path.home", "dummy").build(), null),
                 new IndexScopedSettings(ilnSetting, Collections.emptySet()),
                 threadPool,
@@ -1302,16 +1300,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         }
     }
 
-    private static Map<String, CompressedXContent> convertMappings(ImmutableOpenMap<String, CompressedXContent> mappings) {
-        Map<String, CompressedXContent> converted = new HashMap<>(mappings.size());
-        for (ObjectObjectCursor<String, CompressedXContent> cursor : mappings) {
-            converted.put(cursor.key, cursor.value);
-        }
-        return converted;
-    }
-
     private ShardLimitValidator randomShardLimitService() {
-        return createTestShardLimitService(randomIntBetween(10, 10000));
+        return createTestShardLimitService(randomIntBetween(10, 10000), false);
     }
 
     private void withTemporaryClusterService(BiConsumer<ClusterService, ThreadPool> consumer) {

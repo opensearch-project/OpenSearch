@@ -53,11 +53,9 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.spans.SpanNearQuery;
 import org.apache.lucene.queries.spans.SpanTermQuery;
-import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.FieldComparator;
@@ -76,7 +74,6 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
@@ -1174,75 +1171,6 @@ public class QueryPhaseTests extends IndexShardTestCase {
             public void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
                 final Collector in = new AssertingEarlyTerminationFilterCollector(collector, size);
                 super.search(leaves, weight, in);
-            }
-        };
-    }
-
-    // used to check that numeric long or date sort optimization was run
-    private static ContextIndexSearcher newOptimizedContextSearcher(IndexReader reader, int queryType, ExecutorService executor)
-        throws IOException {
-        return new ContextIndexSearcher(
-            reader,
-            IndexSearcher.getDefaultSimilarity(),
-            IndexSearcher.getDefaultQueryCache(),
-            IndexSearcher.getDefaultQueryCachingPolicy(),
-            true,
-            executor
-        ) {
-
-            @Override
-            public void search(
-                Query query,
-                CollectorManager<?, TopFieldDocs> manager,
-                QuerySearchResult result,
-                DocValueFormat[] formats,
-                TotalHits totalHits
-            ) throws IOException {
-                assertTrue(query instanceof BooleanQuery);
-                List<BooleanClause> clauses = ((BooleanQuery) query).clauses();
-                assertTrue(clauses.size() == 2);
-                assertTrue(clauses.get(0).getOccur() == Occur.FILTER);
-                assertTrue(clauses.get(1).getOccur() == Occur.SHOULD);
-                if (queryType == 0) {
-                    assertTrue(
-                        clauses.get(1).getQuery().getClass() == LongPoint.newDistanceFeatureQuery("random_field", 1, 1, 1).getClass()
-                    );
-                }
-                if (queryType == 1) assertTrue(clauses.get(1).getQuery() instanceof DocValuesFieldExistsQuery);
-                super.search(query, manager, result, formats, totalHits);
-            }
-
-            @Override
-            public void search(
-                List<LeafReaderContext> leaves,
-                Weight weight,
-                @SuppressWarnings("rawtypes") CollectorManager manager,
-                QuerySearchResult result,
-                DocValueFormat[] formats,
-                TotalHits totalHits
-            ) throws IOException {
-                final Query query = weight.getQuery();
-                assertTrue(query instanceof BooleanQuery);
-                List<BooleanClause> clauses = ((BooleanQuery) query).clauses();
-                assertTrue(clauses.size() == 2);
-                assertTrue(clauses.get(0).getOccur() == Occur.FILTER);
-                assertTrue(clauses.get(1).getOccur() == Occur.SHOULD);
-                if (queryType == 0) {
-                    assertTrue(
-                        clauses.get(1).getQuery().getClass() == LongPoint.newDistanceFeatureQuery("random_field", 1, 1, 1).getClass()
-                    );
-                }
-                if (queryType == 1) assertTrue(clauses.get(1).getQuery() instanceof DocValuesFieldExistsQuery);
-                super.search(leaves, weight, manager, result, formats, totalHits);
-            }
-
-            @Override
-            public void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
-                if (getExecutor() == null) {
-                    assert (false);  // should not be there, expected to search with CollectorManager
-                } else {
-                    super.search(leaves, weight, collector);
-                }
             }
         };
     }

@@ -19,6 +19,8 @@ import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPu
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
+import org.opensearch.cluster.decommission.DecommissionAttributeMetadata;
+import org.opensearch.cluster.decommission.DecommissionStatus;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
 import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
@@ -68,6 +70,8 @@ public class WeightedRoutingService {
         clusterService.submitStateUpdateTask("update_weighted_routing", new ClusterStateUpdateTask(Priority.URGENT) {
             @Override
             public ClusterState execute(ClusterState currentState) {
+                // verify currently no decommission action is ongoing
+                ensureNoOngoingDecommissionAction(currentState);
                 Metadata metadata = currentState.metadata();
                 Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
                 WeightedRoutingMetadata weightedRoutingMetadata = metadata.custom(WeightedRoutingMetadata.TYPE);
@@ -152,6 +156,17 @@ public class WeightedRoutingService {
                 validationException
             );
             throw validationException;
+        }
+    }
+
+    public void ensureNoOngoingDecommissionAction(ClusterState state) {
+        DecommissionAttributeMetadata decommissionAttributeMetadata = state.metadata().decommissionAttributeMetadata();
+        if (decommissionAttributeMetadata != null && decommissionAttributeMetadata.status().equals(DecommissionStatus.FAILED) == false) {
+            throw new IllegalStateException(
+                "a decommission action is ongoing with status ["
+                    + decommissionAttributeMetadata.status().status()
+                    + "], cannot update weight during this state"
+            );
         }
     }
 }

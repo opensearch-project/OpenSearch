@@ -14,6 +14,7 @@ import org.opensearch.cluster.decommission.DecommissionAttribute;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.unit.TimeValue;
 
 import java.io.IOException;
 
@@ -28,7 +29,14 @@ import static org.opensearch.action.ValidateActions.addValidationError;
  */
 public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionRequest> {
 
+    public static final TimeValue DEFAULT_NODE_DRAINING_TIMEOUT = TimeValue.timeValueSeconds(120);
+
     private DecommissionAttribute decommissionAttribute;
+
+    private TimeValue delayTimeout = DEFAULT_NODE_DRAINING_TIMEOUT;
+
+    // holder for no_delay param. To avoid draining time timeout.
+    private boolean noDelay = false;
 
     public DecommissionRequest() {}
 
@@ -39,12 +47,16 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
     public DecommissionRequest(StreamInput in) throws IOException {
         super(in);
         decommissionAttribute = new DecommissionAttribute(in);
+        this.delayTimeout = in.readTimeValue();
+        this.noDelay = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         decommissionAttribute.writeTo(out);
+        out.writeTimeValue(delayTimeout);
+        out.writeBoolean(noDelay);
     }
 
     /**
@@ -65,6 +77,25 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
         return this.decommissionAttribute;
     }
 
+    public void setDelayTimeout(TimeValue delayTimeout) {
+        this.delayTimeout = delayTimeout;
+    }
+
+    public TimeValue getDelayTimeout() {
+        return this.delayTimeout;
+    }
+
+    public void setNoDelay(boolean noDelay) {
+        if (noDelay) {
+            this.delayTimeout = TimeValue.ZERO;
+        }
+        this.noDelay = noDelay;
+    }
+
+    public boolean isNoDelay() {
+        return noDelay;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
@@ -77,6 +108,14 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
         }
         if (decommissionAttribute.attributeValue() == null || Strings.isEmpty(decommissionAttribute.attributeValue())) {
             validationException = addValidationError("attribute value is missing", validationException);
+        }
+        // This validation should not fail since we are not allowing delay timeout to be set externally.
+        // Still keeping it for double check.
+        if (noDelay && delayTimeout.getSeconds() > 0) {
+            final String validationMessage = "Invalid decommission request. no_delay is true and delay_timeout is set to "
+                + delayTimeout.getSeconds()
+                + "] Seconds";
+            validationException = addValidationError(validationMessage, validationException);
         }
         return validationException;
     }

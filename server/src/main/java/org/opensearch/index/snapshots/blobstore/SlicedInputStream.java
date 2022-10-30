@@ -35,6 +35,7 @@ import org.opensearch.core.internal.io.IOUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Objects;
 
 /**
  *  A {@link SlicedInputStream} is a logical
@@ -100,6 +101,11 @@ public abstract class SlicedInputStream extends InputStream {
 
     @Override
     public final int read(byte[] buffer, int offset, int length) throws IOException {
+        Objects.checkFromIndexSize(offset, length, buffer.length);
+        if (length == 0) {
+            return 0;
+        }
+
         final InputStream stream = currentStream();
         if (stream == null) {
             return -1;

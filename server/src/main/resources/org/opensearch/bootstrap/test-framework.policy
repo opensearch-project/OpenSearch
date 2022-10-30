@@ -111,6 +111,11 @@ grant codeBase "${codebase.httpcore5}" {
   permission java.net.SocketPermission "*", "connect";
 };
 
+grant codeBase "${codebase.httpclient5}" {
+  // httpclient5 makes socket connections for rest tests
+  permission java.net.SocketPermission "*", "connect";
+};
+
 grant codeBase "${codebase.httpcore-nio}" {
   // httpcore makes socket connections for rest tests
   permission java.net.SocketPermission "*", "connect";
