@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
 import org.junit.After;
+import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionStateAction;
 import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionStateRequest;
 import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionStateResponse;
@@ -25,11 +26,16 @@ import org.opensearch.action.admin.cluster.decommission.awareness.put.Decommissi
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingResponse;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.ClusterStateObserver;
+import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.decommission.DecommissionAttribute;
 import org.opensearch.cluster.decommission.DecommissionAttributeMetadata;
+import org.opensearch.cluster.decommission.DecommissionControllerTests;
+import org.opensearch.cluster.decommission.DecommissionService;
 import org.opensearch.cluster.decommission.DecommissionStatus;
 import org.opensearch.cluster.decommission.DecommissioningFailedException;
 import org.opensearch.cluster.decommission.NodeDecommissionedException;
+import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.routing.WeightedRouting;
@@ -51,12 +57,17 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.sameInstance;
+import static org.opensearch.cluster.ClusterState.builder;
 import static org.opensearch.test.NodeRoles.onlyRole;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoTimeout;
 
@@ -680,5 +691,151 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
             );
             assertTrue(ex.getMessage().contains("weight for decommissioned attribute is expected to be [0.0] but found [1.0]"));
         });
+    }
+
+    public void testDecommissionFailedWithOnlyOneAttributeValue() throws Exception {
+        Settings commonSettings = Settings.builder()
+            .put("cluster.routing.allocation.awareness.attributes", "zone")
+            .put("cluster.routing.allocation.awareness.force.zone.values", "a")
+            .build();
+        // Start 3 cluster manager eligible nodes
+        internalCluster().startClusterManagerOnlyNodes(3, Settings.builder().put(commonSettings).put("node.attr.zone", "a").build());
+        // start 3 data nodes
+        internalCluster().startDataOnlyNodes(3, Settings.builder().put(commonSettings).put("node.attr.zone", "a").build());
+        ensureStableCluster(6);
+        ClusterHealthResponse health = client().admin()
+            .cluster()
+            .prepareHealth()
+            .setWaitForEvents(Priority.LANGUID)
+            .setWaitForGreenStatus()
+            .setWaitForNodes(Integer.toString(6))
+            .execute()
+            .actionGet();
+        assertFalse(health.isTimedOut());
+
+        logger.info("--> setting shard routing weights");
+        Map<String, Double> weights = Map.of("a", 0.0);
+        WeightedRouting weightedRouting = new WeightedRouting("zone", weights);
+
+        ClusterPutWeightedRoutingResponse weightedRoutingResponse = client().admin()
+            .cluster()
+            .prepareWeightedRouting()
+            .setWeightedRouting(weightedRouting)
+            .get();
+        assertTrue(weightedRoutingResponse.isAcknowledged());
+
+        // prepare request to attempt to decommission zone 'a'
+        DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "a");
+        DecommissionRequest decommissionRequest = new DecommissionRequest(decommissionAttribute);
+        decommissionRequest.setNoDelay(true);
+
+        // since there is just one zone present in the cluster, and on initiating decommission for that zone,
+        // although all the nodes would be added to voting config exclusion list, but those nodes won't be able to
+        // abdicate themselves as we wouldn't have any other leader eligible node which would be declare itself cluster manager
+        // and hence due to which the leader won't get abdicated and decommission request should eventually fail.
+        // And in this case, to ensure decommission request doesn't leave mutating change in the cluster, we ensure
+        // that no exclusion is set to the cluster and state for decommission is marked as FAILED
+        Logger clusterLogger = LogManager.getLogger(DecommissionService.class);
+        MockLogAppender mockLogAppender = MockLogAppender.createForLoggers(clusterLogger);
+        mockLogAppender.addExpectation(
+            new MockLogAppender.SeenEventExpectation(
+                "test",
+                DecommissionService.class.getCanonicalName(),
+                Level.ERROR,
+                "failure in removing to-be-decommissioned cluster manager eligible nodes"
+            )
+        );
+
+        assertBusy(() -> {
+            OpenSearchTimeoutException ex = expectThrows(
+                OpenSearchTimeoutException.class,
+                () -> client().execute(DecommissionAction.INSTANCE, decommissionRequest).actionGet()
+            );
+            assertTrue(ex.getMessage().contains("timed out waiting for voting config exclusions"));
+        });
+
+        ClusterService leaderClusterService = internalCluster().getInstance(ClusterService.class, internalCluster().getClusterManagerName());
+        ClusterStateObserver clusterStateObserver = new ClusterStateObserver(leaderClusterService, null, logger, client(internalCluster().getClusterManagerName()).threadPool().getThreadContext());
+        CountDownLatch expectedStateLatch = new CountDownLatch(1);
+
+        ClusterState currentState = internalCluster().clusterService().state();
+        if(currentState.getVotingConfigExclusions().isEmpty()) {
+            logger.info("exclusion already cleared");
+            expectedStateLatch.countDown();
+        } else {
+            clusterStateObserver.waitForNextChange(new WaitForClearVotingConfigExclusion(expectedStateLatch));
+        }
+        // if the below condition is passed, then we are sure exclusion is cleared
+        assertTrue(expectedStateLatch.await(30, TimeUnit.SECONDS));
+
+        expectedStateLatch = new CountDownLatch(1);
+        currentState = internalCluster().clusterService().state();
+        DecommissionAttributeMetadata decommissionAttributeMetadata = currentState.metadata().decommissionAttributeMetadata();
+        if (decommissionAttributeMetadata!=null && decommissionAttributeMetadata.status().equals(DecommissionStatus.FAILED)) {
+            logger.info("decommission status has already turned false");
+            expectedStateLatch.countDown();
+        } else {
+            clusterStateObserver.waitForNextChange(new WaitForFailedDecommissionState(expectedStateLatch));
+        }
+
+        // if the below condition is passed, then we are sure current decommission status is marked FAILED
+        assertTrue(expectedStateLatch.await(30, TimeUnit.SECONDS));
+        mockLogAppender.assertAllExpectationsMatched();
+
+        // ensure all nodes are part of cluster
+        ensureStableCluster(6, TimeValue.timeValueMinutes(2));
+    }
+
+    private static class WaitForFailedDecommissionState implements ClusterStateObserver.Listener {
+
+        final CountDownLatch doneLatch;
+
+        WaitForFailedDecommissionState(CountDownLatch latch) {
+            this.doneLatch = latch;
+        }
+
+        @Override
+        public void onNewClusterState(ClusterState state) {
+            DecommissionAttributeMetadata decommissionAttributeMetadata = state.metadata().decommissionAttributeMetadata();
+            if (decommissionAttributeMetadata != null && decommissionAttributeMetadata.status().equals(DecommissionStatus.FAILED)) {
+                doneLatch.countDown();
+            }
+        }
+
+        @Override
+        public void onClusterServiceClose() {
+            throw new AssertionError("unexpected close");
+        }
+
+        @Override
+        public void onTimeout(TimeValue timeout) {
+            throw new AssertionError("unexpected timeout");
+        }
+    }
+
+    private static class WaitForClearVotingConfigExclusion implements ClusterStateObserver.Listener {
+
+        final CountDownLatch doneLatch;
+
+        WaitForClearVotingConfigExclusion(CountDownLatch latch) {
+            this.doneLatch = latch;
+        }
+
+        @Override
+        public void onNewClusterState(ClusterState state) {
+            if (state.getVotingConfigExclusions().isEmpty()) {
+                doneLatch.countDown();
+            }
+        }
+
+        @Override
+        public void onClusterServiceClose() {
+            throw new AssertionError("unexpected close");
+        }
+
+        @Override
+        public void onTimeout(TimeValue timeout) {
+            throw new AssertionError("unexpected timeout");
+        }
     }
 }
