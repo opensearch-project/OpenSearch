@@ -999,6 +999,23 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
                 containsString("expected total copies needs to be a multiple of total awareness attributes [2]")
             );
 
+            final IllegalArgumentException restoreError2 = expectThrows(
+                IllegalArgumentException.class,
+                () -> clusterAdmin().prepareRestoreSnapshot("test-repo", "snapshot-0")
+                    .setRenamePattern("test-index")
+                    .setRenameReplacement("new-index")
+                    .setIndexSettings(Settings.builder()
+                        .put(SETTING_NUMBER_OF_REPLICAS, 1)
+                        .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-2")
+                        .build())
+                    .setIndices("test-index")
+                    .get()
+            );
+            assertThat(
+                restoreError2.getMessage(),
+                containsString("expected max cap on auto expand to be a multiple of total awareness attributes [2]")
+            );
+
             RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot("test-repo", "snapshot-0")
                 .setRenamePattern(".system-index")
                 .setRenameReplacement(".system-index-restore-1")
@@ -1013,6 +1030,18 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
                 .setRenamePattern("test-index")
                 .setRenameReplacement("new-index")
                 .setIndexSettings(Settings.builder().put("index.number_of_replicas", 1).build())
+                .setWaitForCompletion(true)
+                .setIndices("test-index")
+                .execute()
+                .actionGet();
+
+            restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot("test-repo", "snapshot-0")
+                .setRenamePattern("test-index")
+                .setRenameReplacement("new-index")
+                .setIndexSettings(Settings.builder()
+                    .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
+                    .build())
                 .setWaitForCompletion(true)
                 .setIndices("test-index")
                 .execute()
