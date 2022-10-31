@@ -30,11 +30,11 @@ public class AwarenessReplicaBalanceTests extends OpenSearchAllocationTestCase {
         AwarenessReplicaBalance awarenessReplicaBalance = new AwarenessReplicaBalance(settings, EMPTY_CLUSTER_SETTINGS);
         assertThat(awarenessReplicaBalance.maxAwarenessAttributes(), equalTo(1));
 
-        assertEquals(awarenessReplicaBalance.validate(0,-1), Optional.empty());
+        assertEquals(awarenessReplicaBalance.validate(0, -1), Optional.empty());
         assertEquals(awarenessReplicaBalance.validate(1, -1), Optional.empty());
-        assertEquals(awarenessReplicaBalance.validate(0,0), Optional.empty());
+        assertEquals(awarenessReplicaBalance.validate(0, 0), Optional.empty());
         assertEquals(awarenessReplicaBalance.validate(0, 1), Optional.empty());
-        assertEquals(awarenessReplicaBalance.validate(1,0), Optional.empty());
+        assertEquals(awarenessReplicaBalance.validate(1, 0), Optional.empty());
         assertEquals(awarenessReplicaBalance.validate(1, 1), Optional.empty());
     }
 
