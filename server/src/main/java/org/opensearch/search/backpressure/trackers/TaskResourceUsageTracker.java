@@ -41,10 +41,10 @@ public abstract class TaskResourceUsageTracker {
     /**
      * Notifies the tracker to update its state when a task execution completes.
      */
-    public abstract void update(Task task);
+    public void update(Task task) {}
 
     /**
      * Returns the cancellation reason for the given task, if it's eligible for cancellation.
      */
-    public abstract Optional<TaskCancellation.Reason> cancellationReason(Task task);
+    public abstract Optional<TaskCancellation.Reason> checkAndMaybeGetCancellationReason(Task task);
 }
