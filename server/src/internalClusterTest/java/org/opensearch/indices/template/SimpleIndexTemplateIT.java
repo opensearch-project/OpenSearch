@@ -1032,6 +1032,7 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
 
     public void testAwarenessReplicaBalance() throws IOException {
         manageReplicaBalanceSetting(true);
+        int updated = 0;
         try {
             client().admin()
                 .indices()
@@ -1039,6 +1040,15 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
                 .setPatterns(Arrays.asList("a*", "b*"))
                 .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
                 .get();
+            updated++;
+
+            client().admin()
+                .indices()
+                .preparePutTemplate("template_1")
+                .setPatterns(Arrays.asList("a*", "b*"))
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1"))
+                .get();
+            updated++;
 
             client().admin()
                 .indices()
@@ -1053,6 +1063,7 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
                 "index_template [template_1] invalid, cause [Validation Failed: 1: expected total copies needs to be a multiple of total awareness attributes [2];]",
                 e.getMessage()
             );
+            assertEquals(2, updated);
         } finally {
             manageReplicaBalanceSetting(false);
         }
