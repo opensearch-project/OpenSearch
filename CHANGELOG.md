@@ -25,6 +25,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Bump `tika` from 2.4.0 to 2.5.0 ([#4929](https://github.com/opensearch-project/OpenSearch/pull/4929))
 - Bump `woodstox-core` to 6.4.0 ([#4950](https://github.com/opensearch-project/OpenSearch/pull/4950))
 - Upgrade jetty-http, kotlin-stdlib and snakeyaml ([#4981](https://github.com/opensearch-project/OpenSearch/pull/4981))
+- OpenJDK Update (October 2022 Patch releases) ([#4998](https://github.com/opensearch-project/OpenSearch/pull/4998))
 ### Changed
 - Dependency updates (httpcore, mockito, slf4j, httpasyncclient, commons-codec) ([#4308](https://github.com/opensearch-project/OpenSearch/pull/4308))
 - Use RemoteSegmentStoreDirectory instead of RemoteDirectory ([#4240](https://github.com/opensearch-project/OpenSearch/pull/4240))
