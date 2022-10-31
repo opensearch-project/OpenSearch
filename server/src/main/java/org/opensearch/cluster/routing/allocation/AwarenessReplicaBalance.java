@@ -103,16 +103,16 @@ public class AwarenessReplicaBalance {
     }
 
     public Optional<String> validate(int replicaCount, AutoExpandReplicas autoExpandReplica) {
-        if (!autoExpandReplica.isEnabled()) {
-            if ((replicaCount + 1) % maxAwarenessAttributes() != 0) {
-                String errorMessage = "expected total copies needs to be a multiple of total awareness attributes ["
+        if (autoExpandReplica.isEnabled()) {
+            if ((autoExpandReplica.getMaxReplicas() != Integer.MAX_VALUE) && ((autoExpandReplica.getMaxReplicas() + 1) % maxAwarenessAttributes() != 0)) {
+                String errorMessage = "expected max cap on auto expand to be a multiple of total awareness attributes ["
                     + maxAwarenessAttributes()
                     + "]";
                 return Optional.of(errorMessage);
             }
         } else {
-            if ((autoExpandReplica.getMaxReplicas() != Integer.MAX_VALUE) && ((autoExpandReplica.getMaxReplicas() + 1) % maxAwarenessAttributes() != 0)) {
-                String errorMessage = "expected max cap on auto expand to be a multiple of total awareness attributes ["
+            if ((replicaCount + 1) % maxAwarenessAttributes() != 0) {
+                String errorMessage = "expected total copies needs to be a multiple of total awareness attributes ["
                     + maxAwarenessAttributes()
                     + "]";
                 return Optional.of(errorMessage);
