@@ -132,7 +132,7 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
             public void update(Task task) {}
 
             @Override
-            public Optional<TaskCancellation.Reason> cancellationReason(Task task) {
+            public Optional<TaskCancellation.Reason> checkAndMaybeGetCancellationReason(Task task) {
                 if (task.getTotalResourceStats().getCpuTimeInNanos() < 300) {
                     return Optional.empty();
                 }
@@ -167,10 +167,10 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
         service.doRun();
         service.doRun();
 
-        // Mocking 'settings' with predictable searchHeapThresholdBytes so that cancellation logic doesn't get skipped.
+        // Mocking 'settings' with predictable totalHeapBytesThreshold so that cancellation logic doesn't get skipped.
         long taskHeapUsageBytes = 500;
         SearchShardTaskSettings shardTaskSettings = mock(SearchShardTaskSettings.class);
-        when(shardTaskSettings.getTotalHeapThresholdBytes()).thenReturn(taskHeapUsageBytes);
+        when(shardTaskSettings.getTotalHeapBytesThreshold()).thenReturn(taskHeapUsageBytes);
         when(settings.getSearchShardTaskSettings()).thenReturn(shardTaskSettings);
 
         // Create a mix of low and high resource usage tasks (60 low + 15 high resource usage tasks).
