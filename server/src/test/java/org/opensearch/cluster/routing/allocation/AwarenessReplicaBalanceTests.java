@@ -30,8 +30,12 @@ public class AwarenessReplicaBalanceTests extends OpenSearchAllocationTestCase {
         AwarenessReplicaBalance awarenessReplicaBalance = new AwarenessReplicaBalance(settings, EMPTY_CLUSTER_SETTINGS);
         assertThat(awarenessReplicaBalance.maxAwarenessAttributes(), equalTo(1));
 
-        assertEquals(awarenessReplicaBalance.validate(0), Optional.empty());
-        assertEquals(awarenessReplicaBalance.validate(1), Optional.empty());
+        assertEquals(awarenessReplicaBalance.validate(0,-1), Optional.empty());
+        assertEquals(awarenessReplicaBalance.validate(1, -1), Optional.empty());
+        assertEquals(awarenessReplicaBalance.validate(0,0), Optional.empty());
+        assertEquals(awarenessReplicaBalance.validate(0, 1), Optional.empty());
+        assertEquals(awarenessReplicaBalance.validate(1,0), Optional.empty());
+        assertEquals(awarenessReplicaBalance.validate(1, 1), Optional.empty());
     }
 
     public void testForcedAwarenessAttribute() {
@@ -44,11 +48,18 @@ public class AwarenessReplicaBalanceTests extends OpenSearchAllocationTestCase {
 
         AwarenessReplicaBalance awarenessReplicaBalance = new AwarenessReplicaBalance(settings, EMPTY_CLUSTER_SETTINGS);
         assertThat(awarenessReplicaBalance.maxAwarenessAttributes(), equalTo(3));
-        assertEquals(awarenessReplicaBalance.validate(2), Optional.empty());
+        assertEquals(awarenessReplicaBalance.validate(2, -1), Optional.empty());
+        assertEquals(awarenessReplicaBalance.validate(1, 2), Optional.empty());
+        assertEquals(awarenessReplicaBalance.validate(0, 2), Optional.empty());
         assertEquals(
-            awarenessReplicaBalance.validate(1),
+            awarenessReplicaBalance.validate(1, -1),
             Optional.of("expected total copies needs to be a multiple of total awareness attributes [3]")
         );
+        assertEquals(
+            awarenessReplicaBalance.validate(1, 1),
+            Optional.of("expected max cap on auto expand to be a multiple of total awareness attributes [3]")
+        );
+
     }
 
     public void testForcedAwarenessAttributeDisabled() {
@@ -59,8 +70,10 @@ public class AwarenessReplicaBalanceTests extends OpenSearchAllocationTestCase {
 
         AwarenessReplicaBalance awarenessReplicaBalance = new AwarenessReplicaBalance(settings, EMPTY_CLUSTER_SETTINGS);
         assertThat(awarenessReplicaBalance.maxAwarenessAttributes(), equalTo(1));
-        assertEquals(awarenessReplicaBalance.validate(0), Optional.empty());
-        assertEquals(awarenessReplicaBalance.validate(1), Optional.empty());
+        assertEquals(awarenessReplicaBalance.validate(0, -1), Optional.empty());
+        assertEquals(awarenessReplicaBalance.validate(1, -1), Optional.empty());
+        assertEquals(awarenessReplicaBalance.validate(0, 0), Optional.empty());
+        assertEquals(awarenessReplicaBalance.validate(0, 1), Optional.empty());
     }
 
 }
