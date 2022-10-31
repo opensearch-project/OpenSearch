@@ -1205,9 +1205,8 @@ public class MetadataCreateIndexService {
                 IndexMetadata.SETTING_NUMBER_OF_REPLICAS,
                 INDEX_NUMBER_OF_REPLICAS_SETTING.getDefault(Settings.EMPTY)
             );
-            int autoExpandMaxCap = AutoExpandReplicas.parse(settings.get(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "false"))
-                .getMaxReplicas();
-            Optional<String> error = awarenessReplicaBalance.validate(replicaCount, autoExpandMaxCap);
+            AutoExpandReplicas autoExpandReplica = AutoExpandReplicas.SETTING.get(settings);
+            Optional<String> error = awarenessReplicaBalance.validate(replicaCount, autoExpandReplica);
             if (error.isPresent()) {
                 validationErrors.add(error.get());
             }
