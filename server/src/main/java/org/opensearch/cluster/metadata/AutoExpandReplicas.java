@@ -137,9 +137,11 @@ public final class AutoExpandReplicas {
     public int getMaxReplicas() {
         return maxReplicas;
     }
+
     public boolean isEnabled() {
         return enabled;
     }
+
     private OptionalInt getDesiredNumberOfReplicas(IndexMetadata indexMetadata, RoutingAllocation allocation) {
         if (enabled) {
             int numMatchingDataNodes = 0;

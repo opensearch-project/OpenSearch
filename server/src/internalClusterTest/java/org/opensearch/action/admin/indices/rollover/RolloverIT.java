@@ -237,14 +237,12 @@ public class RolloverIT extends OpenSearchIntegTestCase {
             containsString("expected total copies needs to be a multiple of total awareness attributes [2]")
         );
 
-
         client().admin()
             .indices()
             .prepareRolloverIndex("test_alias")
-            .settings(Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .build())
+            .settings(
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build()
+            )
             .alias(new Alias("extra_alias"))
             .waitForActiveShards(0)
             .get();
@@ -252,11 +250,13 @@ public class RolloverIT extends OpenSearchIntegTestCase {
         client().admin()
             .indices()
             .prepareRolloverIndex("test_alias")
-            .settings(Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2)
-                .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
-                .build())
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2)
+                    .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
+                    .build()
+            )
             .alias(new Alias("extra_alias"))
             .waitForActiveShards(0)
             .get();
@@ -264,23 +264,31 @@ public class RolloverIT extends OpenSearchIntegTestCase {
         client().admin()
             .indices()
             .prepareRolloverIndex("test_alias")
-            .settings(Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2)
-                .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-all")
-                .build())
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2)
+                    .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-all")
+                    .build()
+            )
             .alias(new Alias("extra_alias"))
             .waitForActiveShards(0)
             .get();
-
 
         final IllegalArgumentException restoreError2 = expectThrows(
             IllegalArgumentException.class,
-            () -> client().admin().indices().prepareRolloverIndex("test_alias").settings(Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2)
-                .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-0")
-                .build()).alias(new Alias("extra_alias")).get()
+            () -> client().admin()
+                .indices()
+                .prepareRolloverIndex("test_alias")
+                .settings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2)
+                        .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-0")
+                        .build()
+                )
+                .alias(new Alias("extra_alias"))
+                .get()
         );
 
         assertThat(

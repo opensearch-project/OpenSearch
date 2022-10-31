@@ -104,7 +104,8 @@ public class AwarenessReplicaBalance {
 
     public Optional<String> validate(int replicaCount, AutoExpandReplicas autoExpandReplica) {
         if (autoExpandReplica.isEnabled()) {
-            if ((autoExpandReplica.getMaxReplicas() != Integer.MAX_VALUE) && ((autoExpandReplica.getMaxReplicas() + 1) % maxAwarenessAttributes() != 0)) {
+            if ((autoExpandReplica.getMaxReplicas() != Integer.MAX_VALUE)
+                && ((autoExpandReplica.getMaxReplicas() + 1) % maxAwarenessAttributes() != 0)) {
                 String errorMessage = "expected max cap on auto expand to be a multiple of total awareness attributes ["
                     + maxAwarenessAttributes()
                     + "]";
