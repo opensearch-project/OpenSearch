@@ -9,32 +9,34 @@
 package org.opensearch.search.backpressure.trackers;
 
 import org.opensearch.action.search.SearchShardTask;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
-import org.opensearch.search.backpressure.settings.SearchShardTaskSettings;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskCancellation;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Optional;
 
-import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 import static org.opensearch.search.backpressure.SearchBackpressureTestHelpers.createMockTaskWithResourceStats;
 
 public class HeapUsageTrackerTests extends OpenSearchTestCase {
+    private static final long HEAP_BYTES_THRESHOLD = 100;
     private static final int HEAP_MOVING_AVERAGE_WINDOW_SIZE = 100;
-    private static final SearchBackpressureSettings mockSettings = mock(SearchBackpressureSettings.class);
-    private static final SearchShardTaskSettings mockSearchShardTaskSettings = mock(SearchShardTaskSettings.class);
 
-    static {
-        when(mockSettings.getSearchShardTaskSettings()).thenReturn(mockSearchShardTaskSettings);
-        when(mockSearchShardTaskSettings.getHeapBytesThreshold()).thenReturn(100L);
-        when(mockSearchShardTaskSettings.getHeapVarianceThreshold()).thenReturn(2.0);
-        when(mockSearchShardTaskSettings.getHeapMovingAverageWindowSize()).thenReturn(HEAP_MOVING_AVERAGE_WINDOW_SIZE);
-    }
+    private static final SearchBackpressureSettings mockSettings = new SearchBackpressureSettings(
+        Settings.builder()
+            .put(HeapUsageTracker.SETTING_HEAP_VARIANCE_THRESHOLD.getKey(), 2.0)
+            .put(HeapUsageTracker.SETTING_HEAP_MOVING_AVERAGE_WINDOW_SIZE.getKey(), HEAP_MOVING_AVERAGE_WINDOW_SIZE)
+            .build(),
+        new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+    );
 
     public void testEligibleForCancellation() {
-        HeapUsageTracker tracker = new HeapUsageTracker(mockSettings);
+        HeapUsageTracker tracker = spy(new HeapUsageTracker(mockSettings));
+        when(tracker.getHeapBytesThreshold()).thenReturn(HEAP_BYTES_THRESHOLD);
         Task task = createMockTaskWithResourceStats(SearchShardTask.class, 1, 50);
 
         // Record enough observations to make the moving average 'ready'.
@@ -53,7 +55,8 @@ public class HeapUsageTrackerTests extends OpenSearchTestCase {
     public void testNotEligibleForCancellation() {
         Task task;
         Optional<TaskCancellation.Reason> reason;
-        HeapUsageTracker tracker = new HeapUsageTracker(mockSettings);
+        HeapUsageTracker tracker = spy(new HeapUsageTracker(mockSettings));
+        when(tracker.getHeapBytesThreshold()).thenReturn(HEAP_BYTES_THRESHOLD);
 
         // Task with heap usage < heapBytesThreshold.
         task = createMockTaskWithResourceStats(SearchShardTask.class, 1, 99);

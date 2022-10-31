@@ -12,7 +12,6 @@ import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
-import org.opensearch.search.backpressure.settings.SearchShardTaskSettings;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskCancellation;
 import org.opensearch.test.OpenSearchTestCase;
@@ -24,7 +23,7 @@ import static org.opensearch.search.backpressure.SearchBackpressureTestHelpers.c
 public class CpuUsageTrackerTests extends OpenSearchTestCase {
     private static final SearchBackpressureSettings mockSettings = new SearchBackpressureSettings(
         Settings.builder()
-            .put(SearchShardTaskSettings.SETTING_CPU_TIME_MILLIS_THRESHOLD.getKey(), 15)  // 15 ms
+            .put(CpuUsageTracker.SETTING_CPU_TIME_MILLIS_THRESHOLD.getKey(), 15)  // 15 ms
             .build(),
         new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
     );

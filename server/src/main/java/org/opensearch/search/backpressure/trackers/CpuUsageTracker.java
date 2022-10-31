@@ -8,6 +8,7 @@
 
 package org.opensearch.search.backpressure.trackers;
 
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
 import org.opensearch.tasks.Task;
@@ -15,7 +16,6 @@ import org.opensearch.tasks.TaskCancellation;
 
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
-import java.util.function.LongSupplier;
 
 import static org.opensearch.search.backpressure.trackers.TaskResourceUsageTrackerType.CPU_USAGE_TRACKER;
 
@@ -25,10 +25,25 @@ import static org.opensearch.search.backpressure.trackers.TaskResourceUsageTrack
  * @opensearch.internal
  */
 public class CpuUsageTracker extends TaskResourceUsageTracker {
-    private final LongSupplier cpuTimeNanosThresholdSupplier;
+    private static class Defaults {
+        private static final long CPU_TIME_MILLIS_THRESHOLD = 15000;
+    }
+
+    /**
+     * Defines the CPU usage threshold (in millis) for an individual task before it is considered for cancellation.
+     */
+    private volatile long cpuTimeMillisThreshold;
+    public static final Setting<Long> SETTING_CPU_TIME_MILLIS_THRESHOLD = Setting.longSetting(
+        "search_backpressure.search_shard_task.cpu_time_millis_threshold",
+        Defaults.CPU_TIME_MILLIS_THRESHOLD,
+        0,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
 
     public CpuUsageTracker(SearchBackpressureSettings settings) {
-        this.cpuTimeNanosThresholdSupplier = () -> settings.getSearchShardTaskSettings().getCpuTimeNanosThreshold();
+        this.cpuTimeMillisThreshold = SETTING_CPU_TIME_MILLIS_THRESHOLD.get(settings.getSettings());
+        settings.getClusterSettings().addSettingsUpdateConsumer(SETTING_CPU_TIME_MILLIS_THRESHOLD, this::setCpuTimeMillisThreshold);
     }
 
     @Override
@@ -39,7 +54,7 @@ public class CpuUsageTracker extends TaskResourceUsageTracker {
     @Override
     public Optional<TaskCancellation.Reason> checkAndMaybeGetCancellationReason(Task task) {
         long usage = task.getTotalResourceStats().getCpuTimeInNanos();
-        long threshold = cpuTimeNanosThresholdSupplier.getAsLong();
+        long threshold = getCpuTimeNanosThreshold();
 
         if (usage < threshold) {
             return Optional.empty();
@@ -55,5 +70,13 @@ public class CpuUsageTracker extends TaskResourceUsageTracker {
                 1  // TODO: fine-tune the cancellation score/weight
             )
         );
+    }
+
+    public long getCpuTimeNanosThreshold() {
+        return TimeUnit.MILLISECONDS.toNanos(cpuTimeMillisThreshold);
+    }
+
+    public void setCpuTimeMillisThreshold(long cpuTimeMillisThreshold) {
+        this.cpuTimeMillisThreshold = cpuTimeMillisThreshold;
     }
 }
