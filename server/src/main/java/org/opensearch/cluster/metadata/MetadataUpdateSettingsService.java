@@ -203,8 +203,7 @@ public class MetadataUpdateSettingsService {
                                     // No replica count validation for system indices
                                     Optional<String> error = awarenessReplicaBalance.validate(
                                         updatedNumberOfReplicas,
-                                        AutoExpandReplicas.parse(openSettings.get(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "false"))
-                                            .getMaxReplicas()
+                                        AutoExpandReplicas.SETTING.get(openSettings)
                                     );
 
                                     if (error.isPresent()) {
