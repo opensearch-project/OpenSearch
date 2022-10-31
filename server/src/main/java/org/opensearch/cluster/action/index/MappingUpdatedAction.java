@@ -155,6 +155,7 @@ public class MappingUpdatedAction {
         putMappingRequest.setConcreteIndex(index);
         putMappingRequest.source(mappingUpdate.toString(), XContentType.JSON);
         putMappingRequest.clusterManagerNodeTimeout(dynamicMappingUpdateTimeout);
+        putMappingRequest.timeout(TimeValue.ZERO);
         client.execute(
             AutoPutMappingAction.INSTANCE,
             putMappingRequest,
