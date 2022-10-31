@@ -626,9 +626,10 @@ public class UpdateNumberOfReplicasIT extends OpenSearchIntegTestCase {
             client().admin()
                 .indices()
                 .prepareUpdateSettings("aware-replica")
-                .setSettings(Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2)
-                    .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
+                .setSettings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2)
+                        .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
                 )
                 .execute()
                 .actionGet();
