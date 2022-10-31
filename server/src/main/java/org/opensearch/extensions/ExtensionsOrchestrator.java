@@ -29,7 +29,6 @@ import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterSettingsResponse;
-import org.opensearch.cluster.LocalNodeResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.io.FileSystemUtils;
@@ -77,7 +76,6 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     public static final String INDICES_EXTENSION_POINT_ACTION_NAME = "indices:internal/extensions";
     public static final String INDICES_EXTENSION_NAME_ACTION_NAME = "indices:internal/name";
     public static final String REQUEST_EXTENSION_CLUSTER_STATE = "internal:discovery/clusterstate";
-    public static final String REQUEST_EXTENSION_LOCAL_NODE = "internal:discovery/localnode";
     public static final String REQUEST_EXTENSION_CLUSTER_SETTINGS = "internal:discovery/clustersettings";
     public static final String REQUEST_EXTENSION_ENVIRONMENT_SETTINGS = "internal:discovery/enviornmentsettings";
     public static final String REQUEST_EXTENSION_ADD_SETTINGS_UPDATE_CONSUMER = "internal:discovery/addsettingsupdateconsumer";
@@ -102,7 +100,6 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
      */
     public static enum RequestType {
         REQUEST_EXTENSION_CLUSTER_STATE,
-        REQUEST_EXTENSION_LOCAL_NODE,
         REQUEST_EXTENSION_CLUSTER_SETTINGS,
         REQUEST_EXTENSION_ACTION_LISTENER_ON_FAILURE,
         REQUEST_EXTENSION_REGISTER_REST_ACTIONS,
@@ -229,14 +226,6 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         );
         transportService.registerRequestHandler(
             REQUEST_EXTENSION_CLUSTER_STATE,
-            ThreadPool.Names.GENERIC,
-            false,
-            false,
-            ExtensionRequest::new,
-            ((request, channel, task) -> channel.sendResponse(handleExtensionRequest(request)))
-        );
-        transportService.registerRequestHandler(
-            REQUEST_EXTENSION_LOCAL_NODE,
             ThreadPool.Names.GENERIC,
             false,
             false,
@@ -430,8 +419,6 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         switch (extensionRequest.getRequestType()) {
             case REQUEST_EXTENSION_CLUSTER_STATE:
                 return new ClusterStateResponse(clusterService.getClusterName(), clusterService.state(), false);
-            case REQUEST_EXTENSION_LOCAL_NODE:
-                return new LocalNodeResponse(clusterService);
             case REQUEST_EXTENSION_CLUSTER_SETTINGS:
                 return new ClusterSettingsResponse(clusterService);
             case REQUEST_EXTENSION_ENVIRONMENT_SETTINGS:

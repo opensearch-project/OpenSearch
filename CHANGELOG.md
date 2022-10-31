@@ -227,6 +227,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
  - Modified EnvironmentSettingsRequest to pass entire Settings object ([#4731](https://github.com/opensearch-project/OpenSearch/pull/4731))
  - Added contentParser method to ExtensionRestRequest ([#4760](https://github.com/opensearch-project/OpenSearch/pull/4760))
  - Enforce type safety for RegisterTransportActionsRequest([#4796](https://github.com/opensearch-project/OpenSearch/pull/4796))
+ - Modified local node request to return Discovery Node ([#4862](https://github.com/opensearch-project/OpenSearch/pull/4862))
  - Enforce type safety for NamedWriteableRegistryParseRequest ([#4923](https://github.com/opensearch-project/OpenSearch/pull/4923))
 
 ## [2.x]

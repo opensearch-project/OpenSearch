@@ -46,7 +46,6 @@ import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterSettingsResponse;
-import org.opensearch.cluster.LocalNodeResponse;
 import org.opensearch.env.EnvironmentSettingsResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
@@ -455,9 +454,6 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         );
         assertEquals(ClusterSettingsResponse.class, extensionsOrchestrator.handleExtensionRequest(clusterSettingRequest).getClass());
 
-        ExtensionRequest localNodeRequest = new ExtensionRequest(ExtensionsOrchestrator.RequestType.REQUEST_EXTENSION_LOCAL_NODE);
-        assertEquals(LocalNodeResponse.class, extensionsOrchestrator.handleExtensionRequest(localNodeRequest).getClass());
-
         ExtensionRequest environmentSettingsRequest = new ExtensionRequest(
             ExtensionsOrchestrator.RequestType.REQUEST_EXTENSION_ENVIRONMENT_SETTINGS
         );
@@ -672,7 +668,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
             settings,
             client
         );
-        verify(mockTransportService, times(10)).registerRequestHandler(anyString(), anyString(), anyBoolean(), anyBoolean(), any(), any());
+        verify(mockTransportService, times(9)).registerRequestHandler(anyString(), anyString(), anyBoolean(), anyBoolean(), any(), any());
     }
 
     private static class Example implements NamedWriteable {
