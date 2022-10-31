@@ -36,11 +36,14 @@ import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.CheckedBiFunction;
 import org.opensearch.common.Explicit;
 import org.opensearch.common.ParseField;
-import org.opensearch.common.geo.GeoPoint;
+import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.geo.GeometryFormat;
 import org.opensearch.common.geo.GeometryParser;
+import org.opensearch.common.xcontent.DeprecationHandler;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.geometry.Geometry;
 import org.opensearch.geometry.Point;
@@ -57,7 +60,7 @@ import java.util.function.Supplier;
 import static org.opensearch.index.mapper.TypeParsers.parseField;
 
 /**
- * Base class for for spatial fields that only support indexing points
+ * Base class for spatial fields that only support indexing points
  *
  * @opensearch.internal
  */
@@ -242,6 +245,7 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
      * @opensearch.internal
      */
     public static class PointParser<P extends ParsedPoint> extends Parser<List<P>> {
+        private static final int MAX_NUMBER_OF_VALUES_IN_ARRAY_FORMAT = 3;
         /**
          * Note that this parser is only used for formatting values.
          */
@@ -281,32 +285,27 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
 
         @Override
         public List<P> parse(XContentParser parser) throws IOException, ParseException {
-
             if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
-                XContentParser.Token token = parser.nextToken();
-                P point = pointSupplier.get();
-                ArrayList<P> points = new ArrayList<>();
-                if (token == XContentParser.Token.VALUE_NUMBER) {
-                    double x = parser.doubleValue();
-                    parser.nextToken();
-                    double y = parser.doubleValue();
-                    token = parser.nextToken();
-                    if (token == XContentParser.Token.VALUE_NUMBER) {
-                        GeoPoint.assertZValue(ignoreZValue, parser.doubleValue());
-                    } else if (token != XContentParser.Token.END_ARRAY) {
-                        throw new OpenSearchParseException("field type does not accept > 3 dimensions");
+                parser.nextToken();
+                if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
+                    XContentBuilder xContentBuilder = reconstructArrayXContent(parser);
+                    try (
+                        XContentParser subParser = createParser(
+                            parser.getXContentRegistry(),
+                            parser.getDeprecationHandler(),
+                            xContentBuilder
+                        );
+                    ) {
+                        return Collections.singletonList(process(objectParser.apply(subParser, pointSupplier.get())));
                     }
-
-                    point.resetCoords(x, y);
-                    points.add(process(point));
                 } else {
-                    while (token != XContentParser.Token.END_ARRAY) {
-                        points.add(process(objectParser.apply(parser, point)));
-                        point = pointSupplier.get();
-                        token = parser.nextToken();
+                    ArrayList<P> points = new ArrayList<>();
+                    while (parser.currentToken() != XContentParser.Token.END_ARRAY) {
+                        points.add(process(objectParser.apply(parser, pointSupplier.get())));
+                        parser.nextToken();
                     }
+                    return points;
                 }
-                return points;
             } else if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
                 if (nullValue == null) {
                     return null;
@@ -316,6 +315,37 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
             } else {
                 return Collections.singletonList(process(objectParser.apply(parser, pointSupplier.get())));
             }
+        }
+
+        private XContentParser createParser(
+            NamedXContentRegistry namedXContentRegistry,
+            DeprecationHandler deprecationHandler,
+            XContentBuilder xContentBuilder
+        ) throws IOException {
+            XContentParser subParser = xContentBuilder.contentType()
+                .xContent()
+                .createParser(namedXContentRegistry, deprecationHandler, BytesReference.bytes(xContentBuilder).streamInput());
+            subParser.nextToken();
+            return subParser;
+        }
+
+        private XContentBuilder reconstructArrayXContent(XContentParser parser) throws IOException {
+            XContentBuilder builder = XContentFactory.jsonBuilder().startArray();
+            int numberOfValuesAdded = 0;
+            while (parser.currentToken() != XContentParser.Token.END_ARRAY) {
+                if (parser.currentToken() != XContentParser.Token.VALUE_NUMBER) {
+                    throw new OpenSearchParseException("numeric value expected");
+                }
+                builder.value(parser.doubleValue());
+                parser.nextToken();
+
+                // Allows one more value to be added so that the error case can be handled by a parser
+                if (++numberOfValuesAdded > MAX_NUMBER_OF_VALUES_IN_ARRAY_FORMAT) {
+                    break;
+                }
+            }
+            builder.endArray();
+            return builder;
         }
 
         @Override

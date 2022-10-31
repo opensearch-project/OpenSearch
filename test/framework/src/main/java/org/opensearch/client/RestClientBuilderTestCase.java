@@ -36,7 +36,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 import joptsimple.internal.Strings;
-import org.apache.http.Header;
+
+import org.apache.hc.core5.http.Header;
 import org.opensearch.test.OpenSearchTestCase;
 
 /**

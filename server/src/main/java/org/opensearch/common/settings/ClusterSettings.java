@@ -41,6 +41,9 @@ import org.opensearch.index.IndexingPressure;
 import org.opensearch.index.ShardIndexingPressureMemoryManager;
 import org.opensearch.index.ShardIndexingPressureSettings;
 import org.opensearch.index.ShardIndexingPressureStore;
+import org.opensearch.search.backpressure.settings.NodeDuressSettings;
+import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
+import org.opensearch.search.backpressure.settings.SearchShardTaskSettings;
 import org.opensearch.tasks.TaskManager;
 import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.watcher.ResourceWatcherService;
@@ -253,6 +256,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 Metadata.SETTING_READ_ONLY_SETTING,
                 Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING,
                 ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE,
+                ShardLimitValidator.SETTING_CLUSTER_IGNORE_DOT_INDEXES,
                 RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING,
                 RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING,
                 RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING,
@@ -583,7 +587,22 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 IndexingPressure.MAX_INDEXING_BYTES,
                 TaskResourceTrackingService.TASK_RESOURCE_TRACKING_ENABLED,
                 TaskManager.TASK_RESOURCE_CONSUMERS_ENABLED,
-                ClusterManagerTaskThrottler.THRESHOLD_SETTINGS
+                ClusterManagerTaskThrottler.THRESHOLD_SETTINGS,
+
+                // Settings related to search backpressure
+                SearchBackpressureSettings.SETTING_ENABLED,
+                SearchBackpressureSettings.SETTING_ENFORCED,
+                SearchBackpressureSettings.SETTING_CANCELLATION_RATIO,
+                SearchBackpressureSettings.SETTING_CANCELLATION_RATE,
+                SearchBackpressureSettings.SETTING_CANCELLATION_BURST,
+                NodeDuressSettings.SETTING_NUM_SUCCESSIVE_BREACHES,
+                NodeDuressSettings.SETTING_CPU_THRESHOLD,
+                NodeDuressSettings.SETTING_HEAP_THRESHOLD,
+                SearchShardTaskSettings.SETTING_TOTAL_HEAP_THRESHOLD,
+                SearchShardTaskSettings.SETTING_HEAP_THRESHOLD,
+                SearchShardTaskSettings.SETTING_HEAP_VARIANCE_THRESHOLD,
+                SearchShardTaskSettings.SETTING_CPU_TIME_THRESHOLD,
+                SearchShardTaskSettings.SETTING_ELAPSED_TIME_THRESHOLD
             )
         )
     );

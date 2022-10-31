@@ -32,6 +32,8 @@
 package org.opensearch.index.snapshots.blobstore;
 
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
+
+import org.hamcrest.MatcherAssert;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.ByteArrayInputStream;
@@ -39,6 +41,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Random;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -86,11 +91,9 @@ public class SlicedInputStreamTests extends OpenSearchTestCase {
                     assertThat(random.nextInt(Byte.MAX_VALUE), equalTo(input.read()));
                     break;
                 default:
-                    byte[] b = randomBytes(random);
-                    byte[] buffer = new byte[b.length];
-                    int read = readFully(input, buffer);
-                    assertThat(b.length, equalTo(read));
-                    assertArrayEquals(b, buffer);
+                    byte[] expectedBytes = randomBytes(random);
+                    byte[] actualBytes = input.readNBytes(expectedBytes.length);
+                    assertArrayEquals(expectedBytes, actualBytes);
                     break;
             }
         }
@@ -107,19 +110,45 @@ public class SlicedInputStreamTests extends OpenSearchTestCase {
 
     }
 
-    private int readFully(InputStream stream, byte[] buffer) throws IOException {
-        for (int i = 0; i < buffer.length;) {
-            int read = stream.read(buffer, i, buffer.length - i);
-            if (read == -1) {
-                if (i == 0) {
-                    return -1;
-                } else {
-                    return i;
-                }
-            }
-            i += read;
+    public void testReadZeroLength() throws IOException {
+        try (InputStream input = createSingleByteStream()) {
+            final byte[] buffer = new byte[100];
+            final int read = input.read(buffer, 0, 0);
+            MatcherAssert.assertThat(read, equalTo(0));
         }
-        return buffer.length;
+    }
+
+    public void testInvalidOffsetAndLength() throws IOException {
+        try (InputStream input = createSingleByteStream()) {
+            final byte[] buffer = new byte[100];
+            expectThrows(NullPointerException.class, () -> input.read(null, 0, 10));
+            expectThrows(IndexOutOfBoundsException.class, () -> input.read(buffer, -1, 10));
+            expectThrows(IndexOutOfBoundsException.class, () -> input.read(buffer, 0, -1));
+            expectThrows(IndexOutOfBoundsException.class, () -> input.read(buffer, 0, buffer.length + 1));
+        }
+    }
+
+    public void testReadAllBytes() throws IOException {
+        final byte[] expectedResults = randomByteArrayOfLength(50_000);
+        final int numSlices = 200;
+        final int slizeSize = expectedResults.length / numSlices;
+
+        final List<byte[]> arraySlices = new ArrayList<>(numSlices);
+        for (int i = 0; i < numSlices; i++) {
+            final int offset = slizeSize * i;
+            arraySlices.add(Arrays.copyOfRange(expectedResults, offset, offset + slizeSize));
+        }
+        // Create a SlicedInputStream that will return the expected result in 2 slices
+        final byte[] actualResults;
+        try (InputStream is = new SlicedInputStream(numSlices) {
+            @Override
+            protected InputStream openSlice(int slice) {
+                return new ByteArrayInputStream(arraySlices.get(slice));
+            }
+        }) {
+            actualResults = is.readAllBytes();
+        }
+        assertArrayEquals(expectedResults, actualResults);
     }
 
     private byte[] randomBytes(Random random) {
@@ -127,6 +156,15 @@ public class SlicedInputStreamTests extends OpenSearchTestCase {
         byte[] data = new byte[length];
         random.nextBytes(data);
         return data;
+    }
+
+    private static InputStream createSingleByteStream() {
+        return new SlicedInputStream(1) {
+            @Override
+            protected InputStream openSlice(int slice) {
+                return new ByteArrayInputStream(new byte[] { 1 });
+            }
+        };
     }
 
     private static final class CheckClosedInputStream extends FilterInputStream {

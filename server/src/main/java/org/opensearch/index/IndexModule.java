@@ -70,12 +70,14 @@ import org.opensearch.index.shard.IndexingOperationListener;
 import org.opensearch.index.shard.SearchOperationListener;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.index.store.FsDirectoryFactory;
+import org.opensearch.index.store.RemoteSnapshotDirectoryFactory;
 import org.opensearch.indices.IndicesQueryCache;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.plugins.IndexStorePlugin;
+import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
 import org.opensearch.threadpool.ThreadPool;
@@ -94,6 +96,7 @@ import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * IndexModule represents the central extension point for index level custom implementations like:
@@ -390,15 +393,6 @@ public final class IndexModule {
         }
     }
 
-    public static boolean isBuiltinType(String storeType) {
-        for (Type type : Type.values()) {
-            if (type.match(storeType)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     /**
      * Type of file system
      *
@@ -409,7 +403,8 @@ public final class IndexModule {
         NIOFS("niofs"),
         MMAPFS("mmapfs"),
         SIMPLEFS("simplefs"),
-        FS("fs");
+        FS("fs"),
+        REMOTE_SNAPSHOT("remote_snapshot");
 
         private final String settingsKey;
         private final boolean deprecated;
@@ -426,7 +421,7 @@ public final class IndexModule {
         private static final Map<String, Type> TYPES;
 
         static {
-            final Map<String, Type> types = new HashMap<>(4);
+            final Map<String, Type> types = new HashMap<>(values().length);
             for (final Type type : values()) {
                 types.put(type.settingsKey, type);
             }
@@ -439,6 +434,10 @@ public final class IndexModule {
 
         public boolean isDeprecated() {
             return deprecated;
+        }
+
+        static boolean containsSettingsKey(String key) {
+            return TYPES.containsKey(key);
         }
 
         public static Type fromSettingsKey(final String key) {
@@ -459,6 +458,13 @@ public final class IndexModule {
             return getSettingsKey().equals(setting);
         }
 
+        /**
+         * Convenience method to check whether the given IndexSettings contains
+         * an {@link #INDEX_STORE_TYPE_SETTING} set to the value of this type.
+         */
+        public boolean match(IndexSettings settings) {
+            return match(INDEX_STORE_TYPE_SETTING.get(settings.getSettings()));
+        }
     }
 
     public static Type defaultStoreType(final boolean allowMmap) {
@@ -562,7 +568,7 @@ public final class IndexModule {
         if (storeType.isEmpty() || Type.FS.getSettingsKey().equals(storeType)) {
             type = defaultStoreType(allowMmap);
         } else {
-            if (isBuiltinType(storeType)) {
+            if (Type.containsSettingsKey(storeType)) {
                 type = Type.fromSettingsKey(storeType);
             } else {
                 type = null;
@@ -572,7 +578,7 @@ public final class IndexModule {
             throw new IllegalArgumentException("store type [" + storeType + "] is not allowed because mmap is disabled");
         }
         final IndexStorePlugin.DirectoryFactory factory;
-        if (storeType.isEmpty() || isBuiltinType(storeType)) {
+        if (storeType.isEmpty()) {
             factory = DEFAULT_DIRECTORY_FACTORY;
         } else {
             factory = indexStoreFactories.get(storeType);
@@ -641,4 +647,26 @@ public final class IndexModule {
         }
     }
 
+    public static Map<String, IndexStorePlugin.DirectoryFactory> createBuiltInDirectoryFactories(
+        Supplier<RepositoriesService> repositoriesService
+    ) {
+        final Map<String, IndexStorePlugin.DirectoryFactory> factories = new HashMap<>();
+        for (Type type : Type.values()) {
+            switch (type) {
+                case HYBRIDFS:
+                case NIOFS:
+                case FS:
+                case MMAPFS:
+                case SIMPLEFS:
+                    factories.put(type.getSettingsKey(), DEFAULT_DIRECTORY_FACTORY);
+                    break;
+                case REMOTE_SNAPSHOT:
+                    factories.put(type.getSettingsKey(), new RemoteSnapshotDirectoryFactory(repositoriesService));
+                    break;
+                default:
+                    throw new IllegalStateException("No directory factory mapping for built-in type " + type);
+            }
+        }
+        return factories;
+    }
 }

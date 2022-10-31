@@ -461,6 +461,15 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     }
 
     /**
+     * Returns whether the node is dedicated to provide search capability.
+     *
+     * @return true if the node contains search role, false otherwise
+     */
+    public boolean isSearchNode() {
+        return roles.contains(DiscoveryNodeRole.SEARCH_ROLE);
+    }
+
+    /**
      * Returns a set of all the roles that the node has. The roles are returned in sorted order by the role name.
      * <p>
      * If a node does not have any specific role, the returned set is empty, which means that the node is a coordinating-only node.
@@ -594,27 +603,6 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
 
     public static Set<String> getPossibleRoleNames() {
         return roleMap.keySet();
-    }
-
-    /**
-     * Enum that holds all the possible roles that a node can fulfill in a cluster.
-     * Each role has its name and a corresponding abbreviation used by cat apis.
-     */
-    private enum LegacyRole {
-        MASTER("master"),
-        DATA("data"),
-        INGEST("ingest");
-
-        private final String roleName;
-
-        LegacyRole(final String roleName) {
-            this.roleName = roleName;
-        }
-
-        public String roleName() {
-            return roleName;
-        }
-
     }
 
 }

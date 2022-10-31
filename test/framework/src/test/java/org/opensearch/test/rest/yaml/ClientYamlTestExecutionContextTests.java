@@ -32,7 +32,7 @@
 
 package org.opensearch.test.rest.yaml;
 
-import org.apache.http.HttpEntity;
+import org.apache.hc.core5.http.HttpEntity;
 import org.opensearch.Version;
 import org.opensearch.client.NodeSelector;
 import org.opensearch.test.OpenSearchTestCase;

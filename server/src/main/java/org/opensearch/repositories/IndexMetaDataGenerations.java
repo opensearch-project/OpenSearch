@@ -92,10 +92,7 @@ public final class IndexMetaDataGenerations {
     }
 
     /**
-     * Get the blob id by {@link SnapshotId} and {@link IndexId} and fall back to the value of {@link SnapshotId#getUUID()} if none is
-     * known to enable backwards compatibility with versions older than
-     * {@link org.opensearch.snapshots.SnapshotsService#SHARD_GEN_IN_REPO_DATA_VERSION} which used the snapshot uuid as index metadata
-     * blob uuid.
+     * Get the blob id by {@link SnapshotId} and {@link IndexId}.
      *
      * @param snapshotId Snapshot Id
      * @param indexId    Index Id
@@ -103,11 +100,7 @@ public final class IndexMetaDataGenerations {
      */
     public String indexMetaBlobId(SnapshotId snapshotId, IndexId indexId) {
         final String identifier = lookup.getOrDefault(snapshotId, Collections.emptyMap()).get(indexId);
-        if (identifier == null) {
-            return snapshotId.getUUID();
-        } else {
-            return identifiers.get(identifier);
-        }
+        return identifiers.get(identifier);
     }
 
     /**

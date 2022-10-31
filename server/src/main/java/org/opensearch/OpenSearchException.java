@@ -1615,7 +1615,7 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
             164,
             V_3_0_0
         ),
-        MASTER_TASK_THROTTLED_EXCEPTION(
+        CLUSTER_MANAGER_TASK_THROTTLED_EXCEPTION(
             ClusterManagerThrottlingException.class,
             ClusterManagerThrottlingException::new,
             165,
