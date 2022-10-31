@@ -59,7 +59,7 @@ public final class AutoExpandReplicas {
     // the value we recognize in the "max" position to mean all the nodes
     private static final String ALL_NODES_VALUE = "all";
 
-    private static final AutoExpandReplicas FALSE_INSTANCE = new AutoExpandReplicas(0, 0, false);
+    private static final AutoExpandReplicas FALSE_INSTANCE = new AutoExpandReplicas(-1, -1, false);
 
     public static final Setting<AutoExpandReplicas> SETTING = new Setting<>(
         IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS,
@@ -69,7 +69,7 @@ public final class AutoExpandReplicas {
         Property.IndexScope
     );
 
-    private static AutoExpandReplicas parse(String value) {
+    public static AutoExpandReplicas parse(String value) {
         final int min;
         final int max;
         if (Booleans.isFalse(value)) {
@@ -132,6 +132,10 @@ public final class AutoExpandReplicas {
 
     int getMaxReplicas(int numDataNodes) {
         return Math.min(maxReplicas, numDataNodes - 1);
+    }
+
+    int getMaxReplicas() {
+        return maxReplicas;
     }
 
     private OptionalInt getDesiredNumberOfReplicas(IndexMetadata indexMetadata, RoutingAllocation allocation) {

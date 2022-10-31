@@ -101,12 +101,21 @@ public class AwarenessReplicaBalance {
         return awarenessAttributes;
     }
 
-    public Optional<String> validate(int replicaCount) {
-        if ((replicaCount + 1) % maxAwarenessAttributes() != 0) {
-            String errorMessage = "expected total copies needs to be a multiple of total awareness attributes ["
-                + maxAwarenessAttributes()
-                + "]";
-            return Optional.of(errorMessage);
+    public Optional<String> validate(int replicaCount, int autoExpandMaxCap) {
+        if(autoExpandMaxCap == -1) {
+            if ((replicaCount + 1) % maxAwarenessAttributes() != 0) {
+                String errorMessage = "expected total copies needs to be a multiple of total awareness attributes ["
+                    + maxAwarenessAttributes()
+                    + "]";
+                return Optional.of(errorMessage);
+            }
+        } else {
+            if ((autoExpandMaxCap + 1) % maxAwarenessAttributes() != 0) {
+                String errorMessage = "expected max cap on auto expand to be a multiple of total awareness attributes ["
+                    + maxAwarenessAttributes()
+                    + "]";
+                return Optional.of(errorMessage);
+            }
         }
         return Optional.empty();
     }
