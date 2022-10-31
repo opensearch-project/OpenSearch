@@ -37,10 +37,8 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.time.DateFormatter;
-import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.query.QueryShardContext;
@@ -195,18 +193,6 @@ public class DocumentMapperParser {
             remainingFields.append(" [").append(key).append(" : ").append(map.get(key)).append("]");
         }
         return remainingFields.toString();
-    }
-
-    private Tuple<String, Map<String, Object>> extractMapping(String type, String source) throws MapperParsingException {
-        Map<String, Object> root;
-        try (
-            XContentParser parser = XContentType.JSON.xContent().createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, source)
-        ) {
-            root = parser.mapOrdered();
-        } catch (Exception e) {
-            throw new MapperParsingException("failed to parse mapping definition", e);
-        }
-        return extractMapping(type, root);
     }
 
     /**

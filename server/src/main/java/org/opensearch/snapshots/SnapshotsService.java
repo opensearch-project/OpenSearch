@@ -935,21 +935,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         assert assertNoDanglingSnapshots(event.state());
     }
 
-    /**
-     * Cleanup all snapshots found in the given cluster state that have no more work left:
-     * 1. Completed snapshots
-     * 2. Snapshots in state INIT that a previous cluster-manager of an older version failed to start
-     * 3. Snapshots in any other state that have all their shard tasks completed
-     */
-    private void endCompletedSnapshots(ClusterState state) {
-        SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE);
-        assert snapshotsInProgress != null;
-        snapshotsInProgress.entries()
-            .stream()
-            .filter(entry -> entry.state().completed() || entry.state() == State.INIT || completed(entry.shards().values()))
-            .forEach(entry -> endSnapshot(entry, state.metadata(), null));
-    }
-
     private boolean assertConsistentWithClusterState(ClusterState state) {
         final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
         if (snapshotsInProgress.entries().isEmpty() == false) {
@@ -1293,31 +1278,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             }
             return false;
         });
-    }
-
-    /**
-     * Returns list of indices with missing shards, and list of indices that are closed
-     *
-     * @param shards list of shard statuses
-     * @return list of failed and closed indices
-     */
-    private static Tuple<Set<String>, Set<String>> indicesWithMissingShards(
-        ImmutableOpenMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards,
-        Metadata metadata
-    ) {
-        Set<String> missing = new HashSet<>();
-        Set<String> closed = new HashSet<>();
-        for (ObjectObjectCursor<ShardId, SnapshotsInProgress.ShardSnapshotStatus> entry : shards) {
-            if (entry.value.state() == ShardState.MISSING) {
-                if (metadata.hasIndex(entry.key.getIndex().getName())
-                    && metadata.getIndexSafe(entry.key.getIndex()).getState() == IndexMetadata.State.CLOSE) {
-                    closed.add(entry.key.getIndex().getName());
-                } else {
-                    missing.add(entry.key.getIndex().getName());
-                }
-            }
-        }
-        return new Tuple<>(missing, closed);
     }
 
     /**

@@ -605,25 +605,4 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         return roleMap.keySet();
     }
 
-    /**
-     * Enum that holds all the possible roles that a node can fulfill in a cluster.
-     * Each role has its name and a corresponding abbreviation used by cat apis.
-     */
-    private enum LegacyRole {
-        MASTER("master"),
-        DATA("data"),
-        INGEST("ingest");
-
-        private final String roleName;
-
-        LegacyRole(final String roleName) {
-            this.roleName = roleName;
-        }
-
-        public String roleName() {
-            return roleName;
-        }
-
-    }
-
 }
