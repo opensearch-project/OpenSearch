@@ -7,8 +7,10 @@ package org.opensearch.rest;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.authn.AuthenticationToken;
 import org.opensearch.authn.HttpHeaderToken;
 import org.opensearch.authn.Principals;
+import org.opensearch.authn.Subject;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.identity.Identity;
 
@@ -17,8 +19,6 @@ import java.util.Collections;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-import static org.opensearch.node.Node.INTERNAL_REALM;
 
 /**
  * Adds a wrapper to all rest requests to add authentication mechanism
@@ -91,12 +91,16 @@ public class SecurityRestFilter {
             .stream()
             .findFirst();
 
+        Subject subject = null;
         // TODO: Handle anonymous Auth - Allowed or Disallowed (set by the user of the system) - 401 or Login-redirect ??
 
         if (authHeader.isPresent()) {
             try {
-                HttpHeaderToken token = new HttpHeaderToken(authHeader.get()); // support other type of header tokens
-                INTERNAL_REALM.authenticateWithToken(token); // set subject should happen here via Subject.login()
+                // support other type of header tokens
+                AuthenticationToken token = new HttpHeaderToken(authHeader.get());
+
+                subject = Identity.getAuthManager().getSubject();
+                subject.login(token);
                 return true;
             } catch (final Exception e) {
                 final BytesRestResponse bytesRestResponse = BytesRestResponse.createSimpleErrorResponse(
@@ -110,8 +114,7 @@ public class SecurityRestFilter {
         }
 
         // proceed to check if Auth Header was missing
-        boolean isUnauthenticatedPrincipal = Identity.getAuthManager()
-            .getSubject()
+        boolean isUnauthenticatedPrincipal = subject
             .getPrincipal()
             .equals(Principals.UNAUTHENTICATED.getPrincipal());
 

@@ -8,8 +8,6 @@
 
 package org.opensearch.authn;
 
-import org.apache.shiro.authc.AuthenticationToken;
-
 public class HttpHeaderToken implements AuthenticationToken {
 
     public final static String HEADER_NAME = "Authorization";
@@ -21,15 +19,5 @@ public class HttpHeaderToken implements AuthenticationToken {
 
     public String getHeaderValue() {
         return headerValue;
-    }
-
-    @Override
-    public Object getPrincipal() {
-        return null;
-    }
-
-    @Override
-    public Object getCredentials() {
-        return null;
     }
 }

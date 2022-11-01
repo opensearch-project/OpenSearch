@@ -30,6 +30,10 @@ public class InternalAuthenticationManager implements AuthenticationManager {
         SecurityUtils.setSecurityManager(securityManager);
     }
 
+    public InternalAuthenticationManager(SecurityManager securityManager) {
+        SecurityUtils.setSecurityManager(securityManager);
+    }
+
     @Override
     public Subject getSubject() {
         return new InternalSubject(SecurityUtils.getSubject());

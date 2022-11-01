@@ -26,7 +26,7 @@ public class AuthenticationTokenHandler {
      * @param authenticationToken the token from which to extract
      * @return the extracted shiro auth token to be used to perform login
      */
-    public static AuthenticationToken extractAuthToken(org.opensearch.authn.AuthenticationToken authenticationToken) {
+    public static AuthenticationToken extractShiroAuthToken(org.opensearch.authn.AuthenticationToken authenticationToken) {
         AuthenticationToken authToken = null;
 
         if (authenticationToken instanceof HttpHeaderToken) {
