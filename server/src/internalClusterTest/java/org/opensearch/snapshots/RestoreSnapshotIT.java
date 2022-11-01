@@ -1003,7 +1003,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
                 IllegalArgumentException.class,
                 () -> clusterAdmin().prepareRestoreSnapshot("test-repo", "snapshot-0")
                     .setRenamePattern("test-index")
-                    .setRenameReplacement("new-index")
+                    .setRenameReplacement("new-index-2")
                     .setIndexSettings(
                         Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, 1).put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-2").build()
                     )
@@ -1036,7 +1036,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
 
             restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot("test-repo", "snapshot-0")
                 .setRenamePattern("test-index")
-                .setRenameReplacement("new-index")
+                .setRenameReplacement("new-index-3")
                 .setIndexSettings(
                     Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, 0).put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1").build()
                 )
