@@ -326,7 +326,7 @@ public class InboundDecoderTests extends OpenSearchTestCase {
         ise = InboundDecoder.ensureVersionCompatibility(Version.V_2_0_0, version, true);
         assertNull(ise);
 
-        ise = InboundDecoder.ensureVersionCompatibility(Version.V_1_0_0, version, false);
+        ise = InboundDecoder.ensureVersionCompatibility(Version.fromId(1000099), version, false);
         assertEquals(
             "Received message from unsupported version: [1.0.0] minimal compatible version is: ["
                 + version.minimumCompatibilityVersion()

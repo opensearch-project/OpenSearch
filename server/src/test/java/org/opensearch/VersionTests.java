@@ -49,7 +49,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-import static org.opensearch.Version.V_1_3_0;
+import static org.opensearch.Version.V_2_3_0;
 import static org.opensearch.Version.MASK;
 import static org.opensearch.test.VersionUtils.allVersions;
 import static org.opensearch.test.VersionUtils.randomOpenSearchVersion;
@@ -67,31 +67,31 @@ import static org.hamcrest.Matchers.sameInstance;
 public class VersionTests extends OpenSearchTestCase {
 
     public void testVersionComparison() {
-        Version V_1_1_1 = Version.fromString("1.1.1");
-        assertThat(V_1_1_1.before(V_1_3_0), is(true));
-        assertThat(V_1_1_1.before(V_1_1_1), is(false));
-        assertThat(V_1_3_0.before(V_1_1_1), is(false));
+        Version V_2_1_1 = Version.fromString("2.1.1");
+        assertThat(V_2_1_1.before(V_2_3_0), is(true));
+        assertThat(V_2_1_1.before(V_2_1_1), is(false));
+        assertThat(V_2_3_0.before(V_2_1_1), is(false));
 
-        assertThat(V_1_1_1.onOrBefore(V_1_3_0), is(true));
-        assertThat(V_1_1_1.onOrBefore(V_1_1_1), is(true));
-        assertThat(V_1_3_0.onOrBefore(V_1_1_1), is(false));
+        assertThat(V_2_1_1.onOrBefore(V_2_3_0), is(true));
+        assertThat(V_2_1_1.onOrBefore(V_2_1_1), is(true));
+        assertThat(V_2_3_0.onOrBefore(V_2_1_1), is(false));
 
-        assertThat(V_1_1_1.after(V_1_3_0), is(false));
-        assertThat(V_1_1_1.after(V_1_1_1), is(false));
-        assertThat(V_1_3_0.after(V_1_1_1), is(true));
+        assertThat(V_2_1_1.after(V_2_3_0), is(false));
+        assertThat(V_2_1_1.after(V_2_1_1), is(false));
+        assertThat(V_2_3_0.after(V_2_1_1), is(true));
 
-        assertThat(V_1_1_1.onOrAfter(V_1_3_0), is(false));
-        assertThat(V_1_1_1.onOrAfter(V_1_1_1), is(true));
-        assertThat(V_1_3_0.onOrAfter(V_1_1_1), is(true));
+        assertThat(V_2_1_1.onOrAfter(V_2_3_0), is(false));
+        assertThat(V_2_1_1.onOrAfter(V_2_1_1), is(true));
+        assertThat(V_2_3_0.onOrAfter(V_2_1_1), is(true));
 
         assertTrue(Version.fromString("1.0.0-alpha2").onOrAfter(Version.fromString("1.0.0-alpha1")));
         assertTrue(Version.fromString("1.0.0").onOrAfter(Version.fromString("1.0.0-beta2")));
         assertTrue(Version.fromString("1.0.0-rc1").onOrAfter(Version.fromString("1.0.0-beta24")));
         assertTrue(Version.fromString("1.0.0-alpha24").before(Version.fromString("1.0.0-beta0")));
 
-        assertThat(V_1_1_1, is(lessThan(V_1_3_0)));
-        assertThat(V_1_1_1.compareTo(V_1_1_1), is(0));
-        assertThat(V_1_3_0, is(greaterThan(V_1_1_1)));
+        assertThat(V_2_1_1, is(lessThan(V_2_3_0)));
+        assertThat(V_2_1_1.compareTo(V_2_1_1), is(0));
+        assertThat(V_2_3_0, is(greaterThan(V_2_1_1)));
     }
 
     public void testMin() {
@@ -120,7 +120,7 @@ public class VersionTests extends OpenSearchTestCase {
 
     public void testMinimumIndexCompatibilityVersion() {
         // note: all Legacy compatibility support will be removed in OpenSearch 3.0
-        assertEquals(LegacyESVersion.fromId(6000026), V_1_3_0.minimumIndexCompatibilityVersion());
+        assertEquals(LegacyESVersion.fromId(6000026), V_2_3_0.minimumIndexCompatibilityVersion());
         assertEquals(LegacyESVersion.fromId(7000099), Version.fromId(2000099).minimumIndexCompatibilityVersion());
         assertEquals(LegacyESVersion.fromId(7000099), Version.fromId(2010000).minimumIndexCompatibilityVersion());
         assertEquals(LegacyESVersion.fromId(7000099), Version.fromId(2000001).minimumIndexCompatibilityVersion());
@@ -181,7 +181,7 @@ public class VersionTests extends OpenSearchTestCase {
 
     public void testIndexCreatedVersion() {
         // an actual index has a IndexMetadata.SETTING_INDEX_UUID
-        final Version version = Version.V_1_0_0;
+        final Version version = Version.CURRENT;
         assertEquals(
             version,
             Version.indexCreated(

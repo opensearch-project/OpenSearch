@@ -88,7 +88,7 @@ public class PluginInfoTests extends OpenSearchTestCase {
             "version",
             "1.0",
             "opensearch.version",
-            Version.V_1_0_0.toString(),
+            Version.V_2_0_0.toString(),
             "java.version",
             System.getProperty("java.specification.version"),
             "classname",
