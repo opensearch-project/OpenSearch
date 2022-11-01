@@ -6,9 +6,8 @@
  * compatible open source license.
  */
 
-package org.opensearch.common;
+package org.opensearch.common.util;
 
-import org.opensearch.common.util.Streak;
 import org.opensearch.test.OpenSearchTestCase;
 
 public class StreakTests extends OpenSearchTestCase {
