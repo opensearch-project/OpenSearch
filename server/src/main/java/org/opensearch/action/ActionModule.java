@@ -439,6 +439,8 @@ import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.usage.UsageService;
 
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -522,9 +524,14 @@ public class ActionModule extends AbstractModule {
         // Adding a wrapper to be used for embedded security.
         // If clause should be removed once this feature is embedded in core
         securityRestFilter = new SecurityRestFilter();
+        boolean isSandboxEnabled = AccessController.doPrivileged(
+            (PrivilegedAction<Boolean>) () -> System.getProperty("sandbox.enabled").equals("true")
+        );
         // TODO: Add a check to enable following only when sandbox is enabled
-        restWrapper = (restHandler) -> securityRestFilter.wrap(restHandler);
-        logger.debug("Using REST wrapper from embedded Security plugin");
+        if (isSandboxEnabled) {
+            restWrapper = (restHandler) -> securityRestFilter.wrap(restHandler);
+            logger.debug("Using REST wrapper from embedded Security plugin");
+        }
 
         mappingRequestValidators = new RequestValidators<>(
             actionPlugins.stream().flatMap(p -> p.mappingRequestValidators().stream()).collect(Collectors.toList())

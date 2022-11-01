@@ -1,16 +1,20 @@
 /*
- * Copyright OpenSearch Contributors
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
  */
 
-package org.opensearch.identity.noop;
+package org.opensearch.identity.internal;
 
 import java.security.Principal;
 import java.util.Objects;
 
+import org.apache.shiro.authc.AuthenticationException;
+import org.opensearch.authn.AuthenticationToken;
 import org.opensearch.authn.Subject;
-import org.opensearch.authn.Principals;
-import org.apache.shiro.authc.UsernamePasswordToken;
+import org.opensearch.identity.AuthenticationTokenHandler;
 
 /**
  * Implementation of subject that is always authenticated
@@ -29,6 +33,8 @@ public class InternalSubject implements Subject {
 
     @Override
     public Principal getPrincipal() {
+        // TODO: what should be returned here
+        return null;
     }
 
     @Override
@@ -46,30 +52,21 @@ public class InternalSubject implements Subject {
 
     @Override
     public String toString() {
-        return "InternalSubject(principal=" + getPrincipal() + ")";
+        return "InternalSubject (principal=" + getPrincipal() + ")";
     }
 
     /**
-     * Logs the user in
+     * Logs the user in via authenticating the user against current Shiro realm
      */
-    void login(AuthenticationToken authenticationToken) {
+    public void login(AuthenticationToken authenticationToken) {
 
-        AuthenticationToken authToken;
+        org.apache.shiro.authc.AuthenticationToken authToken = AuthenticationTokenHandler.extractAuthToken(authenticationToken);
 
-        if (authenticationToken instanceof HttpHeaderToken) {
-            final HttpHeaderToken headerToken = (HttpHeaderToken) authenticationToken;
-
-            if (token.getHeaderValue().contains("Basic")) {
-                final byte[] decodedAuthHeader = Base64.getDecoder().decode(token.getHeaderValue().substring("Basic".length()).trim());
-                final String[] decodedUserNamePassword = decodedAuthHeader.toString().split(":");
-        
-                authToken = new UsernamePasswordToken(decodedUserNamePassword[0], decodedUserNamePassword[1]);
-           }
+        // Unsupported auth header found
+        if (authToken == null) {
+            throw new AuthenticationException("Unsupported Authentication header passed");
         }
 
-
         shiroSubject.login(authToken);
-
-        return; // Do nothing we are already logged in to nothing
     }
 }

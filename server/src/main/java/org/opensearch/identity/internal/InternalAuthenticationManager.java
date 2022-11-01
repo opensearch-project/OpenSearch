@@ -1,13 +1,16 @@
 /*
- * Copyright OpenSearch Contributors
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
  */
 
-package org.opensearch.identity.noop;
+package org.opensearch.identity.internal;
 
+import org.opensearch.authn.realm.InternalRealm;
 import org.opensearch.identity.AccessTokenManager;
 import org.opensearch.identity.AuthenticationManager;
-import org.opensearch.identity.noop.InternalSubject;
 import org.opensearch.authn.Subject;
 import org.apache.shiro.SecurityUtils;
 import org.apache.shiro.mgt.DefaultSecurityManager;

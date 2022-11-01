@@ -8,7 +8,9 @@ package org.opensearch.rest;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.authn.HttpHeaderToken;
+import org.opensearch.authn.Principals;
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.identity.Identity;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -89,10 +91,12 @@ public class SecurityRestFilter {
             .stream()
             .findFirst();
 
+        // TODO: Handle anonymous Auth - Allowed or Disallowed (set by the user of the system) - 401 or Login-redirect ??
+
         if (authHeader.isPresent()) {
             try {
-                HttpHeaderToken token = new HttpHeaderToken(authHeader.get());
-                INTERNAL_REALM.authenticateWithToken(token);
+                HttpHeaderToken token = new HttpHeaderToken(authHeader.get()); // support other type of header tokens
+                INTERNAL_REALM.authenticateWithToken(token); // set subject should happen here via Subject.login()
                 return true;
             } catch (final Exception e) {
                 final BytesRestResponse bytesRestResponse = BytesRestResponse.createSimpleErrorResponse(
@@ -104,14 +108,23 @@ public class SecurityRestFilter {
                 return false;
             }
         }
-        logger.info("Authentication finally failed due to missing auth header");
-        // TODO: Is this response correct
-        final BytesRestResponse bytesRestResponse = BytesRestResponse.createSimpleErrorResponse(
-            channel,
-            RestStatus.BAD_REQUEST,
-            "Authentication failed: Missing Credentials"
-        );
-        channel.sendResponse(bytesRestResponse);
+
+        // proceed to check if Auth Header was missing
+        boolean isUnauthenticatedPrincipal = Identity.getAuthManager()
+            .getSubject()
+            .getPrincipal()
+            .equals(Principals.UNAUTHENTICATED.getPrincipal());
+
+        if (!isUnauthenticatedPrincipal) {
+            logger.info("Authentication finally failed due to missing auth header");
+            // TODO: Is this response correct
+            final BytesRestResponse bytesRestResponse = BytesRestResponse.createSimpleErrorResponse(
+                channel,
+                RestStatus.BAD_REQUEST,
+                "Authentication failed: Missing Credentials"
+            );
+            channel.sendResponse(bytesRestResponse);
+        }
         return false;
     }
 

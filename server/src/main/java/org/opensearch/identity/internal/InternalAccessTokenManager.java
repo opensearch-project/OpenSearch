@@ -1,8 +1,11 @@
 /*
- * Copyright OpenSearch Contributors
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
  */
-package org.opensearch.identity.noop;
+package org.opensearch.identity.internal;
 
 import org.opensearch.authn.AccessToken;
 import org.opensearch.identity.AccessTokenManager;
@@ -14,7 +17,7 @@ import org.opensearch.identity.AccessTokenManager;
  *
  * @opensearch.internal
  */
-public class NoopAccessTokenManager implements AccessTokenManager {
+public class InternalAccessTokenManager implements AccessTokenManager {
 
     @Override
     public void expireAllTokens() {

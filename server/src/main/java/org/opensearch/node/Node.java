@@ -458,6 +458,7 @@ public class Node implements Closeable {
             resourcesToClose.add(nodeEnvironment);
             localNodeFactory = new LocalNodeFactory(settings, nodeEnvironment.nodeId());
 
+            // TODO: revisit this
             final AuthenticationManager authManager = new NoopAuthenticationManager();
             Identity.setAuthManager(authManager);
 
