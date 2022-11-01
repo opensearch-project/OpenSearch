@@ -106,6 +106,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Added feature to ignore indexes starting with dot during shard limit validation.([#4695](https://github.com/opensearch-project/OpenSearch/pull/4695))
 ### Changed
 - Refactored BalancedAllocator.Balancer to LocalShardsBalancer ([#4818](https://github.com/opensearch-project/OpenSearch/pull/4818))
+- Skip SymbolicLinkPreservingTarIT when running on Windows ([#5023](https://github.com/opensearch-project/OpenSearch/pull/5023))
 ### Deprecated
 ### Removed
 - Remove RepositoryData.MIN_VERSION support for next major release ([4729](https://github.com/opensearch-project/OpenSearch/pull/4729))
