@@ -15,6 +15,20 @@ on:
 jobs:
   gradle-check:
     runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      checks: read
+      contents: read
+      deployments: read
+      discussions: read
+      issues: read
+      metadata: read
+      packages: read
+      pages: read
+      pull-requests: read
+      repository-projects: read
+      security-events: read
+      statuses: read
     timeout-minutes: 130
     steps:
       - name: Checkout OpenSearch repo
