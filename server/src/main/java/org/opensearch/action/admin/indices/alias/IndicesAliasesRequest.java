@@ -32,7 +32,6 @@
 
 package org.opensearch.action.admin.indices.alias;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchGenerationException;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.AliasesRequest;
