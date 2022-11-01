@@ -33,7 +33,6 @@
 package org.opensearch.action.admin.indices.mapping.put;
 
 import com.carrotsearch.hppc.ObjectHashSet;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchGenerationException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
@@ -119,9 +118,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         source = in.readString();
         concreteIndex = in.readOptionalWriteable(Index::new);
         origin = in.readOptionalString();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
-            writeIndexOnly = in.readBoolean();
-        }
+        writeIndexOnly = in.readBoolean();
     }
 
     public PutMappingRequest() {}
@@ -348,9 +345,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         out.writeString(source);
         out.writeOptionalWriteable(concreteIndex);
         out.writeOptionalString(origin);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
-            out.writeBoolean(writeIndexOnly);
-        }
+        out.writeBoolean(writeIndexOnly);
     }
 
     @Override

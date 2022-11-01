@@ -32,8 +32,6 @@
 
 package org.opensearch.index.store;
 
-import org.opensearch.LegacyESVersion;
-import org.opensearch.Version;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
@@ -55,9 +53,6 @@ public class StoreStats implements Writeable, ToXContentFragment {
      * prior to receiving the list of files in a peer recovery.
      */
     public static final long UNKNOWN_RESERVED_BYTES = -1L;
-
-    public static final Version RESERVED_BYTES_VERSION = LegacyESVersion.V_7_9_0;
-
     private long sizeInBytes;
     private long reservedSize;
 
@@ -67,11 +62,7 @@ public class StoreStats implements Writeable, ToXContentFragment {
 
     public StoreStats(StreamInput in) throws IOException {
         sizeInBytes = in.readVLong();
-        if (in.getVersion().onOrAfter(RESERVED_BYTES_VERSION)) {
-            reservedSize = in.readZLong();
-        } else {
-            reservedSize = UNKNOWN_RESERVED_BYTES;
-        }
+        reservedSize = in.readZLong();
     }
 
     /**
@@ -124,9 +115,7 @@ public class StoreStats implements Writeable, ToXContentFragment {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(sizeInBytes);
-        if (out.getVersion().onOrAfter(RESERVED_BYTES_VERSION)) {
-            out.writeZLong(reservedSize);
-        }
+        out.writeZLong(reservedSize);
     }
 
     @Override

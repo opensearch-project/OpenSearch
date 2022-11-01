@@ -37,7 +37,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.action.ActionListener;
@@ -724,11 +723,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     recoverySettings.retryDelayNetwork(),
                     cause.getMessage()
                 );
-                if (request.sourceNode().getVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
-                    reestablishRecovery(request, cause.getMessage(), recoverySettings.retryDelayNetwork());
-                } else {
-                    retryRecovery(recoveryId, cause.getMessage(), recoverySettings.retryDelayNetwork(), recoverySettings.activityTimeout());
-                }
+                reestablishRecovery(request, cause.getMessage(), recoverySettings.retryDelayNetwork());
                 return;
             }
 

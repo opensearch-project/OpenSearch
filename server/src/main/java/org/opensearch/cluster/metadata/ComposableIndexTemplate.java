@@ -32,7 +32,6 @@
 
 package org.opensearch.cluster.metadata;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
@@ -163,11 +162,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         this.priority = in.readOptionalVLong();
         this.version = in.readOptionalVLong();
         this.metadata = in.readMap();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
-            this.dataStreamTemplate = in.readOptionalWriteable(DataStreamTemplate::new);
-        } else {
-            this.dataStreamTemplate = null;
-        }
+        this.dataStreamTemplate = in.readOptionalWriteable(DataStreamTemplate::new);
     }
 
     public List<String> indexPatterns() {
@@ -222,9 +217,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         out.writeOptionalVLong(this.priority);
         out.writeOptionalVLong(this.version);
         out.writeMap(this.metadata);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
-            out.writeOptionalWriteable(dataStreamTemplate);
-        }
+        out.writeOptionalWriteable(dataStreamTemplate);
     }
 
     @Override

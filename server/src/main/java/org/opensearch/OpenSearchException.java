@@ -1576,13 +1576,13 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
             org.opensearch.indices.recovery.PeerRecoveryNotFound.class,
             org.opensearch.indices.recovery.PeerRecoveryNotFound::new,
             158,
-            LegacyESVersion.V_7_9_0
+            UNKNOWN_VERSION_ADDED
         ),
         NODE_HEALTH_CHECK_FAILURE_EXCEPTION(
             org.opensearch.cluster.coordination.NodeHealthCheckFailureException.class,
             org.opensearch.cluster.coordination.NodeHealthCheckFailureException::new,
             159,
-            LegacyESVersion.V_7_9_0
+            UNKNOWN_VERSION_ADDED
         ),
         NO_SEED_NODE_LEFT_EXCEPTION(
             org.opensearch.transport.NoSeedNodeLeftException.class,
