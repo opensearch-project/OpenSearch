@@ -31,7 +31,7 @@ class ValidateInputTask implements UpgradeTask {
         // check if the elasticsearch version is supported
         if (taskInput.getVersion().isPresent()) {
             final Version version = taskInput.getVersion().get();
-            if (version.equals(LegacyESVersion.V_7_10_2) == false) {
+            if (version.equals(LegacyESVersion.fromId(7100299)) == false) {
                 throw new RuntimeException(
                     String.format(Locale.getDefault(), "The installed version %s of elasticsearch is not supported.", version)
                 );

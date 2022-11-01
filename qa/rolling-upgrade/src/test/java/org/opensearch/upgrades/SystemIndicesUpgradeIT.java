@@ -40,7 +40,6 @@ import org.opensearch.test.XContentTestUtils.JsonMapView;
 
 import java.util.Map;
 
-import static org.opensearch.cluster.metadata.IndexNameExpressionResolver.SYSTEM_INDEX_ENFORCEMENT_VERSION;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -97,20 +96,6 @@ public class SystemIndicesUpgradeIT extends AbstractRollingTestCase {
                     throw new AssertionError(".tasks index does not exist yet");
                 }
             });
-
-            // If we are on 7.x create an alias that includes both a system index and a non-system index so we can be sure it gets
-            // upgraded properly. If we're already on 8.x, skip this part of the test.
-            if (minimumNodeVersion().before(SYSTEM_INDEX_ENFORCEMENT_VERSION)) {
-                // Create an alias to make sure it gets upgraded properly
-                Request putAliasRequest = new Request("POST", "/_aliases");
-                putAliasRequest.setJsonEntity("{\n" +
-                    "  \"actions\": [\n" +
-                    "    {\"add\":  {\"index\":  \".tasks\", \"alias\": \"test-system-alias\"}},\n" +
-                    "    {\"add\":  {\"index\":  \"test_index_reindex\", \"alias\": \"test-system-alias\"}}\n" +
-                    "  ]\n" +
-                    "}");
-                assertThat(client().performRequest(putAliasRequest).getStatusLine().getStatusCode(), is(200));
-            }
         } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {
             assertBusy(() -> {
                 Request clusterStateRequest = new Request("GET", "/_cluster/state/metadata");
@@ -125,21 +110,8 @@ public class SystemIndicesUpgradeIT extends AbstractRollingTestCase {
                 JsonMapView tasksIndex = new JsonMapView((Map<String, Object>) indices.get(".tasks"));
                 assertThat(tasksIndex.get("system"), is(true));
 
-                // If .tasks was created in a 7.x version, it should have an alias on it that we need to make sure got upgraded properly.
                 final String tasksCreatedVersionString = tasksIndex.get("settings.index.version.created");
                 assertThat(tasksCreatedVersionString, notNullValue());
-                final Version tasksCreatedVersion = Version.fromId(Integer.parseInt(tasksCreatedVersionString));
-                if (tasksCreatedVersion.before(SYSTEM_INDEX_ENFORCEMENT_VERSION)) {
-                    // Verify that the alias survived the upgrade
-                    Request getAliasRequest = new Request("GET", "/_alias/test-system-alias");
-                    getAliasRequest.setOptions(expectVersionSpecificWarnings(v -> {
-                        v.current(systemIndexWarning);
-                        v.compatible(systemIndexWarning);
-                    }));
-                    Map<String, Object> aliasResponse = entityAsMap(client().performRequest(getAliasRequest));
-                    assertThat(aliasResponse, hasKey(".tasks"));
-                    assertThat(aliasResponse, hasKey("test_index_reindex"));
-                }
             });
         }
     }

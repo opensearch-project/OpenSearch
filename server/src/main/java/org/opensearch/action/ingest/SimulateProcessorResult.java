@@ -31,7 +31,6 @@
 
 package org.opensearch.action.ingest;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.collect.Tuple;
@@ -193,18 +192,12 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
         this.ingestDocument = in.readOptionalWriteable(WriteableIngestDocument::new);
         this.failure = in.readException();
         this.description = in.readOptionalString();
-
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
-            this.type = in.readString();
-            boolean hasConditional = in.readBoolean();
-            if (hasConditional) {
-                this.conditionalWithResult = new Tuple<>(in.readString(), in.readBoolean());
-            } else {
-                this.conditionalWithResult = null; // no condition exists
-            }
+        this.type = in.readString();
+        boolean hasConditional = in.readBoolean();
+        if (hasConditional) {
+            this.conditionalWithResult = new Tuple<>(in.readString(), in.readBoolean());
         } else {
-            this.conditionalWithResult = null;
-            this.type = null;
+            this.conditionalWithResult = null; // no condition exists
         }
     }
 
@@ -214,14 +207,11 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
         out.writeOptionalWriteable(ingestDocument);
         out.writeException(failure);
         out.writeOptionalString(description);
-
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
-            out.writeString(type);
-            out.writeBoolean(conditionalWithResult != null);
-            if (conditionalWithResult != null) {
-                out.writeString(conditionalWithResult.v1());
-                out.writeBoolean(conditionalWithResult.v2());
-            }
+        out.writeString(type);
+        out.writeBoolean(conditionalWithResult != null);
+        if (conditionalWithResult != null) {
+            out.writeString(conditionalWithResult.v1());
+            out.writeBoolean(conditionalWithResult.v2());
         }
     }
 

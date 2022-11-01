@@ -361,7 +361,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
             // we don't have LegacyESVersion.V_6 constants, so set it to its last minor
             return LegacyESVersion.fromId(6080099);
         } else if (major == 2) {
-            return LegacyESVersion.V_7_10_0;
+            return LegacyESVersion.fromId(7100099);
         } else if (major == 6) {
             // force the minimum compatibility for version 6 to 5.6 since we don't reference version 5 anymore
             return LegacyESVersion.fromId(5060099);
