@@ -15,7 +15,10 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * TaskCancellation is a wrapper for a task and its cancellation reasons.
+ * TaskCancellation represents a task eligible for cancellation.
+ * It doesn't guarantee that the task will actually get cancelled or not; that decision is left to the caller.
+ *
+ * It contains a list of cancellation reasons along with callbacks that are invoked when cancel() is called.
  *
  * @opensearch.internal
  */
