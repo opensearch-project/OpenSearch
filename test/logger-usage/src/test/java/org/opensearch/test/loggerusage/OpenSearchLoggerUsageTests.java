@@ -79,31 +79,32 @@ public class OpenSearchLoggerUsageTests extends OpenSearchTestCase {
         }
     }
 
-    public void testLoggerUsageCheckerCompatibilityWithLog4j2Logger() throws NoSuchMethodException {
+    public void testLoggerUsageCheckerCompatibilityWithLog4j2Logger() {
         for (Method method : Logger.class.getMethods()) {
             if (OpenSearchLoggerUsageChecker.LOGGER_METHODS.contains(method.getName())) {
-                assertThat(method.getParameterTypes().length, greaterThanOrEqualTo(1));
-                int markerOffset = method.getParameterTypes()[0].equals(Marker.class) ? 1 : 0;
-                int paramLength = method.getParameterTypes().length - markerOffset;
+                assertThat(method.getParameterCount(), greaterThanOrEqualTo(1));
+                final Class<?>[] parameterTypes = method.getParameterTypes();
+                int markerOffset = parameterTypes[0].equals(Marker.class) ? 1 : 0;
+                int paramLength = parameterTypes.length - markerOffset;
                 if (method.isVarArgs()) {
                     assertEquals(2, paramLength);
-                    assertEquals(String.class, method.getParameterTypes()[markerOffset]);
-                    assertThat(method.getParameterTypes()[markerOffset + 1], is(oneOf(Object[].class, Supplier[].class)));
+                    assertEquals(String.class, parameterTypes[markerOffset]);
+                    assertThat(parameterTypes[markerOffset + 1], is(oneOf(Object[].class, Supplier[].class)));
                 } else {
-                    assertThat(method.getParameterTypes()[markerOffset], is(oneOf(Message.class, MessageSupplier.class,
+                    assertThat(parameterTypes[markerOffset], is(oneOf(Message.class, MessageSupplier.class,
                         CharSequence.class, Object.class, String.class, Supplier.class)));
 
                     if (paramLength == 2) {
-                        assertThat(method.getParameterTypes()[markerOffset + 1], is(oneOf(Throwable.class, Object.class)));
-                        if (method.getParameterTypes()[markerOffset + 1].equals(Object.class)) {
-                            assertEquals(String.class, method.getParameterTypes()[markerOffset]);
+                        assertThat(parameterTypes[markerOffset + 1], is(oneOf(Throwable.class, Object.class)));
+                        if (parameterTypes[markerOffset + 1].equals(Object.class)) {
+                            assertEquals(String.class, parameterTypes[markerOffset]);
                         }
                     }
                     if (paramLength > 2) {
-                        assertEquals(String.class, method.getParameterTypes()[markerOffset]);
+                        assertEquals(String.class, parameterTypes[markerOffset]);
                         assertThat(paramLength, lessThanOrEqualTo(11));
                         for (int i = 1; i < paramLength; i++) {
-                            assertEquals(Object.class, method.getParameterTypes()[markerOffset + i]);
+                            assertEquals(Object.class, parameterTypes[markerOffset + i]);
                         }
                     }
                 }
@@ -115,16 +116,17 @@ public class OpenSearchLoggerUsageTests extends OpenSearchTestCase {
         }
 
         for (Constructor<?> constructor : ParameterizedMessage.class.getConstructors()) {
-            assertThat(constructor.getParameterTypes().length, greaterThanOrEqualTo(2));
-            assertEquals(String.class, constructor.getParameterTypes()[0]);
-            assertThat(constructor.getParameterTypes()[1], is(oneOf(String[].class, Object[].class, Object.class)));
+            assertThat(constructor.getParameterCount(), greaterThanOrEqualTo(2));
+            final Class<?>[] parameterTypes = constructor.getParameterTypes();
+            assertEquals(String.class, parameterTypes[0]);
+            assertThat(parameterTypes[1], is(oneOf(String[].class, Object[].class, Object.class)));
 
-            if (constructor.getParameterTypes().length > 2) {
-                assertEquals(3, constructor.getParameterTypes().length);
-                if (constructor.getParameterTypes()[1].equals(Object.class)) {
-                    assertEquals(Object.class, constructor.getParameterTypes()[2]);
+            if (parameterTypes.length > 2) {
+                assertEquals(3, parameterTypes.length);
+                if (parameterTypes[1].equals(Object.class)) {
+                    assertEquals(Object.class, parameterTypes[2]);
                 } else {
-                    assertEquals(Throwable.class, constructor.getParameterTypes()[2]);
+                    assertEquals(Throwable.class, parameterTypes[2]);
                 }
             }
         }
