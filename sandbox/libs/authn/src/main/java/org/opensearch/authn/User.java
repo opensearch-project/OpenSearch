@@ -10,7 +10,12 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.Collections;
 import java.util.Map;
 
-public class User implements Subject {
+/**
+ * A non-volatile and immutable object in the storage.
+ *
+ * @opensearch.experimental
+ */
+public class User {
 
     @JsonProperty(value = "primary_principal")
     private StringPrincipal primaryPrincipal;
@@ -21,7 +26,6 @@ public class User implements Subject {
     @JsonProperty(value = "attributes")
     private Map<String, String> attributes = Collections.emptyMap();
 
-    @Override
     @JsonProperty(value = "primary_principal")
     public StringPrincipal getPrincipal() {
         return primaryPrincipal;

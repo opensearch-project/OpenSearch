@@ -19,7 +19,6 @@ public interface Subject {
      * */
     Principal getPrincipal();
 
-
     /**
      * Logs the user in
      */
