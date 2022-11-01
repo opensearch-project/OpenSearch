@@ -48,6 +48,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Added resource usage trackers for in-flight cancellation of SearchShardTask ([#4805](https://github.com/opensearch-project/OpenSearch/pull/4805))
 - Renamed flaky tests ([#4912](https://github.com/opensearch-project/OpenSearch/pull/4912))
 - Update previous release bwc version to 2.5.0 ([#5003](https://github.com/opensearch-project/OpenSearch/pull/5003))
+- Use getParameterCount instead of getParameterTypes ([#4821](https://github.com/opensearch-project/OpenSearch/pull/4821))
 
 ### Dependencies
 - Bumps `log4j-core` from 2.18.0 to 2.19.0
