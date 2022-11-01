@@ -31,7 +31,6 @@
 
 package org.opensearch.index.query;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.ParsingException;
@@ -207,11 +206,8 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         }
         highlightBuilder = in.readOptionalWriteable(HighlightBuilder::new);
         this.innerCollapseBuilder = in.readOptionalWriteable(CollapseBuilder::new);
-
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
-            if (in.readBoolean()) {
-                fetchFields = in.readList(FieldAndFormat::new);
-            }
+        if (in.readBoolean()) {
+            fetchFields = in.readList(FieldAndFormat::new);
         }
     }
 
@@ -251,12 +247,9 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         }
         out.writeOptionalWriteable(highlightBuilder);
         out.writeOptionalWriteable(innerCollapseBuilder);
-
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
-            out.writeBoolean(fetchFields != null);
-            if (fetchFields != null) {
-                out.writeList(fetchFields);
-            }
+        out.writeBoolean(fetchFields != null);
+        if (fetchFields != null) {
+            out.writeList(fetchFields);
         }
     }
 
