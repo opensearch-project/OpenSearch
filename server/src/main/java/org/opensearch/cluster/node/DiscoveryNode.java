@@ -324,14 +324,12 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         for (int i = 0; i < rolesSize; i++) {
             final String roleName = in.readString();
             final String roleNameAbbreviation = in.readString();
-            final boolean canContainData;
-            canContainData = in.readBoolean();
             final DiscoveryNodeRole role = roleMap.get(roleName);
             if (role == null) {
                 if (in.getVersion().onOrAfter(Version.V_2_1_0)) {
-                    roles.add(new DiscoveryNodeRole.DynamicRole(roleName, roleNameAbbreviation, canContainData));
+                    roles.add(new DiscoveryNodeRole.DynamicRole(roleName, roleNameAbbreviation, in.readBoolean()));
                 } else {
-                    roles.add(new DiscoveryNodeRole.UnknownRole(roleName, roleNameAbbreviation, canContainData));
+                    roles.add(new DiscoveryNodeRole.UnknownRole(roleName, roleNameAbbreviation, in.readBoolean()));
                 }
             } else {
                 assert roleName.equals(role.roleName()) : "role name [" + roleName + "] does not match role [" + role.roleName() + "]";
