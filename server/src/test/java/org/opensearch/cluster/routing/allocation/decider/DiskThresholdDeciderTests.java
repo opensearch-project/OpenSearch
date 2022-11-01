@@ -65,10 +65,12 @@ import org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocat
 import org.opensearch.cluster.routing.allocation.command.AllocationCommand;
 import org.opensearch.cluster.routing.allocation.command.AllocationCommands;
 import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.Index;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.repositories.IndexId;
@@ -84,6 +86,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
@@ -284,6 +287,103 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().node("node2").size(), equalTo(0));
         assertThat(clusterState.getRoutingNodes().node("node3").size(), equalTo(1));
         assertThat(clusterState.getRoutingNodes().node("node4").size(), equalTo(1));
+    }
+
+    @SuppressForbidden(reason = "feature flag overrides")
+    public void testDiskThresholdForRemoteShards() {
+        try {
+            System.setProperty(FeatureFlags.SEARCHABLE_SNAPSHOT, "true");
+            Settings diskSettings = Settings.builder()
+                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
+                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), 0.7)
+                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), 0.8)
+                .build();
+
+            ImmutableOpenMap.Builder<String, DiskUsage> usagesBuilder = ImmutableOpenMap.builder();
+            usagesBuilder.put("node1", new DiskUsage("node1", "node1", "/dev/null", 100, 10)); // 90% used
+            usagesBuilder.put("node2", new DiskUsage("node2", "node2", "/dev/null", 100, 35)); // 65% used
+            usagesBuilder.put("node3", new DiskUsage("node3", "node3", "/dev/null", 100, 60)); // 40% used
+            ImmutableOpenMap<String, DiskUsage> usages = usagesBuilder.build();
+
+            ImmutableOpenMap.Builder<String, Long> shardSizesBuilder = ImmutableOpenMap.builder();
+            shardSizesBuilder.put("[test][0][p]", 10L); // 10 bytes
+            shardSizesBuilder.put("[test][0][r]", 10L);
+            ImmutableOpenMap<String, Long> shardSizes = shardSizesBuilder.build();
+            final ClusterInfo clusterInfo = new DevNullClusterInfo(usages, usages, shardSizes);
+
+            ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+            AllocationDeciders deciders = new AllocationDeciders(
+                new HashSet<>(Arrays.asList(new SameShardAllocationDecider(Settings.EMPTY, clusterSettings), makeDecider(diskSettings)))
+            );
+
+            ClusterInfoService cis = () -> {
+                logger.info("--> calling fake getClusterInfo");
+                return clusterInfo;
+            };
+            AllocationService strategy = new AllocationService(
+                deciders,
+                new TestGatewayAllocator(),
+                new BalancedShardsAllocator(Settings.EMPTY),
+                cis,
+                EmptySnapshotsInfoService.INSTANCE
+            );
+
+            Metadata metadata = Metadata.builder()
+                .put(IndexMetadata.builder("test").settings(remoteIndexSettings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+                .build();
+
+            final RoutingTable initialRoutingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
+
+            ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+                .metadata(metadata)
+                .routingTable(initialRoutingTable)
+                .build();
+
+            Set<DiscoveryNodeRole> searcherRoles = new HashSet<>(CLUSTER_MANAGER_DATA_ROLES);
+            searcherRoles.add(DiscoveryNodeRole.SEARCH_ROLE);
+
+            logger.info("--> adding two nodes");
+            clusterState = ClusterState.builder(clusterState)
+                .nodes(DiscoveryNodes.builder().add(newNode("node1", searcherRoles)).add(newNode("node2", searcherRoles)))
+                .build();
+            clusterState = strategy.reroute(clusterState, "reroute");
+            logShardStates(clusterState);
+
+            // Primary shard should be initializing, replica should not
+            assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(2));
+
+            logger.info("--> start the shards (primaries)");
+            clusterState = startInitializingShardsAndReroute(strategy, clusterState);
+
+            logShardStates(clusterState);
+            // Assert that we're able to start the primary
+            assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(2));
+
+            logger.info("--> adding node3");
+
+            clusterState = ClusterState.builder(clusterState)
+                .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node3")))
+                .build();
+            clusterState = strategy.reroute(clusterState, "reroute");
+
+            logShardStates(clusterState);
+            // Assert that the replica is initialized now that node3 is available with enough space
+            assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(2));
+            assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.INITIALIZING).size(), equalTo(0));
+
+            logger.info("--> start the shards (replicas)");
+            clusterState = startInitializingShardsAndReroute(strategy, clusterState);
+
+            logShardStates(clusterState);
+            // Assert that the replica couldn't be started since node1 doesn't have enough space
+            assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(2));
+            assertThat(clusterState.getRoutingNodes().node("node1").size(), equalTo(1));
+            assertThat(clusterState.getRoutingNodes().node("node2").size(), equalTo(1));
+            assertThat(clusterState.getRoutingNodes().node("node3").size(), equalTo(0));
+        } finally {
+            System.setProperty(FeatureFlags.SEARCHABLE_SNAPSHOT, "false");
+        }
+
     }
 
     public void testDiskThresholdWithAbsoluteSizes() {

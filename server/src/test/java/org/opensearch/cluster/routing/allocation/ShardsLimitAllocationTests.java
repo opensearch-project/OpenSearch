@@ -40,16 +40,21 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.index.IndexModule;
 
 import static org.opensearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.opensearch.cluster.routing.ShardRoutingState.STARTED;
 
+import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -104,6 +109,65 @@ public class ShardsLimitAllocationTests extends OpenSearchAllocationTestCase {
 
         logger.info("Do another reroute, make sure its still not allocated");
         startInitializingShardsAndReroute(strategy, clusterState);
+    }
+
+    @SuppressForbidden(reason = "feature flag overrides")
+    public void testIndexLevelRemoteShardsLimitAllocate() {
+        try {
+            System.setProperty(FeatureFlags.SEARCHABLE_SNAPSHOT, "true");
+            AllocationService strategy = createAllocationService(
+                Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build()
+            );
+
+            logger.info("Building initial routing table");
+
+            Metadata metadata = Metadata.builder()
+                .put(
+                    IndexMetadata.builder("test")
+                        .settings(
+                            settings(Version.CURRENT).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
+                                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                                .put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1)
+                                .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey())
+                        )
+                )
+                .build();
+
+            RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
+
+            ClusterState clusterState = ClusterState.builder(
+                org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
+            ).metadata(metadata).routingTable(routingTable).build();
+            logger.info("Adding two nodes and performing rerouting");
+            Set<DiscoveryNodeRole> searcherRoles = new HashSet<>(CLUSTER_MANAGER_DATA_ROLES);
+            searcherRoles.add(DiscoveryNodeRole.SEARCH_ROLE);
+            clusterState = ClusterState.builder(clusterState)
+                .nodes(DiscoveryNodes.builder().add(newNode("node1", searcherRoles)).add(newNode("node2", searcherRoles)))
+                .build();
+            clusterState = strategy.reroute(clusterState, "reroute");
+
+            assertThat(clusterState.getRoutingNodes().node("node1").numberOfShardsWithState(ShardRoutingState.INITIALIZING), equalTo(2));
+            assertThat(clusterState.getRoutingNodes().node("node2").numberOfShardsWithState(ShardRoutingState.INITIALIZING), equalTo(2));
+
+            logger.info("Start the primary shards");
+            clusterState = startInitializingShardsAndReroute(strategy, clusterState);
+
+            assertThat(clusterState.getRoutingNodes().node("node1").numberOfShardsWithState(ShardRoutingState.STARTED), equalTo(2));
+            assertThat(clusterState.getRoutingNodes().node("node1").numberOfShardsWithState(ShardRoutingState.INITIALIZING), equalTo(2));
+            assertThat(clusterState.getRoutingNodes().node("node2").numberOfShardsWithState(ShardRoutingState.STARTED), equalTo(2));
+            assertThat(clusterState.getRoutingNodes().node("node2").numberOfShardsWithState(ShardRoutingState.INITIALIZING), equalTo(2));
+            assertThat(clusterState.getRoutingNodes().unassigned().size(), equalTo(0));
+
+            logger.info("Do another reroute, make sure shards have started");
+            clusterState = startInitializingShardsAndReroute(strategy, clusterState);
+
+            assertThat(clusterState.getRoutingNodes().node("node1").numberOfShardsWithState(ShardRoutingState.STARTED), equalTo(4));
+            assertThat(clusterState.getRoutingNodes().node("node1").numberOfShardsWithState(ShardRoutingState.INITIALIZING), equalTo(0));
+            assertThat(clusterState.getRoutingNodes().node("node2").numberOfShardsWithState(ShardRoutingState.STARTED), equalTo(4));
+            assertThat(clusterState.getRoutingNodes().node("node2").numberOfShardsWithState(ShardRoutingState.INITIALIZING), equalTo(0));
+        } finally {
+            System.setProperty(FeatureFlags.SEARCHABLE_SNAPSHOT, "false");
+        }
     }
 
     public void testClusterLevelShardsLimitAllocate() {
@@ -167,6 +231,68 @@ public class ShardsLimitAllocationTests extends OpenSearchAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().node("node1").numberOfShardsWithState(ShardRoutingState.STARTED), equalTo(2));
         assertThat(clusterState.getRoutingNodes().node("node2").numberOfShardsWithState(ShardRoutingState.STARTED), equalTo(2));
         assertThat(clusterState.getRoutingNodes().unassigned().size(), equalTo(0));
+    }
+
+    @SuppressForbidden(reason = "feature flag overrides")
+    public void testClusterLevelRemoteShardsLimitAllocate() {
+        try {
+            System.setProperty(FeatureFlags.SEARCHABLE_SNAPSHOT, "true");
+            AllocationService strategy = createAllocationService(
+                Settings.builder()
+                    .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
+                    .put(ShardsLimitAllocationDecider.CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1)
+                    .build()
+            );
+
+            logger.info("Building initial routing table");
+
+            Metadata metadata = Metadata.builder()
+                .put(
+                    IndexMetadata.builder("test")
+                        .settings(
+                            settings(Version.CURRENT).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 8)
+                                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                                .put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 4)
+                                .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey())
+                        )
+                )
+                .build();
+
+            RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
+
+            ClusterState clusterState = ClusterState.builder(
+                org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
+            ).metadata(metadata).routingTable(routingTable).build();
+            logger.info("Adding two nodes and performing rerouting");
+            Set<DiscoveryNodeRole> searcherRoles = new HashSet<>(CLUSTER_MANAGER_DATA_ROLES);
+            searcherRoles.add(DiscoveryNodeRole.SEARCH_ROLE);
+            clusterState = ClusterState.builder(clusterState)
+                .nodes(DiscoveryNodes.builder().add(newNode("node1", searcherRoles)).add(newNode("node2", searcherRoles)))
+                .build();
+            clusterState = strategy.reroute(clusterState, "reroute");
+
+            assertThat(clusterState.getRoutingNodes().node("node1").numberOfShardsWithState(ShardRoutingState.INITIALIZING), equalTo(4));
+            assertThat(clusterState.getRoutingNodes().node("node2").numberOfShardsWithState(ShardRoutingState.INITIALIZING), equalTo(4));
+
+            logger.info("Start the primary shards");
+            clusterState = startInitializingShardsAndReroute(strategy, clusterState);
+
+            assertThat(clusterState.getRoutingNodes().node("node1").numberOfShardsWithState(ShardRoutingState.STARTED), equalTo(4));
+            assertThat(clusterState.getRoutingNodes().node("node1").numberOfShardsWithState(ShardRoutingState.INITIALIZING), equalTo(4));
+            assertThat(clusterState.getRoutingNodes().node("node2").numberOfShardsWithState(ShardRoutingState.STARTED), equalTo(4));
+            assertThat(clusterState.getRoutingNodes().node("node2").numberOfShardsWithState(ShardRoutingState.INITIALIZING), equalTo(4));
+            assertThat(clusterState.getRoutingNodes().unassigned().size(), equalTo(0));
+
+            logger.info("Do another reroute, make sure shards have started");
+            clusterState = startInitializingShardsAndReroute(strategy, clusterState);
+
+            assertThat(clusterState.getRoutingNodes().node("node1").numberOfShardsWithState(ShardRoutingState.STARTED), equalTo(8));
+            assertThat(clusterState.getRoutingNodes().node("node1").numberOfShardsWithState(ShardRoutingState.INITIALIZING), equalTo(0));
+            assertThat(clusterState.getRoutingNodes().node("node2").numberOfShardsWithState(ShardRoutingState.STARTED), equalTo(8));
+            assertThat(clusterState.getRoutingNodes().node("node2").numberOfShardsWithState(ShardRoutingState.INITIALIZING), equalTo(0));
+        } finally {
+            System.setProperty(FeatureFlags.SEARCHABLE_SNAPSHOT, "false");
+        }
     }
 
     public void testIndexLevelShardsLimitRemain() {

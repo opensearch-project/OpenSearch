@@ -66,4 +66,8 @@ public enum RoutingPool {
         }
         return LOCAL_ONLY;
     }
+
+    public static boolean isShardAndNodePoolRemote(ShardRouting shardRouting, RoutingAllocation allocation, RoutingNode node) {
+        return REMOTE_CAPABLE.equals(getNodePool(node)) && REMOTE_CAPABLE.equals(getShardPool(shardRouting, allocation));
+    }
 }

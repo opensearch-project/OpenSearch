@@ -43,6 +43,7 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.RoutingNode;
+import org.opensearch.cluster.routing.RoutingPool;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
@@ -167,6 +168,14 @@ public class DiskThresholdDecider extends AllocationDecider {
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        /*
+         Remote shards were introduced as a part of searchable snapshots. The following block
+         enables allocation for remote shards without restrictions since they do not use the local storage as
+         the primary source of data storage.
+         */
+        if (RoutingPool.isShardAndNodePoolRemote(shardRouting, allocation, node)) {
+            return Decision.ALWAYS;
+        }
         ClusterInfo clusterInfo = allocation.clusterInfo();
         ImmutableOpenMap<String, DiskUsage> usages = clusterInfo.getNodeMostAvailableDiskUsages();
         final Decision decision = earlyTerminate(allocation, usages);
@@ -423,6 +432,16 @@ public class DiskThresholdDecider extends AllocationDecider {
         if (shardRouting.currentNodeId().equals(node.nodeId()) == false) {
             throw new IllegalArgumentException("Shard [" + shardRouting + "] is not allocated on node: [" + node.nodeId() + "]");
         }
+
+        /*
+         Remote shards were introduced as a part of searchable snapshots. The following block
+         prevents movement for remote shards since they do not use the local storage as
+         the primary source of data storage.
+         */
+        if (RoutingPool.isShardAndNodePoolRemote(shardRouting, allocation, node)) {
+            return Decision.ALWAYS;
+        }
+
         final ClusterInfo clusterInfo = allocation.clusterInfo();
         final ImmutableOpenMap<String, DiskUsage> usages = clusterInfo.getNodeLeastAvailableDiskUsages();
         final Decision decision = earlyTerminate(allocation, usages);

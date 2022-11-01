@@ -34,6 +34,7 @@ package org.opensearch.cluster.routing.allocation.decider;
 
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.RoutingNode;
+import org.opensearch.cluster.routing.RoutingPool;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
@@ -125,6 +126,14 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
         RoutingAllocation allocation,
         BiPredicate<Integer, Integer> decider
     ) {
+        /*
+         Remote shards were introduced as a part of searchable snapshots. The following block
+         enables allocation overrides for remote shards since they do not use the local storage as
+         the primary source of data storage.
+         */
+        if (RoutingPool.isShardAndNodePoolRemote(shardRouting, allocation, node)) {
+            return Decision.ALWAYS;
+        }
         IndexMetadata indexMd = allocation.metadata().getIndexSafe(shardRouting.index());
         final int indexShardLimit = INDEX_TOTAL_SHARDS_PER_NODE_SETTING.get(indexMd.getSettings(), settings);
         // Capture the limit here in case it changes during this method's
