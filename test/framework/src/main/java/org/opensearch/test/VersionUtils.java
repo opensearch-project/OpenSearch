@@ -102,6 +102,29 @@ public class VersionUtils {
             stableVersions = currentMajor;
         }
 
+        // remove last minor unless it's the first OpenSearch version.
+        // all Legacy ES versions are released, so we don't exclude any.
+        if (current.equals(Version.fromId(1000099 ^ Version.MASK)) == false) {
+            List<Version> lastMinorLine = stableVersions.get(stableVersions.size() - 1);
+            if (lastMinorLine.get(lastMinorLine.size() - 1) instanceof LegacyESVersion == false) {
+                // if the last minor line is Legacy there are no more staged releases; do nothing
+                // otherwise the last minor line is (by definition) staged and unreleased
+                Version lastMinor = moveLastToUnreleased(stableVersions, unreleasedVersions);
+                // no more staged legacy bugfixes so skip;
+                if (lastMinor instanceof LegacyESVersion == false && lastMinor.revision == 0) {
+                    // this is not a legacy version; remove the staged bugfix
+                    if (stableVersions.get(stableVersions.size() - 1).size() == 1) {
+                        // a minor is being staged, which is also unreleased
+                        moveLastToUnreleased(stableVersions, unreleasedVersions);
+                    }
+                    // remove the next bugfix
+                    if (stableVersions.isEmpty() == false) {
+                        moveLastToUnreleased(stableVersions, unreleasedVersions);
+                    }
+                }
+            }
+        }
+
         // If none of the previous major was released, then the last minor and bugfix of the old version was not released either.
         if (previousMajor.isEmpty()) {
             assert currentMajor.isEmpty() : currentMajor;
