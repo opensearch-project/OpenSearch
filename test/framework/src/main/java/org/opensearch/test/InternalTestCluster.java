@@ -199,6 +199,11 @@ public final class InternalTestCluster extends TestCluster {
         nodeAndClient.node.settings()
     );
 
+    private static final Predicate<NodeAndClient> SEARCH_NODE_PREDICATE = nodeAndClient -> DiscoveryNode.hasRole(
+        nodeAndClient.node.settings(),
+        DiscoveryNodeRole.SEARCH_ROLE
+    );
+
     private static final Predicate<NodeAndClient> NO_DATA_NO_CLUSTER_MANAGER_PREDICATE = nodeAndClient -> DiscoveryNode
         .isClusterManagerNode(nodeAndClient.node.settings()) == false
         && DiscoveryNode.isDataNode(nodeAndClient.node.settings()) == false;
@@ -659,6 +664,24 @@ public final class InternalTestCluster extends TestCluster {
                 startDataOnlyNodes(n - size);
             } else {
                 startNodes(n - size);
+            }
+            validateClusterFormed();
+        }
+    }
+
+    /**
+     * Ensures that at least <code>n</code> search nodes are present in the cluster.
+     * if more nodes than <code>n</code> are present this method will not
+     * stop any of the running nodes.
+     */
+    public synchronized void ensureAtLeastNumSearchNodes(int n) {
+        int size = numSearchNodes();
+        if (size < n) {
+            logger.info("increasing cluster size from {} to {}", size, n);
+            if (numSharedDedicatedClusterManagerNodes > 0) {
+                startSearchOnlyNodes(n - size);
+            } else {
+                startNodes(n - size, Settings.builder().put(onlyRole(Settings.EMPTY, DiscoveryNodeRole.SEARCH_ROLE)).build());
             }
             validateClusterFormed();
         }
@@ -2291,6 +2314,14 @@ public final class InternalTestCluster extends TestCluster {
         return startNodes(numNodes, Settings.builder().put(onlyRole(settings, DiscoveryNodeRole.DATA_ROLE)).build());
     }
 
+    public List<String> startSearchOnlyNodes(int numNodes) {
+        return startSearchOnlyNodes(numNodes, Settings.EMPTY);
+    }
+
+    public List<String> startSearchOnlyNodes(int numNodes, Settings settings) {
+        return startNodes(numNodes, Settings.builder().put(onlyRole(settings, DiscoveryNodeRole.SEARCH_ROLE)).build());
+    }
+
     /** calculates a min cluster-manager nodes value based on the given number of cluster-manager nodes */
     private static int getMinClusterManagerNodes(int eligibleClusterManagerNodes) {
         return eligibleClusterManagerNodes / 2 + 1;
@@ -2345,6 +2376,10 @@ public final class InternalTestCluster extends TestCluster {
     @Override
     public int numDataNodes() {
         return dataNodeAndClients().size();
+    }
+
+    public int numSearchNodes() {
+        return searchNodeAndClients().size();
     }
 
     @Override
@@ -2404,6 +2439,10 @@ public final class InternalTestCluster extends TestCluster {
 
     private Collection<NodeAndClient> dataNodeAndClients() {
         return filterNodes(nodes, DATA_NODE_PREDICATE);
+    }
+
+    private Collection<NodeAndClient> searchNodeAndClients() {
+        return filterNodes(nodes, SEARCH_NODE_PREDICATE);
     }
 
     private static Collection<NodeAndClient> filterNodes(

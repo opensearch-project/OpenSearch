@@ -535,6 +535,29 @@ public class ShardRouting implements Writeable, ToXContentObject {
     }
 
     /**
+     * Make the active primary shard as replica
+     *
+     * @throws IllegalShardRoutingStateException if shard is already a replica
+     */
+    public ShardRouting moveActivePrimaryToReplica() {
+        assert active() : "expected an active shard " + this;
+        if (!primary) {
+            throw new IllegalShardRoutingStateException(this, "Not a primary shard, can't move to replica");
+        }
+        return new ShardRouting(
+            shardId,
+            currentNodeId,
+            relocatingNodeId,
+            false,
+            state,
+            recoverySource,
+            unassignedInfo,
+            allocationId,
+            expectedShardSize
+        );
+    }
+
+    /**
      * Make the active shard primary unless it's not primary
      *
      * @throws IllegalShardRoutingStateException if shard is already a primary
