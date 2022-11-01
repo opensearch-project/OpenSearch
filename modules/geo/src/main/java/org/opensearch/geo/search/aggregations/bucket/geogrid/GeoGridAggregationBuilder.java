@@ -32,7 +32,6 @@
 
 package org.opensearch.geo.search.aggregations.bucket.geogrid;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.geo.GeoBoundingBox;
@@ -125,9 +124,7 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
         precision = in.readVInt();
         requiredSize = in.readVInt();
         shardSize = in.readVInt();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
-            geoBoundingBox = new GeoBoundingBox(in);
-        }
+        geoBoundingBox = new GeoBoundingBox(in);
     }
 
     @Override
@@ -140,9 +137,7 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
         out.writeVInt(precision);
         out.writeVInt(requiredSize);
         out.writeVInt(shardSize);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
-            geoBoundingBox.writeTo(out);
-        }
+        geoBoundingBox.writeTo(out);
     }
 
     /**

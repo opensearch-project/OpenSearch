@@ -720,12 +720,8 @@ public class RecoveryIT extends AbstractRollingTestCase {
 
         final int numberOfReplicas = Integer.parseInt(
             getIndexSettingsAsMap(indexName).get(IndexMetadata.SETTING_NUMBER_OF_REPLICAS).toString());
-        if (minimumNodeVersion.onOrAfter(LegacyESVersion.V_7_6_0)) {
-            assertEquals(nodes.size() - 2, numberOfReplicas);
-            ensureGreen(indexName);
-        } else {
-            assertEquals(nodes.size() - 1, numberOfReplicas);
-        }
+        assertEquals(nodes.size() - 2, numberOfReplicas);
+        ensureGreen(indexName);
     }
 
     public void testSoftDeletesDisabledWarning() throws Exception {

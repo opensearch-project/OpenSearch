@@ -261,13 +261,8 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         allowPartialSearchResults = in.readBoolean();
         indexRoutings = in.readStringArray();
         preference = in.readOptionalString();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
-            canReturnNullResponseIfMatchNoDocs = in.readBoolean();
-            bottomSortValues = in.readOptionalWriteable(SearchSortValuesAndFormats::new);
-        } else {
-            canReturnNullResponseIfMatchNoDocs = false;
-            bottomSortValues = null;
-        }
+        canReturnNullResponseIfMatchNoDocs = in.readBoolean();
+        bottomSortValues = in.readOptionalWriteable(SearchSortValuesAndFormats::new);
         if (in.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
             this.readerId = in.readOptionalWriteable(ShardSearchContextId::new);
             this.keepAlive = in.readOptionalTimeValue();
@@ -337,11 +332,11 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             out.writeStringArray(indexRoutings);
             out.writeOptionalString(preference);
         }
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_7_0) && asKey == false) {
+        if (asKey == false) {
             out.writeBoolean(canReturnNullResponseIfMatchNoDocs);
             out.writeOptionalWriteable(bottomSortValues);
         }
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_10_0) && asKey == false) {
+        if (asKey == false) {
             out.writeOptionalWriteable(readerId);
             out.writeOptionalTimeValue(keepAlive);
         }

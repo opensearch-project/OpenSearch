@@ -33,7 +33,6 @@
 package org.opensearch.transport;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterName;
@@ -365,11 +364,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
 
         private ProxyModeInfo(StreamInput input) throws IOException {
             address = input.readString();
-            if (input.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
-                serverName = input.readString();
-            } else {
-                serverName = null;
-            }
+            serverName = input.readString();
             maxSocketConnections = input.readVInt();
             numSocketsConnected = input.readVInt();
         }
@@ -386,9 +381,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(address);
-            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
-                out.writeString(serverName);
-            }
+            out.writeString(serverName);
             out.writeVInt(maxSocketConnections);
             out.writeVInt(numSocketsConnected);
         }
