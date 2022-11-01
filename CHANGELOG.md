@@ -40,7 +40,6 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Update Apache Lucene to 9.4.1 ([#4922](https://github.com/opensearch-project/OpenSearch/pull/4922))
 - Bump `woodstox-core` to 6.4.0 ([#4951](https://github.com/opensearch-project/OpenSearch/pull/4951))
 - Upgrade jetty-http, kotlin-stdlib and snakeyaml ([#4982](https://github.com/opensearch-project/OpenSearch/pull/4982))
-- Bump protobuf-java to 3.21.8 ([#5005](https://github.com/opensearch-project/OpenSearch/pull/5005))
 
 ### Changed
 - Dependency updates (httpcore, mockito, slf4j, httpasyncclient, commons-codec) ([#4308](https://github.com/opensearch-project/OpenSearch/pull/4308))
@@ -106,6 +105,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Update Jackson Databind to 2.13.4.2 (addressing CVE-2022-42003) ([#4781](https://github.com/opensearch-project/OpenSearch/pull/4781))
 - Install and configure Log4j JUL Adapter for Lucene 9.4 ([#4754](https://github.com/opensearch-project/OpenSearch/pull/4754))
 - Added feature to ignore indexes starting with dot during shard limit validation.([#4695](https://github.com/opensearch-project/OpenSearch/pull/4695))
+- Bump protobuf-java to 3.21.8 ([#5005](https://github.com/opensearch-project/OpenSearch/pull/5005))
 ### Changed
 - Refactored BalancedAllocator.Balancer to LocalShardsBalancer ([#4818](https://github.com/opensearch-project/OpenSearch/pull/4818))
 ### Deprecated
