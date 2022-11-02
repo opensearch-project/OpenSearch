@@ -418,15 +418,10 @@ public class MultiSearchRequestTests extends OpenSearchTestCase {
         Version version = VersionUtils.randomVersion(random());
         MultiSearchRequest originalRequest = RestMultiSearchAction.parseRequest(restRequest, null, true);
         MultiSearchRequest deserializedRequest = copyWriteable(originalRequest, writableRegistry(), MultiSearchRequest::new, version);
-
-        if (version.before(Version.V_1_1_0)) {
-            assertNull(deserializedRequest.requests().get(0).getCancelAfterTimeInterval());
-        } else {
-            assertEquals(
-                originalRequest.requests().get(0).getCancelAfterTimeInterval(),
-                deserializedRequest.requests().get(0).getCancelAfterTimeInterval()
-            );
-        }
+        assertEquals(
+            originalRequest.requests().get(0).getCancelAfterTimeInterval(),
+            deserializedRequest.requests().get(0).getCancelAfterTimeInterval()
+        );
     }
 
     public void testWritingExpandWildcards() throws IOException {

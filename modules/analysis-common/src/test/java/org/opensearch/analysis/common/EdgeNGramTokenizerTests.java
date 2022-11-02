@@ -83,7 +83,7 @@ public class EdgeNGramTokenizerTests extends OpenSearchTokenStreamTestCase {
         {
             try (
                 IndexAnalyzers indexAnalyzers = buildAnalyzers(
-                    VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, VersionUtils.getPreviousVersion(Version.V_3_0_0)),
+                    VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, VersionUtils.getPreviousVersion(Version.V_3_0_0)),
                     "edgeNGram"
                 )
             ) {

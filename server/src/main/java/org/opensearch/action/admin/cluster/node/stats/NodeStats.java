@@ -32,7 +32,6 @@
 
 package org.opensearch.action.admin.cluster.node.stats;
 
-import org.opensearch.Version;
 import org.opensearch.action.support.nodes.BaseNodeResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
@@ -141,12 +140,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
             scriptCacheStats = scriptStats.toScriptCacheStats();
         }
         indexingPressureStats = in.readOptionalWriteable(IndexingPressureStats::new);
-        if (in.getVersion().onOrAfter(Version.V_1_2_0)) {
-            shardIndexingPressureStats = in.readOptionalWriteable(ShardIndexingPressureStats::new);
-        } else {
-            shardIndexingPressureStats = null;
-        }
-
+        shardIndexingPressureStats = in.readOptionalWriteable(ShardIndexingPressureStats::new);
     }
 
     public NodeStats(
@@ -319,9 +313,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         out.writeOptionalWriteable(ingestStats);
         out.writeOptionalWriteable(adaptiveSelectionStats);
         out.writeOptionalWriteable(indexingPressureStats);
-        if (out.getVersion().onOrAfter(Version.V_1_2_0)) {
-            out.writeOptionalWriteable(shardIndexingPressureStats);
-        }
+        out.writeOptionalWriteable(shardIndexingPressureStats);
     }
 
     @Override
