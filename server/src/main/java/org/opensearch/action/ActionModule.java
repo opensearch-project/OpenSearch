@@ -525,7 +525,7 @@ public class ActionModule extends AbstractModule {
         // If clause should be removed once this feature is embedded in core
         securityRestFilter = new SecurityRestFilter();
         boolean isSandboxEnabled = AccessController.doPrivileged(
-            (PrivilegedAction<Boolean>) () -> System.getProperty("sandbox.enabled").equals("true")
+            (PrivilegedAction<Boolean>) () -> System.getProperty("sandbox.enabled", "false").equals("true")
         );
         // TODO: Add a check to enable following only when sandbox is enabled
         if (isSandboxEnabled) {

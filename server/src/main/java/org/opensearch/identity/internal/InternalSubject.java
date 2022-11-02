@@ -11,7 +11,6 @@ package org.opensearch.identity.internal;
 import java.security.Principal;
 import java.util.Objects;
 
-import org.apache.shiro.authc.AuthenticationException;
 import org.opensearch.authn.AuthenticationToken;
 import org.opensearch.authn.Subject;
 import org.opensearch.identity.AuthenticationTokenHandler;

@@ -9,7 +9,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.authn.AuthenticationToken;
 import org.opensearch.authn.HttpHeaderToken;
-import org.opensearch.authn.Principals;
 import org.opensearch.authn.Subject;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.identity.Identity;
@@ -94,7 +93,6 @@ public class SecurityRestFilter {
         Subject subject = null;
 
         AuthenticationToken headerToken = null;
-
 
         // TODO: Handle anonymous Auth - Allowed or Disallowed (set by the user of the system) - 401 or Login-redirect ??
 
