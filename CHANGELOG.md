@@ -118,7 +118,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Install and configure Log4j JUL Adapter for Lucene 9.4 ([#4754](https://github.com/opensearch-project/OpenSearch/pull/4754))
 - Added feature to ignore indexes starting with dot during shard limit validation.([#4695](https://github.com/opensearch-project/OpenSearch/pull/4695))
 - Bump protobuf-java to 3.21.8 ([#5005](https://github.com/opensearch-project/OpenSearch/pull/5005))
-- Upgrade zookeeper dependency in hdfs-fixture ([#]())
+- Upgrade zookeeper dependency in hdfs-fixture ([#5047](https://github.com/opensearch-project/OpenSearch/pull/5047))
 ### Changed
 - Refactored BalancedAllocator.Balancer to LocalShardsBalancer ([#4818](https://github.com/opensearch-project/OpenSearch/pull/4818))
 - Skip SymbolicLinkPreservingTarIT when running on Windows ([#5023](https://github.com/opensearch-project/OpenSearch/pull/5023))
