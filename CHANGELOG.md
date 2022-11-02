@@ -190,6 +190,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Fix for failing checkExtraction, checkLicense and checkNotice tasks for windows gradle check ([#4941](https://github.com/opensearch-project/OpenSearch/pull/4941))
 - Backport failures for merge conflicts on CHANGELOG.md file ([#4977](https://github.com/opensearch-project/OpenSearch/pull/4977))
 - Remove gradle-check dependency on precommit [#5027](https://github.com/opensearch-project/OpenSearch/pull/5027)
+- Fix version check for 2.x release for awareness attribute decommission([#5034](https://github.com/opensearch-project/OpenSearch/pull/5034))
 
 ### Security
 - CVE-2022-25857 org.yaml:snakeyaml DOS vulnerability ([#4341](https://github.com/opensearch-project/OpenSearch/pull/4341))
