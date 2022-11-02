@@ -48,7 +48,6 @@ import org.apache.hc.core5.reactor.ssl.TlsDetails;
 import org.apache.hc.core5.ssl.SSLContexts;
 import org.apache.hc.core5.util.Timeout;
 import org.apache.lucene.util.SetOnce;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.opensearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
@@ -597,10 +596,9 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
     }
 
     protected static void wipeAllIndices() throws IOException {
-        boolean includeHidden = minimumNodeVersion().onOrAfter(LegacyESVersion.V_7_7_0);
         try {
             final Request deleteRequest = new Request("DELETE", "*");
-            deleteRequest.addParameter("expand_wildcards", "open,closed" + (includeHidden ? ",hidden" : ""));
+            deleteRequest.addParameter("expand_wildcards", "open,closed,hidden");
             RequestOptions.Builder allowSystemIndexAccessWarningOptions = RequestOptions.DEFAULT.toBuilder();
             allowSystemIndexAccessWarningOptions.setWarningsHandler(warnings -> {
                 if (warnings.size() == 0) {
@@ -711,9 +709,8 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
     }
 
     protected void refreshAllIndices() throws IOException {
-        boolean includeHidden = minimumNodeVersion().onOrAfter(LegacyESVersion.V_7_7_0);
         Request refreshRequest = new Request("POST", "/_refresh");
-        refreshRequest.addParameter("expand_wildcards", "open" + (includeHidden ? ",hidden" : ""));
+        refreshRequest.addParameter("expand_wildcards", "open,hidden");
         // Allow system index deprecation warnings
         final Builder requestOptions = RequestOptions.DEFAULT.toBuilder();
         requestOptions.setWarningsHandler(warnings -> {
@@ -1029,14 +1026,13 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
                 + "]."
         );
         final Builder requestOptions = RequestOptions.DEFAULT.toBuilder();
-        if (nodeVersions.stream().allMatch(version -> version.onOrAfter(LegacyESVersion.V_7_6_0) && version.before(Version.V_1_0_0))) {
+        if (nodeVersions.stream().allMatch(version -> version.before(Version.V_1_0_0))) {
             requestOptions.setWarningsHandler(warnings -> warnings.equals(esExpectedWarnings) == false);
             request.setOptions(requestOptions);
-        } else if (nodeVersions.stream()
-            .anyMatch(version -> version.onOrAfter(LegacyESVersion.V_7_6_0) && version.before(Version.V_1_0_0))) {
-                requestOptions.setWarningsHandler(warnings -> warnings.isEmpty() == false && warnings.equals(esExpectedWarnings) == false);
-                request.setOptions(requestOptions);
-            }
+        } else if (nodeVersions.stream().anyMatch(version -> version.before(Version.V_1_0_0))) {
+            requestOptions.setWarningsHandler(warnings -> warnings.isEmpty() == false && warnings.equals(esExpectedWarnings) == false);
+            request.setOptions(requestOptions);
+        }
 
         if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_1_0_0))) {
             requestOptions.setWarningsHandler(warnings -> warnings.equals(opensearchExpectedWarnings) == false);
@@ -1215,7 +1211,6 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
      * that we have renewed every PRRL to the global checkpoint of the corresponding copy and properly synced to all copies.
      */
     public void ensurePeerRecoveryRetentionLeasesRenewedAndSynced(String index) throws Exception {
-        final boolean alwaysExists = minimumNodeVersion().onOrAfter(LegacyESVersion.V_7_6_0);
         assertBusy(() -> {
             Map<String, Object> stats = entityAsMap(client().performRequest(new Request("GET", index + "/_stats?level=shards")));
             @SuppressWarnings("unchecked")
@@ -1233,25 +1228,20 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
                         "retention_leases.leases",
                         copy
                     );
-                    if (alwaysExists == false && retentionLeases == null) {
-                        continue;
-                    }
                     assertNotNull(retentionLeases);
                     for (Map<String, ?> retentionLease : retentionLeases) {
                         if (((String) retentionLease.get("id")).startsWith("peer_recovery/")) {
                             assertThat(retentionLease.get("retaining_seq_no"), equalTo(globalCheckpoint + 1));
                         }
                     }
-                    if (alwaysExists) {
-                        List<String> existingLeaseIds = retentionLeases.stream()
-                            .map(lease -> (String) lease.get("id"))
-                            .collect(Collectors.toList());
-                        List<String> expectedLeaseIds = shard.stream()
-                            .map(shr -> (String) XContentMapValues.extractValue("routing.node", shr))
-                            .map(ReplicationTracker::getPeerRecoveryRetentionLeaseId)
-                            .collect(Collectors.toList());
-                        assertThat("not every active copy has established its PPRL", expectedLeaseIds, everyItem(in(existingLeaseIds)));
-                    }
+                    List<String> existingLeaseIds = retentionLeases.stream()
+                        .map(lease -> (String) lease.get("id"))
+                        .collect(Collectors.toList());
+                    List<String> expectedLeaseIds = shard.stream()
+                        .map(shr -> (String) XContentMapValues.extractValue("routing.node", shr))
+                        .map(ReplicationTracker::getPeerRecoveryRetentionLeaseId)
+                        .collect(Collectors.toList());
+                    assertThat("not every active copy has established its PPRL", expectedLeaseIds, everyItem(in(existingLeaseIds)));
                 }
             }
         }, 60, TimeUnit.SECONDS);
@@ -1291,7 +1281,7 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
         );
         if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_2_0_0))) {
             options.setWarningsHandler(warnings -> warnings.isEmpty() == false && warnings.equals(expectedWarnings) == false);
-        } else if (nodeVersions.stream().anyMatch(version -> version.onOrAfter(LegacyESVersion.V_7_6_0))) {
+        } else {
             options.setWarningsHandler(
                 warnings -> warnings.isEmpty() == false
                     && warnings.equals(expectedWarnings) == false

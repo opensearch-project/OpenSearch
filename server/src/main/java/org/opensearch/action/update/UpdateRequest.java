@@ -33,7 +33,6 @@
 package org.opensearch.action.update;
 
 import org.apache.lucene.util.RamUsageEstimator;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.DocWriteRequest;
@@ -187,11 +186,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         ifPrimaryTerm = in.readVLong();
         detectNoop = in.readBoolean();
         scriptedUpsert = in.readBoolean();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
-            requireAlias = in.readBoolean();
-        } else {
-            requireAlias = false;
-        }
+        requireAlias = in.readBoolean();
     }
 
     public UpdateRequest(String index, String id) {
@@ -914,9 +909,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         out.writeVLong(ifPrimaryTerm);
         out.writeBoolean(detectNoop);
         out.writeBoolean(scriptedUpsert);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
-            out.writeBoolean(requireAlias);
-        }
+        out.writeBoolean(requireAlias);
     }
 
     @Override

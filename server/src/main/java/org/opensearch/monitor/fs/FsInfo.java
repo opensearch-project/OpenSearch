@@ -32,8 +32,6 @@
 
 package org.opensearch.monitor.fs;
 
-import org.opensearch.LegacyESVersion;
-import org.opensearch.cluster.DiskUsage;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -469,10 +467,6 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             paths[i] = new Path(in);
         }
         this.total = total();
-        if (in.getVersion().before(LegacyESVersion.V_7_10_0)) {
-            in.readOptionalWriteable(DiskUsage::new); // previously leastDiskEstimate
-            in.readOptionalWriteable(DiskUsage::new); // previously mostDiskEstimate
-        }
     }
 
     @Override
@@ -482,10 +476,6 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
         out.writeVInt(paths.length);
         for (Path path : paths) {
             path.writeTo(out);
-        }
-        if (out.getVersion().before(LegacyESVersion.V_7_10_0)) {
-            out.writeOptionalWriteable(null); // previously leastDiskEstimate
-            out.writeOptionalWriteable(null); // previously mostDiskEstimate
         }
     }
 

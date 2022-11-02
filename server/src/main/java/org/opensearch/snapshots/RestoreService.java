@@ -38,7 +38,6 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.StepListener;
@@ -555,13 +554,8 @@ public class RestoreService implements ClusterStateApplier {
                                     final Settings.Builder indexSettingsBuilder = Settings.builder()
                                         .put(snapshotIndexMetadata.getSettings())
                                         .put(IndexMetadata.SETTING_INDEX_UUID, currentIndexMetadata.getIndexUUID());
-                                    // Only add a restore uuid if either all nodes in the cluster support it (version >= 7.9) or if the
-                                    // index itself was created after 7.9 and thus won't be restored to a node that doesn't support the
-                                    // setting anyway
-                                    if (snapshotIndexMetadata.getCreationVersion().onOrAfter(LegacyESVersion.V_7_9_0)
-                                        || currentState.nodes().getMinNodeVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
-                                        indexSettingsBuilder.put(SETTING_HISTORY_UUID, UUIDs.randomBase64UUID());
-                                    }
+                                    // add a restore uuid
+                                    indexSettingsBuilder.put(SETTING_HISTORY_UUID, UUIDs.randomBase64UUID());
                                     indexMdBuilder.settings(indexSettingsBuilder);
                                     IndexMetadata updatedIndexMetadata = indexMdBuilder.index(renamedIndexName).build();
                                     rtBuilder.addAsRestore(updatedIndexMetadata, recoverySource);

@@ -11,7 +11,6 @@ package org.opensearch.analysis.common;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.ConcatenateGraphFilter;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.index.IndexSettings;
@@ -24,11 +23,6 @@ import org.opensearch.index.analysis.AbstractTokenFilterFactory;
  * max_graph_expansions is 100 as the default value of 10_000 seems to be unnecessarily large and preserve_separator is false.
  *
  * <ul>
- *   <li>preserve_separator:
- *       For LegacyESVersion lesser than {@link LegacyESVersion#V_7_6_0} i.e. lucene versions lesser
- *       than {@link org.apache.lucene.util.Version#LUCENE_8_4_0}
- *       Whether {@link ConcatenateGraphFilter#SEP_LABEL} should separate the input tokens in the concatenated token.
- *       </li>
  *   <li>token_separator:
  *       Separator to use for concatenation. Must be a String with a single character or empty.
  *       If not present, {@link ConcatenateGraphTokenFilterFactory#DEFAULT_TOKEN_SEPARATOR} will be used.
@@ -59,17 +53,11 @@ public class ConcatenateGraphTokenFilterFactory extends AbstractTokenFilterFacto
     ConcatenateGraphTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
 
-        if (indexSettings.getIndexVersionCreated().onOrAfter(LegacyESVersion.V_7_6_0)) { // i.e. Lucene 8.4.0
-            String separator = settings.get("token_separator", DEFAULT_TOKEN_SEPARATOR);
-            if (separator.length() > 1) {
-                throw new IllegalArgumentException("token_separator must be either empty or a single character");
-            }
-            tokenSeparator = separator.length() == 0 ? null : separator.charAt(0); // null means no separator while concatenating
-        } else {
-            boolean preserveSep = settings.getAsBoolean("preserve_separator", ConcatenateGraphFilter.DEFAULT_PRESERVE_SEP);
-            tokenSeparator = preserveSep ? ConcatenateGraphFilter.DEFAULT_TOKEN_SEPARATOR : null;
+        String separator = settings.get("token_separator", DEFAULT_TOKEN_SEPARATOR);
+        if (separator.length() > 1) {
+            throw new IllegalArgumentException("token_separator must be either empty or a single character");
         }
-
+        tokenSeparator = separator.length() == 0 ? null : separator.charAt(0); // null means no separator while concatenating
         maxGraphExpansions = settings.getAsInt("max_graph_expansions", DEFAULT_MAX_GRAPH_EXPANSIONS);
         preservePositionIncrements = settings.getAsBoolean("preserve_position_increments", DEFAULT_PRESERVE_POSITION_INCREMENTS);
     }

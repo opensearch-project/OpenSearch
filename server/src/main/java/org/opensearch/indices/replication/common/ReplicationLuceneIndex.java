@@ -18,7 +18,6 @@ import org.opensearch.common.xcontent.ToXContentFragment;
 import org.opensearch.common.xcontent.ToXContentObject;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.index.store.StoreStats;
 import org.opensearch.indices.recovery.RecoveryState;
 
 import java.io.IOException;
@@ -324,15 +323,7 @@ public final class ReplicationLuceneIndex extends ReplicationTimer implements To
                 FileMetadata file = new FileMetadata(in);
                 fileMetadataMap.put(file.name, file);
             }
-            if (in.getVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)) {
-                complete = in.readBoolean();
-            } else {
-                // This flag is used by disk-based allocation to decide whether the remaining bytes measurement is accurate or not; if not
-                // then it falls back on an estimate. There's only a very short window in which the file details are present but incomplete
-                // so this is a reasonable approximation, and the stats reported to the disk-based allocator don't hit this code path
-                // anyway since they always use IndexShard#getRecoveryState which is never transported over the wire.
-                complete = fileMetadataMap.isEmpty() == false;
-            }
+            complete = in.readBoolean();
         }
 
         @Override
@@ -342,9 +333,7 @@ public final class ReplicationLuceneIndex extends ReplicationTimer implements To
             for (FileMetadata file : files) {
                 file.writeTo(out);
             }
-            if (out.getVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)) {
-                out.writeBoolean(complete);
-            }
+            out.writeBoolean(complete);
         }
 
         @Override

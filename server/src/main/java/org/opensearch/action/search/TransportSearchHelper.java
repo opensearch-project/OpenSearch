@@ -32,7 +32,6 @@
 
 package org.opensearch.action.search;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamInput;
@@ -62,18 +61,13 @@ final class TransportSearchHelper {
     }
 
     static String buildScrollId(AtomicArray<? extends SearchPhaseResult> searchPhaseResults, Version version) {
-        boolean includeContextUUID = version.onOrAfter(LegacyESVersion.V_7_7_0);
         try {
             BytesStreamOutput out = new BytesStreamOutput();
-            if (includeContextUUID) {
-                out.writeString(INCLUDE_CONTEXT_UUID);
-            }
+            out.writeString(INCLUDE_CONTEXT_UUID);
             out.writeString(searchPhaseResults.length() == 1 ? ParsedScrollId.QUERY_AND_FETCH_TYPE : ParsedScrollId.QUERY_THEN_FETCH_TYPE);
             out.writeVInt(searchPhaseResults.asList().size());
             for (SearchPhaseResult searchPhaseResult : searchPhaseResults.asList()) {
-                if (includeContextUUID) {
-                    out.writeString(searchPhaseResult.getContextId().getSessionId());
-                }
+                out.writeString(searchPhaseResult.getContextId().getSessionId());
                 out.writeLong(searchPhaseResult.getContextId().getId());
                 SearchShardTarget searchShardTarget = searchPhaseResult.getSearchShardTarget();
                 if (searchShardTarget.getClusterAlias() != null) {

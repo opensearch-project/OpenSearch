@@ -384,11 +384,7 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
         Version version = VersionUtils.randomVersion(random());
         SearchContextMissingException ex = serialize(new SearchContextMissingException(contextId), version);
         assertThat(ex.contextId().getId(), equalTo(contextId.getId()));
-        if (version.onOrAfter(LegacyESVersion.V_7_7_0)) {
-            assertThat(ex.contextId().getSessionId(), equalTo(contextId.getSessionId()));
-        } else {
-            assertThat(ex.contextId().getSessionId(), equalTo(""));
-        }
+        assertThat(ex.contextId().getSessionId(), equalTo(contextId.getSessionId()));
     }
 
     public void testCircuitBreakingException() throws IOException {

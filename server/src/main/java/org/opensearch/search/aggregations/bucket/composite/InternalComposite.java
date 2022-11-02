@@ -33,7 +33,6 @@
 package org.opensearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -117,7 +116,7 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
         }
         this.buckets = in.readList((input) -> new InternalBucket(input, sourceNames, formats, reverseMuls, missingOrders));
         this.afterKey = in.readBoolean() ? new CompositeKey(in) : null;
-        this.earlyTerminated = in.getVersion().onOrAfter(LegacyESVersion.V_7_6_0) ? in.readBoolean() : false;
+        this.earlyTerminated = in.readBoolean();
     }
 
     @Override
@@ -136,10 +135,7 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
         if (afterKey != null) {
             afterKey.writeTo(out);
         }
-
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
-            out.writeBoolean(earlyTerminated);
-        }
+        out.writeBoolean(earlyTerminated);
     }
 
     @Override
