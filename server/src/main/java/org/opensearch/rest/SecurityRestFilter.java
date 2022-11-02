@@ -92,16 +92,18 @@ public class SecurityRestFilter {
             .findFirst();
 
         Subject subject = null;
+
+        AuthenticationToken headerToken = null;
+
+
         // TODO: Handle anonymous Auth - Allowed or Disallowed (set by the user of the system) - 401 or Login-redirect ??
 
         if (authHeader.isPresent()) {
             try {
                 // support other type of header tokens
-                AuthenticationToken token = new HttpHeaderToken(authHeader.get());
-
+                headerToken = new HttpHeaderToken(authHeader.get());
                 subject = Identity.getAuthManager().getSubject();
-                subject.login(token);
-                return true;
+                subject.login(headerToken);
             } catch (final Exception e) {
                 final BytesRestResponse bytesRestResponse = BytesRestResponse.createSimpleErrorResponse(
                     channel,
@@ -111,23 +113,18 @@ public class SecurityRestFilter {
                 channel.sendResponse(bytesRestResponse);
                 return false;
             }
+            return true;
         }
 
-        // proceed to check if Auth Header was missing
-        boolean isUnauthenticatedPrincipal = subject
-            .getPrincipal()
-            .equals(Principals.UNAUTHENTICATED.getPrincipal());
+        logger.info("Authentication finally failed due to missing auth header");
+        // TODO: Is this response correct
+        final BytesRestResponse bytesRestResponse = BytesRestResponse.createSimpleErrorResponse(
+            channel,
+            RestStatus.BAD_REQUEST,
+            "Authentication failed: Missing Credentials"
+        );
+        channel.sendResponse(bytesRestResponse);
 
-        if (!isUnauthenticatedPrincipal) {
-            logger.info("Authentication finally failed due to missing auth header");
-            // TODO: Is this response correct
-            final BytesRestResponse bytesRestResponse = BytesRestResponse.createSimpleErrorResponse(
-                channel,
-                RestStatus.BAD_REQUEST,
-                "Authentication failed: Missing Credentials"
-            );
-            channel.sendResponse(bytesRestResponse);
-        }
         return false;
     }
 

@@ -62,11 +62,7 @@ public class InternalSubject implements Subject {
 
         org.apache.shiro.authc.AuthenticationToken authToken = AuthenticationTokenHandler.extractShiroAuthToken(authenticationToken);
 
-        // Unsupported auth header found
-        if (authToken == null) {
-            throw new AuthenticationException("Unsupported Authentication header passed");
-        }
-
+        // Login via shiro realm.
         shiroSubject.login(authToken);
     }
 }
