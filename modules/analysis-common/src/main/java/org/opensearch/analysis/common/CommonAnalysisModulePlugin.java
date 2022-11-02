@@ -268,11 +268,18 @@ public class CommonAnalysisModulePlugin extends Plugin implements AnalysisPlugin
         filters.put("dutch_stem", DutchStemTokenFilterFactory::new);
         filters.put("edge_ngram", EdgeNGramTokenFilterFactory::new);
         filters.put("edgeNGram", (IndexSettings indexSettings, Environment environment, String name, Settings settings) -> {
-            deprecationLogger.deprecate(
-                "edgeNGram_deprecation",
-                "The [edgeNGram] token filter name is deprecated and will be removed in a future version. "
-                    + "Please change the filter name to [edge_ngram] instead."
-            );
+            if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_3_0_0)) {
+                throw new IllegalArgumentException(
+                    "The [edgeNGram] tokenizer name was deprecated pre 1.0. "
+                        + "Please change the tokenizer name to [edge_ngram] for indices created in versions 3.0 or higher instead."
+                );
+            } else {
+                deprecationLogger.deprecate(
+                    "edgeNGram_deprecation",
+                    "The [edgeNGram] token filter name is deprecated and will be removed in a future version. "
+                        + "Please change the filter name to [edge_ngram] instead."
+                );
+            }
             return new EdgeNGramTokenFilterFactory(indexSettings, environment, name, settings);
         });
         filters.put("elision", requiresAnalysisSettings(ElisionTokenFilterFactory::new));
@@ -350,7 +357,7 @@ public class CommonAnalysisModulePlugin extends Plugin implements AnalysisPlugin
             if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_3_0_0)) {
                 throw new IllegalArgumentException(
                     "The [nGram] tokenizer name was deprecated pre 1.0. "
-                        + "Please use the tokenizer name to [ngram] for indices created in versions 3.0 or higher instead."
+                        + "Please change the tokenizer name to [ngram] for indices created in versions 3.0 or higher instead."
                 );
             } else {
                 deprecationLogger.deprecate(
@@ -366,7 +373,7 @@ public class CommonAnalysisModulePlugin extends Plugin implements AnalysisPlugin
             if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_3_0_0)) {
                 throw new IllegalArgumentException(
                     "The [edgeNGram] tokenizer name was deprecated pre 1.0. "
-                        + "Please use the tokenizer name to [edge_ngram] for indices created in versions 3.0 or higher instead."
+                        + "Please change the tokenizer name to [edge_ngram] for indices created in versions 3.0 or higher instead."
                 );
             } else {
                 deprecationLogger.deprecate(
@@ -619,7 +626,7 @@ public class CommonAnalysisModulePlugin extends Plugin implements AnalysisPlugin
             if (version.onOrAfter(Version.V_3_0_0)) {
                 throw new IllegalArgumentException(
                     "The [nGram] tokenizer name was deprecated pre 1.0. "
-                        + "Please use the tokenizer name to [ngram] for indices created in versions 3.0 or higher instead."
+                        + "Please change the tokenizer name to [ngram] for indices created in versions 3.0 or higher instead."
                 );
             } else {
                 deprecationLogger.deprecate(
@@ -634,7 +641,7 @@ public class CommonAnalysisModulePlugin extends Plugin implements AnalysisPlugin
             if (version.onOrAfter(Version.V_3_0_0)) {
                 throw new IllegalArgumentException(
                     "The [edgeNGram] tokenizer name was deprecated pre 1.0. "
-                        + "Please use the tokenizer name to [edge_ngram] for indices created in versions 3.0 or higher instead."
+                        + "Please change the tokenizer name to [edge_ngram] for indices created in versions 3.0 or higher instead."
                 );
             } else {
                 deprecationLogger.deprecate(
