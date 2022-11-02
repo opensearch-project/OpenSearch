@@ -641,8 +641,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
             return true;
         }
 
+        // TODO: How to handle auth header not present??
         logger.info("Authentication finally failed due to missing auth header");
-        // TODO: Is this response correct
         final BytesRestResponse bytesRestResponse = BytesRestResponse.createSimpleErrorResponse(
             channel,
             RestStatus.BAD_REQUEST,
