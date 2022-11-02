@@ -32,7 +32,6 @@
 
 package org.opensearch.action.admin.indices.alias;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchGenerationException;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.AliasesRequest;
@@ -88,11 +87,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
     public IndicesAliasesRequest(StreamInput in) throws IOException {
         super(in);
         allAliasActions = in.readList(AliasActions::new);
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_3_0)) {
-            origin = in.readOptionalString();
-        } else {
-            origin = null;
-        }
+        origin = in.readOptionalString();
     }
 
     public IndicesAliasesRequest() {}
@@ -280,18 +275,9 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             searchRouting = in.readOptionalString();
             indexRouting = in.readOptionalString();
             writeIndex = in.readOptionalBoolean();
-            // TODO fix for backport of https://github.com/elastic/elasticsearch/pull/52547
-            if (in.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
-                isHidden = in.readOptionalBoolean();
-            }
-            if (in.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
-                originalAliases = in.readStringArray();
-            }
-            if (in.getVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
-                mustExist = in.readOptionalBoolean();
-            } else {
-                mustExist = null;
-            }
+            isHidden = in.readOptionalBoolean();
+            originalAliases = in.readStringArray();
+            mustExist = in.readOptionalBoolean();
         }
 
         @Override
@@ -304,16 +290,9 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             out.writeOptionalString(searchRouting);
             out.writeOptionalString(indexRouting);
             out.writeOptionalBoolean(writeIndex);
-            // TODO fix for backport https://github.com/elastic/elasticsearch/pull/52547
-            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
-                out.writeOptionalBoolean(isHidden);
-            }
-            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
-                out.writeStringArray(originalAliases);
-            }
-            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
-                out.writeOptionalBoolean(mustExist);
-            }
+            out.writeOptionalBoolean(isHidden);
+            out.writeStringArray(originalAliases);
+            out.writeOptionalBoolean(mustExist);
         }
 
         /**
@@ -666,11 +645,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         super.writeTo(out);
         out.writeList(allAliasActions);
         // noinspection StatementWithEmptyBody
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_3_0)) {
-            out.writeOptionalString(origin);
-        } else {
-            // nothing to do here, here for symmetry with IndicesAliasesRequest#readFrom
-        }
+        out.writeOptionalString(origin);
     }
 
     public IndicesOptions indicesOptions() {

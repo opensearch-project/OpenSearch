@@ -39,9 +39,9 @@ import org.opensearch.transport.TransportRequest;
 import java.io.IOException;
 
 /**
- * Base action request
+ * Base action request implemented by plugins.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
 public abstract class ActionRequest extends TransportRequest {
 

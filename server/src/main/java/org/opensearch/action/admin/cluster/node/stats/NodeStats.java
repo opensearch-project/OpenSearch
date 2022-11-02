@@ -32,7 +32,6 @@
 
 package org.opensearch.action.admin.cluster.node.stats;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.support.nodes.BaseNodeResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -138,18 +137,10 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         ingestStats = in.readOptionalWriteable(IngestStats::new);
         adaptiveSelectionStats = in.readOptionalWriteable(AdaptiveSelectionStats::new);
         scriptCacheStats = null;
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_8_0)) {
-            if (in.getVersion().before(LegacyESVersion.V_7_9_0)) {
-                scriptCacheStats = in.readOptionalWriteable(ScriptCacheStats::new);
-            } else if (scriptStats != null) {
-                scriptCacheStats = scriptStats.toScriptCacheStats();
-            }
+        if (scriptStats != null) {
+            scriptCacheStats = scriptStats.toScriptCacheStats();
         }
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
-            indexingPressureStats = in.readOptionalWriteable(IndexingPressureStats::new);
-        } else {
-            indexingPressureStats = null;
-        }
+        indexingPressureStats = in.readOptionalWriteable(IndexingPressureStats::new);
         if (in.getVersion().onOrAfter(Version.V_1_2_0)) {
             shardIndexingPressureStats = in.readOptionalWriteable(ShardIndexingPressureStats::new);
         } else {
@@ -327,12 +318,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         out.writeOptionalWriteable(discoveryStats);
         out.writeOptionalWriteable(ingestStats);
         out.writeOptionalWriteable(adaptiveSelectionStats);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_8_0) && out.getVersion().before(LegacyESVersion.V_7_9_0)) {
-            out.writeOptionalWriteable(scriptCacheStats);
-        }
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
-            out.writeOptionalWriteable(indexingPressureStats);
-        }
+        out.writeOptionalWriteable(indexingPressureStats);
         if (out.getVersion().onOrAfter(Version.V_1_2_0)) {
             out.writeOptionalWriteable(shardIndexingPressureStats);
         }

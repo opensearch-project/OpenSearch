@@ -59,8 +59,7 @@ public class BulkItemRequest implements Writeable, Accountable {
     private volatile BulkItemResponse primaryResponse;
 
     /**
-     * @param shardId {@code null} if reading from a stream before {@link BulkShardRequest#COMPACT_SHARD_ID_VERSION} to force BwC read
-     *                            that includes shard id
+     * @param shardId the shard id
      */
     BulkItemRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
         id = in.readVInt();

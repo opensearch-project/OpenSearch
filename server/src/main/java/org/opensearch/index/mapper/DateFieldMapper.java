@@ -45,7 +45,6 @@ import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.geo.ShapeRelation;
-import org.opensearch.common.joda.Joda;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.lucene.BytesRefs;
 import org.opensearch.common.time.DateFormatter;
@@ -260,11 +259,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
 
         private DateFormatter buildFormatter() {
             try {
-                if (Joda.isJodaPattern(indexCreatedVersion, format.getValue())) {
-                    return Joda.forPattern(format.getValue()).withLocale(locale.getValue());
-                } else {
-                    return DateFormatter.forPattern(format.getValue()).withLocale(locale.getValue());
-                }
+                return DateFormatter.forPattern(format.getValue()).withLocale(locale.getValue());
             } catch (IllegalArgumentException e) {
                 throw new IllegalArgumentException("Error parsing [format] on field [" + name() + "]: " + e.getMessage(), e);
             }

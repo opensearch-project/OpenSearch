@@ -153,10 +153,7 @@ public class InboundDecoderTests extends OpenSearchTestCase {
         );
 
         final BytesReference bytes = message.serialize(new BytesStreamOutput());
-        int totalHeaderSize = TcpHeader.headerSize(handshakeCompatVersion);
-        if (handshakeCompatVersion.onOrAfter(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
-            totalHeaderSize += bytes.getInt(TcpHeader.VARIABLE_HEADER_SIZE_POSITION);
-        }
+        int totalHeaderSize = TcpHeader.headerSize(handshakeCompatVersion) + bytes.getInt(TcpHeader.VARIABLE_HEADER_SIZE_POSITION);
 
         InboundDecoder decoder = new InboundDecoder(Version.CURRENT, PageCacheRecycler.NON_RECYCLING_INSTANCE);
         final ArrayList<Object> fragments = new ArrayList<>();
@@ -274,10 +271,7 @@ public class InboundDecoderTests extends OpenSearchTestCase {
         );
 
         final BytesReference bytes = message.serialize(new BytesStreamOutput());
-        int totalHeaderSize = TcpHeader.headerSize(handshakeCompatVersion);
-        if (handshakeCompatVersion.onOrAfter(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
-            totalHeaderSize += bytes.getInt(TcpHeader.VARIABLE_HEADER_SIZE_POSITION);
-        }
+        int totalHeaderSize = TcpHeader.headerSize(handshakeCompatVersion) + bytes.getInt(TcpHeader.VARIABLE_HEADER_SIZE_POSITION);
 
         InboundDecoder decoder = new InboundDecoder(Version.CURRENT, PageCacheRecycler.NON_RECYCLING_INSTANCE);
         final ArrayList<Object> fragments = new ArrayList<>();

@@ -32,7 +32,6 @@
 
 package org.opensearch.search.internal;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.OriginalIndices;
@@ -258,27 +257,13 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             outboundNetworkTime = in.readVLong();
         }
         clusterAlias = in.readOptionalString();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
-            allowPartialSearchResults = in.readBoolean();
-        } else {
-            allowPartialSearchResults = false;
-        }
+        allowPartialSearchResults = in.readBoolean();
         indexRoutings = in.readStringArray();
         preference = in.readOptionalString();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
-            canReturnNullResponseIfMatchNoDocs = in.readBoolean();
-            bottomSortValues = in.readOptionalWriteable(SearchSortValuesAndFormats::new);
-        } else {
-            canReturnNullResponseIfMatchNoDocs = false;
-            bottomSortValues = null;
-        }
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
-            this.readerId = in.readOptionalWriteable(ShardSearchContextId::new);
-            this.keepAlive = in.readOptionalTimeValue();
-        } else {
-            this.readerId = null;
-            this.keepAlive = null;
-        }
+        canReturnNullResponseIfMatchNoDocs = in.readBoolean();
+        bottomSortValues = in.readOptionalWriteable(SearchSortValuesAndFormats::new);
+        readerId = in.readOptionalWriteable(ShardSearchContextId::new);
+        keepAlive = in.readOptionalTimeValue();
         originalIndices = OriginalIndices.readOriginalIndices(in);
         assert keepAlive == null || readerId != null : "readerId: " + readerId + " keepAlive: " + keepAlive;
     }
@@ -336,18 +321,16 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             out.writeVLong(outboundNetworkTime);
         }
         out.writeOptionalString(clusterAlias);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
-            out.writeBoolean(allowPartialSearchResults);
-        }
+        out.writeBoolean(allowPartialSearchResults);
         if (asKey == false) {
             out.writeStringArray(indexRoutings);
             out.writeOptionalString(preference);
         }
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_7_0) && asKey == false) {
+        if (asKey == false) {
             out.writeBoolean(canReturnNullResponseIfMatchNoDocs);
             out.writeOptionalWriteable(bottomSortValues);
         }
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_10_0) && asKey == false) {
+        if (asKey == false) {
             out.writeOptionalWriteable(readerId);
             out.writeOptionalTimeValue(keepAlive);
         }

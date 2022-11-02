@@ -8,14 +8,12 @@
 
 package org.opensearch.search.aggregations.support;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.Strings;
 import org.opensearch.common.TriConsumer;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.time.DateUtils;
 import org.opensearch.common.xcontent.ObjectParser;
 import org.opensearch.common.xcontent.ToXContentObject;
 import org.opensearch.common.xcontent.XContentBuilder;
@@ -79,34 +77,18 @@ public abstract class BaseMultiValuesSourceFieldConfig implements Writeable, ToX
     }
 
     public BaseMultiValuesSourceFieldConfig(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
-            this.fieldName = in.readOptionalString();
-        } else {
-            this.fieldName = in.readString();
-        }
+        this.fieldName = in.readOptionalString();
         this.missing = in.readGenericValue();
         this.script = in.readOptionalWriteable(Script::new);
-        if (in.getVersion().before(LegacyESVersion.V_7_0_0)) {
-            this.timeZone = DateUtils.dateTimeZoneToZoneId(in.readOptionalTimeZone());
-        } else {
-            this.timeZone = in.readOptionalZoneId();
-        }
+        this.timeZone = in.readOptionalZoneId();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
-            out.writeOptionalString(fieldName);
-        } else {
-            out.writeString(fieldName);
-        }
+        out.writeOptionalString(fieldName);
         out.writeGenericValue(missing);
         out.writeOptionalWriteable(script);
-        if (out.getVersion().before(LegacyESVersion.V_7_0_0)) {
-            out.writeOptionalTimeZone(DateUtils.zoneIdToDateTimeZone(timeZone));
-        } else {
-            out.writeOptionalZoneId(timeZone);
-        }
+        out.writeOptionalZoneId(timeZone);
         doWriteTo(out);
     }
 

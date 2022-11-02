@@ -32,7 +32,6 @@
 
 package org.opensearch.action.search;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
@@ -237,11 +236,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         requestCache = in.readOptionalBoolean();
         batchedReduceSize = in.readVInt();
         maxConcurrentShardRequests = in.readVInt();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
-            preFilterShardSize = in.readOptionalVInt();
-        } else {
-            preFilterShardSize = in.readVInt();
-        }
+        preFilterShardSize = in.readOptionalVInt();
         allowPartialSearchResults = in.readOptionalBoolean();
         localClusterAlias = in.readOptionalString();
         if (localClusterAlias != null) {
@@ -251,9 +246,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             absoluteStartMillis = DEFAULT_ABSOLUTE_START_MILLIS;
             finalReduce = true;
         }
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
-            ccsMinimizeRoundtrips = in.readBoolean();
-        }
+        ccsMinimizeRoundtrips = in.readBoolean();
 
         if (in.getVersion().onOrAfter(Version.V_1_1_0)) {
             cancelAfterTimeInterval = in.readOptionalTimeValue();
@@ -277,20 +270,14 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         out.writeOptionalBoolean(requestCache);
         out.writeVInt(batchedReduceSize);
         out.writeVInt(maxConcurrentShardRequests);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
-            out.writeOptionalVInt(preFilterShardSize);
-        } else {
-            out.writeVInt(preFilterShardSize == null ? DEFAULT_BATCHED_REDUCE_SIZE : preFilterShardSize);
-        }
+        out.writeOptionalVInt(preFilterShardSize);
         out.writeOptionalBoolean(allowPartialSearchResults);
         out.writeOptionalString(localClusterAlias);
         if (localClusterAlias != null) {
             out.writeVLong(absoluteStartMillis);
             out.writeBoolean(finalReduce);
         }
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
-            out.writeBoolean(ccsMinimizeRoundtrips);
-        }
+        out.writeBoolean(ccsMinimizeRoundtrips);
 
         if (out.getVersion().onOrAfter(Version.V_1_1_0)) {
             out.writeOptionalTimeValue(cancelAfterTimeInterval);

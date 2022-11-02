@@ -32,7 +32,6 @@
 package org.opensearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.util.PriorityQueue;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -255,20 +254,14 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
     protected InternalTerms(StreamInput in) throws IOException {
         super(in);
         reduceOrder = InternalOrder.Streams.readOrder(in);
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
-            order = InternalOrder.Streams.readOrder(in);
-        } else {
-            order = reduceOrder;
-        }
+        order = InternalOrder.Streams.readOrder(in);
         requiredSize = readSize(in);
         minDocCount = in.readVLong();
     }
 
     @Override
     protected final void doWriteTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
-            reduceOrder.writeTo(out);
-        }
+        reduceOrder.writeTo(out);
         order.writeTo(out);
         writeSize(requiredSize, out);
         out.writeVLong(minDocCount);
@@ -437,7 +430,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
 
         final List<B> reducedBuckets;
         /**
-         * Buckets returned by a partial reduce or a shard response are sorted by key since {@link LegacyESVersion#V_7_10_0}.
+         * Buckets returned by a partial reduce or a shard response are sorted by key.
          * That allows to perform a merge sort when reducing multiple aggregations together.
          * For backward compatibility, we disable the merge sort and use ({@link InternalTerms#reduceLegacy} if any of
          * the provided aggregations use a different {@link InternalTerms#reduceOrder}.

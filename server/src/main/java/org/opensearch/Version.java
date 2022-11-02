@@ -99,8 +99,9 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_2_2_2 = new Version(2020299, org.apache.lucene.util.Version.LUCENE_9_3_0);
     public static final Version V_2_3_0 = new Version(2030099, org.apache.lucene.util.Version.LUCENE_9_3_0);
     public static final Version V_2_3_1 = new Version(2030199, org.apache.lucene.util.Version.LUCENE_9_3_0);
-    public static final Version V_2_4_0 = new Version(2040099, org.apache.lucene.util.Version.LUCENE_9_4_0);
-    public static final Version V_3_0_0 = new Version(3000099, org.apache.lucene.util.Version.LUCENE_9_4_0);
+    public static final Version V_2_4_0 = new Version(2040099, org.apache.lucene.util.Version.LUCENE_9_4_1);
+    public static final Version V_2_5_0 = new Version(2050099, org.apache.lucene.util.Version.LUCENE_9_4_1);
+    public static final Version V_3_0_0 = new Version(3000099, org.apache.lucene.util.Version.LUCENE_9_5_0);
     public static final Version CURRENT = V_3_0_0;
 
     public static Version readVersion(StreamInput in) throws IOException {
@@ -360,7 +361,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
             // we don't have LegacyESVersion.V_6 constants, so set it to its last minor
             return LegacyESVersion.fromId(6080099);
         } else if (major == 2) {
-            return LegacyESVersion.V_7_10_0;
+            return LegacyESVersion.fromId(7100099);
         } else if (major == 6) {
             // force the minimum compatibility for version 6 to 5.6 since we don't reference version 5 anymore
             return LegacyESVersion.fromId(5060099);
@@ -412,7 +413,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         } else if (major == 7 || major == 1) {
             return LegacyESVersion.fromId(6000026);
         } else if (major == 2) {
-            return LegacyESVersion.V_7_0_0;
+            return LegacyESVersion.fromId(7000099);
         } else {
             bwcMajor = major - 1;
         }

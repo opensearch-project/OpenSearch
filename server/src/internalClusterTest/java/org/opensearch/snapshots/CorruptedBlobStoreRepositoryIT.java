@@ -32,48 +32,33 @@
 
 package org.opensearch.snapshots;
 
-import org.opensearch.Version;
-import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.opensearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.opensearch.action.index.IndexRequestBuilder;
-import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeUnit;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.repositories.IndexId;
-import org.opensearch.repositories.IndexMetaDataGenerations;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.RepositoryData;
 import org.opensearch.repositories.RepositoryException;
-import org.opensearch.repositories.ShardGenerations;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
-import org.opensearch.threadpool.ThreadPool;
 
-import java.io.IOException;
 import java.nio.channels.SeekableByteChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.ExecutionException;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertFileExists;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertRequestBuilderThrows;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -310,101 +295,6 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         );
     }
 
-    public void testHandlingMissingRootLevelSnapshotMetadata() throws Exception {
-        Path repo = randomRepoPath();
-        final String repoName = "test-repo";
-        createRepository(
-            repoName,
-            "fs",
-            Settings.builder()
-                .put("location", repo)
-                .put("compress", false)
-                // Don't cache repository data because the test manually modifies the repository data
-                .put(BlobStoreRepository.CACHE_REPOSITORY_DATA.getKey(), false)
-                .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
-        );
-
-        final String snapshotPrefix = "test-snap-";
-        final int snapshots = randomIntBetween(1, 2);
-        logger.info("--> creating [{}] snapshots", snapshots);
-        for (int i = 0; i < snapshots; ++i) {
-            // Workaround to simulate BwC situation: taking a snapshot without indices here so that we don't create any new version shard
-            // generations (the existence of which would short-circuit checks for the repo containing old version snapshots)
-            CreateSnapshotResponse createSnapshotResponse = client().admin()
-                .cluster()
-                .prepareCreateSnapshot(repoName, snapshotPrefix + i)
-                .setIndices()
-                .setWaitForCompletion(true)
-                .get();
-            assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), is(0));
-            assertThat(
-                createSnapshotResponse.getSnapshotInfo().successfulShards(),
-                equalTo(createSnapshotResponse.getSnapshotInfo().totalShards())
-            );
-        }
-        final RepositoryData repositoryData = getRepositoryData(repoName);
-
-        final SnapshotId snapshotToCorrupt = randomFrom(repositoryData.getSnapshotIds());
-        logger.info("--> delete root level snapshot metadata blob for snapshot [{}]", snapshotToCorrupt);
-        Files.delete(repo.resolve(String.format(Locale.ROOT, BlobStoreRepository.SNAPSHOT_NAME_FORMAT, snapshotToCorrupt.getUUID())));
-
-        logger.info("--> strip version information from index-N blob");
-        final RepositoryData withoutVersions = new RepositoryData(
-            repositoryData.getGenId(),
-            repositoryData.getSnapshotIds().stream().collect(Collectors.toMap(SnapshotId::getUUID, Function.identity())),
-            repositoryData.getSnapshotIds().stream().collect(Collectors.toMap(SnapshotId::getUUID, repositoryData::getSnapshotState)),
-            Collections.emptyMap(),
-            Collections.emptyMap(),
-            ShardGenerations.EMPTY,
-            IndexMetaDataGenerations.EMPTY
-        );
-
-        Files.write(
-            repo.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + withoutVersions.getGenId()),
-            BytesReference.toBytes(
-                BytesReference.bytes(withoutVersions.snapshotsToXContent(XContentFactory.jsonBuilder(), Version.CURRENT))
-            ),
-            StandardOpenOption.TRUNCATE_EXISTING
-        );
-
-        logger.info("--> verify that repo is assumed in old metadata format");
-        final SnapshotsService snapshotsService = internalCluster().getCurrentClusterManagerNodeInstance(SnapshotsService.class);
-        final ThreadPool threadPool = internalCluster().getCurrentClusterManagerNodeInstance(ThreadPool.class);
-        assertThat(
-            PlainActionFuture.get(
-                f -> threadPool.generic()
-                    .execute(
-                        ActionRunnable.supply(
-                            f,
-                            () -> snapshotsService.minCompatibleVersion(Version.CURRENT, getRepositoryData(repoName), null)
-                        )
-                    )
-            ),
-            is(SnapshotsService.OLD_SNAPSHOT_FORMAT)
-        );
-
-        logger.info("--> verify that snapshot with missing root level metadata can be deleted");
-        assertAcked(startDeleteSnapshot(repoName, snapshotToCorrupt.getName()).get());
-
-        logger.info("--> verify that repository is assumed in new metadata format after removing corrupted snapshot");
-        assertThat(
-            PlainActionFuture.get(
-                f -> threadPool.generic()
-                    .execute(
-                        ActionRunnable.supply(
-                            f,
-                            () -> snapshotsService.minCompatibleVersion(Version.CURRENT, getRepositoryData(repoName), null)
-                        )
-                    )
-            ),
-            is(Version.CURRENT)
-        );
-        final RepositoryData finalRepositoryData = getRepositoryData(repoName);
-        for (SnapshotId snapshotId : finalRepositoryData.getSnapshotIds()) {
-            assertThat(finalRepositoryData.getVersion(snapshotId), is(Version.CURRENT));
-        }
-    }
-
     public void testMountCorruptedRepositoryData() throws Exception {
         disableRepoConsistencyCheck("This test intentionally corrupts the repository contents");
         Client client = client();
@@ -451,87 +341,6 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> verify loading repository data from newly mounted repository throws RepositoryException");
         expectThrows(RepositoryException.class, () -> getRepositoryData(otherRepo));
-    }
-
-    public void testHandleSnapshotErrorWithBwCFormat() throws IOException, ExecutionException, InterruptedException {
-        final String repoName = "test-repo";
-        final Path repoPath = randomRepoPath();
-        createRepository(repoName, "fs", repoPath);
-        final String oldVersionSnapshot = initWithSnapshotVersion(repoName, repoPath, SnapshotsService.OLD_SNAPSHOT_FORMAT);
-
-        logger.info("--> recreating repository to clear caches");
-        client().admin().cluster().prepareDeleteRepository(repoName).get();
-        createRepository(repoName, "fs", repoPath);
-
-        final String indexName = "test-index";
-        createIndex(indexName);
-
-        createFullSnapshot(repoName, "snapshot-1");
-
-        // In the old metadata version the shard level metadata could be moved to the next generation for all sorts of reasons, this should
-        // not break subsequent repository operations
-        logger.info("--> move shard level metadata to new generation");
-        final IndexId indexId = getRepositoryData(repoName).resolveIndexId(indexName);
-        final Path shardPath = repoPath.resolve("indices").resolve(indexId.getId()).resolve("0");
-        final Path initialShardMetaPath = shardPath.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + "0");
-        assertFileExists(initialShardMetaPath);
-        Files.move(initialShardMetaPath, shardPath.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + "1"));
-
-        startDeleteSnapshot(repoName, oldVersionSnapshot).get();
-
-        createFullSnapshot(repoName, "snapshot-2");
-    }
-
-    public void testRepairBrokenShardGenerations() throws Exception {
-        final String repoName = "test-repo";
-        final Path repoPath = randomRepoPath();
-        createRepository(repoName, "fs", repoPath);
-        final String oldVersionSnapshot = initWithSnapshotVersion(repoName, repoPath, SnapshotsService.OLD_SNAPSHOT_FORMAT);
-
-        logger.info("--> recreating repository to clear caches");
-        client().admin().cluster().prepareDeleteRepository(repoName).get();
-        createRepository(repoName, "fs", repoPath);
-
-        final String indexName = "test-index";
-        createIndex(indexName);
-
-        createFullSnapshot(repoName, "snapshot-1");
-
-        startDeleteSnapshot(repoName, oldVersionSnapshot).get();
-
-        logger.info("--> move shard level metadata to new generation and make RepositoryData point at an older generation");
-        final IndexId indexId = getRepositoryData(repoName).resolveIndexId(indexName);
-        final Path shardPath = repoPath.resolve("indices").resolve(indexId.getId()).resolve("0");
-        final Path initialShardMetaPath = shardPath.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + "0");
-        assertFileExists(initialShardMetaPath);
-        Files.move(initialShardMetaPath, shardPath.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + randomIntBetween(1, 1000)));
-
-        final RepositoryData repositoryData1 = getRepositoryData(repoName);
-        final Map<String, SnapshotId> snapshotIds = repositoryData1.getSnapshotIds()
-            .stream()
-            .collect(Collectors.toMap(SnapshotId::getUUID, Function.identity()));
-        final RepositoryData brokenRepoData = new RepositoryData(
-            repositoryData1.getGenId(),
-            snapshotIds,
-            snapshotIds.values().stream().collect(Collectors.toMap(SnapshotId::getUUID, repositoryData1::getSnapshotState)),
-            snapshotIds.values().stream().collect(Collectors.toMap(SnapshotId::getUUID, repositoryData1::getVersion)),
-            repositoryData1.getIndices().values().stream().collect(Collectors.toMap(Function.identity(), repositoryData1::getSnapshots)),
-            ShardGenerations.builder().putAll(repositoryData1.shardGenerations()).put(indexId, 0, "0").build(),
-            repositoryData1.indexMetaDataGenerations()
-        );
-        Files.write(
-            repoPath.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + repositoryData1.getGenId()),
-            BytesReference.toBytes(
-                BytesReference.bytes(brokenRepoData.snapshotsToXContent(XContentFactory.jsonBuilder(), Version.CURRENT))
-            ),
-            StandardOpenOption.TRUNCATE_EXISTING
-        );
-
-        logger.info("--> recreating repository to clear caches");
-        client().admin().cluster().prepareDeleteRepository(repoName).get();
-        createRepository(repoName, "fs", repoPath);
-
-        createFullSnapshot(repoName, "snapshot-2");
     }
 
     /**

@@ -32,13 +32,13 @@
 
 package org.opensearch.cluster.node;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.test.NodeRoles;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.net.InetAddress;
@@ -152,11 +152,11 @@ public class DiscoveryNodeTests extends OpenSearchTestCase {
 
         {
             BytesStreamOutput streamOutput = new BytesStreamOutput();
-            streamOutput.setVersion(LegacyESVersion.V_7_9_0);
+            streamOutput.setVersion(Version.V_2_0_0);
             node.writeTo(streamOutput);
 
             StreamInput in = StreamInput.wrap(streamOutput.bytes().toBytesRef().bytes);
-            in.setVersion(LegacyESVersion.V_7_9_0);
+            in.setVersion(Version.V_2_0_0);
             DiscoveryNode serialized = new DiscoveryNode(in);
             assertThat(serialized.getRoles().stream().map(DiscoveryNodeRole::roleName).collect(Collectors.joining()), equalTo("data"));
         }
@@ -203,5 +203,11 @@ public class DiscoveryNodeTests extends OpenSearchTestCase {
         DiscoveryNodeRole dynamicNodeRole = DiscoveryNode.getRoleFromRoleName(dynamicRoleName);
         assertEquals(dynamicRoleName.toLowerCase(Locale.ROOT), dynamicNodeRole.roleName());
         assertEquals(dynamicRoleName.toLowerCase(Locale.ROOT), dynamicNodeRole.roleNameAbbreviation());
+    }
+
+    public void testDiscoveryNodeIsSearchNode() {
+        final Settings settingWithSearchRole = NodeRoles.onlyRole(DiscoveryNodeRole.SEARCH_ROLE);
+        final DiscoveryNode node = DiscoveryNode.createLocal(settingWithSearchRole, buildNewFakeTransportAddress(), "node");
+        assertThat(node.isSearchNode(), equalTo(true));
     }
 }

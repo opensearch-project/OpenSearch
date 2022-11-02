@@ -95,7 +95,7 @@ public class RepositoryDataTests extends OpenSearchTestCase {
         repositoryData.snapshotsToXContent(builder, Version.CURRENT);
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
             long gen = (long) randomIntBetween(0, 500);
-            RepositoryData fromXContent = RepositoryData.snapshotsFromXContent(parser, gen, randomBoolean());
+            RepositoryData fromXContent = RepositoryData.snapshotsFromXContent(parser, gen);
             assertEquals(repositoryData, fromXContent);
             assertEquals(gen, fromXContent.getGenId());
         }
@@ -234,7 +234,7 @@ public class RepositoryDataTests extends OpenSearchTestCase {
         repositoryData.snapshotsToXContent(builder, Version.CURRENT);
         RepositoryData parsedRepositoryData;
         try (XContentParser xParser = createParser(builder)) {
-            parsedRepositoryData = RepositoryData.snapshotsFromXContent(xParser, repositoryData.getGenId(), randomBoolean());
+            parsedRepositoryData = RepositoryData.snapshotsFromXContent(xParser, repositoryData.getGenId());
         }
         assertEquals(repositoryData, parsedRepositoryData);
 
@@ -281,7 +281,7 @@ public class RepositoryDataTests extends OpenSearchTestCase {
         try (XContentParser xParser = createParser(corruptedBuilder)) {
             OpenSearchParseException e = expectThrows(
                 OpenSearchParseException.class,
-                () -> RepositoryData.snapshotsFromXContent(xParser, corruptedRepositoryData.getGenId(), randomBoolean())
+                () -> RepositoryData.snapshotsFromXContent(xParser, corruptedRepositoryData.getGenId())
             );
             assertThat(
                 e.getMessage(),
@@ -327,7 +327,7 @@ public class RepositoryDataTests extends OpenSearchTestCase {
         try (XContentParser xParser = createParser(builder)) {
             OpenSearchParseException e = expectThrows(
                 OpenSearchParseException.class,
-                () -> RepositoryData.snapshotsFromXContent(xParser, randomNonNegativeLong(), randomBoolean())
+                () -> RepositoryData.snapshotsFromXContent(xParser, randomNonNegativeLong())
             );
             assertThat(
                 e.getMessage(),

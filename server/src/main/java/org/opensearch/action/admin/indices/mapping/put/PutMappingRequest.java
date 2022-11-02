@@ -33,7 +33,6 @@
 package org.opensearch.action.admin.indices.mapping.put;
 
 import com.carrotsearch.hppc.ObjectHashSet;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchGenerationException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
@@ -117,14 +116,9 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
             }
         }
         source = in.readString();
-        if (in.getVersion().before(LegacyESVersion.V_7_0_0)) {
-            in.readBoolean(); // updateAllTypes
-        }
         concreteIndex = in.readOptionalWriteable(Index::new);
         origin = in.readOptionalString();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
-            writeIndexOnly = in.readBoolean();
-        }
+        writeIndexOnly = in.readBoolean();
     }
 
     public PutMappingRequest() {}
@@ -349,14 +343,9 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
             out.writeOptionalString(MapperService.SINGLE_MAPPING_NAME);
         }
         out.writeString(source);
-        if (out.getVersion().before(LegacyESVersion.V_7_0_0)) {
-            out.writeBoolean(true); // updateAllTypes
-        }
         out.writeOptionalWriteable(concreteIndex);
         out.writeOptionalString(origin);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
-            out.writeBoolean(writeIndexOnly);
-        }
+        out.writeBoolean(writeIndexOnly);
     }
 
     @Override

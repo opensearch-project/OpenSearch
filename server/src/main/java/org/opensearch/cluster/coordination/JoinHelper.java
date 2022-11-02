@@ -42,6 +42,7 @@ import org.opensearch.cluster.ClusterStateTaskConfig;
 import org.opensearch.cluster.ClusterStateTaskListener;
 import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.coordination.Coordinator.Mode;
+import org.opensearch.cluster.decommission.NodeDecommissionedException;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.RerouteService;
@@ -57,6 +58,7 @@ import org.opensearch.monitor.NodeHealthService;
 import org.opensearch.monitor.StatusInfo;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPool.Names;
+import org.opensearch.transport.RemoteTransportException;
 import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportRequest;
@@ -78,6 +80,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -118,6 +121,7 @@ public class JoinHelper {
     private final AtomicReference<FailedJoinAttempt> lastFailedJoinAttempt = new AtomicReference<>();
 
     private final Supplier<JoinTaskExecutor> joinTaskExecutorGenerator;
+    private final Consumer<Boolean> nodeCommissioned;
 
     JoinHelper(
         Settings settings,
@@ -130,12 +134,14 @@ public class JoinHelper {
         Function<StartJoinRequest, Join> joinLeaderInTerm,
         Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators,
         RerouteService rerouteService,
-        NodeHealthService nodeHealthService
+        NodeHealthService nodeHealthService,
+        Consumer<Boolean> nodeCommissioned
     ) {
         this.clusterManagerService = clusterManagerService;
         this.transportService = transportService;
         this.nodeHealthService = nodeHealthService;
         this.joinTimeout = JOIN_TIMEOUT_SETTING.get(settings);
+        this.nodeCommissioned = nodeCommissioned;
         this.joinTaskExecutorGenerator = () -> new JoinTaskExecutor(settings, allocationService, logger, rerouteService, transportService) {
 
             private final long term = currentTermSupplier.getAsLong();
@@ -342,6 +348,7 @@ public class JoinHelper {
                         pendingOutgoingJoins.remove(dedupKey);
                         logger.debug("successfully joined {} with {}", destination, joinRequest);
                         lastFailedJoinAttempt.set(null);
+                        nodeCommissioned.accept(true);
                         onCompletion.run();
                     }
 
@@ -352,6 +359,13 @@ public class JoinHelper {
                         FailedJoinAttempt attempt = new FailedJoinAttempt(destination, joinRequest, exp);
                         attempt.logNow();
                         lastFailedJoinAttempt.set(attempt);
+                        if (exp instanceof RemoteTransportException && (exp.getCause() instanceof NodeDecommissionedException)) {
+                            logger.info(
+                                "local node is decommissioned [{}]. Will not be able to join the cluster",
+                                exp.getCause().getMessage()
+                            );
+                            nodeCommissioned.accept(false);
+                        }
                         onCompletion.run();
                     }
 
