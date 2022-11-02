@@ -296,7 +296,6 @@ import org.opensearch.plugins.ActionPlugin.ActionHandler;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
 import org.opensearch.rest.RestHeaderDefinition;
-import org.opensearch.rest.SecurityRestFilter;
 import org.opensearch.rest.action.RestFieldCapabilitiesAction;
 import org.opensearch.rest.action.RestMainAction;
 import org.opensearch.rest.action.admin.cluster.RestAddVotingConfigExclusionAction;
@@ -477,9 +476,6 @@ public class ActionModule extends AbstractModule {
     private final RequestValidators<PutMappingRequest> mappingRequestValidators;
     private final RequestValidators<IndicesAliasesRequest> indicesAliasesRequestRequestValidators;
     private final ThreadPool threadPool;
-
-    private final SecurityRestFilter securityRestFilter;
-
     public ActionModule(
         Settings settings,
         IndexNameExpressionResolver indexNameExpressionResolver,
@@ -519,18 +515,6 @@ public class ActionModule extends AbstractModule {
                 }
                 restWrapper = newRestWrapper;
             }
-        }
-
-        // Adding a wrapper to be used for embedded security.
-        // If clause should be removed once this feature is embedded in core
-        securityRestFilter = new SecurityRestFilter();
-        boolean isSandboxEnabled = AccessController.doPrivileged(
-            (PrivilegedAction<Boolean>) () -> System.getProperty("sandbox.enabled", "false").equals("true")
-        );
-        // TODO: Add a check to enable following only when sandbox is enabled
-        if (isSandboxEnabled) {
-            restWrapper = (restHandler) -> securityRestFilter.wrap(restHandler);
-            logger.debug("Using REST wrapper from embedded Security plugin");
         }
 
         mappingRequestValidators = new RequestValidators<>(

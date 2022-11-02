@@ -402,8 +402,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
                     }
                 } else {
                     // Adding Authentication here
+                    boolean isAuthenticated = authenticate(request, channel, client);
 
-                    authenticate(request, channel, client);
+                    // TODO: check if this behaviour is correct
+                    if(!isAuthenticated)
+                        return;
 
                     dispatchRequest(request, channel, handler);
                     return;
