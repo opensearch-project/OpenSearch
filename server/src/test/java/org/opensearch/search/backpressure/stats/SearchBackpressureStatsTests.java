@@ -9,6 +9,7 @@
 package org.opensearch.search.backpressure.stats;
 
 import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.search.backpressure.settings.SearchBackpressureMode;
 import org.opensearch.test.AbstractWireSerializingTestCase;
 
 public class SearchBackpressureStatsTests extends AbstractWireSerializingTestCase<SearchBackpressureStats> {
@@ -23,6 +24,9 @@ public class SearchBackpressureStatsTests extends AbstractWireSerializingTestCas
     }
 
     public static SearchBackpressureStats randomInstance() {
-        return new SearchBackpressureStats(SearchShardTaskStatsTests.randomInstance(), randomBoolean(), randomBoolean());
+        return new SearchBackpressureStats(
+            SearchShardTaskStatsTests.randomInstance(),
+            randomFrom(SearchBackpressureMode.DISABLED, SearchBackpressureMode.MONITOR_ONLY, SearchBackpressureMode.ENFORCED)
+        );
     }
 }

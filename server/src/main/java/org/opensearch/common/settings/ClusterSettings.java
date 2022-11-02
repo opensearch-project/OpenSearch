@@ -591,8 +591,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 TaskManager.TASK_RESOURCE_CONSUMERS_ENABLED,
 
                 // Settings related to search backpressure
-                SearchBackpressureSettings.SETTING_ENABLED,
-                SearchBackpressureSettings.SETTING_ENFORCED,
+                SearchBackpressureSettings.SETTING_MODE,
                 SearchBackpressureSettings.SETTING_CANCELLATION_RATIO,
                 SearchBackpressureSettings.SETTING_CANCELLATION_RATE,
                 SearchBackpressureSettings.SETTING_CANCELLATION_BURST,

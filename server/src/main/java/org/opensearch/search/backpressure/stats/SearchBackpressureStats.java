@@ -13,6 +13,7 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.xcontent.ToXContentFragment;
 import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.search.backpressure.settings.SearchBackpressureMode;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -22,33 +23,29 @@ import java.util.Objects;
  */
 public class SearchBackpressureStats implements ToXContentFragment, Writeable {
     private final SearchShardTaskStats searchShardTaskStats;
-    private final boolean enabled;
-    private final boolean enforced;
+    private final SearchBackpressureMode mode;
 
-    public SearchBackpressureStats(SearchShardTaskStats searchShardTaskStats, boolean enabled, boolean enforced) {
+    public SearchBackpressureStats(SearchShardTaskStats searchShardTaskStats, SearchBackpressureMode mode) {
         this.searchShardTaskStats = searchShardTaskStats;
-        this.enabled = enabled;
-        this.enforced = enforced;
+        this.mode = mode;
     }
 
     public SearchBackpressureStats(StreamInput in) throws IOException {
-        this(new SearchShardTaskStats(in), in.readBoolean(), in.readBoolean());
+        this(new SearchShardTaskStats(in), SearchBackpressureMode.fromName(in.readString()));
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return builder.startObject("search_backpressure")
             .field("search_shard_task", searchShardTaskStats)
-            .field("enabled", enabled)
-            .field("enforced", enforced)
+            .field("mode", mode.getName())
             .endObject();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         searchShardTaskStats.writeTo(out);
-        out.writeBoolean(enabled);
-        out.writeBoolean(enforced);
+        out.writeString(mode.getName());
     }
 
     @Override
@@ -56,11 +53,11 @@ public class SearchBackpressureStats implements ToXContentFragment, Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SearchBackpressureStats that = (SearchBackpressureStats) o;
-        return enabled == that.enabled && enforced == that.enforced && searchShardTaskStats.equals(that.searchShardTaskStats);
+        return searchShardTaskStats.equals(that.searchShardTaskStats) && mode == that.mode;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(searchShardTaskStats, enabled, enforced);
+        return Objects.hash(searchShardTaskStats, mode);
     }
 }

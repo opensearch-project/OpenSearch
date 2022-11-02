@@ -13,6 +13,7 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.search.backpressure.settings.SearchBackpressureMode;
 import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
 import org.opensearch.search.backpressure.settings.SearchShardTaskSettings;
 import org.opensearch.search.backpressure.trackers.NodeDuressTracker;
@@ -159,8 +160,7 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
         SearchBackpressureSettings settings = spy(
             new SearchBackpressureSettings(
                 Settings.builder()
-                    .put(SearchBackpressureSettings.SETTING_ENABLED.getKey(), true)
-                    .put(SearchBackpressureSettings.SETTING_ENFORCED.getKey(), true)
+                    .put(SearchBackpressureSettings.SETTING_MODE.getKey(), "enforced")
                     .put(SearchBackpressureSettings.SETTING_CANCELLATION_RATIO.getKey(), 0.1)
                     .put(SearchBackpressureSettings.SETTING_CANCELLATION_RATE.getKey(), 0.003)
                     .put(SearchBackpressureSettings.SETTING_CANCELLATION_BURST.getKey(), 10.0)
@@ -233,8 +233,7 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
                 new CancelledTaskStats(500, 500, 1000000000),
                 Map.of(TaskResourceUsageTrackerType.CPU_USAGE_TRACKER, new MockStats(15))
             ),
-            true,
-            true
+            SearchBackpressureMode.ENFORCED
         );
         SearchBackpressureStats actualStats = service.nodeStats();
         assertEquals(expectedStats, actualStats);

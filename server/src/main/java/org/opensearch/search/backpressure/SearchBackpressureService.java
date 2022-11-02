@@ -16,6 +16,7 @@ import org.opensearch.common.component.AbstractLifecycleComponent;
 import org.opensearch.common.util.TokenBucket;
 import org.opensearch.monitor.jvm.JvmStats;
 import org.opensearch.monitor.process.ProcessProbe;
+import org.opensearch.search.backpressure.settings.SearchBackpressureMode;
 import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
 import org.opensearch.search.backpressure.stats.CancelledTaskStats;
 import org.opensearch.search.backpressure.stats.SearchBackpressureStats;
@@ -121,7 +122,8 @@ public class SearchBackpressureService extends AbstractLifecycleComponent
     }
 
     void doRun() {
-        if (getSettings().isEnabled() == false) {
+        SearchBackpressureMode mode = getSettings().getMode();
+        if (mode == SearchBackpressureMode.DISABLED) {
             return;
         }
 
@@ -147,7 +149,7 @@ public class SearchBackpressureService extends AbstractLifecycleComponent
                 taskCancellation.getReasonString()
             );
 
-            if (getSettings().isEnforced() == false) {
+            if (mode != SearchBackpressureMode.ENFORCED) {
                 continue;
             }
 
@@ -254,7 +256,7 @@ public class SearchBackpressureService extends AbstractLifecycleComponent
 
     @Override
     public void onTaskCompleted(Task task) {
-        if (getSettings().isEnabled() == false) {
+        if (getSettings().getMode() == SearchBackpressureMode.DISABLED) {
             return;
         }
 
@@ -330,6 +332,6 @@ public class SearchBackpressureService extends AbstractLifecycleComponent
                 .collect(Collectors.toUnmodifiableMap(t -> TaskResourceUsageTrackerType.fromName(t.name()), t -> t.stats(searchShardTasks)))
         );
 
-        return new SearchBackpressureStats(searchShardTaskStats, getSettings().isEnabled(), getSettings().isEnforced());
+        return new SearchBackpressureStats(searchShardTaskStats, getSettings().getMode());
     }
 }
