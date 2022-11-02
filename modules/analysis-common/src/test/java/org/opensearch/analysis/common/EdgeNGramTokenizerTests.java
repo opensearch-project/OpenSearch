@@ -51,6 +51,9 @@ import java.io.IOException;
 import java.io.StringReader;
 import java.util.Collections;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasToString;
+
 public class EdgeNGramTokenizerTests extends OpenSearchTokenStreamTestCase {
 
     private IndexAnalyzers buildAnalyzers(Version version, String tokenizer) throws IOException {
@@ -76,21 +79,28 @@ public class EdgeNGramTokenizerTests extends OpenSearchTokenStreamTestCase {
             }
         }
 
-        // Check deprecated name as well, needs version before 8.0 because throws IAE after that
+        // Check deprecated name as well, needs version before 3.0 because throws IAE after that
         {
             try (
                 IndexAnalyzers indexAnalyzers = buildAnalyzers(
-                    VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT),
+                    VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, VersionUtils.getPreviousVersion(Version.V_3_0_0)),
                     "edgeNGram"
                 )
             ) {
                 NamedAnalyzer analyzer = indexAnalyzers.get("my_analyzer");
                 assertNotNull(analyzer);
                 assertAnalyzesTo(analyzer, "test", new String[] { "t", "te" });
-
             }
         }
 
+        // Check IAE from 3.0 onward
+        {
+            final IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> buildAnalyzers(VersionUtils.randomVersionBetween(random(), Version.V_3_0_0, Version.CURRENT), "edgeNGram")
+            );
+            assertThat(e, hasToString(containsString("The [edgeNGram] tokenizer name was deprecated pre 1.0.")));
+        }
     }
 
     public void testCustomTokenChars() throws IOException {
