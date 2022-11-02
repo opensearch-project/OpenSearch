@@ -1407,7 +1407,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      *
      * @opensearch.internal
      */
-    static class LuceneVerifyingIndexOutput extends VerifyingIndexOutput {
+    public static class LuceneVerifyingIndexOutput extends VerifyingIndexOutput {
 
         private final StoreFileMetadata metadata;
         private long writtenBytes;
@@ -1415,7 +1415,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         private String actualChecksum;
         private final byte[] footerChecksum = new byte[8]; // this holds the actual footer checksum data written by to this output
 
-        LuceneVerifyingIndexOutput(StoreFileMetadata metadata, IndexOutput out) {
+        public LuceneVerifyingIndexOutput(StoreFileMetadata metadata, IndexOutput out) {
             super(out);
             this.metadata = metadata;
             checksumPosition = metadata.length() - 8; // the last 8 bytes are the checksum - we store it in footerChecksum
