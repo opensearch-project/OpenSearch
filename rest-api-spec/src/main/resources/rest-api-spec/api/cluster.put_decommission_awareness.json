@@ -1,0 +1,29 @@
+{
+  "cluster.put_decommission_awareness": {
+    "documentation": {
+      "url": "https://opensearch.org/docs/latest/opensearch/rest-api/decommission/",
+      "description": "Decommissions an awareness attribute"
+    },
+    "stability": "experimental",
+    "url": {
+      "paths": [
+        {
+          "path": "/_cluster/decommission/awareness/{awareness_attribute_name}/{awareness_attribute_value}",
+          "methods": [
+            "PUT"
+          ],
+          "parts": {
+            "awareness_attribute_name": {
+              "type": "string",
+              "description": "Awareness attribute name"
+            },
+            "awareness_attribute_value": {
+              "type": "string",
+              "description": "Awareness attribute value"
+            }
+          }
+        }
+      ]
+    }
+  }
+}
