@@ -39,6 +39,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateTaskExecutor;
 import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.block.ClusterBlocks;
+import org.opensearch.cluster.decommission.NodeDecommissionedException;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -60,6 +61,7 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
+import static org.opensearch.cluster.decommission.DecommissionService.nodeCommissioned;
 import static org.opensearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 
 /**
@@ -192,6 +194,9 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
                     // we do this validation quite late to prevent race conditions between nodes joining and importing dangling indices
                     // we have to reject nodes that don't support all indices we have in this cluster
                     ensureIndexCompatibility(node.getVersion(), currentState.getMetadata());
+                    // we have added the same check in handleJoinRequest method and adding it here as this method
+                    // would guarantee that a decommissioned node would never be able to join the cluster and ensures correctness
+                    ensureNodeCommissioned(node, currentState.metadata());
                     nodesBuilder.add(node);
                     nodesChanged = true;
                     minClusterNodeVersion = Version.min(minClusterNodeVersion, node.getVersion());
@@ -199,7 +204,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
                     if (node.isClusterManagerNode()) {
                         joiniedNodeNameIds.put(node.getName(), node.getId());
                     }
-                } catch (IllegalArgumentException | IllegalStateException e) {
+                } catch (IllegalArgumentException | IllegalStateException | NodeDecommissionedException e) {
                     results.failure(joinTask, e);
                     continue;
                 }
@@ -358,6 +363,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
 
     /**
      * a task indicates that the current node should become master
+     *
      * @deprecated As of 2.0, because supporting inclusive language, replaced by {@link #newBecomeClusterManagerTask()}
      */
     @Deprecated
@@ -384,8 +390,9 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
      * Ensures that all indices are compatible with the given node version. This will ensure that all indices in the given metadata
      * will not be created with a newer version of opensearch as well as that all indices are newer or equal to the minimum index
      * compatibility version.
-     * @see Version#minimumIndexCompatibilityVersion()
+     *
      * @throws IllegalStateException if any index is incompatible with the given version
+     * @see Version#minimumIndexCompatibilityVersion()
      */
     public static void ensureIndexCompatibility(final Version nodeVersion, Metadata metadata) {
         Version supportedIndexVersion = nodeVersion.minimumIndexCompatibilityVersion();
@@ -415,14 +422,18 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         }
     }
 
-    /** ensures that the joining node has a version that's compatible with all current nodes*/
+    /**
+     * ensures that the joining node has a version that's compatible with all current nodes
+     */
     public static void ensureNodesCompatibility(final Version joiningNodeVersion, DiscoveryNodes currentNodes) {
         final Version minNodeVersion = currentNodes.getMinNodeVersion();
         final Version maxNodeVersion = currentNodes.getMaxNodeVersion();
         ensureNodesCompatibility(joiningNodeVersion, minNodeVersion, maxNodeVersion);
     }
 
-    /** ensures that the joining node has a version that's compatible with a given version range */
+    /**
+     * ensures that the joining node has a version that's compatible with a given version range
+     */
     public static void ensureNodesCompatibility(Version joiningNodeVersion, Version minClusterNodeVersion, Version maxClusterNodeVersion) {
         assert minClusterNodeVersion.onOrBefore(maxClusterNodeVersion) : minClusterNodeVersion + " > " + maxClusterNodeVersion;
         if (joiningNodeVersion.isCompatible(maxClusterNodeVersion) == false) {
@@ -466,6 +477,17 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         }
     }
 
+    public static void ensureNodeCommissioned(DiscoveryNode node, Metadata metadata) {
+        if (nodeCommissioned(node, metadata) == false) {
+            throw new NodeDecommissionedException(
+                "node [{}] has decommissioned attribute [{}] with current status of decommissioning [{}]",
+                node.toString(),
+                metadata.decommissionAttributeMetadata().decommissionAttribute().toString(),
+                metadata.decommissionAttributeMetadata().status().status()
+            );
+        }
+    }
+
     public static Collection<BiConsumer<DiscoveryNode, ClusterState>> addBuiltInJoinValidators(
         Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators
     ) {
@@ -473,6 +495,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         validators.add((node, state) -> {
             ensureNodesCompatibility(node.getVersion(), state.getNodes());
             ensureIndexCompatibility(node.getVersion(), state.getMetadata());
+            ensureNodeCommissioned(node, state.getMetadata());
         });
         validators.addAll(onJoinValidators);
         return Collections.unmodifiableCollection(validators);

@@ -36,9 +36,14 @@ import org.opensearch.Version;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateTaskExecutor;
+import org.opensearch.cluster.decommission.DecommissionAttribute;
+import org.opensearch.cluster.decommission.DecommissionAttributeMetadata;
+import org.opensearch.cluster.decommission.DecommissionStatus;
+import org.opensearch.cluster.decommission.NodeDecommissionedException;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.RerouteService;
 import org.opensearch.cluster.routing.allocation.AllocationService;
@@ -50,6 +55,7 @@ import org.opensearch.test.VersionUtils;
 import org.opensearch.transport.TransportService;
 
 import java.util.HashMap;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 
@@ -289,5 +295,113 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         assertThat(joinTaskOfMaster.isBecomeClusterManagerTask(), is(true));
         JoinTaskExecutor.Task joinTaskOfClusterManager = JoinTaskExecutor.newBecomeClusterManagerTask();
         assertThat(joinTaskOfClusterManager.isBecomeClusterManagerTask(), is(true));
+    }
+
+    public void testJoinClusterWithNoDecommission() {
+        Settings.builder().build();
+        Metadata.Builder metaBuilder = Metadata.builder();
+        Metadata metadata = metaBuilder.build();
+        DiscoveryNode discoveryNode = newDiscoveryNode(Collections.singletonMap("zone", "zone-2"));
+        JoinTaskExecutor.ensureNodeCommissioned(discoveryNode, metadata);
+    }
+
+    public void testPreventJoinClusterWithDecommission() {
+        Settings.builder().build();
+        DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "zone-1");
+        DecommissionStatus decommissionStatus = randomFrom(DecommissionStatus.IN_PROGRESS, DecommissionStatus.SUCCESSFUL);
+        DecommissionAttributeMetadata decommissionAttributeMetadata = new DecommissionAttributeMetadata(
+            decommissionAttribute,
+            decommissionStatus
+        );
+        Metadata metadata = Metadata.builder().decommissionAttributeMetadata(decommissionAttributeMetadata).build();
+        DiscoveryNode discoveryNode = newDiscoveryNode(Collections.singletonMap("zone", "zone-1"));
+        expectThrows(NodeDecommissionedException.class, () -> JoinTaskExecutor.ensureNodeCommissioned(discoveryNode, metadata));
+    }
+
+    public void testJoinClusterWithDifferentDecommission() {
+        Settings.builder().build();
+        DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "zone-1");
+        DecommissionStatus decommissionStatus = randomFrom(
+            DecommissionStatus.INIT,
+            DecommissionStatus.IN_PROGRESS,
+            DecommissionStatus.SUCCESSFUL
+        );
+        DecommissionAttributeMetadata decommissionAttributeMetadata = new DecommissionAttributeMetadata(
+            decommissionAttribute,
+            decommissionStatus
+        );
+        Metadata metadata = Metadata.builder().decommissionAttributeMetadata(decommissionAttributeMetadata).build();
+
+        DiscoveryNode discoveryNode = newDiscoveryNode(Collections.singletonMap("zone", "zone-2"));
+        JoinTaskExecutor.ensureNodeCommissioned(discoveryNode, metadata);
+    }
+
+    public void testJoinFailedForDecommissionedNode() throws Exception {
+        final AllocationService allocationService = mock(AllocationService.class);
+        when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
+        final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
+
+        final JoinTaskExecutor joinTaskExecutor = new JoinTaskExecutor(Settings.EMPTY, allocationService, logger, rerouteService, null);
+
+        final DiscoveryNode clusterManagerNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
+
+        DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "zone1");
+        DecommissionAttributeMetadata decommissionAttributeMetadata = new DecommissionAttributeMetadata(
+            decommissionAttribute,
+            DecommissionStatus.SUCCESSFUL
+        );
+        final ClusterState clusterManagerClusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(clusterManagerNode)
+                    .localNodeId(clusterManagerNode.getId())
+                    .clusterManagerNodeId(clusterManagerNode.getId())
+            )
+            .metadata(Metadata.builder().decommissionAttributeMetadata(decommissionAttributeMetadata))
+            .build();
+
+        final DiscoveryNode decommissionedNode = new DiscoveryNode(
+            UUIDs.base64UUID(),
+            buildNewFakeTransportAddress(),
+            Collections.singletonMap("zone", "zone1"),
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
+        );
+
+        String decommissionedNodeID = decommissionedNode.getId();
+
+        final ClusterStateTaskExecutor.ClusterTasksResult<JoinTaskExecutor.Task> result = joinTaskExecutor.execute(
+            clusterManagerClusterState,
+            List.of(new JoinTaskExecutor.Task(decommissionedNode, "test"))
+        );
+        assertThat(result.executionResults.entrySet(), hasSize(1));
+        final ClusterStateTaskExecutor.TaskResult taskResult = result.executionResults.values().iterator().next();
+        assertFalse(taskResult.isSuccess());
+        assertTrue(taskResult.getFailure() instanceof NodeDecommissionedException);
+        assertFalse(result.resultingState.getNodes().nodeExists(decommissionedNodeID));
+    }
+
+    public void testJoinClusterWithDecommissionFailed() {
+        Settings.builder().build();
+        DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "zone-1");
+        DecommissionAttributeMetadata decommissionAttributeMetadata = new DecommissionAttributeMetadata(
+            decommissionAttribute,
+            DecommissionStatus.FAILED
+        );
+        Metadata metadata = Metadata.builder().decommissionAttributeMetadata(decommissionAttributeMetadata).build();
+
+        DiscoveryNode discoveryNode = newDiscoveryNode(Collections.singletonMap("zone", "zone-1"));
+        JoinTaskExecutor.ensureNodeCommissioned(discoveryNode, metadata);
+    }
+
+    private DiscoveryNode newDiscoveryNode(Map<String, String> attributes) {
+        return new DiscoveryNode(
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            buildNewFakeTransportAddress(),
+            attributes,
+            Collections.singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
+            Version.CURRENT
+        );
     }
 }
