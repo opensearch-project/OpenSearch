@@ -50,4 +50,5 @@ dependencies {
   api "org.jetbrains.kotlin:kotlin-stdlib:${versions.kotlin}"
   api 'org.eclipse.jetty:jetty-server:9.4.49.v20220914'
   api "com.google.protobuf:protobuf-java:3.21.8"
+  api 'org.apache.zookeeper:zookeeper:3.8.0'
 }
