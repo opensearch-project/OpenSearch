@@ -65,6 +65,6 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Bumps jackson to 2.13.4 and snakeyml to 1.32 ([#4599](https://github.com/opensearch-project/OpenSearch/pull/4599))
 - Update Jackson Databind to 2.13.4.2 (addressing CVE-2022-42003) ([#4782](https://github.com/opensearch-project/OpenSearch/pull/4782))
 - Bump protobuf-java to 3.21.8 ([#5006](https://github.com/opensearch-project/OpenSearch/pull/5006))
-- Upgrade zookeeper dependency in hdfs-fixture ([#]())
+- Upgrade zookeeper dependency in hdfs-fixture ([#5046](https://github.com/opensearch-project/OpenSearch/pull/5046))
 
 [Unreleased]: https://github.com/opensearch-project/OpenSearch/compare/2.2.0...HEAD
