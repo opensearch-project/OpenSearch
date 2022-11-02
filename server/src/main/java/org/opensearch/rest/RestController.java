@@ -401,11 +401,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
                         return;
                     }
                 } else {
-                    // Adding Authentication here
-                    boolean isAuthenticated = authenticate(request, channel, client);
-
-                    // TODO: check if this behaviour is correct
-                    if (!isAuthenticated) return;
+                    // Authenticate incoming request
+                    authenticate(request, channel, client);
+                    // TODO: see if we need to break the flow here in future in case authentication fails
 
                     dispatchRequest(request, channel, handler);
                     return;
@@ -606,10 +604,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * @param request the request whose subject is to be authenticated
      * @param channel the channel to send the response on
      * @param client the client to be used
-     * @return true if authentication was successful, false otherwise
      * @throws IOException when an exception is raised writing response to channel
      */
-    private boolean authenticate(RestRequest request, RestChannel channel, NodeClient client) throws IOException {
+    private void authenticate(RestRequest request, RestChannel channel, NodeClient client) throws IOException {
 
         final Optional<String> authHeader = request.getHeaders()
             .getOrDefault(HttpHeaderToken.HEADER_NAME, Collections.emptyList())
@@ -635,20 +632,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                     e.getMessage()
                 );
                 channel.sendResponse(bytesRestResponse);
-                return false;
             }
-            return true;
         }
-
-        // TODO: How to handle auth header not present??
-        logger.info("Authentication finally failed due to missing auth header");
-        final BytesRestResponse bytesRestResponse = BytesRestResponse.createSimpleErrorResponse(
-            channel,
-            RestStatus.BAD_REQUEST,
-            "Authentication failed: Missing Credentials"
-        );
-        channel.sendResponse(bytesRestResponse);
-
-        return false;
     }
 }
