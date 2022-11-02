@@ -1004,12 +1004,6 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
     }
 
     protected static void expectSoftDeletesWarning(Request request, String indexName) {
-        final List<String> esExpectedWarnings = Collections.singletonList(
-            "Creating indices with soft-deletes disabled is deprecated and will be removed in future Elasticsearch versions. "
-                + "Please do not specify value for setting [index.soft_deletes.enabled] of index ["
-                + indexName
-                + "]."
-        );
         final List<String> opensearchExpectedWarnings = Collections.singletonList(
             "Creating indices with soft-deletes disabled is deprecated and will be removed in future OpenSearch versions. "
                 + "Please do not specify value for setting [index.soft_deletes.enabled] of index ["
