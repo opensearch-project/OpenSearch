@@ -147,7 +147,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         indexingPressureStats = in.readOptionalWriteable(IndexingPressureStats::new);
         shardIndexingPressureStats = in.readOptionalWriteable(ShardIndexingPressureStats::new);
 
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_4_0)) {
             searchBackpressureStats = in.readOptionalWriteable(SearchBackpressureStats::new);
         } else {
             searchBackpressureStats = null;
@@ -333,7 +333,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         out.writeOptionalWriteable(indexingPressureStats);
         out.writeOptionalWriteable(shardIndexingPressureStats);
 
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_4_0)) {
             out.writeOptionalWriteable(searchBackpressureStats);
         }
     }
