@@ -73,3 +73,59 @@ final boolean internalRequest =
 Internal actions can proceed through the chain without going through privilege evaluation on every node. 
 
 To minimize the usage of ThreadContext, tokens can be used to transmit subject information from node-to-node to enable authorization to be performed before an action is executed on any node in the cluster.
+
+# JWT Settings
+
+JWTs are signed by a JSON Web Key (Link to [RFC](https://www.rfc-editor.org/rfc/rfc7517)) to certify its authenticity. From the RFC:
+
+> A JSON Web Key (JWK) is a JavaScript Object Notation (JSON) data
+   structure that represents a cryptographic key.  This specification
+   also defines a JWK Set JSON data structure that represents a set of
+   JWKs.  Cryptographic algorithms and identifiers for use with this
+   specification are described in the separate JSON Web Algorithms (JWA)
+   specification and IANA registries established by that specification.
+
+
+Below is a snippet of the default settings for a key and descriptions of the different configuration options. In this example, the JsonWebKey uses Apache CXF JAX-RS JOSE ([https://cxf.apache.org/docs/jax-rs-jose.html](https://cxf.apache.org/docs/jax-rs-jose.html))
+
+```
+import org.apache.cxf.rs.security.jose.jwk.JsonWebKey;
+import org.apache.cxf.rs.security.jose.jwk.KeyType;
+import org.apache.cxf.rs.security.jose.jwk.PublicKeyUse;
+
+static JsonWebKey getDefaultJsonWebKey() {
+    JsonWebKey jwk = new JsonWebKey();
+
+    jwk.setKeyType(KeyType.OCTET);
+    jwk.setAlgorithm("HS512");
+    jwk.setPublicKeyUse(PublicKeyUse.SIGN);
+    String b64SigningKey = Base64.getEncoder().encodeToString("<exchangeKey>".getBytes(StandardCharsets.UTF_8));
+    jwk.setProperty("k", b64SigningKey);
+    return jwk;
+}
+```
+
+## KeyType
+
+- `RSA`
+- `EC` - Elliptic Curve
+- `Octet`
+
+## Algorithm
+
+| Algorithm | JWS Header 'alg' | JwsSignatureProvider | JwsSignatureVerifier |
+| ----------- | ----------- | ----------- | ----------- |
+| HMAC | HS256, HS384, HS512 | HmacJwsSignatureProvider | HmacJwsSignatureVerifier |
+| RSASSA-PKCS1-v1_5 | RS256, RS384, RS512 | PrivateKeyJwsSignatureProvider | PublicKeyJwsSignatureVerifier |
+| ECDSA | ES256, ES384, ES512 | EcDsaJwsSignatureProvider | EcDsaJwsSignatureVerifier |
+| RSASSA-PSS | PS256, PS384, PS512 | PrivateKeyJwsSignatureProvider | PublicKeyJwsSignatureVerifier |
+| None | none | NoneJwsSignatureProvider | NoneJwsSignatureVerifier |
+
+## PublicKeyUse
+
+- `SIGN` - Cryptographic signing of the JWT (making it a JWS) 
+- `ENCRYPT` - Encryption of the JWT (making it a JWE)
+
+## Signing Key
+
+Base64 encoding of the exchange key. Any entity that the key is shared with will be able to decrypt the contents of the JWT and view the claims.
