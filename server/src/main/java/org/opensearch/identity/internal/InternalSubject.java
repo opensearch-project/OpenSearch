@@ -23,7 +23,6 @@ import org.opensearch.identity.AuthenticationTokenHandler;
  * @opensearch.internal
  */
 public class InternalSubject implements Subject {
-
     private final org.apache.shiro.subject.Subject shiroSubject;
 
     public InternalSubject(org.apache.shiro.subject.Subject subject) {
@@ -58,9 +57,7 @@ public class InternalSubject implements Subject {
      * Logs the user in via authenticating the user against current Shiro realm
      */
     public void login(AuthenticationToken authenticationToken) {
-
         org.apache.shiro.authc.AuthenticationToken authToken = AuthenticationTokenHandler.extractShiroAuthToken(authenticationToken);
-
         // Login via shiro realm.
         shiroSubject.login(authToken);
     }

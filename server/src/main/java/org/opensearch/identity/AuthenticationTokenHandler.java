@@ -8,10 +8,13 @@
 
 package org.opensearch.identity;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.shiro.authc.AuthenticationToken;
 import org.apache.shiro.authc.UsernamePasswordToken;
 import org.opensearch.authn.HttpHeaderToken;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 
 /**
@@ -20,6 +23,8 @@ import java.util.Base64;
  * @opensearch.experimental
  */
 public class AuthenticationTokenHandler {
+
+    private static final Logger logger = LogManager.getLogger(AuthenticationTokenHandler.class);
 
     /**
      * Extracts shiro auth token from the given header token
@@ -38,7 +43,6 @@ public class AuthenticationTokenHandler {
 
             // TODO: check for other type of Headers
         }
-
         // TODO: Handle other type of auths, and see if we can use switch case here
 
         return authToken;
@@ -52,7 +56,10 @@ public class AuthenticationTokenHandler {
     private static AuthenticationToken handleBasicAuth(final HttpHeaderToken token) {
 
         final byte[] decodedAuthHeader = Base64.getDecoder().decode(token.getHeaderValue().substring("Basic".length()).trim());
-        final String[] decodedUserNamePassword = decodedAuthHeader.toString().split(":");
+        String decodedHeader = new String(decodedAuthHeader, StandardCharsets.UTF_8);
+        final String[] decodedUserNamePassword = decodedHeader.split(":");
+
+        logger.info("Logging in as: " + decodedUserNamePassword[0]);
 
         return new UsernamePasswordToken(decodedUserNamePassword[0], decodedUserNamePassword[1]);
     }
