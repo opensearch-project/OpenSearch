@@ -43,6 +43,7 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -99,7 +100,11 @@ public class PendingReplicationActions implements Consumer<ReplicationGroup>, Re
         if (isNewerVersion(replicationGroup)) {
             synchronized (this) {
                 if (isNewerVersion(replicationGroup)) {
-                    acceptNewTrackedAllocationIds(replicationGroup.getTrackedAllocationIds());
+                    // TODO - Rename the below method to account for trackingPrimaryTermAllocationIds as well
+                    Set<String> newTrackedAllocationIds = new HashSet<>();
+                    newTrackedAllocationIds.addAll(replicationGroup.getTrackedAllocationIds());
+                    newTrackedAllocationIds.addAll(replicationGroup.getTrackPrimaryTermAllocationIds());
+                    acceptNewTrackedAllocationIds(newTrackedAllocationIds);
                     replicationGroupVersion = replicationGroup.getVersion();
                 }
             }

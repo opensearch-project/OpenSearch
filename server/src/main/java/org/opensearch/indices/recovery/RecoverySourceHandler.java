@@ -111,7 +111,7 @@ public abstract class RecoverySourceHandler {
     // Request containing source and target node information
     protected final StartRecoveryRequest request;
     private final int chunkSizeInBytes;
-    private final RecoveryTargetHandler recoveryTarget;
+    protected final RecoveryTargetHandler recoveryTarget;
     private final int maxConcurrentOperations;
     private final ThreadPool threadPool;
     protected final CancellableThreads cancellableThreads = new CancellableThreads();

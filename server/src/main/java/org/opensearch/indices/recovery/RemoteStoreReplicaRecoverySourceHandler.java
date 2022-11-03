@@ -11,12 +11,15 @@ package org.opensearch.indices.recovery;
 import org.apache.lucene.index.IndexCommit;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.StepListener;
+import org.opensearch.common.StopWatch;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.engine.RecoveryEngineException;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.shard.IndexShardClosedException;
+import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.indices.RunUnderPrimaryPermit;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Transports;
@@ -88,9 +91,15 @@ public class RemoteStoreReplicaRecoverySourceHandler extends RecoverySourceHandl
 
         prepareEngineStep.whenComplete(prepareEngineTime -> {
             assert Transports.assertNotTransportThread(this + "[phase2]");
+            /*
+             * add shard to replication group (shard will receive replication requests from this point on) now that engine is open.
+             * This means that any document indexed into the primary after this will be replicated to this replica as well
+             * make sure to do this before sampling the max sequence number in the next step, to ensure that we send
+             * all documents up to maxSeqNo in phase2.
+             */
             RunUnderPrimaryPermit.run(
-                () -> shard.initiateTracking(request.targetAllocationId()),
-                shardId + " initiating tracking of " + request.targetAllocationId(),
+                () -> shard.initiateTrackingPrimaryTerm(request.targetAllocationId()),
+                shardId + " initiating tracking primary term of " + request.targetAllocationId(),
                 shard,
                 cancellableThreads,
                 logger
@@ -100,5 +109,24 @@ public class RemoteStoreReplicaRecoverySourceHandler extends RecoverySourceHandl
         }, onFailure);
 
         finalizeStepAndCompleteFuture(startingSeqNo, sendSnapshotStep, sendFileStep, prepareEngineStep, onFailure);
+    }
+
+    void finalizeRecovery(long targetLocalCheckpoint, long trimAboveSeqNo, ActionListener<Void> listener) throws IOException {
+        if (shard.state() == IndexShardState.CLOSED) {
+            throw new IndexShardClosedException(request.shardId());
+        }
+        cancellableThreads.checkForCancel();
+        StopWatch stopWatch = new StopWatch().start();
+        logger.trace("finalizing recovery");
+
+        final long globalCheckpoint = shard.getLastKnownGlobalCheckpoint(); // this global checkpoint is persisted in finalizeRecovery
+        final StepListener<Void> finalizeListener = new StepListener<>();
+        cancellableThreads.checkForCancel();
+        recoveryTarget.finalizeRecovery(globalCheckpoint, trimAboveSeqNo, finalizeListener);
+        finalizeListener.whenComplete(r -> {
+            stopWatch.stop();
+            logger.trace("finalizing recovery took [{}]", stopWatch.totalTime());
+            listener.onResponse(null);
+        }, listener::onFailure);
     }
 }

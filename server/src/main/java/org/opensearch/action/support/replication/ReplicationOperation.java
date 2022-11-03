@@ -53,6 +53,7 @@ import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionExceptio
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.ReplicationGroup;
 import org.opensearch.index.shard.ShardId;
+import org.opensearch.indices.replication.checkpoint.PublishCheckpointRequest;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.threadpool.ThreadPool;
@@ -226,7 +227,12 @@ public class ReplicationOperation<
 
         final ShardRouting primaryRouting = primary.routingEntry();
 
-        for (final ShardRouting shard : replicationGroup.getReplicationTargets()) {
+        List<ShardRouting> replicationTargets = new ArrayList<>(replicationGroup.getReplicationTargets());
+        if (replicaRequest instanceof PublishCheckpointRequest) {
+            replicationTargets.addAll(replicationGroup.getPrimaryTermTargets());
+        }
+
+        for (final ShardRouting shard : replicationTargets) {
             if (shard.isSameAllocation(primaryRouting) == false) {
                 performOnReplica(shard, replicaRequest, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, pendingReplicationActions);
             }

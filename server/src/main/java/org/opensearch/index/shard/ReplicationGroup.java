@@ -37,6 +37,7 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.util.set.Sets;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -49,10 +50,12 @@ public class ReplicationGroup {
     private final IndexShardRoutingTable routingTable;
     private final Set<String> inSyncAllocationIds;
     private final Set<String> trackedAllocationIds;
+    private final Set<String> trackPrimaryTermAllocationIds;
     private final long version;
 
     private final Set<String> unavailableInSyncShards; // derived from the other fields
     private final List<ShardRouting> replicationTargets; // derived from the other fields
+    private final List<ShardRouting> primaryTermTargets; // derived from the other fields
     private final List<ShardRouting> skippedShards; // derived from the other fields
 
     public ReplicationGroup(
@@ -61,13 +64,25 @@ public class ReplicationGroup {
         Set<String> trackedAllocationIds,
         long version
     ) {
+        this(routingTable, inSyncAllocationIds, trackedAllocationIds, Collections.emptySet(), version);
+    }
+
+    public ReplicationGroup(
+        IndexShardRoutingTable routingTable,
+        Set<String> inSyncAllocationIds,
+        Set<String> trackedAllocationIds,
+        Set<String> trackPrimaryTermAllocationIds,
+        long version
+    ) {
         this.routingTable = routingTable;
         this.inSyncAllocationIds = inSyncAllocationIds;
         this.trackedAllocationIds = trackedAllocationIds;
+        this.trackPrimaryTermAllocationIds = trackPrimaryTermAllocationIds;
         this.version = version;
 
         this.unavailableInSyncShards = Sets.difference(inSyncAllocationIds, routingTable.getAllAllocationIds());
         this.replicationTargets = new ArrayList<>();
+        this.primaryTermTargets = new ArrayList<>();
         this.skippedShards = new ArrayList<>();
         for (final ShardRouting shard : routingTable) {
             if (shard.unassigned()) {
@@ -76,6 +91,8 @@ public class ReplicationGroup {
             } else {
                 if (trackedAllocationIds.contains(shard.allocationId().getId())) {
                     replicationTargets.add(shard);
+                } else if (trackPrimaryTermAllocationIds.contains(shard.allocationId().getId())) {
+                    primaryTermTargets.add(shard);
                 } else {
                     assert inSyncAllocationIds.contains(shard.allocationId().getId()) == false : "in-sync shard copy but not tracked: "
                         + shard;
@@ -85,6 +102,8 @@ public class ReplicationGroup {
                     ShardRouting relocationTarget = shard.getTargetRelocatingShard();
                     if (trackedAllocationIds.contains(relocationTarget.allocationId().getId())) {
                         replicationTargets.add(relocationTarget);
+                    } else if (trackPrimaryTermAllocationIds.contains(relocationTarget.allocationId().getId())) {
+                        primaryTermTargets.add(relocationTarget);
                     } else {
                         skippedShards.add(relocationTarget);
                         assert inSyncAllocationIds.contains(relocationTarget.allocationId().getId()) == false
@@ -111,6 +130,10 @@ public class ReplicationGroup {
         return trackedAllocationIds;
     }
 
+    public Set<String> getTrackPrimaryTermAllocationIds() {
+        return trackPrimaryTermAllocationIds;
+    }
+
     /**
      * Returns the set of shard allocation ids that are in the in-sync set but have no assigned routing entry
      */
@@ -123,6 +146,13 @@ public class ReplicationGroup {
      */
     public List<ShardRouting> getReplicationTargets() {
         return replicationTargets;
+    }
+
+    /**
+     * Returns the subset of shards in the routing table where the primary term check must happen. Includes relocation targets.
+     */
+    public List<ShardRouting> getPrimaryTermTargets() {
+        return primaryTermTargets;
     }
 
     /**
@@ -142,7 +172,8 @@ public class ReplicationGroup {
 
         if (!routingTable.equals(that.routingTable)) return false;
         if (!inSyncAllocationIds.equals(that.inSyncAllocationIds)) return false;
-        return trackedAllocationIds.equals(that.trackedAllocationIds);
+        if (!trackedAllocationIds.equals(that.trackedAllocationIds)) return false;
+        return trackPrimaryTermAllocationIds.equals(that.trackPrimaryTermAllocationIds);
     }
 
     @Override
@@ -150,6 +181,7 @@ public class ReplicationGroup {
         int result = routingTable.hashCode();
         result = 31 * result + inSyncAllocationIds.hashCode();
         result = 31 * result + trackedAllocationIds.hashCode();
+        result = 31 * result + trackPrimaryTermAllocationIds.hashCode();
         return result;
     }
 
@@ -162,6 +194,8 @@ public class ReplicationGroup {
             + inSyncAllocationIds
             + ", trackedAllocationIds="
             + trackedAllocationIds
+            + ", trackPrimaryTermAllocationIds="
+            + trackPrimaryTermAllocationIds
             + '}';
     }
 

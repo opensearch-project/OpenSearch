@@ -2761,6 +2761,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
+     * TODO - Add JavaDoc
+     *
+     * @param allocationId  the allocation ID of the shard for which recovery was initiated
+     */
+    public void initiateTrackingPrimaryTerm(final String allocationId) {
+        assert assertPrimaryMode();
+        replicationTracker.initiateTrackingPrimaryTerm(allocationId);
+    }
+
+    /**
      * Marks the shard with the provided allocation ID as in-sync with the primary shard. See
      * {@link ReplicationTracker#markAllocationIdAsInSync(String, long)}
      * for additional details.
