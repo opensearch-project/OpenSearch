@@ -891,7 +891,10 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
             "remote_store.restore",
             "cluster.put_weighted_routing",
             "cluster.get_weighted_routing",
-            "cluster.delete_weighted_routing", };
+            "cluster.delete_weighted_routing",
+            "cluster.put_decommission_awareness",
+            "cluster.get_decommission_awareness",
+            "cluster.delete_decommission_awareness", };
         List<String> booleanReturnMethods = Arrays.asList("security.enable_user", "security.disable_user", "security.change_password");
         Set<String> deprecatedMethods = new HashSet<>();
         deprecatedMethods.add("indices.force_merge");
@@ -1004,37 +1007,34 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
         }
 
         assertEquals("incorrect number of exceptions for method [" + method + "]", 1, method.getExceptionTypes().length);
+        final Class<?>[] parameterTypes = method.getParameterTypes();
         // a few methods don't accept a request object as argument
         if (APIS_WITHOUT_REQUEST_OBJECT.contains(apiName)) {
-            assertEquals("incorrect number of arguments for method [" + method + "]", 1, method.getParameterTypes().length);
-            assertThat(
-                "the parameter to method [" + method + "] is the wrong type",
-                method.getParameterTypes()[0],
-                equalTo(RequestOptions.class)
-            );
+            assertEquals("incorrect number of arguments for method [" + method + "]", 1, method.getParameterCount());
+            assertThat("the parameter to method [" + method + "] is the wrong type", parameterTypes[0], equalTo(RequestOptions.class));
         } else {
-            assertEquals("incorrect number of arguments for method [" + method + "]", 2, method.getParameterTypes().length);
+            assertEquals("incorrect number of arguments for method [" + method + "]", 2, method.getParameterCount());
             // This is no longer true for all methods. Some methods can contain these 2 args backwards because of deprecation
-            if (method.getParameterTypes()[0].equals(RequestOptions.class)) {
+            if (parameterTypes[0].equals(RequestOptions.class)) {
                 assertThat(
                     "the first parameter to method [" + method + "] is the wrong type",
-                    method.getParameterTypes()[0],
+                    parameterTypes[0],
                     equalTo(RequestOptions.class)
                 );
                 assertThat(
                     "the second parameter to method [" + method + "] is the wrong type",
-                    method.getParameterTypes()[1].getSimpleName(),
+                    parameterTypes[1].getSimpleName(),
                     endsWith("Request")
                 );
             } else {
                 assertThat(
                     "the first parameter to method [" + method + "] is the wrong type",
-                    method.getParameterTypes()[0].getSimpleName(),
+                    parameterTypes[0].getSimpleName(),
                     endsWith("Request")
                 );
                 assertThat(
                     "the second parameter to method [" + method + "] is the wrong type",
-                    method.getParameterTypes()[1],
+                    parameterTypes[1],
                     equalTo(RequestOptions.class)
                 );
             }
@@ -1048,39 +1048,40 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
         );
         assertThat("async method [" + method + "] should return Cancellable", method.getReturnType(), equalTo(Cancellable.class));
         assertEquals("async method [" + method + "] should not throw any exceptions", 0, method.getExceptionTypes().length);
+        final Class<?>[] parameterTypes = method.getParameterTypes();
         if (APIS_WITHOUT_REQUEST_OBJECT.contains(apiName.replaceAll("_async$", ""))) {
-            assertEquals(2, method.getParameterTypes().length);
-            assertThat(method.getParameterTypes()[0], equalTo(RequestOptions.class));
-            assertThat(method.getParameterTypes()[1], equalTo(ActionListener.class));
+            assertEquals(2, parameterTypes.length);
+            assertThat(parameterTypes[0], equalTo(RequestOptions.class));
+            assertThat(parameterTypes[1], equalTo(ActionListener.class));
         } else {
-            assertEquals("async method [" + method + "] has the wrong number of arguments", 3, method.getParameterTypes().length);
+            assertEquals("async method [" + method + "] has the wrong number of arguments", 3, method.getParameterCount());
             // This is no longer true for all methods. Some methods can contain these 2 args backwards because of deprecation
-            if (method.getParameterTypes()[0].equals(RequestOptions.class)) {
+            if (parameterTypes[0].equals(RequestOptions.class)) {
                 assertThat(
                     "the first parameter to async method [" + method + "] should be a request type",
-                    method.getParameterTypes()[0],
+                    parameterTypes[0],
                     equalTo(RequestOptions.class)
                 );
                 assertThat(
                     "the second parameter to async method [" + method + "] is the wrong type",
-                    method.getParameterTypes()[1].getSimpleName(),
+                    parameterTypes[1].getSimpleName(),
                     endsWith("Request")
                 );
             } else {
                 assertThat(
                     "the first parameter to async method [" + method + "] should be a request type",
-                    method.getParameterTypes()[0].getSimpleName(),
+                    parameterTypes[0].getSimpleName(),
                     endsWith("Request")
                 );
                 assertThat(
                     "the second parameter to async method [" + method + "] is the wrong type",
-                    method.getParameterTypes()[1],
+                    parameterTypes[1],
                     equalTo(RequestOptions.class)
                 );
             }
             assertThat(
                 "the third parameter to async method [" + method + "] is the wrong type",
-                method.getParameterTypes()[2],
+                parameterTypes[2],
                 equalTo(ActionListener.class)
             );
         }
@@ -1093,16 +1094,17 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
         ClientYamlSuiteRestSpec restSpec
     ) {
         String methodName = extractMethodName(apiName);
+        final Class<?>[] parameterTypes = method.getParameterTypes();
         assertTrue("submit task method [" + method.getName() + "] doesn't have corresponding sync method", methods.containsKey(methodName));
-        assertEquals("submit task method [" + method + "] has the wrong number of arguments", 2, method.getParameterTypes().length);
+        assertEquals("submit task method [" + method + "] has the wrong number of arguments", 2, method.getParameterCount());
         assertThat(
             "the first parameter to submit task method [" + method + "] is the wrong type",
-            method.getParameterTypes()[0].getSimpleName(),
+            parameterTypes[0].getSimpleName(),
             endsWith("Request")
         );
         assertThat(
             "the second parameter to submit task method [" + method + "] is the wrong type",
-            method.getParameterTypes()[1],
+            parameterTypes[1],
             equalTo(RequestOptions.class)
         );
 

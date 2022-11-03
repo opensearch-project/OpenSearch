@@ -106,6 +106,7 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import static org.opensearch.cluster.coordination.NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_ID;
+import static org.opensearch.cluster.decommission.DecommissionService.nodeCommissioned;
 import static org.opensearch.gateway.ClusterStateUpdaters.hideStateIfNotRecovered;
 import static org.opensearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.opensearch.monitor.StatusInfo.Status.UNHEALTHY;
@@ -139,6 +140,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
     private final Settings settings;
     private final boolean singleNodeDiscovery;
+    private volatile boolean localNodeCommissioned;
     private final ElectionStrategy electionStrategy;
     private final TransportService transportService;
     private final ClusterManagerService clusterManagerService;
@@ -219,7 +221,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             this::joinLeaderInTerm,
             this.onJoinValidators,
             rerouteService,
-            nodeHealthService
+            nodeHealthService,
+            this::onNodeCommissionStatusChange
         );
         this.persistedStateSupplier = persistedStateSupplier;
         this.noClusterManagerBlockService = new NoClusterManagerBlockService(settings, clusterSettings);
@@ -282,6 +285,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             joinHelper::logLastFailedJoinAttempt
         );
         this.nodeHealthService = nodeHealthService;
+        this.localNodeCommissioned = true;
     }
 
     private ClusterFormationState getClusterFormationState() {
@@ -597,6 +601,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                         joinRequest.getSourceNode().getVersion(),
                         stateForJoinValidation.getNodes().getMinNodeVersion()
                     );
+                    // we are checking source node commission status here to reject any join request coming from a decommissioned node
+                    // even before executing the join task to fail fast
+                    JoinTaskExecutor.ensureNodeCommissioned(joinRequest.getSourceNode(), stateForJoinValidation.metadata());
                 }
                 sendValidateJoinRequest(stateForJoinValidation, joinRequest, joinCallback);
             } else {
@@ -1425,6 +1432,17 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         }
     }
 
+    // package-visible for testing
+    synchronized void onNodeCommissionStatusChange(boolean localNodeCommissioned) {
+        this.localNodeCommissioned = localNodeCommissioned;
+        peerFinder.onNodeCommissionStatusChange(localNodeCommissioned);
+    }
+
+    // package-visible for testing
+    boolean localNodeCommissioned() {
+        return localNodeCommissioned;
+    }
+
     private void startElectionScheduler() {
         assert electionScheduler == null : electionScheduler;
 
@@ -1448,6 +1466,14 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                         final StatusInfo statusInfo = nodeHealthService.getHealth();
                         if (statusInfo.getStatus() == UNHEALTHY) {
                             logger.debug("skip prevoting as local node is unhealthy: [{}]", statusInfo.getInfo());
+                            return;
+                        }
+
+                        // if either the localNodeCommissioned flag or the last accepted state thinks it should skip pre voting, we will
+                        // acknowledge it
+                        if (nodeCommissioned(lastAcceptedState.nodes().getLocalNode(), lastAcceptedState.metadata()) == false
+                            || localNodeCommissioned == false) {
+                            logger.debug("skip prevoting as local node is decommissioned");
                             return;
                         }
 

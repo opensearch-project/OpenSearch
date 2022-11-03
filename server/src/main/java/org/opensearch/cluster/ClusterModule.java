@@ -35,6 +35,7 @@ package org.opensearch.cluster;
 import org.opensearch.cluster.action.index.MappingUpdatedAction;
 import org.opensearch.cluster.action.index.NodeMappingRefreshAction;
 import org.opensearch.cluster.action.shard.ShardStateAction;
+import org.opensearch.cluster.decommission.DecommissionAttributeMetadata;
 import org.opensearch.cluster.metadata.ComponentTemplateMetadata;
 import org.opensearch.cluster.metadata.ComposableIndexTemplateMetadata;
 import org.opensearch.cluster.metadata.DataStreamMetadata;
@@ -73,6 +74,7 @@ import org.opensearch.cluster.routing.allocation.decider.RestoreInProgressAlloca
 import org.opensearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.SnapshotInProgressAllocationDecider;
+import org.opensearch.cluster.routing.allocation.decider.TargetPoolAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.ParseField;
@@ -84,6 +86,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
@@ -193,6 +196,12 @@ public class ClusterModule extends AbstractModule {
         );
         registerMetadataCustom(entries, DataStreamMetadata.TYPE, DataStreamMetadata::new, DataStreamMetadata::readDiffFrom);
         registerMetadataCustom(entries, WeightedRoutingMetadata.TYPE, WeightedRoutingMetadata::new, WeightedRoutingMetadata::readDiffFrom);
+        registerMetadataCustom(
+            entries,
+            DecommissionAttributeMetadata.TYPE,
+            DecommissionAttributeMetadata::new,
+            DecommissionAttributeMetadata::readDiffFrom
+        );
         // Task Status (not Diffable)
         entries.add(new Entry(Task.Status.class, PersistentTasksNodeService.Status.NAME, PersistentTasksNodeService.Status::new));
         return entries;
@@ -283,6 +292,13 @@ public class ClusterModule extends AbstractModule {
                 WeightedRoutingMetadata::fromXContent
             )
         );
+        entries.add(
+            new NamedXContentRegistry.Entry(
+                Metadata.Custom.class,
+                new ParseField(DecommissionAttributeMetadata.TYPE),
+                DecommissionAttributeMetadata::fromXContent
+            )
+        );
         return entries;
     }
 
@@ -346,6 +362,9 @@ public class ClusterModule extends AbstractModule {
         addAllocationDecider(deciders, new ShardsLimitAllocationDecider(settings, clusterSettings));
         addAllocationDecider(deciders, new AwarenessAllocationDecider(settings, clusterSettings));
         addAllocationDecider(deciders, new NodeLoadAwareAllocationDecider(settings, clusterSettings));
+        if (FeatureFlags.isEnabled(FeatureFlags.SEARCHABLE_SNAPSHOT)) {
+            addAllocationDecider(deciders, new TargetPoolAllocationDecider());
+        }
 
         clusterPlugins.stream()
             .flatMap(p -> p.createAllocationDeciders(settings, clusterSettings).stream())

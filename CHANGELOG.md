@@ -24,7 +24,10 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Added missing no-jdk distributions ([#4722](https://github.com/opensearch-project/OpenSearch/pull/4722))
 - Copy `build.sh` over from opensearch-build ([#4887](https://github.com/opensearch-project/OpenSearch/pull/4887))
 - Update GeoGrid base class access modifier to support extensibility ([#4921](https://github.com/opensearch-project/OpenSearch/pull/4921))
+- Recommission API changes for service layer ([#4320](https://github.com/opensearch-project/OpenSearch/pull/4320))
+- Recommissioning of zone. REST layer support. ([#4624](https://github.com/opensearch-project/OpenSearch/pull/4604))
 - Build no-jdk distributions as part of release build ([#4902](https://github.com/opensearch-project/OpenSearch/pull/4902))
+- Use getParameterCount instead of getParameterTypes ([#4821](https://github.com/opensearch-project/OpenSearch/pull/4821))
 
 ### Dependencies
 - Bumps `com.diffplug.spotless` from 6.9.1 to 6.10.0
@@ -40,6 +43,8 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Update Apache Lucene to 9.4.1 ([#4922](https://github.com/opensearch-project/OpenSearch/pull/4922))
 - Bump `woodstox-core` to 6.4.0 ([#4951](https://github.com/opensearch-project/OpenSearch/pull/4951))
 - Upgrade jetty-http, kotlin-stdlib and snakeyaml ([#4982](https://github.com/opensearch-project/OpenSearch/pull/4982))
+- OpenJDK Update (October 2022 Patch releases) ([#4997](https://github.com/opensearch-project/OpenSearch/pull/4997))
+- Upgrade zookeeper dependency in hdfs-fixture ([#5007](https://github.com/opensearch-project/OpenSearch/pull/5007))
 
 ### Changed
 - Dependency updates (httpcore, mockito, slf4j, httpasyncclient, commons-codec) ([#4308](https://github.com/opensearch-project/OpenSearch/pull/4308))
@@ -57,6 +62,9 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - GET api for weighted shard routing([#4275](https://github.com/opensearch-project/OpenSearch/pull/4275/))
 - Delete api for weighted shard routing([#4400](https://github.com/opensearch-project/OpenSearch/pull/4400/))
 - Fix weighted routing metadata deserialization error on process restart ([#4691](https://github.com/opensearch-project/OpenSearch/pull/4691))
+- Add DecommissionService and helper to execute awareness attribute decommissioning ([#4084](https://github.com/opensearch-project/OpenSearch/pull/4084))
+- Add APIs (GET/PUT) to decommission awareness attribute ([#4261](https://github.com/opensearch-project/OpenSearch/pull/4261))
+- Controlling discovery for decommissioned nodes ([#4590](https://github.com/opensearch-project/OpenSearch/pull/4590))
 
 ### Deprecated
 ### Removed
@@ -82,9 +90,12 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - [Bug]: Fixed invalid location of JDK dependency for arm64 architecture([#4613](https://github.com/opensearch-project/OpenSearch/pull/4613))
 - [Bug]: Alias filter lost after rollover ([#4499](https://github.com/opensearch-project/OpenSearch/pull/4499))
 - Fixing Gradle warnings associated with publishPluginZipPublicationToXxx tasks ([#4696](https://github.com/opensearch-project/OpenSearch/pull/4696))
+- [BUG]: Remove redundant field from GetDecommissionStateResponse ([#4751](https://github.com/opensearch-project/OpenSearch/pull/4751))
 - Fixed randomly failing test ([4774](https://github.com/opensearch-project/OpenSearch/pull/4774))
 - Fix recovery path for searchable snapshots ([4813](https://github.com/opensearch-project/OpenSearch/pull/4813))
 - Fix a bug on handling an invalid array value for point type field #4900([#4900](https://github.com/opensearch-project/OpenSearch/pull/4900))
+- Fix decommission status update to non leader nodes ([4800](https://github.com/opensearch-project/OpenSearch/pull/4800))
+- Fix bug in AwarenessAttributeDecommissionIT([4822](https://github.com/opensearch-project/OpenSearch/pull/4822))
 - Fix for failing checkExtraction, checkLicense and checkNotice tasks for windows gradle check ([#4941](https://github.com/opensearch-project/OpenSearch/pull/4941))
 ### Security
 - CVE-2022-25857 org.yaml:snakeyaml DOS vulnerability ([#4341](https://github.com/opensearch-project/OpenSearch/pull/4341))
@@ -106,12 +117,17 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Add dev guide for dealing with flaky tests ([4894](https://github.com/opensearch-project/OpenSearch/pull/4894))
 - Renamed flaky tests ([#4935](https://github.com/opensearch-project/OpenSearch/pull/4935))
 - Bump current version to 2.5.0 on 2.x branch ([#5002](https://github.com/opensearch-project/OpenSearch/pull/5002))
+- Remote shard balancer support for searchable snapshots ([#5024](https://github.com/opensearch-project/OpenSearch/pull/5024))
+- Implement Searchable Snapshot using OnDemandBlockIndexInput ([#4892](https://github.com/opensearch-project/OpenSearch/pull/4892))
 ### Dependencies
 - Update Jackson Databind to 2.13.4.2 (addressing CVE-2022-42003) ([#4781](https://github.com/opensearch-project/OpenSearch/pull/4781))
 - Install and configure Log4j JUL Adapter for Lucene 9.4 ([#4754](https://github.com/opensearch-project/OpenSearch/pull/4754))
 - Added feature to ignore indexes starting with dot during shard limit validation.([#4695](https://github.com/opensearch-project/OpenSearch/pull/4695))
+- Bump protobuf-java to 3.21.8 ([#5005](https://github.com/opensearch-project/OpenSearch/pull/5005))
+- Upgrade zookeeper dependency in hdfs-fixture ([#5047](https://github.com/opensearch-project/OpenSearch/pull/5047))
 ### Changed
 - Refactored BalancedAllocator.Balancer to LocalShardsBalancer ([#4818](https://github.com/opensearch-project/OpenSearch/pull/4818))
+- Skip SymbolicLinkPreservingTarIT when running on Windows ([#5023](https://github.com/opensearch-project/OpenSearch/pull/5023))
 ### Deprecated
 ### Removed
 - Remove RepositoryData.MIN_VERSION support for next major release ([4729](https://github.com/opensearch-project/OpenSearch/pull/4729))
@@ -131,6 +147,8 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Better plural stemmer than minimal_english ([#4738](https://github.com/opensearch-project/OpenSearch/pull/4738))
 - Fix AbstractStringFieldDataTestCase tests to account for TotalHits lower bound ([4867](https://github.com/opensearch-project/OpenSearch/pull/4867))
 - [Segment Replication] Fix bug of replica shard's translog not purging on index flush when segment replication is enabled ([4975](https://github.com/opensearch-project/OpenSearch/pull/4975))
+- Fix bug in SlicedInputStream with zero length ([#4863](https://github.com/opensearch-project/OpenSearch/pull/4863))
+- Fixing PIT flaky tests ([4632](https://github.com/opensearch-project/OpenSearch/pull/4632))
 -
 
 ### Security
