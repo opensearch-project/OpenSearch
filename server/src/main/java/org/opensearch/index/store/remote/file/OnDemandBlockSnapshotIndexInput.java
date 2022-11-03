@@ -137,11 +137,11 @@ public class OnDemandBlockSnapshotIndexInput extends OnDemandBlockIndexInput {
         final long partStart = part * partSize;
 
         final long position = blockStart - partStart;
-        final long offset = blockEnd - blockStart - partStart;
+        final long length = blockEnd - blockStart;
 
         BlobFetchRequest blobFetchRequest = BlobFetchRequest.builder()
             .position(position)
-            .length(offset)
+            .length(length)
             .blobName(fileInfo.partName(part))
             .directory(directory)
             .fileName(blockFileName)
