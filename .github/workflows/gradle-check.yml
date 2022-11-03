@@ -9,7 +9,16 @@ on:
     types: [opened, synchronize, reopened]
 
 jobs:
+  spotless:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Spotless Check
+        run: ./gradlew spotlessCheck
   gradle-check:
+    needs: spotless
     runs-on: ubuntu-latest
     timeout-minutes: 130
     steps:
