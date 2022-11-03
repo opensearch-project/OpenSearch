@@ -12,6 +12,7 @@ import org.opensearch.action.admin.cluster.decommission.awareness.put.Decommissi
 import org.opensearch.client.Requests;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.decommission.DecommissionAttribute;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
@@ -49,6 +50,14 @@ public class RestDecommissionAction extends BaseRestHandler {
         DecommissionRequest decommissionRequest = Requests.decommissionRequest();
         String attributeName = request.param("awareness_attribute_name");
         String attributeValue = request.param("awareness_attribute_value");
+        // Check if we have no delay set.
+        boolean noDelay = request.paramAsBoolean("no_delay", false);
+        decommissionRequest.setNoDelay(noDelay);
+
+        if (request.hasParam("delay_timeout")) {
+            TimeValue delayTimeout = request.paramAsTime("delay_timeout", DecommissionRequest.DEFAULT_NODE_DRAINING_TIMEOUT);
+            decommissionRequest.setDelayTimeout(delayTimeout);
+        }
         return decommissionRequest.setDecommissionAttribute(new DecommissionAttribute(attributeName, attributeValue));
     }
 }
