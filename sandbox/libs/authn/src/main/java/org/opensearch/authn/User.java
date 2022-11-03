@@ -15,6 +15,7 @@ import java.util.Map;
  *
  * @opensearch.experimental
  */
+
 public class User {
 
     @JsonProperty(value = "primary_principal")
@@ -27,13 +28,13 @@ public class User {
     private Map<String, String> attributes = Collections.emptyMap();
 
     @JsonProperty(value = "primary_principal")
-    public StringPrincipal getPrincipal() {
+    public StringPrincipal getPrimaryPrincipal() {
         return primaryPrincipal;
     }
 
     @JsonProperty(value = "primary_principal")
-    public void setPrimaryPrincipal(StringPrincipal primaryPrincipal) {
-        this.primaryPrincipal = primaryPrincipal;
+    public void setPrimaryPrincipal(StringPrincipal principal) {
+        this.primaryPrincipal = principal;
     }
 
     @JsonProperty(value = "hash")

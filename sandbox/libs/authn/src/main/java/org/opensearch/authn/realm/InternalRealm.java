@@ -82,7 +82,7 @@ public class InternalRealm extends AuthenticatingRealm {
             // Check for other things, like a locked account, expired password, etc.
 
             // Verify the user
-            SimpleAuthenticationInfo sai = new SimpleAuthenticationInfo(userRecord.getPrincipal(), userRecord.getBcryptHash(), realmName);
+            SimpleAuthenticationInfo sai = new SimpleAuthenticationInfo(userRecord.getPrimaryPrincipal(), userRecord.getBcryptHash(), realmName);
             boolean successfulAuthentication = getCredentialsMatcher().doCredentialsMatch(token, sai);
 
             if (successfulAuthentication) {
