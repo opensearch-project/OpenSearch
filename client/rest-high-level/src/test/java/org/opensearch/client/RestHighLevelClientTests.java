@@ -888,7 +888,10 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
             "nodes.usage",
             "nodes.reload_secure_settings",
             "search_shards",
-            "remote_store.restore", };
+            "remote_store.restore",
+            "cluster.put_weighted_routing",
+            "cluster.get_weighted_routing",
+            "cluster.delete_weighted_routing", };
         List<String> booleanReturnMethods = Arrays.asList("security.enable_user", "security.disable_user", "security.change_password");
         Set<String> deprecatedMethods = new HashSet<>();
         deprecatedMethods.add("indices.force_merge");

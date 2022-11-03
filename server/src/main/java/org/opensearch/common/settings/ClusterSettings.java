@@ -537,6 +537,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 Node.BREAKER_TYPE_KEY,
                 OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
                 OperationRouting.IGNORE_AWARENESS_ATTRIBUTES_SETTING,
+                OperationRouting.WEIGHTED_ROUTING_DEFAULT_WEIGHT,
                 IndexGraveyard.SETTING_MAX_TOMBSTONES,
                 PersistentTasksClusterService.CLUSTER_TASKS_ALLOCATION_RECHECK_INTERVAL_SETTING,
                 EnableAssignmentDecider.CLUSTER_TASKS_ALLOCATION_ENABLE_SETTING,
