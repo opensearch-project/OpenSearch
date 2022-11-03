@@ -97,7 +97,6 @@ import org.opensearch.plugins.ClusterPlugin;
 import org.opensearch.script.ScriptMetadata;
 import org.opensearch.snapshots.SnapshotsInfoService;
 import org.opensearch.tasks.Task;
-import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.tasks.TaskResultsService;
 
 import java.util.ArrayList;
@@ -416,7 +415,6 @@ public class ClusterModule extends AbstractModule {
         bind(NodeMappingRefreshAction.class).asEagerSingleton();
         bind(MappingUpdatedAction.class).asEagerSingleton();
         bind(TaskResultsService.class).asEagerSingleton();
-        bind(TaskResourceTrackingService.class).asEagerSingleton();
         bind(AllocationDeciders.class).toInstance(allocationDeciders);
         bind(ShardsAllocator.class).toInstance(shardsAllocator);
     }
