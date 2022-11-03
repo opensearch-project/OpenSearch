@@ -27,9 +27,7 @@ import java.util.function.Consumer;
 public class SearchBackpressureSettings {
     private static class Defaults {
         private static final long INTERVAL_MILLIS = 1000;
-
-        private static final boolean ENABLED = true;
-        private static final boolean ENFORCED = false;
+        private static final String MODE = "monitor_only";
 
         private static final double CANCELLATION_RATIO = 0.1;
         private static final double CANCELLATION_RATE = 0.003;
@@ -48,23 +46,12 @@ public class SearchBackpressureSettings {
     );
 
     /**
-     * Defines whether search backpressure is enabled or not.
+     * Defines the search backpressure mode. It can be either "disabled", "monitor_only" or "enforced".
      */
-    private volatile boolean enabled;
-    public static final Setting<Boolean> SETTING_ENABLED = Setting.boolSetting(
-        "search_backpressure.enabled",
-        Defaults.ENABLED,
-        Setting.Property.Dynamic,
-        Setting.Property.NodeScope
-    );
-
-    /**
-     * Defines whether in-flight cancellation of tasks is enabled or not.
-     */
-    private volatile boolean enforced;
-    public static final Setting<Boolean> SETTING_ENFORCED = Setting.boolSetting(
-        "search_backpressure.enforced",
-        Defaults.ENFORCED,
+    private volatile SearchBackpressureMode mode;
+    public static final Setting<String> SETTING_MODE = Setting.simpleString(
+        "search_backpressure.mode",
+        Defaults.MODE,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -133,11 +120,8 @@ public class SearchBackpressureSettings {
 
         interval = new TimeValue(SETTING_INTERVAL_MILLIS.get(settings));
 
-        enabled = SETTING_ENABLED.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(SETTING_ENABLED, this::setEnabled);
-
-        enforced = SETTING_ENFORCED.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(SETTING_ENFORCED, this::setEnforced);
+        mode = SearchBackpressureMode.fromName(SETTING_MODE.get(settings));
+        clusterSettings.addSettingsUpdateConsumer(SETTING_MODE, s -> this.setMode(SearchBackpressureMode.fromName(s)));
 
         cancellationRatio = SETTING_CANCELLATION_RATIO.get(settings);
         clusterSettings.addSettingsUpdateConsumer(SETTING_CANCELLATION_RATIO, this::setCancellationRatio);
@@ -173,20 +157,12 @@ public class SearchBackpressureSettings {
         return interval;
     }
 
-    public boolean isEnabled() {
-        return enabled;
+    public SearchBackpressureMode getMode() {
+        return mode;
     }
 
-    private void setEnabled(boolean enabled) {
-        this.enabled = enabled;
-    }
-
-    public boolean isEnforced() {
-        return enforced;
-    }
-
-    private void setEnforced(boolean enforced) {
-        this.enforced = enforced;
+    public void setMode(SearchBackpressureMode mode) {
+        this.mode = mode;
     }
 
     public double getCancellationRatio() {

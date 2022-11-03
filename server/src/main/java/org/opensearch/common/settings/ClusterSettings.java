@@ -593,8 +593,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 ClusterManagerTaskThrottler.THRESHOLD_SETTINGS,
 
                 // Settings related to search backpressure
-                SearchBackpressureSettings.SETTING_ENABLED,
-                SearchBackpressureSettings.SETTING_ENFORCED,
+                SearchBackpressureSettings.SETTING_MODE,
                 SearchBackpressureSettings.SETTING_CANCELLATION_RATIO,
                 SearchBackpressureSettings.SETTING_CANCELLATION_RATE,
                 SearchBackpressureSettings.SETTING_CANCELLATION_BURST,

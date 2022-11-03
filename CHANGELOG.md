@@ -52,6 +52,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Update previous release bwc version to 2.5.0 ([#5003](https://github.com/opensearch-project/OpenSearch/pull/5003))
 - Use getParameterCount instead of getParameterTypes ([#4821](https://github.com/opensearch-project/OpenSearch/pull/4821))
 - Remote shard balancer support for searchable snapshots ([#4870](https://github.com/opensearch-project/OpenSearch/pull/4870))
+- Added search backpressure stats API ([#4932](https://github.com/opensearch-project/OpenSearch/pull/4932))
 - [Test] Add IAE test for deprecated edgeNGram analyzer name ([#5040](https://github.com/opensearch-project/OpenSearch/pull/5040))
 - Add Cluster manager task throttling framework. Cluster manager node will throttle task submission based on throttling thresholds.
   This throttling will be at task type level. Data nodes will perform retries on these throttling exception with exponential delay. (PR: [#4986](https://github.com/opensearch-project/OpenSearch/pull/4986)) ( Issue : [#479](https://github.com/opensearch-project/OpenSearch/issues/479))
