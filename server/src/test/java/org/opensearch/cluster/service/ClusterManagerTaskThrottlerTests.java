@@ -95,7 +95,7 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
 
     public void testValidateSettingsForDifferentVersion() {
         DiscoveryNode clusterManagerNode = getClusterManagerNode(Version.V_2_4_0);
-        DiscoveryNode dataNode = getDataNode(Version.V_1_0_0);
+        DiscoveryNode dataNode = getDataNode(Version.V_2_0_0);
         setState(
             clusterService,
             ClusterStateCreationUtils.state(clusterManagerNode, clusterManagerNode, new DiscoveryNode[] { clusterManagerNode, dataNode })
