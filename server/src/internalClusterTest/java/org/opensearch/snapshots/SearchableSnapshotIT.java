@@ -22,6 +22,7 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.collect.Map;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexNotFoundException;
@@ -60,6 +61,13 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         return settings;
     }
 
+    private Settings.Builder chunkedRepositorySettings() {
+        final Settings.Builder settings = Settings.builder();
+        settings.put("location", randomRepoPath()).put("compress", randomBoolean());
+        settings.put("chunk_size", 2 << 13, ByteSizeUnit.BYTES);
+        return settings;
+    }
+
     /**
      * Tests a happy path scenario for searchable snapshots by creating 2 indices,
      * taking a snapshot, restoring them as searchable snapshots.
@@ -71,8 +79,8 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         final Client client = client();
 
         internalCluster().ensureAtLeastNumDataNodes(Math.max(numReplicasIndex1, numReplicasIndex2) + 1);
-        createIndexWithDocsAndEnsureGreen(numReplicasIndex1, "test-idx-1");
-        createIndexWithDocsAndEnsureGreen(numReplicasIndex2, "test-idx-2");
+        createIndexWithDocsAndEnsureGreen(numReplicasIndex1, 100, "test-idx-1");
+        createIndexWithDocsAndEnsureGreen(numReplicasIndex2, 100, "test-idx-2");
 
         takeSnapshot(client, "test-idx-1", "test-idx-2");
         deleteIndicesAndEnsureGreen(client, "test-idx-1", "test-idx-2");
@@ -83,6 +91,28 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertDocCount("test-idx-1-copy", 100L);
         assertDocCount("test-idx-2-copy", 100L);
         assertIndexDirectoryDoesNotExist("test-idx-1-copy", "test-idx-2-copy");
+    }
+
+    /**
+     * Tests a chunked repository scenario for searchable snapshots by creating an index,
+     * taking a snapshot, restoring it as a searchable snapshot index.
+     */
+    public void testCreateSearchableSnapshotWithChunks() throws Exception {
+        final int numReplicasIndex = randomIntBetween(1, 4);
+        final String indexName = "test-idx";
+        final String restoredIndexName = indexName + "-copy";
+        final Client client = client();
+
+        Settings.Builder repositorySettings = chunkedRepositorySettings();
+
+        internalCluster().ensureAtLeastNumSearchAndDataNodes(numReplicasIndex + 1);
+        createIndexWithDocsAndEnsureGreen(numReplicasIndex, 1000, indexName);
+        takeSnapshot(client, repositorySettings, indexName);
+
+        deleteIndicesAndEnsureGreen(client, indexName);
+        restoreSnapshotAndEnsureGreen(client);
+
+        assertDocCount(restoredIndexName, 1000L);
     }
 
     /**
@@ -97,7 +127,7 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         final Client client = client();
 
         internalCluster().ensureAtLeastNumSearchAndDataNodes(numReplicasIndex + 1);
-        createIndexWithDocsAndEnsureGreen(numReplicasIndex, indexName);
+        createIndexWithDocsAndEnsureGreen(numReplicasIndex, 100, indexName);
         takeSnapshot(client, indexName);
 
         restoreSnapshotAndEnsureGreen(client);
@@ -118,7 +148,7 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         final Client client = client();
 
         internalCluster().ensureAtLeastNumDataNodes(numReplicasIndex + 1);
-        createIndexWithDocsAndEnsureGreen(numReplicasIndex, indexName);
+        createIndexWithDocsAndEnsureGreen(numReplicasIndex, 100, indexName);
 
         takeSnapshot(client, indexName);
         deleteIndicesAndEnsureGreen(client, indexName);
@@ -155,7 +185,7 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         final String restoredIndexName = indexName + "-copy";
         final Client client = client();
 
-        createIndexWithDocsAndEnsureGreen(0, indexName);
+        createIndexWithDocsAndEnsureGreen(0, 100, indexName);
         takeSnapshot(client, indexName);
         deleteIndicesAndEnsureGreen(client, indexName);
 
@@ -172,7 +202,7 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         );
     }
 
-    private void createIndexWithDocsAndEnsureGreen(int numReplicasIndex, String indexName) throws InterruptedException {
+    private void createIndexWithDocsAndEnsureGreen(int numReplicasIndex, int numOfDocs, String indexName) throws InterruptedException {
         createIndex(
             indexName,
             Settings.builder()
@@ -182,13 +212,21 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         );
         ensureGreen();
 
-        indexRandomDocs(indexName, 100);
+        indexRandomDocs(indexName, numOfDocs);
         ensureGreen();
     }
 
     private void takeSnapshot(Client client, String... indices) {
+        takeSnapshot(client, null, indices);
+    }
+
+    private void takeSnapshot(Client client, Settings.Builder repositorySettings, String... indices) {
         logger.info("--> Create a repository");
-        createRepository("test-repo", "fs");
+        if (repositorySettings == null) {
+            createRepository("test-repo", "fs");
+        } else {
+            createRepository("test-repo", "fs", repositorySettings);
+        }
         logger.info("--> Take a snapshot");
         final CreateSnapshotResponse createSnapshotResponse = client.admin()
             .cluster()
