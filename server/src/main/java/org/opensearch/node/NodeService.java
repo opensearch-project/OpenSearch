@@ -53,6 +53,7 @@ import org.opensearch.monitor.MonitorService;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.aggregations.support.AggregationUsageService;
+import org.opensearch.search.backpressure.SearchBackpressureService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -81,6 +82,7 @@ public class NodeService implements Closeable {
     private final SearchTransportService searchTransportService;
     private final IndexingPressureService indexingPressureService;
     private final AggregationUsageService aggregationUsageService;
+    private final SearchBackpressureService searchBackpressureService;
 
     private final Discovery discovery;
 
@@ -101,7 +103,8 @@ public class NodeService implements Closeable {
         ResponseCollectorService responseCollectorService,
         SearchTransportService searchTransportService,
         IndexingPressureService indexingPressureService,
-        AggregationUsageService aggregationUsageService
+        AggregationUsageService aggregationUsageService,
+        SearchBackpressureService searchBackpressureService
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -119,6 +122,7 @@ public class NodeService implements Closeable {
         this.searchTransportService = searchTransportService;
         this.indexingPressureService = indexingPressureService;
         this.aggregationUsageService = aggregationUsageService;
+        this.searchBackpressureService = searchBackpressureService;
         clusterService.addStateApplier(ingestService);
     }
 
@@ -169,7 +173,8 @@ public class NodeService implements Closeable {
         boolean adaptiveSelection,
         boolean scriptCache,
         boolean indexingPressure,
-        boolean shardIndexingPressure
+        boolean shardIndexingPressure,
+        boolean searchBackpressure
     ) {
         // for indices stats we want to include previous allocated shards stats as well (it will
         // only be applied to the sensible ones to use, like refresh/merge/flush/indexing stats)
@@ -191,7 +196,8 @@ public class NodeService implements Closeable {
             adaptiveSelection ? responseCollectorService.getAdaptiveStats(searchTransportService.getPendingSearchRequests()) : null,
             scriptCache ? scriptService.cacheStats() : null,
             indexingPressure ? this.indexingPressureService.nodeStats() : null,
-            shardIndexingPressure ? this.indexingPressureService.shardStats(indices) : null
+            shardIndexingPressure ? this.indexingPressureService.shardStats(indices) : null,
+            searchBackpressure ? this.searchBackpressureService.nodeStats() : null
         );
     }
 
@@ -201,6 +207,10 @@ public class NodeService implements Closeable {
 
     public MonitorService getMonitorService() {
         return monitorService;
+    }
+
+    public SearchBackpressureService getSearchBackpressureService() {
+        return searchBackpressureService;
     }
 
     @Override
