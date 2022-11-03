@@ -203,7 +203,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * {@link BlobStoreIndexShardSnapshots}. This is the case for files for which {@link StoreFileMetadata#hashEqualsContents()} is
      * {@code true}.
      */
-    private static final String VIRTUAL_DATA_BLOB_PREFIX = "v__";
+    public static final String VIRTUAL_DATA_BLOB_PREFIX = "v__";
 
     /**
      * When set to {@code true}, {@link #bestEffortConsistency} will be set to {@code true} and concurrent modifications of the repository
