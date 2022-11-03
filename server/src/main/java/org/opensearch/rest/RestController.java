@@ -35,6 +35,7 @@ package org.opensearch.rest;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.shiro.authc.AuthenticationException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.authn.AuthenticationToken;
 import org.opensearch.authn.HttpHeaderToken;
@@ -402,7 +403,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
                     }
                 } else {
                     // Authenticate incoming request
-                    authenticate(request, channel, client);
+                    authenticate(request, channel);
+
                     // TODO: see if we need to break the flow here in future in case authentication fails
 
                     dispatchRequest(request, channel, handler);
@@ -603,10 +605,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * Authenticates the subject of the incoming REST request based on the auth header
      * @param request the request whose subject is to be authenticated
      * @param channel the channel to send the response on
-     * @param client the client to be used
      * @throws IOException when an exception is raised writing response to channel
      */
-    private void authenticate(RestRequest request, RestChannel channel, NodeClient client) throws IOException {
+    private void authenticate(RestRequest request, RestChannel channel) throws IOException {
 
         final Optional<String> authHeader = request.getHeaders()
             .getOrDefault(HttpHeaderToken.HEADER_NAME, Collections.emptyList())
@@ -625,13 +626,20 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 headerToken = new HttpHeaderToken(authHeader.get());
                 subject = Identity.getAuthManager().getSubject();
                 subject.login(headerToken);
-            } catch (final Exception e) {
-                final BytesRestResponse bytesRestResponse = BytesRestResponse.createSimpleErrorResponse(
-                    channel,
-                    RestStatus.UNAUTHORIZED,
-                    e.getMessage()
-                );
-                channel.sendResponse(bytesRestResponse);
+                logger.info("Authentication successful");
+            } catch (final AuthenticationException ae) {
+                logger.info("Authentication finally failed: {}", ae.getMessage());
+
+                /*
+                 TODO: For now don't send response if authentication fails, but this should be addressed soon
+                 TODO: If we uncomment this and authentication fails then cluster dies
+                 final BytesRestResponse bytesRestResponse = BytesRestResponse.createSimpleErrorResponse(
+                 channel,
+                 RestStatus.UNAUTHORIZED,
+                 ae.getMessage()
+                 );
+                 channel.sendResponse(bytesRestResponse);
+                */
             }
         }
     }

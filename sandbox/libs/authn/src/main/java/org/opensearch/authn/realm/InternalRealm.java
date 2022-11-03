@@ -98,7 +98,7 @@ public class InternalRealm extends AuthenticatingRealm {
                 return sai;
             } else {
                 // Bad password
-                throw new IncorrectCredentialsException();
+                throw new IncorrectCredentialsException("Incorrect credentials");
             }
         }
         // Don't know what to do with this token
