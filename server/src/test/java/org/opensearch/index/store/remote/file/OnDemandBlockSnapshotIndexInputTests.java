@@ -143,6 +143,9 @@ public class OnDemandBlockSnapshotIndexInputTests extends OpenSearchTestCase {
 
         doAnswer(invocation -> {
             BlobFetchRequest blobFetchRequest = invocation.getArgument(0);
+            if (blobFetchRequest.getLength() <= 0) {
+                throw new IllegalArgumentException("limit must be non-negative");
+            }
             return CompletableFuture.completedFuture(
                 blobFetchRequest.getDirectory().openInput(blobFetchRequest.getFileName(), IOContext.READ)
             );
