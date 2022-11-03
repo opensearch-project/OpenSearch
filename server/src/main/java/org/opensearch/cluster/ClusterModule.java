@@ -49,6 +49,7 @@ import org.opensearch.cluster.metadata.MetadataIndexTemplateService;
 import org.opensearch.cluster.metadata.MetadataMappingService;
 import org.opensearch.cluster.metadata.MetadataUpdateSettingsService;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
+import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
 import org.opensearch.cluster.routing.DelayedAllocationService;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.routing.allocation.ExistingShardsAllocator;
@@ -193,6 +194,7 @@ public class ClusterModule extends AbstractModule {
             ComposableIndexTemplateMetadata::readDiffFrom
         );
         registerMetadataCustom(entries, DataStreamMetadata.TYPE, DataStreamMetadata::new, DataStreamMetadata::readDiffFrom);
+        registerMetadataCustom(entries, WeightedRoutingMetadata.TYPE, WeightedRoutingMetadata::new, WeightedRoutingMetadata::readDiffFrom);
         registerMetadataCustom(
             entries,
             DecommissionAttributeMetadata.TYPE,
@@ -280,6 +282,13 @@ public class ClusterModule extends AbstractModule {
                 Metadata.Custom.class,
                 new ParseField(DataStreamMetadata.TYPE),
                 DataStreamMetadata::fromXContent
+            )
+        );
+        entries.add(
+            new NamedXContentRegistry.Entry(
+                Metadata.Custom.class,
+                new ParseField(WeightedRoutingMetadata.TYPE),
+                WeightedRoutingMetadata::fromXContent
             )
         );
         entries.add(

@@ -122,6 +122,18 @@ import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsAction;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsRequestBuilder;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.delete.ClusterDeleteWeightedRoutingAction;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.delete.ClusterDeleteWeightedRoutingRequest;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.delete.ClusterDeleteWeightedRoutingRequestBuilder;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.delete.ClusterDeleteWeightedRoutingResponse;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.get.ClusterGetWeightedRoutingAction;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.get.ClusterGetWeightedRoutingRequest;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.get.ClusterGetWeightedRoutingRequestBuilder;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.get.ClusterGetWeightedRoutingResponse;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterAddWeightedRoutingAction;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingRequest;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingRequestBuilder;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingResponse;
 import org.opensearch.action.admin.cluster.snapshots.clone.CloneSnapshotAction;
 import org.opensearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequest;
 import org.opensearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequestBuilder;
@@ -1282,6 +1294,60 @@ public abstract class AbstractClient implements Client {
         @Override
         public ActionFuture<AcknowledgedResponse> deleteDanglingIndex(DeleteDanglingIndexRequest request) {
             return execute(DeleteDanglingIndexAction.INSTANCE, request);
+        }
+
+        @Override
+        public ActionFuture<ClusterPutWeightedRoutingResponse> putWeightedRouting(ClusterPutWeightedRoutingRequest request) {
+            return execute(ClusterAddWeightedRoutingAction.INSTANCE, request);
+        }
+
+        @Override
+        public void putWeightedRouting(
+            ClusterPutWeightedRoutingRequest request,
+            ActionListener<ClusterPutWeightedRoutingResponse> listener
+        ) {
+            execute(ClusterAddWeightedRoutingAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public ClusterPutWeightedRoutingRequestBuilder prepareWeightedRouting() {
+            return new ClusterPutWeightedRoutingRequestBuilder(this, ClusterAddWeightedRoutingAction.INSTANCE);
+        }
+
+        @Override
+        public ActionFuture<ClusterGetWeightedRoutingResponse> getWeightedRouting(ClusterGetWeightedRoutingRequest request) {
+            return execute(ClusterGetWeightedRoutingAction.INSTANCE, request);
+        }
+
+        @Override
+        public void getWeightedRouting(
+            ClusterGetWeightedRoutingRequest request,
+            ActionListener<ClusterGetWeightedRoutingResponse> listener
+        ) {
+            execute(ClusterGetWeightedRoutingAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public ClusterGetWeightedRoutingRequestBuilder prepareGetWeightedRouting() {
+            return new ClusterGetWeightedRoutingRequestBuilder(this, ClusterGetWeightedRoutingAction.INSTANCE);
+        }
+
+        @Override
+        public ActionFuture<ClusterDeleteWeightedRoutingResponse> deleteWeightedRouting(ClusterDeleteWeightedRoutingRequest request) {
+            return execute(ClusterDeleteWeightedRoutingAction.INSTANCE, request);
+        }
+
+        @Override
+        public void deleteWeightedRouting(
+            ClusterDeleteWeightedRoutingRequest request,
+            ActionListener<ClusterDeleteWeightedRoutingResponse> listener
+        ) {
+            execute(ClusterDeleteWeightedRoutingAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public ClusterDeleteWeightedRoutingRequestBuilder prepareDeleteWeightedRouting() {
+            return new ClusterDeleteWeightedRoutingRequestBuilder(this, ClusterDeleteWeightedRoutingAction.INSTANCE);
         }
 
         @Override

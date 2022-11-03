@@ -815,6 +815,14 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         return custom(IndexGraveyard.TYPE);
     }
 
+    /**
+     * *
+     * @return The weighted routing metadata for search requests
+     */
+    public WeightedRoutingMetadata weightedRoutingMetadata() {
+        return custom(WeightedRoutingMetadata.TYPE);
+    }
+
     public <T extends Custom> T custom(String type) {
         return (T) customs.get(type);
     }
