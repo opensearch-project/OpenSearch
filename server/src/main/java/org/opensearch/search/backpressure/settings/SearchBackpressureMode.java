@@ -47,6 +47,6 @@ public enum SearchBackpressureMode {
                 return ENFORCED;
         }
 
-        throw new IllegalArgumentException("invalid SearchBackpressureMode: " + name);
+        throw new IllegalArgumentException("Invalid SearchBackpressureMode: " + name);
     }
 }

@@ -21,7 +21,6 @@ import org.opensearch.search.backpressure.trackers.TaskResourceUsageTracker;
 import org.opensearch.search.backpressure.trackers.TaskResourceUsageTrackerType;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
@@ -31,23 +30,27 @@ import java.util.Objects;
 public class SearchShardTaskStats implements ToXContentObject, Writeable {
     private final long cancellationCount;
     private final long limitReachedCount;
-    private final CancelledTaskStats lastCancelledTaskStats;
     private final Map<TaskResourceUsageTrackerType, TaskResourceUsageTracker.Stats> resourceUsageTrackerStats;
 
     public SearchShardTaskStats(
         long cancellationCount,
         long limitReachedCount,
-        CancelledTaskStats lastCancelledTaskStats,
         Map<TaskResourceUsageTrackerType, TaskResourceUsageTracker.Stats> resourceUsageTrackerStats
     ) {
         this.cancellationCount = cancellationCount;
         this.limitReachedCount = limitReachedCount;
-        this.lastCancelledTaskStats = lastCancelledTaskStats;
         this.resourceUsageTrackerStats = resourceUsageTrackerStats;
     }
 
     public SearchShardTaskStats(StreamInput in) throws IOException {
-        this(in.readVLong(), in.readVLong(), in.readOptionalWriteable(CancelledTaskStats::new), readResourceUsageTrackerStats(in));
+        this.cancellationCount = in.readVLong();
+        this.limitReachedCount = in.readVLong();
+
+        MapBuilder<TaskResourceUsageTrackerType, TaskResourceUsageTracker.Stats> builder = new MapBuilder<>();
+        builder.put(TaskResourceUsageTrackerType.CPU_USAGE_TRACKER, in.readOptionalWriteable(CpuUsageTracker.Stats::new));
+        builder.put(TaskResourceUsageTrackerType.HEAP_USAGE_TRACKER, in.readOptionalWriteable(HeapUsageTracker.Stats::new));
+        builder.put(TaskResourceUsageTrackerType.ELAPSED_TIME_TRACKER, in.readOptionalWriteable(ElapsedTimeTracker.Stats::new));
+        this.resourceUsageTrackerStats = builder.immutableMap();
     }
 
     @Override
@@ -63,7 +66,6 @@ public class SearchShardTaskStats implements ToXContentObject, Writeable {
         builder.startObject("cancellation_stats")
             .field("cancellation_count", cancellationCount)
             .field("cancellation_limit_reached_count", limitReachedCount)
-            .field("last_cancelled_task", lastCancelledTaskStats)
             .endObject();
 
         return builder.endObject();
@@ -73,41 +75,10 @@ public class SearchShardTaskStats implements ToXContentObject, Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(cancellationCount);
         out.writeVLong(limitReachedCount);
-        out.writeOptionalWriteable(lastCancelledTaskStats);
-        out.writeMap(resourceUsageTrackerStats, (o, type) -> o.writeString(type.getName()), (o, stats) -> stats.writeTo(o));
-    }
 
-    private static Map<TaskResourceUsageTrackerType, TaskResourceUsageTracker.Stats> readResourceUsageTrackerStats(StreamInput in)
-        throws IOException {
-        int size = in.readVInt();
-        if (size == 0) {
-            return Collections.emptyMap();
-        }
-
-        MapBuilder<TaskResourceUsageTrackerType, TaskResourceUsageTracker.Stats> builder = new MapBuilder<>();
-
-        for (int i = 0; i < size; i++) {
-            TaskResourceUsageTrackerType type = TaskResourceUsageTrackerType.fromName(in.readString());
-            TaskResourceUsageTracker.Stats stats;
-
-            switch (type) {
-                case CPU_USAGE_TRACKER:
-                    stats = new CpuUsageTracker.Stats(in);
-                    break;
-                case HEAP_USAGE_TRACKER:
-                    stats = new HeapUsageTracker.Stats(in);
-                    break;
-                case ELAPSED_TIME_TRACKER:
-                    stats = new ElapsedTimeTracker.Stats(in);
-                    break;
-                default:
-                    throw new IllegalArgumentException("invalid TaskResourceUsageTrackerType: " + type);
-            }
-
-            builder.put(type, stats);
-        }
-
-        return builder.immutableMap();
+        out.writeOptionalWriteable(resourceUsageTrackerStats.get(TaskResourceUsageTrackerType.CPU_USAGE_TRACKER));
+        out.writeOptionalWriteable(resourceUsageTrackerStats.get(TaskResourceUsageTrackerType.HEAP_USAGE_TRACKER));
+        out.writeOptionalWriteable(resourceUsageTrackerStats.get(TaskResourceUsageTrackerType.ELAPSED_TIME_TRACKER));
     }
 
     @Override
@@ -117,12 +88,11 @@ public class SearchShardTaskStats implements ToXContentObject, Writeable {
         SearchShardTaskStats that = (SearchShardTaskStats) o;
         return cancellationCount == that.cancellationCount
             && limitReachedCount == that.limitReachedCount
-            && Objects.equals(lastCancelledTaskStats, that.lastCancelledTaskStats)
             && resourceUsageTrackerStats.equals(that.resourceUsageTrackerStats);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(cancellationCount, limitReachedCount, lastCancelledTaskStats, resourceUsageTrackerStats);
+        return Objects.hash(cancellationCount, limitReachedCount, resourceUsageTrackerStats);
     }
 }

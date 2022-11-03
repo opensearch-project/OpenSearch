@@ -8,10 +8,7 @@
 
 package org.opensearch.search.backpressure;
 
-import org.opensearch.search.backpressure.stats.CancelledTaskStats;
-
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Tracks the current state of task completions and cancellations.
@@ -33,11 +30,6 @@ public class SearchBackpressureState {
      * The number of times task cancellation limit was reached.
      */
     private final AtomicLong limitReachedCount = new AtomicLong();
-
-    /**
-     * Usage stats for the last cancelled task.
-     */
-    private final AtomicReference<CancelledTaskStats> lastCancelledTaskStats = new AtomicReference<>();
 
     public long getCompletionCount() {
         return completionCount.get();
@@ -61,13 +53,5 @@ public class SearchBackpressureState {
 
     long incrementLimitReachedCount() {
         return limitReachedCount.incrementAndGet();
-    }
-
-    public CancelledTaskStats getLastCancelledTaskStats() {
-        return lastCancelledTaskStats.get();
-    }
-
-    public void setLastCancelledTaskStats(CancelledTaskStats stats) {
-        lastCancelledTaskStats.set(stats);
     }
 }

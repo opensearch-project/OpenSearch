@@ -36,6 +36,6 @@ public enum TaskResourceUsageTrackerType {
                 return ELAPSED_TIME_TRACKER;
         }
 
-        throw new IllegalArgumentException("invalid TaskResourceUsageTrackerType: " + name);
+        throw new IllegalArgumentException("Invalid TaskResourceUsageTrackerType: " + name);
     }
 }

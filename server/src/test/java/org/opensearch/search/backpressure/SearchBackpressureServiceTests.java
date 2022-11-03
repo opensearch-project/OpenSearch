@@ -18,7 +18,6 @@ import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
 import org.opensearch.search.backpressure.settings.SearchShardTaskSettings;
 import org.opensearch.search.backpressure.trackers.NodeDuressTracker;
 import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.search.backpressure.stats.CancelledTaskStats;
 import org.opensearch.search.backpressure.stats.SearchBackpressureStats;
 import org.opensearch.search.backpressure.stats.SearchShardTaskStats;
 import org.opensearch.search.backpressure.trackers.TaskResourceUsageTracker;
@@ -227,12 +226,7 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
 
         // Verify search backpressure stats.
         SearchBackpressureStats expectedStats = new SearchBackpressureStats(
-            new SearchShardTaskStats(
-                15,
-                3,
-                new CancelledTaskStats(500, 500, 1000000000),
-                Map.of(TaskResourceUsageTrackerType.CPU_USAGE_TRACKER, new MockStats(15))
-            ),
+            new SearchShardTaskStats(15, 3, Map.of(TaskResourceUsageTrackerType.CPU_USAGE_TRACKER, new MockStats(15))),
             SearchBackpressureMode.ENFORCED
         );
         SearchBackpressureStats actualStats = service.nodeStats();

@@ -18,7 +18,6 @@ import org.opensearch.monitor.jvm.JvmStats;
 import org.opensearch.monitor.process.ProcessProbe;
 import org.opensearch.search.backpressure.settings.SearchBackpressureMode;
 import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
-import org.opensearch.search.backpressure.stats.CancelledTaskStats;
 import org.opensearch.search.backpressure.stats.SearchBackpressureStats;
 import org.opensearch.search.backpressure.stats.SearchShardTaskStats;
 import org.opensearch.search.backpressure.trackers.CpuUsageTracker;
@@ -144,7 +143,8 @@ public class SearchBackpressureService extends AbstractLifecycleComponent
 
         for (TaskCancellation taskCancellation : getTaskCancellations(searchShardTasks)) {
             logger.debug(
-                "cancelling task [{}] due to high resource consumption [{}]",
+                "[{} mode] cancelling task [{}] due to high resource consumption [{}]",
+                mode.getName(),
                 taskCancellation.getTask().getId(),
                 taskCancellation.getReasonString()
             );
@@ -229,7 +229,6 @@ public class SearchBackpressureService extends AbstractLifecycleComponent
 
         if (task instanceof SearchShardTask) {
             callbacks.add(state::incrementCancellationCount);
-            callbacks.add(() -> state.setLastCancelledTaskStats(CancelledTaskStats.from(task, timeNanosSupplier)));
         }
 
         return new TaskCancellation(task, reasons, callbacks);
@@ -327,7 +326,6 @@ public class SearchBackpressureService extends AbstractLifecycleComponent
         SearchShardTaskStats searchShardTaskStats = new SearchShardTaskStats(
             state.getCancellationCount(),
             state.getLimitReachedCount(),
-            state.getLastCancelledTaskStats(),
             taskResourceUsageTrackers.stream()
                 .collect(Collectors.toUnmodifiableMap(t -> TaskResourceUsageTrackerType.fromName(t.name()), t -> t.stats(searchShardTasks)))
         );
