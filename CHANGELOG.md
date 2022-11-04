@@ -62,7 +62,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
     - on-boarding of tasks([#4542](https://github.com/opensearch-project/OpenSearch/pull/4542))
     - Integs ([4588](https://github.com/opensearch-project/OpenSearch/pull/4588))
 - Prevent deletion of snapshots that are backing searchable snapshot indexes ([#5069](https://github.com/opensearch-project/OpenSearch/pull/5069))
-
+- Integration tests for searchable snapshots ([#5048](https://github.com/opensearch-project/OpenSearch/pull/5048))
 ### Dependencies
 - Bumps `log4j-core` from 2.18.0 to 2.19.0
 - Bumps `reactor-netty-http` from 1.0.18 to 1.0.23
@@ -130,6 +130,8 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Refactored BalancedAllocator.Balancer to LocalShardsBalancer ([#4761](https://github.com/opensearch-project/OpenSearch/pull/4761))
 - Fail weight update when decommission ongoing and fail decommission when attribute not weighed away ([#4839](https://github.com/opensearch-project/OpenSearch/pull/4839))
 - Skip SymbolicLinkPreservingTarIT when running on Windows ([#5023](https://github.com/opensearch-project/OpenSearch/pull/5023))
+- Change the output error message back to use OpenSearchException in the cause chain. ([#5081](https://github.com/opensearch-project/OpenSearch/pull/5081))
+
 ### Deprecated
 ### Removed
 - Remove deprecated code to add node name into log pattern of log4j property file ([#4568](https://github.com/opensearch-project/OpenSearch/pull/4568))
@@ -207,7 +209,8 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Backport failures for merge conflicts on CHANGELOG.md file ([#4977](https://github.com/opensearch-project/OpenSearch/pull/4977))
 - Remove gradle-check dependency on precommit [#5027](https://github.com/opensearch-project/OpenSearch/pull/5027)
 - Fix version check for 2.x release for awareness attribute decommission([#5034](https://github.com/opensearch-project/OpenSearch/pull/5034))
-
+- Fix flaky test ResourceAwareTasksTests on Windows ([#5077](https://github.com/opensearch-project/OpenSearch/pull/5077))
+- Length calculation for block based fetching ([#5055](https://github.com/opensearch-project/OpenSearch/pull/5055))
 ### Security
 - CVE-2022-25857 org.yaml:snakeyaml DOS vulnerability ([#4341](https://github.com/opensearch-project/OpenSearch/pull/4341))
 
