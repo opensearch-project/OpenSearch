@@ -10,10 +10,14 @@ package org.opensearch.authn.noop;
 
 import java.security.Principal;
 import java.util.Objects;
+import java.util.stream.Collectors;
+import java.util.List;
 
 import org.opensearch.authn.tokens.AuthenticationToken;
 import org.opensearch.authn.Subject;
 import org.opensearch.authn.Principals;
+import org.opensearch.authn.Permission;
+import org.opensearch.authn.UnauthorizedException;
 
 /**
  * Implementation of subject that is always authenticated
@@ -53,5 +57,11 @@ public class NoopSubject implements Subject {
     @Override
     public void login(AuthenticationToken authenticationToken) {
         // Do nothing as noop subject is always logged in
+    }
+
+    @Override
+    public UnauthorizedException checkPermission(final List<String> permissions) {
+        System.err.println("Check for permission: " + permissions.stream().collect(Collectors.joining(", ")));
+        return null;
     }
 }

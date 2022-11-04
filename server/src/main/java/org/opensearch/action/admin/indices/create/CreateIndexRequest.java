@@ -65,6 +65,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.List;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
 import static org.opensearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
@@ -152,6 +153,14 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             validationException = addValidationError("index is missing", validationException);
         }
         return validationException;
+    }
+
+    @Override
+    public List<String> requiredPermissions() {
+        return List.of(
+            "opensearch.engine.index.create",
+            "opensearch.engine.index.create." + this.index
+        );
     }
 
     @Override

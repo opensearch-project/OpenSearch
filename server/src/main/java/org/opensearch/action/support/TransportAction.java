@@ -41,12 +41,17 @@ import org.opensearch.action.ActionResponse;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.identity.Identity;
+import org.opensearch.authn.Subject;
+import org.opensearch.authn.Permission;
+import org.opensearch.authn.UnauthorizedException;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskCancelledException;
 import org.opensearch.tasks.TaskId;
 import org.opensearch.tasks.TaskListener;
 import org.opensearch.tasks.TaskManager;
 
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -179,6 +184,14 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
             listener.onFailure(validationException);
             return;
         }
+
+        final Subject currentSubject = Identity.getAuthManager().getSubject();
+        final UnauthorizedException unauthorizedException = currentSubject.checkPermission(request.requiredPermissions());
+        if (unauthorizedException != null) {
+            listener.onFailure(unauthorizedException);
+            return;
+        }
+
 
         if (task != null && request.getShouldStoreResult()) {
             listener = new TaskResultStoringActionListener<>(taskManager, task, listener);
