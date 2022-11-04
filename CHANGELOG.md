@@ -126,6 +126,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Renamed flaky tests ([#4935](https://github.com/opensearch-project/OpenSearch/pull/4935))
 - Remote shard balancer support for searchable snapshots ([#5028](https://github.com/opensearch-project/OpenSearch/pull/5028))
 - Implement Searchable Snapshot using OnDemandBlockIndexInput ([#4892](https://github.com/opensearch-project/OpenSearch/pull/4892))
+- Integration tests for searchable snapshots ([#5068](https://github.com/opensearch-project/OpenSearch/pull/5068))
 ### Dependencies
 - Update Jackson Databind to 2.13.4.2 (addressing CVE-2022-42003) ([#4781](https://github.com/opensearch-project/OpenSearch/pull/4781))
 - Install and configure Log4j JUL Adapter for Lucene 9.4 ([#4754](https://github.com/opensearch-project/OpenSearch/pull/4754))
@@ -156,7 +157,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - [Segment Replication] Fix bug of replica shard's translog not purging on index flush when segment replication is enabled ([4975](https://github.com/opensearch-project/OpenSearch/pull/4975))
 - Fix bug in SlicedInputStream with zero length ([#4863](https://github.com/opensearch-project/OpenSearch/pull/4863))
 - Fixing PIT flaky tests ([4632](https://github.com/opensearch-project/OpenSearch/pull/4632))
--
+- Length calculation for block based fetching ([#5068](https://github.com/opensearch-project/OpenSearch/pull/5068))
 
 ### Security
 
