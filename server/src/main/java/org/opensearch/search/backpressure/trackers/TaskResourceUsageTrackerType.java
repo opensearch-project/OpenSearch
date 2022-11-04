@@ -25,4 +25,17 @@ public enum TaskResourceUsageTrackerType {
     public String getName() {
         return name;
     }
+
+    public static TaskResourceUsageTrackerType fromName(String name) {
+        switch (name) {
+            case "cpu_usage_tracker":
+                return CPU_USAGE_TRACKER;
+            case "heap_usage_tracker":
+                return HEAP_USAGE_TRACKER;
+            case "elapsed_time_tracker":
+                return ELAPSED_TIME_TRACKER;
+        }
+
+        throw new IllegalArgumentException("Invalid TaskResourceUsageTrackerType: " + name);
+    }
 }

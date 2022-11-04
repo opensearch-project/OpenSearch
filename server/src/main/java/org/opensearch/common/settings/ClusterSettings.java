@@ -91,6 +91,7 @@ import org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDe
 import org.opensearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.opensearch.cluster.service.ClusterApplierService;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterManagerService;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.network.NetworkModule;
@@ -589,10 +590,10 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 IndexingPressure.MAX_INDEXING_BYTES,
                 TaskResourceTrackingService.TASK_RESOURCE_TRACKING_ENABLED,
                 TaskManager.TASK_RESOURCE_CONSUMERS_ENABLED,
+                ClusterManagerTaskThrottler.THRESHOLD_SETTINGS,
 
                 // Settings related to search backpressure
-                SearchBackpressureSettings.SETTING_ENABLED,
-                SearchBackpressureSettings.SETTING_ENFORCED,
+                SearchBackpressureSettings.SETTING_MODE,
                 SearchBackpressureSettings.SETTING_CANCELLATION_RATIO,
                 SearchBackpressureSettings.SETTING_CANCELLATION_RATE,
                 SearchBackpressureSettings.SETTING_CANCELLATION_BURST,

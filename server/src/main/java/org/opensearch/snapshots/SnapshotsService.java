@@ -77,6 +77,8 @@ import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.service.ClusterManagerTaskKeys;
+import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
@@ -179,6 +181,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     private final OngoingRepositoryOperations repositoryOperations = new OngoingRepositoryOperations();
 
+    private final ClusterManagerTaskThrottler.ThrottlingKey createSnapshotTaskKey;
+    private final ClusterManagerTaskThrottler.ThrottlingKey deleteSnapshotTaskKey;
+    private static ClusterManagerTaskThrottler.ThrottlingKey updateSnapshotStateTaskKey;
+
     /**
      * Setting that specifies the maximum number of allowed concurrent snapshot create and delete operations in the
      * cluster state. The number of concurrent operations in a cluster state is defined as the sum of the sizes of
@@ -223,6 +229,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             clusterService.getClusterSettings()
                 .addSettingsUpdateConsumer(MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING, i -> maxConcurrentOperations = i);
         }
+
+        // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
+        createSnapshotTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.CREATE_SNAPSHOT_KEY, true);
+        deleteSnapshotTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.DELETE_SNAPSHOT_KEY, true);
+        updateSnapshotStateTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.UPDATE_SNAPSHOT_STATE_KEY, true);
     }
 
     /**
@@ -352,6 +363,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             public void onFailure(String source, Exception e) {
                 logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to create snapshot", repositoryName, snapshotName), e);
                 listener.onFailure(e);
+            }
+
+            @Override
+            public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
+                return createSnapshotTaskKey;
             }
 
             @Override
@@ -1789,6 +1805,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             }
 
             @Override
+            public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
+                return deleteSnapshotTaskKey;
+            }
+
+            @Override
             public void onFailure(String source, Exception e) {
                 listener.onFailure(e);
             }
@@ -2698,7 +2719,20 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      *
      * Package private to allow for tests.
      */
-    static final ClusterStateTaskExecutor<ShardSnapshotUpdate> SHARD_STATE_EXECUTOR = (currentState, tasks) -> {
+    static final ClusterStateTaskExecutor<ShardSnapshotUpdate> SHARD_STATE_EXECUTOR = new ClusterStateTaskExecutor<ShardSnapshotUpdate>() {
+        @Override
+        public ClusterTasksResult<ShardSnapshotUpdate> execute(ClusterState currentState, List<ShardSnapshotUpdate> tasks)
+            throws Exception {
+            return shardStateExecutor.execute(currentState, tasks);
+        }
+
+        @Override
+        public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
+            return updateSnapshotStateTaskKey;
+        }
+    };
+
+    static final ClusterStateTaskExecutor<ShardSnapshotUpdate> shardStateExecutor = (currentState, tasks) -> {
         int changedCount = 0;
         int startedCount = 0;
         final List<SnapshotsInProgress.Entry> entries = new ArrayList<>();

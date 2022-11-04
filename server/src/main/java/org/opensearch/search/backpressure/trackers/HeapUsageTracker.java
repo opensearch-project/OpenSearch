@@ -9,13 +9,19 @@
 package org.opensearch.search.backpressure.trackers;
 
 import org.opensearch.common.settings.Setting;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.util.MovingAverage;
 import org.opensearch.monitor.jvm.JvmStats;
 import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
+import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskCancellation;
 
+import java.io.IOException;
+import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -144,5 +150,67 @@ public class HeapUsageTracker extends TaskResourceUsageTracker {
     public void setHeapMovingAverageWindowSize(int heapMovingAverageWindowSize) {
         this.heapMovingAverageWindowSize = heapMovingAverageWindowSize;
         this.movingAverageReference.set(new MovingAverage(heapMovingAverageWindowSize));
+    }
+
+    @Override
+    public TaskResourceUsageTracker.Stats stats(List<? extends Task> activeTasks) {
+        long currentMax = activeTasks.stream().mapToLong(t -> t.getTotalResourceStats().getMemoryInBytes()).max().orElse(0);
+        long currentAvg = (long) activeTasks.stream().mapToLong(t -> t.getTotalResourceStats().getMemoryInBytes()).average().orElse(0);
+        return new Stats(getCancellations(), currentMax, currentAvg, (long) movingAverageReference.get().getAverage());
+    }
+
+    /**
+     * Stats related to HeapUsageTracker.
+     */
+    public static class Stats implements TaskResourceUsageTracker.Stats {
+        private final long cancellationCount;
+        private final long currentMax;
+        private final long currentAvg;
+        private final long rollingAvg;
+
+        public Stats(long cancellationCount, long currentMax, long currentAvg, long rollingAvg) {
+            this.cancellationCount = cancellationCount;
+            this.currentMax = currentMax;
+            this.currentAvg = currentAvg;
+            this.rollingAvg = rollingAvg;
+        }
+
+        public Stats(StreamInput in) throws IOException {
+            this(in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong());
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder.startObject()
+                .field("cancellation_count", cancellationCount)
+                .humanReadableField("current_max_bytes", "current_max", new ByteSizeValue(currentMax))
+                .humanReadableField("current_avg_bytes", "current_avg", new ByteSizeValue(currentAvg))
+                .humanReadableField("rolling_avg_bytes", "rolling_avg", new ByteSizeValue(rollingAvg))
+                .endObject();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVLong(cancellationCount);
+            out.writeVLong(currentMax);
+            out.writeVLong(currentAvg);
+            out.writeVLong(rollingAvg);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Stats stats = (Stats) o;
+            return cancellationCount == stats.cancellationCount
+                && currentMax == stats.currentMax
+                && currentAvg == stats.currentAvg
+                && rollingAvg == stats.rollingAvg;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(cancellationCount, currentMax, currentAvg, rollingAvg);
+        }
     }
 }

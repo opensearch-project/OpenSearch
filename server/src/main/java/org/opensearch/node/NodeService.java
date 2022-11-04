@@ -173,7 +173,8 @@ public class NodeService implements Closeable {
         boolean adaptiveSelection,
         boolean scriptCache,
         boolean indexingPressure,
-        boolean shardIndexingPressure
+        boolean shardIndexingPressure,
+        boolean searchBackpressure
     ) {
         // for indices stats we want to include previous allocated shards stats as well (it will
         // only be applied to the sensible ones to use, like refresh/merge/flush/indexing stats)
@@ -195,7 +196,8 @@ public class NodeService implements Closeable {
             adaptiveSelection ? responseCollectorService.getAdaptiveStats(searchTransportService.getPendingSearchRequests()) : null,
             scriptCache ? scriptService.cacheStats() : null,
             indexingPressure ? this.indexingPressureService.nodeStats() : null,
-            shardIndexingPressure ? this.indexingPressureService.shardStats(indices) : null
+            shardIndexingPressure ? this.indexingPressureService.shardStats(indices) : null,
+            searchBackpressure ? this.searchBackpressureService.nodeStats() : null
         );
     }
 

@@ -4,6 +4,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
 ### Added
+- Add fix for auto expand replica validation ([#4994](https://github.com/opensearch-project/OpenSearch/pull/4994))
 - Add support for s390x architecture ([#4001](https://github.com/opensearch-project/OpenSearch/pull/4001))
 - Github workflow for changelog verification ([#4085](https://github.com/opensearch-project/OpenSearch/pull/4085))
 - Point in time rest layer changes for create and delete PIT API ([#4064](https://github.com/opensearch-project/OpenSearch/pull/4064))
@@ -30,6 +31,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Update GeoGrid base class access modifier to support extensibility ([#4572](https://github.com/opensearch-project/OpenSearch/pull/4572))
 - Add a new node role 'search' which is dedicated to provide search capability ([#4689](https://github.com/opensearch-project/OpenSearch/pull/4689))
 - Introduce experimental searchable snapshot API ([#4680](https://github.com/opensearch-project/OpenSearch/pull/4680))
+- Implement Searchable Snapshot using OnDemandBlockIndexInput phase 1 ([#4892](https://github.com/opensearch-project/OpenSearch/pull/4892))
 - Recommissioning of zone. REST layer support. ([#4624](https://github.com/opensearch-project/OpenSearch/pull/4604))
 - Make searchable snapshot indexes read-only but allow deletion ([#4764](https://github.com/opensearch-project/OpenSearch/pull/4764))
 - Added in-flight cancellation of SearchShardTask based on resource consumption ([#4565](https://github.com/opensearch-project/OpenSearch/pull/4565))
@@ -48,6 +50,17 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Added resource usage trackers for in-flight cancellation of SearchShardTask ([#4805](https://github.com/opensearch-project/OpenSearch/pull/4805))
 - Renamed flaky tests ([#4912](https://github.com/opensearch-project/OpenSearch/pull/4912))
 - Update previous release bwc version to 2.5.0 ([#5003](https://github.com/opensearch-project/OpenSearch/pull/5003))
+- Use getParameterCount instead of getParameterTypes ([#4821](https://github.com/opensearch-project/OpenSearch/pull/4821))
+- Remote shard balancer support for searchable snapshots ([#4870](https://github.com/opensearch-project/OpenSearch/pull/4870))
+- Added search backpressure stats API ([#4932](https://github.com/opensearch-project/OpenSearch/pull/4932))
+- [Test] Add IAE test for deprecated edgeNGram analyzer name ([#5040](https://github.com/opensearch-project/OpenSearch/pull/5040))
+- Add Cluster manager task throttling framework. Cluster manager node will throttle task submission based on throttling thresholds.
+  This throttling will be at task type level. Data nodes will perform retries on these throttling exception with exponential delay. (PR: [#4986](https://github.com/opensearch-project/OpenSearch/pull/4986)) ( Issue : [#479](https://github.com/opensearch-project/OpenSearch/issues/479))
+    - Throttling Exception / New Backoff policy([#3527](https://github.com/opensearch-project/OpenSearch/pull/3527))
+    - Cluster Manager node side change([#3882](https://github.com/opensearch-project/OpenSearch/pull/3882))
+    - Data node side change([#4204](https://github.com/opensearch-project/OpenSearch/pull/4204))
+    - on-boarding of tasks([#4542](https://github.com/opensearch-project/OpenSearch/pull/4542))
+    - Integs ([4588](https://github.com/opensearch-project/OpenSearch/pull/4588))
 
 ### Dependencies
 - Bumps `log4j-core` from 2.18.0 to 2.19.0
@@ -83,6 +96,8 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Bump `woodstox-core` to 6.4.0 ([#4947](https://github.com/opensearch-project/OpenSearch/pull/4947))
 - Update Apache Lucene to 9.5.0-snapshot-a4ef70f ([#4979](https://github.com/opensearch-project/OpenSearch/pull/4979))
 - Upgrade jetty-http, kotlin-stdlib and snakeyaml ([#4963](https://github.com/opensearch-project/OpenSearch/pull/4963))
+- OpenJDK Update (October 2022 Patch releases) ([#4997](https://github.com/opensearch-project/OpenSearch/pull/4997))
+- Upgrade zookeeper dependency in hdfs-fixture ([#5007](https://github.com/opensearch-project/OpenSearch/pull/5007))
 
 ### Changed
 - Dependency updates (httpcore, mockito, slf4j, httpasyncclient, commons-codec) ([#4308](https://github.com/opensearch-project/OpenSearch/pull/4308))
@@ -106,12 +121,14 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Update to Apache Lucene 9.4.0 ([#4661](https://github.com/opensearch-project/OpenSearch/pull/4661))
 - Controlling discovery for decommissioned nodes ([#4590](https://github.com/opensearch-project/OpenSearch/pull/4590))
 - Backport Apache Lucene version change for 2.4.0 ([#4677](https://github.com/opensearch-project/OpenSearch/pull/4677))
+- Integ Tests for Awareness Attribute Decommissioning ([#4715](https://github.com/opensearch-project/OpenSearch/pull/4715))
 - Use ReplicationFailedException instead of OpensearchException in ReplicationTarget ([#4725](https://github.com/opensearch-project/OpenSearch/pull/4725))
 - Fix weighted routing metadata deserialization error on process restart ([#4691](https://github.com/opensearch-project/OpenSearch/pull/4691))
 - Refactor Base Action class javadocs to OpenSearch.API ([#4732](https://github.com/opensearch-project/OpenSearch/pull/4732))
 - Migrate client transports to Apache HttpClient / Core 5.x ([#4459](https://github.com/opensearch-project/OpenSearch/pull/4459))
 - Refactored BalancedAllocator.Balancer to LocalShardsBalancer ([#4761](https://github.com/opensearch-project/OpenSearch/pull/4761))
 - Fail weight update when decommission ongoing and fail decommission when attribute not weighed away ([#4839](https://github.com/opensearch-project/OpenSearch/pull/4839))
+- Skip SymbolicLinkPreservingTarIT when running on Windows ([#5023](https://github.com/opensearch-project/OpenSearch/pull/5023))
 ### Deprecated
 ### Removed
 - Remove deprecated code to add node name into log pattern of log4j property file ([#4568](https://github.com/opensearch-project/OpenSearch/pull/4568))
@@ -124,6 +141,10 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Remove deprecated serialization logic from pipeline aggs ([#4847](https://github.com/opensearch-project/OpenSearch/pull/4847))
 - Remove unused private methods ([#4926](https://github.com/opensearch-project/OpenSearch/pull/4926))
 - Revert PR 4656 to unblock Windows CI ([#4949](https://github.com/opensearch-project/OpenSearch/pull/4949))
+- Remove LegacyESVersion.V_7_8_ and V_7_9_ Constants ([#4855](https://github.com/opensearch-project/OpenSearch/pull/4855))
+- Remove LegacyESVersion.V_7_6_ and V_7_7_ Constants ([#4837](https://github.com/opensearch-project/OpenSearch/pull/4837))
+- Remove LegacyESVersion.V_7_10_ Constants ([#5018](https://github.com/opensearch-project/OpenSearch/pull/5018))
+- Remove Version.V_1_ Constants ([#5021](https://github.com/opensearch-project/OpenSearch/pull/5021))
 
 ### Fixed
 - `opensearch-service.bat start` and `opensearch-service.bat manager` failing to run ([#4289](https://github.com/opensearch-project/OpenSearch/pull/4289))
@@ -183,6 +204,8 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Fixed compression support for h2c protocol ([#4944](https://github.com/opensearch-project/OpenSearch/pull/4944))
 - Fix for failing checkExtraction, checkLicense and checkNotice tasks for windows gradle check ([#4941](https://github.com/opensearch-project/OpenSearch/pull/4941))
 - Backport failures for merge conflicts on CHANGELOG.md file ([#4977](https://github.com/opensearch-project/OpenSearch/pull/4977))
+- Remove gradle-check dependency on precommit [#5027](https://github.com/opensearch-project/OpenSearch/pull/5027)
+- Fix version check for 2.x release for awareness attribute decommission([#5034](https://github.com/opensearch-project/OpenSearch/pull/5034))
 
 ### Security
 - CVE-2022-25857 org.yaml:snakeyaml DOS vulnerability ([#4341](https://github.com/opensearch-project/OpenSearch/pull/4341))

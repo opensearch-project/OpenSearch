@@ -32,7 +32,6 @@
 
 package org.opensearch.action.admin.cluster.node.reload;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.action.support.nodes.BaseNodesRequest;
 import org.opensearch.common.io.stream.StreamInput;
 
@@ -68,18 +67,16 @@ public class NodesReloadSecureSettingsRequest extends BaseNodesRequest<NodesRelo
 
     public NodesReloadSecureSettingsRequest(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
-            final BytesReference bytesRef = in.readOptionalBytesReference();
-            if (bytesRef != null) {
-                byte[] bytes = BytesReference.toBytes(bytesRef);
-                try {
-                    this.secureSettingsPassword = new SecureString(CharArrays.utf8BytesToChars(bytes));
-                } finally {
-                    Arrays.fill(bytes, (byte) 0);
-                }
-            } else {
-                this.secureSettingsPassword = null;
+        final BytesReference bytesRef = in.readOptionalBytesReference();
+        if (bytesRef != null) {
+            byte[] bytes = BytesReference.toBytes(bytesRef);
+            try {
+                this.secureSettingsPassword = new SecureString(CharArrays.utf8BytesToChars(bytes));
+            } finally {
+                Arrays.fill(bytes, (byte) 0);
             }
+        } else {
+            this.secureSettingsPassword = null;
         }
     }
 
