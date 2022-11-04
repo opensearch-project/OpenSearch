@@ -36,6 +36,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.Assertions;
+import org.opensearch.Version;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.AckedClusterStateTaskListener;
 import org.opensearch.cluster.ClusterChangedEvent;
@@ -127,6 +128,8 @@ public class MasterService extends AbstractLifecycleComponent {
 
     private volatile PrioritizedOpenSearchThreadPoolExecutor threadPoolExecutor;
     private volatile Batcher taskBatcher;
+    protected final ClusterManagerTaskThrottler clusterManagerTaskThrottler;
+    private final ClusterManagerThrottlingStats throttlingStats;
 
     public MasterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
         this.nodeName = Objects.requireNonNull(Node.NODE_NAME_SETTING.get(settings));
@@ -137,6 +140,8 @@ public class MasterService extends AbstractLifecycleComponent {
             this::setSlowTaskLoggingThreshold
         );
 
+        this.throttlingStats = new ClusterManagerThrottlingStats();
+        this.clusterManagerTaskThrottler = new ClusterManagerTaskThrottler(clusterSettings, this::getMinNodeVersion, throttlingStats);
         this.threadPool = threadPool;
     }
 
@@ -157,7 +162,7 @@ public class MasterService extends AbstractLifecycleComponent {
         Objects.requireNonNull(clusterStatePublisher, "please set a cluster state publisher before starting");
         Objects.requireNonNull(clusterStateSupplier, "please set a cluster state supplier before starting");
         threadPoolExecutor = createThreadPoolExecutor();
-        taskBatcher = new Batcher(logger, threadPoolExecutor);
+        taskBatcher = new Batcher(logger, threadPoolExecutor, clusterManagerTaskThrottler);
     }
 
     protected PrioritizedOpenSearchThreadPoolExecutor createThreadPoolExecutor() {
@@ -172,8 +177,8 @@ public class MasterService extends AbstractLifecycleComponent {
     @SuppressWarnings("unchecked")
     class Batcher extends TaskBatcher {
 
-        Batcher(Logger logger, PrioritizedOpenSearchThreadPoolExecutor threadExecutor) {
-            super(logger, threadExecutor);
+        Batcher(Logger logger, PrioritizedOpenSearchThreadPoolExecutor threadExecutor, TaskBatcherListener taskBatcherListener) {
+            super(logger, threadExecutor, taskBatcherListener);
         }
 
         @Override
@@ -590,6 +595,20 @@ public class MasterService extends AbstractLifecycleComponent {
     }
 
     /**
+     * Returns the number of throttled pending tasks.
+     */
+    public long numberOfThrottledPendingTasks() {
+        return throttlingStats.getTotalThrottledTaskCount();
+    }
+
+    /**
+     * Returns the min version of nodes in cluster
+     */
+    public Version getMinNodeVersion() {
+        return state().getNodes().getMinNodeVersion();
+    }
+
+    /**
      * Returns the number of currently pending tasks.
      */
     public int numberOfPendingTasks() {
@@ -913,6 +932,17 @@ public class MasterService extends AbstractLifecycleComponent {
         void onNoLongerClusterManager() {
             updateTasks.forEach(task -> task.listener.onNoLongerClusterManager(task.source()));
         }
+    }
+
+    /**
+     * Functionality for register task key to cluster manager node.
+     *
+     * @param taskKey - task key of task
+     * @param throttlingEnabled - throttling is enabled for task or not i.e does data node perform retries on it or not
+     * @return throttling task key which needs to be passed while submitting task to cluster manager
+     */
+    public ClusterManagerTaskThrottler.ThrottlingKey registerClusterManagerTask(String taskKey, boolean throttlingEnabled) {
+        return clusterManagerTaskThrottler.registerClusterManagerTask(taskKey, throttlingEnabled);
     }
 
     /**
