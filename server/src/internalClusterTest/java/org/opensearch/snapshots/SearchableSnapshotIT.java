@@ -68,6 +68,35 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         return settings;
     }
 
+    /**
+     * Tests a happy path scenario for searchable snapshots by creating 2 indices,
+     * taking a snapshot, restoring them as searchable snapshots.
+     * Ensures availability of sufficient data nodes and search capable nodes.
+     */
+    public void testCreateSearchableSnapshot() throws Exception {
+        final int numReplicasIndex1 = randomIntBetween(1, 4);
+        final int numReplicasIndex2 = randomIntBetween(0, 2);
+        final Client client = client();
+
+        internalCluster().ensureAtLeastNumDataNodes(Math.max(numReplicasIndex1, numReplicasIndex2) + 1);
+        createIndexWithDocsAndEnsureGreen(numReplicasIndex1, 100, "test-idx-1");
+        createIndexWithDocsAndEnsureGreen(numReplicasIndex2, 100, "test-idx-2");
+
+        takeSnapshot(client, "test-idx-1", "test-idx-2");
+        deleteIndicesAndEnsureGreen(client, "test-idx-1", "test-idx-2");
+
+        internalCluster().ensureAtLeastNumSearchNodes(Math.max(numReplicasIndex1, numReplicasIndex2) + 1);
+        restoreSnapshotAndEnsureGreen(client);
+
+        assertDocCount("test-idx-1-copy", 100L);
+        assertDocCount("test-idx-2-copy", 100L);
+        assertIndexDirectoryDoesNotExist("test-idx-1-copy", "test-idx-2-copy");
+    }
+
+    /**
+     * Tests a chunked repository scenario for searchable snapshots by creating an index,
+     * taking a snapshot, restoring it as a searchable snapshot index.
+     */
     public void testCreateSearchableSnapshotWithChunks() throws Exception {
         final int numReplicasIndex = randomIntBetween(1, 4);
         final String indexName = "test-idx";
@@ -76,7 +105,104 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         Settings.Builder repositorySettings = chunkedRepositorySettings();
 
+        internalCluster().ensureAtLeastNumSearchAndDataNodes(numReplicasIndex + 1);
+        createIndexWithDocsAndEnsureGreen(numReplicasIndex, 1000, indexName);
+        takeSnapshot(client, repositorySettings, indexName);
+
+        deleteIndicesAndEnsureGreen(client, indexName);
+        restoreSnapshotAndEnsureGreen(client);
+
+        assertDocCount(restoredIndexName, 1000L);
+    }
+
+    /**
+     * Tests the functionality of remote shard allocation to
+     * ensure it can assign remote shards to a node with local shards given it has the
+     * search role capabilities.
+     */
+    public void testSearchableSnapshotAllocationForLocalAndRemoteShardsOnSameNode() throws Exception {
+        final int numReplicasIndex = randomIntBetween(1, 4);
+        final String indexName = "test-idx";
+        final String restoredIndexName = indexName + "-copy";
+        final Client client = client();
+
+        internalCluster().ensureAtLeastNumSearchAndDataNodes(numReplicasIndex + 1);
+        createIndexWithDocsAndEnsureGreen(numReplicasIndex, 100, indexName);
+        takeSnapshot(client, indexName);
+
+        restoreSnapshotAndEnsureGreen(client);
+
+        assertDocCount(restoredIndexName, 100L);
+        assertDocCount(indexName, 100L);
+    }
+
+    /**
+     * Tests the functionality of remote shard allocation to
+     * ensure it can handle node drops for failover scenarios and the cluster gets back to a healthy state when
+     * nodes with search capabilities are added back to the cluster.
+     */
+    public void testSearchableSnapshotAllocationForFailoverAndRecovery() throws Exception {
+        final int numReplicasIndex = 1;
+        final String indexName = "test-idx";
+        final String restoredIndexName = indexName + "-copy";
+        final Client client = client();
+
         internalCluster().ensureAtLeastNumDataNodes(numReplicasIndex + 1);
+        createIndexWithDocsAndEnsureGreen(numReplicasIndex, 100, indexName);
+
+        takeSnapshot(client, indexName);
+        deleteIndicesAndEnsureGreen(client, indexName);
+
+        internalCluster().ensureAtLeastNumSearchNodes(numReplicasIndex + 1);
+        restoreSnapshotAndEnsureGreen(client);
+        assertDocCount(restoredIndexName, 100L);
+
+        logger.info("--> stop a random search node");
+        internalCluster().stopRandomSearchNode();
+        ensureYellow(restoredIndexName);
+        assertDocCount(restoredIndexName, 100L);
+
+        logger.info("--> stop the last search node");
+        internalCluster().stopRandomSearchNode();
+        ensureRed(restoredIndexName);
+
+        logger.info("--> add 3 new search nodes");
+        internalCluster().ensureAtLeastNumSearchNodes(numReplicasIndex + 2);
+        ensureGreen(restoredIndexName);
+        assertDocCount(restoredIndexName, 100);
+
+        logger.info("--> stop a random search node");
+        internalCluster().stopRandomSearchNode();
+        ensureGreen(restoredIndexName);
+        assertDocCount(restoredIndexName, 100);
+    }
+
+    /**
+     * Tests the functionality of index write block on a searchable snapshot index.
+     */
+    public void testSearchableSnapshotIndexIsReadOnly() throws Exception {
+        final String indexName = "test-index";
+        final String restoredIndexName = indexName + "-copy";
+        final Client client = client();
+
+        createIndexWithDocsAndEnsureGreen(0, 100, indexName);
+        takeSnapshot(client, indexName);
+        deleteIndicesAndEnsureGreen(client, indexName);
+
+        internalCluster().ensureAtLeastNumSearchNodes(1);
+        restoreSnapshotAndEnsureGreen(client);
+
+        assertIndexingBlocked(restoredIndexName);
+        assertIndexSettingChangeBlocked(restoredIndexName);
+        assertTrue(client.admin().indices().prepareDelete(restoredIndexName).get().isAcknowledged());
+        assertThrows(
+            "Expect index to not exist",
+            IndexNotFoundException.class,
+            () -> client.admin().indices().prepareGetIndex().setIndices(restoredIndexName).execute().actionGet()
+        );
+    }
+
+    private void createIndexWithDocsAndEnsureGreen(int numReplicasIndex, int numOfDocs, String indexName) throws InterruptedException {
         createIndex(
             indexName,
             Settings.builder()
@@ -85,25 +211,43 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
                 .build()
         );
         ensureGreen();
-        indexRandomDocs(indexName, 1000);
 
-        createRepository("test-repo", "fs", repositorySettings);
-        logger.info("--> snapshot");
+        indexRandomDocs(indexName, numOfDocs);
+        ensureGreen();
+    }
+
+    private void takeSnapshot(Client client, String... indices) {
+        takeSnapshot(client, null, indices);
+    }
+
+    private void takeSnapshot(Client client, Settings.Builder repositorySettings, String... indices) {
+        logger.info("--> Create a repository");
+        if (repositorySettings == null) {
+            createRepository("test-repo", "fs");
+        } else {
+            createRepository("test-repo", "fs", repositorySettings);
+        }
+        logger.info("--> Take a snapshot");
         final CreateSnapshotResponse createSnapshotResponse = client.admin()
             .cluster()
             .prepareCreateSnapshot("test-repo", "test-snap")
             .setWaitForCompletion(true)
-            .setIndices(indexName)
+            .setIndices(indices)
             .get();
+
         MatcherAssert.assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
         MatcherAssert.assertThat(
             createSnapshotResponse.getSnapshotInfo().successfulShards(),
             equalTo(createSnapshotResponse.getSnapshotInfo().totalShards())
         );
+    }
 
-        assertTrue(client.admin().indices().prepareDelete(indexName).get().isAcknowledged());
+    private void deleteIndicesAndEnsureGreen(Client client, String... indices) {
+        assertTrue(client.admin().indices().prepareDelete(indices).get().isAcknowledged());
+        ensureGreen();
+    }
 
-        internalCluster().ensureAtLeastNumSearchNodes(numReplicasIndex + 1);
+    private void restoreSnapshotAndEnsureGreen(Client client) {
         logger.info("--> restore indices as 'remote_snapshot'");
         client.admin()
             .cluster()
@@ -115,114 +259,6 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
             .execute()
             .actionGet();
         ensureGreen();
-
-        assertDocCount(restoredIndexName, 1000L);
-
-    }
-
-    public void testCreateSearchableSnapshot() throws Exception {
-        final int numReplicasIndex1 = randomIntBetween(1, 4);
-        final int numReplicasIndex2 = randomIntBetween(0, 2);
-        internalCluster().ensureAtLeastNumDataNodes(Math.max(numReplicasIndex1, numReplicasIndex2) + 1);
-        final Client client = client();
-        createRepository("test-repo", "fs");
-        createIndex(
-            "test-idx-1",
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, Integer.toString(numReplicasIndex1))
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "1")
-                .build()
-        );
-        createIndex(
-            "test-idx-2",
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, Integer.toString(numReplicasIndex2))
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "1")
-                .build()
-        );
-        ensureGreen();
-        indexRandomDocs("test-idx-1", 100);
-        indexRandomDocs("test-idx-2", 100);
-
-        logger.info("--> snapshot");
-        final CreateSnapshotResponse createSnapshotResponse = client.admin()
-            .cluster()
-            .prepareCreateSnapshot("test-repo", "test-snap")
-            .setWaitForCompletion(true)
-            .setIndices("test-idx-1", "test-idx-2")
-            .get();
-        MatcherAssert.assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
-        MatcherAssert.assertThat(
-            createSnapshotResponse.getSnapshotInfo().successfulShards(),
-            equalTo(createSnapshotResponse.getSnapshotInfo().totalShards())
-        );
-
-        assertTrue(client.admin().indices().prepareDelete("test-idx-1", "test-idx-2").get().isAcknowledged());
-
-        internalCluster().ensureAtLeastNumSearchNodes(Math.max(numReplicasIndex1, numReplicasIndex2) + 1);
-
-        logger.info("--> restore indices as 'remote_snapshot'");
-        client.admin()
-            .cluster()
-            .prepareRestoreSnapshot("test-repo", "test-snap")
-            .setRenamePattern("(.+)")
-            .setRenameReplacement("$1-copy")
-            .setStorageType(RestoreSnapshotRequest.StorageType.REMOTE_SNAPSHOT)
-            .setWaitForCompletion(true)
-            .execute()
-            .actionGet();
-        ensureGreen();
-
-        assertDocCount("test-idx-1-copy", 100L);
-        assertDocCount("test-idx-2-copy", 100L);
-        assertIndexDirectoryDoesNotExist("test-idx-1-copy", "test-idx-2-copy");
-    }
-
-    public void testSearchableSnapshotIndexIsReadOnly() throws Exception {
-        final String indexName = "test-index";
-        final Client client = client();
-        createRepository("test-repo", "fs");
-        createIndex(
-            indexName,
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "0").put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "1").build()
-        );
-        ensureGreen();
-
-        logger.info("--> snapshot");
-        final CreateSnapshotResponse createSnapshotResponse = client.admin()
-            .cluster()
-            .prepareCreateSnapshot("test-repo", "test-snap")
-            .setWaitForCompletion(true)
-            .setIndices(indexName)
-            .get();
-        MatcherAssert.assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
-        MatcherAssert.assertThat(
-            createSnapshotResponse.getSnapshotInfo().successfulShards(),
-            equalTo(createSnapshotResponse.getSnapshotInfo().totalShards())
-        );
-
-        assertTrue(client.admin().indices().prepareDelete(indexName).get().isAcknowledged());
-
-        logger.info("--> restore indices as 'remote_snapshot'");
-        client.admin()
-            .cluster()
-            .prepareRestoreSnapshot("test-repo", "test-snap")
-            .setRenamePattern("(.+)")
-            .setRenameReplacement("$1")
-            .setStorageType(RestoreSnapshotRequest.StorageType.REMOTE_SNAPSHOT)
-            .setWaitForCompletion(true)
-            .execute()
-            .actionGet();
-        ensureGreen();
-
-        assertIndexingBlocked(indexName);
-        assertIndexSettingChangeBlocked(indexName);
-        assertTrue(client.admin().indices().prepareDelete(indexName).get().isAcknowledged());
-        assertThrows(
-            "Expect index to not exist",
-            IndexNotFoundException.class,
-            () -> client.admin().indices().prepareGetIndex().setIndices(indexName).execute().actionGet()
-        );
     }
 
     private void assertIndexingBlocked(String index) {
