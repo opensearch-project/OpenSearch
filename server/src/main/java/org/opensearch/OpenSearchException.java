@@ -1611,6 +1611,12 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
             ClusterManagerThrottlingException::new,
             165,
             Version.V_2_4_0
+        ),
+        SNAPSHOT_DELETION_EXCEPTION(
+            org.opensearch.snapshots.SnapshotDeletionException.class,
+            org.opensearch.snapshots.SnapshotDeletionException::new,
+            166,
+            UNKNOWN_VERSION_ADDED
         );
 
         final Class<? extends OpenSearchException> exceptionClass;

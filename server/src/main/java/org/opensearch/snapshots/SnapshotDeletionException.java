@@ -8,7 +8,10 @@
 
 package org.opensearch.snapshots;
 
+import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.rest.RestStatus;
+
+import java.io.IOException;
 
 /**
  * Thrown if requested snapshot/s can't be deleted
@@ -19,6 +22,10 @@ public class SnapshotDeletionException extends SnapshotException {
 
     public SnapshotDeletionException(final String repositoryName, final String snapshotName, final String msg) {
         super(repositoryName, snapshotName, msg);
+    }
+
+    public SnapshotDeletionException(StreamInput in) throws IOException {
+        super(in);
     }
 
     @Override
