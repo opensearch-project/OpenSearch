@@ -22,6 +22,7 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.collect.Map;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexNotFoundException;
@@ -58,6 +59,65 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         final Settings.Builder settings = Settings.builder();
         settings.put("location", randomRepoPath()).put("compress", randomBoolean());
         return settings;
+    }
+
+    private Settings.Builder chunkedRepositorySettings() {
+        final Settings.Builder settings = Settings.builder();
+        settings.put("location", randomRepoPath()).put("compress", randomBoolean());
+        settings.put("chunk_size", 2 << 13, ByteSizeUnit.BYTES);
+        return settings;
+    }
+
+    public void testCreateSearchableSnapshotWithChunks() throws Exception {
+        final int numReplicasIndex = randomIntBetween(1, 4);
+        final String indexName = "test-idx";
+        final String restoredIndexName = indexName + "-copy";
+        final Client client = client();
+
+        Settings.Builder repositorySettings = chunkedRepositorySettings();
+
+        internalCluster().ensureAtLeastNumDataNodes(numReplicasIndex + 1);
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, Integer.toString(numReplicasIndex))
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "1")
+                .build()
+        );
+        ensureGreen();
+        indexRandomDocs(indexName, 1000);
+
+        createRepository("test-repo", "fs", repositorySettings);
+        logger.info("--> snapshot");
+        final CreateSnapshotResponse createSnapshotResponse = client.admin()
+            .cluster()
+            .prepareCreateSnapshot("test-repo", "test-snap")
+            .setWaitForCompletion(true)
+            .setIndices(indexName)
+            .get();
+        MatcherAssert.assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
+        MatcherAssert.assertThat(
+            createSnapshotResponse.getSnapshotInfo().successfulShards(),
+            equalTo(createSnapshotResponse.getSnapshotInfo().totalShards())
+        );
+
+        assertTrue(client.admin().indices().prepareDelete(indexName).get().isAcknowledged());
+
+        internalCluster().ensureAtLeastNumSearchNodes(numReplicasIndex + 1);
+        logger.info("--> restore indices as 'remote_snapshot'");
+        client.admin()
+            .cluster()
+            .prepareRestoreSnapshot("test-repo", "test-snap")
+            .setRenamePattern("(.+)")
+            .setRenameReplacement("$1-copy")
+            .setStorageType(RestoreSnapshotRequest.StorageType.REMOTE_SNAPSHOT)
+            .setWaitForCompletion(true)
+            .execute()
+            .actionGet();
+        ensureGreen();
+
+        assertDocCount(restoredIndexName, 1000L);
+
     }
 
     public void testCreateSearchableSnapshot() throws Exception {
