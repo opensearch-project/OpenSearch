@@ -33,6 +33,13 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Added resource usage trackers for in-flight cancellation of SearchShardTask ([#4805](https://github.com/opensearch-project/OpenSearch/pull/4805))
 - Added search backpressure stats API ([#4932](https://github.com/opensearch-project/OpenSearch/pull/4932))
 - Added changes for graceful node decommission ([#4586](https://github.com/opensearch-project/OpenSearch/pull/4586))
+- Add Cluster manager task throttling framework. Cluster manager node will throttle task submission based on throttling thresholds.
+  This throttling will be at task type level. Data nodes will perform retries on these throttling exception with exponential delay. (PR: [#4986](https://github.com/opensearch-project/OpenSearch/pull/4986)) ( Issue : [#479](https://github.com/opensearch-project/OpenSearch/issues/479))
+    - Throttling Exception / New Backoff policy([#3527](https://github.com/opensearch-project/OpenSearch/pull/3527))
+    - Cluster Manager node side change([#3882](https://github.com/opensearch-project/OpenSearch/pull/3882))
+    - Data node side change([#4204](https://github.com/opensearch-project/OpenSearch/pull/4204))
+    - on-boarding of tasks([#4542](https://github.com/opensearch-project/OpenSearch/pull/4542))
+    - Integs ([4588](https://github.com/opensearch-project/OpenSearch/pull/4588))
 
 ### Dependencies
 - Bumps `com.diffplug.spotless` from 6.9.1 to 6.10.0
