@@ -80,7 +80,7 @@ public abstract class InternalGeoGridBucket<B extends InternalGeoGridBucket> ext
         aggregations.writeTo(out);
     }
 
-    long hashAsLong() {
+    public long hashAsLong() {
         return hashAsLong;
     }
 

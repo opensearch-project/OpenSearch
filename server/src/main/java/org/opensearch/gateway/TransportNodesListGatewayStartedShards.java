@@ -159,7 +159,8 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
                 nodeEnv.availableShardPaths(request.shardId)
             );
             if (shardStateMetadata != null) {
-                if (indicesService.getShardOrNull(shardId) == null) {
+                if (indicesService.getShardOrNull(shardId) == null
+                    && shardStateMetadata.indexDataLocation == ShardStateMetadata.IndexDataLocation.LOCAL) {
                     final String customDataPath;
                     if (request.getCustomDataPath() != null) {
                         customDataPath = request.getCustomDataPath();

@@ -350,6 +350,10 @@ tasks.register('buildArm64Deb', Deb) {
   configure(commonDebConfig(true, 'arm64'))
 }
 
+tasks.register('buildNoJdkArm64Deb', Deb) {
+  configure(commonDebConfig(false, 'arm64'))
+}
+
 tasks.register('buildDeb', Deb) {
   configure(commonDebConfig(true, 'x64'))
 }
@@ -385,6 +389,10 @@ Closure commonRpmConfig(boolean jdk, String architecture) {
 
 tasks.register('buildArm64Rpm', Rpm) {
   configure(commonRpmConfig(true, 'arm64'))
+}
+
+tasks.register('buildNoJdkArm64Rpm', Rpm) {
+  configure(commonRpmConfig(false, 'arm64'))
 }
 
 tasks.register('buildRpm', Rpm) {

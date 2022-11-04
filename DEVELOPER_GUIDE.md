@@ -4,7 +4,8 @@
     - [Install Prerequisites](#install-prerequisites)
       - [JDK 11](#jdk-11)
       - [JDK 14](#jdk-14)
-      - [Runtime JDK](#runtime-jdk)
+      - [JDK 17](#jdk-17)
+      - [Custom Runtime JDK](#custom-runtime-jdk)
       - [Windows](#windows)
       - [Docker](#docker)
     - [Build](#build)
@@ -12,6 +13,7 @@
     - [Run OpenSearch](#run-opensearch)
   - [Use an Editor](#use-an-editor)
     - [IntelliJ IDEA](#intellij-idea)
+      - [Remote development using JetBrains Gateway](#remote-development-using-jetbrains-gateway)
     - [Visual Studio Code](#visual-studio-code)
     - [Eclipse](#eclipse)
   - [Project Layout](#project-layout)
@@ -49,7 +51,8 @@
   - [Submitting Changes](#submitting-changes)
   - [Backports](#backports)
   - [LineLint](#linelint)
-  - [Lucene Snapshots](#lucene-snapshots)
+    - [Lucene Snapshots](#lucene-snapshots)
+    - [Flaky Tests](#flaky-tests)
 
 # Developer Guide
 
@@ -490,7 +493,19 @@ Pass a list of files or directories to limit your search.
 
     linelint README.md LICENSE
 
-# Lucene Snapshots
+### Lucene Snapshots
 The Github workflow in [lucene-snapshots.yml](.github/workflows/lucene-snapshots.yml) is a Github worfklow executable by maintainers to build a top-down snapshot build of lucene.
-These snapshots are available to test compatibility with upcoming changes to Lucene by updating the version at [version.properties](buildsrc/version.properties) with the `version-snapshot-sha` version.
-Example: `lucene = 10.0.0-snapshot-2e941fc`.
+These snapshots are available to test compatibility with upcoming changes to Lucene by updating the version at [version.properties](buildsrc/version.properties) with the `version-snapshot-sha` version. Example: `lucene = 10.0.0-snapshot-2e941fc`.
+
+### Flaky Tests
+
+OpenSearch has a very large test suite with long running, often failing (flaky), integration tests. Such individual tests are labelled as [Flaky Random Test Failure](https://github.com/opensearch-project/OpenSearch/issues?q=is%3Aopen+is%3Aissue+label%3A%22flaky-test%22). Your help is wanted fixing these!
+
+If you encounter a build/test failure in CI that is unrelated to the change in your pull request, it may be a known flaky test, or a new test failure.
+
+1. Follow failed CI links, and locate the failing test(s).
+2. Copy-paste the failure into a comment of your PR.
+3. Search through [issues](https://github.com/opensearch-project/OpenSearch/issues?q=is%3Aopen+is%3Aissue+label%3A%22flaky-test%22) using the name of the failed test for whether this is a known flaky test. 
+5. If an existing issue is found, paste a link to the known issue in a comment to your PR.
+6. If no existing issue is found, open one.
+7. Retry CI via the GitHub UX or by pushing an update to your PR.

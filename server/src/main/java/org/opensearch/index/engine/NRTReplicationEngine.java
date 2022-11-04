@@ -129,6 +129,7 @@ public class NRTReplicationEngine extends Engine implements LifecycleAware {
         // lower/higher gens are possible from a new primary that was just elected.
         if (incomingGeneration != lastReceivedGen) {
             commitSegmentInfos();
+            translogManager.getDeletionPolicy().setLocalCheckpointOfSafeCommit(seqNo);
             translogManager.rollTranslogGeneration();
         }
         lastReceivedGen = incomingGeneration;

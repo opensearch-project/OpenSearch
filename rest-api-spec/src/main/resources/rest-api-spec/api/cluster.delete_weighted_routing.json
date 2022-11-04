@@ -1,0 +1,19 @@
+{
+  "cluster.delete_weighted_routing": {
+    "documentation": {
+      "url": "https://opensearch.org/docs/latest/opensearch/rest-api/weighted-routing/delete",
+      "description": "Delete weighted shard routing weights"
+    },
+    "stability": "experimental",
+    "url": {
+      "paths": [
+        {
+          "path": "/_cluster/routing/awareness/weights",
+          "methods": [
+            "DELETE"
+          ]
+        }
+      ]
+    }
+  }
+}

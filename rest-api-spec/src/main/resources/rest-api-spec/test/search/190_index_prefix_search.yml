@@ -18,6 +18,12 @@ setup:
           body:   { text: some short words with a stupendously long one }
 
   - do:
+      index:
+        index:  test
+        id:     2
+        body:   { text: sentence with UPPERCASE WORDS }
+
+  - do:
       indices.refresh:
         index: [test]
 
@@ -71,6 +77,25 @@ setup:
         index: test
         q: stupendousl*
         df: text
+
+  - match: {hits.total: 1}
+  - match: {hits.max_score: 1}
+  - match: {hits.hits.0._score: 1}
+
+---
+"search with uppercase regex":
+  - skip:
+      version: " - 2.3.99"
+      reason: uppercase regex not supported before 2.4.0
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            query_string:
+              default_field: text
+              query: /UPPERCASE/
 
   - match: {hits.total: 1}
   - match: {hits.max_score: 1}

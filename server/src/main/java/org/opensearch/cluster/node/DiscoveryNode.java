@@ -499,6 +499,15 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     }
 
     /**
+     * Returns whether the node is dedicated to provide search capability.
+     *
+     * @return true if the node contains search role, false otherwise
+     */
+    public boolean isSearchNode() {
+        return roles.contains(DiscoveryNodeRole.SEARCH_ROLE);
+    }
+
+    /**
      * Returns a set of all the roles that the node has. The roles are returned in sorted order by the role name.
      * <p>
      * If a node does not have any specific role, the returned set is empty, which means that the node is a coordinating-only node.
@@ -616,11 +625,18 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             + "], roles by name abbreviation ["
             + roleNameAbbreviationToPossibleRoles
             + "]";
-        // TODO: Remove the Map 'roleNameToPossibleRolesWithMaster' and let 'roleMap = roleNameToPossibleRoles', after removing MASTER_ROLE.
-        // It's used to allow CLUSTER_MANAGER_ROLE that introduced in 2.0, having the same abbreviation name with MASTER_ROLE.
-        final Map<String, DiscoveryNodeRole> roleNameToPossibleRolesWithMaster = new HashMap<>(roleNameToPossibleRoles);
-        roleNameToPossibleRolesWithMaster.put(DiscoveryNodeRole.MASTER_ROLE.roleName(), DiscoveryNodeRole.MASTER_ROLE);
-        roleMap = Collections.unmodifiableMap(roleNameToPossibleRolesWithMaster);
+        roleMap = roleNameToPossibleRoles;
+    }
+
+    /**
+     * Load the deprecated {@link DiscoveryNodeRole#MASTER_ROLE}.
+     * Master role is not added into BUILT_IN_ROLES, because {@link #setAdditionalRoles(Set)} check role name abbreviation duplication,
+     * and CLUSTER_MANAGER_ROLE has the same abbreviation name with MASTER_ROLE.
+     */
+    public static void setDeprecatedMasterRole() {
+        final Map<String, DiscoveryNodeRole> modifiableRoleMap = new HashMap<>(roleMap);
+        modifiableRoleMap.put(DiscoveryNodeRole.MASTER_ROLE.roleName(), DiscoveryNodeRole.MASTER_ROLE);
+        roleMap = Collections.unmodifiableMap(modifiableRoleMap);
     }
 
     public static Set<String> getPossibleRoleNames() {

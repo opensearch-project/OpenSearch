@@ -63,13 +63,13 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket> extends I
     protected final int requiredSize;
     protected final List<InternalGeoGridBucket> buckets;
 
-    InternalGeoGrid(String name, int requiredSize, List<InternalGeoGridBucket> buckets, Map<String, Object> metadata) {
+    protected InternalGeoGrid(String name, int requiredSize, List<InternalGeoGridBucket> buckets, Map<String, Object> metadata) {
         super(name, metadata);
         this.requiredSize = requiredSize;
         this.buckets = buckets;
     }
 
-    abstract Writeable.Reader<B> getBucketReader();
+    protected abstract Writeable.Reader<B> getBucketReader();
 
     /**
      * Read from a stream.
@@ -86,7 +86,12 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket> extends I
         out.writeList(buckets);
     }
 
-    abstract InternalGeoGrid create(String name, int requiredSize, List<InternalGeoGridBucket> buckets, Map<String, Object> metadata);
+    protected abstract InternalGeoGrid create(
+        String name,
+        int requiredSize,
+        List<InternalGeoGridBucket> buckets,
+        Map<String, Object> metadata
+    );
 
     @Override
     public List<InternalGeoGridBucket> getBuckets() {
@@ -140,7 +145,7 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket> extends I
         return createBucket(buckets.get(0).hashAsLong, docCount, aggs);
     }
 
-    abstract B createBucket(long hashAsLong, long docCount, InternalAggregations aggregations);
+    protected abstract B createBucket(long hashAsLong, long docCount, InternalAggregations aggregations);
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
