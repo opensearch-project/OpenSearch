@@ -595,16 +595,14 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
 
         // Render the exception with a simple message
         if (detailed == false) {
-            String message = "No OpenSearchException found";
             Throwable t = e;
             for (int counter = 0; counter < 10 && t != null; counter++) {
                 if (t instanceof OpenSearchException) {
-                    message = t.getClass().getSimpleName() + "[" + t.getMessage() + "]";
                     break;
                 }
                 t = t.getCause();
             }
-            builder.field(ERROR, message);
+            builder.field(ERROR, ExceptionsHelper.summaryMessage(e));
             return;
         }
 

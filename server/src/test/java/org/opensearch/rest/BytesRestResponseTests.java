@@ -117,7 +117,7 @@ public class BytesRestResponseTests extends OpenSearchTestCase {
         assertThat(text, not(containsString("UnknownException[an error occurred reading data]")));
         assertThat(text, not(containsString("FileNotFoundException[/foo/bar]")));
         assertThat(text, not(containsString("error_trace")));
-        assertThat(text, containsString("\"error\":\"No OpenSearchException found\""));
+        assertThat(text, containsString("\"error\":\"Internal failure\""));
     }
 
     public void testErrorTrace() throws Exception {
