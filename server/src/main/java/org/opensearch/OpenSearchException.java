@@ -602,7 +602,11 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
                 }
                 t = t.getCause();
             }
+<<<<<<< HEAD
             builder.field(ERROR, ExceptionsHelper.summaryMessage(e));
+=======
+            builder.field(ERROR, ExceptionsHelper.summaryMessage(t != null ? t : e));
+>>>>>>> b0a62b73dd65c2f5636f78568daf785af21ed902
             return;
         }
 
