@@ -10,6 +10,11 @@ package org.opensearch.snapshots;
 
 import org.opensearch.rest.RestStatus;
 
+/**
+ * Thrown if requested snapshot/s can't be deleted
+ *
+ * @opensearch.internal
+ */
 public class SnapshotDeletionException extends SnapshotException {
 
     public SnapshotDeletionException(final String repositoryName, final String snapshotName, final String msg) {
