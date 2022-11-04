@@ -102,10 +102,7 @@ import org.opensearch.search.SearchParseException;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
 import org.opensearch.search.internal.ShardSearchContextId;
-import org.opensearch.snapshots.Snapshot;
-import org.opensearch.snapshots.SnapshotException;
-import org.opensearch.snapshots.SnapshotId;
-import org.opensearch.snapshots.SnapshotInProgressException;
+import org.opensearch.snapshots.*;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.transport.ActionNotFoundTransportException;
@@ -862,6 +859,7 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
         ids.put(163, DecommissioningFailedException.class);
         ids.put(164, NodeDecommissionedException.class);
         ids.put(165, ClusterManagerThrottlingException.class);
+        ids.put(166, SnapshotDeletionException.class);
 
         Map<Class<? extends OpenSearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends OpenSearchException>> entry : ids.entrySet()) {
