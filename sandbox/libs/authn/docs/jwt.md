@@ -34,16 +34,16 @@ let's the background task assume a subject when executing.
 There are 2 types of tokens:
 
 - Refresh Token - A Refresh Token is longer lasting and used to receive short-lived Access Tokens that actually confer access
-- Access Token - Access Tokens are short-lived tokens that confer access
+- Access Token - Access Tokens are short-lived tokens that confer access, the tokens will not contain any claims regarding authorization
 
 Creation of an asynchronous job or task should require a Refresh Token on creation which is associated with a subject and let's the job run with the subject's permissions. When the task
 starts execution it will use the refresh token to obtain an access token which will allow the task to interact with the cluster as the subject who the token was created for.
 
 Refresh tokens will be associated with a subject (and an extension?) and both the subject and administrators (or subjects with requisite permissions to revoke tokens of others) will be able to revoke access to the tokens. Issuing a token for oneself or on behalf of others will be another set of permissions that can be assigned.
 
-# Internal Cluster Actions
+# Internal Cluster Actions - ThreadContext vs. Tokens
 
-Opensearch is a distributed search engine composed of nodes of different roles. When a client makes a request to a cluster, the request is serviced by one or many nodes. A good example of this is the cluster health action (`cluster:monitor/health`) that runs actions on all nodes of the cluster to perform the health check. In Opensearch with the Security plugin, a user is authenticated at the first node that handles the request, the ThreadContext is populated and subsequent actions on other nodes reference the user info saved on the ThreadContext. The ThreadContext is transmitted in the cluster using the InboundHandler and OutboundHandler. 
+Opensearch is a distributed search engine composed of nodes of different roles. When a client makes a request to a cluster, the request is serviced by one or many nodes. A good example of this is the cluster health action (`cluster:monitor/health`) that runs actions on all nodes of the cluster to perform the health check. In Opensearch with the Security plugin, a user is authenticated at the first node that handles the request, the ThreadContext is populated and subsequent actions on other nodes reference the user info saved on the ThreadContext. The ThreadContext is transmitted in the cluster using the InboundHandler and OutboundHandler.
 
 Internal Cluster Requests are authenticated using the thread context. See below for an example:
 
@@ -55,7 +55,7 @@ public class HeaderHelper {
     }
 
     public static boolean isDirectRequest(final ThreadContext context) {
-        
+
         return  "direct".equals(context.getTransient(ConfigConstants.OPENDISTRO_SECURITY_CHANNEL_TYPE))
                   || context.getTransient(ConfigConstants.OPENDISTRO_SECURITY_CHANNEL_TYPE) == null;
     }
@@ -70,7 +70,7 @@ final boolean internalRequest =
     && !action.startsWith("internal:transport/proxy");
 ```
 
-Internal actions can proceed through the chain without going through privilege evaluation on every node. 
+Internal actions can proceed through the chain without going through privilege evaluation on every node.
 
 To minimize the usage of ThreadContext, tokens can be used to transmit subject information from node-to-node to enable authorization to be performed before an action is executed on any node in the cluster.
 
@@ -123,7 +123,7 @@ static JsonWebKey getDefaultJsonWebKey() {
 
 ## PublicKeyUse
 
-- `SIGN` - Cryptographic signing of the JWT (making it a JWS) 
+- `SIGN` - Cryptographic signing of the JWT (making it a JWS)
 - `ENCRYPT` - Encryption of the JWT (making it a JWE)
 
 ## Signing Key
