@@ -38,7 +38,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.OpenSearchStatusException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
@@ -92,8 +91,6 @@ import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
-import org.opensearch.http.HttpException;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.shard.ShardId;
@@ -1774,32 +1771,44 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     repoName
                 );
                 final List<SnapshotId> snapshotIdNotBackingIndex = filterSnapshotsBackingAnyIndex(currentState, snapshotIds);
-                deleteFromRepoTask = createDeleteStateUpdate(snapshotIdNotBackingIndex, repoName, repositoryData, Priority.NORMAL, listener);
+                deleteFromRepoTask = createDeleteStateUpdate(
+                    snapshotIdNotBackingIndex,
+                    repoName,
+                    repositoryData,
+                    Priority.NORMAL,
+                    listener
+                );
                 return deleteFromRepoTask.execute(currentState);
             }
 
-            private List<SnapshotId> filterSnapshotsBackingAnyIndex(ClusterState currentState, List<SnapshotId> snapshotIds){
+            private List<SnapshotId> filterSnapshotsBackingAnyIndex(ClusterState currentState, List<SnapshotId> snapshotIds) {
                 final Set<SnapshotId> snapshotsToBeDeleted = new HashSet<>();
                 final Set<String> snapshotsToBeNotDeleted = new HashSet<>();
                 ImmutableOpenMap<String, IndexMetadata> indicesMap = currentState.getMetadata().getIndices();
-                for(SnapshotId snapshotId: snapshotIds) {
+                for (SnapshotId snapshotId : snapshotIds) {
                     Boolean indexBackedBySnapshotFound = false;
-                    for (Iterator<IndexMetadata> it = indicesMap.valuesIt(); it.hasNext(); ) {
+                    for (Iterator<IndexMetadata> it = indicesMap.valuesIt(); it.hasNext();) {
                         IndexMetadata indexMetadata = it.next();
                         String storeType = indexMetadata.getSettings().get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey());
-                        if(storeType != null && storeType.equals(IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey()) && indexMetadata.getSettings().get("index.searchable_snapshot.snapshot_id.uuid").equals(snapshotId.getUUID())){
+                        if (storeType != null
+                            && storeType.equals(IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey())
+                            && indexMetadata.getSettings().get("index.searchable_snapshot.snapshot_id.uuid").equals(snapshotId.getUUID())) {
                             indexBackedBySnapshotFound = true;
                             break;
                         }
                     }
-                    if(indexBackedBySnapshotFound == false) {
+                    if (indexBackedBySnapshotFound == false) {
                         snapshotsToBeDeleted.add(snapshotId);
                     } else {
                         snapshotsToBeNotDeleted.add(snapshotId.getName());
                     }
                 }
-                if(snapshotIds.size() != snapshotsToBeDeleted.size()) {
-                    throw new SnapshotDeletionException(repoName, snapshotsToBeNotDeleted.toString(), "These remote snapshots are backing some indices and hence can't be deleted! No snapshots were deleted.");
+                if (snapshotIds.size() != snapshotsToBeDeleted.size()) {
+                    throw new SnapshotDeletionException(
+                        repoName,
+                        snapshotsToBeNotDeleted.toString(),
+                        "These remote snapshots are backing some indices and hence can't be deleted! No snapshots were deleted."
+                    );
                 }
                 return List.copyOf(snapshotsToBeDeleted);
             }

@@ -61,6 +61,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
     - Data node side change([#4204](https://github.com/opensearch-project/OpenSearch/pull/4204))
     - on-boarding of tasks([#4542](https://github.com/opensearch-project/OpenSearch/pull/4542))
     - Integs ([4588](https://github.com/opensearch-project/OpenSearch/pull/4588))
+- Prevent deletion of snapshots that are backing searchable snapshot indexes ([#5069](https://github.com/opensearch-project/OpenSearch/pull/5069))
 
 ### Dependencies
 - Bumps `log4j-core` from 2.18.0 to 2.19.0
