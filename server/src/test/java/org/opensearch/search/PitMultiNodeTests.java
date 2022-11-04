@@ -98,7 +98,6 @@ public class PitMultiNodeTests extends OpenSearchIntegTestCase {
                 ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, request);
                 ExecutionException ex = expectThrows(ExecutionException.class, execute::get);
                 assertTrue(ex.getMessage().contains("Failed to execute phase [create_pit]"));
-                assertTrue(ex.getMessage().contains("Partial shards failure"));
                 validatePitStats("index", 0, 0);
                 return super.onNodeStopped(nodeName);
             }

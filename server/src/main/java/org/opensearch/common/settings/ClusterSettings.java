@@ -42,6 +42,12 @@ import org.opensearch.index.IndexingPressure;
 import org.opensearch.index.ShardIndexingPressureMemoryManager;
 import org.opensearch.index.ShardIndexingPressureSettings;
 import org.opensearch.index.ShardIndexingPressureStore;
+import org.opensearch.search.backpressure.settings.NodeDuressSettings;
+import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
+import org.opensearch.search.backpressure.settings.SearchShardTaskSettings;
+import org.opensearch.search.backpressure.trackers.CpuUsageTracker;
+import org.opensearch.search.backpressure.trackers.ElapsedTimeTracker;
+import org.opensearch.search.backpressure.trackers.HeapUsageTracker;
 import org.opensearch.tasks.TaskManager;
 import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.watcher.ResourceWatcherService;
@@ -532,6 +538,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 Node.BREAKER_TYPE_KEY,
                 OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
                 OperationRouting.IGNORE_AWARENESS_ATTRIBUTES_SETTING,
+                OperationRouting.WEIGHTED_ROUTING_DEFAULT_WEIGHT,
                 IndexGraveyard.SETTING_MAX_TOMBSTONES,
                 PersistentTasksClusterService.CLUSTER_TASKS_ALLOCATION_RECHECK_INTERVAL_SETTING,
                 EnableAssignmentDecider.CLUSTER_TASKS_ALLOCATION_ENABLE_SETTING,
@@ -585,7 +592,21 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 IndexingPressure.MAX_INDEXING_BYTES,
                 TaskResourceTrackingService.TASK_RESOURCE_TRACKING_ENABLED,
                 TaskManager.TASK_RESOURCE_CONSUMERS_ENABLED,
-                ClusterManagerTaskThrottler.THRESHOLD_SETTINGS
+                ClusterManagerTaskThrottler.THRESHOLD_SETTINGS,
+                // Settings related to search backpressure
+                SearchBackpressureSettings.SETTING_MODE,
+                SearchBackpressureSettings.SETTING_CANCELLATION_RATIO,
+                SearchBackpressureSettings.SETTING_CANCELLATION_RATE,
+                SearchBackpressureSettings.SETTING_CANCELLATION_BURST,
+                NodeDuressSettings.SETTING_NUM_SUCCESSIVE_BREACHES,
+                NodeDuressSettings.SETTING_CPU_THRESHOLD,
+                NodeDuressSettings.SETTING_HEAP_THRESHOLD,
+                SearchShardTaskSettings.SETTING_TOTAL_HEAP_PERCENT_THRESHOLD,
+                HeapUsageTracker.SETTING_HEAP_PERCENT_THRESHOLD,
+                HeapUsageTracker.SETTING_HEAP_VARIANCE_THRESHOLD,
+                HeapUsageTracker.SETTING_HEAP_MOVING_AVERAGE_WINDOW_SIZE,
+                CpuUsageTracker.SETTING_CPU_TIME_MILLIS_THRESHOLD,
+                ElapsedTimeTracker.SETTING_ELAPSED_TIME_MILLIS_THRESHOLD
             )
         )
     );

@@ -212,7 +212,11 @@ public class MetadataUpdateSettingsService {
                             for (Index index : request.indices()) {
                                 if (index.getName().charAt(0) != '.') {
                                     // No replica count validation for system indices
-                                    Optional<String> error = awarenessReplicaBalance.validate(updatedNumberOfReplicas);
+                                    Optional<String> error = awarenessReplicaBalance.validate(
+                                        updatedNumberOfReplicas,
+                                        AutoExpandReplicas.SETTING.get(openSettings)
+                                    );
+
                                     if (error.isPresent()) {
                                         ValidationException ex = new ValidationException();
                                         ex.addValidationError(error.get());
