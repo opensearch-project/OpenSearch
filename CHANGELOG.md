@@ -54,6 +54,14 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Remote shard balancer support for searchable snapshots ([#4870](https://github.com/opensearch-project/OpenSearch/pull/4870))
 - Added search backpressure stats API ([#4932](https://github.com/opensearch-project/OpenSearch/pull/4932))
 - [Test] Add IAE test for deprecated edgeNGram analyzer name ([#5040](https://github.com/opensearch-project/OpenSearch/pull/5040))
+- Add Cluster manager task throttling framework. Cluster manager node will throttle task submission based on throttling thresholds.
+  This throttling will be at task type level. Data nodes will perform retries on these throttling exception with exponential delay. (PR: [#4986](https://github.com/opensearch-project/OpenSearch/pull/4986)) ( Issue : [#479](https://github.com/opensearch-project/OpenSearch/issues/479))
+    - Throttling Exception / New Backoff policy([#3527](https://github.com/opensearch-project/OpenSearch/pull/3527))
+    - Cluster Manager node side change([#3882](https://github.com/opensearch-project/OpenSearch/pull/3882))
+    - Data node side change([#4204](https://github.com/opensearch-project/OpenSearch/pull/4204))
+    - on-boarding of tasks([#4542](https://github.com/opensearch-project/OpenSearch/pull/4542))
+    - Integs ([4588](https://github.com/opensearch-project/OpenSearch/pull/4588))
+
 ### Dependencies
 - Bumps `log4j-core` from 2.18.0 to 2.19.0
 - Bumps `reactor-netty-http` from 1.0.18 to 1.0.23
