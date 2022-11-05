@@ -46,6 +46,7 @@ import java.util.stream.Collectors;
 import static org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction.MAXIMUM_VOTING_CONFIG_EXCLUSIONS_SETTING;
 import static org.opensearch.action.admin.cluster.configuration.VotingConfigExclusionsHelper.clearExclusionsAndGetState;
 import static org.opensearch.cluster.decommission.DecommissionHelper.addVotingConfigExclusionsForToBeDecommissionedClusterManagerNodes;
+import static org.opensearch.cluster.decommission.DecommissionHelper.deleteDecommissionAttributeInClusterState;
 import static org.opensearch.cluster.decommission.DecommissionHelper.filterNodesWithDecommissionAttribute;
 import static org.opensearch.cluster.decommission.DecommissionHelper.nodeHasDecommissionedAttribute;
 import static org.opensearch.cluster.decommission.DecommissionHelper.registerDecommissionAttributeInClusterState;
@@ -518,48 +519,26 @@ public class DecommissionService {
          * Once the excluded nodes have stopped, clear the voting configuration exclusions with DELETE /_cluster/voting_config_exclusions.
          * And hence it is safe to remove the exclusion if any. User should make conscious choice before decommissioning awareness attribute.
          */
-        clusterService.submitStateUpdateTask("clear-voting-config-exclusions-during-recommission", new ClusterStateUpdateTask(Priority.URGENT) {
+        clusterService.submitStateUpdateTask("delete-decommission-state", new ClusterStateUpdateTask(Priority.URGENT) {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                return clearExclusionsAndGetState(currentState);
-            }
-
-            @Override
-            public void onFailure(String source, Exception e) {
-                logger.error("Failure in clearing voting config during delete_decommission request.", e);
-                listener.onFailure(e);
-            }
-
-            @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                logger.info("successfully cleared voting config exclusion for deleting the decommission.");
-                deleteDecommissionState(listener);
-            }
-        });
-    }
-
-    // TODO - merge this state update with above call
-    void deleteDecommissionState(ActionListener<DeleteDecommissionStateResponse> listener) {
-        clusterService.submitStateUpdateTask("delete_decommission_state", new ClusterStateUpdateTask(Priority.URGENT) {
-            @Override
-            public ClusterState execute(ClusterState currentState) {
+                ClusterState newState = clearExclusionsAndGetState(currentState);
                 logger.info("Deleting the decommission attribute from the cluster state");
-                Metadata metadata = currentState.metadata();
-                Metadata.Builder mdBuilder = Metadata.builder(metadata);
-                mdBuilder.removeCustom(DecommissionAttributeMetadata.TYPE);
-                return ClusterState.builder(currentState).metadata(mdBuilder).build();
+                newState = deleteDecommissionAttributeInClusterState(newState);
+                return newState;
             }
 
             @Override
             public void onFailure(String source, Exception e) {
-                logger.error(() -> new ParameterizedMessage("Failed to clear decommission attribute. [{}]", source), e);
+                logger.error(() -> new ParameterizedMessage("failure during recommission action [{}]", source), e);
                 listener.onFailure(e);
             }
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                // Cluster state processed for deleting the decommission attribute.
+                logger.info("successfully cleared voting config exclusion and decommissioned attribute");
                 assert newState.metadata().decommissionAttributeMetadata() == null;
+                assert newState.coordinationMetadata().getVotingConfigExclusions().isEmpty();
                 listener.onResponse(new DeleteDecommissionStateResponse(true));
             }
         });

@@ -38,6 +38,13 @@ public class DecommissionHelper {
             .build();
     }
 
+    static ClusterState deleteDecommissionAttributeInClusterState(ClusterState currentState) {
+        Metadata metadata = currentState.metadata();
+        Metadata.Builder mdBuilder = Metadata.builder(metadata);
+        mdBuilder.removeCustom(DecommissionAttributeMetadata.TYPE);
+        return ClusterState.builder(currentState).metadata(mdBuilder).build();
+    }
+
     static ClusterState addVotingConfigExclusionsForToBeDecommissionedClusterManagerNodes(
         ClusterState currentState,
         Set<String> nodeIdsToBeExcluded,
