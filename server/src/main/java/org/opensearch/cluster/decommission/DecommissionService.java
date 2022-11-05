@@ -140,24 +140,17 @@ public class DecommissionService {
         final DecommissionAttribute decommissionAttribute = decommissionRequest.getDecommissionAttribute();
         // register the metadata with status as INIT as first step
         clusterService.submitStateUpdateTask("decommission [" + decommissionAttribute + "]", new ClusterStateUpdateTask(Priority.URGENT) {
-
             private Set<String> nodeIdsToBeExcluded;
-
             @Override
             public ClusterState execute(ClusterState currentState) {
                 // validates if correct awareness attributes and forced awareness attribute set to the cluster before starting action
                 validateAwarenessAttribute(decommissionAttribute, awarenessAttributes, forcedAwarenessAttributes);
-
                 DecommissionAttributeMetadata decommissionAttributeMetadata = currentState.metadata().decommissionAttributeMetadata();
-
                 // check that request is eligible to proceed
                 ensureEligibleRequest(decommissionAttributeMetadata, decommissionAttribute);
-
                 // ensure attribute is weighed away
                 ensureToBeDecommissionedAttributeWeighedAway(currentState, decommissionAttribute);
-
                 ClusterState newState = registerDecommissionAttributeInClusterState(currentState, decommissionAttribute);
-
                 Set<DiscoveryNode> clusterManagerNodesToBeDecommissioned = filterNodesWithDecommissionAttribute(
                     currentState,
                     decommissionAttribute,
