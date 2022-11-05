@@ -195,6 +195,7 @@ public class DecommissionService {
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 DecommissionAttributeMetadata decommissionAttributeMetadata = newState.metadata().decommissionAttributeMetadata();
                 assert decommissionAttribute.equals(decommissionAttributeMetadata.decommissionAttribute());
+                assert decommissionAttributeMetadata.status().equals(DecommissionStatus.INIT);
                 logger.debug(
                     "registered decommission metadata for attribute [{}] with status [{}]",
                     decommissionAttributeMetadata.decommissionAttribute(),
@@ -203,18 +204,16 @@ public class DecommissionService {
 
                 final ClusterStateObserver observer = new ClusterStateObserver(
                     clusterService,
-                    TimeValue.timeValueSeconds(30), // TODO update
+                    TimeValue.timeValueSeconds(30), // TODO update and name timeout to requestTimeout
                     logger,
                     threadPool.getThreadContext()
                 );
 
                 final Predicate<ClusterState> allNodesRemovedAndAbdicated = clusterState -> {
                     final Set<String> votingConfigNodeIds = clusterState.getLastCommittedConfiguration().getNodeIds();
-                    return nodeIdsToBeExcluded.stream().noneMatch(votingConfigNodeIds::contains) // nodes are excluded from voting config
-                        && clusterState.nodes().getClusterManagerNodeId() != null // a master is elected
-                        && nodeIdsToBeExcluded.contains(clusterState.nodes().getClusterManagerNodeId()) == false; // none of excluded node
-                                                                                                                  // is elected master
-
+                    return nodeIdsToBeExcluded.stream().noneMatch(votingConfigNodeIds::contains)
+                        && clusterState.nodes().getClusterManagerNodeId() != null
+                        && nodeIdsToBeExcluded.contains(clusterState.nodes().getClusterManagerNodeId()) == false;
                 };
 
                 final Listener clusterStateListener = new Listener() {
@@ -231,22 +230,18 @@ public class DecommissionService {
                                 String errorMsg =
                                     "unexpected state encountered [local node is to-be-decommissioned leader] while executing decommission request";
                                 logger.error(errorMsg);
-                                // will go ahead and clear the voting config and mark the status as false
+                                // will go ahead and clear the voting config and mark the status as failed
                                 clearVotingConfigExclusionAndUpdateStatus(false, false);
-                                // we can send the failure response to the user here
                                 listener.onFailure(new IllegalStateException(errorMsg));
                             } else {
                                 logger.info("will attempt to fail decommissioned nodes as local node is eligible to process the request");
                                 // we are good here to send the response now as the request is processed by an eligible active leader
-                                // and to-be-decommissioned cluster manager is no more part of Voting Configuration and no more
-                                // to-be-decommission
-                                // nodes can be part of Voting Config
+                                // and to-be-decommissioned cluster manager is no more part of Voting Configuration
                                 listener.onResponse(new DecommissionResponse(true));
                                 drainNodesWithDecommissionedAttribute(decommissionRequest);
                             }
                         } else {
-                            // explicitly calling listener.onFailure with NotClusterManagerException as the local node is not the cluster
-                            // manager
+                            // explicitly calling listener.onFailure with NotClusterManagerException as the local node is not leader
                             // this will ensures that request is retried until cluster manager times out
                             logger.info(
                                 "local node is not eligible to process the request, "
@@ -265,24 +260,15 @@ public class DecommissionService {
                     @Override
                     public void onClusterServiceClose() {
                         String errorMsg = "cluster service closed while waiting for abdication of to-be-decommissioned leader";
-                        logger.warn(errorMsg);
+                        logger.error(errorMsg);
                         listener.onFailure(new DecommissioningFailedException(decommissionAttribute, errorMsg));
                     }
 
                     @Override
                     public void onTimeout(TimeValue timeout) {
-                        logger.error(
-                            "timed out [{}] while removing to-be-decommissioned cluster manager eligible nodes [{}] from voting config",
-                            timeout.toString(),
-                            nodeIdsToBeExcluded.toString()
-                        );
-                        listener.onFailure(
-                            new OpenSearchTimeoutException(
-                                "timed out [{}] while removing to-be-decommissioned cluster manager eligible nodes [{}] from voting config",
-                                timeout.toString(),
-                                nodeIdsToBeExcluded.toString()
-                            )
-                        );
+                        String errorMsg = "timed out [" + timeout.toString() + "while removing to-be-decommissioned cluster manager eligible nodes [" + nodeIdsToBeExcluded.toString() + "] from voting config";
+                        logger.error(errorMsg);
+                        listener.onFailure(new OpenSearchTimeoutException(errorMsg));
                         clearVotingConfigExclusionAndUpdateStatus(false, false);
                     }
                 };
