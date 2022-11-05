@@ -52,6 +52,8 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static org.opensearch.action.admin.cluster.configuration.VotingConfigExclusionsHelper.clearExclusionsAndGetState;
+
 /**
  * Helper controller class to remove list of nodes from the cluster and update status
  *
@@ -77,42 +79,6 @@ public class DecommissionController {
         this.transportService = transportService;
         this.nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService, logger);
         this.threadPool = threadPool;
-    }
-
-    /**
-     * Transport call to clear voting config exclusion
-     *
-     * @param listener callback for response or failure
-     */
-    public void clearVotingConfigExclusion(ActionListener<Void> listener, boolean waitForRemoval) {
-        final ClearVotingConfigExclusionsRequest clearVotingConfigExclusionsRequest = new ClearVotingConfigExclusionsRequest();
-        clearVotingConfigExclusionsRequest.setWaitForRemoval(waitForRemoval);
-        transportService.sendRequest(
-            transportService.getLocalNode(),
-            ClearVotingConfigExclusionsAction.NAME,
-            clearVotingConfigExclusionsRequest,
-            new TransportResponseHandler<ClearVotingConfigExclusionsResponse>() {
-                @Override
-                public void handleResponse(ClearVotingConfigExclusionsResponse response) {
-                    listener.onResponse(null);
-                }
-
-                @Override
-                public void handleException(TransportException exp) {
-                    listener.onFailure(exp);
-                }
-
-                @Override
-                public String executor() {
-                    return ThreadPool.Names.SAME;
-                }
-
-                @Override
-                public ClearVotingConfigExclusionsResponse read(StreamInput in) throws IOException {
-                    return new ClearVotingConfigExclusionsResponse(in);
-                }
-            }
-        );
     }
 
     /**
@@ -201,7 +167,7 @@ public class DecommissionController {
      * @param decommissionStatus status to update decommission metadata with
      * @param listener listener for response and failure
      */
-    public void updateMetadataWithDecommissionStatus(DecommissionStatus decommissionStatus, ActionListener<DecommissionStatus> listener) {
+    public void updateMetadataWithDecommissionStatus(DecommissionStatus decommissionStatus, ActionListener<DecommissionStatus> listener, boolean isTerminalStatus) {
         clusterService.submitStateUpdateTask("update-decommission-status", new ClusterStateUpdateTask(Priority.URGENT) {
             @Override
             public ClusterState execute(ClusterState currentState) {
@@ -218,9 +184,14 @@ public class DecommissionController {
                     decommissionAttributeMetadata.decommissionAttribute(),
                     decommissionStatus
                 );
-                return ClusterState.builder(currentState)
+                ClusterState newState =  ClusterState.builder(currentState)
                     .metadata(Metadata.builder(currentState.metadata()).decommissionAttributeMetadata(decommissionAttributeMetadata))
                     .build();
+
+                if (isTerminalStatus) {
+                    newState = clearExclusionsAndGetState(newState);
+                }
+                return newState;
             }
 
             @Override

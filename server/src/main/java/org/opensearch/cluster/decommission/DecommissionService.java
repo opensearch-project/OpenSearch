@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.action.ActionListener;
+import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsResponse;
 import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionStateResponse;
 import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionResponse;
 import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionRequest;
@@ -43,6 +44,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction.MAXIMUM_VOTING_CONFIG_EXCLUSIONS_SETTING;
+import static org.opensearch.action.admin.cluster.configuration.VotingConfigExclusionsHelper.clearExclusionsAndGetState;
 import static org.opensearch.cluster.decommission.DecommissionHelper.addVotingConfigExclusionsForToBeDecommissionedClusterManagerNodes;
 import static org.opensearch.cluster.decommission.DecommissionHelper.filterNodesWithDecommissionAttribute;
 import static org.opensearch.cluster.decommission.DecommissionHelper.nodeHasDecommissionedAttribute;
@@ -231,7 +233,7 @@ public class DecommissionService {
                                     "unexpected state encountered [local node is to-be-decommissioned leader] while executing decommission request";
                                 logger.error(errorMsg);
                                 // will go ahead and clear the voting config and mark the status as failed
-                                clearVotingConfigExclusionAndUpdateStatus(false, false);
+                                decommissionController.updateMetadataWithDecommissionStatus(DecommissionStatus.FAILED, statusUpdateListener(), true);
                                 listener.onFailure(new IllegalStateException(errorMsg));
                             } else {
                                 logger.info("will attempt to fail decommissioned nodes as local node is eligible to process the request");
@@ -269,7 +271,8 @@ public class DecommissionService {
                         String errorMsg = "timed out [" + timeout.toString() + "while removing to-be-decommissioned cluster manager eligible nodes [" + nodeIdsToBeExcluded.toString() + "] from voting config";
                         logger.error(errorMsg);
                         listener.onFailure(new OpenSearchTimeoutException(errorMsg));
-                        clearVotingConfigExclusionAndUpdateStatus(false, false);
+                        // will go ahead and clear the voting config and mark the status as failed
+                        decommissionController.updateMetadataWithDecommissionStatus(DecommissionStatus.FAILED, statusUpdateListener(), true);
                     }
                 };
 
@@ -317,10 +320,11 @@ public class DecommissionService {
                         ),
                         e
                     );
-                    // since we are not able to update the status, we will clear the voting config exclusion we have set earlier
-                    clearVotingConfigExclusionAndUpdateStatus(false, false);
+                    // TODO - this might not be needed
+                    // will go ahead and clear the voting config and mark the status as failed
+                    decommissionController.updateMetadataWithDecommissionStatus(DecommissionStatus.FAILED, statusUpdateListener(), true);
                 }
-            });
+            }, false);
         }
     }
 
@@ -360,12 +364,14 @@ public class DecommissionService {
                     new ActionListener<Void>() {
                         @Override
                         public void onResponse(Void unused) {
-                            clearVotingConfigExclusionAndUpdateStatus(true, true);
+                            // will clear the voting config exclusion and mark the status as successful
+                            decommissionController.updateMetadataWithDecommissionStatus(DecommissionStatus.SUCCESSFUL, statusUpdateListener(), true);
                         }
 
                         @Override
                         public void onFailure(Exception e) {
-                            clearVotingConfigExclusionAndUpdateStatus(false, false);
+                            // will go ahead and clear the voting config and mark the status as failed
+                            decommissionController.updateMetadataWithDecommissionStatus(DecommissionStatus.FAILED, statusUpdateListener(), true);
                         }
                     }
                 );
@@ -381,32 +387,11 @@ public class DecommissionService {
                     ),
                     e
                 );
-                // since we are not able to update the status, we will clear the voting config exclusion we have set earlier
-                clearVotingConfigExclusionAndUpdateStatus(false, false);
+                // TODO - this might not be needed
+                // will go ahead and clear the voting config and mark the status as failed
+                decommissionController.updateMetadataWithDecommissionStatus(DecommissionStatus.FAILED, statusUpdateListener(), true);
             }
-        });
-    }
-
-    private void clearVotingConfigExclusionAndUpdateStatus(boolean decommissionSuccessful, boolean waitForRemoval) {
-        decommissionController.clearVotingConfigExclusion(new ActionListener<Void>() {
-            @Override
-            public void onResponse(Void unused) {
-                logger.info(
-                    "successfully cleared voting config exclusion after completing decommission action, proceeding to update metadata"
-                );
-                DecommissionStatus updateStatusWith = decommissionSuccessful ? DecommissionStatus.SUCCESSFUL : DecommissionStatus.FAILED;
-                decommissionController.updateMetadataWithDecommissionStatus(updateStatusWith, statusUpdateListener());
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                logger.debug(
-                    new ParameterizedMessage("failure in clearing voting config exclusion after processing decommission request"),
-                    e
-                );
-                decommissionController.updateMetadataWithDecommissionStatus(DecommissionStatus.FAILED, statusUpdateListener());
-            }
-        }, waitForRemoval);
+        }, false);
     }
 
     private static void validateAwarenessAttribute(
@@ -533,21 +518,27 @@ public class DecommissionService {
          * Once the excluded nodes have stopped, clear the voting configuration exclusions with DELETE /_cluster/voting_config_exclusions.
          * And hence it is safe to remove the exclusion if any. User should make conscious choice before decommissioning awareness attribute.
          */
-        decommissionController.clearVotingConfigExclusion(new ActionListener<Void>() {
+        clusterService.submitStateUpdateTask("clear-voting-config-exclusions-during-recommission", new ClusterStateUpdateTask(Priority.URGENT) {
             @Override
-            public void onResponse(Void unused) {
-                logger.info("successfully cleared voting config exclusion for deleting the decommission.");
-                deleteDecommissionState(listener);
+            public ClusterState execute(ClusterState currentState) {
+                return clearExclusionsAndGetState(currentState);
             }
 
             @Override
-            public void onFailure(Exception e) {
+            public void onFailure(String source, Exception e) {
                 logger.error("Failure in clearing voting config during delete_decommission request.", e);
                 listener.onFailure(e);
             }
-        }, false);
+
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                logger.info("successfully cleared voting config exclusion for deleting the decommission.");
+                deleteDecommissionState(listener);
+            }
+        });
     }
 
+    // TODO - merge this state update with above call
     void deleteDecommissionState(ActionListener<DeleteDecommissionStateResponse> listener) {
         clusterService.submitStateUpdateTask("delete_decommission_state", new ClusterStateUpdateTask(Priority.URGENT) {
             @Override

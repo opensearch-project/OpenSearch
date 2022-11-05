@@ -131,23 +131,7 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
     }
 
     // TODO - Add test for custom exclusion
-
-    public void testClearVotingConfigExclusions() throws InterruptedException {
-        final CountDownLatch countDownLatch = new CountDownLatch(1);
-        decommissionController.clearVotingConfigExclusion(new ActionListener<Void>() {
-            @Override
-            public void onResponse(Void unused) {
-                countDownLatch.countDown();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                fail("unexpected failure occurred while clearing voting config exclusion" + e);
-            }
-        }, false);
-        assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
-        assertThat(clusterService.getClusterApplierService().state().getVotingConfigExclusions(), empty());
-    }
+    // TODO - Add test for clear exclusion
 
     public void testNodesRemovedForDecommissionRequestSuccessfulResponse() throws InterruptedException {
         final CountDownLatch countDownLatch = new CountDownLatch(1);
@@ -278,7 +262,7 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
                 fail("decommission status update failed");
                 countDownLatch.countDown();
             }
-        });
+        }, false);
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
         ClusterState newState = clusterService.getClusterApplierService().state();
         DecommissionAttributeMetadata decommissionAttributeMetadata = newState.metadata().decommissionAttributeMetadata();
