@@ -130,9 +130,6 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
         threadPool.shutdown();
     }
 
-    // TODO - Add test for custom exclusion
-    // TODO - Add test for clear exclusion
-
     public void testNodesRemovedForDecommissionRequestSuccessfulResponse() throws InterruptedException {
         final CountDownLatch countDownLatch = new CountDownLatch(1);
         Set<DiscoveryNode> nodesToBeRemoved = new HashSet<>();
