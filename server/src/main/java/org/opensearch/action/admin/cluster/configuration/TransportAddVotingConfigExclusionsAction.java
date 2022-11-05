@@ -66,6 +66,9 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsHelper.resolveVotingConfigExclusionsAndCheckMaximum;
+import static org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsHelper.updateExclusionAndGetState;
+
 /**
  * Transport endpoint action for adding exclusions to voting config
  *
@@ -144,13 +147,7 @@ public class TransportAddVotingConfigExclusionsAction extends TransportClusterMa
                 assert resolvedExclusions == null : resolvedExclusions;
                 final int finalMaxVotingConfigExclusions = TransportAddVotingConfigExclusionsAction.this.maxVotingConfigExclusions;
                 resolvedExclusions = resolveVotingConfigExclusionsAndCheckMaximum(request, currentState, finalMaxVotingConfigExclusions);
-
-                final CoordinationMetadata.Builder builder = CoordinationMetadata.builder(currentState.coordinationMetadata());
-                resolvedExclusions.forEach(builder::addVotingConfigExclusion);
-                final Metadata newMetadata = Metadata.builder(currentState.metadata()).coordinationMetadata(builder.build()).build();
-                final ClusterState newState = ClusterState.builder(currentState).metadata(newMetadata).build();
-                assert newState.getVotingConfigExclusions().size() <= finalMaxVotingConfigExclusions;
-                return newState;
+                return updateExclusionAndGetState(currentState, resolvedExclusions, finalMaxVotingConfigExclusions);
             }
 
             @Override
@@ -211,18 +208,6 @@ public class TransportAddVotingConfigExclusionsAction extends TransportClusterMa
                 }
             }
         });
-    }
-
-    private static Set<VotingConfigExclusion> resolveVotingConfigExclusionsAndCheckMaximum(
-        AddVotingConfigExclusionsRequest request,
-        ClusterState state,
-        int maxVotingConfigExclusions
-    ) {
-        return request.resolveVotingConfigExclusionsAndCheckMaximum(
-            state,
-            maxVotingConfigExclusions,
-            MAXIMUM_VOTING_CONFIG_EXCLUSIONS_SETTING.getKey()
-        );
     }
 
     @Override
