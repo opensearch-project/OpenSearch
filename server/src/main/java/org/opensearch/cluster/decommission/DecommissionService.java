@@ -42,6 +42,7 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction.MAXIMUM_VOTING_CONFIG_EXCLUSIONS_SETTING;
 import static org.opensearch.cluster.decommission.DecommissionHelper.addVotingConfigExclusionsForToBeDecommissionedClusterManagerNodes;
 import static org.opensearch.cluster.decommission.DecommissionHelper.filterNodesWithDecommissionAttribute;
 import static org.opensearch.cluster.decommission.DecommissionHelper.nodeHasDecommissionedAttribute;
@@ -75,6 +76,7 @@ public class DecommissionService {
     private final DecommissionController decommissionController;
     private volatile List<String> awarenessAttributes;
     private volatile Map<String, List<String>> forcedAwarenessAttributes;
+    private volatile int maxVotingConfigExclusions;
 
     @Inject
     public DecommissionService(
@@ -97,6 +99,8 @@ public class DecommissionService {
             CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING,
             this::setForcedAwarenessAttributes
         );
+        maxVotingConfigExclusions = MAXIMUM_VOTING_CONFIG_EXCLUSIONS_SETTING.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(MAXIMUM_VOTING_CONFIG_EXCLUSIONS_SETTING, this::setMaxVotingConfigExclusions);
     }
 
     private void setAwarenessAttributes(List<String> awarenessAttributes) {
@@ -113,6 +117,10 @@ public class DecommissionService {
             }
         }
         this.forcedAwarenessAttributes = forcedAwarenessAttributes;
+    }
+
+    private void setMaxVotingConfigExclusions(int maxVotingConfigExclusions) {
+        this.maxVotingConfigExclusions = maxVotingConfigExclusions;
     }
 
     /**
@@ -136,23 +144,28 @@ public class DecommissionService {
             public ClusterState execute(ClusterState currentState) {
                 // validates if correct awareness attributes and forced awareness attribute set to the cluster before starting action
                 validateAwarenessAttribute(decommissionAttribute, awarenessAttributes, forcedAwarenessAttributes);
+
                 DecommissionAttributeMetadata decommissionAttributeMetadata = currentState.metadata().decommissionAttributeMetadata();
+
                 // check that request is eligible to proceed
                 ensureEligibleRequest(decommissionAttributeMetadata, decommissionAttribute);
+
                 // ensure attribute is weighed away
                 ensureToBeDecommissionedAttributeWeighedAway(currentState, decommissionAttribute);
+
                 ClusterState newState =  registerDecommissionAttributeInClusterState(currentState, decommissionAttribute);
+
                 Set<DiscoveryNode> clusterManagerNodesToBeDecommissioned = filterNodesWithDecommissionAttribute(
                     currentState, decommissionAttribute, true
                 );
                 logger.info(
-                    "resolved cluster manager eligible nodes [{}] that should be added to Voting Config Exclusion",
+                    "resolved cluster manager eligible nodes [{}] that should be added to voting config exclusion",
                     clusterManagerNodesToBeDecommissioned.toString()
                 );
                 // add all 'to-be-decommissioned' cluster manager eligible nodes to voting config exclusion
                 nodeIdsToBeExcluded = clusterManagerNodesToBeDecommissioned.stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
-                newState = addVotingConfigExclusionsForToBeDecommissionedClusterManagerNodes(newState, nodeIdsToBeExcluded, TimeValue.timeValueSeconds(30));
-                logger.info("registering decommission metadata [{}] to execute action", newState.metadata().decommissionAttributeMetadata().toString());
+                newState = addVotingConfigExclusionsForToBeDecommissionedClusterManagerNodes(newState, nodeIdsToBeExcluded, TimeValue.timeValueSeconds(30), maxVotingConfigExclusions);
+                logger.debug("registering decommission metadata [{}] to execute action", newState.metadata().decommissionAttributeMetadata().toString());
                 return newState;
             }
 
@@ -172,7 +185,7 @@ public class DecommissionService {
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 DecommissionAttributeMetadata decommissionAttributeMetadata = newState.metadata().decommissionAttributeMetadata();
                 assert decommissionAttribute.equals(decommissionAttributeMetadata.decommissionAttribute());
-                logger.info(
+                logger.debug(
                     "registered decommission metadata for attribute [{}] with status [{}]",
                     decommissionAttributeMetadata.decommissionAttribute(),
                     decommissionAttributeMetadata.status()

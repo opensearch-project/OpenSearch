@@ -38,7 +38,8 @@ public class DecommissionHelper {
     static ClusterState addVotingConfigExclusionsForToBeDecommissionedClusterManagerNodes(
         ClusterState currentState,
         Set<String> nodeIdsToBeExcluded,
-        TimeValue decommissionActionTimeout
+        TimeValue decommissionActionTimeout,
+        final int maxVotingConfigExclusions
     ) {
         AddVotingConfigExclusionsRequest request = new AddVotingConfigExclusionsRequest(
             Strings.EMPTY_ARRAY,
@@ -46,9 +47,8 @@ public class DecommissionHelper {
             Strings.EMPTY_ARRAY,
             decommissionActionTimeout
         );
-        // TODO - update max count
-        Set<VotingConfigExclusion> resolvedExclusion = resolveVotingConfigExclusionsAndCheckMaximum(request, currentState, 10);
-        return updateExclusionAndGetState(currentState, resolvedExclusion, 10);
+        Set<VotingConfigExclusion> resolvedExclusion = resolveVotingConfigExclusionsAndCheckMaximum(request, currentState, maxVotingConfigExclusions);
+        return updateExclusionAndGetState(currentState, resolvedExclusion, maxVotingConfigExclusions);
     }
 
     static Set<DiscoveryNode> filterNodesWithDecommissionAttribute(
