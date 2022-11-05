@@ -130,29 +130,7 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
         threadPool.shutdown();
     }
 
-    public void testAddNodesToVotingConfigExclusion() throws InterruptedException {
-        final CountDownLatch countDownLatch = new CountDownLatch(2);
-
-        ClusterStateObserver clusterStateObserver = new ClusterStateObserver(clusterService, null, logger, threadPool.getThreadContext());
-        clusterStateObserver.waitForNextChange(new AdjustConfigurationForExclusions(countDownLatch));
-        Set<String> nodesToRemoveFromVotingConfig = Collections.singleton(randomFrom("node1", "node6", "node11"));
-        decommissionController.excludeDecommissionedNodesFromVotingConfig(nodesToRemoveFromVotingConfig, new ActionListener<Void>() {
-            @Override
-            public void onResponse(Void unused) {
-                countDownLatch.countDown();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                fail("unexpected failure occurred while removing node from voting config " + e);
-            }
-        });
-        assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
-        clusterService.getClusterApplierService().state().getVotingConfigExclusions().forEach(vce -> {
-            assertTrue(nodesToRemoveFromVotingConfig.contains(vce.getNodeId()));
-            assertEquals(nodesToRemoveFromVotingConfig.size(), 1);
-        });
-    }
+    // TODO - Add test for custom exclusion
 
     public void testClearVotingConfigExclusions() throws InterruptedException {
         final CountDownLatch countDownLatch = new CountDownLatch(1);

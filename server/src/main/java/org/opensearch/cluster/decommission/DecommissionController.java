@@ -80,47 +80,6 @@ public class DecommissionController {
     }
 
     /**
-     * Transport call to add nodes to voting config exclusion
-     *
-     * @param nodes set of nodes Ids to be added to voting config exclusion list
-     * @param listener callback for response or failure
-     */
-    public void excludeDecommissionedNodesFromVotingConfig(Set<String> nodes, ActionListener<Void> listener) {
-        transportService.sendRequest(
-            transportService.getLocalNode(),
-            AddVotingConfigExclusionsAction.NAME,
-            new AddVotingConfigExclusionsRequest(
-                Strings.EMPTY_ARRAY,
-                nodes.toArray(String[]::new),
-                Strings.EMPTY_ARRAY,
-                TimeValue.timeValueSeconds(120) // giving a larger timeout of 120 sec as cluster might already be in stress when
-                                                // decommission is triggered
-            ),
-            new TransportResponseHandler<AddVotingConfigExclusionsResponse>() {
-                @Override
-                public void handleResponse(AddVotingConfigExclusionsResponse response) {
-                    listener.onResponse(null);
-                }
-
-                @Override
-                public void handleException(TransportException exp) {
-                    listener.onFailure(exp);
-                }
-
-                @Override
-                public String executor() {
-                    return ThreadPool.Names.SAME;
-                }
-
-                @Override
-                public AddVotingConfigExclusionsResponse read(StreamInput in) throws IOException {
-                    return new AddVotingConfigExclusionsResponse(in);
-                }
-            }
-        );
-    }
-
-    /**
      * Transport call to clear voting config exclusion
      *
      * @param listener callback for response or failure
