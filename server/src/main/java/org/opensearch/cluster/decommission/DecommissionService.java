@@ -153,10 +153,12 @@ public class DecommissionService {
                 // ensure attribute is weighed away
                 ensureToBeDecommissionedAttributeWeighedAway(currentState, decommissionAttribute);
 
-                ClusterState newState =  registerDecommissionAttributeInClusterState(currentState, decommissionAttribute);
+                ClusterState newState = registerDecommissionAttributeInClusterState(currentState, decommissionAttribute);
 
                 Set<DiscoveryNode> clusterManagerNodesToBeDecommissioned = filterNodesWithDecommissionAttribute(
-                    currentState, decommissionAttribute, true
+                    currentState,
+                    decommissionAttribute,
+                    true
                 );
                 logger.info(
                     "resolved cluster manager eligible nodes [{}] that should be added to voting config exclusion",
@@ -164,8 +166,16 @@ public class DecommissionService {
                 );
                 // add all 'to-be-decommissioned' cluster manager eligible nodes to voting config exclusion
                 nodeIdsToBeExcluded = clusterManagerNodesToBeDecommissioned.stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
-                newState = addVotingConfigExclusionsForToBeDecommissionedClusterManagerNodes(newState, nodeIdsToBeExcluded, TimeValue.timeValueSeconds(30), maxVotingConfigExclusions);
-                logger.debug("registering decommission metadata [{}] to execute action", newState.metadata().decommissionAttributeMetadata().toString());
+                newState = addVotingConfigExclusionsForToBeDecommissionedClusterManagerNodes(
+                    newState,
+                    nodeIdsToBeExcluded,
+                    TimeValue.timeValueSeconds(30),
+                    maxVotingConfigExclusions
+                );
+                logger.debug(
+                    "registering decommission metadata [{}] to execute action",
+                    newState.metadata().decommissionAttributeMetadata().toString()
+                );
                 return newState;
             }
 
@@ -202,7 +212,8 @@ public class DecommissionService {
                     final Set<String> votingConfigNodeIds = clusterState.getLastCommittedConfiguration().getNodeIds();
                     return nodeIdsToBeExcluded.stream().noneMatch(votingConfigNodeIds::contains) // nodes are excluded from voting config
                         && clusterState.nodes().getClusterManagerNodeId() != null // a master is elected
-                        && nodeIdsToBeExcluded.contains(clusterState.nodes().getClusterManagerNodeId()) == false; // none of excluded node is elected master
+                        && nodeIdsToBeExcluded.contains(clusterState.nodes().getClusterManagerNodeId()) == false; // none of excluded node
+                                                                                                                  // is elected master
 
                 };
 
@@ -227,13 +238,15 @@ public class DecommissionService {
                             } else {
                                 logger.info("will attempt to fail decommissioned nodes as local node is eligible to process the request");
                                 // we are good here to send the response now as the request is processed by an eligible active leader
-                                // and to-be-decommissioned cluster manager is no more part of Voting Configuration and no more to-be-decommission
+                                // and to-be-decommissioned cluster manager is no more part of Voting Configuration and no more
+                                // to-be-decommission
                                 // nodes can be part of Voting Config
                                 listener.onResponse(new DecommissionResponse(true));
                                 drainNodesWithDecommissionedAttribute(decommissionRequest);
                             }
                         } else {
-                            // explicitly calling listener.onFailure with NotClusterManagerException as the local node is not the cluster manager
+                            // explicitly calling listener.onFailure with NotClusterManagerException as the local node is not the cluster
+                            // manager
                             // this will ensures that request is retried until cluster manager times out
                             logger.info(
                                 "local node is not eligible to process the request, "
@@ -286,7 +299,8 @@ public class DecommissionService {
         });
     }
 
-    // TODO - after registering the new status check if any node which is not excluded still present in decommissioned zone. If yes, start the action again (retry)
+    // TODO - after registering the new status check if any node which is not excluded still present in decommissioned zone. If yes, start
+    // the action again (retry)
     void drainNodesWithDecommissionedAttribute(DecommissionRequest decommissionRequest) {
         ClusterState state = clusterService.getClusterApplierService().state();
         Set<DiscoveryNode> decommissionedNodes = filterNodesWithDecommissionAttribute(

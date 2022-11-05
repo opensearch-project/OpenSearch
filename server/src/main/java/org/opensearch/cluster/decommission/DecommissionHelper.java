@@ -28,7 +28,10 @@ import static org.opensearch.action.admin.cluster.configuration.AddVotingConfigE
  */
 public class DecommissionHelper {
 
-    static ClusterState registerDecommissionAttributeInClusterState(ClusterState currentState, DecommissionAttribute decommissionAttribute) {
+    static ClusterState registerDecommissionAttributeInClusterState(
+        ClusterState currentState,
+        DecommissionAttribute decommissionAttribute
+    ) {
         DecommissionAttributeMetadata decommissionAttributeMetadata = new DecommissionAttributeMetadata(decommissionAttribute);
         return ClusterState.builder(currentState)
             .metadata(Metadata.builder(currentState.metadata()).decommissionAttributeMetadata(decommissionAttributeMetadata))
@@ -47,7 +50,11 @@ public class DecommissionHelper {
             Strings.EMPTY_ARRAY,
             decommissionActionTimeout
         );
-        Set<VotingConfigExclusion> resolvedExclusion = resolveVotingConfigExclusionsAndCheckMaximum(request, currentState, maxVotingConfigExclusions);
+        Set<VotingConfigExclusion> resolvedExclusion = resolveVotingConfigExclusionsAndCheckMaximum(
+            request,
+            currentState,
+            maxVotingConfigExclusions
+        );
         return updateExclusionAndGetState(currentState, resolvedExclusion, maxVotingConfigExclusions);
     }
 
@@ -97,8 +104,8 @@ public class DecommissionHelper {
             if (decommissionAttribute != null && status != null) {
                 if (nodeHasDecommissionedAttribute(discoveryNode, decommissionAttribute)
                     && (status.equals(DecommissionStatus.IN_PROGRESS)
-                    || status.equals(DecommissionStatus.SUCCESSFUL)
-                    || status.equals(DecommissionStatus.DRAINING))) {
+                        || status.equals(DecommissionStatus.SUCCESSFUL)
+                        || status.equals(DecommissionStatus.DRAINING))) {
                     return false;
                 }
             }

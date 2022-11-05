@@ -19,7 +19,7 @@ import static org.opensearch.action.admin.cluster.configuration.TransportAddVoti
 
 public class AddVotingConfigExclusionsHelper {
 
-     public static ClusterState updateExclusionAndGetState(
+    public static ClusterState updateExclusionAndGetState(
         ClusterState currentState,
         Set<VotingConfigExclusion> resolvedExclusions,
         int finalMaxVotingConfigExclusions
@@ -32,8 +32,8 @@ public class AddVotingConfigExclusionsHelper {
         return newState;
     }
 
-     // throws IAE if no nodes matched or maximum exceeded
-     public static Set<VotingConfigExclusion> resolveVotingConfigExclusionsAndCheckMaximum(
+    // throws IAE if no nodes matched or maximum exceeded
+    public static Set<VotingConfigExclusion> resolveVotingConfigExclusionsAndCheckMaximum(
         AddVotingConfigExclusionsRequest request,
         ClusterState state,
         int maxVotingConfigExclusions
