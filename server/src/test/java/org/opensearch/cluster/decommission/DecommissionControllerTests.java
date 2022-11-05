@@ -53,7 +53,6 @@ import java.util.stream.StreamSupport;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;

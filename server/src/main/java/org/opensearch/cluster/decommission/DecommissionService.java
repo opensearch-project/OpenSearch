@@ -138,6 +138,7 @@ public class DecommissionService {
         // register the metadata with status as INIT as first step
         clusterService.submitStateUpdateTask("decommission [" + decommissionAttribute + "]", new ClusterStateUpdateTask(Priority.URGENT) {
             private Set<String> nodeIdsToBeExcluded;
+
             @Override
             public ClusterState execute(ClusterState currentState) {
                 // validates if correct awareness attributes and forced awareness attribute set to the cluster before starting action
@@ -224,7 +225,11 @@ public class DecommissionService {
                                     "unexpected state encountered [local node is to-be-decommissioned leader] while executing decommission request";
                                 logger.error(errorMsg);
                                 // will go ahead and clear the voting config and mark the status as failed
-                                decommissionController.updateMetadataWithDecommissionStatus(DecommissionStatus.FAILED, statusUpdateListener(), true);
+                                decommissionController.updateMetadataWithDecommissionStatus(
+                                    DecommissionStatus.FAILED,
+                                    statusUpdateListener(),
+                                    true
+                                );
                                 listener.onFailure(new IllegalStateException(errorMsg));
                             } else {
                                 logger.info("will attempt to fail decommissioned nodes as local node is eligible to process the request");
@@ -259,11 +264,19 @@ public class DecommissionService {
 
                     @Override
                     public void onTimeout(TimeValue timeout) {
-                        String errorMsg = "timed out [" + timeout.toString() + "while removing to-be-decommissioned cluster manager eligible nodes [" + nodeIdsToBeExcluded.toString() + "] from voting config";
+                        String errorMsg = "timed out ["
+                            + timeout.toString()
+                            + "while removing to-be-decommissioned cluster manager eligible nodes ["
+                            + nodeIdsToBeExcluded.toString()
+                            + "] from voting config";
                         logger.error(errorMsg);
                         listener.onFailure(new OpenSearchTimeoutException(errorMsg));
                         // will go ahead and clear the voting config and mark the status as failed
-                        decommissionController.updateMetadataWithDecommissionStatus(DecommissionStatus.FAILED, statusUpdateListener(), true);
+                        decommissionController.updateMetadataWithDecommissionStatus(
+                            DecommissionStatus.FAILED,
+                            statusUpdateListener(),
+                            true
+                        );
                     }
                 };
 
@@ -356,13 +369,21 @@ public class DecommissionService {
                         @Override
                         public void onResponse(Void unused) {
                             // will clear the voting config exclusion and mark the status as successful
-                            decommissionController.updateMetadataWithDecommissionStatus(DecommissionStatus.SUCCESSFUL, statusUpdateListener(), true);
+                            decommissionController.updateMetadataWithDecommissionStatus(
+                                DecommissionStatus.SUCCESSFUL,
+                                statusUpdateListener(),
+                                true
+                            );
                         }
 
                         @Override
                         public void onFailure(Exception e) {
                             // will go ahead and clear the voting config and mark the status as failed
-                            decommissionController.updateMetadataWithDecommissionStatus(DecommissionStatus.FAILED, statusUpdateListener(), true);
+                            decommissionController.updateMetadataWithDecommissionStatus(
+                                DecommissionStatus.FAILED,
+                                statusUpdateListener(),
+                                true
+                            );
                         }
                     }
                 );

@@ -12,12 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.action.ActionListener;
-import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
-import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
-import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsResponse;
-import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
-import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsRequest;
-import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsResponse;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsAction;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
@@ -33,7 +27,6 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
-import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.http.HttpStats;
@@ -167,7 +160,11 @@ public class DecommissionController {
      * @param decommissionStatus status to update decommission metadata with
      * @param listener listener for response and failure
      */
-    public void updateMetadataWithDecommissionStatus(DecommissionStatus decommissionStatus, ActionListener<DecommissionStatus> listener, boolean isTerminalStatus) {
+    public void updateMetadataWithDecommissionStatus(
+        DecommissionStatus decommissionStatus,
+        ActionListener<DecommissionStatus> listener,
+        boolean isTerminalStatus
+    ) {
         clusterService.submitStateUpdateTask("update-decommission-status", new ClusterStateUpdateTask(Priority.URGENT) {
             @Override
             public ClusterState execute(ClusterState currentState) {
@@ -184,7 +181,7 @@ public class DecommissionController {
                     decommissionAttributeMetadata.decommissionAttribute(),
                     decommissionStatus
                 );
-                ClusterState newState =  ClusterState.builder(currentState)
+                ClusterState newState = ClusterState.builder(currentState)
                     .metadata(Metadata.builder(currentState.metadata()).decommissionAttributeMetadata(decommissionAttributeMetadata))
                     .build();
 

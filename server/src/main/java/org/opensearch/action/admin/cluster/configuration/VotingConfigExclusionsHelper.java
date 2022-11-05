@@ -49,9 +49,7 @@ public class VotingConfigExclusionsHelper {
         final CoordinationMetadata newCoordinationMetadata = CoordinationMetadata.builder(currentState.coordinationMetadata())
             .clearVotingConfigExclusions()
             .build();
-        final Metadata newMetadata = Metadata.builder(currentState.metadata())
-            .coordinationMetadata(newCoordinationMetadata)
-            .build();
+        final Metadata newMetadata = Metadata.builder(currentState.metadata()).coordinationMetadata(newCoordinationMetadata).build();
         return ClusterState.builder(currentState).metadata(newMetadata).build();
     }
 }
