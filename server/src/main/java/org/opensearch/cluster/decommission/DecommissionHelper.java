@@ -20,8 +20,8 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
 
-import static org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsHelper.resolveVotingConfigExclusionsAndCheckMaximum;
-import static org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsHelper.updateExclusionAndGetState;
+import static org.opensearch.action.admin.cluster.configuration.VotingConfigExclusionsHelper.resolveVotingConfigExclusionsAndCheckMaximum;
+import static org.opensearch.action.admin.cluster.configuration.VotingConfigExclusionsHelper.updateExclusionAndGetState;
 
 /**
  * Static helper utilities to execute decommission

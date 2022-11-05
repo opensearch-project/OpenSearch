@@ -17,7 +17,7 @@ import java.util.Set;
 
 import static org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction.MAXIMUM_VOTING_CONFIG_EXCLUSIONS_SETTING;
 
-public class AddVotingConfigExclusionsHelper {
+public class VotingConfigExclusionsHelper {
 
     public static ClusterState updateExclusionAndGetState(
         ClusterState currentState,
@@ -43,5 +43,15 @@ public class AddVotingConfigExclusionsHelper {
             maxVotingConfigExclusions,
             MAXIMUM_VOTING_CONFIG_EXCLUSIONS_SETTING.getKey()
         );
+    }
+
+    public static ClusterState clearExclusionsAndGetState(ClusterState currentState) {
+        final CoordinationMetadata newCoordinationMetadata = CoordinationMetadata.builder(currentState.coordinationMetadata())
+            .clearVotingConfigExclusions()
+            .build();
+        final Metadata newMetadata = Metadata.builder(currentState.metadata())
+            .coordinationMetadata(newCoordinationMetadata)
+            .build();
+        return ClusterState.builder(currentState).metadata(newMetadata).build();
     }
 }

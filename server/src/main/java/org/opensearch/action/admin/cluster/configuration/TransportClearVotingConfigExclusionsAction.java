@@ -60,6 +60,8 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.function.Predicate;
 
+import static org.opensearch.action.admin.cluster.configuration.VotingConfigExclusionsHelper.clearExclusionsAndGetState;
+
 /**
  * Transport endpoint action for clearing exclusions to voting config
  *
@@ -166,13 +168,7 @@ public class TransportClearVotingConfigExclusionsAction extends TransportCluster
         clusterService.submitStateUpdateTask("clear-voting-config-exclusions", new ClusterStateUpdateTask(Priority.URGENT) {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                final CoordinationMetadata newCoordinationMetadata = CoordinationMetadata.builder(currentState.coordinationMetadata())
-                    .clearVotingConfigExclusions()
-                    .build();
-                final Metadata newMetadata = Metadata.builder(currentState.metadata())
-                    .coordinationMetadata(newCoordinationMetadata)
-                    .build();
-                return ClusterState.builder(currentState).metadata(newMetadata).build();
+                return clearExclusionsAndGetState(currentState);
             }
 
             @Override

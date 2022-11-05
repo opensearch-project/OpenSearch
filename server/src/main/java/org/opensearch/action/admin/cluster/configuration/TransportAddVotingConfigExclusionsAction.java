@@ -64,8 +64,8 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import static org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsHelper.resolveVotingConfigExclusionsAndCheckMaximum;
-import static org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsHelper.updateExclusionAndGetState;
+import static org.opensearch.action.admin.cluster.configuration.VotingConfigExclusionsHelper.resolveVotingConfigExclusionsAndCheckMaximum;
+import static org.opensearch.action.admin.cluster.configuration.VotingConfigExclusionsHelper.updateExclusionAndGetState;
 
 /**
  * Transport endpoint action for adding exclusions to voting config
