@@ -266,7 +266,7 @@ public class DecommissionService {
                     public void onTimeout(TimeValue timeout) {
                         String errorMsg = "timed out ["
                             + timeout.toString()
-                            + "while removing to-be-decommissioned cluster manager eligible nodes ["
+                            + "] while removing to-be-decommissioned cluster manager eligible nodes ["
                             + nodeIdsToBeExcluded.toString()
                             + "] from voting config";
                         logger.error(errorMsg);
