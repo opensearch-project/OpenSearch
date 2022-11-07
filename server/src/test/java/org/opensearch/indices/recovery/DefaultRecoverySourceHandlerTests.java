@@ -143,7 +143,10 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class RecoverySourceHandlerTests extends OpenSearchTestCase {
+/**
+ * This covers test cases for {@link RecoverySourceHandler} and {@link DefaultRecoverySourceHandler}.
+ */
+public class DefaultRecoverySourceHandlerTests extends OpenSearchTestCase {
     private static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings(
         "index",
         Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT).build()
@@ -1067,7 +1070,7 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
     }
 
     private Store newStore(Path path, boolean checkIndex) throws IOException {
-        BaseDirectoryWrapper baseDirectoryWrapper = RecoverySourceHandlerTests.newFSDirectory(path);
+        BaseDirectoryWrapper baseDirectoryWrapper = DefaultRecoverySourceHandlerTests.newFSDirectory(path);
         if (checkIndex == false) {
             baseDirectoryWrapper.setCheckIndexOnClose(false); // don't run checkindex we might corrupt the index in these tests
         }
