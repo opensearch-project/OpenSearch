@@ -211,6 +211,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Fix version check for 2.x release for awareness attribute decommission([#5034](https://github.com/opensearch-project/OpenSearch/pull/5034))
 - Fix flaky test ResourceAwareTasksTests on Windows ([#5077](https://github.com/opensearch-project/OpenSearch/pull/5077))
 - Length calculation for block based fetching ([#5055](https://github.com/opensearch-project/OpenSearch/pull/5055))
+- [Segment Replication] Fix for AlreadyClosedException for engine ([#4743](https://github.com/opensearch-project/OpenSearch/pull/4743))
 ### Security
 - CVE-2022-25857 org.yaml:snakeyaml DOS vulnerability ([#4341](https://github.com/opensearch-project/OpenSearch/pull/4341))
 
