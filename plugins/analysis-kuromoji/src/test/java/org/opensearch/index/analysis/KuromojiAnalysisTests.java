@@ -379,6 +379,15 @@ public class KuromojiAnalysisTests extends OpenSearchTestCase {
         );
     }
 
+    public void testKuromojiAnalyzerEmptyDictRule() throws Exception {
+        Settings settings = Settings.builder()
+            .put("index.analysis.analyzer.my_analyzer.type", "kuromoji")
+            .putList("index.analysis.analyzer.my_analyzer.user_dictionary_rules", "\"")
+            .build();
+        RuntimeException exc = expectThrows(RuntimeException.class, () -> createTestAnalysis(settings));
+        assertThat(exc.getMessage(), equalTo("Line [1]: Malformed csv in user dictionary."));
+    }
+
     public void testKuromojiAnalyzerDuplicateUserDictRule() throws Exception {
         Settings settings = Settings.builder()
             .put("index.analysis.analyzer.my_analyzer.type", "kuromoji")
