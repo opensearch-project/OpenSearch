@@ -41,6 +41,7 @@ import org.opensearch.env.Environment;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AbstractTokenFilterFactory;
 import org.opensearch.index.analysis.Analysis;
+import org.opensearch.index.analysis.MappingRule;
 import org.opensearch.index.analysis.TokenFilterFactory;
 
 import java.util.List;
@@ -73,7 +74,12 @@ public class WordDelimiterGraphTokenFilterFactory extends AbstractTokenFilterFac
         // . => DIGIT
         // \u002C => DIGIT
         // \u200D => ALPHANUM
-        List<String> charTypeTableValues = Analysis.getWordList(env, settings, "type_table");
+        List<MappingRule<Character, Byte>> charTypeTableValues = Analysis.parseWordList(
+            env,
+            settings,
+            "type_table",
+            WordDelimiterTokenFilterFactory::parse
+        );
         if (charTypeTableValues == null) {
             this.charTypeTable = WordDelimiterIterator.DEFAULT_WORD_DELIM_TABLE;
         } else {
