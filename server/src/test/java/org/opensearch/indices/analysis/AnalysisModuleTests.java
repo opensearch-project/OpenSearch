@@ -187,11 +187,12 @@ public class AnalysisModuleTests extends OpenSearchTestCase {
     }
 
     public void testWordListPath() throws Exception {
-        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
+        Path home = createTempDir();
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), home.toString()).build();
         Environment env = TestEnvironment.newEnvironment(settings);
         String[] words = new String[] { "donau", "dampf", "schiff", "spargel", "creme", "suppe" };
 
-        Path wordListFile = generateWordList(words);
+        Path wordListFile = generateWordList(home, words);
         settings = Settings.builder()
             .loadFromSource("index: \n  word_list_path: " + wordListFile.toAbsolutePath(), XContentType.YAML)
             .build();
@@ -202,8 +203,10 @@ public class AnalysisModuleTests extends OpenSearchTestCase {
         Files.delete(wordListFile);
     }
 
-    private Path generateWordList(String[] words) throws Exception {
-        Path wordListFile = createTempDir().resolve("wordlist.txt");
+    private Path generateWordList(Path home, String[] words) throws Exception {
+        Path config = home.resolve("config");
+        Files.createDirectory(config);
+        Path wordListFile = config.resolve("wordlist.txt");
         try (BufferedWriter writer = Files.newBufferedWriter(wordListFile, StandardCharsets.UTF_8)) {
             for (String word : words) {
                 writer.write(word);

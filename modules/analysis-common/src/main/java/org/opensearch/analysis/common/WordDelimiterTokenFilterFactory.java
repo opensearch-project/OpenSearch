@@ -43,6 +43,7 @@ import org.opensearch.env.Environment;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AbstractTokenFilterFactory;
 import org.opensearch.index.analysis.Analysis;
+import org.opensearch.index.analysis.MappingRule;
 import org.opensearch.index.analysis.TokenFilterFactory;
 
 import java.util.Collection;
@@ -81,7 +82,12 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
         // . => DIGIT
         // \u002C => DIGIT
         // \u200D => ALPHANUM
-        List<String> charTypeTableValues = Analysis.getWordList(env, settings, "type_table");
+        List<MappingRule<Character, Byte>> charTypeTableValues = Analysis.parseWordList(
+            env,
+            settings,
+            "type_table",
+            WordDelimiterTokenFilterFactory::parse
+        );
         if (charTypeTableValues == null) {
             this.charTypeTable = WordDelimiterIterator.DEFAULT_WORD_DELIM_TABLE;
         } else {
@@ -140,19 +146,23 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
     // source => type
     private static Pattern typePattern = Pattern.compile("(.*)\\s*=>\\s*(.*)\\s*$");
 
+    static MappingRule<Character, Byte> parse(String rule) {
+        Matcher m = typePattern.matcher(rule);
+        if (!m.find()) throw new RuntimeException("Invalid mapping rule: [" + rule + "]");
+        String lhs = parseString(m.group(1).trim());
+        Byte rhs = parseType(m.group(2).trim());
+        if (lhs.length() != 1) throw new RuntimeException("Invalid mapping rule: [" + rule + "]. Only a single character is allowed.");
+        if (rhs == null) throw new RuntimeException("Invalid mapping rule: [" + rule + "]. Illegal type.");
+        return new MappingRule<>(lhs.charAt(0), rhs);
+    }
+
     /**
      * parses a list of MappingCharFilter style rules into a custom byte[] type table
      */
-    static byte[] parseTypes(Collection<String> rules) {
+    static byte[] parseTypes(Collection<MappingRule<Character, Byte>> rules) {
         SortedMap<Character, Byte> typeMap = new TreeMap<>();
-        for (String rule : rules) {
-            Matcher m = typePattern.matcher(rule);
-            if (!m.find()) throw new RuntimeException("Invalid Mapping Rule : [" + rule + "]");
-            String lhs = parseString(m.group(1).trim());
-            Byte rhs = parseType(m.group(2).trim());
-            if (lhs.length() != 1) throw new RuntimeException("Invalid Mapping Rule : [" + rule + "]. Only a single character is allowed.");
-            if (rhs == null) throw new RuntimeException("Invalid Mapping Rule : [" + rule + "]. Illegal type.");
-            typeMap.put(lhs.charAt(0), rhs);
+        for (MappingRule<Character, Byte> rule : rules) {
+            typeMap.put(rule.getLeft(), rule.getRight());
         }
 
         // ensure the table is always at least as big as DEFAULT_WORD_DELIM_TABLE for performance
