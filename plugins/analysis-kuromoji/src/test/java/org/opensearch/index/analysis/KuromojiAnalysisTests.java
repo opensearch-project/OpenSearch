@@ -390,8 +390,8 @@ public class KuromojiAnalysisTests extends OpenSearchTestCase {
                 "制限スピード,制限スピード,セイゲンスピード,テスト名詞"
             )
             .build();
-        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> createTestAnalysis(settings));
-        assertThat(exc.getMessage(), containsString("[制限スピード] in user dictionary at line [3]"));
+        RuntimeException exc = expectThrows(RuntimeException.class, () -> createTestAnalysis(settings));
+        assertThat(exc.getMessage(), equalTo("Line [4]: Found duplicate term [制限スピード] in user dictionary."));
     }
 
     public void testDiscardCompoundToken() throws Exception {
