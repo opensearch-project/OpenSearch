@@ -79,6 +79,9 @@ public class KuromojiTokenizerFactory extends AbstractTokenizerFactory {
 
     private static String parse(String rule, Set<String> dup) {
         String[] values = CSVUtil.parse(rule);
+        if (values.length == 0) {
+            throw new IllegalArgumentException("Malformed csv in user dictionary.");
+        }
         if (dup.add(values[0]) == false) {
             throw new IllegalArgumentException("Found duplicate term [" + values[0] + "] in user dictionary.");
         }
