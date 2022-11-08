@@ -65,7 +65,7 @@ public class IndicesOptionsTests extends OpenSearchTestCase {
     public void testSerialization() throws Exception {
         int iterations = randomIntBetween(5, 20);
         for (int i = 0; i < iterations; i++) {
-            Version version = randomVersionBetween(random(), Version.V_1_0_0, null);
+            Version version = randomVersionBetween(random(), Version.V_2_0_0, null);
             IndicesOptions indicesOptions = IndicesOptions.fromOptions(
                 randomBoolean(),
                 randomBoolean(),

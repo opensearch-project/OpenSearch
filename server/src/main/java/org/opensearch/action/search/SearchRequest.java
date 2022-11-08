@@ -247,10 +247,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             finalReduce = true;
         }
         ccsMinimizeRoundtrips = in.readBoolean();
-
-        if (in.getVersion().onOrAfter(Version.V_1_1_0)) {
-            cancelAfterTimeInterval = in.readOptionalTimeValue();
-        }
+        cancelAfterTimeInterval = in.readOptionalTimeValue();
     }
 
     @Override
@@ -278,10 +275,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             out.writeBoolean(finalReduce);
         }
         out.writeBoolean(ccsMinimizeRoundtrips);
-
-        if (out.getVersion().onOrAfter(Version.V_1_1_0)) {
-            out.writeOptionalTimeValue(cancelAfterTimeInterval);
-        }
+        out.writeOptionalTimeValue(cancelAfterTimeInterval);
     }
 
     @Override

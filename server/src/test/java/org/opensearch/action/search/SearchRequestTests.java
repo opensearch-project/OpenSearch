@@ -110,12 +110,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         assertEquals(searchRequest.getLocalClusterAlias(), deserializedRequest.getLocalClusterAlias());
         assertEquals(searchRequest.getAbsoluteStartMillis(), deserializedRequest.getAbsoluteStartMillis());
         assertEquals(searchRequest.isFinalReduce(), deserializedRequest.isFinalReduce());
-
-        if (version.onOrAfter(Version.V_1_1_0)) {
-            assertEquals(searchRequest.getCancelAfterTimeInterval(), deserializedRequest.getCancelAfterTimeInterval());
-        } else {
-            assertNull(deserializedRequest.getCancelAfterTimeInterval());
-        }
+        assertEquals(searchRequest.getCancelAfterTimeInterval(), deserializedRequest.getCancelAfterTimeInterval());
     }
 
     public void testIllegalArguments() {

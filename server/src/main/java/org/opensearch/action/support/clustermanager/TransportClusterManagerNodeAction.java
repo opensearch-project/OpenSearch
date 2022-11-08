@@ -39,8 +39,10 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionListenerResponseHandler;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.action.ActionRunnable;
+import org.opensearch.action.bulk.BackoffPolicy;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
+import org.opensearch.action.support.RetryableAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.ClusterManagerNodeChangePredicate;
@@ -48,8 +50,10 @@ import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.service.ClusterManagerThrottlingException;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.Writeable;
@@ -156,12 +160,10 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
 
     @Override
     protected void doExecute(Task task, final Request request, ActionListener<Response> listener) {
-        ClusterState state = clusterService.state();
-        logger.trace("starting processing request [{}] with cluster state version [{}]", request, state.version());
         if (task != null) {
             request.setParentTask(clusterService.localNode().getId(), task.getId());
         }
-        new AsyncSingleAction(task, request, listener).doStart(state);
+        new AsyncSingleAction(task, request, listener).run();
     }
 
     /**
@@ -169,19 +171,60 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
      *
      * @opensearch.internal
      */
-    class AsyncSingleAction {
+    class AsyncSingleAction extends RetryableAction {
 
-        private final ActionListener<Response> listener;
+        private ActionListener<Response> listener;
         private final Request request;
         private ClusterStateObserver observer;
         private final long startTime;
         private final Task task;
+        private static final int BASE_DELAY_MILLIS = 10;
+        private static final int MAX_DELAY_MILLIS = 5000;
 
         AsyncSingleAction(Task task, Request request, ActionListener<Response> listener) {
+            super(
+                logger,
+                threadPool,
+                TimeValue.timeValueMillis(BASE_DELAY_MILLIS),
+                request.clusterManagerNodeTimeout,
+                listener,
+                BackoffPolicy.exponentialEqualJitterBackoff(BASE_DELAY_MILLIS, MAX_DELAY_MILLIS),
+                ThreadPool.Names.SAME
+            );
             this.task = task;
             this.request = request;
-            this.listener = listener;
             this.startTime = threadPool.relativeTimeInMillis();
+        }
+
+        @Override
+        public void tryAction(ActionListener retryListener) {
+            ClusterState state = clusterService.state();
+            logger.trace("starting processing request [{}] with cluster state version [{}]", request, state.version());
+            this.listener = retryListener;
+            doStart(state);
+        }
+
+        @Override
+        public boolean shouldRetry(Exception e) {
+            // If remote address is null, i.e request is generated from same node and we would want to perform retry for it
+            // If remote address is not null, i.e request is generated from remote node and received on this master node on transport layer
+            // in that case we would want throttling retry to perform on remote node only not on this master node.
+            if (request.remoteAddress() == null) {
+                if (e instanceof TransportException) {
+                    return ((TransportException) e).unwrapCause() instanceof ClusterManagerThrottlingException;
+                }
+                return e instanceof ClusterManagerThrottlingException;
+            }
+            return false;
+        }
+
+        /**
+         * If tasks gets timed out in retrying on throttling,
+         * it should send cluster event timeout exception.
+         */
+        @Override
+        public Exception getTimeoutException(Exception e) {
+            return new ProcessClusterEventTimeoutException(request.masterNodeTimeout, actionName);
         }
 
         protected void doStart(ClusterState clusterState) {
