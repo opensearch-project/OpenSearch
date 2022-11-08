@@ -32,12 +32,14 @@
 
 package org.opensearch.analysis.common;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.compound.HyphenationCompoundWordTokenFilter;
 import org.apache.lucene.analysis.compound.hyphenation.HyphenationTree;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.analysis.Analysis;
 import org.xml.sax.InputSource;
 
 import java.io.InputStream;
@@ -61,13 +63,15 @@ public class HyphenationCompoundWordTokenFilterFactory extends AbstractCompoundW
             throw new IllegalArgumentException("hyphenation_patterns_path is a required setting.");
         }
 
-        Path hyphenationPatternsFile = env.configFile().resolve(hyphenationPatternsPath);
+        Path hyphenationPatternsFile = Analysis.resolveAnalyzerPath(env, hyphenationPatternsPath);
 
         try {
             InputStream in = Files.newInputStream(hyphenationPatternsFile);
             hyphenationTree = HyphenationCompoundWordTokenFilter.getHyphenationTree(new InputSource(in));
         } catch (Exception e) {
-            throw new IllegalArgumentException("Exception while reading hyphenation_patterns_path.", e);
+            LogManager.getLogger(HyphenationCompoundWordTokenFilterFactory.class)
+                .error("Exception while reading hyphenation_patterns_path ", e);
+            throw new IllegalArgumentException("Exception while reading hyphenation_patterns_path.");
         }
     }
 
