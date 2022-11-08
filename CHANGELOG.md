@@ -60,6 +60,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Upgrade netty to 4.1.84.Final ([#4893](https://github.com/opensearch-project/OpenSearch/pull/4893))
 - OpenJDK Update (October 2022 Patch releases) ([#4998](https://github.com/opensearch-project/OpenSearch/pull/4998))
 - Update Jackson to 2.14.0 ([#5105](https://github.com/opensearch-project/OpenSearch/pull/5105))
+- Bump nebula-publishing-plugin from 4.4.4 to 4.6.0 ([#5127](https://github.com/opensearch-project/OpenSearch/pull/5127))
 
 ### Changed
 - Dependency updates (httpcore, mockito, slf4j, httpasyncclient, commons-codec) ([#4308](https://github.com/opensearch-project/OpenSearch/pull/4308))
