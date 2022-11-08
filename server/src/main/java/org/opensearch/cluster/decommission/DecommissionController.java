@@ -160,10 +160,7 @@ public class DecommissionController {
      * @param decommissionStatus status to update decommission metadata with
      * @param listener listener for response and failure
      */
-    public void updateMetadataWithDecommissionStatus(
-        DecommissionStatus decommissionStatus,
-        ActionListener<DecommissionStatus> listener
-    ) {
+    public void updateMetadataWithDecommissionStatus(DecommissionStatus decommissionStatus, ActionListener<DecommissionStatus> listener) {
         clusterService.submitStateUpdateTask("update-decommission-status", new ClusterStateUpdateTask(Priority.URGENT) {
             @Override
             public ClusterState execute(ClusterState currentState) {

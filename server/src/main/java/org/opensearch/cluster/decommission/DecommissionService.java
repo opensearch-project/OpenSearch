@@ -271,10 +271,7 @@ public class DecommissionService {
                         logger.error(errorMsg);
                         listener.onFailure(new OpenSearchTimeoutException(errorMsg));
                         // will go ahead and clear the voting config and mark the status as failed
-                        decommissionController.updateMetadataWithDecommissionStatus(
-                            DecommissionStatus.FAILED,
-                            statusUpdateListener()
-                        );
+                        decommissionController.updateMetadataWithDecommissionStatus(DecommissionStatus.FAILED, statusUpdateListener());
                     }
                 };
 
@@ -376,10 +373,7 @@ public class DecommissionService {
                         @Override
                         public void onFailure(Exception e) {
                             // will go ahead and clear the voting config and mark the status as failed
-                            decommissionController.updateMetadataWithDecommissionStatus(
-                                DecommissionStatus.FAILED,
-                                statusUpdateListener()
-                            );
+                            decommissionController.updateMetadataWithDecommissionStatus(DecommissionStatus.FAILED, statusUpdateListener());
                         }
                     }
                 );
