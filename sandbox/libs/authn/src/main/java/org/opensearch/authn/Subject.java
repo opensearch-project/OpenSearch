@@ -6,8 +6,6 @@
 package org.opensearch.authn;
 
 import java.security.Principal;
-import java.util.List;
-import java.util.Map;
 
 /**
  * An individual, process, or device that causes information to flow among objects or change to the system state.
@@ -21,7 +19,7 @@ public interface Subject {
     /**
      * Get the application-wide uniquely identifying principal
      * */
-    public Principal getPrincipal();
+    Principal getPrincipal();
 
     /**
      * Authentications from a token
@@ -30,16 +28,5 @@ public interface Subject {
      * throws SubjectNotFound
      * throws SubjectDisabled
      */
-    public void login(final AuthenticationToken token);
-
-    /**
-     * Updates/Adds attributes of/to this subject
-     */
-    public void updateSubjectAttributes(Map<String, String> attributes);
-
-    /**
-     * Remove given attributes of this subject
-     */
-    public void removeSubjectAttributes(List<String> attributesToBeRemoved);
-
+    void login(final AuthenticationToken token);
 }

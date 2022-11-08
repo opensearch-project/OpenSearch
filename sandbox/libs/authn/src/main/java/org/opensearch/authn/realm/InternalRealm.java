@@ -193,7 +193,7 @@ public class InternalRealm extends AuthenticatingRealm {
         }
 
         User userToBeUpdated = this.internalUsers.get(primaryPrincipal);
-        userToBeUpdated.updateSubjectAttributes(attributesToBeAdded);
+        userToBeUpdated.getAttributes().putAll(attributesToBeAdded);
 
         this.internalUsers.put(primaryPrincipal, userToBeUpdated);
         return true;
@@ -213,7 +213,11 @@ public class InternalRealm extends AuthenticatingRealm {
         }
 
         User userToBeUpdated = this.internalUsers.get(primaryPrincipal);
-        userToBeUpdated.removeSubjectAttributes(attributesToBeRemoved);
+        Map<String, String> currentAttributes = userToBeUpdated.getAttributes();
+        for (String attribute : attributesToBeRemoved) {
+            currentAttributes.remove(attribute);
+        }
+        userToBeUpdated.setAttributes(currentAttributes);
 
         this.internalUsers.put(primaryPrincipal, userToBeUpdated);
         return true;
@@ -227,6 +231,7 @@ public class InternalRealm extends AuthenticatingRealm {
      * TODO: Add restrictions around who can do this
      */
     public User removeUser(String primaryPrincipal) {
+
         User removedUser = this.internalUsers.remove(primaryPrincipal);
         if (removedUser == null) {
             throw new RuntimeException(userDoesNotExistMessage(primaryPrincipal));

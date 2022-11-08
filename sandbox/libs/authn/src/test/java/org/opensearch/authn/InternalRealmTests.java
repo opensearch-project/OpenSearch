@@ -63,12 +63,12 @@ public class InternalRealmTests extends OpenSearchTestCase {
 
         assertEquals(primaryPrincipal, realm.getInternalUser(primaryPrincipal).getPrimaryPrincipal().getName());
 
-        User subjectToBeCreated = new User();
-        subjectToBeCreated.setAttributes(attributes);
-        subjectToBeCreated.setBcryptHash(hash);
-        subjectToBeCreated.setPrimaryPrincipal(new StringPrincipal(otherPrimaryPrincipal));
+        User user = new User();
+        user.setAttributes(attributes);
+        user.setBcryptHash(hash);
+        user.setPrimaryPrincipal(new StringPrincipal(otherPrimaryPrincipal));
 
-        realm.createUser(subjectToBeCreated);
+        realm.createUser(user);
 
         assertEquals(otherPrimaryPrincipal, realm.getInternalUser(otherPrimaryPrincipal).getPrimaryPrincipal().getName());
     }
