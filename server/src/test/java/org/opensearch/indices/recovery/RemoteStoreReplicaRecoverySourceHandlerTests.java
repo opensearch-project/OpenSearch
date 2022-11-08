@@ -12,6 +12,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.replication.OpenSearchIndexLevelReplicationTestCase;
+import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.replication.common.ReplicationType;
 
@@ -47,14 +48,22 @@ public class RemoteStoreReplicaRecoverySourceHandlerTests extends OpenSearchInde
             assertDocCount(primary, numDocs + moreDocs);
             assertDocCount(replica1, numDocs + moreDocs);
 
-            // Step 5 - Start new replica, recovery happens, and check that new replica has docs upto last flush
+            // Step 5 - Check retention lease does not exist for the replica shard
+            assertEquals(1, primary.getRetentionLeases().leases().size());
+            assertFalse(primary.getRetentionLeases().contains(ReplicationTracker.getPeerRecoveryRetentionLeaseId(replica1.routingEntry())));
+
+            // Step 6 - Start new replica, recovery happens, and check that new replica has docs upto last flush
             final IndexShard replica2 = shards.addReplica();
             shards.startAll();
             assertDocCount(replica2, numDocs);
 
-            // Step 6 - Segment replication, check all shards have same number of docs
+            // Step 7 - Segment replication, check all shards have same number of docs
             replicateSegments(primary, shards.getReplicas());
             shards.assertAllEqual(numDocs + moreDocs);
+
+            // Step 8 - Check retention lease does not exist for the replica shard
+            assertEquals(1, primary.getRetentionLeases().leases().size());
+            assertFalse(primary.getRetentionLeases().contains(ReplicationTracker.getPeerRecoveryRetentionLeaseId(replica2.routingEntry())));
         }
     }
 }
