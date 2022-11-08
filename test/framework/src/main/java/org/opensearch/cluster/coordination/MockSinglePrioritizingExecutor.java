@@ -31,9 +31,7 @@
 
 package org.opensearch.cluster.coordination;
 
-import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
-import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.common.util.concurrent.PrioritizedOpenSearchThreadPoolExecutor;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -85,27 +83,6 @@ public class MockSinglePrioritizingExecutor extends PrioritizedOpenSearchThreadP
     public boolean awaitTermination(long timeout, TimeUnit unit) {
         // ensures we don't block
         return false;
-    }
-
-    @Override
-    public void execute(Runnable command) {
-        command = wrapRunnable(command);
-        try {
-            super.execute(command);
-        } catch (OpenSearchRejectedExecutionException ex) {
-            if (command instanceof AbstractRunnable) {
-                // If we are an abstract runnable we can handle the rejection
-                // directly and don't need to rethrow it.
-                try {
-                    ((AbstractRunnable) command).onRejection(ex);
-                } finally {
-                    ((AbstractRunnable) command).onAfter();
-
-                }
-            } else {
-                throw ex;
-            }
-        }
     }
 
     private static final class KillWorkerError extends Error {
