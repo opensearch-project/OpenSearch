@@ -71,7 +71,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Bumps `azure-storage-common` from 12.18.0 to 12.18.1
 - Bumps `forbiddenapis` from 3.3 to 3.4
 - Bumps `gson` from 2.9.0 to 2.10
-- Bumps `protobuf-java` from 3.21.2 to 3.21.7k
+- Bumps `protobuf-java` from 3.21.2 to 3.21.9
 - Bumps `azure-core` from 1.31.0 to 1.33.0
 - Bumps `avro` from 1.11.0 to 1.11.1
 - Bumps `woodstox-core` from 6.3.0 to 6.3.1
