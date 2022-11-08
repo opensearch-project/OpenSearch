@@ -17,8 +17,21 @@ import java.util.Set;
 
 import static org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction.MAXIMUM_VOTING_CONFIG_EXCLUSIONS_SETTING;
 
+/**
+ * Static helper utilities for voting config exclusions cluster state updates
+ *
+ * @opensearch.internal
+ */
 public class VotingConfigExclusionsHelper {
 
+    /**
+     * Static helper to update current state with given resolved exclusions
+     *
+     * @param currentState current cluster state
+     * @param resolvedExclusions resolved exclusions from the request
+     * @param finalMaxVotingConfigExclusions max exclusions that be added
+     * @return newly formed cluster state
+     */
     public static ClusterState updateExclusionAndGetState(
         ClusterState currentState,
         Set<VotingConfigExclusion> resolvedExclusions,
