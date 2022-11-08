@@ -42,8 +42,6 @@ import java.nio.file.Path;
 import static java.util.Collections.emptyMap;
 import static org.opensearch.indices.analysis.HunspellService.HUNSPELL_IGNORE_CASE;
 import static org.opensearch.indices.analysis.HunspellService.HUNSPELL_LAZY_LOAD;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class HunspellServiceTests extends OpenSearchTestCase {
@@ -91,11 +89,11 @@ public class HunspellServiceTests extends OpenSearchTestCase {
             final Environment environment = new Environment(settings, getDataPath("/indices/analyze/no_aff_conf_dir"));
             new HunspellService(settings, environment, emptyMap()).getDictionary("en_US");
         });
-        assertEquals("failed to load hunspell dictionary for locale: en_US", e.getMessage());
-        assertThat(e.getCause(), hasToString(containsString("Missing affix file")));
+        assertEquals("Failed to load hunspell dictionary for locale: en_US", e.getMessage());
+        assertNull(e.getCause());
     }
 
-    public void testDicWithTwoAffs() throws Exception {
+    public void testDicWithTwoAffs() {
         Settings settings = Settings.builder()
             .put(HUNSPELL_LAZY_LOAD.getKey(), randomBoolean())
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
@@ -105,7 +103,7 @@ public class HunspellServiceTests extends OpenSearchTestCase {
             final Environment environment = new Environment(settings, getDataPath("/indices/analyze/two_aff_conf_dir"));
             new HunspellService(settings, environment, emptyMap()).getDictionary("en_US");
         });
-        assertEquals("failed to load hunspell dictionary for locale: en_US", e.getMessage());
-        assertThat(e.getCause(), hasToString(containsString("Too many affix files")));
+        assertEquals("Failed to load hunspell dictionary for locale: en_US", e.getMessage());
+        assertNull(e.getCause());
     }
 }
