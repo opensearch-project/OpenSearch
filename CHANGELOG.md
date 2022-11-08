@@ -55,6 +55,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Bump protobuf-java to 3.21.8 ([#5005](https://github.com/opensearch-project/OpenSearch/pull/5005))
 - Upgrade zookeeper dependency in hdfs-fixture ([#5047](https://github.com/opensearch-project/OpenSearch/pull/5047))
 - Update Jackson to 2.14.0 ([#5105](https://github.com/opensearch-project/OpenSearch/pull/5105))
+- Bump nebula-publishing-plugin from 4.4.4 to 4.6.0 ([#5127](https://github.com/opensearch-project/OpenSearch/pull/5127))
 
 ### Changed
 - Use RemoteSegmentStoreDirectory instead of RemoteDirectory ([#4240](https://github.com/opensearch-project/OpenSearch/pull/4240))
