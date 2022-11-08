@@ -136,14 +136,24 @@ public class AnalysisTests extends OpenSearchTestCase {
         assertEquals("Line [1]: Error while parsing rule = abcd", ex.getMessage());
     }
 
-    public void testParseWordListOutsideConfigDirError() {
+    public void testParseWordListOutsideConfigDirError() throws IOException {
         Path home = createTempDir();
-        Path dict = home.resolve("/etc/os-release");
+        Path temp = createTempDir();
+        Path dict = temp.resolve("foo.dict");
+        try (BufferedWriter writer = Files.newBufferedWriter(dict, StandardCharsets.UTF_8)) {
+            writer.write("abcd");
+            writer.write('\n');
+        }
         Settings nodeSettings = Settings.builder().put("foo.bar_path", dict).put(Environment.PATH_HOME_SETTING.getKey(), home).build();
         Environment env = TestEnvironment.newEnvironment(nodeSettings);
         RuntimeException ex = expectThrows(
             RuntimeException.class,
-            () -> Analysis.parseWordList(env, nodeSettings, "foo.bar", s -> { throw new RuntimeException("Error while parsing"); })
+            () -> Analysis.parseWordList(
+                env,
+                nodeSettings,
+                "foo.bar",
+                s -> { throw new RuntimeException("Error while parsing rule = " + s); }
+            )
         );
         assertEquals("Line [1]: Invalid rule", ex.getMessage());
     }
