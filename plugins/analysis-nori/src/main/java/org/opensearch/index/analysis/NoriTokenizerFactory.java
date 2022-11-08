@@ -32,6 +32,8 @@
 
 package org.opensearch.index.analysis;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.ko.KoreanTokenizer;
 import org.apache.lucene.analysis.ko.dict.UserDictionary;
@@ -47,6 +49,7 @@ import java.util.List;
 import java.util.Locale;
 
 public class NoriTokenizerFactory extends AbstractTokenizerFactory {
+    private static final Logger LOGGER = LogManager.getLogger(NoriTokenizerFactory.class);
     private static final String USER_DICT_PATH_OPTION = "user_dictionary";
     private static final String USER_DICT_RULES_OPTION = "user_dictionary_rules";
 
@@ -67,7 +70,7 @@ public class NoriTokenizerFactory extends AbstractTokenizerFactory {
                 "It is not allowed to use [" + USER_DICT_PATH_OPTION + "] in conjunction" + " with [" + USER_DICT_RULES_OPTION + "]"
             );
         }
-        List<String> ruleList = Analysis.getWordList(env, settings, USER_DICT_PATH_OPTION, USER_DICT_RULES_OPTION, true);
+        List<String> ruleList = Analysis.parseWordList(env, settings, USER_DICT_PATH_OPTION, USER_DICT_RULES_OPTION, s -> s);
         StringBuilder sb = new StringBuilder();
         if (ruleList == null || ruleList.isEmpty()) {
             return null;
@@ -78,7 +81,8 @@ public class NoriTokenizerFactory extends AbstractTokenizerFactory {
         try (Reader rulesReader = new StringReader(sb.toString())) {
             return UserDictionary.open(rulesReader);
         } catch (IOException e) {
-            throw new OpenSearchException("failed to load nori user dictionary", e);
+            LOGGER.error("Failed to load nori user dictionary", e);
+            throw new OpenSearchException("Failed to load nori user dictionary");
         }
     }
 
