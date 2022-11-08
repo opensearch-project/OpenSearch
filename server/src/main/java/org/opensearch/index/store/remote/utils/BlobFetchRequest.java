@@ -107,6 +107,9 @@ public class BlobFetchRequest {
         }
 
         public Builder length(long length) {
+            if (length <= 0) {
+                throw new IllegalArgumentException("Length for blob fetch request needs to be non-negative");
+            }
             this.length = length;
             return this;
         }

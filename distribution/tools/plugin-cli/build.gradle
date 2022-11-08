@@ -37,7 +37,7 @@ dependencies {
     exclude group: 'org.bouncycastle', module: 'bcprov-jdk15on'
   }
   compileOnly project(":libs:opensearch-cli")
-  api "org.bouncycastle:bcpg-fips:1.0.5.1"
+  api "org.bouncycastle:bcpg-fips:1.0.7.1"
   api "org.bouncycastle:bc-fips:1.0.2.3"
   testImplementation(project(":test:framework")) {
     exclude group: 'org.bouncycastle', module: 'bcprov-jdk15on'

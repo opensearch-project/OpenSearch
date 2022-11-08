@@ -312,37 +312,6 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
             // this logic is only applicable when OpenSearch node is cluster-manager and is noop for zen discovery node
             return;
         }
-        if (currentNodes.getMinNodeVersion().before(Version.V_1_0_0)) {
-            Map<String, Version> channelVersions = transportService.getChannelVersion(currentNodes);
-            for (DiscoveryNode node : currentNodes) {
-                if (channelVersions.containsKey(node.getId())) {
-                    if (channelVersions.get(node.getId()) != node.getVersion()) {
-                        DiscoveryNode tmpNode = nodesBuilder.get(node.getId());
-                        nodesBuilder.remove(node.getId());
-                        nodesBuilder.add(
-                            new DiscoveryNode(
-                                tmpNode.getName(),
-                                tmpNode.getId(),
-                                tmpNode.getEphemeralId(),
-                                tmpNode.getHostName(),
-                                tmpNode.getHostAddress(),
-                                tmpNode.getAddress(),
-                                tmpNode.getAttributes(),
-                                tmpNode.getRoles(),
-                                channelVersions.get(tmpNode.getId())
-                            )
-                        );
-                        logger.info(
-                            "Refreshed the DiscoveryNode version for node {}:{} from {} to {}",
-                            node.getId(),
-                            node.getAddress(),
-                            node.getVersion(),
-                            channelVersions.get(tmpNode.getId())
-                        );
-                    }
-                }
-            }
-        }
     }
 
     @Override

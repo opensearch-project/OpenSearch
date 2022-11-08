@@ -34,6 +34,7 @@ package org.opensearch;
 
 import org.opensearch.action.support.replication.ReplicationOperation;
 import org.opensearch.cluster.action.shard.ShardStateAction;
+import org.opensearch.cluster.service.ClusterManagerThrottlingException;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.ParseField;
@@ -587,7 +588,7 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
                 }
                 t = t.getCause();
             }
-            builder.field(ERROR, ExceptionsHelper.summaryMessage(e));
+            builder.field(ERROR, ExceptionsHelper.summaryMessage(t != null ? t : e));
             return;
         }
 
@@ -1603,7 +1604,13 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
             org.opensearch.cluster.decommission.NodeDecommissionedException.class,
             org.opensearch.cluster.decommission.NodeDecommissionedException::new,
             164,
-            V_2_4_0
+            V_3_0_0
+        ),
+        CLUSTER_MANAGER_TASK_THROTTLED_EXCEPTION(
+            ClusterManagerThrottlingException.class,
+            ClusterManagerThrottlingException::new,
+            165,
+            Version.V_2_4_0
         );
 
         final Class<? extends OpenSearchException> exceptionClass;

@@ -32,7 +32,6 @@
 
 package org.opensearch.index.query.functionscore;
 
-import org.opensearch.Version;
 import org.opensearch.common.io.stream.NamedWriteable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -65,17 +64,13 @@ public abstract class ScoreFunctionBuilder<FB extends ScoreFunctionBuilder<FB>> 
      */
     public ScoreFunctionBuilder(StreamInput in) throws IOException {
         weight = checkWeight(in.readOptionalFloat());
-        if (in.getVersion().onOrAfter(Version.V_1_3_0)) {
-            functionName = in.readOptionalString();
-        }
+        functionName = in.readOptionalString();
     }
 
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalFloat(weight);
-        if (out.getVersion().onOrAfter(Version.V_1_3_0)) {
-            out.writeOptionalString(functionName);
-        }
+        out.writeOptionalString(functionName);
         doWriteTo(out);
     }
 

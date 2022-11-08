@@ -15,4 +15,4 @@ jobs:
 
       - uses: dangoslen/changelog-enforcer@v3
         with:
-          skipLabels: "autocut"
+          skipLabels: "autocut, skip-changelog"

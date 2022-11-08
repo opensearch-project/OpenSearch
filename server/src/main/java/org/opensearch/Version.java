@@ -75,20 +75,6 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final int V_EMPTY_ID = 0;
     public static final Version V_EMPTY = new Version(V_EMPTY_ID, org.apache.lucene.util.Version.LATEST);
 
-    public static final Version V_1_0_0 = new Version(1000099, org.apache.lucene.util.Version.LUCENE_8_8_2);
-    public static final Version V_1_1_0 = new Version(1010099, org.apache.lucene.util.Version.LUCENE_8_9_0);
-    public static final Version V_1_2_0 = new Version(1020099, org.apache.lucene.util.Version.LUCENE_8_10_1);
-    public static final Version V_1_2_1 = new Version(1020199, org.apache.lucene.util.Version.LUCENE_8_10_1);
-    public static final Version V_1_2_2 = new Version(1020299, org.apache.lucene.util.Version.LUCENE_8_10_1);
-    public static final Version V_1_2_3 = new Version(1020399, org.apache.lucene.util.Version.LUCENE_8_10_1);
-    public static final Version V_1_2_4 = new Version(1020499, org.apache.lucene.util.Version.LUCENE_8_10_1);
-    public static final Version V_1_2_5 = new Version(1020599, org.apache.lucene.util.Version.LUCENE_8_10_1);
-    public static final Version V_1_3_0 = new Version(1030099, org.apache.lucene.util.Version.LUCENE_8_10_1);
-    public static final Version V_1_3_1 = new Version(1030199, org.apache.lucene.util.Version.LUCENE_8_10_1);
-    public static final Version V_1_3_2 = new Version(1030299, org.apache.lucene.util.Version.LUCENE_8_10_1);
-    public static final Version V_1_3_3 = new Version(1030399, org.apache.lucene.util.Version.LUCENE_8_10_1);
-    public static final Version V_1_3_4 = new Version(1030499, org.apache.lucene.util.Version.LUCENE_8_10_1);
-    public static final Version V_1_3_5 = new Version(1030599, org.apache.lucene.util.Version.LUCENE_8_10_1);
     public static final Version V_2_0_0 = new Version(2000099, org.apache.lucene.util.Version.LUCENE_9_1_0);
     public static final Version V_2_0_1 = new Version(2000199, org.apache.lucene.util.Version.LUCENE_9_1_0);
     public static final Version V_2_0_2 = new Version(2000299, org.apache.lucene.util.Version.LUCENE_9_1_0);
