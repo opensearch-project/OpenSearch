@@ -9,12 +9,37 @@ on:
     types: [opened, synchronize, reopened]
 
 jobs:
+  spotless:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Spotless Check
+        run: ./gradlew spotlessCheck
+  precommit:
+    needs: spotless
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ ubuntu-latest, windows-latest, macos-latest ]
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up JDK 11
+        uses: actions/setup-java@v2
+        with:
+          java-version: 11
+          distribution: temurin
+      - name: Run Gradle
+        run: |
+          ./gradlew javadoc precommit --parallel
   gradle-check:
+    needs: precommit
     runs-on: ubuntu-latest
     timeout-minutes: 130
     steps:
       - name: Checkout OpenSearch repo
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           ref: ${{ github.event.pull_request.head.sha }}
 
@@ -40,7 +65,7 @@ jobs:
             echo "pr_number=Null" >> $GITHUB_ENV
 
       - name: Checkout opensearch-build repo
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           repository: opensearch-project/opensearch-build
           ref: main
