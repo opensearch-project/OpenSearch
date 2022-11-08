@@ -99,7 +99,6 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - OpenJDK Update (October 2022 Patch releases) ([#4997](https://github.com/opensearch-project/OpenSearch/pull/4997))
 - Upgrade zookeeper dependency in hdfs-fixture ([#5007](https://github.com/opensearch-project/OpenSearch/pull/5007))
 - Update Jackson to 2.14.0 ([#5105](https://github.com/opensearch-project/OpenSearch/pull/5105))
-- Runs precommit before gradle check ([#5066](https://github.com/opensearch-project/OpenSearch/pull/5066))
 
 ### Changed
 - Dependency updates (httpcore, mockito, slf4j, httpasyncclient, commons-codec) ([#4308](https://github.com/opensearch-project/OpenSearch/pull/4308))
