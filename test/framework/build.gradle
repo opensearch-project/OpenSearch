@@ -89,7 +89,7 @@ test {
   systemProperty 'tests.gradle_wire_compat_versions', BuildParams.bwcVersions.wireCompatible.join(',')
   systemProperty 'tests.gradle_unreleased_versions', BuildParams.bwcVersions.unreleased.join(',')
   
-  if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_17) {
+  if (BuildParams.runtimeJavaVersion >= JavaVersion.VERSION_18) {
     jvmArgs += ["-Djava.security.manager=allow"]
   }
 }
