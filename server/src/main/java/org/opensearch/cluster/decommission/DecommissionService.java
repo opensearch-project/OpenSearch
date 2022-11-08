@@ -227,8 +227,7 @@ public class DecommissionService {
                                 // will go ahead and clear the voting config and mark the status as failed
                                 decommissionController.updateMetadataWithDecommissionStatus(
                                     DecommissionStatus.FAILED,
-                                    statusUpdateListener(),
-                                    true
+                                    statusUpdateListener()
                                 );
                                 listener.onFailure(new IllegalStateException(errorMsg));
                             } else {
@@ -274,8 +273,7 @@ public class DecommissionService {
                         // will go ahead and clear the voting config and mark the status as failed
                         decommissionController.updateMetadataWithDecommissionStatus(
                             DecommissionStatus.FAILED,
-                            statusUpdateListener(),
-                            true
+                            statusUpdateListener()
                         );
                     }
                 };
@@ -326,9 +324,9 @@ public class DecommissionService {
                     );
                     // TODO - this might not be needed
                     // will go ahead and clear the voting config and mark the status as failed
-                    decommissionController.updateMetadataWithDecommissionStatus(DecommissionStatus.FAILED, statusUpdateListener(), true);
+                    decommissionController.updateMetadataWithDecommissionStatus(DecommissionStatus.FAILED, statusUpdateListener());
                 }
-            }, false);
+            });
         }
     }
 
@@ -371,8 +369,7 @@ public class DecommissionService {
                             // will clear the voting config exclusion and mark the status as successful
                             decommissionController.updateMetadataWithDecommissionStatus(
                                 DecommissionStatus.SUCCESSFUL,
-                                statusUpdateListener(),
-                                true
+                                statusUpdateListener()
                             );
                         }
 
@@ -381,8 +378,7 @@ public class DecommissionService {
                             // will go ahead and clear the voting config and mark the status as failed
                             decommissionController.updateMetadataWithDecommissionStatus(
                                 DecommissionStatus.FAILED,
-                                statusUpdateListener(),
-                                true
+                                statusUpdateListener()
                             );
                         }
                     }
@@ -401,9 +397,9 @@ public class DecommissionService {
                 );
                 // TODO - this might not be needed
                 // will go ahead and clear the voting config and mark the status as failed
-                decommissionController.updateMetadataWithDecommissionStatus(DecommissionStatus.FAILED, statusUpdateListener(), true);
+                decommissionController.updateMetadataWithDecommissionStatus(DecommissionStatus.FAILED, statusUpdateListener());
             }
-        }, false);
+        });
     }
 
     private static void validateAwarenessAttribute(

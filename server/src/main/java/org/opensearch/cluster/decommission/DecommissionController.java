@@ -162,8 +162,7 @@ public class DecommissionController {
      */
     public void updateMetadataWithDecommissionStatus(
         DecommissionStatus decommissionStatus,
-        ActionListener<DecommissionStatus> listener,
-        boolean isTerminalStatus
+        ActionListener<DecommissionStatus> listener
     ) {
         clusterService.submitStateUpdateTask("update-decommission-status", new ClusterStateUpdateTask(Priority.URGENT) {
             @Override
@@ -185,7 +184,8 @@ public class DecommissionController {
                     .metadata(Metadata.builder(currentState.metadata()).decommissionAttributeMetadata(decommissionAttributeMetadata))
                     .build();
 
-                if (isTerminalStatus) {
+                // For terminal status we will go ahead and clear any exclusion that was added as part of decommission action
+                if (decommissionStatus.equals(DecommissionStatus.SUCCESSFUL) || decommissionStatus.equals(DecommissionStatus.FAILED)) {
                     newState = clearExclusionsAndGetState(newState);
                 }
                 return newState;

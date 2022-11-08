@@ -258,7 +258,7 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
                 fail("decommission status update failed");
                 countDownLatch.countDown();
             }
-        }, false);
+        });
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
         ClusterState newState = clusterService.getClusterApplierService().state();
         DecommissionAttributeMetadata decommissionAttributeMetadata = newState.metadata().decommissionAttributeMetadata();
