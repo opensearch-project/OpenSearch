@@ -116,8 +116,8 @@ public class ClusterManagerTaskThrottlingIT extends OpenSearchIntegTestCase {
             ActionListener listener = new ActionListener() {
                 @Override
                 public void onResponse(Object o) {
-                    latch.countDown();
                     successfulRequest.incrementAndGet();
+                    latch.countDown();
                 }
 
                 @Override
