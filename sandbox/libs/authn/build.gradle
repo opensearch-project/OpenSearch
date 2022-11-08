@@ -47,6 +47,7 @@ tasks.named('forbiddenApisMain').configure {
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /jackson-.*/, to: 'jackson'
+  mapping from: /cxf-.*/, to: 'cxf'
 }
 
 thirdPartyAudit.ignoreMissingClasses(
