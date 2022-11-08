@@ -164,9 +164,9 @@ public class ClusterManagerTaskThrottlingIT extends OpenSearchIntegTestCase {
 
                 @Override
                 public void onFailure(Exception e) {
+                    timedoutRequest.incrementAndGet();
                     latch.countDown();
                     assertTrue(e instanceof ProcessClusterEventTimeoutException);
-                    timedoutRequest.incrementAndGet();
                 }
             };
             executePutMappingRequests(totalRequest, node, listener);
