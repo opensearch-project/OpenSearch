@@ -74,6 +74,7 @@ public class DecommissionService {
     private final TransportService transportService;
     private final ThreadPool threadPool;
     private final DecommissionController decommissionController;
+    private final long startTime;
     private volatile List<String> awarenessAttributes;
     private volatile Map<String, List<String>> forcedAwarenessAttributes;
     private volatile int maxVotingConfigExclusions;
@@ -91,6 +92,7 @@ public class DecommissionService {
         this.transportService = transportService;
         this.threadPool = threadPool;
         this.decommissionController = new DecommissionController(clusterService, transportService, allocationService, threadPool);
+        this.startTime = threadPool.relativeTimeInMillis();
         this.awarenessAttributes = CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING, this::setAwarenessAttributes);
 
@@ -127,7 +129,7 @@ public class DecommissionService {
      * Starts the new decommission request and registers the metadata with status as {@link DecommissionStatus#INIT}
      * Once the status is updated, it tries to exclude to-be-decommissioned cluster manager eligible nodes from Voting Configuration
      *
-     * @param decommissionRequest decommission request Object
+     * @param decommissionRequest request for decommission action
      * @param listener register decommission listener
      */
     public void startDecommissionAction(
@@ -146,6 +148,7 @@ public class DecommissionService {
                 DecommissionAttributeMetadata decommissionAttributeMetadata = currentState.metadata().decommissionAttributeMetadata();
                 // check that request is eligible to proceed and attribute is weighed away
                 ensureEligibleRequest(decommissionAttributeMetadata, decommissionAttribute);
+                ensureEligibleRetry(decommissionRequest, decommissionAttributeMetadata);
                 ensureToBeDecommissionedAttributeWeighedAway(currentState, decommissionAttribute);
 
                 ClusterState newState = registerDecommissionAttributeInClusterState(currentState, decommissionAttribute);
@@ -238,18 +241,22 @@ public class DecommissionService {
                                 drainNodesWithDecommissionedAttribute(decommissionRequest);
                             }
                         } else {
-                            // explicitly calling listener.onFailure with NotClusterManagerException as the local node is not leader
-                            // this will ensures that request is retried until cluster manager times out
-                            logger.info(
-                                "local node is not eligible to process the request, "
-                                    + "throwing NotClusterManagerException to attempt a retry on an eligible node"
-                            );
-                            listener.onFailure(
-                                new NotClusterManagerException(
-                                    "node ["
-                                        + transportService.getLocalNode().toString()
-                                        + "] not eligible to execute decommission request. Will retry until timeout."
-                                )
+                            // since the local node is no longer cluster manager which could've happened due to leader abdication,
+                            // hence retrying the decommission action until it times out
+                            logger.info("local node is not eligible to process the request, retrying the transport action until it times out");
+                            decommissionController.retryDecommissionAction(
+                                decommissionRequest,
+                                startTime,
+                                ActionListener.delegateResponse(listener, (delegatedListener, t) -> {
+                                    logger.debug(
+                                        () -> new ParameterizedMessage(
+                                            "failed to retry decommission action for attribute [{}]",
+                                            decommissionRequest.getDecommissionAttribute()
+                                        ),
+                                        t
+                                    );
+                                    delegatedListener.onFailure(t);
+                                })
                             );
                         }
                     }
@@ -495,6 +502,21 @@ public class DecommissionService {
 
         if (msg != null) {
             throw new DecommissioningFailedException(requestedDecommissionAttribute, msg);
+        }
+    }
+
+    private static void ensureEligibleRetry(
+        DecommissionRequest decommissionRequest,
+        DecommissionAttributeMetadata decommissionAttributeMetadata
+    ) {
+        if (decommissionAttributeMetadata != null) {
+            if (decommissionAttributeMetadata.status().equals(DecommissionStatus.INIT)
+                && decommissionRequest.retryOnClusterManagerChange() == false) {
+                throw new DecommissioningFailedException(
+                    decommissionRequest.getDecommissionAttribute(),
+                    "concurrent request received to decommission attribute"
+                );
+            }
         }
     }
 
