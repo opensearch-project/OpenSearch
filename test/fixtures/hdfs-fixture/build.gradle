@@ -49,7 +49,7 @@ dependencies {
   api "com.fasterxml.woodstox:woodstox-core:${versions.woodstox}"
   api 'net.minidev:json-smart:2.4.8'
   api "org.mockito:mockito-core:${versions.mockito}"
-  api "com.google.protobuf:protobuf-java:3.21.8"
+  api "com.google.protobuf:protobuf-java:3.21.9"
   api "org.jetbrains.kotlin:kotlin-stdlib:${versions.kotlin}"
   api 'org.eclipse.jetty:jetty-server:9.4.49.v20220914'
   api 'org.apache.zookeeper:zookeeper:3.8.0'
