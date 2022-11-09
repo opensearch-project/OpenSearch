@@ -60,8 +60,14 @@ public class JwtVendor {
         String encodedJwt = jwtProducer.processJwt(jwt);
 
         if (logger.isDebugEnabled()) {
-            logger.debug("Created JWT: " + encodedJwt + "\n" + jsonMapReaderWriter.toJson(jwt.getJwsHeaders()) + "\n"
-                + JwtUtils.claimsToJson(jwt.getClaims()));
+            logger.debug(
+                "Created JWT: "
+                    + encodedJwt
+                    + "\n"
+                    + jsonMapReaderWriter.toJson(jwt.getJwsHeaders())
+                    + "\n"
+                    + JwtUtils.claimsToJson(jwt.getClaims())
+            );
         }
 
         return encodedJwt;
