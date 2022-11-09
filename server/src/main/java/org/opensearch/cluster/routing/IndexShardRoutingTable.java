@@ -57,6 +57,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
 
@@ -316,6 +317,20 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         if (!allInitializingShards.isEmpty()) {
             List<ShardRouting> orderedInitializingShards = getInitializingShardsByWeight(weightedRouting, nodes, defaultWeight);
             ordered.addAll(orderedInitializingShards);
+        }
+
+        // append shards for attribute value with weight zero to the end, so that shard search requests can be tried on
+        // shard copies in case of request failure from other attribute values.
+        Stream<String> keys = weightedRouting.weights()
+            .entrySet()
+            .stream()
+            .filter(entry -> entry.getValue().intValue() == 0)
+            .map(Map.Entry::getKey);
+        if (keys != null) {
+            ShardIterator iterator = onlyNodeSelectorActiveInitializingShardsIt("zone:" + keys.findFirst().get(), nodes);
+            while (iterator.remaining() > 0) {
+                ordered.add(iterator.nextOrNull());
+            }
         }
         return new PlainShardIterator(shardId, ordered);
     }

@@ -41,21 +41,27 @@ import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.NoShardAvailableActionException;
 import org.opensearch.action.ShardOperationFailedException;
+import org.opensearch.action.UnavailableShardsException;
 import org.opensearch.action.support.TransportActions;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.GroupShardsIterator;
+import org.opensearch.cluster.routing.WeightedRouting;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.index.shard.ShardId;
+import org.opensearch.node.NodeClosedException;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.InternalSearchResponse;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.ShardSearchRequest;
+import org.opensearch.transport.NodeNotConnectedException;
 import org.opensearch.transport.Transport;
 
 import java.util.ArrayDeque;
@@ -70,6 +76,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * This is an abstract base class that encapsulates the logic to fan out to all shards in provided {@link GroupShardsIterator}
@@ -445,11 +452,48 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         return failures;
     }
 
+    private boolean isInternalFailure(Exception e) {
+        final Throwable cause = ExceptionsHelper.unwrapCause(e);
+        if (e instanceof NoShardAvailableActionException
+            || e instanceof UnavailableShardsException
+            || e instanceof NodeNotConnectedException
+            || e instanceof NodeClosedException) {
+            return true;
+        }
+        return false;
+    }
+
+    private boolean shardInWeighedAwayAZ(SearchShardTarget nextShard) {
+        DiscoveryNode targetNode = clusterState.nodes().get(nextShard.getNodeId());
+        WeightedRoutingMetadata weightedRoutingMetadata = clusterState.metadata().weightedRoutingMetadata();
+        if (weightedRoutingMetadata != null) {
+            WeightedRouting weightedRouting = weightedRoutingMetadata.getWeightedRouting();
+            if (weightedRouting != null) {
+                // Fetch weighted routing attributes with weight set as zero
+                Stream<String> keys = weightedRouting.weights()
+                    .entrySet()
+                    .stream()
+                    .filter(entry -> entry.getValue().intValue() == 0)
+                    .map(Map.Entry::getKey);
+                if (keys != null && targetNode.getAttributes().get("zone").equals(keys.findFirst().get())) {
+                    return true;
+                }
+            }
+
+        }
+        return false;
+
+    }
+
     private void onShardFailure(final int shardIndex, @Nullable SearchShardTarget shard, final SearchShardIterator shardIt, Exception e) {
         // we always add the shard failure for a specific shard instance
         // we do make sure to clean it on a successful response from a shard
         onShardFailure(shardIndex, shard, e);
-        final SearchShardTarget nextShard = shardIt.nextOrNull();
+        SearchShardTarget nextShard = shardIt.nextOrNull();
+
+        if (nextShard != null && shardInWeighedAwayAZ(nextShard) && !isInternalFailure(e)) {
+            nextShard = shardIt.nextOrNull();
+        }
         final boolean lastShard = nextShard == null;
         logger.debug(
             () -> new ParameterizedMessage(

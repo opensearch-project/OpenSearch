@@ -51,6 +51,7 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.GroupShardsIterator;
 import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.WeightedRoutingHelper;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.inject.Inject;
@@ -261,16 +262,23 @@ public class TransportFieldCapabilitiesIndexAction extends HandledTransportActio
             tryNext(e, false);
         }
 
-        private ShardRouting nextRoutingOrNull() {
+        private ShardRouting nextRoutingOrNull(Exception failure) {
             if (shardsIt.size() == 0 || shardIndex >= shardsIt.size()) {
                 return null;
             }
             ShardRouting next = shardsIt.get(shardIndex).nextOrNull();
+
+            if (next != null
+                && WeightedRoutingHelper.shardInWeighedAwayAZ(next, clusterService.state())
+                && !WeightedRoutingHelper.isInternalFailure(failure)) {
+                next = shardsIt.get(shardIndex).nextOrNull();
+            }
+
             if (next != null) {
                 return next;
             }
             moveToNextShard();
-            return nextRoutingOrNull();
+            return nextRoutingOrNull(failure);
         }
 
         private void moveToNextShard() {
@@ -278,7 +286,7 @@ public class TransportFieldCapabilitiesIndexAction extends HandledTransportActio
         }
 
         private void tryNext(@Nullable final Exception lastFailure, boolean canMatchShard) {
-            ShardRouting shardRouting = nextRoutingOrNull();
+            ShardRouting shardRouting = nextRoutingOrNull(lastFailure);
             if (shardRouting == null) {
                 if (canMatchShard == false) {
                     listener.onResponse(new FieldCapabilitiesIndexResponse(request.index(), Collections.emptyMap(), false));

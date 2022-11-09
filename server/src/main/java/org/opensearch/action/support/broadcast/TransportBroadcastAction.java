@@ -47,6 +47,7 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.GroupShardsIterator;
 import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.WeightedRoutingHelper;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamInput;
@@ -251,6 +252,12 @@ public abstract class TransportBroadcastAction<
             // will work (it will just override it...)
             setFailure(shardIt, shardIndex, e);
             ShardRouting nextShard = shardIt.nextOrNull();
+
+            if (nextShard != null
+                && WeightedRoutingHelper.shardInWeighedAwayAZ(nextShard, clusterState)
+                && !WeightedRoutingHelper.isInternalFailure(e)) {
+                nextShard = shardIt.nextOrNull();
+            }
             if (nextShard != null) {
                 if (e != null) {
                     if (logger.isTraceEnabled()) {

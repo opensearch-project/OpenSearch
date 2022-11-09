@@ -49,6 +49,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardsIterator;
+import org.opensearch.cluster.routing.WeightedRoutingHelper;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamInput;
@@ -244,7 +245,12 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                 lastFailure = currentFailure;
                 this.lastFailure = currentFailure;
             }
-            final ShardRouting shardRouting = shardIt.nextOrNull();
+            ShardRouting shardRouting = shardIt.nextOrNull();
+            if (shardRouting != null
+                && WeightedRoutingHelper.shardInWeighedAwayAZ(shardRouting, clusterService.state())
+                && !WeightedRoutingHelper.isInternalFailure(currentFailure)) {
+                shardRouting = shardIt.nextOrNull();
+            }
             if (shardRouting == null) {
                 Exception failure = lastFailure;
                 if (failure == null || isShardNotAvailableException(failure)) {
@@ -273,6 +279,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                     );
                 }
                 final Writeable.Reader<Response> reader = getResponseReader();
+                ShardRouting finalShardRouting = shardRouting;
                 transportService.sendRequest(
                     node,
                     transportShardAction,
@@ -296,7 +303,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
 
                         @Override
                         public void handleException(TransportException exp) {
-                            onFailure(shardRouting, exp);
+                            onFailure(finalShardRouting, exp);
                         }
                     }
                 );

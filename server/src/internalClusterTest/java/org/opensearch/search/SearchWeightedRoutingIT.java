@@ -15,18 +15,22 @@ import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.delete.ClusterDeleteWeightedRoutingResponse;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingResponse;
 import org.opensearch.action.search.SearchResponse;
+import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.WeightedRouting;
 import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
+import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.search.stats.SearchStats;
+import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -158,4 +162,95 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
         }
     }
 
+    public void testFailOpenOnSearch() throws IOException {
+
+        Settings commonSettings = Settings.builder()
+            .put("cluster.routing.allocation.awareness.attributes", "zone")
+            .put("cluster.routing.allocation.awareness.force.zone.values", "a,b,c")
+            .build();
+
+        int nodeCountPerAZ = 1;
+
+        logger.info("--> starting a dedicated cluster manager node");
+        internalCluster().startClusterManagerOnlyNode(Settings.builder().put(commonSettings).build());
+
+        logger.info("--> starting 1 nodes on zones 'a' & 'b' & 'c'");
+        List<String> nodes_in_zone_a = internalCluster().startDataOnlyNodes(
+            nodeCountPerAZ,
+            Settings.builder().put(commonSettings).put("node.attr.zone", "a").build()
+        );
+        List<String> nodes_in_zone_b = internalCluster().startDataOnlyNodes(
+            nodeCountPerAZ,
+            Settings.builder().put(commonSettings).put("node.attr.zone", "b").build()
+        );
+        List<String> nodes_in_zone_c = internalCluster().startDataOnlyNodes(
+            nodeCountPerAZ,
+            Settings.builder().put(commonSettings).put("node.attr.zone", "c").build()
+        );
+
+        logger.info("--> waiting for nodes to form a cluster");
+        ClusterHealthResponse health = client().admin().cluster().prepareHealth().setWaitForNodes("4").execute().actionGet();
+        assertThat(health.isTimedOut(), equalTo(false));
+
+        ensureGreen();
+
+        assertAcked(
+            prepareCreate("test").setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 2))
+        );
+        ensureGreen();
+        logger.info("--> creating indices for test");
+        for (int i = 0; i < 100; i++) {
+            client().prepareIndex("test").setId("" + i).setSource("field_" + i, "value_" + i).get();
+        }
+        refresh("test");
+
+        ClusterState state1 = internalCluster().clusterService().state();
+
+        logger.info("--> setting shard routing weights for weighted round robin");
+        Map<String, Double> weights = Map.of("a", 1.0, "b", 1.0, "c", 0.0);
+        WeightedRouting weightedRouting = new WeightedRouting("zone", weights);
+
+        ClusterPutWeightedRoutingResponse response = client().admin()
+            .cluster()
+            .prepareWeightedRouting()
+            .setWeightedRouting(weightedRouting)
+            .get();
+        assertEquals(response.isAcknowledged(), true);
+
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodes_in_zone_a.get(0)));
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodes_in_zone_b.get(0)));
+        ensureStableCluster(2);
+
+        Set<String> hitNodes = new HashSet<>();
+        // making search requests
+        for (int i = 0; i < 50; i++) {
+            SearchResponse searchResponse = internalCluster().smartClient()
+                .prepareSearch("test")
+                .setQuery(QueryBuilders.matchAllQuery())
+                .get();
+            assertEquals(searchResponse.getFailedShards(), 0);
+            for (int j = 0; j < searchResponse.getHits().getHits().length; j++) {
+                hitNodes.add(searchResponse.getHits().getAt(j).getShard().getNodeId());
+            }
+        }
+
+        ImmutableOpenMap<String, DiscoveryNode> dataNodes = internalCluster().clusterService().state().nodes().getDataNodes();
+        List<String> nodeIdsFromZoneWithWeightZero = new ArrayList<>();
+        for (Iterator<DiscoveryNode> it = dataNodes.valuesIt(); it.hasNext();) {
+            DiscoveryNode node = it.next();
+            if (node.getAttributes().get("zone").equals("c")) {
+                nodeIdsFromZoneWithWeightZero.add(node.getId());
+            }
+        }
+
+        NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().execute().actionGet();
+        for (NodeStats stat : nodeStats.getNodes()) {
+            SearchStats.Stats searchStats = stat.getIndices().getSearch().getTotal();
+            if (stat.getNode().isDataNode()) {
+                Assert.assertTrue(searchStats.getQueryCount() > 0L);
+                Assert.assertTrue(searchStats.getFetchCount() > 0L);
+            }
+
+        }
+    }
 }
