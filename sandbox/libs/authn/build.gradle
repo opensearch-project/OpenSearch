@@ -270,6 +270,7 @@ thirdPartyAudit.ignoreMissingClasses(
   'org.yaml.snakeyaml.events.MappingStartEvent',
   'org.yaml.snakeyaml.events.NodeEvent',
   'org.yaml.snakeyaml.events.ScalarEvent',
+  'org.yaml.snakeyaml.LoaderOptions',
   'org.yaml.snakeyaml.nodes.NodeId',
   'org.yaml.snakeyaml.nodes.Tag',
   'org.yaml.snakeyaml.parser.ParserImpl',
