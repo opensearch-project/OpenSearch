@@ -231,6 +231,44 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
         }
     }
 
+    public void testIndexReopenClose() throws Exception {
+        final String primary = internalCluster().startNode();
+        final String replica = internalCluster().startNode();
+        createIndex(INDEX_NAME);
+        ensureGreen(INDEX_NAME);
+
+        final int initialDocCount = scaledRandomIntBetween(100, 200);
+        try (
+            BackgroundIndexer indexer = new BackgroundIndexer(
+                INDEX_NAME,
+                "_doc",
+                client(),
+                -1,
+                RandomizedTest.scaledRandomIntBetween(2, 5),
+                false,
+                random()
+            )
+        ) {
+            indexer.start(initialDocCount);
+            waitForDocs(initialDocCount, indexer);
+            flush(INDEX_NAME);
+            waitForReplicaUpdate();
+        }
+
+        assertHitCount(client(primary).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), initialDocCount);
+        assertHitCount(client(replica).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), initialDocCount);
+
+        logger.info("--> Closing the index ");
+        client().admin().indices().prepareClose(INDEX_NAME).get();
+
+        logger.info("--> Opening the index");
+        client().admin().indices().prepareOpen(INDEX_NAME).get();
+
+        ensureGreen(INDEX_NAME);
+        assertHitCount(client(primary).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), initialDocCount);
+        assertHitCount(client(replica).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), initialDocCount);
+    }
+
     public void testMultipleShards() throws Exception {
         Settings indexSettings = Settings.builder()
             .put(super.indexSettings())
