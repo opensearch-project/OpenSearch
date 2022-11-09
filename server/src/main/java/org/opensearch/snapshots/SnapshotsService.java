@@ -93,6 +93,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexModule;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoriesService;
@@ -1790,9 +1791,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     for (Iterator<IndexMetadata> it = indicesMap.valuesIt(); it.hasNext();) {
                         IndexMetadata indexMetadata = it.next();
                         String storeType = indexMetadata.getSettings().get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey());
-                        if (storeType != null
-                            && storeType.equals(IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey())
-                            && indexMetadata.getSettings().get("index.searchable_snapshot.snapshot_id.uuid").equals(snapshotId.getUUID())) {
+                        if (IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey().equals(storeType)
+                            && indexMetadata.getSettings().get(IndexSettings.SEARCHABLE_SNAPSHOT_ID_UUID.getKey()).equals(snapshotId.getUUID())) {
                             indexBackedBySnapshotFound = true;
                             break;
                         }
