@@ -129,7 +129,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Refactored BalancedAllocator.Balancer to LocalShardsBalancer ([#4761](https://github.com/opensearch-project/OpenSearch/pull/4761))
 - Fail weight update when decommission ongoing and fail decommission when attribute not weighed away ([#4839](https://github.com/opensearch-project/OpenSearch/pull/4839))
 - Skip SymbolicLinkPreservingTarIT when running on Windows ([#5023](https://github.com/opensearch-project/OpenSearch/pull/5023))
-- Mapping IllegalArgumentException to InvalidArgumentException extend OpenSearchException in AbstractScopedSettings class ([#4792](https://github.com/opensearch-project/OpenSearch/pull/4792))
+- Mapping IllegalArgumentException to SettingsException extend OpenSearchException in AbstractScopedSettings class ([#4792](https://github.com/opensearch-project/OpenSearch/pull/4792))
 
 ### Deprecated
 ### Removed
