@@ -43,7 +43,7 @@ Refresh tokens will be associated with a subject (and an extension?) and both th
 
 # Internal Cluster Actions - ThreadContext vs. Tokens
 
-Opensearch is a distributed search engine composed of nodes of different roles. When a client makes a request to a cluster, the request is serviced by one or many nodes. A good example of this is the cluster health action (`cluster:monitor/health`) that runs actions on all nodes of the cluster to perform the health check. In Opensearch with the Security plugin, a user is authenticated at the first node that handles the request, the ThreadContext is populated and subsequent actions on other nodes reference the user info saved on the ThreadContext. The ThreadContext is transmitted in the cluster using the InboundHandler and OutboundHandler.
+OpenSearch is a distributed search engine composed of nodes of different roles. When a client makes a request to a cluster, the request is serviced by one or many nodes. A good example of this is the cluster health action (`cluster:monitor/health`) that runs actions on all nodes of the cluster to perform the health check. In Opensearch with the Security plugin, a user is authenticated at the first node that handles the request, the ThreadContext is populated and subsequent actions on other nodes reference the user info saved on the ThreadContext. The ThreadContext is transmitted in the cluster using the InboundHandler and OutboundHandler.
 
 Internal Cluster Requests are authenticated using the thread context. See below for an example:
 
