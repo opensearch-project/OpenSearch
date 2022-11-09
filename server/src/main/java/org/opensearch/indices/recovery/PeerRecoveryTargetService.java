@@ -37,7 +37,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.action.ActionListener;
@@ -54,6 +53,7 @@ import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
+import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.engine.RecoveryEngineException;
 import org.opensearch.index.mapper.MapperException;
@@ -244,8 +244,10 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     assert recoveryTarget.sourceNode() != null : "can not do a recovery without a source node";
                     logger.trace("{} preparing shard for peer recovery", recoveryTarget.shardId());
                     indexShard.prepareForIndexRecovery();
-                    boolean remoteTranslogEnabled = recoveryTarget.state().getPrimary() == false && indexShard.isRemoteTranslogEnabled();
-                    final long startingSeqNo = indexShard.recoverLocallyAndFetchStartSeqNo(!remoteTranslogEnabled);
+                    final boolean hasRemoteTranslog = recoveryTarget.state().getPrimary() == false && indexShard.isRemoteTranslogEnabled();
+                    final boolean hasNoTranslog = IndexModule.Type.REMOTE_SNAPSHOT.match(indexShard.indexSettings());
+                    final boolean verifyTranslog = (hasRemoteTranslog || hasNoTranslog) == false;
+                    final long startingSeqNo = indexShard.recoverLocallyAndFetchStartSeqNo(!hasRemoteTranslog);
                     assert startingSeqNo == UNASSIGNED_SEQ_NO || recoveryTarget.state().getStage() == RecoveryState.Stage.TRANSLOG
                         : "unexpected recovery stage [" + recoveryTarget.state().getStage() + "] starting seqno [ " + startingSeqNo + "]";
                     startRequest = getStartRecoveryRequest(
@@ -253,7 +255,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                         clusterService.localNode(),
                         recoveryTarget,
                         startingSeqNo,
-                        !remoteTranslogEnabled
+                        verifyTranslog
                     );
                     requestToSend = startRequest;
                     actionName = PeerRecoverySourceService.Actions.START_RECOVERY;
@@ -721,11 +723,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     recoverySettings.retryDelayNetwork(),
                     cause.getMessage()
                 );
-                if (request.sourceNode().getVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
-                    reestablishRecovery(request, cause.getMessage(), recoverySettings.retryDelayNetwork());
-                } else {
-                    retryRecovery(recoveryId, cause.getMessage(), recoverySettings.retryDelayNetwork(), recoverySettings.activityTimeout());
-                }
+                reestablishRecovery(request, cause.getMessage(), recoverySettings.retryDelayNetwork());
                 return;
             }
 

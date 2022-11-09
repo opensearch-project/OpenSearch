@@ -56,6 +56,7 @@ dependencies {
   testImplementation "net.bytebuddy:byte-buddy:${versions.bytebuddy}"
   testImplementation "org.apache.logging.log4j:log4j-api:${versions.log4j}"
   testImplementation "org.apache.logging.log4j:log4j-core:${versions.log4j}"
+  testImplementation "org.apache.logging.log4j:log4j-jul:${versions.log4j}"
   testImplementation "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
 }
 

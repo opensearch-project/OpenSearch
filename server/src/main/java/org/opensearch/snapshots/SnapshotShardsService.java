@@ -67,7 +67,6 @@ import org.opensearch.indices.IndicesService;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
-import org.opensearch.repositories.ShardGenerations;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportRequestDeduplicator;
@@ -276,11 +275,6 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                 final IndexShardSnapshotStatus snapshotStatus = shardEntry.getValue();
                 final IndexId indexId = indicesMap.get(shardId.getIndexName());
                 assert indexId != null;
-                assert SnapshotsService.useShardGenerations(entry.version())
-                    || ShardGenerations.fixShardGeneration(snapshotStatus.generation()) == null
-                    : "Found non-null, non-numeric shard generation ["
-                        + snapshotStatus.generation()
-                        + "] for snapshot with old-format compatibility";
                 snapshot(shardId, snapshot, indexId, entry.userMetadata(), snapshotStatus, entry.version(), new ActionListener<String>() {
                     @Override
                     public void onResponse(String newGeneration) {

@@ -724,7 +724,7 @@ public class IndexSettingsTests extends OpenSearchTestCase {
     public void testSoftDeletesDefaultSetting() {
         // enabled by default on 7.0+ or later
         {
-            Version createdVersion = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
+            Version createdVersion = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
             Settings settings = Settings.builder().put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), createdVersion).build();
             assertTrue(IndexSettings.INDEX_SOFT_DELETES_SETTING.get(settings));
         }
@@ -732,7 +732,7 @@ public class IndexSettingsTests extends OpenSearchTestCase {
 
     public void testIgnoreTranslogRetentionSettingsIfSoftDeletesEnabled() {
         Settings.Builder settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT));
+            .put(IndexMetadata.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT));
         if (randomBoolean()) {
             settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), randomPositiveTimeValue());
         }

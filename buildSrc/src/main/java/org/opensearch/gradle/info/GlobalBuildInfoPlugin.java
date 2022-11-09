@@ -51,7 +51,6 @@ import javax.inject.Inject;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -218,14 +217,6 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             }
         }
         return javaVersions;
-    }
-
-    private static boolean isCurrentJavaHome(File javaHome) {
-        try {
-            return Files.isSameFile(javaHome.toPath(), Jvm.current().getJavaHome().toPath());
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
     }
 
     private static String getTestSeed() {

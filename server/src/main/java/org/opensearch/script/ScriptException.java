@@ -32,7 +32,6 @@
 
 package org.opensearch.script;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
@@ -104,11 +103,7 @@ public class ScriptException extends OpenSearchException {
         scriptStack = Arrays.asList(in.readStringArray());
         script = in.readString();
         lang = in.readString();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_7_0) && in.readBoolean()) {
-            pos = new Position(in);
-        } else {
-            pos = null;
-        }
+        pos = Position.readFromOptional(in);
     }
 
     @Override
@@ -117,14 +112,7 @@ public class ScriptException extends OpenSearchException {
         out.writeStringArray(scriptStack.toArray(new String[0]));
         out.writeString(script);
         out.writeString(lang);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
-            if (pos == null) {
-                out.writeBoolean(false);
-            } else {
-                out.writeBoolean(true);
-                pos.writeTo(out);
-            }
-        }
+        Position.writeToOptional(out, pos);
     }
 
     @Override
@@ -210,10 +198,25 @@ public class ScriptException extends OpenSearchException {
             end = in.readInt();
         }
 
+        public static Position readFromOptional(StreamInput in) throws IOException {
+            if (in.readBoolean() == true) {
+                return new Position(in);
+            }
+            return null;
+        }
+
         void writeTo(StreamOutput out) throws IOException {
             out.writeInt(offset);
             out.writeInt(start);
             out.writeInt(end);
+        }
+
+        public static void writeToOptional(StreamOutput out, Position object) throws IOException {
+            boolean present = object != null;
+            out.writeBoolean(present);
+            if (present == true) {
+                object.writeTo(out);
+            }
         }
 
         void toXContent(XContentBuilder builder, Params params) throws IOException {

@@ -41,6 +41,12 @@ import org.opensearch.index.IndexingPressure;
 import org.opensearch.index.ShardIndexingPressureMemoryManager;
 import org.opensearch.index.ShardIndexingPressureSettings;
 import org.opensearch.index.ShardIndexingPressureStore;
+import org.opensearch.search.backpressure.settings.NodeDuressSettings;
+import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
+import org.opensearch.search.backpressure.settings.SearchShardTaskSettings;
+import org.opensearch.search.backpressure.trackers.CpuUsageTracker;
+import org.opensearch.search.backpressure.trackers.ElapsedTimeTracker;
+import org.opensearch.search.backpressure.trackers.HeapUsageTracker;
 import org.opensearch.tasks.TaskManager;
 import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.watcher.ResourceWatcherService;
@@ -85,6 +91,7 @@ import org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDe
 import org.opensearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.opensearch.cluster.service.ClusterApplierService;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterManagerService;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.network.NetworkModule;
@@ -252,6 +259,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 Metadata.SETTING_READ_ONLY_SETTING,
                 Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING,
                 ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE,
+                ShardLimitValidator.SETTING_CLUSTER_IGNORE_DOT_INDEXES,
                 RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING,
                 RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING,
                 RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING,
@@ -581,7 +589,23 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 ShardIndexingPressureMemoryManager.MAX_OUTSTANDING_REQUESTS,
                 IndexingPressure.MAX_INDEXING_BYTES,
                 TaskResourceTrackingService.TASK_RESOURCE_TRACKING_ENABLED,
-                TaskManager.TASK_RESOURCE_CONSUMERS_ENABLED
+                TaskManager.TASK_RESOURCE_CONSUMERS_ENABLED,
+                ClusterManagerTaskThrottler.THRESHOLD_SETTINGS,
+
+                // Settings related to search backpressure
+                SearchBackpressureSettings.SETTING_MODE,
+                SearchBackpressureSettings.SETTING_CANCELLATION_RATIO,
+                SearchBackpressureSettings.SETTING_CANCELLATION_RATE,
+                SearchBackpressureSettings.SETTING_CANCELLATION_BURST,
+                NodeDuressSettings.SETTING_NUM_SUCCESSIVE_BREACHES,
+                NodeDuressSettings.SETTING_CPU_THRESHOLD,
+                NodeDuressSettings.SETTING_HEAP_THRESHOLD,
+                SearchShardTaskSettings.SETTING_TOTAL_HEAP_PERCENT_THRESHOLD,
+                HeapUsageTracker.SETTING_HEAP_PERCENT_THRESHOLD,
+                HeapUsageTracker.SETTING_HEAP_VARIANCE_THRESHOLD,
+                HeapUsageTracker.SETTING_HEAP_MOVING_AVERAGE_WINDOW_SIZE,
+                CpuUsageTracker.SETTING_CPU_TIME_MILLIS_THRESHOLD,
+                ElapsedTimeTracker.SETTING_ELAPSED_TIME_MILLIS_THRESHOLD
             )
         )
     );

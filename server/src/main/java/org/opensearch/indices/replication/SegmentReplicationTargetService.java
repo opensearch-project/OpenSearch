@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.Nullable;
@@ -27,6 +26,7 @@ import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.ReplicationCollection;
 import org.opensearch.indices.replication.common.ReplicationCollection.ReplicationRef;
+import org.opensearch.indices.replication.common.ReplicationFailedException;
 import org.opensearch.indices.replication.common.ReplicationListener;
 import org.opensearch.indices.replication.common.ReplicationState;
 import org.opensearch.tasks.Task;
@@ -196,7 +196,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                 }
 
                 @Override
-                public void onReplicationFailure(SegmentReplicationState state, OpenSearchException e, boolean sendShardFailure) {
+                public void onReplicationFailure(SegmentReplicationState state, ReplicationFailedException e, boolean sendShardFailure) {
                     logger.trace(
                         () -> new ParameterizedMessage(
                             "[shardId {}] [replication id {}] Replication failed, timing data: {}",
@@ -249,13 +249,13 @@ public class SegmentReplicationTargetService implements IndexEventListener {
         }
 
         @Override
-        default void onFailure(ReplicationState state, OpenSearchException e, boolean sendShardFailure) {
+        default void onFailure(ReplicationState state, ReplicationFailedException e, boolean sendShardFailure) {
             onReplicationFailure((SegmentReplicationState) state, e, sendShardFailure);
         }
 
         void onReplicationDone(SegmentReplicationState state);
 
-        void onReplicationFailure(SegmentReplicationState state, OpenSearchException e, boolean sendShardFailure);
+        void onReplicationFailure(SegmentReplicationState state, ReplicationFailedException e, boolean sendShardFailure);
     }
 
     /**
@@ -293,13 +293,14 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                     Throwable cause = ExceptionsHelper.unwrapCause(e);
                     if (cause instanceof CancellableThreads.ExecutionCancelledException) {
                         if (onGoingReplications.getTarget(replicationId) != null) {
+                            IndexShard indexShard = onGoingReplications.getTarget(replicationId).indexShard();
                             // if the target still exists in our collection, the primary initiated the cancellation, fail the replication
                             // but do not fail the shard. Cancellations initiated by this node from Index events will be removed with
                             // onGoingReplications.cancel and not appear in the collection when this listener resolves.
-                            onGoingReplications.fail(replicationId, (CancellableThreads.ExecutionCancelledException) cause, false);
+                            onGoingReplications.fail(replicationId, new ReplicationFailedException(indexShard, cause), false);
                         }
                     } else {
-                        onGoingReplications.fail(replicationId, new OpenSearchException("Segment Replication failed", e), true);
+                        onGoingReplications.fail(replicationId, new ReplicationFailedException("Segment Replication failed", e), true);
                     }
                 }
             });

@@ -7,10 +7,6 @@ on:
       - 'dependabot/**'
   pull_request_target:
     types: [opened, synchronize, reopened]
-  workflow_run:
-    workflows: ["Gradle Precommit"]
-    types:
-      - completed
 
 jobs:
   gradle-check:
@@ -91,3 +87,5 @@ jobs:
               * **RESULT:** ${{ env.result }} :x:
               * **URL:** ${{ env.workflow_url }}
               * **CommitID:** ${{ env.pr_from_sha }}
+              Please examine the workflow log, locate, and copy-paste the failure below, then iterate to green.
+              Is the failure [a flaky test](https://github.com/opensearch-project/OpenSearch/blob/main/DEVELOPER_GUIDE.md#flaky-tests) unrelated to your change?

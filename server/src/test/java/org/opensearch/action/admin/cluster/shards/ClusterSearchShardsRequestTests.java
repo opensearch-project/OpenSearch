@@ -32,7 +32,6 @@
 
 package org.opensearch.action.admin.cluster.shards;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.io.stream.BytesStreamOutput;
@@ -77,12 +76,7 @@ public class ClusterSearchShardsRequestTests extends OpenSearchTestCase {
                 in.setVersion(version);
                 ClusterSearchShardsRequest deserialized = new ClusterSearchShardsRequest(in);
                 assertArrayEquals(request.indices(), deserialized.indices());
-                // indices options are not equivalent when sent to an older version and re-read due
-                // to the addition of hidden indices as expand to hidden indices is always true when
-                // read from a prior version
-                if (version.onOrAfter(LegacyESVersion.V_7_7_0) || request.indicesOptions().expandWildcardsHidden()) {
-                    assertEquals(request.indicesOptions(), deserialized.indicesOptions());
-                }
+                assertEquals(request.indicesOptions(), deserialized.indicesOptions());
                 assertEquals(request.routing(), deserialized.routing());
                 assertEquals(request.preference(), deserialized.preference());
             }

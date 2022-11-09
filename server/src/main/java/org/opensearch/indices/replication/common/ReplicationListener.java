@@ -8,8 +8,6 @@
 
 package org.opensearch.indices.replication.common;
 
-import org.opensearch.OpenSearchException;
-
 /**
  * Interface for listeners that run when there's a change in {@link ReplicationState}
  *
@@ -19,5 +17,5 @@ public interface ReplicationListener {
 
     void onDone(ReplicationState state);
 
-    void onFailure(ReplicationState state, OpenSearchException e, boolean sendShardFailure);
+    void onFailure(ReplicationState state, ReplicationFailedException e, boolean sendShardFailure);
 }

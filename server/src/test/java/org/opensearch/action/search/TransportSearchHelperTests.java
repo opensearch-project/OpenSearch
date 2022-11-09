@@ -31,7 +31,6 @@
 
 package org.opensearch.action.search;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.util.concurrent.AtomicArray;
@@ -74,7 +73,6 @@ public class TransportSearchHelperTests extends OpenSearchTestCase {
 
     public void testParseScrollId() {
         final Version version = VersionUtils.randomVersion(random());
-        boolean includeUUID = version.onOrAfter(LegacyESVersion.V_7_7_0);
         final AtomicArray<SearchPhaseResult> queryResults = generateQueryResults();
         String scrollId = TransportSearchHelper.buildScrollId(queryResults, version);
         ParsedScrollId parseScrollId = TransportSearchHelper.parseScrollId(scrollId);
@@ -82,28 +80,16 @@ public class TransportSearchHelperTests extends OpenSearchTestCase {
         assertEquals("node_1", parseScrollId.getContext()[0].getNode());
         assertEquals("cluster_x", parseScrollId.getContext()[0].getClusterAlias());
         assertEquals(1, parseScrollId.getContext()[0].getSearchContextId().getId());
-        if (includeUUID) {
-            assertThat(parseScrollId.getContext()[0].getSearchContextId().getSessionId(), equalTo("a"));
-        } else {
-            assertThat(parseScrollId.getContext()[0].getSearchContextId().getSessionId(), equalTo(""));
-        }
+        assertThat(parseScrollId.getContext()[0].getSearchContextId().getSessionId(), equalTo("a"));
 
         assertEquals("node_2", parseScrollId.getContext()[1].getNode());
         assertEquals("cluster_y", parseScrollId.getContext()[1].getClusterAlias());
         assertEquals(12, parseScrollId.getContext()[1].getSearchContextId().getId());
-        if (includeUUID) {
-            assertThat(parseScrollId.getContext()[1].getSearchContextId().getSessionId(), equalTo("b"));
-        } else {
-            assertThat(parseScrollId.getContext()[1].getSearchContextId().getSessionId(), equalTo(""));
-        }
+        assertThat(parseScrollId.getContext()[1].getSearchContextId().getSessionId(), equalTo("b"));
 
         assertEquals("node_3", parseScrollId.getContext()[2].getNode());
         assertNull(parseScrollId.getContext()[2].getClusterAlias());
         assertEquals(42, parseScrollId.getContext()[2].getSearchContextId().getId());
-        if (includeUUID) {
-            assertThat(parseScrollId.getContext()[2].getSearchContextId().getSessionId(), equalTo("c"));
-        } else {
-            assertThat(parseScrollId.getContext()[2].getSearchContextId().getSessionId(), equalTo(""));
-        }
+        assertThat(parseScrollId.getContext()[2].getSearchContextId().getSessionId(), equalTo("c"));
     }
 }
