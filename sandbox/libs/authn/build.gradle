@@ -28,6 +28,7 @@ dependencies {
   implementation('org.apache.cxf:cxf-rt-rs-security-jose:3.4.5') {
     exclude(group: 'jakarta.activation', module: 'jakarta.activation-api')
   }
+
   runtimeOnly 'org.apache.cxf:cxf-core:3.4.5'
   implementation 'org.apache.cxf:cxf-rt-rs-json-basic:3.4.5'
   runtimeOnly 'org.apache.cxf:cxf-rt-security:3.4.5'
