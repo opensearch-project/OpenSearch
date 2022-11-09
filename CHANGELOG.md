@@ -18,6 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - [Identity] Switch to smaller license header for all identity files ([#4657](https://github.com/opensearch-project/OpenSearch/pull/4657))
 - [Identity] Include scrawfor99 to the identity team ([#4658](https://github.com/opensearch-project/OpenSearch/pull/4658))
 - [Identity] Prototype Internal IdP ([#4659](https://github.com/opensearch-project/OpenSearch/pull/4659))
+- [Identity] Strategy for Delegated Authority using Tokens ([#4826](https://github.com/opensearch-project/OpenSearch/pull/4826))
 
 
 ### Dependencies

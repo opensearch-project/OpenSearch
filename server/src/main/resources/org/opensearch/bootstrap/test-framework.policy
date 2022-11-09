@@ -152,4 +152,5 @@ grant {
   // needed by opensearch-authn which uses jackson-databind ObjectMapper.readValue
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
   permission java.lang.RuntimePermission "accessDeclaredMembers";
+  permission java.lang.RuntimePermission "setContextClassLoader";
 };
