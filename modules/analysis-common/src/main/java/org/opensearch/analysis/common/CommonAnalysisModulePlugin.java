@@ -124,7 +124,7 @@ import org.apache.lucene.analysis.tr.ApostropheFilter;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
 import org.apache.lucene.analysis.util.ElisionFilter;
 import org.apache.lucene.util.SetOnce;
-import org.opensearch.LegacyESVersion;
+import org.opensearch.Version;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
@@ -268,11 +268,18 @@ public class CommonAnalysisModulePlugin extends Plugin implements AnalysisPlugin
         filters.put("dutch_stem", DutchStemTokenFilterFactory::new);
         filters.put("edge_ngram", EdgeNGramTokenFilterFactory::new);
         filters.put("edgeNGram", (IndexSettings indexSettings, Environment environment, String name, Settings settings) -> {
-            deprecationLogger.deprecate(
-                "edgeNGram_deprecation",
-                "The [edgeNGram] token filter name is deprecated and will be removed in a future version. "
-                    + "Please change the filter name to [edge_ngram] instead."
-            );
+            if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_3_0_0)) {
+                throw new IllegalArgumentException(
+                    "The [edgeNGram] tokenizer name was deprecated pre 1.0. "
+                        + "Please change the tokenizer name to [edge_ngram] for indices created in versions 3.0 or higher instead."
+                );
+            } else {
+                deprecationLogger.deprecate(
+                    "edgeNGram_deprecation",
+                    "The [edgeNGram] token filter name is deprecated and will be removed in a future version. "
+                        + "Please change the filter name to [edge_ngram] instead."
+                );
+            }
             return new EdgeNGramTokenFilterFactory(indexSettings, environment, name, settings);
         });
         filters.put("elision", requiresAnalysisSettings(ElisionTokenFilterFactory::new));
@@ -347,7 +354,12 @@ public class CommonAnalysisModulePlugin extends Plugin implements AnalysisPlugin
         tokenizers.put("simple_pattern_split", SimplePatternSplitTokenizerFactory::new);
         tokenizers.put("thai", ThaiTokenizerFactory::new);
         tokenizers.put("nGram", (IndexSettings indexSettings, Environment environment, String name, Settings settings) -> {
-            if (indexSettings.getIndexVersionCreated().onOrAfter(LegacyESVersion.V_7_6_0)) {
+            if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_3_0_0)) {
+                throw new IllegalArgumentException(
+                    "The [nGram] tokenizer name was deprecated pre 1.0. "
+                        + "Please change the tokenizer name to [ngram] for indices created in versions 3.0 or higher instead."
+                );
+            } else {
                 deprecationLogger.deprecate(
                     "nGram_tokenizer_deprecation",
                     "The [nGram] tokenizer name is deprecated and will be removed in a future version. "
@@ -358,7 +370,12 @@ public class CommonAnalysisModulePlugin extends Plugin implements AnalysisPlugin
         });
         tokenizers.put("ngram", NGramTokenizerFactory::new);
         tokenizers.put("edgeNGram", (IndexSettings indexSettings, Environment environment, String name, Settings settings) -> {
-            if (indexSettings.getIndexVersionCreated().onOrAfter(LegacyESVersion.V_7_6_0)) {
+            if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_3_0_0)) {
+                throw new IllegalArgumentException(
+                    "The [edgeNGram] tokenizer name was deprecated pre 1.0. "
+                        + "Please change the tokenizer name to [edge_ngram] for indices created in versions 3.0 or higher instead."
+                );
+            } else {
                 deprecationLogger.deprecate(
                     "edgeNGram_tokenizer_deprecation",
                     "The [edgeNGram] tokenizer name is deprecated and will be removed in a future version. "
@@ -606,7 +623,12 @@ public class CommonAnalysisModulePlugin extends Plugin implements AnalysisPlugin
 
         // Temporary shim for aliases. TODO deprecate after they are moved
         tokenizers.add(PreConfiguredTokenizer.openSearchVersion("nGram", (version) -> {
-            if (version.onOrAfter(LegacyESVersion.V_7_6_0)) {
+            if (version.onOrAfter(Version.V_3_0_0)) {
+                throw new IllegalArgumentException(
+                    "The [nGram] tokenizer name was deprecated pre 1.0. "
+                        + "Please change the tokenizer name to [ngram] for indices created in versions 3.0 or higher instead."
+                );
+            } else {
                 deprecationLogger.deprecate(
                     "nGram_tokenizer_deprecation",
                     "The [nGram] tokenizer name is deprecated and will be removed in a future version. "
@@ -616,7 +638,12 @@ public class CommonAnalysisModulePlugin extends Plugin implements AnalysisPlugin
             return new NGramTokenizer();
         }));
         tokenizers.add(PreConfiguredTokenizer.openSearchVersion("edgeNGram", (version) -> {
-            if (version.onOrAfter(LegacyESVersion.V_7_6_0)) {
+            if (version.onOrAfter(Version.V_3_0_0)) {
+                throw new IllegalArgumentException(
+                    "The [edgeNGram] tokenizer name was deprecated pre 1.0. "
+                        + "Please change the tokenizer name to [edge_ngram] for indices created in versions 3.0 or higher instead."
+                );
+            } else {
                 deprecationLogger.deprecate(
                     "edgeNGram_tokenizer_deprecation",
                     "The [edgeNGram] tokenizer name is deprecated and will be removed in a future version. "

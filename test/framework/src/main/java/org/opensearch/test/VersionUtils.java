@@ -49,6 +49,9 @@ import java.util.stream.Stream;
 
 /** Utilities for selecting versions in tests */
 public class VersionUtils {
+    // version 1.0 is removed; this is used purely to retain consistent logic for migrations
+    @Deprecated
+    public static Version V_1_0_0 = Version.fromId(1000099 ^ Version.MASK);
 
     /**
      * Sort versions that have backwards compatibility guarantees from
@@ -104,7 +107,7 @@ public class VersionUtils {
 
         // remove last minor unless it's the first OpenSearch version.
         // all Legacy ES versions are released, so we don't exclude any.
-        if (current.equals(Version.V_1_0_0) == false) {
+        if (current.equals(V_1_0_0) == false) {
             List<Version> lastMinorLine = stableVersions.get(stableVersions.size() - 1);
             if (lastMinorLine.get(lastMinorLine.size() - 1) instanceof LegacyESVersion == false) {
                 // if the last minor line is Legacy there are no more staged releases; do nothing

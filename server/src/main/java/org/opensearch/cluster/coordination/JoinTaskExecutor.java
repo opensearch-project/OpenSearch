@@ -32,7 +32,6 @@
 package org.opensearch.cluster.coordination;
 
 import org.apache.logging.log4j.Logger;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterState;
@@ -182,7 +181,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         for (final Task joinTask : joiningNodes) {
             if (joinTask.isBecomeClusterManagerTask() || joinTask.isFinishElectionTask()) {
                 // noop
-            } else if (currentNodes.nodeExistsWithSameRoles(joinTask.node()) && !currentNodes.nodeExistsWithBWCVersion(joinTask.node())) {
+            } else if (currentNodes.nodeExistsWithSameRoles(joinTask.node())) {
                 logger.debug("received a join request for an existing node [{}]", joinTask.node());
             } else {
                 final DiscoveryNode node = joinTask.node();
@@ -312,46 +311,6 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         if (null == transportService) {
             // this logic is only applicable when OpenSearch node is cluster-manager and is noop for zen discovery node
             return;
-        }
-        if (currentNodes.getMinNodeVersion().before(Version.V_1_0_0)) {
-            Map<String, Version> channelVersions = transportService.getChannelVersion(currentNodes);
-            for (DiscoveryNode node : currentNodes) {
-                if (channelVersions.containsKey(node.getId())) {
-                    if (channelVersions.get(node.getId()) != node.getVersion()) {
-                        DiscoveryNode tmpNode = nodesBuilder.get(node.getId());
-                        nodesBuilder.remove(node.getId());
-                        nodesBuilder.add(
-                            new DiscoveryNode(
-                                tmpNode.getName(),
-                                tmpNode.getId(),
-                                tmpNode.getEphemeralId(),
-                                tmpNode.getHostName(),
-                                tmpNode.getHostAddress(),
-                                tmpNode.getAddress(),
-                                tmpNode.getAttributes(),
-                                tmpNode.getRoles(),
-                                channelVersions.get(tmpNode.getId())
-                            )
-                        );
-                        logger.info(
-                            "Refreshed the DiscoveryNode version for node {}:{} from {} to {}",
-                            node.getId(),
-                            node.getAddress(),
-                            node.getVersion(),
-                            channelVersions.get(tmpNode.getId())
-                        );
-                    }
-                } else {
-                    // in case existing OpenSearch node is present in the cluster and but there is no connection to that node yet,
-                    // either that node will send new JoinRequest to the cluster-manager/master with version >=1.0, then no issue or
-                    // there is an edge case if doesn't send JoinRequest and connection is established,
-                    // then it can continue to report version as 7.10.2 instead of actual OpenSearch version. So,
-                    // removing the node from cluster state to prevent stale version reporting and let it reconnect.
-                    if (node.getVersion().equals(LegacyESVersion.V_7_10_2)) {
-                        nodesBuilder.remove(node.getId());
-                    }
-                }
-            }
         }
     }
 

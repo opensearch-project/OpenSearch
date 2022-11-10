@@ -35,6 +35,7 @@ import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream;
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
+import org.apache.tools.ant.taskdefs.condition.Os;
 import org.opensearch.gradle.test.GradleIntegrationTestCase;
 import org.gradle.api.GradleException;
 import org.gradle.testkit.runner.GradleRunner;
@@ -52,6 +53,7 @@ import java.nio.file.Paths;
 
 import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.junit.Assume.assumeFalse;
 
 public class SymbolicLinkPreservingTarIT extends GradleIntegrationTestCase {
 
@@ -60,6 +62,7 @@ public class SymbolicLinkPreservingTarIT extends GradleIntegrationTestCase {
 
     @Before
     public void before() throws IOException {
+        assumeFalse("Skip tar tests on windows.", Os.isFamily(Os.FAMILY_WINDOWS));
         final Path realFolder = temporaryFolder.getRoot().toPath().resolve("real-folder");
         Files.createDirectory(realFolder);
         Files.createFile(realFolder.resolve("file"));

@@ -109,7 +109,7 @@ public class OpenSearchTestBasePlugin implements Plugin<Project> {
                         test.systemProperty("java.locale.providers", "SPI,JRE");
                     } else {
                         test.systemProperty("java.locale.providers", "SPI,COMPAT");
-                        test.jvmArgs("--illegal-access=warn");
+                        test.jvmArgs("--illegal-access=warn", "-Djava.security.manager=allow");
                     }
                 }
             });

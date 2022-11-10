@@ -7,6 +7,7 @@ on:
 
 jobs:
   backport:
+    if: ${{ contains(github.event.label.name, 'backport') }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -26,4 +27,3 @@ jobs:
         with:
           github_token: ${{ steps.github_app_token.outputs.token }}
           head_template: backport/backport-<%= number %>-to-<%= base %>
-          files_to_skip: 'CHANGELOG.md'

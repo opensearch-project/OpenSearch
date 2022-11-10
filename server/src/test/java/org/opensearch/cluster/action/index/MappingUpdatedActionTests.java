@@ -31,7 +31,6 @@
 
 package org.opensearch.cluster.action.index;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.mapping.put.AutoPutMappingAction;
@@ -154,39 +153,9 @@ public class MappingUpdatedActionTests extends OpenSearchTestCase {
         assertTrue(fut2.isDone());
     }
 
-    public void testSendUpdateMappingUsingPutMappingAction() {
-        DiscoveryNodes nodes = DiscoveryNodes.builder()
-            .add(new DiscoveryNode("first", buildNewFakeTransportAddress(), LegacyESVersion.V_7_8_0))
-            .build();
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).nodes(nodes).build();
-        ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.state()).thenReturn(clusterState);
-
-        IndicesAdminClient indicesAdminClient = mock(IndicesAdminClient.class);
-        AdminClient adminClient = mock(AdminClient.class);
-        when(adminClient.indices()).thenReturn(indicesAdminClient);
-        Client client = mock(Client.class);
-        when(client.admin()).thenReturn(adminClient);
-
-        MappingUpdatedAction mua = new MappingUpdatedAction(
-            Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            clusterService
-        );
-        mua.setClient(client);
-
-        Settings indexSettings = Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT).build();
-        final Mapper.BuilderContext context = new Mapper.BuilderContext(indexSettings, new ContentPath());
-        RootObjectMapper rootObjectMapper = new RootObjectMapper.Builder("name").build(context);
-        Mapping update = new Mapping(LegacyESVersion.V_7_8_0, rootObjectMapper, new MetadataFieldMapper[0], Map.of());
-
-        mua.sendUpdateMapping(new Index("name", "uuid"), update, ActionListener.wrap(() -> {}));
-        verify(indicesAdminClient).putMapping(any(), any());
-    }
-
     public void testSendUpdateMappingUsingAutoPutMappingAction() {
         DiscoveryNodes nodes = DiscoveryNodes.builder()
-            .add(new DiscoveryNode("first", buildNewFakeTransportAddress(), LegacyESVersion.V_7_9_0))
+            .add(new DiscoveryNode("first", buildNewFakeTransportAddress(), Version.V_3_0_0))
             .build();
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).nodes(nodes).build();
         ClusterService clusterService = mock(ClusterService.class);
@@ -208,7 +177,7 @@ public class MappingUpdatedActionTests extends OpenSearchTestCase {
         Settings indexSettings = Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT).build();
         final Mapper.BuilderContext context = new Mapper.BuilderContext(indexSettings, new ContentPath());
         RootObjectMapper rootObjectMapper = new RootObjectMapper.Builder("name").build(context);
-        Mapping update = new Mapping(LegacyESVersion.V_7_9_0, rootObjectMapper, new MetadataFieldMapper[0], Map.of());
+        Mapping update = new Mapping(Version.V_3_0_0, rootObjectMapper, new MetadataFieldMapper[0], Map.of());
 
         mua.sendUpdateMapping(new Index("name", "uuid"), update, ActionListener.wrap(() -> {}));
         verify(indicesAdminClient).execute(eq(AutoPutMappingAction.INSTANCE), any(), any());

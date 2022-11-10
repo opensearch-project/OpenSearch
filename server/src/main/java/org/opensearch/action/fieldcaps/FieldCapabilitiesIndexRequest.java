@@ -32,7 +32,6 @@
 
 package org.opensearch.action.fieldcaps;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
@@ -70,8 +69,8 @@ public class FieldCapabilitiesIndexRequest extends ActionRequest implements Indi
         index = in.readOptionalString();
         fields = in.readStringArray();
         originalIndices = OriginalIndices.readOriginalIndices(in);
-        indexFilter = in.getVersion().onOrAfter(LegacyESVersion.V_7_9_0) ? in.readOptionalNamedWriteable(QueryBuilder.class) : null;
-        nowInMillis = in.getVersion().onOrAfter(LegacyESVersion.V_7_9_0) ? in.readLong() : 0L;
+        indexFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
+        nowInMillis = in.readLong();
     }
 
     FieldCapabilitiesIndexRequest(
@@ -133,10 +132,8 @@ public class FieldCapabilitiesIndexRequest extends ActionRequest implements Indi
         out.writeOptionalString(index);
         out.writeStringArray(fields);
         OriginalIndices.writeOriginalIndices(originalIndices, out);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
-            out.writeOptionalNamedWriteable(indexFilter);
-            out.writeLong(nowInMillis);
-        }
+        out.writeOptionalNamedWriteable(indexFilter);
+        out.writeLong(nowInMillis);
     }
 
     @Override

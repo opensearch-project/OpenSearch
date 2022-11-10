@@ -164,11 +164,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         }
         ifSeqNo = in.readZLong();
         ifPrimaryTerm = in.readVLong();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
-            requireAlias = in.readBoolean();
-        } else {
-            requireAlias = false;
-        }
+        requireAlias = in.readBoolean();
     }
 
     public IndexRequest() {
@@ -679,9 +675,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         }
         out.writeZLong(ifSeqNo);
         out.writeVLong(ifPrimaryTerm);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
-            out.writeBoolean(requireAlias);
-        }
+        out.writeBoolean(requireAlias);
     }
 
     @Override

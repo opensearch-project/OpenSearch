@@ -32,7 +32,6 @@
 
 package org.opensearch.action.admin.indices.alias;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchGenerationException;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.ParseField;
@@ -90,11 +89,7 @@ public class Alias implements Writeable, ToXContentFragment {
         indexRouting = in.readOptionalString();
         searchRouting = in.readOptionalString();
         writeIndex = in.readOptionalBoolean();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
-            isHidden = in.readOptionalBoolean();
-        } else {
-            isHidden = null;
-        }
+        isHidden = in.readOptionalBoolean();
     }
 
     public Alias(String name) {
@@ -236,9 +231,7 @@ public class Alias implements Writeable, ToXContentFragment {
         out.writeOptionalString(indexRouting);
         out.writeOptionalString(searchRouting);
         out.writeOptionalBoolean(writeIndex);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
-            out.writeOptionalBoolean(isHidden);
-        }
+        out.writeOptionalBoolean(isHidden);
     }
 
     /**

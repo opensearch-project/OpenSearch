@@ -8,9 +8,12 @@
 
 package org.opensearch.search.backpressure.trackers;
 
+import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.common.xcontent.ToXContentObject;
 import org.opensearch.tasks.TaskCancellation;
 import org.opensearch.tasks.Task;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -41,10 +44,20 @@ public abstract class TaskResourceUsageTracker {
     /**
      * Notifies the tracker to update its state when a task execution completes.
      */
-    public abstract void update(Task task);
+    public void update(Task task) {}
 
     /**
      * Returns the cancellation reason for the given task, if it's eligible for cancellation.
      */
-    public abstract Optional<TaskCancellation.Reason> cancellationReason(Task task);
+    public abstract Optional<TaskCancellation.Reason> checkAndMaybeGetCancellationReason(Task task);
+
+    /**
+     * Returns the tracker's state as seen in the stats API.
+     */
+    public abstract Stats stats(List<? extends Task> activeTasks);
+
+    /**
+     * Represents the tracker's state as seen in the stats API.
+     */
+    public interface Stats extends ToXContentObject, Writeable {}
 }

@@ -163,6 +163,7 @@ import static org.opensearch.common.unit.TimeValue.timeValueSeconds;
 import static org.opensearch.discovery.DiscoveryModule.DISCOVERY_TYPE_SETTING;
 import static org.opensearch.discovery.DiscoveryModule.ZEN2_DISCOVERY_TYPE;
 import static org.opensearch.discovery.FileBasedSeedHostsProvider.UNICAST_HOSTS_FILE;
+import static org.opensearch.test.NodeRoles.onlyRoles;
 import static org.opensearch.test.OpenSearchTestCase.assertBusy;
 import static org.opensearch.test.OpenSearchTestCase.randomFrom;
 import static org.opensearch.test.NodeRoles.dataOnlyNode;
@@ -198,6 +199,16 @@ public final class InternalTestCluster extends TestCluster {
     private static final Predicate<NodeAndClient> DATA_NODE_PREDICATE = nodeAndClient -> DiscoveryNode.isDataNode(
         nodeAndClient.node.settings()
     );
+
+    private static final Predicate<NodeAndClient> SEARCH_NODE_PREDICATE = nodeAndClient -> DiscoveryNode.hasRole(
+        nodeAndClient.node.settings(),
+        DiscoveryNodeRole.SEARCH_ROLE
+    );
+
+    private static final Predicate<NodeAndClient> SEARCH_AND_DATA_NODE_PREDICATE = nodeAndClient -> DiscoveryNode.hasRole(
+        nodeAndClient.node.settings(),
+        DiscoveryNodeRole.SEARCH_ROLE
+    ) && DiscoveryNode.isDataNode(nodeAndClient.node.settings());
 
     private static final Predicate<NodeAndClient> NO_DATA_NO_CLUSTER_MANAGER_PREDICATE = nodeAndClient -> DiscoveryNode
         .isClusterManagerNode(nodeAndClient.node.settings()) == false
@@ -659,6 +670,45 @@ public final class InternalTestCluster extends TestCluster {
                 startDataOnlyNodes(n - size);
             } else {
                 startNodes(n - size);
+            }
+            validateClusterFormed();
+        }
+    }
+
+    /**
+     * Ensures that at least <code>n</code> search nodes are present in the cluster.
+     * if more nodes than <code>n</code> are present this method will not
+     * stop any of the running nodes.
+     */
+    public synchronized void ensureAtLeastNumSearchNodes(int n) {
+        int size = numSearchNodes();
+        if (size < n) {
+            logger.info("increasing cluster size from {} to {}", size, n);
+            if (numSharedDedicatedClusterManagerNodes > 0) {
+                startSearchOnlyNodes(n - size);
+            } else {
+                startNodes(n - size, Settings.builder().put(onlyRole(Settings.EMPTY, DiscoveryNodeRole.SEARCH_ROLE)).build());
+            }
+            validateClusterFormed();
+        }
+    }
+
+    /**
+     * Ensures that at least <code>n</code> data-search nodes are present in the cluster.
+     * if more nodes than <code>n</code> are present this method will not
+     * stop any of the running nodes.
+     */
+    public synchronized void ensureAtLeastNumSearchAndDataNodes(int n) {
+        int size = numSearchAndDataNodes();
+        if (size < n) {
+            logger.info("increasing cluster size from {} to {}", size, n);
+            if (numSharedDedicatedClusterManagerNodes > 0) {
+                startDataAndSearchNodes(n - size);
+            } else {
+                Set<DiscoveryNodeRole> searchAndDataRoles = new HashSet<>();
+                searchAndDataRoles.add(DiscoveryNodeRole.DATA_ROLE);
+                searchAndDataRoles.add(DiscoveryNodeRole.SEARCH_ROLE);
+                startNodes(n - size, Settings.builder().put(onlyRoles(Settings.EMPTY, searchAndDataRoles)).build());
             }
             validateClusterFormed();
         }
@@ -1697,6 +1747,20 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     /**
+     * Stops a random search node in the cluster. Returns true if a node was found to stop, false otherwise.
+     */
+    public synchronized boolean stopRandomSearchNode() throws IOException {
+        ensureOpen();
+        NodeAndClient nodeAndClient = getRandomNodeAndClient(SEARCH_NODE_PREDICATE);
+        if (nodeAndClient != null) {
+            logger.info("Closing random node [{}] ", nodeAndClient.name);
+            stopNodesAndClient(nodeAndClient);
+            return true;
+        }
+        return false;
+    }
+
+    /**
      * Stops a random data node in the cluster. Returns true if a node was found to stop, false otherwise.
      */
     public synchronized boolean stopRandomDataNode() throws IOException {
@@ -2283,12 +2347,31 @@ public final class InternalTestCluster extends TestCluster {
         return startClusterManagerOnlyNodes(numNodes, settings);
     }
 
+    public List<String> startDataAndSearchNodes(int numNodes) {
+        return startDataAndSearchNodes(numNodes, Settings.EMPTY);
+    }
+
+    public List<String> startDataAndSearchNodes(int numNodes, Settings settings) {
+        Set<DiscoveryNodeRole> searchAndDataRoles = new HashSet<>();
+        searchAndDataRoles.add(DiscoveryNodeRole.DATA_ROLE);
+        searchAndDataRoles.add(DiscoveryNodeRole.SEARCH_ROLE);
+        return startNodes(numNodes, Settings.builder().put(onlyRoles(settings, searchAndDataRoles)).build());
+    }
+
     public List<String> startDataOnlyNodes(int numNodes) {
         return startDataOnlyNodes(numNodes, Settings.EMPTY);
     }
 
     public List<String> startDataOnlyNodes(int numNodes, Settings settings) {
         return startNodes(numNodes, Settings.builder().put(onlyRole(settings, DiscoveryNodeRole.DATA_ROLE)).build());
+    }
+
+    public List<String> startSearchOnlyNodes(int numNodes) {
+        return startSearchOnlyNodes(numNodes, Settings.EMPTY);
+    }
+
+    public List<String> startSearchOnlyNodes(int numNodes, Settings settings) {
+        return startNodes(numNodes, Settings.builder().put(onlyRole(settings, DiscoveryNodeRole.SEARCH_ROLE)).build());
     }
 
     /** calculates a min cluster-manager nodes value based on the given number of cluster-manager nodes */
@@ -2345,6 +2428,14 @@ public final class InternalTestCluster extends TestCluster {
     @Override
     public int numDataNodes() {
         return dataNodeAndClients().size();
+    }
+
+    public int numSearchNodes() {
+        return searchNodeAndClients().size();
+    }
+
+    public int numSearchAndDataNodes() {
+        return searchDataNodeAndClients().size();
     }
 
     @Override
@@ -2404,6 +2495,14 @@ public final class InternalTestCluster extends TestCluster {
 
     private Collection<NodeAndClient> dataNodeAndClients() {
         return filterNodes(nodes, DATA_NODE_PREDICATE);
+    }
+
+    private Collection<NodeAndClient> searchNodeAndClients() {
+        return filterNodes(nodes, SEARCH_NODE_PREDICATE);
+    }
+
+    private Collection<NodeAndClient> searchDataNodeAndClients() {
+        return filterNodes(nodes, SEARCH_AND_DATA_NODE_PREDICATE);
     }
 
     private static Collection<NodeAndClient> filterNodes(
@@ -2572,6 +2671,7 @@ public final class InternalTestCluster extends TestCluster {
                 CommonStatsFlags flags = new CommonStatsFlags(Flag.FieldData, Flag.QueryCache, Flag.Segments);
                 NodeStats stats = nodeService.stats(
                     flags,
+                    false,
                     false,
                     false,
                     false,

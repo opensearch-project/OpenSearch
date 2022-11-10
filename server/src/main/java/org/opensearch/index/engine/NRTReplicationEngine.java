@@ -18,6 +18,7 @@ import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.seqno.SeqNoStats;
@@ -122,18 +123,21 @@ public class NRTReplicationEngine extends Engine {
 
     public synchronized void updateSegments(final SegmentInfos infos, long seqNo) throws IOException {
         // Update the current infos reference on the Engine's reader.
-        final long incomingGeneration = infos.getGeneration();
-        readerManager.updateSegments(infos);
+        ensureOpen();
+        try (ReleasableLock lock = writeLock.acquire()) {
+            final long incomingGeneration = infos.getGeneration();
+            readerManager.updateSegments(infos);
 
-        // Commit and roll the xlog when we receive a different generation than what was last received.
-        // lower/higher gens are possible from a new primary that was just elected.
-        if (incomingGeneration != lastReceivedGen) {
-            commitSegmentInfos();
-            translogManager.getDeletionPolicy().setLocalCheckpointOfSafeCommit(seqNo);
-            translogManager.rollTranslogGeneration();
+            // Commit and roll the translog when we receive a different generation than what was last received.
+            // lower/higher gens are possible from a new primary that was just elected.
+            if (incomingGeneration != lastReceivedGen) {
+                commitSegmentInfos();
+                translogManager.getDeletionPolicy().setLocalCheckpointOfSafeCommit(seqNo);
+                translogManager.rollTranslogGeneration();
+            }
+            lastReceivedGen = incomingGeneration;
+            localCheckpointTracker.fastForwardProcessedSeqNo(seqNo);
         }
-        lastReceivedGen = incomingGeneration;
-        localCheckpointTracker.fastForwardProcessedSeqNo(seqNo);
     }
 
     /**
