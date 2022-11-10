@@ -60,7 +60,6 @@ import org.opensearch.common.logging.HeaderWarning;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
@@ -253,7 +252,7 @@ public class MetadataIndexTemplateService {
     ) throws Exception {
         final ComponentTemplate existing = currentState.metadata().componentTemplates().get(name);
         if (create && existing != null) {
-            throw new SettingsException("component template [" + name + "] already exists");
+            throw new IllegalArgumentException("component template [" + name + "] already exists");
         }
 
         CompressedXContent mappings = template.template().mappings();
@@ -289,7 +288,7 @@ public class MetadataIndexTemplateService {
                     }
                 }
                 if (globalTemplatesThatUseThisComponent.isEmpty() == false) {
-                    throw new SettingsException(
+                    throw new IllegalArgumentException(
                         "cannot update component template ["
                             + name
                             + "] because the following global templates would resolve to specifying the ["

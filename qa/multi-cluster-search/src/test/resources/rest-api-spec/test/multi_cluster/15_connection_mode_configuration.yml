@@ -17,7 +17,7 @@
             cluster.remote.test_remote_cluster.proxy_address: $remote_ip
 
   - match: { status: 400 }
-  - match: { error.root_cause.0.type: "settings_exception" }
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
   - match: { error.root_cause.0.reason: "Setting \"cluster.remote.test_remote_cluster.node_connections\" cannot be
   used with the configured \"cluster.remote.test_remote_cluster.mode\" [required=SNIFF, configured=PROXY]" }
 
@@ -32,7 +32,7 @@
             cluster.remote.test_remote_cluster.proxy_address: $remote_ip
 
   - match: { status: 400 }
-  - match: { error.root_cause.0.type: "settings_exception" }
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
   - match: { error.root_cause.0.reason: "Setting \"cluster.remote.test_remote_cluster.seeds\" cannot be
    used with the configured \"cluster.remote.test_remote_cluster.mode\" [required=SNIFF, configured=PROXY]" }
 
@@ -54,7 +54,7 @@
             cluster.remote.test_remote_cluster.seeds: $remote_ip
 
   - match: { status: 400 }
-  - match: { error.root_cause.0.type: "settings_exception" }
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
   - match: { error.root_cause.0.reason: "Setting \"cluster.remote.test_remote_cluster.proxy_socket_connections\" cannot be
   used with the configured \"cluster.remote.test_remote_cluster.mode\" [required=PROXY, configured=SNIFF]" }
 
@@ -68,7 +68,7 @@
             cluster.remote.test_remote_cluster.seeds: $remote_ip
 
   - match: { status: 400 }
-  - match: { error.root_cause.0.type: "settings_exception" }
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
   - match: { error.root_cause.0.reason: "Setting \"cluster.remote.test_remote_cluster.proxy_address\" cannot be
    used with the configured \"cluster.remote.test_remote_cluster.mode\" [required=PROXY, configured=SNIFF]" }
 
@@ -182,7 +182,7 @@
             cluster.remote.test_remote_cluster.proxy_address: $remote_ip
 
   - match: { status: 400 }
-  - match: { error.root_cause.0.type: "settings_exception" }
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
   - match: { error.root_cause.0.reason: "Setting \"cluster.remote.test_remote_cluster.seeds\" cannot be
   used with the configured \"cluster.remote.test_remote_cluster.mode\" [required=SNIFF, configured=PROXY]" }
 

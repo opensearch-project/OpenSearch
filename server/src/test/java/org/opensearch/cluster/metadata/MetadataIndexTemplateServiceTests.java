@@ -378,8 +378,8 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
         assertThat(state.metadata().componentTemplates().get("foo"), equalTo(componentTemplate));
 
         final ClusterState throwState = ClusterState.builder(state).build();
-        SettingsException e = expectThrows(
-            SettingsException.class,
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
             () -> metadataIndexTemplateService.addComponentTemplate(throwState, true, "foo", componentTemplate)
         );
         assertThat(e.getMessage(), containsString("component template [foo] already exists"));

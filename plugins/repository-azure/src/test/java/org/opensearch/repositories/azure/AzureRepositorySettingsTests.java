@@ -32,7 +32,6 @@
 
 package org.opensearch.repositories.azure;
 
-import org.opensearch.common.settings.SettingsException;
 import reactor.core.scheduler.Schedulers;
 
 import org.junit.AfterClass;
@@ -47,7 +46,6 @@ import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.repositories.blobstore.BlobStoreTestUtil;
 import org.opensearch.test.OpenSearchTestCase;
 
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
@@ -163,22 +161,21 @@ public class AzureRepositorySettingsTests extends OpenSearchTestCase {
         assertEquals(new ByteSizeValue(size, ByteSizeUnit.MB), azureRepository.chunkSize());
 
         // zero bytes is not allowed
-        SettingsException e = expectThrows(
-            SettingsException.class,
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
             () -> azureRepository(Settings.builder().put("chunk_size", "0").build())
         );
-        assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
-        assertEquals("failed to parse value [0] for setting [chunk_size], must be >= [1b]", e.getCause().getMessage());
+        assertEquals("failed to parse value [0] for setting [chunk_size], must be >= [1b]", e.getMessage());
 
         // negative bytes not allowed
-        e = expectThrows(SettingsException.class, () -> azureRepository(Settings.builder().put("chunk_size", "-1").build()));
-        assertEquals("failed to parse value [-1] for setting [chunk_size], must be >= [1b]", e.getCause().getMessage());
+        e = expectThrows(IllegalArgumentException.class, () -> azureRepository(Settings.builder().put("chunk_size", "-1").build()));
+        assertEquals("failed to parse value [-1] for setting [chunk_size], must be >= [1b]", e.getMessage());
 
         // greater than max chunk size not allowed
-        e = expectThrows(SettingsException.class, () -> azureRepository(Settings.builder().put("chunk_size", "6tb").build()));
+        e = expectThrows(IllegalArgumentException.class, () -> azureRepository(Settings.builder().put("chunk_size", "6tb").build()));
         assertEquals(
             "failed to parse value [6tb] for setting [chunk_size], must be <= [" + AzureStorageService.MAX_CHUNK_SIZE.getStringRep() + "]",
-            e.getCause().getMessage()
+            e.getMessage()
         );
     }
 

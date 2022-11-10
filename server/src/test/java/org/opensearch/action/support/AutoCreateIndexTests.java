@@ -41,6 +41,7 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.indices.SystemIndexDescriptor;
@@ -62,11 +63,11 @@ public class AutoCreateIndexTests extends OpenSearchTestCase {
             Settings settings = Settings.builder().put("action.auto_create_index", ",,,").build();
             newAutoCreateIndex(settings);
             fail("initialization should have failed");
-        } catch (IllegalArgumentException ex) {
+        } catch (SettingsException ex) {
             assertEquals(
                 "Can't parse [,,,] for setting [action.auto_create_index] must be either [true, false, or a "
                     + "comma separated list of index patterns]",
-                ex.getMessage()
+                ex.getCause().getMessage()
             );
         }
     }
@@ -77,10 +78,10 @@ public class AutoCreateIndexTests extends OpenSearchTestCase {
         try {
             newAutoCreateIndex(settings);
             fail("initialization should have failed");
-        } catch (IllegalArgumentException ex) {
+        } catch (SettingsException ex) {
             assertEquals(
                 "Can't parse [" + prefix + "] for setting [action.auto_create_index] must contain an index name after [" + prefix + "]",
-                ex.getMessage()
+                ex.getCause().getMessage()
             );
         }
     }

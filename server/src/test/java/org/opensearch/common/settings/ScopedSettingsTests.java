@@ -1104,11 +1104,11 @@ public class ScopedSettingsTests extends OpenSearchTestCase {
         Settings.Builder builder = Settings.builder().put("logger.level", property);
         try {
             ClusterSettings settings = new ClusterSettings(builder.build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-            IllegalArgumentException ex = expectThrows(
-                IllegalArgumentException.class,
+            SettingsException ex = expectThrows(
+                SettingsException.class,
                 () -> settings.validate(Settings.builder().put("logger._root", "boom").build(), false)
             );
-            assertEquals("Unknown level constant [BOOM].", ex.getMessage());
+            assertEquals("Unknown level constant [BOOM].", ex.getCause().getMessage());
             assertEquals(level, LogManager.getRootLogger().getLevel());
             settings.applySettings(Settings.builder().put("logger._root", "TRACE").build());
             assertEquals(Level.TRACE, LogManager.getRootLogger().getLevel());
