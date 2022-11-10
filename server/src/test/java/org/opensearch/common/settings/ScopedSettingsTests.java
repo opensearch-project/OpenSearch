@@ -976,26 +976,26 @@ public class ScopedSettingsTests extends OpenSearchTestCase {
             + " removed settings";
         settings.validate(Settings.builder().put("index.store.type", "boom").build(), false);
 
-        SettingsException e = expectThrows(
+        SettingsException settingsException = expectThrows(
             SettingsException.class,
             () -> settings.validate(Settings.builder().put("index.store.type", "boom").put("i.am.not.a.setting", true).build(), false)
         );
-        assertEquals("unknown setting [i.am.not.a.setting]" + unknownMsgSuffix, e.getMessage());
+        assertEquals("unknown setting [i.am.not.a.setting]" + unknownMsgSuffix, settingsException.getMessage());
 
-        e = expectThrows(
-            SettingsException.class,
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
             () -> settings.validate(Settings.builder().put("index.store.type", "boom").put("index.number_of_replicas", true).build(), false)
         );
         assertEquals("Failed to parse value [true] for setting [index.number_of_replicas]", e.getMessage());
 
         e = expectThrows(
-            SettingsException.class,
+            IllegalArgumentException.class,
             () -> settings.validate("index.number_of_replicas", Settings.builder().put("index.number_of_replicas", "true").build(), false)
         );
         assertEquals("Failed to parse value [true] for setting [index.number_of_replicas]", e.getMessage());
 
         e = expectThrows(
-            SettingsException.class,
+            IllegalArgumentException.class,
             () -> settings.validate(
                 "index.similarity.classic.type",
                 Settings.builder().put("index.similarity.classic.type", "mine").build(),
