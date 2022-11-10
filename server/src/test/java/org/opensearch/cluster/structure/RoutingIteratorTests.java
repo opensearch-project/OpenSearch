@@ -647,13 +647,12 @@ public class RoutingIteratorTests extends OpenSearchAllocationTestCase {
                 .index("test")
                 .shard(0)
                 .activeInitializingShardsWeightedIt(weightedRouting, clusterState.nodes(), 1);
-            assertEquals(2, shardIterator.size());
+            assertEquals(3, shardIterator.size());
             ShardRouting shardRouting;
-            while (shardIterator.remaining() > 0) {
-                shardRouting = shardIterator.nextOrNull();
-                assertNotNull(shardRouting);
-                assertFalse(Arrays.asList("node3").contains(shardRouting.currentNodeId()));
-            }
+            shardRouting = shardIterator.nextOrNull();
+            assertNotNull(shardRouting);
+            assertFalse(Arrays.asList("node3").contains(shardRouting.currentNodeId()));
+
 
             // Make iterator call with same WeightedRouting instance
             assertNotNull(
@@ -663,12 +662,10 @@ public class RoutingIteratorTests extends OpenSearchAllocationTestCase {
                 .index("test")
                 .shard(0)
                 .activeInitializingShardsWeightedIt(weightedRouting, clusterState.nodes(), 1);
-            assertEquals(2, shardIterator.size());
-            while (shardIterator.remaining() > 0) {
-                shardRouting = shardIterator.nextOrNull();
-                assertNotNull(shardRouting);
-                assertFalse(Arrays.asList("node3").contains(shardRouting.currentNodeId()));
-            }
+            assertEquals(3, shardIterator.size());
+            shardRouting = shardIterator.nextOrNull();
+            assertNotNull(shardRouting);
+            assertFalse(Arrays.asList("node3").contains(shardRouting.currentNodeId()));
 
             // Make iterator call with new instance of WeightedRouting but same weights
             Map<String, Double> weights1 = Map.of("zone1", 1.0, "zone2", 1.0, "zone3", 0.0);
@@ -680,12 +677,11 @@ public class RoutingIteratorTests extends OpenSearchAllocationTestCase {
                 .index("test")
                 .shard(0)
                 .activeInitializingShardsWeightedIt(weightedRouting, clusterState.nodes(), 1);
-            assertEquals(2, shardIterator.size());
-            while (shardIterator.remaining() > 0) {
-                shardRouting = shardIterator.nextOrNull();
-                assertNotNull(shardRouting);
-                assertFalse(Arrays.asList("node3").contains(shardRouting.currentNodeId()));
-            }
+            assertEquals(3, shardIterator.size());
+            shardRouting = shardIterator.nextOrNull();
+            assertNotNull(shardRouting);
+            assertFalse(Arrays.asList("node3").contains(shardRouting.currentNodeId()));
+
 
             // Make iterator call with different weights
             Map<String, Double> weights2 = Map.of("zone1", 1.0, "zone2", 0.0, "zone3", 1.0);
@@ -697,12 +693,11 @@ public class RoutingIteratorTests extends OpenSearchAllocationTestCase {
                 .index("test")
                 .shard(0)
                 .activeInitializingShardsWeightedIt(weightedRouting, clusterState.nodes(), 1);
-            assertEquals(2, shardIterator.size());
-            while (shardIterator.remaining() > 0) {
-                shardRouting = shardIterator.nextOrNull();
-                assertNotNull(shardRouting);
-                assertFalse(Arrays.asList("node2").contains(shardRouting.currentNodeId()));
-            }
+            assertEquals(3, shardIterator.size());
+            shardRouting = shardIterator.nextOrNull();
+            assertNotNull(shardRouting);
+            assertFalse(Arrays.asList("node2").contains(shardRouting.currentNodeId()));
+
         } finally {
             terminate(threadPool);
         }
