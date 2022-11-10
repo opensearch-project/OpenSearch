@@ -5,7 +5,6 @@
 - Introduce point in time search feature ([#3959](https://github.com/opensearch-project/OpenSearch/issues/3959))
 - Introduce experimental searchable snapshot feature ([#2919](https://github.com/opensearch-project/OpenSearch/issues/2919))
 - Add API for decommissioning/recommissioning zone and weighted zonal search request routing policy ([#3639](https://github.com/opensearch-project/OpenSearch/issues/3639))
-- Introduce cluster manager task throttling framework [#479](https://github.com/opensearch-project/OpenSearch/issues/479)
 - Add support for s390x architecture ([#4001](https://github.com/opensearch-project/OpenSearch/pull/4001))
 - Github workflow for changelog verification ([#4085](https://github.com/opensearch-project/OpenSearch/pull/4085))
 - Add failover support with Segment Replication enabled. ([#4325](https://github.com/opensearch-project/OpenSearch/pull/4325)
