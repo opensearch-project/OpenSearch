@@ -77,6 +77,14 @@ jobs:
               * **URL:** ${{ env.workflow_url }}
               * **CommitID:** ${{ env.pr_from_sha }}
 
+      - name: Extract Test Failure
+        if: ${{ github.event_name == 'pull_request_target' && failure() }}
+        run: |
+            TEST_FAILURES=`curl -s "${{ env.workflow_url }}/testReport/api/json?tree=suites\[cases\[status,className,name\]\]" | jq -r '.. | objects | select(.status=="FAILED",.status=="REGRESSION") | (.className + "." +  .name)' | uniq`
+            echo "test_failures<<EOF" >> $GITHUB_ENV
+            echo "$TEST_FAILURES" >> $GITHUB_ENV
+            echo "EOF" >> $GITHUB_ENV
+
       - name: Create Comment Failure
         if: ${{ github.event_name == 'pull_request_target' && failure() }}
         uses: peter-evans/create-or-update-comment@v2
@@ -85,6 +93,8 @@ jobs:
           body: |
               ### Gradle Check (Jenkins) Run Completed with:
               * **RESULT:** ${{ env.result }} :x:
+              * **FAILURES:**
+              ${{ env.test_failures }}
               * **URL:** ${{ env.workflow_url }}
               * **CommitID:** ${{ env.pr_from_sha }}
               Please examine the workflow log, locate, and copy-paste the failure below, then iterate to green.
