@@ -9,11 +9,17 @@
 package org.opensearch.search.backpressure.trackers;
 
 import org.opensearch.common.settings.Setting;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
+import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskCancellation;
 
+import java.io.IOException;
+import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
@@ -82,5 +88,61 @@ public class ElapsedTimeTracker extends TaskResourceUsageTracker {
 
     public void setElapsedTimeMillisThreshold(long elapsedTimeMillisThreshold) {
         this.elapsedTimeMillisThreshold = elapsedTimeMillisThreshold;
+    }
+
+    @Override
+    public TaskResourceUsageTracker.Stats stats(List<? extends Task> activeTasks) {
+        long now = timeNanosSupplier.getAsLong();
+        long currentMax = activeTasks.stream().mapToLong(t -> now - t.getStartTimeNanos()).max().orElse(0);
+        long currentAvg = (long) activeTasks.stream().mapToLong(t -> now - t.getStartTimeNanos()).average().orElse(0);
+        return new Stats(getCancellations(), currentMax, currentAvg);
+    }
+
+    /**
+     * Stats related to ElapsedTimeTracker.
+     */
+    public static class Stats implements TaskResourceUsageTracker.Stats {
+        private final long cancellationCount;
+        private final long currentMax;
+        private final long currentAvg;
+
+        public Stats(long cancellationCount, long currentMax, long currentAvg) {
+            this.cancellationCount = cancellationCount;
+            this.currentMax = currentMax;
+            this.currentAvg = currentAvg;
+        }
+
+        public Stats(StreamInput in) throws IOException {
+            this(in.readVLong(), in.readVLong(), in.readVLong());
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder.startObject()
+                .field("cancellation_count", cancellationCount)
+                .humanReadableField("current_max_millis", "current_max", new TimeValue(currentMax, TimeUnit.NANOSECONDS))
+                .humanReadableField("current_avg_millis", "current_avg", new TimeValue(currentAvg, TimeUnit.NANOSECONDS))
+                .endObject();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVLong(cancellationCount);
+            out.writeVLong(currentMax);
+            out.writeVLong(currentAvg);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Stats stats = (Stats) o;
+            return cancellationCount == stats.cancellationCount && currentMax == stats.currentMax && currentAvg == stats.currentAvg;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(cancellationCount, currentMax, currentAvg);
+        }
     }
 }

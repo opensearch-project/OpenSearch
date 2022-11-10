@@ -99,6 +99,10 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
+        if (decommissionAttribute == null) {
+            validationException = addValidationError("decommission attribute is missing", validationException);
+            return validationException;
+        }
         if (decommissionAttribute.attributeName() == null || Strings.isEmpty(decommissionAttribute.attributeName())) {
             validationException = addValidationError("attribute name is missing", validationException);
         }

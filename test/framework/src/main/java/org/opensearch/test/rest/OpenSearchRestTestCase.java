@@ -537,15 +537,6 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
 
     private void wipeCluster() throws Exception {
 
-        // Clean up SLM policies before trying to wipe snapshots so that no new ones get started by SLM after wiping
-        if (nodeVersions.first().before(Version.V_1_0_0)) { // SLM was introduced
-                                                            // in version 7.4
-            if (preserveSLMPoliciesUponCompletion() == false) {
-                // Clean up SLM policies before trying to wipe snapshots so that no new ones get started by SLM after wiping
-                deleteAllSLMPolicies();
-            }
-        }
-
         SetOnce<Map<String, List<Map<?, ?>>>> inProgressSnapshots = new SetOnce<>();
         if (waitForAllSnapshotsWiped()) {
             AtomicReference<Map<String, List<Map<?, ?>>>> snapshots = new AtomicReference<>();
@@ -1013,12 +1004,6 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
     }
 
     protected static void expectSoftDeletesWarning(Request request, String indexName) {
-        final List<String> esExpectedWarnings = Collections.singletonList(
-            "Creating indices with soft-deletes disabled is deprecated and will be removed in future Elasticsearch versions. "
-                + "Please do not specify value for setting [index.soft_deletes.enabled] of index ["
-                + indexName
-                + "]."
-        );
         final List<String> opensearchExpectedWarnings = Collections.singletonList(
             "Creating indices with soft-deletes disabled is deprecated and will be removed in future OpenSearch versions. "
                 + "Please do not specify value for setting [index.soft_deletes.enabled] of index ["
@@ -1026,23 +1011,8 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
                 + "]."
         );
         final Builder requestOptions = RequestOptions.DEFAULT.toBuilder();
-        if (nodeVersions.stream().allMatch(version -> version.before(Version.V_1_0_0))) {
-            requestOptions.setWarningsHandler(warnings -> warnings.equals(esExpectedWarnings) == false);
-            request.setOptions(requestOptions);
-        } else if (nodeVersions.stream().anyMatch(version -> version.before(Version.V_1_0_0))) {
-            requestOptions.setWarningsHandler(warnings -> warnings.isEmpty() == false && warnings.equals(esExpectedWarnings) == false);
-            request.setOptions(requestOptions);
-        }
-
-        if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_1_0_0))) {
-            requestOptions.setWarningsHandler(warnings -> warnings.equals(opensearchExpectedWarnings) == false);
-            request.setOptions(requestOptions);
-        } else if (nodeVersions.stream().anyMatch(version -> version.onOrAfter(Version.V_1_0_0))) {
-            requestOptions.setWarningsHandler(
-                warnings -> warnings.isEmpty() == false && warnings.equals(opensearchExpectedWarnings) == false
-            );
-            request.setOptions(requestOptions);
-        }
+        requestOptions.setWarningsHandler(warnings -> warnings.equals(opensearchExpectedWarnings) == false);
+        request.setOptions(requestOptions);
     }
 
     protected static Map<String, Object> getIndexSettings(String index) throws IOException {

@@ -238,7 +238,7 @@ public class DecommissionService {
             public void onFailure(Exception e) {
                 listener.onFailure(e);
                 // attempting to mark the status as FAILED
-                decommissionController.updateMetadataWithDecommissionStatus(DecommissionStatus.FAILED, statusUpdateListener());
+                clearVotingConfigExclusionAndUpdateStatus(false, false);
             }
         };
 
