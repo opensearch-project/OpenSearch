@@ -115,6 +115,9 @@ public class OpenSearchTestBasePlugin implements Plugin<Project> {
                             test.jvmArgs("--illegal-access=warn");
                         }
                     }
+                    if (test.getJavaVersion().compareTo(JavaVersion.VERSION_17) > 0) {
+                        test.jvmArgs("-Djava.security.manager=allow");
+                    }
                 }
             });
             test.getJvmArgumentProviders().add(nonInputProperties);
