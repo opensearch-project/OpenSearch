@@ -268,9 +268,21 @@ public class TransportFieldCapabilitiesIndexAction extends HandledTransportActio
             }
             ShardRouting next = shardsIt.get(shardIndex).nextOrNull();
 
-            if (next != null
-                && WeightedRoutingHelper.shardInWeighedAwayAZ(next.currentNodeId(), clusterService.state())
-                && !WeightedRoutingHelper.isInternalFailure(failure)) {
+            // This checks if the shard is present in data node with weighted routing weight set to 0,
+            // In such cases we fail open, if shard search request for the shard from other shard copies fail with non
+            // retryable exception.
+            while (next != null && WeightedRoutingHelper.shardInWeighedAwayAZ(next.currentNodeId(), clusterService.state())) {
+                if (WeightedRoutingHelper.isInternalFailure(failure)) {
+                    ShardRouting shardToFailOpen = next;
+                    logger.info(
+                        () -> new ParameterizedMessage(
+                            "{}: Fail open executed",
+                            shardToFailOpen.shardId()
+
+                        )
+                    );
+                    break;
+                }
                 next = shardsIt.get(shardIndex).nextOrNull();
             }
 

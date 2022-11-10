@@ -319,19 +319,26 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
             ordered.addAll(orderedInitializingShards);
         }
 
-        // append shards for attribute value with weight zero to the end, so that shard search requests can be tried on
+        // append shards for attribute value with weight zero, so that shard search requests can be tried on
         // shard copies in case of request failure from other attribute values.
-        Stream<String> keys = weightedRouting.weights()
-            .entrySet()
-            .stream()
-            .filter(entry -> entry.getValue().intValue() == 0)
-            .map(Map.Entry::getKey);
-        if (keys != null) {
-            ShardIterator iterator = onlyNodeSelectorActiveInitializingShardsIt("zone:" + keys.findFirst().get(), nodes);
-            while (iterator.remaining() > 0) {
-                ordered.add(iterator.nextOrNull());
-            }
+        try {
+            Stream<String> keys = weightedRouting.weights()
+                .entrySet()
+                .stream()
+                .filter(entry -> entry.getValue().intValue() == 0)
+                .map(Map.Entry::getKey);
+            keys.forEach(key -> {
+                ShardIterator iterator = onlyNodeSelectorActiveInitializingShardsIt("zone:" + key, nodes);
+                while (iterator.remaining() > 0) {
+                    ordered.add(iterator.nextOrNull());
+                }
+            });
+        } catch (IllegalArgumentException e) {
+            // this exception is thrown by {@link onlyNodeSelectorActiveInitializingShardsIt} in case count of shard
+            // copies found is zero
+            System.out.println();
         }
+
         return new PlainShardIterator(shardId, ordered);
     }
 

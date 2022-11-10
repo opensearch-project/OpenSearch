@@ -246,9 +246,23 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                 this.lastFailure = currentFailure;
             }
             ShardRouting shardRouting = shardIt.nextOrNull();
-            if (shardRouting != null
-                && WeightedRoutingHelper.shardInWeighedAwayAZ(shardRouting.currentNodeId(), clusterService.state())
-                && !WeightedRoutingHelper.isInternalFailure(currentFailure)) {
+
+            // This checks if the shard is present in data node with weighted routing weight set to 0,
+            // In such cases we fail open, if shard search request for the shard from other shard copies fail with non
+            // retryable exception.
+            while (shardRouting != null
+                && WeightedRoutingHelper.shardInWeighedAwayAZ(shardRouting.currentNodeId(), clusterService.state())) {
+                if (WeightedRoutingHelper.isInternalFailure(currentFailure)) {
+                    ShardRouting shardToFailOpen = shardRouting;
+                    logger.info(
+                        () -> new ParameterizedMessage(
+                            "{}: Fail open executed",
+                            shardToFailOpen.shardId()
+
+                        )
+                    );
+                    break;
+                }
                 shardRouting = shardIt.nextOrNull();
             }
             if (shardRouting == null) {

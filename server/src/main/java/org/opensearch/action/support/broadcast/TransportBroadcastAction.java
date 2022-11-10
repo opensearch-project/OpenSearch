@@ -253,9 +253,21 @@ public abstract class TransportBroadcastAction<
             setFailure(shardIt, shardIndex, e);
             ShardRouting nextShard = shardIt.nextOrNull();
 
-            if (nextShard != null
-                && WeightedRoutingHelper.shardInWeighedAwayAZ(nextShard.currentNodeId(), clusterState)
-                && !WeightedRoutingHelper.isInternalFailure(e)) {
+            // This checks if the shard is present in data node with weighted routing weight set to 0,
+            // In such cases we fail open, if shard search request for the shard from other shard copies fail with non
+            // retryable exception.
+            while (nextShard != null && WeightedRoutingHelper.shardInWeighedAwayAZ(nextShard.currentNodeId(), clusterState)) {
+                if (WeightedRoutingHelper.isInternalFailure(e)) {
+                    ShardRouting shardToFailOpen = nextShard;
+                    logger.info(
+                        () -> new ParameterizedMessage(
+                            "{}: Fail open executed",
+                            shardToFailOpen.shardId()
+
+                        )
+                    );
+                    break;
+                }
                 nextShard = shardIt.nextOrNull();
             }
             if (nextShard != null) {

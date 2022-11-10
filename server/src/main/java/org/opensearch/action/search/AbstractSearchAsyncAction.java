@@ -451,9 +451,21 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         // we do make sure to clean it on a successful response from a shard
         onShardFailure(shardIndex, shard, e);
         SearchShardTarget nextShard = shardIt.nextOrNull();
-        while (nextShard != null
-            && WeightedRoutingHelper.shardInWeighedAwayAZ(nextShard.getNodeId(), clusterState)
-            && !WeightedRoutingHelper.isInternalFailure(e)) {
+        // This checks if the shard is present in data node with weighted routing weight set to 0,
+        // In such cases we fail open, if shard search request for the shard from other shard copies fail with non
+        // retryable exception.
+        while (nextShard != null && WeightedRoutingHelper.shardInWeighedAwayAZ(nextShard.getNodeId(), clusterState)) {
+            if (WeightedRoutingHelper.isInternalFailure(e)) {
+                SearchShardTarget shardToFailOpen = nextShard;
+                logger.info(
+                    () -> new ParameterizedMessage(
+                        "{}: Fail open executed",
+                        shardToFailOpen.getShardId()
+
+                    )
+                );
+                break;
+            }
             nextShard = shardIt.nextOrNull();
         }
         final boolean lastShard = nextShard == null;
