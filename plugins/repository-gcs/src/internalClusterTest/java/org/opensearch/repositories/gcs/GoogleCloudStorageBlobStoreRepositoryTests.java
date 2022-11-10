@@ -55,7 +55,6 @@ import org.opensearch.common.io.Streams;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
@@ -164,7 +163,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends OpenSearchMockAP
         assertEquals(new ByteSizeValue(size, ByteSizeUnit.MB), chunkSize);
 
         // zero bytes is not allowed
-        SettingsException e = expectThrows(SettingsException.class, () -> {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
             final RepositoryMetadata repoMetadata = new RepositoryMetadata(
                 "repo",
                 GoogleCloudStorageRepository.TYPE,
@@ -172,10 +171,10 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends OpenSearchMockAP
             );
             GoogleCloudStorageRepository.getSetting(GoogleCloudStorageRepository.CHUNK_SIZE, repoMetadata);
         });
-        assertEquals("failed to parse value [0] for setting [chunk_size], must be >= [1b]", e.getCause().getMessage());
+        assertEquals("failed to parse value [0] for setting [chunk_size], must be >= [1b]", e.getMessage());
 
         // negative bytes not allowed
-        e = expectThrows(SettingsException.class, () -> {
+        e = expectThrows(IllegalArgumentException.class, () -> {
             final RepositoryMetadata repoMetadata = new RepositoryMetadata(
                 "repo",
                 GoogleCloudStorageRepository.TYPE,
@@ -183,10 +182,10 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends OpenSearchMockAP
             );
             GoogleCloudStorageRepository.getSetting(GoogleCloudStorageRepository.CHUNK_SIZE, repoMetadata);
         });
-        assertEquals("failed to parse value [-1] for setting [chunk_size], must be >= [1b]", e.getCause().getMessage());
+        assertEquals("failed to parse value [-1] for setting [chunk_size], must be >= [1b]", e.getMessage());
 
         // greater than max chunk size not allowed
-        e = expectThrows(SettingsException.class, () -> {
+        e = expectThrows(IllegalArgumentException.class, () -> {
             final RepositoryMetadata repoMetadata = new RepositoryMetadata(
                 "repo",
                 GoogleCloudStorageRepository.TYPE,
@@ -194,7 +193,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends OpenSearchMockAP
             );
             GoogleCloudStorageRepository.getSetting(GoogleCloudStorageRepository.CHUNK_SIZE, repoMetadata);
         });
-        assertEquals("failed to parse value [6tb] for setting [chunk_size], must be <= [5tb]", e.getCause().getMessage());
+        assertEquals("failed to parse value [6tb] for setting [chunk_size], must be <= [5tb]", e.getMessage());
     }
 
     public void testWriteReadLarge() throws IOException {

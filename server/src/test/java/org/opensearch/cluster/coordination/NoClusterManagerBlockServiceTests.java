@@ -33,7 +33,6 @@ package org.opensearch.cluster.coordination;
 
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.settings.SettingsException;
 import org.opensearch.test.OpenSearchTestCase;
 
 import static org.opensearch.cluster.coordination.NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_ALL;
@@ -75,7 +74,7 @@ public class NoClusterManagerBlockServiceTests extends OpenSearchTestCase {
 
     public void testRejectsInvalidSetting() {
         expectThrows(
-            SettingsException.class,
+            IllegalArgumentException.class,
             () -> createService(Settings.builder().put(NO_CLUSTER_MANAGER_BLOCK_SETTING.getKey(), "unknown").build())
         );
     }

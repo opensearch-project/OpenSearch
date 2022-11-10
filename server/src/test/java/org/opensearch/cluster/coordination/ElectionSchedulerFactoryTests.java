@@ -35,7 +35,6 @@ package org.opensearch.cluster.coordination;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.Settings.Builder;
-import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -181,56 +180,44 @@ public class ElectionSchedulerFactoryTests extends OpenSearchTestCase {
     public void testSettingsValidation() {
         {
             final Settings settings = Settings.builder().put(ELECTION_INITIAL_TIMEOUT_SETTING.getKey(), "0s").build();
-            SettingsException e = expectThrows(SettingsException.class, () -> ELECTION_INITIAL_TIMEOUT_SETTING.get(settings));
-            assertThat(
-                e.getCause().getMessage(),
-                is("failed to parse value [0s] for setting [cluster.election.initial_timeout], must be >= [1ms]")
-            );
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ELECTION_INITIAL_TIMEOUT_SETTING.get(settings));
+            assertThat(e.getMessage(), is("failed to parse value [0s] for setting [cluster.election.initial_timeout], must be >= [1ms]"));
         }
 
         {
             final Settings settings = Settings.builder().put(ELECTION_INITIAL_TIMEOUT_SETTING.getKey(), "10001ms").build();
-            SettingsException e = expectThrows(SettingsException.class, () -> ELECTION_INITIAL_TIMEOUT_SETTING.get(settings));
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ELECTION_INITIAL_TIMEOUT_SETTING.get(settings));
             assertThat(
-                e.getCause().getMessage(),
+                e.getMessage(),
                 is("failed to parse value [10001ms] for setting [cluster.election.initial_timeout], must be <= [10s]")
             );
         }
 
         {
             final Settings settings = Settings.builder().put(ELECTION_BACK_OFF_TIME_SETTING.getKey(), "0s").build();
-            SettingsException e = expectThrows(SettingsException.class, () -> ELECTION_BACK_OFF_TIME_SETTING.get(settings));
-            assertThat(
-                e.getCause().getMessage(),
-                is("failed to parse value [0s] for setting [cluster.election.back_off_time], must be >= [1ms]")
-            );
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ELECTION_BACK_OFF_TIME_SETTING.get(settings));
+            assertThat(e.getMessage(), is("failed to parse value [0s] for setting [cluster.election.back_off_time], must be >= [1ms]"));
         }
 
         {
             final Settings settings = Settings.builder().put(ELECTION_BACK_OFF_TIME_SETTING.getKey(), "60001ms").build();
-            SettingsException e = expectThrows(SettingsException.class, () -> ELECTION_BACK_OFF_TIME_SETTING.get(settings));
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ELECTION_BACK_OFF_TIME_SETTING.get(settings));
             assertThat(
-                e.getCause().getMessage(),
+                e.getMessage(),
                 is("failed to parse value [60001ms] for setting [cluster.election.back_off_time], must be <= [60s]")
             );
         }
 
         {
             final Settings settings = Settings.builder().put(ELECTION_MAX_TIMEOUT_SETTING.getKey(), "199ms").build();
-            SettingsException e = expectThrows(SettingsException.class, () -> ELECTION_MAX_TIMEOUT_SETTING.get(settings));
-            assertThat(
-                e.getCause().getMessage(),
-                is("failed to parse value [199ms] for setting [cluster.election.max_timeout], must be >= [200ms]")
-            );
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ELECTION_MAX_TIMEOUT_SETTING.get(settings));
+            assertThat(e.getMessage(), is("failed to parse value [199ms] for setting [cluster.election.max_timeout], must be >= [200ms]"));
         }
 
         {
             final Settings settings = Settings.builder().put(ELECTION_MAX_TIMEOUT_SETTING.getKey(), "301s").build();
-            SettingsException e = expectThrows(SettingsException.class, () -> ELECTION_MAX_TIMEOUT_SETTING.get(settings));
-            assertThat(
-                e.getCause().getMessage(),
-                is("failed to parse value [301s] for setting [cluster.election.max_timeout], must be <= [300s]")
-            );
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ELECTION_MAX_TIMEOUT_SETTING.get(settings));
+            assertThat(e.getMessage(), is("failed to parse value [301s] for setting [cluster.election.max_timeout], must be <= [300s]"));
         }
 
         {

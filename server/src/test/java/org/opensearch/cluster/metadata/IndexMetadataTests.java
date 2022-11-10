@@ -44,7 +44,6 @@ import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.set.Sets;
@@ -348,15 +347,18 @@ public class IndexMetadataTests extends OpenSearchTestCase {
         assertEquals(numShards, IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.get(build).intValue());
 
         Settings lessThanSettings = Settings.builder().put("index.number_of_shards", 8).put("index.number_of_routing_shards", 4).build();
-        SettingsException iae = expectThrows(
-            SettingsException.class,
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
             () -> IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.get(lessThanSettings)
         );
-        assertEquals("index.number_of_routing_shards [4] must be >= index.number_of_shards [8]", iae.getCause().getMessage());
+        assertEquals("index.number_of_routing_shards [4] must be >= index.number_of_shards [8]", iae.getMessage());
 
         Settings notAFactorySettings = Settings.builder().put("index.number_of_shards", 2).put("index.number_of_routing_shards", 3).build();
-        iae = expectThrows(SettingsException.class, () -> IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.get(notAFactorySettings));
-        assertEquals("the number of source shards [2] must be a factor of [3]", iae.getCause().getMessage());
+        iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.get(notAFactorySettings)
+        );
+        assertEquals("the number of source shards [2] must be a factor of [3]", iae.getMessage());
     }
 
     public void testMissingNumberOfShards() {
@@ -374,9 +376,12 @@ public class IndexMetadataTests extends OpenSearchTestCase {
 
     private void runTestNumberOfShardsIsPositive(final int numberOfShards) {
         final Settings settings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards).build();
-        final SettingsException e = expectThrows(SettingsException.class, () -> IndexMetadata.builder("test").settings(settings).build());
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> IndexMetadata.builder("test").settings(settings).build()
+        );
         assertThat(
-            e.getCause().getMessage(),
+            e.getMessage(),
             equalTo("Failed to parse value [" + numberOfShards + "] for setting [index.number_of_shards] must be >= 1")
         );
     }
@@ -396,9 +401,12 @@ public class IndexMetadataTests extends OpenSearchTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 8))
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)
             .build();
-        final SettingsException e = expectThrows(SettingsException.class, () -> IndexMetadata.builder("test").settings(settings).build());
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> IndexMetadata.builder("test").settings(settings).build()
+        );
         assertThat(
-            e.getCause().getMessage(),
+            e.getMessage(),
             equalTo("Failed to parse value [" + numberOfReplicas + "] for setting [index.number_of_replicas] must be >= 0")
         );
     }

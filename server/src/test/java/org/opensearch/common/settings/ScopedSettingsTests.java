@@ -1057,14 +1057,14 @@ public class ScopedSettingsTests extends OpenSearchTestCase {
         try {
             new IndexScopedSettings(Settings.EMPTY, Collections.singleton(Setting.groupSetting("foo.bar.", Property.IndexScope)));
             fail();
-        } catch (SettingsException e) {
+        } catch (IllegalArgumentException e) {
             assertEquals("illegal settings key: [foo.bar.] must start with [index.]", e.getMessage());
         }
 
         try {
             new IndexScopedSettings(Settings.EMPTY, Collections.singleton(Setting.simpleString("foo.bar", Property.IndexScope)));
             fail();
-        } catch (SettingsException e) {
+        } catch (IllegalArgumentException e) {
             assertEquals("illegal settings key: [foo.bar] must start with [index.]", e.getMessage());
         }
 
@@ -1104,11 +1104,11 @@ public class ScopedSettingsTests extends OpenSearchTestCase {
         Settings.Builder builder = Settings.builder().put("logger.level", property);
         try {
             ClusterSettings settings = new ClusterSettings(builder.build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-            SettingsException ex = expectThrows(
-                SettingsException.class,
+            IllegalArgumentException ex = expectThrows(
+                IllegalArgumentException.class,
                 () -> settings.validate(Settings.builder().put("logger._root", "boom").build(), false)
             );
-            assertEquals("Unknown level constant [BOOM].", ex.getCause().getMessage());
+            assertEquals("Unknown level constant [BOOM].", ex.getMessage());
             assertEquals(level, LogManager.getRootLogger().getLevel());
             settings.applySettings(Settings.builder().put("logger._root", "TRACE").build());
             assertEquals(Level.TRACE, LogManager.getRootLogger().getLevel());

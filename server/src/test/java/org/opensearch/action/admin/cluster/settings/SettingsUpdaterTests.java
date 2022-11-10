@@ -39,7 +39,6 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.settings.SettingsException;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
@@ -158,7 +157,7 @@ public class SettingsUpdaterTests extends OpenSearchTestCase {
                 logger
             );
             fail("all or nothing");
-        } catch (SettingsException ex) {
+        } catch (IllegalArgumentException ex) {
             logger.info("", ex);
             assertEquals("Failed to parse value [not a float] for setting [cluster.routing.allocation.balance.index]", ex.getMessage());
         }
@@ -664,11 +663,11 @@ public class SettingsUpdaterTests extends OpenSearchTestCase {
 
         final ClusterState finalCluster = cluster;
         Exception exception = expectThrows(
-            SettingsException.class,
+            IllegalArgumentException.class,
             () -> updater.updateSettings(finalCluster, Settings.builder().put(SETTING_FOO_HIGH.getKey(), 2).build(), Settings.EMPTY, logger)
         );
 
-        assertThat(exception.getCause().getMessage(), equalTo("[high]=2 is lower than [low]=5"));
+        assertThat(exception.getMessage(), equalTo("[high]=2 is lower than [low]=5"));
     }
 
 }

@@ -44,7 +44,6 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.settings.SettingsException;
 import org.opensearch.indices.cluster.ClusterStateChanges;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
@@ -93,29 +92,29 @@ public class AutoExpandReplicasTests extends OpenSearchTestCase {
         try {
             AutoExpandReplicas.SETTING.get(Settings.builder().put("index.auto_expand_replicas", "boom").build());
             fail();
-        } catch (SettingsException ex) {
-            assertEquals("failed to parse [index.auto_expand_replicas] from value: [boom] at index -1", ex.getCause().getMessage());
+        } catch (IllegalArgumentException ex) {
+            assertEquals("failed to parse [index.auto_expand_replicas] from value: [boom] at index -1", ex.getMessage());
         }
 
         try {
             AutoExpandReplicas.SETTING.get(Settings.builder().put("index.auto_expand_replicas", "1-boom").build());
             fail();
         } catch (IllegalArgumentException ex) {
-            assertEquals("failed to parse [index.auto_expand_replicas] from value: [1-boom] at index 1", ex.getCause().getMessage());
+            assertEquals("failed to parse [index.auto_expand_replicas] from value: [1-boom] at index 1", ex.getMessage());
             assertEquals("For input string: \"boom\"", ex.getCause().getMessage());
         }
 
         try {
             AutoExpandReplicas.SETTING.get(Settings.builder().put("index.auto_expand_replicas", "boom-1").build());
             fail();
-        } catch (SettingsException ex) {
+        } catch (IllegalArgumentException ex) {
             assertEquals("failed to parse [index.auto_expand_replicas] from value: [boom-1] at index 4", ex.getMessage());
             assertEquals("For input string: \"boom\"", ex.getCause().getMessage());
         }
 
         try {
             AutoExpandReplicas.SETTING.get(Settings.builder().put("index.auto_expand_replicas", "2-1").build());
-        } catch (SettingsException ex) {
+        } catch (IllegalArgumentException ex) {
             assertEquals("[index.auto_expand_replicas] minReplicas must be =< maxReplicas but wasn't 2 > 1", ex.getMessage());
         }
 
