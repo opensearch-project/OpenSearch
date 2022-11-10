@@ -40,6 +40,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexService;
@@ -174,8 +175,8 @@ public class UpdateSettingsIT extends OpenSearchIntegTestCase {
     }
 
     public void testUpdateDependentClusterSettings() {
-        IllegalArgumentException iae = expectThrows(
-            IllegalArgumentException.class,
+        SettingsException iae = expectThrows(
+            SettingsException.class,
             () -> client().admin()
                 .cluster()
                 .prepareUpdateSettings()
@@ -185,7 +186,7 @@ public class UpdateSettingsIT extends OpenSearchIntegTestCase {
         assertEquals("missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", iae.getMessage());
 
         iae = expectThrows(
-            IllegalArgumentException.class,
+            SettingsException.class,
             () -> client().admin()
                 .cluster()
                 .prepareUpdateSettings()
@@ -195,7 +196,7 @@ public class UpdateSettingsIT extends OpenSearchIntegTestCase {
         assertEquals("missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", iae.getMessage());
 
         iae = expectThrows(
-            IllegalArgumentException.class,
+            SettingsException.class,
             () -> client().admin()
                 .cluster()
                 .prepareUpdateSettings()
@@ -212,7 +213,7 @@ public class UpdateSettingsIT extends OpenSearchIntegTestCase {
                 .setTransientSettings(Settings.builder().put("cluster.acc.test.pw", "asdf").put("cluster.acc.test.user", "asdf"))
                 .get();
             iae = expectThrows(
-                IllegalArgumentException.class,
+                SettingsException.class,
                 () -> client().admin()
                     .cluster()
                     .prepareUpdateSettings()
@@ -233,7 +234,7 @@ public class UpdateSettingsIT extends OpenSearchIntegTestCase {
                 .get();
 
             iae = expectThrows(
-                IllegalArgumentException.class,
+                SettingsException.class,
                 () -> client().admin()
                     .cluster()
                     .prepareUpdateSettings()
@@ -252,8 +253,8 @@ public class UpdateSettingsIT extends OpenSearchIntegTestCase {
     }
 
     public void testUpdateDependentIndexSettings() {
-        IllegalArgumentException iae = expectThrows(
-            IllegalArgumentException.class,
+        SettingsException iae = expectThrows(
+            SettingsException.class,
             () -> prepareCreate("test", Settings.builder().put("index.acc.test.pw", "asdf")).get()
         );
         assertEquals("missing required setting [index.acc.test.user] for setting [index.acc.test.pw]", iae.getMessage());
@@ -266,7 +267,7 @@ public class UpdateSettingsIT extends OpenSearchIntegTestCase {
             }
 
             iae = expectThrows(
-                IllegalArgumentException.class,
+                SettingsException.class,
                 () -> client().admin()
                     .indices()
                     .prepareUpdateSettings("test")
@@ -294,7 +295,7 @@ public class UpdateSettingsIT extends OpenSearchIntegTestCase {
 
             // now try to remove it and make sure it fails
             iae = expectThrows(
-                IllegalArgumentException.class,
+                SettingsException.class,
                 () -> client().admin()
                     .indices()
                     .prepareUpdateSettings("test")
@@ -480,8 +481,8 @@ public class UpdateSettingsIT extends OpenSearchIntegTestCase {
         assertThat(indexMetadata.getSettings().get("index.refresh_interval"), equalTo("1s"));
         assertThat(indexMetadata.getSettings().get("index.fielddata.cache"), equalTo("none"));
 
-        IllegalArgumentException ex = expectThrows(
-            IllegalArgumentException.class,
+        SettingsException ex = expectThrows(
+            SettingsException.class,
             () -> client().admin()
                 .indices()
                 .prepareUpdateSettings("test")
