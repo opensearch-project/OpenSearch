@@ -149,6 +149,8 @@ configure([
   project(":plugins:discovery-gce"),
   project(":plugins:discovery-gce:qa:gce"),
   project(":plugins:ingest-attachment"),
+  project(":plugins:job-scheduler"),
+  project(":plugins:job-scheduler:spi"),
   project(":plugins:mapper-annotated-text"),
   project(":plugins:mapper-murmur3"),
   project(":plugins:mapper-size"),
