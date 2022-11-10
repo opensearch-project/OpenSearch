@@ -92,9 +92,16 @@ public class JobSweeper extends LifecycleListener implements IndexingOperationLi
     private volatile BackoffPolicy sweepSearchBackoff;
     private volatile Double jitterLimit;
 
-    public JobSweeper(Settings settings, Client client, ClusterService clusterService, ThreadPool threadPool,
-                      NamedXContentRegistry registry, Map<String, ScheduledJobProvider> indexToProviders, JobScheduler scheduler,
-                      LockService lockService) {
+    public JobSweeper(
+        Settings settings,
+        Client client,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        NamedXContentRegistry registry,
+        Map<String, ScheduledJobProvider> indexToProviders,
+        JobScheduler scheduler,
+        LockService lockService
+    ) {
         this.client = client;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
@@ -107,8 +114,7 @@ public class JobSweeper extends LifecycleListener implements IndexingOperationLi
         this.loadSettings(settings);
         this.addConfigListeners();
 
-        this.fullSweepExecutor = Executors.newSingleThreadExecutor(
-                OpenSearchExecutors.daemonThreadFactory("opendistro_job_sweeper"));
+        this.fullSweepExecutor = Executors.newSingleThreadExecutor(OpenSearchExecutors.daemonThreadFactory("opendistro_job_sweeper"));
         this.sweptJobs = new ConcurrentHashMap<>();
     }
 
@@ -123,39 +129,33 @@ public class JobSweeper extends LifecycleListener implements IndexingOperationLi
     }
 
     private void addConfigListeners() {
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(JobSchedulerSettings.SWEEP_PERIOD,
-                timeValue -> {
-                    sweepPeriod = timeValue;
-                    log.debug("Reinitializing background full sweep with period: {}", this.sweepPeriod.getMinutes());
-                    initBackgroundSweep();
-                });
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(JobSchedulerSettings.SWEEP_PAGE_SIZE,
-                intValue -> {
-                    sweepPageMaxSize = intValue;
-                    log.debug("Setting background sweep page size: {}", this.sweepPageMaxSize);
-                });
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(JobSchedulerSettings.REQUEST_TIMEOUT,
-                timeValue -> {
-                    this.sweepSearchTimeout = timeValue;
-                    log.debug("Setting background sweep search timeout: {}", this.sweepSearchTimeout.getMinutes());
-                });
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(JobSchedulerSettings.SWEEP_BACKOFF_MILLIS,
-                timeValue -> {
-                    this.sweepSearchBackoffMillis = timeValue;
-                    this.sweepSearchBackoff = this.updateRetryPolicy();
-                    log.debug("Setting background sweep search backoff: {}", this.sweepSearchBackoffMillis.getMillis());
-                });
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(JobSchedulerSettings.SWEEP_BACKOFF_RETRY_COUNT,
-                intValue -> {
-                    this.sweepSearchBackoffRetryCount = intValue;
-                    this.sweepSearchBackoff = this.updateRetryPolicy();
-                    log.debug("Setting background sweep search backoff retry count: {}", this.sweepSearchBackoffRetryCount);
-                });
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(JobSchedulerSettings.JITTER_LIMIT,
-                doubleValue -> {
-                    this.jitterLimit = doubleValue;
-                    log.debug("Setting background sweep jitter limit: {}", this.jitterLimit);
-                });
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(JobSchedulerSettings.SWEEP_PERIOD, timeValue -> {
+            sweepPeriod = timeValue;
+            log.debug("Reinitializing background full sweep with period: {}", this.sweepPeriod.getMinutes());
+            initBackgroundSweep();
+        });
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(JobSchedulerSettings.SWEEP_PAGE_SIZE, intValue -> {
+            sweepPageMaxSize = intValue;
+            log.debug("Setting background sweep page size: {}", this.sweepPageMaxSize);
+        });
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(JobSchedulerSettings.REQUEST_TIMEOUT, timeValue -> {
+            this.sweepSearchTimeout = timeValue;
+            log.debug("Setting background sweep search timeout: {}", this.sweepSearchTimeout.getMinutes());
+        });
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(JobSchedulerSettings.SWEEP_BACKOFF_MILLIS, timeValue -> {
+            this.sweepSearchBackoffMillis = timeValue;
+            this.sweepSearchBackoff = this.updateRetryPolicy();
+            log.debug("Setting background sweep search backoff: {}", this.sweepSearchBackoffMillis.getMillis());
+        });
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(JobSchedulerSettings.SWEEP_BACKOFF_RETRY_COUNT, intValue -> {
+            this.sweepSearchBackoffRetryCount = intValue;
+            this.sweepSearchBackoff = this.updateRetryPolicy();
+            log.debug("Setting background sweep search backoff retry count: {}", this.sweepSearchBackoffRetryCount);
+        });
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(JobSchedulerSettings.JITTER_LIMIT, doubleValue -> {
+            this.jitterLimit = doubleValue;
+            log.debug("Setting background sweep jitter limit: {}", this.jitterLimit);
+        });
     }
 
     private BackoffPolicy updateRetryPolicy() {
@@ -204,8 +204,9 @@ public class JobSweeper extends LifecycleListener implements IndexingOperationLi
     @Override
     public void postDelete(ShardId shardId, Engine.Delete delete, Engine.DeleteResult result) {
         if (result.getResultType() == Engine.Result.Type.FAILURE) {
-            ConcurrentHashMap<String, JobDocVersion> shardJobs = this.sweptJobs.containsKey(shardId) ?
-                    this.sweptJobs.get(shardId) : new ConcurrentHashMap<>();
+            ConcurrentHashMap<String, JobDocVersion> shardJobs = this.sweptJobs.containsKey(shardId)
+                ? this.sweptJobs.get(shardId)
+                : new ConcurrentHashMap<>();
             JobDocVersion version = shardJobs.get(delete.id());
             log.debug("Deletion failed for scheduled job {}. Continuing with current version {}", delete.id(), version);
             return;
@@ -214,10 +215,13 @@ public class JobSweeper extends LifecycleListener implements IndexingOperationLi
         if (this.scheduler.getScheduledJobIds(shardId.getIndexName()).contains(delete.id())) {
             log.info("Descheduling job {} on index {}", delete.id(), shardId.getIndexName());
             this.scheduler.deschedule(shardId.getIndexName(), delete.id());
-            lockService.deleteLock(LockModel.generateLockId(shardId.getIndexName(), delete.id()), ActionListener.wrap(
+            lockService.deleteLock(
+                LockModel.generateLockId(shardId.getIndexName(), delete.id()),
+                ActionListener.wrap(
                     deleted -> log.debug("Deleted lock: {}", deleted),
                     exception -> log.debug("Failed to delete lock", exception)
-            ));
+                )
+            );
         }
     }
 
@@ -242,8 +246,12 @@ public class JobSweeper extends LifecycleListener implements IndexingOperationLi
             if (jobSource != null) {
                 try {
                     ScheduledJobProvider provider = this.indexToProviders.get(shardId.getIndexName());
-                    XContentParser parser = XContentHelper.createParser(this.xContentRegistry, LoggingDeprecationHandler.INSTANCE,
-                            jobSource, XContentType.JSON);
+                    XContentParser parser = XContentHelper.createParser(
+                        this.xContentRegistry,
+                        LoggingDeprecationHandler.INSTANCE,
+                        jobSource,
+                        XContentType.JSON
+                    );
                     ScheduledJobParameter jobParameter = provider.getJobParser().parse(parser, docId, jobDocVersion);
                     if (jobParameter == null) {
                         // allow parser to return null, which means this is not a scheduled job document.
@@ -297,13 +305,16 @@ public class JobSweeper extends LifecycleListener implements IndexingOperationLi
     private Map<ShardId, List<ShardRouting>> getLocalShards(ClusterState clusterState, String localNodeId, String indexName) {
         List<ShardRouting> allShards = clusterState.routingTable().allShards(indexName);
         // group shards by shard id
-        Map<ShardId, List<ShardRouting>> shards = allShards.stream().filter(ShardRouting::active)
-                .collect(Collectors.groupingBy(ShardRouting::shardId,
-                        Collectors.mapping(shardRouting -> shardRouting, Collectors.toList())));
+        Map<ShardId, List<ShardRouting>> shards = allShards.stream()
+            .filter(ShardRouting::active)
+            .collect(Collectors.groupingBy(ShardRouting::shardId, Collectors.mapping(shardRouting -> shardRouting, Collectors.toList())));
         // filter out shards not on local node
-        return shards.entrySet().stream().filter((entry) -> entry.getValue().stream()
-                .filter((shardRouting -> shardRouting.currentNodeId().equals(localNodeId))).count() > 0)
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        return shards.entrySet()
+            .stream()
+            .filter(
+                (entry) -> entry.getValue().stream().filter((shardRouting -> shardRouting.currentNodeId().equals(localNodeId))).count() > 0
+            )
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     private void sweepAllJobIndices() {
@@ -333,9 +344,12 @@ public class JobSweeper extends LifecycleListener implements IndexingOperationLi
         while (sweptJobIter.hasNext()) {
             Map.Entry<ShardId, ConcurrentHashMap<String, JobDocVersion>> entry = sweptJobIter.next();
             if (entry.getKey().getIndexName().equals(indexName) && !localShards.containsKey(entry.getKey())) {
-                log.info("Descheduling jobs of shard {} index {} as the shard is removed from this node.",
-                        entry.getKey().getId(), indexName);
-                //shard is removed, deschedule jobs of this shard
+                log.info(
+                    "Descheduling jobs of shard {} index {} as the shard is removed from this node.",
+                    entry.getKey().getId(),
+                    indexName
+                );
+                // shard is removed, deschedule jobs of this shard
                 this.scheduler.bulkDeschedule(indexName, entry.getValue().keySet());
                 sweptJobIter.remove();
             }
@@ -354,8 +368,9 @@ public class JobSweeper extends LifecycleListener implements IndexingOperationLi
     }
 
     private void sweepShard(ShardId shardId, ShardNodes shardNodes, String startAfter) {
-        ConcurrentHashMap<String, JobDocVersion> currentJobs = this.sweptJobs.containsKey(shardId) ?
-                this.sweptJobs.get(shardId) : new ConcurrentHashMap<>();
+        ConcurrentHashMap<String, JobDocVersion> currentJobs = this.sweptJobs.containsKey(shardId)
+            ? this.sweptJobs.get(shardId)
+            : new ConcurrentHashMap<>();
 
         for (String jobId : currentJobs.keySet()) {
             if (!shardNodes.isOwningNode(jobId)) {
@@ -366,19 +381,22 @@ public class JobSweeper extends LifecycleListener implements IndexingOperationLi
 
         String searchAfter = startAfter == null ? "" : startAfter;
         while (searchAfter != null) {
-            SearchRequest jobSearchRequest = new SearchRequest()
-                    .indices(shardId.getIndexName())
-                    .preference("_shards:" + shardId.id() + "|_only_local")
-                    .source(new SearchSourceBuilder()
-                            .version(true)
-                            .seqNoAndPrimaryTerm(true)
-                            .sort(new FieldSortBuilder("_id").unmappedType("keyword").missing("_last"))
-                            .searchAfter(new String[]{searchAfter})
-                            .size(this.sweepPageMaxSize)
-                            .query(QueryBuilders.matchAllQuery()));
+            SearchRequest jobSearchRequest = new SearchRequest().indices(shardId.getIndexName())
+                .preference("_shards:" + shardId.id() + "|_only_local")
+                .source(
+                    new SearchSourceBuilder().version(true)
+                        .seqNoAndPrimaryTerm(true)
+                        .sort(new FieldSortBuilder("_id").unmappedType("keyword").missing("_last"))
+                        .searchAfter(new String[] { searchAfter })
+                        .size(this.sweepPageMaxSize)
+                        .query(QueryBuilders.matchAllQuery())
+                );
 
-            SearchResponse response = this.retry((searchRequest) -> this.client.search(searchRequest),
-                    jobSearchRequest, this.sweepSearchBackoff).actionGet(this.sweepSearchTimeout);
+            SearchResponse response = this.retry(
+                (searchRequest) -> this.client.search(searchRequest),
+                jobSearchRequest,
+                this.sweepSearchBackoff
+            ).actionGet(this.sweepSearchTimeout);
             if (response.status() != RestStatus.OK) {
                 log.error("Error sweeping shard {}, failed querying jobs on this shard", shardId);
                 return;
@@ -386,8 +404,12 @@ public class JobSweeper extends LifecycleListener implements IndexingOperationLi
             for (SearchHit hit : response.getHits()) {
                 String jobId = hit.getId();
                 if (shardNodes.isOwningNode(jobId)) {
-                    this.sweep(shardId, jobId, hit.getSourceRef(), new JobDocVersion(hit.getPrimaryTerm(), hit.getSeqNo(),
-                            hit.getVersion()));
+                    this.sweep(
+                        shardId,
+                        jobId,
+                        hit.getSourceRef(),
+                        new JobDocVersion(hit.getPrimaryTerm(), hit.getSeqNo(), hit.getVersion())
+                    );
                 }
             }
             if (response.getHits() == null || response.getHits().getHits().length < 1) {
@@ -400,8 +422,11 @@ public class JobSweeper extends LifecycleListener implements IndexingOperationLi
     }
 
     private <T, R> R retry(Function<T, R> function, T param, BackoffPolicy backoffPolicy) {
-        Set<RestStatus> retryalbeStatus = Sets.newHashSet(RestStatus.BAD_GATEWAY, RestStatus.GATEWAY_TIMEOUT,
-                RestStatus.SERVICE_UNAVAILABLE);
+        Set<RestStatus> retryalbeStatus = Sets.newHashSet(
+            RestStatus.BAD_GATEWAY,
+            RestStatus.GATEWAY_TIMEOUT,
+            RestStatus.SERVICE_UNAVAILABLE
+        );
         Iterator<TimeValue> iter = backoffPolicy.iterator();
         do {
             try {
@@ -443,8 +468,9 @@ public class JobSweeper extends LifecycleListener implements IndexingOperationLi
                 return false;
             }
             int jobHashCode = Murmur3HashFunction.hash(jobId);
-            String nodeId = this.circle.higherEntry(jobHashCode) == null ? this.circle.firstEntry().getValue()
-                    : this.circle.higherEntry(jobHashCode).getValue();
+            String nodeId = this.circle.higherEntry(jobHashCode) == null
+                ? this.circle.firstEntry().getValue()
+                : this.circle.higherEntry(jobHashCode).getValue();
             return this.localNodeId.equals(nodeId);
         }
     }

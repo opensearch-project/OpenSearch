@@ -57,12 +57,19 @@ public class SampleExtensionPlugin extends Plugin implements ActionPlugin, JobSc
     static final String JOB_INDEX_NAME = ".scheduler_sample_extension";
 
     @Override
-    public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
-                                               ResourceWatcherService resourceWatcherService, ScriptService scriptService,
-                                               NamedXContentRegistry xContentRegistry, Environment environment,
-                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
-                                               IndexNameExpressionResolver indexNameExpressionResolver,
-                                               Supplier<RepositoriesService> repositoriesServiceSupplier) {
+    public Collection<Object> createComponents(
+        Client client,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ResourceWatcherService resourceWatcherService,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        Environment environment,
+        NodeEnvironment nodeEnvironment,
+        NamedWriteableRegistry namedWriteableRegistry,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<RepositoriesService> repositoriesServiceSupplier
+    ) {
         SampleJobRunner jobRunner = SampleJobRunner.getJobRunnerInstance();
         jobRunner.setClusterService(clusterService);
         jobRunner.setThreadPool(threadPool);
@@ -120,7 +127,8 @@ public class SampleExtensionPlugin extends Plugin implements ActionPlugin, JobSc
                     case SampleJobParameter.JITTER:
                         jobParameter.setJitter(parser.doubleValue());
                         break;
-                    default: XContentParserUtils.throwUnknownToken(parser.currentToken(), parser.getTokenLocation());
+                    default:
+                        XContentParserUtils.throwUnknownToken(parser.currentToken(), parser.getTokenLocation());
                 }
             }
             return jobParameter;
@@ -128,10 +136,10 @@ public class SampleExtensionPlugin extends Plugin implements ActionPlugin, JobSc
     }
 
     private Instant parseInstantValue(XContentParser parser) throws IOException {
-        if(XContentParser.Token.VALUE_NULL.equals(parser.currentToken())) {
+        if (XContentParser.Token.VALUE_NULL.equals(parser.currentToken())) {
             return null;
         }
-        if(parser.currentToken().isValue()) {
+        if (parser.currentToken().isValue()) {
             return Instant.ofEpochMilli(parser.longValue());
         }
         XContentParserUtils.throwUnknownToken(parser.currentToken(), parser.getTokenLocation());
@@ -139,9 +147,15 @@ public class SampleExtensionPlugin extends Plugin implements ActionPlugin, JobSc
     }
 
     @Override
-    public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
-                                      IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
-                                      IndexNameExpressionResolver indexNameExpressionResolver, Supplier<DiscoveryNodes> nodesInCluster) {
+    public List<RestHandler> getRestHandlers(
+        Settings settings,
+        RestController restController,
+        ClusterSettings clusterSettings,
+        IndexScopedSettings indexScopedSettings,
+        SettingsFilter settingsFilter,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<DiscoveryNodes> nodesInCluster
+    ) {
         return Collections.singletonList(new SampleExtensionRestHandler());
     }
 }

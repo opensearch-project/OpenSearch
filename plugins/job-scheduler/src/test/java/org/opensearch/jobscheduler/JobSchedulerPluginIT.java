@@ -30,12 +30,13 @@ public class JobSchedulerPluginIT extends OpenSearchIntegTestCase {
 
         NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
         nodesInfoRequest.addMetric(NodesInfoRequest.Metric.PLUGINS.metricName());
-        NodesInfoResponse nodesInfoResponse = OpenSearchIntegTestCase.client().admin().cluster().nodesInfo(nodesInfoRequest)
-                .actionGet();
-        List<PluginInfo> pluginInfos = nodesInfoResponse.getNodes().stream()
-                .flatMap((Function<NodeInfo, Stream<PluginInfo>>) nodeInfo -> nodeInfo.getInfo(PluginsAndModules.class)
-                        .getPluginInfos().stream()).collect(Collectors.toList());
-        Assert.assertTrue(pluginInfos.stream().anyMatch(pluginInfo -> pluginInfo.getName()
-                .equals("opensearch-job-scheduler")));
+        NodesInfoResponse nodesInfoResponse = OpenSearchIntegTestCase.client().admin().cluster().nodesInfo(nodesInfoRequest).actionGet();
+        List<PluginInfo> pluginInfos = nodesInfoResponse.getNodes()
+            .stream()
+            .flatMap(
+                (Function<NodeInfo, Stream<PluginInfo>>) nodeInfo -> nodeInfo.getInfo(PluginsAndModules.class).getPluginInfos().stream()
+            )
+            .collect(Collectors.toList());
+        Assert.assertTrue(pluginInfos.stream().anyMatch(pluginInfo -> pluginInfo.getName().equals("opensearch-job-scheduler")));
     }
 }

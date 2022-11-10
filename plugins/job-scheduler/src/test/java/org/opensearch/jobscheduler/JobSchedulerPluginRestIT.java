@@ -23,9 +23,15 @@ public class JobSchedulerPluginRestIT extends OpenSearchRestTestCase {
     public void testPluginsAreInstalled() throws IOException {
         Request request = new Request("GET", "/_cat/plugins?s=component&h=name,component,version,description&format=json");
         Response response = client().performRequest(request);
-        List<Object> pluginsList = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
-                LoggingDeprecationHandler.INSTANCE, response.getEntity().getContent()).list();
-        Assert.assertTrue(pluginsList.stream().map(o -> (Map<String, Object>) o).anyMatch(plugin -> plugin.get("component")
-                .equals("opensearch-job-scheduler")));
+        List<Object> pluginsList = JsonXContent.jsonXContent.createParser(
+            NamedXContentRegistry.EMPTY,
+            LoggingDeprecationHandler.INSTANCE,
+            response.getEntity().getContent()
+        ).list();
+        Assert.assertTrue(
+            pluginsList.stream()
+                .map(o -> (Map<String, Object>) o)
+                .anyMatch(plugin -> plugin.get("component").equals("opensearch-job-scheduler"))
+        );
     }
 }

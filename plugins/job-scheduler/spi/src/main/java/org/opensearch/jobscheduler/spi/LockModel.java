@@ -43,8 +43,7 @@ public final class LockModel implements ToXContentObject {
      * @param primaryTerm primary term from OpenSearch document.
      */
     public LockModel(final LockModel copyLock, long seqNo, long primaryTerm) {
-        this(copyLock.jobIndexName, copyLock.jobId, copyLock.lockTime, copyLock.lockDurationSeconds,
-            copyLock.released, seqNo, primaryTerm);
+        this(copyLock.jobIndexName, copyLock.jobId, copyLock.lockTime, copyLock.lockDurationSeconds, copyLock.released, seqNo, primaryTerm);
     }
 
     /**
@@ -54,8 +53,15 @@ public final class LockModel implements ToXContentObject {
      * @param released boolean flag to indicate if the lock is released
      */
     public LockModel(final LockModel copyLock, final boolean released) {
-        this(copyLock.jobIndexName, copyLock.jobId, copyLock.lockTime, copyLock.lockDurationSeconds,
-            released, copyLock.seqNo, copyLock.primaryTerm);
+        this(
+            copyLock.jobIndexName,
+            copyLock.jobId,
+            copyLock.lockTime,
+            copyLock.lockDurationSeconds,
+            released,
+            copyLock.seqNo,
+            copyLock.primaryTerm
+        );
     }
 
     /**
@@ -66,18 +72,31 @@ public final class LockModel implements ToXContentObject {
      * @param lockDurationSeconds total lock duration in seconds.
      * @param released            boolean flag to indicate if the lock is released
      */
-    public LockModel(final LockModel copyLock,
-                     final Instant updateLockTime, final long lockDurationSeconds, final boolean released) {
+    public LockModel(final LockModel copyLock, final Instant updateLockTime, final long lockDurationSeconds, final boolean released) {
         this(copyLock.jobIndexName, copyLock.jobId, updateLockTime, lockDurationSeconds, released, copyLock.seqNo, copyLock.primaryTerm);
     }
 
     public LockModel(String jobIndexName, String jobId, Instant lockTime, long lockDurationSeconds, boolean released) {
-        this(jobIndexName, jobId, lockTime, lockDurationSeconds, released,
-            SequenceNumbers.UNASSIGNED_SEQ_NO, SequenceNumbers.UNASSIGNED_PRIMARY_TERM);
+        this(
+            jobIndexName,
+            jobId,
+            lockTime,
+            lockDurationSeconds,
+            released,
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            SequenceNumbers.UNASSIGNED_PRIMARY_TERM
+        );
     }
 
-    public LockModel(String jobIndexName, String jobId, Instant lockTime,
-                     long lockDurationSeconds, boolean released, long seqNo, long primaryTerm) {
+    public LockModel(
+        String jobIndexName,
+        String jobId,
+        Instant lockTime,
+        long lockDurationSeconds,
+        boolean released,
+        long seqNo,
+        long primaryTerm
+    ) {
         this.lockId = jobIndexName + LOCK_ID_DELIMITR + jobId;
         this.jobIndexName = jobIndexName;
         // The jobId parameter does not necessarily need to represent the id of a job scheduler job, as it is being used
@@ -137,7 +156,8 @@ public final class LockModel implements ToXContentObject {
         );
     }
 
-    @Override public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
+    @Override
+    public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
         builder.startObject()
             .field(JOB_INDEX_NAME, this.jobIndexName)
             .field(JOB_ID, this.jobId)
@@ -148,7 +168,8 @@ public final class LockModel implements ToXContentObject {
         return builder;
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         return Strings.toString(this, false, true);
     }
 
@@ -193,14 +214,14 @@ public final class LockModel implements ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         LockModel lockModel = (LockModel) o;
-        return lockDurationSeconds == lockModel.lockDurationSeconds &&
-                released == lockModel.released &&
-                seqNo == lockModel.seqNo &&
-                primaryTerm == lockModel.primaryTerm &&
-                lockId.equals(lockModel.lockId) &&
-                jobIndexName.equals(lockModel.jobIndexName) &&
-                jobId.equals(lockModel.jobId) &&
-                lockTime.equals(lockModel.lockTime);
+        return lockDurationSeconds == lockModel.lockDurationSeconds
+            && released == lockModel.released
+            && seqNo == lockModel.seqNo
+            && primaryTerm == lockModel.primaryTerm
+            && lockId.equals(lockModel.lockId)
+            && jobIndexName.equals(lockModel.jobIndexName)
+            && jobId.equals(lockModel.jobId)
+            && lockTime.equals(lockModel.lockTime);
     }
 
     @Override

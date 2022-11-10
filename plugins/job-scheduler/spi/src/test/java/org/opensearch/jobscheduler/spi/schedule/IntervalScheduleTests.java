@@ -39,7 +39,7 @@ public class IntervalScheduleTests extends OpenSearchTestCase {
         this.intervalScheduleDelay = new IntervalSchedule(startTime, 3, ChronoUnit.MINUTES, DELAY);
     }
 
-    @Test (expected =  IllegalArgumentException.class)
+    @Test(expected = IllegalArgumentException.class)
     public void testConstructor_notSupportedTimeUnit() throws ParseException {
         Instant startTime = new SimpleDateFormat("MM/dd/yyyy").parse("01/01/2019").toInstant();
         new IntervalSchedule(startTime, 1, ChronoUnit.MILLIS);
@@ -54,16 +54,21 @@ public class IntervalScheduleTests extends OpenSearchTestCase {
         Instant nextMinute = Instant.ofEpochSecond(now.getEpochSecond() / 60 * 60 + 60);
         Duration expected = Duration.of(nextMinute.toEpochMilli() - now.toEpochMilli(), ChronoUnit.MILLIS);
 
-        Instant nextIntervalPlusDelay = Instant.ofEpochSecond(((now.minusMillis(DELAY).getEpochSecond()) / 180 * 180) + 180).plusMillis(DELAY);
+        Instant nextIntervalPlusDelay = Instant.ofEpochSecond(((now.minusMillis(DELAY).getEpochSecond()) / 180 * 180) + 180)
+            .plusMillis(DELAY);
         Duration expectedDelay = Duration.of(nextIntervalPlusDelay.toEpochMilli() - now.toEpochMilli(), ChronoUnit.MILLIS);
 
         Assert.assertEquals(expected, this.intervalSchedule.nextTimeToExecute());
         Assert.assertEquals(expectedDelay, this.intervalScheduleDelay.nextTimeToExecute());
 
-        Assert.assertEquals(this.intervalSchedule.nextTimeToExecute(),
-                Duration.between(now, this.intervalSchedule.getNextExecutionTime(now)));
-        Assert.assertEquals(this.intervalScheduleDelay.nextTimeToExecute(),
-                Duration.between(now, this.intervalScheduleDelay.getNextExecutionTime(now)));
+        Assert.assertEquals(
+            this.intervalSchedule.nextTimeToExecute(),
+            Duration.between(now, this.intervalSchedule.getNextExecutionTime(now))
+        );
+        Assert.assertEquals(
+            this.intervalScheduleDelay.nextTimeToExecute(),
+            Duration.between(now, this.intervalScheduleDelay.getNextExecutionTime(now))
+        );
     }
 
     public void testGetPeriodStartingAt() {
@@ -90,7 +95,7 @@ public class IntervalScheduleTests extends OpenSearchTestCase {
 
     public void testRunningOnTime() {
         Instant now = Instant.now();
-        if(now.toEpochMilli() % (60 * 1000) == 0) {
+        if (now.toEpochMilli() % (60 * 1000) == 0) {
             // test "now" is not execution time case
             now = now.plus(10, ChronoUnit.SECONDS);
         }
@@ -130,7 +135,7 @@ public class IntervalScheduleTests extends OpenSearchTestCase {
 
     public void testRunningOnTimeWithDelay() {
         Instant now = Instant.now();
-        if(now.minusMillis(DELAY).toEpochMilli() % (180 * 1000) == 0) {
+        if (now.minusMillis(DELAY).toEpochMilli() % (180 * 1000) == 0) {
             // test "now" is not execution time case
             now = now.plus(10, ChronoUnit.SECONDS);
         }
@@ -176,16 +181,17 @@ public class IntervalScheduleTests extends OpenSearchTestCase {
     public void testToXContent() throws IOException {
         long epochMillis = this.startTime.toEpochMilli();
         String xContentJsonStr = "{\"interval\":{\"start_time\":" + epochMillis + ",\"period\":1,\"unit\":\"Minutes\"}}";
-                XContentHelper.toXContent(this.intervalSchedule, XContentType.JSON, false)
-                .utf8ToString();
-        Assert.assertEquals(xContentJsonStr, XContentHelper.toXContent(this.intervalSchedule, XContentType.JSON, false)
-                .utf8ToString());
+        XContentHelper.toXContent(this.intervalSchedule, XContentType.JSON, false).utf8ToString();
+        Assert.assertEquals(xContentJsonStr, XContentHelper.toXContent(this.intervalSchedule, XContentType.JSON, false).utf8ToString());
 
-        String xContentJsonStrDelay = "{\"interval\":{\"start_time\":" + epochMillis + ",\"period\":3,\"unit\":\"Minutes\",\"schedule_delay\":15000}}";
-        XContentHelper.toXContent(this.intervalScheduleDelay, XContentType.JSON, false)
-                .utf8ToString();
-        Assert.assertEquals(xContentJsonStrDelay, XContentHelper.toXContent(this.intervalScheduleDelay, XContentType.JSON, false)
-                .utf8ToString());
+        String xContentJsonStrDelay = "{\"interval\":{\"start_time\":"
+            + epochMillis
+            + ",\"period\":3,\"unit\":\"Minutes\",\"schedule_delay\":15000}}";
+        XContentHelper.toXContent(this.intervalScheduleDelay, XContentType.JSON, false).utf8ToString();
+        Assert.assertEquals(
+            xContentJsonStrDelay,
+            XContentHelper.toXContent(this.intervalScheduleDelay, XContentType.JSON, false).utf8ToString()
+        );
     }
 
     public void testIntervalScheduleEqualsAndHashCode() {
@@ -198,10 +204,18 @@ public class IntervalScheduleTests extends OpenSearchTestCase {
 
         Assert.assertEquals("Identical interval schedules were not equal", intervalScheduleOne, intervalScheduleTwo);
         Assert.assertNotEquals("Different interval schedules were called equal", intervalScheduleOne, intervalScheduleThree);
-        Assert.assertEquals("Identical interval schedules had different hash codes", intervalScheduleOne.hashCode(), intervalScheduleTwo.hashCode());
+        Assert.assertEquals(
+            "Identical interval schedules had different hash codes",
+            intervalScheduleOne.hashCode(),
+            intervalScheduleTwo.hashCode()
+        );
         Assert.assertNotEquals("Different interval schedules were called equal", intervalScheduleOne, intervalScheduleFour);
         Assert.assertEquals("Identical interval schedules were not equal", intervalScheduleFour, intervalScheduleFive);
-        Assert.assertEquals("Identical interval schedules had different hash codes", intervalScheduleFour.hashCode(), intervalScheduleFive.hashCode());
+        Assert.assertEquals(
+            "Identical interval schedules had different hash codes",
+            intervalScheduleFour.hashCode(),
+            intervalScheduleFive.hashCode()
+        );
     }
 
     public void testIntervalScheduleAsStream() throws Exception {

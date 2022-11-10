@@ -35,11 +35,11 @@ import java.util.List;
  *
  * Users need to provide "id", "index", "job_name", and "interval" parameter to schedule
  * a job. e.g.
- * {@code 
+ * {@code
  * POST /_plugins/scheduler_sample/watch?id=dashboards-job-id&job_name=watch dashboards index&index=.opensearch_dashboards_1&interval=1
  * }
  *
- * creates a job with id "dashboards-job-id" and job name "watch dashboards index", 
+ * creates a job with id "dashboards-job-id" and job name "watch dashboards index",
  * which logs ".opensearch_dashboards_1" index's shards info every 1 minute
  *
  * Users can remove that job by calling
@@ -55,10 +55,9 @@ public class SampleExtensionRestHandler extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.unmodifiableList(Arrays.asList(
-                new Route(RestRequest.Method.POST, WATCH_INDEX_URI),
-                new Route(RestRequest.Method.DELETE, WATCH_INDEX_URI)
-        ));
+        return Collections.unmodifiableList(
+            Arrays.asList(new Route(RestRequest.Method.POST, WATCH_INDEX_URI), new Route(RestRequest.Method.DELETE, WATCH_INDEX_URI))
+        );
     }
 
     @Override
@@ -74,16 +73,21 @@ public class SampleExtensionRestHandler extends BaseRestHandler {
             String jitterString = request.param("jitter");
             Double jitter = jitterString != null ? Double.parseDouble(jitterString) : null;
 
-            if(id == null || indexName ==null) {
+            if (id == null || indexName == null) {
                 throw new IllegalArgumentException("Must specify id and index parameter");
             }
-            SampleJobParameter jobParameter = new SampleJobParameter(id, jobName, indexName,
-                    new IntervalSchedule(Instant.now(), Integer.parseInt(interval), ChronoUnit.MINUTES), lockDurationSeconds, jitter);
-            IndexRequest indexRequest = new IndexRequest()
-                    .index(SampleExtensionPlugin.JOB_INDEX_NAME)
-                    .id(id)
-                    .source(jobParameter.toXContent(JsonXContent.contentBuilder(), null))
-                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            SampleJobParameter jobParameter = new SampleJobParameter(
+                id,
+                jobName,
+                indexName,
+                new IntervalSchedule(Instant.now(), Integer.parseInt(interval), ChronoUnit.MINUTES),
+                lockDurationSeconds,
+                jitter
+            );
+            IndexRequest indexRequest = new IndexRequest().index(SampleExtensionPlugin.JOB_INDEX_NAME)
+                .id(id)
+                .source(jobParameter.toXContent(JsonXContent.contentBuilder(), null))
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
             return restChannel -> {
                 // index the job parameter
@@ -91,10 +95,12 @@ public class SampleExtensionRestHandler extends BaseRestHandler {
                     @Override
                     public void onResponse(IndexResponse indexResponse) {
                         try {
-                            RestResponse restResponse = new BytesRestResponse(RestStatus.OK,
-                                    indexResponse.toXContent(JsonXContent.contentBuilder(), null));
+                            RestResponse restResponse = new BytesRestResponse(
+                                RestStatus.OK,
+                                indexResponse.toXContent(JsonXContent.contentBuilder(), null)
+                            );
                             restChannel.sendResponse(restResponse);
-                        } catch(IOException e) {
+                        } catch (IOException e) {
                             restChannel.sendResponse(new BytesRestResponse(RestStatus.INTERNAL_SERVER_ERROR, e.getMessage()));
                         }
                     }
@@ -108,9 +114,7 @@ public class SampleExtensionRestHandler extends BaseRestHandler {
         } else if (request.method().equals(RestRequest.Method.DELETE)) {
             // delete job parameter doc from index
             String id = request.param("id");
-            DeleteRequest deleteRequest = new DeleteRequest()
-                    .index(SampleExtensionPlugin.JOB_INDEX_NAME)
-                    .id(id);
+            DeleteRequest deleteRequest = new DeleteRequest().index(SampleExtensionPlugin.JOB_INDEX_NAME).id(id);
 
             return restChannel -> {
                 client.delete(deleteRequest, new ActionListener<DeleteResponse>() {
