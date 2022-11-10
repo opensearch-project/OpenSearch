@@ -28,6 +28,9 @@ thirdPartyAudit {
   ignoreMissingClasses(
     'javax.validation.ConstraintValidator',
     'javax.validation.ConstraintValidatorContext',
-    'javax.validation.ConstraintValidatorContext$ConstraintViolationBuilder'
+    'javax.validation.ConstraintValidatorContext$ConstraintViolationBuilder',
+    'org.slf4j.impl.StaticLoggerBinder',
+    'org.slf4j.impl.StaticMDCBinder',
+    'org.slf4j.impl.StaticMarkerBinder'
   )
 }
