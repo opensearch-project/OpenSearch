@@ -254,7 +254,7 @@ public abstract class TransportBroadcastAction<
             ShardRouting nextShard = shardIt.nextOrNull();
 
             if (nextShard != null
-                && WeightedRoutingHelper.shardInWeighedAwayAZ(nextShard, clusterState)
+                && WeightedRoutingHelper.shardInWeighedAwayAZ(nextShard.currentNodeId(), clusterState)
                 && !WeightedRoutingHelper.isInternalFailure(e)) {
                 nextShard = shardIt.nextOrNull();
             }

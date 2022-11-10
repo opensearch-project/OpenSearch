@@ -8,7 +8,6 @@
 
 package org.opensearch.cluster.routing;
 
-import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.NoShardAvailableActionException;
 import org.opensearch.action.UnavailableShardsException;
 import org.opensearch.cluster.ClusterState;
@@ -19,22 +18,21 @@ import org.opensearch.transport.NodeNotConnectedException;
 import java.util.Map;
 import java.util.stream.Stream;
 
+/**
+ * * WeightedRouting helper class
+ */
+
 public class WeightedRoutingHelper {
 
     public static boolean isInternalFailure(Exception e) {
-        final Throwable cause = ExceptionsHelper.unwrapCause(e);
-        if (e instanceof NoShardAvailableActionException
+        return e instanceof NoShardAvailableActionException
             || e instanceof UnavailableShardsException
-            || e instanceof NodeNotConnectedException) {
-            return true;
-        }
-        return false;
+            || e instanceof NodeNotConnectedException;
     }
 
-    public static boolean shardInWeighedAwayAZ(ShardRouting nextShard, ClusterState clusterState) {
-        DiscoveryNode targetNode = clusterState.nodes().get(nextShard.currentNodeId());
+    public static boolean shardInWeighedAwayAZ(String nodeId, ClusterState clusterState) {
+        DiscoveryNode targetNode = clusterState.nodes().get(nodeId);
         WeightedRoutingMetadata weightedRoutingMetadata = clusterState.metadata().weightedRoutingMetadata();
-
         if (weightedRoutingMetadata != null) {
             WeightedRouting weightedRouting = weightedRoutingMetadata.getWeightedRouting();
             if (weightedRouting != null) {
@@ -44,13 +42,13 @@ public class WeightedRoutingHelper {
                     .stream()
                     .filter(entry -> entry.getValue().intValue() == 0)
                     .map(Map.Entry::getKey);
-                if (keys != null && targetNode.getAttributes().get("zone").equals(keys.findFirst().get())) {
-                    return true;
-                }
+                return keys != null && targetNode.getAttributes().get("zone").equals(keys.findFirst().get());
             }
-        }
 
+        }
         return false;
+
     }
+
 
 }

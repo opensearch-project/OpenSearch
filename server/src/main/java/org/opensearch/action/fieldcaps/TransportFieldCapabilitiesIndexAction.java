@@ -269,7 +269,7 @@ public class TransportFieldCapabilitiesIndexAction extends HandledTransportActio
             ShardRouting next = shardsIt.get(shardIndex).nextOrNull();
 
             if (next != null
-                && WeightedRoutingHelper.shardInWeighedAwayAZ(next, clusterService.state())
+                && WeightedRoutingHelper.shardInWeighedAwayAZ(next.currentNodeId(), clusterService.state())
                 && !WeightedRoutingHelper.isInternalFailure(failure)) {
                 next = shardsIt.get(shardIndex).nextOrNull();
             }

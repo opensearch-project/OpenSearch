@@ -247,7 +247,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
             }
             ShardRouting shardRouting = shardIt.nextOrNull();
             if (shardRouting != null
-                && WeightedRoutingHelper.shardInWeighedAwayAZ(shardRouting, clusterService.state())
+                && WeightedRoutingHelper.shardInWeighedAwayAZ(shardRouting.currentNodeId(), clusterService.state())
                 && !WeightedRoutingHelper.isInternalFailure(currentFailure)) {
                 shardRouting = shardIt.nextOrNull();
             }
