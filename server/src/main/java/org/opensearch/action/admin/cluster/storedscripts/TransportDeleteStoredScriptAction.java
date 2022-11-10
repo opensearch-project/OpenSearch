@@ -40,8 +40,6 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
-import org.opensearch.cluster.service.ClusterManagerTaskKeys;
-import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
@@ -59,7 +57,6 @@ import java.io.IOException;
 public class TransportDeleteStoredScriptAction extends TransportClusterManagerNodeAction<DeleteStoredScriptRequest, AcknowledgedResponse> {
 
     private final ScriptService scriptService;
-    private final ClusterManagerTaskThrottler.ThrottlingKey deleteScriptTaskKey;
 
     @Inject
     public TransportDeleteStoredScriptAction(
@@ -80,8 +77,6 @@ public class TransportDeleteStoredScriptAction extends TransportClusterManagerNo
             indexNameExpressionResolver
         );
         this.scriptService = scriptService;
-        // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
-        deleteScriptTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.DELETE_SCRIPT_KEY, true);
     }
 
     @Override
@@ -100,7 +95,7 @@ public class TransportDeleteStoredScriptAction extends TransportClusterManagerNo
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) throws Exception {
-        scriptService.deleteStoredScript(clusterService, request, deleteScriptTaskKey, listener);
+        scriptService.deleteStoredScript(clusterService, request, listener);
     }
 
     @Override

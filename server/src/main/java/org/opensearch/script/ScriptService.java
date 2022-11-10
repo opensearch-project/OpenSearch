@@ -45,7 +45,6 @@ import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateApplier;
 import org.opensearch.cluster.metadata.Metadata;
-import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Strings;
 import org.opensearch.common.settings.ClusterSettings;
@@ -546,7 +545,6 @@ public class ScriptService implements Closeable, ClusterStateApplier {
     public void putStoredScript(
         ClusterService clusterService,
         PutStoredScriptRequest request,
-        ClusterManagerTaskThrottler.ThrottlingKey putStoreTaskKey,
         ActionListener<AcknowledgedResponse> listener
     ) {
         if (request.content().length() > maxSizeInBytes) {
@@ -606,11 +604,6 @@ public class ScriptService implements Closeable, ClusterStateApplier {
 
                     return ClusterState.builder(currentState).metadata(mdb).build();
                 }
-
-                @Override
-                public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
-                    return putStoreTaskKey;
-                }
             }
         );
     }
@@ -618,7 +611,6 @@ public class ScriptService implements Closeable, ClusterStateApplier {
     public void deleteStoredScript(
         ClusterService clusterService,
         DeleteStoredScriptRequest request,
-        ClusterManagerTaskThrottler.ThrottlingKey deleteScriptTaskKey,
         ActionListener<AcknowledgedResponse> listener
     ) {
         clusterService.submitStateUpdateTask(
@@ -637,11 +629,6 @@ public class ScriptService implements Closeable, ClusterStateApplier {
                     Metadata.Builder mdb = Metadata.builder(currentState.getMetadata()).putCustom(ScriptMetadata.TYPE, smd);
 
                     return ClusterState.builder(currentState).metadata(mdb).build();
-                }
-
-                @Override
-                public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
-                    return deleteScriptTaskKey;
                 }
             }
         );

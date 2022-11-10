@@ -50,8 +50,6 @@ import org.opensearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.opensearch.cluster.metadata.MetadataCreateDataStreamService.CreateDataStreamClusterStateUpdateRequest;
 import org.opensearch.cluster.metadata.MetadataCreateIndexService;
 import org.opensearch.cluster.metadata.MetadataIndexTemplateService;
-import org.opensearch.cluster.service.ClusterManagerTaskKeys;
-import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.inject.Inject;
@@ -86,7 +84,6 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
         private final ActiveShardsObserver activeShardsObserver;
         private final MetadataCreateIndexService createIndexService;
         private final MetadataCreateDataStreamService metadataCreateDataStreamService;
-        private final ClusterManagerTaskThrottler.ThrottlingKey autoCreateTaskKey;
 
         @Inject
         public TransportAction(
@@ -102,9 +99,6 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
             this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
             this.createIndexService = createIndexService;
             this.metadataCreateDataStreamService = metadataCreateDataStreamService;
-
-            // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
-            autoCreateTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.AUTO_CREATE_KEY, true);
         }
 
         @Override
@@ -146,11 +140,6 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     @Override
                     protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
                         return new ClusterStateUpdateResponse(acknowledged);
-                    }
-
-                    @Override
-                    public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
-                        return autoCreateTaskKey;
                     }
 
                     @Override
