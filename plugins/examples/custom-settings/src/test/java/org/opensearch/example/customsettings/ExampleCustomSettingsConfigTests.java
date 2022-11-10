@@ -31,9 +31,7 @@
 
 package org.opensearch.example.customsettings;
 
-import org.hamcrest.Matchers;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.settings.SettingsException;
 import org.opensearch.test.OpenSearchTestCase;
 
 import static org.opensearch.example.customsettings.ExampleCustomSettingsConfig.VALIDATED_SETTING;
@@ -52,11 +50,10 @@ public class ExampleCustomSettingsConfigTests extends OpenSearchTestCase {
         final String actual = VALIDATED_SETTING.get(Settings.builder().put(VALIDATED_SETTING.getKey(), expected).build());
         assertEquals(expected, actual);
 
-        final SettingsException exception = expectThrows(
-            SettingsException.class,
+        final IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
             () -> VALIDATED_SETTING.get(Settings.builder().put("custom.validated", "it's forbidden").build())
         );
-        assertThat(exception.getCause(), Matchers.instanceOf(IllegalArgumentException.class));
-        assertEquals("Setting must not contain [forbidden]", exception.getCause().getMessage());
+        assertEquals("Setting must not contain [forbidden]", exception.getMessage());
     }
 }
