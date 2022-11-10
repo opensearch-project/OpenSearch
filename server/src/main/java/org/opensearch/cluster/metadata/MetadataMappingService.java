@@ -43,8 +43,6 @@ import org.opensearch.cluster.ClusterStateTaskConfig;
 import org.opensearch.cluster.ClusterStateTaskExecutor;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.cluster.service.ClusterManagerTaskKeys;
-import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
@@ -80,7 +78,6 @@ public class MetadataMappingService {
 
     private final ClusterService clusterService;
     private final IndicesService indicesService;
-    private final ClusterManagerTaskThrottler.ThrottlingKey putMappingTaskKey;
 
     final RefreshTaskExecutor refreshExecutor = new RefreshTaskExecutor();
     final PutMappingExecutor putMappingExecutor = new PutMappingExecutor();
@@ -89,10 +86,6 @@ public class MetadataMappingService {
     public MetadataMappingService(ClusterService clusterService, IndicesService indicesService) {
         this.clusterService = clusterService;
         this.indicesService = indicesService;
-
-        // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
-        putMappingTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.PUT_MAPPING_KEY, true);
-
     }
 
     static class RefreshTask {
@@ -251,11 +244,6 @@ public class MetadataMappingService {
             } finally {
                 IOUtils.close(indexMapperServices.values());
             }
-        }
-
-        @Override
-        public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
-            return putMappingTaskKey;
         }
 
         private ClusterState applyRequest(

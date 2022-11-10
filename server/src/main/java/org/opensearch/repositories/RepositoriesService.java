@@ -53,8 +53,6 @@ import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
-import org.opensearch.cluster.service.ClusterManagerTaskKeys;
-import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Strings;
 import org.opensearch.common.component.AbstractLifecycleComponent;
@@ -113,8 +111,6 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     private final Map<String, Repository> internalRepositories = ConcurrentCollections.newConcurrentMap();
     private volatile Map<String, Repository> repositories = Collections.emptyMap();
     private final RepositoriesStatsArchive repositoriesStatsArchive;
-    private final ClusterManagerTaskThrottler.ThrottlingKey putRepositoryTaskKey;
-    private final ClusterManagerTaskThrottler.ThrottlingKey deleteRepositoryTaskKey;
 
     public RepositoriesService(
         Settings settings,
@@ -141,9 +137,6 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             REPOSITORIES_STATS_ARCHIVE_MAX_ARCHIVED_STATS.get(settings),
             threadPool::relativeTimeInMillis
         );
-        // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
-        putRepositoryTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.PUT_REPOSITORY_KEY, true);
-        deleteRepositoryTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.DELETE_REPOSITORY_KEY, true);
     }
 
     /**
@@ -237,11 +230,6 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                 }
 
                 @Override
-                public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
-                    return putRepositoryTaskKey;
-                }
-
-                @Override
                 public void onFailure(String source, Exception e) {
                     logger.warn(() -> new ParameterizedMessage("failed to create repository [{}]", request.name()), e);
                     super.onFailure(source, e);
@@ -300,11 +288,6 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                         return currentState;
                     }
                     throw new RepositoryMissingException(request.name());
-                }
-
-                @Override
-                public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
-                    return deleteRepositoryTaskKey;
                 }
 
                 @Override
