@@ -1,0 +1,13 @@
+/*
+ * Copyright OpenSearch Contributors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+rootProject.name = 'opensearch-job-scheduler'
+
+include "spi"
+project(":spi").name = rootProject.name + "-spi"
+
+include "sample-extension-plugin"
+project(":sample-extension-plugin").name = rootProject.name + "-sample-extension"
+startParameter.excludedTaskNames=["publishPluginZipPublicationToMavenLocal", "publishPluginZipPublicationToStagingRepository"]
