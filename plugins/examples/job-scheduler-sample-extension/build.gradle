@@ -4,14 +4,13 @@
  */
 
 apply plugin: 'opensearch.opensearchplugin'
-apply plugin: 'opensearch.testclusters'
-apply plugin: 'opensearch.java-rest-test'
+apply plugin: 'opensearch.yaml-rest-test'
 
 opensearchplugin {
   name 'opensearch-job-scheduler-sample-extension'
   description 'Sample plugin that extends OpenSearch Job Scheduler plugin'
-  classname 'org.opensearch.jobscheduler.sampleextension.SampleExtensionPlugin'
-  extendedPlugins = ['opensearch-job-scheduler']
+  classname 'org.opensearch.example.jobschedulersampleextension.SampleExtensionPlugin'
+  extendedPlugins = ['job-scheduler']
   licenseFile rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
   noticeFile rootProject.file('NOTICE.txt')
 }
