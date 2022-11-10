@@ -116,8 +116,8 @@ public class ClusterManagerTaskThrottlingIT extends OpenSearchIntegTestCase {
             ActionListener listener = new ActionListener() {
                 @Override
                 public void onResponse(Object o) {
-                    latch.countDown();
                     successfulRequest.incrementAndGet();
+                    latch.countDown();
                 }
 
                 @Override
@@ -164,9 +164,9 @@ public class ClusterManagerTaskThrottlingIT extends OpenSearchIntegTestCase {
 
                 @Override
                 public void onFailure(Exception e) {
+                    timedoutRequest.incrementAndGet();
                     latch.countDown();
                     assertTrue(e instanceof ProcessClusterEventTimeoutException);
-                    timedoutRequest.incrementAndGet();
                 }
             };
             executePutMappingRequests(totalRequest, node, listener);
