@@ -6,7 +6,6 @@
 package org.opensearch.jobscheduler.spi.utils;
 
 import org.junit.Before;
-import org.junit.Ignore;
 import org.mockito.Mockito;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.service.ClusterService;
