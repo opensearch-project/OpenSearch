@@ -11,3 +11,7 @@ opensearchplugin {
 dependencies {
     api project('spi')
 }
+
+tasks.register("integTest", Test) {
+  include "**/*IT.class"
+}
