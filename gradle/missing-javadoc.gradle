@@ -103,7 +103,6 @@ configure([
   project(":example-plugins:custom-settings"),
   project(":example-plugins:custom-significance-heuristic"),
   project(":example-plugins:custom-suggester"),
-  project(":example-plugins:job-scheduler-sample-extension"),
   project(":example-plugins:painless-whitelist"),
   project(":example-plugins:rescore"),
   project(":example-plugins:rest-handler"),
