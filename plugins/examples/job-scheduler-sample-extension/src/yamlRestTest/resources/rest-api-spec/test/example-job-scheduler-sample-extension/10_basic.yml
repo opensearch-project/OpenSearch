@@ -14,4 +14,3 @@
       nodes.info: {}
 
   - contains:  { nodes.$master.plugins: { name: opensearch-job-scheduler-sample-extension } }
-  
