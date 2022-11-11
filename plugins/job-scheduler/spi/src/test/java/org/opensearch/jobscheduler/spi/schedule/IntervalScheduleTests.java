@@ -11,6 +11,7 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.common.SuppressForbidden;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -39,7 +40,7 @@ public class IntervalScheduleTests extends OpenSearchTestCase {
         this.intervalScheduleDelay = new IntervalSchedule(startTime, 3, ChronoUnit.MINUTES, DELAY);
     }
 
-    @SuppressForbidden
+    @SuppressForbidden(reason = "")
     @Test(expected = IllegalArgumentException.class)
     public void testConstructor_notSupportedTimeUnit() throws ParseException {
         Instant startTime = new SimpleDateFormat("MM/dd/yyyy").parse("01/01/2019").toInstant();
