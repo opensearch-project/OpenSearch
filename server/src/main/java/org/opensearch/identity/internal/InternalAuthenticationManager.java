@@ -7,7 +7,6 @@
  */
 
 package org.opensearch.identity.internal;
-
 import org.opensearch.authn.realm.InternalRealm;
 import org.opensearch.identity.AccessTokenManager;
 import org.opensearch.identity.AuthenticationManager;

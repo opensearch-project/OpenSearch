@@ -11,6 +11,7 @@ package org.opensearch.identity;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.shiro.authc.AuthenticationToken;
+import org.apache.shiro.authc.BearerToken;
 import org.apache.shiro.authc.UsernamePasswordToken;
 import org.apache.cxf.rs.security.jose.jwt.JwtToken;
 import org.apache.cxf.jaxrs.json.basic.JsonMapObject;
@@ -73,12 +74,11 @@ public class AuthenticationTokenHandler {
         return new UsernamePasswordToken(decodedUserNamePassword[0], decodedUserNamePassword[1]);
     }
 
-    private static AuthenticationToken handleBearerAuth(final HttpHeaderToken token) {
-
+    private static AuthenticationToken handleBearerAuth(final HttpHeaderToken token) { // Can be moved into the InternalRealms.java class
+        // Can add a positive and negative case for testing this -- a valid bearer token and then a malformed token without bearer in the header
         // Tokens should like `curl -XGET -H "Authorization: Bearer ${ACCESS_TOKEN}" http://localhost:9200`
 
-        final byte[] decodedAuthHeader = Base64.getDecoder().decode(token.getHeaderValue().substring("Bearer".length()).trim());
-        String encodedJWT = new String(decodedAuthHeader, StandardCharsets.UTF_8); // Convert decoded byte array into a string
+        String encodedJWT = token.getHeaderValue().substring("Bearer".length()).trim();
         JwtToken jwtToken;
 
         try {
@@ -87,8 +87,6 @@ public class AuthenticationTokenHandler {
             throw new Error(e); // Could not verify the JWT token
         }
 
-        Object subject = jwtToken.getClaim("sub"); // Get the subject object from the JWT that was verified
-
-        return new UsernamePasswordToken(subject.toString(), subject.toString()); // This is just an authentication token made of the subject's name twice--we do not store the password in the JWT claims
+        return new BearerToken(encodedJWT);
     }
 }

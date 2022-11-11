@@ -24,7 +24,7 @@ import java.util.concurrent.ConcurrentMap;
  *
  * @opensearch.experimental
  */
-public class InternalRealm extends AuthenticatingRealm {
+public class InternalRealm extends AuthenticatingRealm { //This overrides do get authentication info
     private static final String DEFAULT_REALM_NAME = "internal";
 
     private static final String DEFAULT_INTERNAL_USERS_FILE = "example/example_internal_users.yml";
@@ -74,7 +74,7 @@ public class InternalRealm extends AuthenticatingRealm {
 
     @Override
     protected AuthenticationInfo doGetAuthenticationInfo(AuthenticationToken token) throws AuthenticationException {
-        if (token instanceof UsernamePasswordToken) {
+        if (token instanceof UsernamePasswordToken) { //This handles Username password token so need to add logic for Bearer token -- extract subject --> get user record w/ getInternalUser
             String username = ((UsernamePasswordToken) token).getUsername();
             final char[] password = ((UsernamePasswordToken) token).getPassword();
             // Look up the user by the provide username
@@ -87,7 +87,13 @@ public class InternalRealm extends AuthenticatingRealm {
                 userRecord.getBcryptHash(),
                 realmName
             );
-            boolean successfulAuthentication = getCredentialsMatcher().doCredentialsMatch(token, sai);
+            boolean successfulAuthentication = getCredentialsMatcher().doCredentialsMatch(token, sai); // Can move JWT verification logic into here
+
+
+            // TODO: Need to add similar functionality for bearer tokens
+            // Login function itself does the verification so you could move verification into here because of doGetLogin leading to here
+
+
 
             if (successfulAuthentication) {
                 // Check for anything else that might prevent login (expired password, locked account, etc
