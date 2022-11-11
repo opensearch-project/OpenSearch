@@ -9,11 +9,16 @@
 package org.opensearch.authn.jwt;
 
 import org.apache.cxf.rs.security.jose.jwt.JwtToken;
+import org.apache.shiro.authc.AuthenticationToken;
+import org.opensearch.authn.AccessToken;
 import org.opensearch.authn.HttpHeaderToken;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.identity.AuthenticationTokenHandler;
 
 import java.util.HashMap;
 import java.util.Map;
+
+import static org.opensearch.identity.AuthenticationTokenHandler.extractShiroAuthToken;
 
 public class BearerAuthTests extends OpenSearchTestCase {
 
@@ -28,15 +33,9 @@ public class BearerAuthTests extends OpenSearchTestCase {
         // Will need to add more and more integration tests -- can create token for now and then just unit test -- create bearer token with one of the jwts and then just test the unit
         // can then move up a step and test handleBearerAuth
 
-        HttpHeaderToken HttpToken = new HttpHeaderToken(encodedToken); // Create an HttpHeaderToken that just holds the JWT
-
-
-        try {
-            JwtToken token = JwtVerifier.getVerifiedJwtToken(encodedToken);
-            assertTrue(token.getClaims().getClaim("sub").equals("testSubject"));
-        } catch (BadCredentialsException e) {
-            fail("Unexpected BadCredentialsException thrown");
-        }
+        String headerBody = "Bearer " + encodedToken;
+        HttpHeaderToken HttpToken = new HttpHeaderToken(headerBody); // Create an HttpHeaderToken that just holds the 'Bearer' + JWT
+        AuthenticationToken extractedShiroToken = extractShiroAuthToken(HttpToken); // This should verify and then extract the shiro token for login
     }
 
     public void testEarlyValidJwt() {

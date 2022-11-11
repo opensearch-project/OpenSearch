@@ -78,13 +78,13 @@ public class AuthenticationTokenHandler {
         // Can add a positive and negative case for testing this -- a valid bearer token and then a malformed token without bearer in the header
         // Tokens should like `curl -XGET -H "Authorization: Bearer ${ACCESS_TOKEN}" http://localhost:9200`
 
-        String encodedJWT = token.getHeaderValue().substring("Bearer".length()).trim();
-        JwtToken jwtToken;
+
+        String encodedJWT = token.getHeaderValue().substring("Bearer".length()).trim(); // Still may need to base64 decode this
 
         try {
-            jwtToken = JwtVerifier.getVerifiedJwtToken(encodedJWT);
+            JwtToken jwtToken = JwtVerifier.getVerifiedJwtToken(encodedJWT);
         } catch (BadCredentialsException e) {
-            throw new Error(e); // Could not verify the JWT token
+            throw new Error(e); // Could not verify the JWT token--throw this error to prevent the return
         }
 
         return new BearerToken(encodedJWT);
