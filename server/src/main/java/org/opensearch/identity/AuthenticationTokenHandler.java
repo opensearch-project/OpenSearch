@@ -12,7 +12,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.shiro.authc.AuthenticationToken;
 import org.apache.shiro.authc.UsernamePasswordToken;
+import org.apache.cxf.rs.security.jose.jwt.JwtToken;
+import org.apache.cxf.jaxrs.json.basic.JsonMapObject;
 import org.opensearch.authn.HttpHeaderToken;
+
+import org.opensearch.authn.jwt.BadCredentialsException;
+import org.opensearch.authn.jwt.JwtVerifier;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
@@ -41,6 +46,10 @@ public class AuthenticationTokenHandler {
                 authToken = handleBasicAuth(headerToken);
             }
 
+            if (headerToken.getHeaderValue().contains("Bearer")) {
+                authToken = handleBearerAuth(headerToken);
+            }
+
             // TODO: check for other type of Headers
         }
         // TODO: Handle other type of auths, and see if we can use switch case here
@@ -62,5 +71,24 @@ public class AuthenticationTokenHandler {
         logger.info("Logging in as: " + decodedUserNamePassword[0]);
 
         return new UsernamePasswordToken(decodedUserNamePassword[0], decodedUserNamePassword[1]);
+    }
+
+    private static AuthenticationToken handleBearerAuth(final HttpHeaderToken token) {
+
+        // Tokens should like `curl -XGET -H "Authorization: Bearer ${ACCESS_TOKEN}" http://localhost:9200`
+
+        final byte[] decodedAuthHeader = Base64.getDecoder().decode(token.getHeaderValue().substring("Bearer".length()).trim());
+        String encodedJWT = new String(decodedAuthHeader, StandardCharsets.UTF_8); // Convert decoded byte array into a string
+        JwtToken jwtToken;
+
+        try {
+            jwtToken = JwtVerifier.getVerifiedJwtToken(encodedJWT);
+        } catch (BadCredentialsException e) {
+            throw new Error(e); // Could not verify the JWT token
+        }
+
+        Object subject = jwtToken.getClaim("sub"); // Get the subject object from the JWT that was verified
+
+        return new UsernamePasswordToken(subject.toString(), subject.toString()); // This is just an authentication token made of the subject's name twice--we do not store the password in the JWT claims
     }
 }

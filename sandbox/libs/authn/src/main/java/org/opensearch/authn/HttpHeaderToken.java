@@ -10,6 +10,8 @@ package org.opensearch.authn;
 
 public class HttpHeaderToken implements AuthenticationToken {
 
+    // Need to look for Bearer Auth keyword
+
     public final static String HEADER_NAME = "Authorization";
     private final String headerValue;
 
