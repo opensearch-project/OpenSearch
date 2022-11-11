@@ -420,7 +420,7 @@ public abstract class OpenSearchClientYamlSuiteTestCase extends OpenSearchRestTe
         if (!testCandidate.getSetupSection().isEmpty()) {
             logger.debug("start setup test [{}]", testCandidate.getTestPath());
             for (ExecutableSection executableSection : testCandidate.getSetupSection().getExecutableSections()) {
-                executeSection(executableSection);
+                executeSection("setup", executableSection);
             }
             logger.debug("end setup test [{}]", testCandidate.getTestPath());
         }
@@ -429,12 +429,12 @@ public abstract class OpenSearchClientYamlSuiteTestCase extends OpenSearchRestTe
 
         try {
             for (ExecutableSection executableSection : testCandidate.getTestSection().getExecutableSections()) {
-                executeSection(executableSection);
+                executeSection("execute", executableSection);
             }
         } finally {
             logger.debug("start teardown test [{}]", testCandidate.getTestPath());
             for (ExecutableSection doSection : testCandidate.getTeardownSection().getDoSections()) {
-                executeSection(doSection);
+                executeSection("teardown", doSection);
             }
             logger.debug("end teardown test [{}]", testCandidate.getTestPath());
         }
@@ -443,13 +443,14 @@ public abstract class OpenSearchClientYamlSuiteTestCase extends OpenSearchRestTe
     /**
      * Execute an {@link ExecutableSection}, careful to log its place of origin on failure.
      */
-    private void executeSection(ExecutableSection executableSection) {
+    private void executeSection(String phase, ExecutableSection executableSection) {
         try {
             executableSection.execute(restTestExecutionContext);
         } catch (AssertionError | Exception e) {
             // Dump the stash on failure. Instead of dumping it in true json we escape `\n`s so stack traces are easier to read
             logger.info(
-                "Stash dump on test failure [{}]",
+                "Stash dump on test {} failure [{}]",
+                phase,
                 Strings.toString(restTestExecutionContext.stash(), true, true)
                     .replace("\\n", "\n")
                     .replace("\\r", "\r")
