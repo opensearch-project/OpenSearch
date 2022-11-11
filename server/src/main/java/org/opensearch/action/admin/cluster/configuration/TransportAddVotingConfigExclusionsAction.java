@@ -65,7 +65,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.opensearch.action.admin.cluster.configuration.VotingConfigExclusionsHelper.resolveVotingConfigExclusionsAndCheckMaximum;
-import static org.opensearch.action.admin.cluster.configuration.VotingConfigExclusionsHelper.updateExclusionAndGetState;
+import static org.opensearch.action.admin.cluster.configuration.VotingConfigExclusionsHelper.addExclusionAndGetState;
 
 /**
  * Transport endpoint action for adding exclusions to voting config
@@ -145,7 +145,7 @@ public class TransportAddVotingConfigExclusionsAction extends TransportClusterMa
                 assert resolvedExclusions == null : resolvedExclusions;
                 final int finalMaxVotingConfigExclusions = TransportAddVotingConfigExclusionsAction.this.maxVotingConfigExclusions;
                 resolvedExclusions = resolveVotingConfigExclusionsAndCheckMaximum(request, currentState, finalMaxVotingConfigExclusions);
-                return updateExclusionAndGetState(currentState, resolvedExclusions, finalMaxVotingConfigExclusions);
+                return addExclusionAndGetState(currentState, resolvedExclusions, finalMaxVotingConfigExclusions);
             }
 
             @Override

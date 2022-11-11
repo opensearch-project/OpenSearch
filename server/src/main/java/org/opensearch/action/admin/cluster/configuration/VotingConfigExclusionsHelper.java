@@ -32,7 +32,7 @@ public class VotingConfigExclusionsHelper {
      * @param finalMaxVotingConfigExclusions max exclusions that be added
      * @return newly formed cluster state
      */
-    public static ClusterState updateExclusionAndGetState(
+    public static ClusterState addExclusionAndGetState(
         ClusterState currentState,
         Set<VotingConfigExclusion> resolvedExclusions,
         int finalMaxVotingConfigExclusions

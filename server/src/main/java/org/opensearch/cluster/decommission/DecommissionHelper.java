@@ -21,7 +21,7 @@ import java.util.Iterator;
 import java.util.Set;
 
 import static org.opensearch.action.admin.cluster.configuration.VotingConfigExclusionsHelper.resolveVotingConfigExclusionsAndCheckMaximum;
-import static org.opensearch.action.admin.cluster.configuration.VotingConfigExclusionsHelper.updateExclusionAndGetState;
+import static org.opensearch.action.admin.cluster.configuration.VotingConfigExclusionsHelper.addExclusionAndGetState;
 
 /**
  * Static helper utilities to execute decommission
@@ -45,7 +45,7 @@ public class DecommissionHelper {
         return ClusterState.builder(currentState).metadata(mdBuilder).build();
     }
 
-    static ClusterState addVotingConfigExclusionsForToBeDecommissionedClusterManagerNodes(
+    static ClusterState addVotingConfigExclusionsForNodesToBeDecommissioned(
         ClusterState currentState,
         Set<String> nodeIdsToBeExcluded,
         TimeValue decommissionActionTimeout,
@@ -62,7 +62,7 @@ public class DecommissionHelper {
             currentState,
             maxVotingConfigExclusions
         );
-        return updateExclusionAndGetState(currentState, resolvedExclusion, maxVotingConfigExclusions);
+        return addExclusionAndGetState(currentState, resolvedExclusion, maxVotingConfigExclusions);
     }
 
     static Set<DiscoveryNode> filterNodesWithDecommissionAttribute(

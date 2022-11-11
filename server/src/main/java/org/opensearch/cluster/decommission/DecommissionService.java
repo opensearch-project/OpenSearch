@@ -43,7 +43,7 @@ import java.util.stream.Collectors;
 
 import static org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction.MAXIMUM_VOTING_CONFIG_EXCLUSIONS_SETTING;
 import static org.opensearch.action.admin.cluster.configuration.VotingConfigExclusionsHelper.clearExclusionsAndGetState;
-import static org.opensearch.cluster.decommission.DecommissionHelper.addVotingConfigExclusionsForToBeDecommissionedClusterManagerNodes;
+import static org.opensearch.cluster.decommission.DecommissionHelper.addVotingConfigExclusionsForNodesToBeDecommissioned;
 import static org.opensearch.cluster.decommission.DecommissionHelper.deleteDecommissionAttributeInClusterState;
 import static org.opensearch.cluster.decommission.DecommissionHelper.filterNodesWithDecommissionAttribute;
 import static org.opensearch.cluster.decommission.DecommissionHelper.nodeHasDecommissionedAttribute;
@@ -160,7 +160,7 @@ public class DecommissionService {
                 );
                 // add all 'to-be-decommissioned' cluster manager eligible nodes to voting config exclusion
                 nodeIdsToBeExcluded = clusterManagerNodesToBeDecommissioned.stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
-                newState = addVotingConfigExclusionsForToBeDecommissionedClusterManagerNodes(
+                newState = addVotingConfigExclusionsForNodesToBeDecommissioned(
                     newState,
                     nodeIdsToBeExcluded,
                     TimeValue.timeValueSeconds(30),
