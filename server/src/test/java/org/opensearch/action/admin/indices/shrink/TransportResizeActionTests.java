@@ -38,8 +38,8 @@ import org.opensearch.action.admin.indices.create.CreateIndexClusterStateUpdateR
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.EmptyClusterInfoService;
+import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
@@ -52,7 +52,9 @@ import org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocat
 import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.index.shard.DocsStats;
+import org.opensearch.index.store.StoreStats;
 import org.opensearch.snapshots.EmptySnapshotsInfoService;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.gateway.TestGatewayAllocator;
@@ -107,6 +109,7 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
                     new ResizeRequest("target", "source"),
                     state,
                     (i) -> new DocsStats(Integer.MAX_VALUE, between(1, 1000), between(1, 100)),
+                    new StoreStats(between(1, 10000), between(1, 10000)),
                     "source",
                     "target"
                 )
@@ -121,6 +124,7 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
                 req,
                 clusterState,
                 (i) -> i == 2 || i == 3 ? new DocsStats(Integer.MAX_VALUE / 2, between(1, 1000), between(1, 10000)) : null,
+                new StoreStats(between(1, 10000), between(1, 10000)),
                 "source",
                 "target"
             );
@@ -139,6 +143,7 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
                 req,
                 clusterState,
                 (i) -> new DocsStats(between(10, 1000), between(1, 10), between(1, 10000)),
+                new StoreStats(between(1, 10000), between(1, 10000)),
                 "source",
                 "target"
             );
@@ -167,6 +172,7 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
             new ResizeRequest("target", "source"),
             clusterState,
             (i) -> new DocsStats(between(1, 1000), between(1, 1000), between(0, 10000)),
+            new StoreStats(between(1, 10000), between(1, 10000)),
             "source",
             "target"
         );
@@ -193,13 +199,27 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
         ResizeRequest resizeRequest = new ResizeRequest("target", "source");
         resizeRequest.setResizeType(ResizeType.SPLIT);
         resizeRequest.getTargetIndexRequest().settings(Settings.builder().put("index.number_of_shards", 2).build());
-        TransportResizeAction.prepareCreateIndexRequest(resizeRequest, clusterState, null, "source", "target");
+        TransportResizeAction.prepareCreateIndexRequest(
+            resizeRequest,
+            clusterState,
+            null,
+            new StoreStats(between(1, 10000), between(1, 10000)),
+            "source",
+            "target"
+        );
 
         resizeRequest.getTargetIndexRequest()
             .settings(
                 Settings.builder().put("index.number_of_routing_shards", randomIntBetween(2, 10)).put("index.number_of_shards", 2).build()
             );
-        TransportResizeAction.prepareCreateIndexRequest(resizeRequest, clusterState, null, "source", "target");
+        TransportResizeAction.prepareCreateIndexRequest(
+            resizeRequest,
+            clusterState,
+            null,
+            new StoreStats(between(1, 10000), between(1, 10000)),
+            "source",
+            "target"
+        );
     }
 
     public void testPassNumRoutingShardsAndFail() {
@@ -224,7 +244,14 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
         ResizeRequest resizeRequest = new ResizeRequest("target", "source");
         resizeRequest.setResizeType(ResizeType.SPLIT);
         resizeRequest.getTargetIndexRequest().settings(Settings.builder().put("index.number_of_shards", numShards * 2).build());
-        TransportResizeAction.prepareCreateIndexRequest(resizeRequest, clusterState, null, "source", "target");
+        TransportResizeAction.prepareCreateIndexRequest(
+            resizeRequest,
+            clusterState,
+            null,
+            new StoreStats(between(1, 10000), between(1, 10000)),
+            "source",
+            "target"
+        );
 
         resizeRequest.getTargetIndexRequest()
             .settings(
@@ -233,7 +260,14 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
         ClusterState finalState = clusterState;
         IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
-            () -> TransportResizeAction.prepareCreateIndexRequest(resizeRequest, finalState, null, "source", "target")
+            () -> TransportResizeAction.prepareCreateIndexRequest(
+                resizeRequest,
+                finalState,
+                null,
+                new StoreStats(between(1, 10000), between(1, 10000)),
+                "source",
+                "target"
+            )
         );
         assertEquals("cannot provide index.number_of_routing_shards on resize", iae.getMessage());
     }
@@ -266,6 +300,7 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
             target,
             clusterState,
             (i) -> stats,
+            new StoreStats(between(1, 10000), between(1, 10000)),
             indexName,
             "target"
         );
@@ -274,6 +309,183 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
         assertEquals("1", request.settings().get("index.number_of_shards"));
         assertEquals("shrink_index", request.cause());
         assertEquals(request.waitForActiveShards(), activeShardCount);
+    }
+
+    public void testShrinkWithMaxShardSize() {
+        String indexName = randomAlphaOfLength(10);
+        // create one that won't fail
+        ClusterState clusterState = ClusterState.builder(
+            createClusterState(indexName, 10, 0, Settings.builder().put("index.blocks.write", true).build())
+        ).nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
+
+        // Cannot set max_shard_size and index.number_of_shards at the same time
+        ResizeRequest resizeRequest = new ResizeRequest("target", indexName);
+        resizeRequest.setResizeType(ResizeType.SHRINK);
+        resizeRequest.setMaxShardSize(new ByteSizeValue(100));
+        resizeRequest.getTargetIndexRequest().settings(Settings.builder().put("index.number_of_shards", randomIntBetween(1, 100)).build());
+        ClusterState finalState = clusterState;
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> TransportResizeAction.prepareCreateIndexRequest(
+                resizeRequest,
+                finalState,
+                null,
+                new StoreStats(between(1, 10000), between(1, 10000)),
+                indexName,
+                "target"
+            )
+        );
+        assertEquals("Cannot set max_shard_size and index.number_of_shards at the same time!", iae.getMessage());
+
+        AllocationService service = new AllocationService(
+            new AllocationDeciders(Collections.singleton(new MaxRetryAllocationDecider())),
+            new TestGatewayAllocator(),
+            new BalancedShardsAllocator(Settings.EMPTY),
+            EmptyClusterInfoService.INSTANCE,
+            EmptySnapshotsInfoService.INSTANCE
+        );
+        RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        // now we start the shard
+        routingTable = OpenSearchAllocationTestCase.startInitializingShardsAndReroute(service, clusterState, indexName).routingTable();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        int numSourceShards = clusterState.metadata().index(indexName).getNumberOfShards();
+        DocsStats stats = new DocsStats(between(0, (IndexWriter.MAX_DOCS) / numSourceShards), between(1, 1000), between(1, 10000));
+
+        // target index's shards number must be the lowest factor of the source index's shards number
+        int expectedShardsNum = 5;
+        resizeRequest.setMaxShardSize(new ByteSizeValue(25));
+        // clear index settings
+        resizeRequest.getTargetIndexRequest().settings(Settings.builder().build());
+        resizeRequest.setWaitForActiveShards(expectedShardsNum);
+        CreateIndexClusterStateUpdateRequest request = TransportResizeAction.prepareCreateIndexRequest(
+            resizeRequest,
+            clusterState,
+            (i) -> stats,
+            new StoreStats(100, between(1, 10000)),
+            indexName,
+            "target"
+        );
+        assertNotNull(request.recoverFrom());
+        assertEquals(indexName, request.recoverFrom().getName());
+        assertEquals(String.valueOf(expectedShardsNum), request.settings().get("index.number_of_shards"));
+        assertEquals("shrink_index", request.cause());
+        assertEquals(request.waitForActiveShards(), ActiveShardCount.from(expectedShardsNum));
+
+        // if max_shard_size is greater than whole of the source primary shards' storage,
+        // then the target index will only have one primary shard.
+        expectedShardsNum = 1;
+        resizeRequest.setMaxShardSize(new ByteSizeValue(1000));
+        // clear index settings
+        resizeRequest.getTargetIndexRequest().settings(Settings.builder().build());
+        resizeRequest.setWaitForActiveShards(expectedShardsNum);
+        request = TransportResizeAction.prepareCreateIndexRequest(
+            resizeRequest,
+            clusterState,
+            (i) -> stats,
+            new StoreStats(100, between(1, 10000)),
+            indexName,
+            "target"
+        );
+        assertNotNull(request.recoverFrom());
+        assertEquals(indexName, request.recoverFrom().getName());
+        assertEquals(String.valueOf(expectedShardsNum), request.settings().get("index.number_of_shards"));
+        assertEquals("shrink_index", request.cause());
+        assertEquals(request.waitForActiveShards(), ActiveShardCount.from(expectedShardsNum));
+
+        // if max_shard_size is less than the primary shard's storage of the source index,
+        // then the target index's shards number will be equal to the source index's.
+        expectedShardsNum = numSourceShards;
+        resizeRequest.setMaxShardSize(new ByteSizeValue(1));
+        // clear index settings
+        resizeRequest.getTargetIndexRequest().settings(Settings.builder().build());
+        resizeRequest.setWaitForActiveShards(expectedShardsNum);
+        request = TransportResizeAction.prepareCreateIndexRequest(
+            resizeRequest,
+            clusterState,
+            (i) -> stats,
+            new StoreStats(100, between(1, 10000)),
+            indexName,
+            "target"
+        );
+        assertNotNull(request.recoverFrom());
+        assertEquals(indexName, request.recoverFrom().getName());
+        assertEquals(String.valueOf(expectedShardsNum), request.settings().get("index.number_of_shards"));
+        assertEquals("shrink_index", request.cause());
+        assertEquals(request.waitForActiveShards(), ActiveShardCount.from(expectedShardsNum));
+    }
+
+    public void testCalculateTargetIndexShardsNum() {
+        String indexName = randomAlphaOfLength(10);
+        ClusterState clusterState = ClusterState.builder(
+            createClusterState(indexName, randomIntBetween(2, 10), 0, Settings.builder().put("index.blocks.write", true).build())
+        ).nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
+        IndexMetadata indexMetadata = clusterState.metadata().index(indexName);
+
+        assertEquals(TransportResizeAction.calculateTargetIndexShardsNum(null, new StoreStats(100, between(1, 10000)), indexMetadata), 1);
+        assertEquals(
+            TransportResizeAction.calculateTargetIndexShardsNum(
+                new ByteSizeValue(0),
+                new StoreStats(100, between(1, 10000)),
+                indexMetadata
+            ),
+            1
+        );
+        assertEquals(TransportResizeAction.calculateTargetIndexShardsNum(new ByteSizeValue(1), null, indexMetadata), 1);
+        assertEquals(TransportResizeAction.calculateTargetIndexShardsNum(new ByteSizeValue(1), new StoreStats(0, 0), indexMetadata), 1);
+        assertEquals(
+            TransportResizeAction.calculateTargetIndexShardsNum(
+                new ByteSizeValue(1000),
+                new StoreStats(100, between(1, 10000)),
+                indexMetadata
+            ),
+            1
+        );
+        assertEquals(
+            TransportResizeAction.calculateTargetIndexShardsNum(
+                new ByteSizeValue(1),
+                new StoreStats(100, between(1, 10000)),
+                indexMetadata
+            ),
+            indexMetadata.getNumberOfShards()
+        );
+
+        clusterState = ClusterState.builder(
+            createClusterState(indexName, 10, 0, Settings.builder().put("index.blocks.write", true).build())
+        ).nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
+        indexMetadata = clusterState.metadata().index(indexName);
+        assertEquals(
+            TransportResizeAction.calculateTargetIndexShardsNum(
+                new ByteSizeValue(10),
+                new StoreStats(100, between(1, 10000)),
+                indexMetadata
+            ),
+            10
+        );
+        assertEquals(
+            TransportResizeAction.calculateTargetIndexShardsNum(
+                new ByteSizeValue(12),
+                new StoreStats(100, between(1, 10000)),
+                indexMetadata
+            ),
+            indexMetadata.getNumberOfShards()
+        );
+        assertEquals(
+            TransportResizeAction.calculateTargetIndexShardsNum(
+                new ByteSizeValue(20),
+                new StoreStats(100, between(1, 10000)),
+                indexMetadata
+            ),
+            5
+        );
+        assertEquals(
+            TransportResizeAction.calculateTargetIndexShardsNum(
+                new ByteSizeValue(50),
+                new StoreStats(100, between(1, 10000)),
+                indexMetadata
+            ),
+            2
+        );
     }
 
     private DiscoveryNode newNode(String nodeId) {

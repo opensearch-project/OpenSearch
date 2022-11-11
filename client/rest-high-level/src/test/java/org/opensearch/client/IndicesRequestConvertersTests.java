@@ -79,6 +79,7 @@ import org.opensearch.common.util.CollectionUtils;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Assert;
+import org.opensearch.common.unit.ByteSizeValue;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -701,6 +702,9 @@ public class IndicesRequestConvertersTests extends OpenSearchTestCase {
         RequestConvertersTests.setRandomWaitForActiveShards(resizeRequest::setWaitForActiveShards, expectedParams);
         if (resizeType == ResizeType.SPLIT) {
             resizeRequest.setSettings(Settings.builder().put("index.number_of_shards", 2).build());
+        }
+        if (resizeType == ResizeType.SHRINK) {
+            resizeRequest.setMaxShardSize(new ByteSizeValue(randomIntBetween(1, 1000)));
         }
 
         Request request = function.apply(resizeRequest);
