@@ -283,7 +283,7 @@ public class LockServiceIT extends OpenSearchIntegTestCase {
 
     private static volatile AtomicInteger multiThreadCreateLockCounter = new AtomicInteger(0);
 
-    @Ignore
+    @AwaitsFix
     public void testMultiThreadCreateLock() throws Exception {
         String uniqSuffix = "_multi_thread_create";
         String lockID = randomAlphaOfLengthBetween(6, 15);
@@ -346,7 +346,7 @@ public class LockServiceIT extends OpenSearchIntegTestCase {
 
     private static volatile AtomicInteger multiThreadAcquireLockCounter = new AtomicInteger(0);
 
-    @Ignore
+    @AwaitsFix
     public void testMultiThreadAcquireLock() throws Exception {
         String uniqSuffix = "_multi_thread_acquire";
         String lockID = randomAlphaOfLengthBetween(6, 15);

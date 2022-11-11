@@ -45,6 +45,7 @@ public class ScheduleParserTests extends OpenSearchTestCase {
         Assert.assertEquals(ChronoUnit.MINUTES, ((IntervalSchedule) schedule).getUnit());
     }
 
+    @SuppressForbidden
     @Test(expected = IllegalArgumentException.class)
     public void testUnknownScheduleType() throws IOException {
         String scheduleJsonStr = "{\"unknown_type\":{\"field\":\"value\"}}";
@@ -54,6 +55,7 @@ public class ScheduleParserTests extends OpenSearchTestCase {
         ScheduleParser.parse(parser);
     }
 
+    @SuppressForbidden
     @Test(expected = IllegalArgumentException.class)
     public void test_unknownFieldInCronSchedule() throws IOException {
         String cronScheduleJsonStr = "{\"cron\":{\"expression\":\"* * * * *\",\"unknown_field\":\"value\"}}";
@@ -63,6 +65,7 @@ public class ScheduleParserTests extends OpenSearchTestCase {
         ScheduleParser.parse(parser);
     }
 
+    @SuppressForbidden
     @Test(expected = IllegalArgumentException.class)
     public void test_unknownFiledInIntervalSchedule() throws IOException {
         String intervalScheduleJsonStr = "{\"interval\":{\"start_time\":1546329600000,\"period\":1,\"unknown_filed\":\"value\"}}";

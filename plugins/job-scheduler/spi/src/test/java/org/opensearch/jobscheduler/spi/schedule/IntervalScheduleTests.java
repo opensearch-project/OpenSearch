@@ -39,6 +39,7 @@ public class IntervalScheduleTests extends OpenSearchTestCase {
         this.intervalScheduleDelay = new IntervalSchedule(startTime, 3, ChronoUnit.MINUTES, DELAY);
     }
 
+    @SuppressForbidden
     @Test(expected = IllegalArgumentException.class)
     public void testConstructor_notSupportedTimeUnit() throws ParseException {
         Instant startTime = new SimpleDateFormat("MM/dd/yyyy").parse("01/01/2019").toInstant();
