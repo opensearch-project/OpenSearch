@@ -243,7 +243,7 @@ public class AutoExpandReplicasTests extends OpenSearchTestCase {
         try {
             List<DiscoveryNode> allNodes = new ArrayList<>();
             DiscoveryNode oldNode = createNode(
-                VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.V_1_2_1),
+                VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_2_2_1),
                 DiscoveryNodeRole.CLUSTER_MANAGER_ROLE,
                 DiscoveryNodeRole.DATA_ROLE
             ); // local node is the cluster-manager
@@ -265,7 +265,7 @@ public class AutoExpandReplicasTests extends OpenSearchTestCase {
                 state = cluster.reroute(state, new ClusterRerouteRequest());
             }
 
-            DiscoveryNode newNode = createNode(Version.V_1_3_0, DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, DiscoveryNodeRole.DATA_ROLE); // local
+            DiscoveryNode newNode = createNode(Version.V_2_3_0, DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, DiscoveryNodeRole.DATA_ROLE); // local
                                                                                                                                       // node
                                                                                                                                       // is
                                                                                                                                       // the

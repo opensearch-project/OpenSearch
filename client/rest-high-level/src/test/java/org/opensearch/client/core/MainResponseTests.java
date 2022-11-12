@@ -46,21 +46,16 @@ import java.util.Date;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MainResponseTests extends AbstractResponseTestCase<org.opensearch.action.main.MainResponse, MainResponse> {
+    private static String DISTRIBUTION = "opensearch";
+
     @Override
     protected org.opensearch.action.main.MainResponse createServerTestInstance(XContentType xContentType) {
         String clusterUuid = randomAlphaOfLength(10);
         ClusterName clusterName = new ClusterName(randomAlphaOfLength(10));
         String nodeName = randomAlphaOfLength(10);
         final String date = new Date(randomNonNegativeLong()).toString();
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
-        Build build = new Build(
-            Build.Type.UNKNOWN,
-            randomAlphaOfLength(8),
-            date,
-            randomBoolean(),
-            version.toString(),
-            version.before(Version.V_1_0_0) ? null : "opensearch"
-        );
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
+        Build build = new Build(Build.Type.UNKNOWN, randomAlphaOfLength(8), date, randomBoolean(), version.toString(), DISTRIBUTION);
         return new org.opensearch.action.main.MainResponse(nodeName, version, clusterName, clusterUuid, build);
     }
 

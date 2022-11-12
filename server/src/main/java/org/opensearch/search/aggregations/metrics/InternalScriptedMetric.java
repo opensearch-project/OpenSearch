@@ -32,7 +32,6 @@
 
 package org.opensearch.search.aggregations.metrics;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.util.CollectionUtils;
@@ -48,8 +47,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-
-import static java.util.Collections.singletonList;
 
 /**
  * Implementation of scripted metric agg
@@ -72,30 +69,13 @@ public class InternalScriptedMetric extends InternalAggregation implements Scrip
     public InternalScriptedMetric(StreamInput in) throws IOException {
         super(in);
         reduceScript = in.readOptionalWriteable(Script::new);
-        if (in.getVersion().before(LegacyESVersion.V_7_8_0)) {
-            aggregations = singletonList(in.readGenericValue());
-        } else {
-            aggregations = in.readList(StreamInput::readGenericValue);
-        }
+        aggregations = in.readList(StreamInput::readGenericValue);
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeOptionalWriteable(reduceScript);
-        if (out.getVersion().before(LegacyESVersion.V_7_8_0)) {
-            if (aggregations.size() > 1) {
-                /*
-                 * If aggregations has more than one entry we're trying to
-                 * serialize an unreduced aggregation. This *should* only
-                 * happen when we're returning a scripted_metric over cross
-                 * cluster search.
-                 */
-                throw new IllegalArgumentException("scripted_metric doesn't support cross cluster search until 7.8.0");
-            }
-            out.writeGenericValue(aggregations.get(0));
-        } else {
-            out.writeCollection(aggregations, StreamOutput::writeGenericValue);
-        }
+        out.writeCollection(aggregations, StreamOutput::writeGenericValue);
     }
 
     @Override

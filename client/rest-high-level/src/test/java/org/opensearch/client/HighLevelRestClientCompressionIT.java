@@ -31,13 +31,22 @@
 
 package org.opensearch.client;
 
+import org.apache.hc.client5.http.classic.methods.HttpGet;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
 import org.apache.hc.client5.http.classic.methods.HttpPut;
+import org.apache.hc.client5.http.entity.GzipCompressingEntity;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
+import org.apache.hc.client5.http.impl.classic.HttpClients;
+import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.HttpHeaders;
+import org.apache.hc.core5.http.io.entity.StringEntity;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
 
 import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -62,4 +71,32 @@ public class HighLevelRestClientCompressionIT extends OpenSearchRestHighLevelCli
         assertEquals(SAMPLE_DOCUMENT, searchResponse.getHits().getHits()[0].getSourceAsString());
     }
 
+    /**
+     * The default CloseableHttpAsyncClient does not support compression out of the box (so that applies to RestClient
+     * and RestHighLevelClient). To check the compression works on both sides, crafting the request using CloseableHttpClient
+     * instead which uses compression by default.
+     */
+    public void testCompressesRequest() throws IOException, URISyntaxException {
+        try (CloseableHttpClient client = HttpClients.custom().build()) {
+            final Node node = client().getNodes().iterator().next();
+            final URI baseUri = new URI(node.getHost().toURI());
+
+            final HttpPut index = new HttpPut(baseUri.resolve("/company/_doc/1"));
+            index.setEntity(new GzipCompressingEntity(new StringEntity(SAMPLE_DOCUMENT, ContentType.APPLICATION_JSON)));
+            try (CloseableHttpResponse response = client.execute(index)) {
+                assertThat(response.getCode(), equalTo(201));
+            }
+
+            final HttpGet refresh = new HttpGet(baseUri.resolve("/_refresh"));
+            try (CloseableHttpResponse response = client.execute(refresh)) {
+                assertThat(response.getCode(), equalTo(200));
+            }
+
+            final HttpPost search = new HttpPost(baseUri.resolve("/_search"));
+            index.setEntity(new GzipCompressingEntity(new StringEntity("{}", ContentType.APPLICATION_JSON)));
+            try (CloseableHttpResponse response = client.execute(search)) {
+                assertThat(response.getCode(), equalTo(200));
+            }
+        }
+    }
 }

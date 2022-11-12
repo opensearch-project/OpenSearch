@@ -32,7 +32,6 @@
 
 package org.opensearch.action.admin.cluster.stats;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.support.nodes.BaseNodesResponse;
 import org.opensearch.cluster.ClusterName;
@@ -71,11 +70,9 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         String clusterUUID = null;
         MappingStats mappingStats = null;
         AnalysisStats analysisStats = null;
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
-            clusterUUID = in.readOptionalString();
-            mappingStats = in.readOptionalWriteable(MappingStats::new);
-            analysisStats = in.readOptionalWriteable(AnalysisStats::new);
-        }
+        clusterUUID = in.readOptionalString();
+        mappingStats = in.readOptionalWriteable(MappingStats::new);
+        analysisStats = in.readOptionalWriteable(AnalysisStats::new);
         this.clusterUUID = clusterUUID;
 
         // built from nodes rather than from the stream directly
@@ -132,11 +129,9 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         super.writeTo(out);
         out.writeVLong(timestamp);
         out.writeOptionalWriteable(status);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
-            out.writeOptionalString(clusterUUID);
-            out.writeOptionalWriteable(indicesStats.getMappings());
-            out.writeOptionalWriteable(indicesStats.getAnalysis());
-        }
+        out.writeOptionalString(clusterUUID);
+        out.writeOptionalWriteable(indicesStats.getMappings());
+        out.writeOptionalWriteable(indicesStats.getAnalysis());
     }
 
     @Override

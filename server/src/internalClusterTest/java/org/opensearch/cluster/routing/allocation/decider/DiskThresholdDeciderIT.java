@@ -56,7 +56,6 @@ import org.opensearch.common.io.PathUtilsForTesting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
-import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.IndexSettings;
@@ -485,13 +484,6 @@ public class DiskThresholdDeciderIT extends OpenSearchIntegTestCase {
             final Set<Path> containingPaths = trackedPaths.keySet().stream().filter(path::startsWith).collect(Collectors.toSet());
             assertThat(path + " not contained in a unique tracked path", containingPaths, hasSize(1));
             return trackedPaths.get(containingPaths.iterator().next());
-        }
-
-        void clearTrackedPaths() throws IOException {
-            for (Path path : trackedPaths.keySet()) {
-                IOUtils.rm(path);
-            }
-            trackedPaths.clear();
         }
     }
 }

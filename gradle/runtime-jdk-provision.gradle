@@ -20,7 +20,11 @@ if (BuildParams.getIsRuntimeJavaHomeSet()) {
   configure(allprojects - project(':build-tools')) {
     project.tasks.withType(Test).configureEach { Test test ->
       if (BuildParams.getIsRuntimeJavaHomeSet()) {
-        test.executable = "${BuildParams.runtimeJavaHome}/bin/java"
+        if (OS.current() == OS.WINDOWS) {
+          test.executable = "${BuildParams.runtimeJavaHome}/bin/java.exe"
+        } else {
+          test.executable = "${BuildParams.runtimeJavaHome}/bin/java"
+        }
       }
     }
   }
