@@ -1,13 +1,11 @@
 ---
-"Shrink index via API":
-  # creates an index with one document solely allocated on a particular data node
-  # and shrinks it into a new index with a single shard
-  # we don't do the relocation to a single node after the index is created
-  # here since in a mixed version cluster we can't identify
-  # which node is the one with the highest version and that is the only one that can safely
-  # be used to shrink the index.
+"Shrink index with max_shard_size":
+  # shrink index with max_shard_size parameter, which is used to generate an optimum
+  # number_of_shards for the target index.
 
   - skip:
+      version: " - 2.9.99"
+      reason: "only available in 3.0+"
       features: allowed_warnings
 
   - do:
@@ -24,7 +22,7 @@
           settings:
             # ensure everything is allocated on the same data node
             index.routing.allocation.include._id: $node_id
-            index.number_of_shards: 2
+            index.number_of_shards: 3
             index.number_of_replicas: 0
   - do:
       index:
@@ -54,18 +52,19 @@
         wait_for_status: green
         index: source
 
-  # now we do the actual shrink
+  # shrink with max_shard_size
   - do:
       allowed_warnings:
         - "Parameter [master_timeout] is deprecated and will be removed in 3.0. To support inclusive language, please use [cluster_manager_timeout] instead."
       indices.shrink:
         index: "source"
-        target: "target"
+        target: "new_shrunken_index"
         wait_for_active_shards: 1
         master_timeout: 10s
         body:
           settings:
             index.number_of_replicas: 0
+          max_shard_size: "10gb"
 
   - do:
       cluster.health:
@@ -73,9 +72,11 @@
 
   - do:
       get:
-        index: target
+        index: "new_shrunken_index"
         id:    "1"
 
-  - match: { _index:   target }
-  - match: { _id:      "1"     }
-  - match: { _source:  { foo: "hello world" } }
+  - do:
+      indices.get_settings:
+        index: "new_shrunken_index"
+
+  - match: { new_shrunken_index.settings.index.number_of_shards: "1" }
