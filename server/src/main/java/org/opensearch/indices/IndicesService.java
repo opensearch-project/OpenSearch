@@ -79,6 +79,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.AbstractRefCounted;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
@@ -888,7 +889,26 @@ public class IndicesService extends AbstractLifecycleComponent
                 return new NRTReplicationEngineFactory();
             }
             if (IndexModule.Type.REMOTE_SNAPSHOT.match(idxSettings)) {
-                return config -> new ReadOnlyEngine(config, new SeqNoStats(0, 0, 0), new TranslogStats(), true, Function.identity(), false);
+                if (FeatureFlags.isEnabled(FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_BWC)) {
+                    return config -> new ReadOnlyEngine(
+                        config,
+                        new SeqNoStats(0, 0, 0),
+                        new TranslogStats(),
+                        true,
+                        Function.identity(),
+                        false,
+                        true
+                    );
+                } else {
+                    return config -> new ReadOnlyEngine(
+                        config,
+                        new SeqNoStats(0, 0, 0),
+                        new TranslogStats(),
+                        true,
+                        Function.identity(),
+                        false
+                    );
+                }
             }
             return new InternalEngineFactory();
         } else if (engineFactories.size() == 1) {

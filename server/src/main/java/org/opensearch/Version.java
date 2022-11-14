@@ -38,6 +38,7 @@ import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.ToXContentFragment;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.monitor.jvm.JvmInfo;
@@ -50,6 +51,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+
+import static org.opensearch.common.util.FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_BWC;
 
 /**
  * OpenSearch Version Class
@@ -415,6 +418,9 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         } else if (major == 7 || major == 1) {
             return LegacyESVersion.fromId(6000026);
         } else if (major == 2) {
+            if (FeatureFlags.isEnabled(SEARCHABLE_SNAPSHOT_EXTENDED_BWC)) {
+                return LegacyESVersion.fromId(6030099);
+            }
             return LegacyESVersion.V_7_0_0;
         } else {
             bwcMajor = major - 1;

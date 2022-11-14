@@ -93,8 +93,23 @@ public class ReadOnlyEngine extends Engine {
     private final CompletionStatsCache completionStatsCache;
     private final boolean requireCompleteHistory;
     private final TranslogManager translogManager;
+    private final boolean allowOldIndices;
 
     protected volatile TranslogStats translogStats;
+
+    /**
+     * Wrapper constructor that turns off support for reading old indices.
+     */
+    public ReadOnlyEngine(
+        EngineConfig config,
+        SeqNoStats seqNoStats,
+        TranslogStats translogStats,
+        boolean obtainLock,
+        Function<DirectoryReader, DirectoryReader> readerWrapperFunction,
+        boolean requireCompleteHistory
+    ) {
+        this(config, seqNoStats, translogStats, obtainLock, readerWrapperFunction, requireCompleteHistory, false);
+    }
 
     /**
      * Creates a new ReadOnlyEngine. This ctor can also be used to open a read-only engine on top of an already opened
@@ -115,10 +130,12 @@ public class ReadOnlyEngine extends Engine {
         TranslogStats translogStats,
         boolean obtainLock,
         Function<DirectoryReader, DirectoryReader> readerWrapperFunction,
-        boolean requireCompleteHistory
+        boolean requireCompleteHistory,
+        boolean allowOldIndices
     ) {
         super(config);
         this.requireCompleteHistory = requireCompleteHistory;
+        this.allowOldIndices = allowOldIndices;
         try {
             Store store = config.getStore();
             store.incRef();
@@ -130,7 +147,11 @@ public class ReadOnlyEngine extends Engine {
                 // we obtain the IW lock even though we never modify the index.
                 // yet this makes sure nobody else does. including some testing tools that try to be messy
                 indexWriterLock = obtainLock ? directory.obtainLock(IndexWriter.WRITE_LOCK_NAME) : null;
-                this.lastCommittedSegmentInfos = Lucene.readSegmentInfos(directory);
+                if (this.allowOldIndices) {
+                    this.lastCommittedSegmentInfos = Lucene.readAnySegmentInfos(directory);
+                } else {
+                    this.lastCommittedSegmentInfos = Lucene.readSegmentInfos(directory);
+                }
                 if (seqNoStats == null) {
                     seqNoStats = buildSeqNoStats(config, lastCommittedSegmentInfos);
                     ensureMaxSeqNoEqualsToGlobalCheckpoint(seqNoStats);
@@ -223,7 +244,14 @@ public class ReadOnlyEngine extends Engine {
 
     protected DirectoryReader open(IndexCommit commit) throws IOException {
         assert Transports.assertNotTransportThread("opening index commit of a read-only engine");
-        return new SoftDeletesDirectoryReaderWrapper(DirectoryReader.open(commit), Lucene.SOFT_DELETES_FIELD);
+        DirectoryReader reader;
+        if (this.allowOldIndices) {
+            int minSupportedLuceneMajor = org.opensearch.Version.CURRENT.minimumIndexCompatibilityVersion().luceneVersion.major;
+            reader = DirectoryReader.open(commit, minSupportedLuceneMajor, null);
+        } else {
+            reader = DirectoryReader.open(commit);
+        }
+        return new SoftDeletesDirectoryReaderWrapper(reader, Lucene.SOFT_DELETES_FIELD);
     }
 
     @Override

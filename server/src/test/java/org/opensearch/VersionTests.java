@@ -33,13 +33,17 @@
 package org.opensearch;
 
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 import org.hamcrest.Matchers;
 
 import java.lang.reflect.Modifier;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -243,6 +247,23 @@ public class VersionTests extends OpenSearchTestCase {
         assertEquals(expected.major, actual.major);
         assertEquals(expected.minor, actual.minor);
         assertEquals(expected.revision, actual.revision);
+    }
+
+    @SuppressForbidden(reason = "tests minimum index compatiblity with a feature flag enabled")
+    public void testMinimumIndexCompatWithFeatureFlag() {
+        AccessController.doPrivileged(
+            (PrivilegedAction<String>) () -> System.setProperty(FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_BWC, "true")
+        );
+        try {
+            Version expected = LegacyESVersion.fromId(6000099);
+            // affects version 2+
+            Version actual = Version.fromId(2000099);
+            assertEquals(expected.major, actual.minimumIndexCompatibilityVersion().major);
+        } finally {
+            AccessController.doPrivileged(
+                (PrivilegedAction<String>) () -> System.clearProperty(FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_BWC)
+            );
+        }
     }
 
     /** test first version of opensearch compatibility that does not support legacy versions */
