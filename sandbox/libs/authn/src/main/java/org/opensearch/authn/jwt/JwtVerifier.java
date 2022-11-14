@@ -24,6 +24,14 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 public class JwtVerifier {
+
+    static String EXPIRED_TOKEN_MESSAGE = "The provided token is expired.";
+    static String INVALID_SIGNATURE_MESSAGE = "The provided JWT signature is invalid.";
+
+    static String MISMATCH_ALGORITHM_MESSAGE = "The provided JWT and JWK have different algorithms.";
+
+    static String INVALID_KEY_TYPE_MESSAGE = "No valid key type could be identified.";
+
     private final static Logger log = LogManager.getLogger(JwtVerifier.class);
 
     public static JwtToken getVerifiedJwtToken(String encodedJwt) throws BadCredentialsException {
@@ -48,7 +56,7 @@ public class JwtVerifier {
             boolean signatureValid = jwtConsumer.verifySignatureWith(signatureVerifier);
 
             if (!signatureValid) {
-                throw new BadCredentialsException("Invalid JWT signature");
+                throw new BadCredentialsException(INVALID_SIGNATURE_MESSAGE);
             }
 
             validateClaims(jwt);
@@ -69,7 +77,7 @@ public class JwtVerifier {
 
         if (!keyAlgorithm.equals(tokenAlgorithm)) {
             throw new BadCredentialsException(
-                "Algorithm of JWT does not match algorithm of JWK (" + keyAlgorithm + " != " + tokenAlgorithm + ")"
+                MISMATCH_ALGORITHM_MESSAGE + " (" + keyAlgorithm + " != " + tokenAlgorithm + ")"
             );
         }
     }
@@ -80,7 +88,7 @@ public class JwtVerifier {
         validateSignatureAlgorithm(key, jwt);
         JwsSignatureVerifier result = JwsUtils.getSignatureVerifier(key, jwt.getJwsHeaders().getSignatureAlgorithm());
         if (result == null) {
-            throw new BadCredentialsException("Cannot verify JWT");
+            throw new BadCredentialsException(INVALID_KEY_TYPE_MESSAGE);
         } else {
             return result;
         }

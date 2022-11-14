@@ -10,17 +10,15 @@ package org.opensearch.authn.jwt;
 
 import org.apache.cxf.rs.security.jose.jwt.JwtToken;
 import org.apache.shiro.authc.AuthenticationToken;
-import org.opensearch.authn.AccessToken;
 import org.opensearch.authn.HttpHeaderToken;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.identity.AuthenticationTokenHandler;
 
 import java.util.HashMap;
 import java.util.Map;
 
 import static org.opensearch.identity.AuthenticationTokenHandler.extractShiroAuthToken;
 
-public class BearerAuthTests extends OpenSearchTestCase {
+public class BearerAuthUnitTests extends OpenSearchTestCase {
 
     public void testExpiredValidJwt() {
         Map<String, Object> jwtClaims = new HashMap<>();
@@ -35,7 +33,14 @@ public class BearerAuthTests extends OpenSearchTestCase {
 
         String headerBody = "Bearer " + encodedToken;
         HttpHeaderToken HttpToken = new HttpHeaderToken(headerBody); // Create an HttpHeaderToken that just holds the 'Bearer' + JWT
-        AuthenticationToken extractedShiroToken = extractShiroAuthToken(HttpToken); // This should verify and then extract the shiro token for login
+
+        try {
+            AuthenticationToken extractedShiroToken = extractShiroAuthToken(HttpToken); // This should verify and then extract the shiro token for login -- should fail because expired
+        } catch (BadCredentialsException ex) {
+
+            assertFalse(ex.getMessage().isEmpty());
+            assertEquals("The token has expired", ex.getMessage());
+        }
     }
 
     public void testEarlyValidJwt() {
@@ -44,29 +49,44 @@ public class BearerAuthTests extends OpenSearchTestCase {
 
         String encodedToken = JwtVendor.createJwt(jwtClaims);
 
+        //TODO: Make sure this token has an early validity claim
+
+        String headerBody = "Bearer " + encodedToken;
+        HttpHeaderToken HttpToken = new HttpHeaderToken(headerBody); // Create an HttpHeaderToken that just holds the 'Bearer' + JWT
+
         try {
-            JwtToken token = JwtVerifier.getVerifiedJwtToken(encodedToken);
-            assertTrue(token.getClaims().getClaim("sub").equals("testSubject"));
-        } catch (BadCredentialsException e) {
-            fail("Unexpected BadCredentialsException thrown");
+            AuthenticationToken extractedShiroToken = extractShiroAuthToken(HttpToken); // This should verify and then extract the shiro token for login -- should fail because expired
+        } catch (BadCredentialsException ex) {
+
+            assertFalse(ex.getMessage().isEmpty());
+            assertEquals("The token cannot be accepted yet", ex.getMessage());
         }
     }
 
-    public void testValidJwt() {
+    public AuthenticationToken testValidJwt() {
         Map<String, Object> jwtClaims = new HashMap<>();
         jwtClaims.put("sub", "testSubject");
 
         String encodedToken = JwtVendor.createJwt(jwtClaims);
 
+        String headerBody = "Bearer " + encodedToken;
+        HttpHeaderToken HttpToken = new HttpHeaderToken(headerBody); // Create an HttpHeaderToken that just holds the 'Bearer' + JWT
+        AuthenticationToken extractedShiroToken = null;
         try {
-            JwtToken token = JwtVerifier.getVerifiedJwtToken(encodedToken);
-            assertTrue(token.getClaims().getClaim("sub").equals("testSubject"));
-        } catch (BadCredentialsException e) {
-            fail("Unexpected BadCredentialsException thrown");
+            extractedShiroToken = extractShiroAuthToken(HttpToken); // This should verify and then extract the shiro token for login -- should fail because expired
+        } catch (BadCredentialsException ex) {
+            throw new Error(ex);
         }
+        if (extractedShiroToken == null) {
+            throw new Error("The value of the extracted token is null after try/catch.");
+        }
+        return extractedShiroToken; // Should not be null
     }
 
     public void testInvalidJwt() {
+
+        //TODO: Token should fail because of attempt to verify incorrect signature
+
         Map<String, Object> jwtClaims = new HashMap<>();
         jwtClaims.put("sub", "testSubject");
 

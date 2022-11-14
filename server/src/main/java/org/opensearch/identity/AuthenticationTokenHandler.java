@@ -37,7 +37,7 @@ public class AuthenticationTokenHandler {
      * @param authenticationToken the token from which to extract
      * @return the extracted shiro auth token to be used to perform login
      */
-    public static AuthenticationToken extractShiroAuthToken(org.opensearch.authn.AuthenticationToken authenticationToken) {
+    public static AuthenticationToken extractShiroAuthToken(org.opensearch.authn.AuthenticationToken authenticationToken) throws BadCredentialsException {
         AuthenticationToken authToken = null;
 
         if (authenticationToken instanceof HttpHeaderToken) {
@@ -74,7 +74,7 @@ public class AuthenticationTokenHandler {
         return new UsernamePasswordToken(decodedUserNamePassword[0], decodedUserNamePassword[1]);
     }
 
-    private static AuthenticationToken handleBearerAuth(final HttpHeaderToken token) { // Can be moved into the InternalRealms.java class
+    private static AuthenticationToken handleBearerAuth(final HttpHeaderToken token) throws BadCredentialsException { // Can be moved into the InternalRealms.java class
         // Can add a positive and negative case for testing this -- a valid bearer token and then a malformed token without bearer in the header
         // Tokens should like `curl -XGET -H "Authorization: Bearer ${ACCESS_TOKEN}" http://localhost:9200`
 
@@ -84,7 +84,7 @@ public class AuthenticationTokenHandler {
         try {
             JwtToken jwtToken = JwtVerifier.getVerifiedJwtToken(encodedJWT);
         } catch (BadCredentialsException e) {
-            throw new Error(e); // Could not verify the JWT token--throw this error to prevent the return
+            throw (e); // Could not verify the JWT token--throw this error to prevent the return
         }
 
         return new BearerToken(encodedJWT);
