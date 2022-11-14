@@ -48,7 +48,6 @@ import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.persistent.PersistentTasksCustomMetadata;
-import org.opensearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -74,7 +73,6 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
 
     private final Logger logger;
     private final RerouteService rerouteService;
-    private final TransportService transportService;
 
     /**
      * Task for the join task executor.
@@ -127,17 +125,10 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         private static final String FINISH_ELECTION_TASK_REASON = "_FINISH_ELECTION_";
     }
 
-    public JoinTaskExecutor(
-        Settings settings,
-        AllocationService allocationService,
-        Logger logger,
-        RerouteService rerouteService,
-        TransportService transportService
-    ) {
+    public JoinTaskExecutor(Settings settings, AllocationService allocationService, Logger logger, RerouteService rerouteService) {
         this.allocationService = allocationService;
         this.logger = logger;
         this.rerouteService = rerouteService;
-        this.transportService = transportService;
     }
 
     @Override
@@ -261,9 +252,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         nodesBuilder.clusterManagerNodeId(currentState.nodes().getLocalNodeId());
 
         for (final Task joinTask : joiningNodes) {
-            if (joinTask.isBecomeClusterManagerTask()) {
-                refreshDiscoveryNodeVersionAfterUpgrade(currentNodes, nodesBuilder);
-            } else if (joinTask.isFinishElectionTask()) {
+            if (joinTask.isBecomeClusterManagerTask() || joinTask.isFinishElectionTask()) {
                 // no-op
             } else {
                 final DiscoveryNode joiningNode = joinTask.node();
@@ -298,20 +287,6 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         allocationService.cleanCaches();
         tmpState = PersistentTasksCustomMetadata.disassociateDeadNodes(tmpState);
         return ClusterState.builder(allocationService.disassociateDeadNodes(tmpState, false, "removed dead nodes on election"));
-    }
-
-    private void refreshDiscoveryNodeVersionAfterUpgrade(DiscoveryNodes currentNodes, DiscoveryNodes.Builder nodesBuilder) {
-        // During the upgrade from Elasticsearch, OpenSearch node send their version as 7.10.2 to Elasticsearch master
-        // in order to successfully join the cluster. But as soon as OpenSearch node becomes the master, cluster state
-        // should show the OpenSearch nodes version as 1.x. As the cluster state was carry forwarded from ES master,
-        // version in DiscoveryNode is stale 7.10.2. As soon as OpenSearch node becomes master, it can refresh the
-        // DiscoveryNodes version and publish the updated state while finishing the election. This helps in atomically
-        // updating the version of those node which have connection with the new master.
-        // Note: This should get deprecated with BWC mode logic
-        if (null == transportService) {
-            // this logic is only applicable when OpenSearch node is cluster-manager and is noop for zen discovery node
-            return;
-        }
     }
 
     @Override
