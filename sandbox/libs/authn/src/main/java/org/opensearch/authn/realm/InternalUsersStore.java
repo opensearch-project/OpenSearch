@@ -21,7 +21,7 @@ import java.util.concurrent.ConcurrentMap;
  */
 public class InternalUsersStore {
 
-    public static ConcurrentMap<String, User> readInternalSubjectsAsMap(String pathToInternalUsersYaml) {
+    public static ConcurrentMap<String, User> readUsersAsMap(String pathToInternalUsersYaml) {
         ConcurrentMap<String, User> internalUsersMap = new ConcurrentHashMap<>();
         URL resourceUrl = InternalUsersStore.class.getClassLoader().getResource(pathToInternalUsersYaml);
         if (resourceUrl == null) {

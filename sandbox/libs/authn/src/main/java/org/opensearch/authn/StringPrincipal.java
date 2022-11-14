@@ -13,7 +13,7 @@ import java.util.Objects;
  *
  * @opensearch.experimental
  */
-class StringPrincipal implements Principal {
+public class StringPrincipal implements Principal {
 
     private final String name;
 
@@ -21,7 +21,7 @@ class StringPrincipal implements Principal {
      * Creates a principal for an identity specified as a string
      * @param name A persistent string that represent an identity
      */
-    StringPrincipal(final String name) {
+    public StringPrincipal(final String name) {
         this.name = name;
     }
 

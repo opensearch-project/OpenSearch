@@ -19,7 +19,7 @@ public interface Subject {
     /**
      * Get the application-wide uniquely identifying principal
      * */
-    public Principal getPrincipal();
+    Principal getPrincipal();
 
     /**
      * Authentications from a token
@@ -28,6 +28,5 @@ public interface Subject {
      * throws SubjectNotFound
      * throws SubjectDisabled
      */
-    public void login(final AuthenticationToken token);
-
+    void login(final AuthenticationToken token);
 }
