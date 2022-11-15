@@ -43,6 +43,15 @@ public class ClusterPutWeightedRoutingRequest extends ClusterManagerNodeRequest<
 
     private WeightedRouting weightedRouting;
     private String attributeName;
+    private long version;
+
+    public void version(long version) {
+        this.version = version;
+    }
+
+    public long getVersion() {
+        return this.version;
+    }
 
     public ClusterPutWeightedRoutingRequest() {}
 
@@ -62,6 +71,7 @@ public class ClusterPutWeightedRoutingRequest extends ClusterManagerNodeRequest<
     public ClusterPutWeightedRoutingRequest(StreamInput in) throws IOException {
         super(in);
         weightedRouting = new WeightedRouting(in);
+        version = in.readLong();
     }
 
     public ClusterPutWeightedRoutingRequest(String attributeName) {
@@ -163,6 +173,7 @@ public class ClusterPutWeightedRoutingRequest extends ClusterManagerNodeRequest<
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         weightedRouting.writeTo(out);
+        out.writeLong(version);
     }
 
     @Override

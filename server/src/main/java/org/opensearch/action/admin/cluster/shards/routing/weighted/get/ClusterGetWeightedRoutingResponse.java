@@ -11,6 +11,7 @@ package org.opensearch.action.admin.cluster.shards.routing.weighted.get;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.ActionResponse;
 
+import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
 import org.opensearch.cluster.routing.WeightedRouting;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -34,6 +35,7 @@ public class ClusterGetWeightedRoutingResponse extends ActionResponse implements
     private WeightedRouting weightedRouting;
     private String localNodeWeight;
     private static final String NODE_WEIGHT = "node_weight";
+    private long version;
 
     public String getLocalNodeWeight() {
         return localNodeWeight;
@@ -43,14 +45,16 @@ public class ClusterGetWeightedRoutingResponse extends ActionResponse implements
         this.weightedRouting = null;
     }
 
-    public ClusterGetWeightedRoutingResponse(String localNodeWeight, WeightedRouting weightedRouting) {
+    public ClusterGetWeightedRoutingResponse(String localNodeWeight, WeightedRouting weightedRouting, long version) {
         this.localNodeWeight = localNodeWeight;
         this.weightedRouting = weightedRouting;
+        this.version = version;
     }
 
     ClusterGetWeightedRoutingResponse(StreamInput in) throws IOException {
         if (in.available() != 0) {
             this.weightedRouting = new WeightedRouting(in);
+            this.version = in.readLong();
         }
     }
 
@@ -67,6 +71,7 @@ public class ClusterGetWeightedRoutingResponse extends ActionResponse implements
     public void writeTo(StreamOutput out) throws IOException {
         if (weightedRouting != null) {
             weightedRouting.writeTo(out);
+            out.writeLong(version);
         }
     }
 
@@ -80,6 +85,7 @@ public class ClusterGetWeightedRoutingResponse extends ActionResponse implements
             if (localNodeWeight != null) {
                 builder.field(NODE_WEIGHT, localNodeWeight);
             }
+            builder.field(WeightedRoutingMetadata.VERSION, version);
         }
         builder.endObject();
         return builder;
@@ -91,6 +97,7 @@ public class ClusterGetWeightedRoutingResponse extends ActionResponse implements
         String attrKey = null, attrValue = null;
         String localNodeWeight = null;
         Map<String, Double> weights = new HashMap<>();
+        long version = -1;
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -99,6 +106,8 @@ public class ClusterGetWeightedRoutingResponse extends ActionResponse implements
                 attrValue = parser.text();
                 if (attrKey != null && attrKey.equals(NODE_WEIGHT)) {
                     localNodeWeight = attrValue;
+                } else if (attrKey != null && attrKey.equals(WeightedRoutingMetadata.VERSION)) {
+                    version = Long.parseLong(attrValue);
                 } else if (attrKey != null) {
                     weights.put(attrKey, Double.parseDouble(attrValue));
                 }
@@ -107,7 +116,7 @@ public class ClusterGetWeightedRoutingResponse extends ActionResponse implements
             }
         }
         WeightedRouting weightedRouting = new WeightedRouting("", weights);
-        return new ClusterGetWeightedRoutingResponse(localNodeWeight, weightedRouting);
+        return new ClusterGetWeightedRoutingResponse(localNodeWeight, weightedRouting, version);
     }
 
     @Override

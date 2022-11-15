@@ -51,6 +51,7 @@ public class RestClusterPutWeightedRoutingAction extends BaseRestHandler {
 
     public static ClusterPutWeightedRoutingRequest createRequest(RestRequest request) throws IOException {
         ClusterPutWeightedRoutingRequest putWeightedRoutingRequest = Requests.putWeightedRoutingRequest(request.param("attribute"));
+        putWeightedRoutingRequest.version(request.paramAsLong("_version", -1));
         request.applyContentParser(p -> putWeightedRoutingRequest.source(p.mapStrings()));
         return putWeightedRoutingRequest;
     }

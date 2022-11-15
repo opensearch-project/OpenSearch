@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.ActionListener;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.WeightedRoutingVersionMismatchException;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.delete.ClusterDeleteWeightedRoutingRequest;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.delete.ClusterDeleteWeightedRoutingResponse;
@@ -66,28 +67,56 @@ public class WeightedRoutingService {
         final ClusterPutWeightedRoutingRequest request,
         final ActionListener<ClusterStateUpdateResponse> listener
     ) {
-        final WeightedRoutingMetadata newWeightedRoutingMetadata = new WeightedRoutingMetadata(request.getWeightedRouting());
+        final WeightedRouting newWeightedRouting = new WeightedRouting(request.getWeightedRouting());
+
+        final long requestVersion = request.getVersion();
         clusterService.submitStateUpdateTask("update_weighted_routing", new ClusterStateUpdateTask(Priority.URGENT) {
             @Override
-            public ClusterState execute(ClusterState currentState) {
+            public ClusterState execute(ClusterState currentState) throws Exception {
                 // verify currently no decommission action is ongoing
                 ensureNoOngoingDecommissionAction(currentState);
-                Metadata metadata = currentState.metadata();
-                Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
+                Metadata metadata;
+                Metadata.Builder mdBuilder;
+
+                metadata = currentState.metadata();
+                mdBuilder = Metadata.builder(currentState.metadata());
                 WeightedRoutingMetadata weightedRoutingMetadata = metadata.custom(WeightedRoutingMetadata.TYPE);
+
                 if (weightedRoutingMetadata == null) {
-                    logger.info("put weighted routing weights in metadata [{}]", request.getWeightedRouting());
-                    weightedRoutingMetadata = new WeightedRoutingMetadata(request.getWeightedRouting());
+                    logger.info("put weighted routing weights in metadata [{}]", newWeightedRouting);
+                    weightedRoutingMetadata = new WeightedRoutingMetadata(
+                        newWeightedRouting,
+                        WeightedRoutingMetadata.INITIAL_VERSION
+                    );
+                } else if (weightedRoutingMetadata.getVersion() != requestVersion) {
+                    throw new WeightedRoutingVersionMismatchException(
+                        String.format(
+                            Locale.ROOT,
+                            "weighted routing "
+                                + "version in request is %s but cluster weighted routing metadata is at a different version %s ",
+                            requestVersion,
+                            weightedRoutingMetadata.getVersion()
+                        )
+                    );
+
                 } else {
-                    if (!checkIfSameWeightsInMetadata(newWeightedRoutingMetadata, weightedRoutingMetadata)) {
-                        logger.info("updated weighted routing weights [{}] in metadata", request.getWeightedRouting());
-                        weightedRoutingMetadata = new WeightedRoutingMetadata(newWeightedRoutingMetadata.getWeightedRouting());
+                    if (!checkIfSameWeightsInMetadata(request.getWeightedRouting(), weightedRoutingMetadata.getWeightedRouting())) {
+                        logger.info("updated weighted routing weights [{}] in metadata", newWeightedRouting);
+                        weightedRoutingMetadata = new WeightedRoutingMetadata(
+                            newWeightedRouting,
+                            weightedRoutingMetadata.getVersion() + 1
+                        );
                     } else {
+                        logger.info(
+                            "weights are same, not updating weighted routing weights [{}] in metadata",
+                            newWeightedRouting
+                        );
                         return currentState;
                     }
                 }
+
                 mdBuilder.putCustom(WeightedRoutingMetadata.TYPE, weightedRoutingMetadata);
-                logger.info("building cluster state with weighted routing weights [{}]", request.getWeightedRouting());
+                logger.info("building cluster state with weighted routing weights [{}]", newWeightedRouting);
                 return ClusterState.builder(currentState).metadata(mdBuilder).build();
             }
 
@@ -105,11 +134,8 @@ public class WeightedRoutingService {
         });
     }
 
-    private boolean checkIfSameWeightsInMetadata(
-        WeightedRoutingMetadata newWeightedRoutingMetadata,
-        WeightedRoutingMetadata oldWeightedRoutingMetadata
-    ) {
-        return newWeightedRoutingMetadata.getWeightedRouting().equals(oldWeightedRoutingMetadata.getWeightedRouting());
+    private boolean checkIfSameWeightsInMetadata(WeightedRouting newWeights, WeightedRouting oldWeights) {
+        return newWeights.equals(oldWeights);
     }
 
     public void deleteWeightedRoutingMetadata(
