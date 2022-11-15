@@ -151,7 +151,9 @@ public class DecommissionService {
 
                 ClusterState newState = registerDecommissionAttributeInClusterState(currentState, decommissionAttribute);
                 // add all 'to-be-decommissioned' cluster manager eligible nodes to voting config exclusion
-                nodeIdsToBeExcluded = filterNodesWithDecommissionAttribute(currentState, decommissionAttribute, true).stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
+                nodeIdsToBeExcluded = filterNodesWithDecommissionAttribute(currentState, decommissionAttribute, true).stream()
+                    .map(DiscoveryNode::getId)
+                    .collect(Collectors.toSet());
                 logger.info(
                     "resolved cluster manager eligible nodes [{}] that should be added to voting config exclusion",
                     nodeIdsToBeExcluded.toString()
@@ -186,7 +188,9 @@ public class DecommissionService {
                 DecommissionAttributeMetadata decommissionAttributeMetadata = newState.metadata().decommissionAttributeMetadata();
                 assert decommissionAttribute.equals(decommissionAttributeMetadata.decommissionAttribute());
                 assert decommissionAttributeMetadata.status().equals(DecommissionStatus.INIT);
-                assert newState.getVotingConfigExclusions().stream().map(CoordinationMetadata.VotingConfigExclusion::getNodeId)
+                assert newState.getVotingConfigExclusions()
+                    .stream()
+                    .map(CoordinationMetadata.VotingConfigExclusion::getNodeId)
                     .collect(Collectors.toSet())
                     .containsAll(nodeIdsToBeExcluded);
                 logger.debug(
