@@ -80,7 +80,7 @@ jobs:
       - name: Extract Test Failure
         if: ${{ github.event_name == 'pull_request_target' && failure() }}
         run: |
-            TEST_FAILURES=`curl -s "${{ env.workflow_url }}/testReport/api/json?tree=suites\[cases\[status,className,name\]\]" | jq -r '.. | objects | select(.status=="FAILED",.status=="REGRESSION") | (.className + "." +  .name)' | uniq -c | sort -n -r`
+            TEST_FAILURES=`curl -s "${{ env.workflow_url }}/testReport/api/json?tree=suites\[cases\[status,className,name\]\]" | jq -r '.. | objects | select(.status=="FAILED",.status=="REGRESSION") | (.className + "." +  .name)' | uniq -c | sort -n -r | head -n 10`
             echo "test_failures<<EOF" >> $GITHUB_ENV
             echo "$TEST_FAILURES" >> $GITHUB_ENV
             echo "EOF" >> $GITHUB_ENV
