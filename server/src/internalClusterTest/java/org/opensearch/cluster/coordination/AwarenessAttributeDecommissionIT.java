@@ -61,6 +61,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.test.NodeRoles.onlyRole;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoTimeout;
@@ -229,7 +231,6 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
 
         logger.info("--> starting decommissioning nodes in zone {}", 'a');
         DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "a");
-        String activeNode = getNonDecommissionedNode(internalCluster().clusterService().state(), "a");
         DecommissionRequest decommissionRequest = new DecommissionRequest(decommissionAttribute);
         decommissionRequest.setNoDelay(true);
         DecommissionResponse decommissionResponse = client().execute(DecommissionAction.INSTANCE, decommissionRequest).get();
@@ -239,6 +240,7 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get();
 
         String decommissionedNode = randomFrom(clusterManagerNodes.get(0), dataNodes.get(0));
+        String activeNode = dataNodes.get(1);
 
         ClusterService decommissionedNodeClusterService = internalCluster().getInstance(ClusterService.class, decommissionedNode);
         DecommissionAttributeMetadata metadata = decommissionedNodeClusterService.state()
@@ -420,7 +422,20 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
             tempZones.remove(originalClusterManagerZone);
             zoneToDecommission = randomFrom(tempZones);
         }
-        String activeNode = getNonDecommissionedNode(internalCluster().clusterService().state(), zoneToDecommission);
+        String activeNode;
+        switch (zoneToDecommission) {
+            case "a":
+                activeNode = randomFrom(Stream.concat(nodes_in_zone_b.stream(), nodes_in_zone_c.stream()).collect(Collectors.toList()));
+                break;
+            case "b":
+                activeNode = randomFrom(Stream.concat(nodes_in_zone_a.stream(), nodes_in_zone_c.stream()).collect(Collectors.toList()));
+                break;
+            case "c":
+                activeNode = randomFrom(Stream.concat(nodes_in_zone_a.stream(), nodes_in_zone_b.stream()).collect(Collectors.toList()));
+                break;
+            default:
+                throw new IllegalStateException("unexpected zone decommissioned");
+        }
 
         logger.info("--> setting shard routing weights for weighted round robin");
         Map<String, Double> weights = new HashMap<>(Map.of("a", 1.0, "b", 1.0, "c", 1.0));
@@ -631,8 +646,8 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
         assertTrue(weightedRoutingResponse.isAcknowledged());
 
         logger.info("--> starting decommissioning nodes in zone {}", 'c');
+        String activeNode = randomFrom(dataNodes.get(0), dataNodes.get(1));
         DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "c");
-        String activeNode = getNonDecommissionedNode(internalCluster().clusterService().state(), "c");
         // Set the timeout to 0 to do immediate Decommission
         DecommissionRequest decommissionRequest = new DecommissionRequest(decommissionAttribute);
         decommissionRequest.setNoDelay(true);
@@ -858,16 +873,6 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
 
         // ensure all nodes are part of cluster
         ensureStableCluster(6, TimeValue.timeValueMinutes(2));
-    }
-
-    private String getNonDecommissionedNode(ClusterState clusterState, String decommissionedZone) {
-        List<String> allNodes = new ArrayList<>();
-        for (DiscoveryNode node : clusterState.nodes()) {
-            if (node.getAttributes().get("zone").equals(decommissionedZone) == false) {
-                allNodes.add(node.getName());
-            }
-        }
-        return randomFrom(allNodes);
     }
 
     private static class WaitForFailedDecommissionState implements ClusterStateObserver.Listener {
