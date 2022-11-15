@@ -21,6 +21,7 @@ import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
 import org.opensearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.opensearch.common.Randomness;
+import org.opensearch.cluster.routing.RecoverySource;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -57,6 +58,7 @@ public final class RemoteShardsBalancer extends ShardsBalancer {
      */
     @Override
     void allocateUnassigned() {
+        unassignIgnoredRemoteShards(allocation);
         if (routingNodes.unassigned().isEmpty()) {
             logger.debug("No unassigned remote shards found.");
             return;
@@ -273,7 +275,6 @@ public final class RemoteShardsBalancer extends ShardsBalancer {
      */
     public Map<String, UnassignedIndexShards> groupUnassignedShardsByIndex() {
         HashMap<String, UnassignedIndexShards> unassignedShardMap = new HashMap<>();
-        unassignIgnoredRemoteShards(allocation);
         for (ShardRouting shard : routingNodes.unassigned().drain()) {
             String index = shard.getIndexName();
             if (!RoutingPool.REMOTE_CAPABLE.equals(RoutingPool.getShardPool(shard, allocation))) {
@@ -298,7 +299,17 @@ public final class RemoteShardsBalancer extends ShardsBalancer {
         for (ShardRouting shard : unassignedShards.drainIgnored()) {
             RoutingPool pool = RoutingPool.getShardPool(shard, routingAllocation);
             if (pool == RoutingPool.REMOTE_CAPABLE && shard.unassigned() && (shard.primary() || !shard.unassignedInfo().isDelayed())) {
-                unassignedShards.add(shard);
+                ShardRouting unassignedShard = shard;
+                // Shard when moved to an unassigned state updates the recovery source to be ExistingStoreRecoverySource
+                // Remote shards do not have an existing store to recover from and can be recovered from an empty source
+                // to re-fetch any shard blocks from the repository.
+                if (shard.primary()) {
+                    if (!RecoverySource.Type.SNAPSHOT.equals(shard.recoverySource().getType())) {
+                        unassignedShard = shard.updateUnassigned(shard.unassignedInfo(), RecoverySource.EmptyStoreRecoverySource.INSTANCE);
+                    }
+                }
+
+                unassignedShards.add(unassignedShard);
             } else {
                 unassignedShards.ignoreShard(shard, shard.unassignedInfo().getLastAllocationStatus(), routingAllocation.changes());
             }

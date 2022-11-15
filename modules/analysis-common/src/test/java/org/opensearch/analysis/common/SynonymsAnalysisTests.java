@@ -116,7 +116,7 @@ public class SynonymsAnalysisTests extends OpenSearchTestCase {
             fail("fail! due to synonym word deleted by analyzer");
         } catch (Exception e) {
             assertThat(e, instanceOf(IllegalArgumentException.class));
-            assertThat(e.getMessage(), startsWith("failed to build synonyms"));
+            assertThat(e.getMessage(), startsWith("Failed to build synonyms"));
         }
     }
 
@@ -137,7 +137,7 @@ public class SynonymsAnalysisTests extends OpenSearchTestCase {
             fail("fail! due to synonym word deleted by analyzer");
         } catch (Exception e) {
             assertThat(e, instanceOf(IllegalArgumentException.class));
-            assertThat(e.getMessage(), startsWith("failed to build synonyms"));
+            assertThat(e.getMessage(), startsWith("Failed to build synonyms"));
         }
     }
 

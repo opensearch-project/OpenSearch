@@ -39,6 +39,7 @@ import org.opensearch.env.Environment;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AbstractCharFilterFactory;
 import org.opensearch.index.analysis.Analysis;
+import org.opensearch.index.analysis.MappingRule;
 import org.opensearch.index.analysis.NormalizingCharFilterFactory;
 
 import java.io.Reader;
@@ -53,13 +54,13 @@ public class MappingCharFilterFactory extends AbstractCharFilterFactory implemen
     MappingCharFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name);
 
-        List<String> rules = Analysis.getWordList(env, settings, "mappings");
+        List<MappingRule<String, String>> rules = Analysis.parseWordList(env, settings, "mappings", this::parse);
         if (rules == null) {
             throw new IllegalArgumentException("mapping requires either `mappings` or `mappings_path` to be configured");
         }
 
         NormalizeCharMap.Builder normMapBuilder = new NormalizeCharMap.Builder();
-        parseRules(rules, normMapBuilder);
+        rules.forEach(rule -> normMapBuilder.add(rule.getLeft(), rule.getRight()));
         normMap = normMapBuilder.build();
     }
 
@@ -71,18 +72,13 @@ public class MappingCharFilterFactory extends AbstractCharFilterFactory implemen
     // source => target
     private static Pattern rulePattern = Pattern.compile("(.*)\\s*=>\\s*(.*)\\s*$");
 
-    /**
-     * parses a list of MappingCharFilter style rules into a normalize char map
-     */
-    private void parseRules(List<String> rules, NormalizeCharMap.Builder map) {
-        for (String rule : rules) {
-            Matcher m = rulePattern.matcher(rule);
-            if (!m.find()) throw new RuntimeException("Invalid Mapping Rule : [" + rule + "]");
-            String lhs = parseString(m.group(1).trim());
-            String rhs = parseString(m.group(2).trim());
-            if (lhs == null || rhs == null) throw new RuntimeException("Invalid Mapping Rule : [" + rule + "]. Illegal mapping.");
-            map.add(lhs, rhs);
-        }
+    private MappingRule<String, String> parse(String rule) {
+        Matcher m = rulePattern.matcher(rule);
+        if (!m.find()) throw new RuntimeException("Invalid mapping rule : [" + rule + "]");
+        String lhs = parseString(m.group(1).trim());
+        String rhs = parseString(m.group(2).trim());
+        if (lhs == null || rhs == null) throw new RuntimeException("Invalid mapping rule: [" + rule + "]. Illegal mapping.");
+        return new MappingRule<>(lhs, rhs);
     }
 
     char[] out = new char[256];
