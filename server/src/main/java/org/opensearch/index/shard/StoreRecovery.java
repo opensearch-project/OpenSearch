@@ -38,6 +38,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.search.Sort;
+import org.apache.lucene.store.BufferedChecksumIndexInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
@@ -69,6 +70,7 @@ import org.opensearch.repositories.Repository;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -76,6 +78,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.opensearch.common.unit.TimeValue.timeValueMillis;
+import static org.opensearch.index.seqno.SequenceNumbers.LOCAL_CHECKPOINT_KEY;
 
 /**
  * This package private utility class encapsulates the logic to recover an index shard from either an existing index on
@@ -463,9 +466,29 @@ final class StoreRecovery {
             for (String file : storeDirectory.listAll()) {
                 storeDirectory.deleteFile(file);
             }
-            for (String file : remoteDirectory.listAll()) {
+            String[] remoteFiles = remoteDirectory.listAll();
+            String segmentInfosSnapshotFilename = null;
+            String segmentsNFileName = null;
+            for (String file : remoteFiles) {
                 storeDirectory.copyFrom(remoteDirectory, file, file, IOContext.DEFAULT);
+                if(file.startsWith("segment_infos_snapshot_filename")) {
+                    segmentInfosSnapshotFilename = file;
+                }
+                if(file.startsWith("segments_")) {
+                    segmentsNFileName = file;
+                }
             }
+
+            SegmentInfos infos_snapshot = SegmentInfos.readCommit(
+                store.directory(),
+                new BufferedChecksumIndexInput(storeDirectory.openInput(segmentInfosSnapshotFilename, IOContext.DEFAULT)),
+                Integer.parseInt(segmentsNFileName.substring("segments_".length()))
+            );
+
+            store.commitSegmentInfos(infos_snapshot,
+                Long.parseLong(segmentInfosSnapshotFilename.split("__")[2]),
+                Long.parseLong(segmentInfosSnapshotFilename.split("__")[1]));
+
             // This creates empty trans-log for now
             // ToDo: Add code to restore from remote trans-log
             bootstrap(indexShard, store);

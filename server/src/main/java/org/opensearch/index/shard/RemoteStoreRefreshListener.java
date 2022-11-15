@@ -19,12 +19,16 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.IndexOutput;
+import org.opensearch.common.UUIDs;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 
 import java.io.IOException;
+import java.nio.file.NoSuchFileException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -44,6 +48,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
     static final Set<String> EXCLUDE_FILES = Set.of("write.lock");
     // Visible for testing
     static final int LAST_N_METADATA_FILES_TO_KEEP = 10;
+    static final String SEGMENT_INFO_SNAPSHOT_FILENAME = "segment_infos_snapshot_filename";
 
     private final IndexShard indexShard;
     private final Directory storeDirectory;
@@ -95,8 +100,10 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                         )) {
                             deleteStaleCommits();
                         }
+                        String segment_info_snapshot_filename = null;
                         try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = indexShard.getSegmentInfosSnapshot()) {
                             SegmentInfos segmentInfos = segmentInfosGatedCloseable.get();
+
                             Collection<String> refreshedLocalFiles = segmentInfos.files(true);
 
                             List<String> segmentInfosFiles = refreshedLocalFiles.stream()
@@ -113,6 +120,23 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
 
                                 boolean uploadStatus = uploadNewSegments(refreshedLocalFiles);
                                 if (uploadStatus) {
+                                    long localCheckpoint_key = indexShard.getEngine().getProcessedLocalCheckpoint();
+                                    //long max_sequence_number = indexShard.getEngine().getMaxSeqNoOfUpdatesOrDeletes();
+                                    long max_sequence_number = indexShard.getEngine().getProcessedLocalCheckpoint();
+                                    segment_info_snapshot_filename = SEGMENT_INFO_SNAPSHOT_FILENAME +
+                                        "_" +
+                                        latestSegmentInfos.get().substring("segments_".length()) +
+                                        "__" +
+                                        localCheckpoint_key +
+                                        "__" +
+                                        max_sequence_number;
+                                    IndexOutput indexOutput = storeDirectory.createOutput(segment_info_snapshot_filename, IOContext.DEFAULT);
+                                    segmentInfos.write(indexOutput);
+                                    indexOutput.close();
+                                    storeDirectory.sync(Collections.singleton(segment_info_snapshot_filename));
+                                    remoteDirectory.copyFrom(storeDirectory, segment_info_snapshot_filename, segment_info_snapshot_filename, IOContext.DEFAULT, true);
+                                    refreshedLocalFiles.add(segment_info_snapshot_filename);
+
                                     remoteDirectory.uploadMetadata(
                                         refreshedLocalFiles,
                                         storeDirectory,
@@ -128,6 +152,14 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                             }
                         } catch (EngineException e) {
                             logger.warn("Exception while reading SegmentInfosSnapshot", e);
+                        } finally {
+                            try {
+                                if(segment_info_snapshot_filename != null) {
+                                    storeDirectory.deleteFile(segment_info_snapshot_filename);
+                                }
+                            } catch (IOException e) {
+                                logger.warn("Exception while deleting: " + segment_info_snapshot_filename, e);
+                            }
                         }
                     } catch (IOException e) {
                         // We don't want to fail refresh if upload of new segments fails. The missed segments will be re-tried

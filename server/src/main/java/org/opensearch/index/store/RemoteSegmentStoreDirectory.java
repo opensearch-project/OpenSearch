@@ -293,17 +293,26 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
         }
     }
 
+    public void copyFrom(Directory from, String src, String dest, IOContext context, boolean override) throws IOException {
+        String remoteFilename;
+        if(override && segmentsUploadedToRemoteStore.containsKey(dest)) {
+            remoteFilename = segmentsUploadedToRemoteStore.get(dest).uploadedFilename;
+        } else {
+            remoteFilename = getNewRemoteSegmentFilename(dest);
+        }
+        remoteDataDirectory.copyFrom(from, src, remoteFilename, context);
+        String checksum = getChecksumOfLocalFile(from, src);
+        UploadedSegmentMetadata segmentMetadata = new UploadedSegmentMetadata(src, remoteFilename, checksum);
+        segmentsUploadedToRemoteStore.put(src, segmentMetadata);
+    }
+
     /**
      * Copies an existing src file from directory from to a non-existent file dest in this directory.
      * Once the segment is uploaded to remote segment store, update the cache accordingly.
      */
     @Override
     public void copyFrom(Directory from, String src, String dest, IOContext context) throws IOException {
-        String remoteFilename = getNewRemoteSegmentFilename(dest);
-        remoteDataDirectory.copyFrom(from, src, remoteFilename, context);
-        String checksum = getChecksumOfLocalFile(from, src);
-        UploadedSegmentMetadata segmentMetadata = new UploadedSegmentMetadata(src, remoteFilename, checksum);
-        segmentsUploadedToRemoteStore.put(src, segmentMetadata);
+        copyFrom(from, src, dest, context, false);
     }
 
     /**
