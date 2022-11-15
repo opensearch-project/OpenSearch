@@ -79,6 +79,9 @@ public class TranslogCheckpointTransferSnapshot implements TransferSnapshot {
             .toString();
     }
 
+    /**
+     * Builder for {@link TranslogCheckpointTransferSnapshot}
+     */
     public static class Builder {
         private final long primaryTerm;
         private final long generation;
