@@ -121,7 +121,7 @@ public class LineStringBuilder extends ShapeBuilder<JtsGeometry, org.opensearch.
 
     @Override
     public JtsGeometry buildS4J() {
-        Coordinate[] coordinates = this.coordinates.toArray(new Coordinate[this.coordinates.size()]);
+        Coordinate[] coordinates = this.coordinates.toArray(new Coordinate[0]);
         Geometry geometry;
         if (wrapdateline) {
             ArrayList<LineString> strings = decomposeS4J(FACTORY, coordinates, new ArrayList<LineString>());
@@ -129,7 +129,7 @@ public class LineStringBuilder extends ShapeBuilder<JtsGeometry, org.opensearch.
             if (strings.size() == 1) {
                 geometry = strings.get(0);
             } else {
-                LineString[] linestrings = strings.toArray(new LineString[strings.size()]);
+                LineString[] linestrings = strings.toArray(new LineString[0]);
                 geometry = FACTORY.createMultiLineString(linestrings);
             }
 

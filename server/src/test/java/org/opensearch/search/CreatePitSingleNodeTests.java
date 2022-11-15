@@ -319,7 +319,7 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
         final int maxPitContexts = SearchService.MAX_OPEN_PIT_CONTEXT.get(Settings.EMPTY);
         validatePitStats("index", maxPitContexts, 0, 0);
         // deleteall
-        DeletePitRequest deletePITRequest = new DeletePitRequest(pitIds.toArray(new String[pitIds.size()]));
+        DeletePitRequest deletePITRequest = new DeletePitRequest(pitIds.toArray(new String[0]));
 
         /**
          * When we invoke delete again, returns success after clearing the remaining readers. Asserting reader context

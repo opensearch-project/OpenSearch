@@ -509,15 +509,15 @@ public class MultiGetRequest extends ActionRequest
 
                         fetchSourceContext = new FetchSourceContext(
                             fetchSourceContext.fetchSource(),
-                            includes == null ? Strings.EMPTY_ARRAY : includes.toArray(new String[includes.size()]),
-                            excludes == null ? Strings.EMPTY_ARRAY : excludes.toArray(new String[excludes.size()])
+                            includes == null ? Strings.EMPTY_ARRAY : includes.toArray(new String[0]),
+                            excludes == null ? Strings.EMPTY_ARRAY : excludes.toArray(new String[0])
                         );
                     }
                 }
             }
             String[] aFields;
             if (storedFields != null) {
-                aFields = storedFields.toArray(new String[storedFields.size()]);
+                aFields = storedFields.toArray(new String[0]);
             } else {
                 aFields = defaultFields;
             }

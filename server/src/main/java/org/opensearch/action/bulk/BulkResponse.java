@@ -214,6 +214,6 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
                 throwUnknownToken(token, parser.getTokenLocation());
             }
         }
-        return new BulkResponse(items.toArray(new BulkItemResponse[items.size()]), took, ingestTook);
+        return new BulkResponse(items.toArray(new BulkItemResponse[0]), took, ingestTook);
     }
 }

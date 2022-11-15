@@ -100,13 +100,7 @@ public class IndicesStatsResponseTests extends OpenSearchTestCase {
                 shardsCounter.incrementAndGet();
             }
         }
-        final IndicesStatsResponse indicesStatsResponse = new IndicesStatsResponse(
-            shards.toArray(new ShardStats[shards.size()]),
-            0,
-            0,
-            0,
-            null
-        );
+        final IndicesStatsResponse indicesStatsResponse = new IndicesStatsResponse(shards.toArray(new ShardStats[0]), 0, 0, 0, null);
         Map<String, IndexStats> indexStats = indicesStatsResponse.getIndices();
 
         assertThat(indexStats.size(), is(noOfIndexes));

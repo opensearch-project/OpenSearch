@@ -609,7 +609,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 BulkShardRequest bulkShardRequest = new BulkShardRequest(
                     shardId,
                     bulkRequest.getRefreshPolicy(),
-                    requests.toArray(new BulkItemRequest[requests.size()])
+                    requests.toArray(new BulkItemRequest[0])
                 );
                 bulkShardRequest.waitForActiveShards(bulkRequest.waitForActiveShards());
                 bulkShardRequest.timeout(bulkRequest.timeout());

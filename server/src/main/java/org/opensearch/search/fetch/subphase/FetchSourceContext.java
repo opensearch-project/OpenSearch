@@ -150,7 +150,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
             while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                 list.add(parser.text());
             }
-            includes = list.toArray(new String[list.size()]);
+            includes = list.toArray(new String[0]);
         } else if (token == XContentParser.Token.START_OBJECT) {
             String currentFieldName = null;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -170,7 +170,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                                 );
                             }
                         }
-                        includes = includesList.toArray(new String[includesList.size()]);
+                        includes = includesList.toArray(new String[0]);
                     } else if (EXCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                         List<String> excludesList = new ArrayList<>();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
@@ -184,7 +184,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                                 );
                             }
                         }
-                        excludes = excludesList.toArray(new String[excludesList.size()]);
+                        excludes = excludesList.toArray(new String[0]);
                     } else {
                         throw new ParsingException(
                             parser.getTokenLocation(),

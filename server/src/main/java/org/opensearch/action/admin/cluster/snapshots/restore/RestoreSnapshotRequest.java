@@ -262,7 +262,7 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
      * @return this request
      */
     public RestoreSnapshotRequest indices(List<String> indices) {
-        this.indices = indices.toArray(new String[indices.size()]);
+        this.indices = indices.toArray(new String[0]);
         return this;
     }
 
@@ -392,7 +392,7 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
      * Sets the list of index settings and index settings groups that shouldn't be restored from snapshot
      */
     public RestoreSnapshotRequest ignoreIndexSettings(List<String> ignoreIndexSettings) {
-        this.ignoreIndexSettings = ignoreIndexSettings.toArray(new String[ignoreIndexSettings.size()]);
+        this.ignoreIndexSettings = ignoreIndexSettings.toArray(new String[0]);
         return this;
     }
 

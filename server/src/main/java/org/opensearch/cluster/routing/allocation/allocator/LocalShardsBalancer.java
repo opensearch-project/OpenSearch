@@ -90,7 +90,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
      * Returns an array view on the nodes in the balancer. Nodes should not be removed from this list.
      */
     private BalancedShardsAllocator.ModelNode[] nodesArray() {
-        return nodes.values().toArray(new BalancedShardsAllocator.ModelNode[nodes.size()]);
+        return nodes.values().toArray(new BalancedShardsAllocator.ModelNode[0]);
     }
 
     /**
@@ -778,7 +778,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
                 .collect(Collectors.toList());
             allUnassignedShards.removeAll(localUnassignedShards);
             allUnassignedShards.forEach(shard -> routingNodes.unassigned().add(shard));
-            unassignedShards = localUnassignedShards.toArray(new ShardRouting[localUnassignedShards.size()]);
+            unassignedShards = localUnassignedShards.toArray(new ShardRouting[0]);
         }
         ShardRouting[] primary = unassignedShards;
         ShardRouting[] secondary = new ShardRouting[primary.length];

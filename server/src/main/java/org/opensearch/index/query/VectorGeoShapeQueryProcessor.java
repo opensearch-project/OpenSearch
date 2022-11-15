@@ -81,11 +81,7 @@ public class VectorGeoShapeQueryProcessor {
         if (geometries.size() == 0) {
             return new MatchNoDocsQuery();
         }
-        return LatLonShape.newGeometryQuery(
-            fieldName,
-            relation.getLuceneRelation(),
-            geometries.toArray(new LatLonGeometry[geometries.size()])
-        );
+        return LatLonShape.newGeometryQuery(fieldName, relation.getLuceneRelation(), geometries.toArray(new LatLonGeometry[0]));
     }
 
     /**
