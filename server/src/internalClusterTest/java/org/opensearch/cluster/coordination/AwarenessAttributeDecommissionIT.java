@@ -309,10 +309,7 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
         ).get();
         assertTrue(deleteDecommissionStateResponse.isAcknowledged());
 
-        ClusterService activeNodeClusterService = internalCluster().getInstance(
-            ClusterService.class,
-            activeNode
-        );
+        ClusterService activeNodeClusterService = internalCluster().getInstance(ClusterService.class, activeNode);
         ClusterStateObserver clusterStateObserver = new ClusterStateObserver(
             activeNodeClusterService,
             null,
@@ -865,7 +862,7 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
 
     private String getNonDecommissionedNode(ClusterState clusterState, String decommissionedZone) {
         List<String> allNodes = new ArrayList<>();
-        for (DiscoveryNode node: clusterState.nodes()) {
+        for (DiscoveryNode node : clusterState.nodes()) {
             if (node.getAttributes().get("zone").equals(decommissionedZone) == false) {
                 allNodes.add(node.getName());
             }
