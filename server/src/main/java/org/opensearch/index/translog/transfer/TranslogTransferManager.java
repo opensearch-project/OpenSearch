@@ -99,18 +99,24 @@ public class TranslogTransferManager {
                     throw ex;
                 }
             } catch (InterruptedException ex) {
-                logger.error(() -> new ParameterizedMessage("Time failed for snapshot {}", transferSnapshot), ex);
                 exceptionList.forEach(ex::addSuppressed);
+                logger.error(() -> new ParameterizedMessage("Time failed for snapshot {}", transferSnapshot), ex);
                 Thread.currentThread().interrupt();
                 throw ex;
             }
-            final TransferFileSnapshot transferFileSnapshot = prepareMetadata(transferSnapshot);
-            transferService.uploadBlob(
-                prepareMetadata(transferSnapshot),
-                remoteBaseTransferPath.add(String.valueOf(transferFileSnapshot.getPrimaryTerm()))
-            );
-            translogTransferListener.onUploadComplete(transferSnapshot);
-            return true;
+            if (exceptionList.isEmpty()) {
+                final TransferFileSnapshot transferFileSnapshot = prepareMetadata(transferSnapshot);
+                transferService.uploadBlob(
+                    prepareMetadata(transferSnapshot),
+                    remoteBaseTransferPath.add(String.valueOf(transferFileSnapshot.getPrimaryTerm()))
+                );
+                translogTransferListener.onUploadComplete(transferSnapshot);
+                return true;
+            } else {
+                Exception ex = new RuntimeException("Failed to upload some files during transfer");
+                exceptionList.forEach(ex::addSuppressed);
+                throw ex;
+            }
         } catch (Exception ex) {
             logger.error(() -> new ParameterizedMessage("Transfer failed for snapshot {}", transferSnapshot), ex);
             translogTransferListener.onUploadFailed(transferSnapshot, ex);
