@@ -280,7 +280,7 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
         );
         TransportService clusterManagerTransportService = internalCluster().getInstance(
             TransportService.class,
-            internalCluster().getClusterManagerName()
+            internalCluster().getClusterManagerName(activeNode)
         );
         MockTransportService decommissionedNodeTransportService = (MockTransportService) internalCluster().getInstance(
             TransportService.class,
