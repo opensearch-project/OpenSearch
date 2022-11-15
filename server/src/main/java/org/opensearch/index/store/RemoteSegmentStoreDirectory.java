@@ -295,7 +295,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
 
     public void copyFrom(Directory from, String src, String dest, IOContext context, boolean override) throws IOException {
         String remoteFilename;
-        if(override && segmentsUploadedToRemoteStore.containsKey(dest)) {
+        if (override && segmentsUploadedToRemoteStore.containsKey(dest)) {
             remoteFilename = segmentsUploadedToRemoteStore.get(dest).uploadedFilename;
         } else {
             remoteFilename = getNewRemoteSegmentFilename(dest);

@@ -70,7 +70,6 @@ import org.opensearch.repositories.Repository;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -78,7 +77,6 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.opensearch.common.unit.TimeValue.timeValueMillis;
-import static org.opensearch.index.seqno.SequenceNumbers.LOCAL_CHECKPOINT_KEY;
 
 /**
  * This package private utility class encapsulates the logic to recover an index shard from either an existing index on
@@ -469,7 +467,7 @@ final class StoreRecovery {
             String segmentInfosSnapshotFilename = null;
             for (String file : remoteDirectory.listAll()) {
                 storeDirectory.copyFrom(remoteDirectory, file, file, IOContext.DEFAULT);
-                if(file.startsWith("segment_infos_snapshot_filename")) {
+                if (file.startsWith("segment_infos_snapshot_filename")) {
                     segmentInfosSnapshotFilename = file;
                 }
             }
@@ -480,9 +478,11 @@ final class StoreRecovery {
                 Integer.parseInt(segmentInfosSnapshotFilename.split("__")[1])
             );
 
-            store.commitSegmentInfos(infos_snapshot,
+            store.commitSegmentInfos(
+                infos_snapshot,
                 Long.parseLong(segmentInfosSnapshotFilename.split("__")[2]),
-                Long.parseLong(segmentInfosSnapshotFilename.split("__")[2]));
+                Long.parseLong(segmentInfosSnapshotFilename.split("__")[2])
+            );
 
             // This creates empty trans-log for now
             // ToDo: Add code to restore from remote trans-log

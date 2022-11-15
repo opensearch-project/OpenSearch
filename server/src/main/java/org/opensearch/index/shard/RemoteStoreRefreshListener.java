@@ -20,13 +20,11 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.opensearch.common.UUIDs;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 
 import java.io.IOException;
-import java.nio.file.NoSuchFileException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -140,7 +138,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                             logger.warn("Exception while reading SegmentInfosSnapshot", e);
                         } finally {
                             try {
-                                if(segment_info_snapshot_filename != null) {
+                                if (segment_info_snapshot_filename != null) {
                                     storeDirectory.deleteFile(segment_info_snapshot_filename);
                                 }
                             } catch (IOException e) {
@@ -162,11 +160,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
     String uploadSegmentInfosSnapshot(String latestSegmentsNFilename, SegmentInfos segmentInfosSnapshot) throws IOException {
         long localCheckpoint = indexShard.getEngine().getProcessedLocalCheckpoint();
         String commitGeneration = latestSegmentsNFilename.substring("segments_".length());
-        String segment_info_snapshot_filename = SEGMENT_INFO_SNAPSHOT_FILENAME +
-            "__" +
-            commitGeneration +
-            "__" +
-            localCheckpoint;
+        String segment_info_snapshot_filename = SEGMENT_INFO_SNAPSHOT_FILENAME + "__" + commitGeneration + "__" + localCheckpoint;
         IndexOutput indexOutput = storeDirectory.createOutput(segment_info_snapshot_filename, IOContext.DEFAULT);
         segmentInfosSnapshot.write(indexOutput);
         indexOutput.close();
