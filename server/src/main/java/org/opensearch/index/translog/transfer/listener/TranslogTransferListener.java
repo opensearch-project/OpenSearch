@@ -22,7 +22,7 @@ public interface TranslogTransferListener {
     /**
      * Invoked when the transfer of {@link TransferSnapshot} succeeds
      * @param transferSnapshot the transfer snapshot
-     * @throws IOException
+     * @throws IOException the exception during the transfer of data
      */
     void onUploadComplete(TransferSnapshot transferSnapshot) throws IOException;
 
@@ -30,7 +30,7 @@ public interface TranslogTransferListener {
      * Invoked when the transfer of {@link TransferSnapshot} fails
      * @param transferSnapshot the transfer snapshot
      * @param ex the exception while processing the {@link TransferSnapshot}
-     * @throws IOException
+     * @throws IOException the exception during the transfer of data
      */
     void onUploadFailed(TransferSnapshot transferSnapshot, Exception ex) throws IOException;
 }

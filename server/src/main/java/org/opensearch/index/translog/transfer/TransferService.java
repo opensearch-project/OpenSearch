@@ -36,7 +36,7 @@ public interface TransferService {
      * Uploads the {@link TransferFileSnapshot} blob
      * @param fileSnapshot the file snapshot to upload
      * @param remotePath the remote path where upload should be made
-     * @throws IOException
+     * @throws IOException the exception while transferring the data
      */
     void uploadBlob(final TransferFileSnapshot fileSnapshot, Iterable<String> remotePath) throws IOException;
 
