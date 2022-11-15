@@ -12,12 +12,15 @@ import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.delete.ClusterDeleteWeightedRoutingResponse;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.get.ClusterGetWeightedRoutingResponse;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingResponse;
+import org.opensearch.cluster.ClusterState;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Future;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -347,5 +350,64 @@ public class WeightedRoutingIT extends OpenSearchIntegTestCase {
         ClusterDeleteWeightedRoutingResponse deleteResponse = client().admin().cluster().prepareDeleteWeightedRouting().get();
         assertTrue(deleteResponse.isAcknowledged());
         assertNull(internalCluster().clusterService().state().metadata().weightedRoutingMetadata());
+    }
+
+    public void testPutWeightedRoutingWithVersioning() {
+        Settings commonSettings = Settings.builder()
+            .put("cluster.routing.allocation.awareness.attributes", "zone")
+            .put("cluster.routing.allocation.awareness.force.zone.values", "a,b,c")
+            .build();
+
+        logger.info("--> starting 6 nodes on different zones");
+        int nodeCountPerAZ = 2;
+
+        logger.info("--> starting a dedicated cluster manager node");
+        internalCluster().startClusterManagerOnlyNode(Settings.builder().put(commonSettings).build());
+
+        logger.info("--> starting 1 nodes on zones 'a' & 'b' & 'c'");
+        List<String> nodes_in_zone_a = internalCluster().startDataOnlyNodes(
+            nodeCountPerAZ,
+            Settings.builder().put(commonSettings).put("node.attr.zone", "a").build()
+        );
+        List<String> nodes_in_zone_b = internalCluster().startDataOnlyNodes(
+            nodeCountPerAZ,
+            Settings.builder().put(commonSettings).put("node.attr.zone", "b").build()
+        );
+        List<String> nodes_in_zone_c = internalCluster().startDataOnlyNodes(
+            nodeCountPerAZ,
+            Settings.builder().put(commonSettings).put("node.attr.zone", "c").build()
+        );
+
+        logger.info("--> waiting for nodes to form a cluster");
+        ClusterHealthResponse health = client().admin().cluster().prepareHealth().setWaitForNodes("7").execute().actionGet();
+        assertThat(health.isTimedOut(), equalTo(false));
+
+        ensureGreen();
+
+        logger.info("--> setting shard routing weights for weighted round robin");
+
+        Future<ClusterPutWeightedRoutingResponse> response[] = new Future[50];
+        for (int i = 0; i < 50; i++) {
+            Map<String, Double> weights = new HashMap<>();
+            weights.put("a", 1.0);
+            weights.put("b", 2.0);
+            double weightc = (double) i;
+            weights.put("c", weightc);
+            WeightedRouting weightedRouting = new WeightedRouting("zone", weights);
+            response[i] = client().admin().cluster().prepareWeightedRouting().setWeightedRouting(weightedRouting).setVersion(0).execute();
+        }
+
+        for (int i = 0; i < 50; i++) {
+            try {
+                ClusterPutWeightedRoutingResponse weightedRoutingResponse = response[i].get();
+                logger.info("response from request -" + i);
+                logger.info(weightedRoutingResponse.isAcknowledged());
+            } catch (Exception t) {
+                logger.info("Exception is hit");
+            }
+        }
+
+        ClusterState stateafter = internalCluster().clusterService().state();
+
     }
 }
