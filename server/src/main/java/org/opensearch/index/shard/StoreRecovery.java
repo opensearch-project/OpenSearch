@@ -466,28 +466,23 @@ final class StoreRecovery {
             for (String file : storeDirectory.listAll()) {
                 storeDirectory.deleteFile(file);
             }
-            String[] remoteFiles = remoteDirectory.listAll();
             String segmentInfosSnapshotFilename = null;
-            String segmentsNFileName = null;
-            for (String file : remoteFiles) {
+            for (String file : remoteDirectory.listAll()) {
                 storeDirectory.copyFrom(remoteDirectory, file, file, IOContext.DEFAULT);
                 if(file.startsWith("segment_infos_snapshot_filename")) {
                     segmentInfosSnapshotFilename = file;
-                }
-                if(file.startsWith("segments_")) {
-                    segmentsNFileName = file;
                 }
             }
 
             SegmentInfos infos_snapshot = SegmentInfos.readCommit(
                 store.directory(),
                 new BufferedChecksumIndexInput(storeDirectory.openInput(segmentInfosSnapshotFilename, IOContext.DEFAULT)),
-                Integer.parseInt(segmentsNFileName.substring("segments_".length()))
+                Integer.parseInt(segmentInfosSnapshotFilename.split("__")[1])
             );
 
             store.commitSegmentInfos(infos_snapshot,
                 Long.parseLong(segmentInfosSnapshotFilename.split("__")[2]),
-                Long.parseLong(segmentInfosSnapshotFilename.split("__")[1]));
+                Long.parseLong(segmentInfosSnapshotFilename.split("__")[2]));
 
             // This creates empty trans-log for now
             // ToDo: Add code to restore from remote trans-log

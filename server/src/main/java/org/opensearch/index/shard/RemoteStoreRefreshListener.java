@@ -120,21 +120,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
 
                                 boolean uploadStatus = uploadNewSegments(refreshedLocalFiles);
                                 if (uploadStatus) {
-                                    long localCheckpoint_key = indexShard.getEngine().getProcessedLocalCheckpoint();
-                                    //long max_sequence_number = indexShard.getEngine().getMaxSeqNoOfUpdatesOrDeletes();
-                                    long max_sequence_number = indexShard.getEngine().getProcessedLocalCheckpoint();
-                                    segment_info_snapshot_filename = SEGMENT_INFO_SNAPSHOT_FILENAME +
-                                        "_" +
-                                        latestSegmentInfos.get().substring("segments_".length()) +
-                                        "__" +
-                                        localCheckpoint_key +
-                                        "__" +
-                                        max_sequence_number;
-                                    IndexOutput indexOutput = storeDirectory.createOutput(segment_info_snapshot_filename, IOContext.DEFAULT);
-                                    segmentInfos.write(indexOutput);
-                                    indexOutput.close();
-                                    storeDirectory.sync(Collections.singleton(segment_info_snapshot_filename));
-                                    remoteDirectory.copyFrom(storeDirectory, segment_info_snapshot_filename, segment_info_snapshot_filename, IOContext.DEFAULT, true);
+                                    segment_info_snapshot_filename = uploadSegmentInfosSnapshot(latestSegmentInfos.get(), segmentInfos);
                                     refreshedLocalFiles.add(segment_info_snapshot_filename);
 
                                     remoteDirectory.uploadMetadata(
@@ -171,6 +157,22 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                 logger.error("Exception in RemoteStoreRefreshListener.afterRefresh()", t);
             }
         }
+    }
+
+    String uploadSegmentInfosSnapshot(String latestSegmentsNFilename, SegmentInfos segmentInfosSnapshot) throws IOException {
+        long localCheckpoint = indexShard.getEngine().getProcessedLocalCheckpoint();
+        String commitGeneration = latestSegmentsNFilename.substring("segments_".length());
+        String segment_info_snapshot_filename = SEGMENT_INFO_SNAPSHOT_FILENAME +
+            "__" +
+            commitGeneration +
+            "__" +
+            localCheckpoint;
+        IndexOutput indexOutput = storeDirectory.createOutput(segment_info_snapshot_filename, IOContext.DEFAULT);
+        segmentInfosSnapshot.write(indexOutput);
+        indexOutput.close();
+        storeDirectory.sync(Collections.singleton(segment_info_snapshot_filename));
+        remoteDirectory.copyFrom(storeDirectory, segment_info_snapshot_filename, segment_info_snapshot_filename, IOContext.DEFAULT, true);
+        return segment_info_snapshot_filename;
     }
 
     // Visible for testing
