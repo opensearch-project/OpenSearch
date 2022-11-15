@@ -472,7 +472,7 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
         // assert that no node present in Voting Config Exclusion
         assertEquals(clusterState.metadata().coordinationMetadata().getVotingConfigExclusions().size(), 0);
 
-        String currentClusterManager = internalCluster().getClusterManagerName();
+        String currentClusterManager = internalCluster().getClusterManagerName(activeNode);
         assertNotNull(currentClusterManager);
         if (originalClusterManagerDecommission) {
             // assert that cluster manager switched during the test
