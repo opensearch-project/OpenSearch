@@ -317,7 +317,7 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
             client(activeNode).threadPool().getThreadContext()
         );
         CountDownLatch expectedStateLatch = new CountDownLatch(1);
-        Predicate<ClusterState> expectedPredicate = clusterState -> {
+        Predicate<ClusterState> expectedClusterStatePredicate = clusterState -> {
             if (clusterState.metadata().decommissionAttributeMetadata() != null) return false;
             if (clusterState.metadata().coordinationMetadata().getVotingConfigExclusions().isEmpty() == false) return false;
             if (clusterState.nodes().getNodes().size() != 6) return false;
@@ -325,8 +325,8 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
         };
 
         ClusterState currentState = activeNodeClusterService.state();
-        if (currentState.coordinationMetadata().getLastCommittedConfiguration().getNodeIds().size() == 3) {
-            logger.info("config restored");
+        if (expectedClusterStatePredicate.test(currentState)) {
+            logger.info("cluster restored");
             expectedStateLatch.countDown();
         } else {
             clusterStateObserver.waitForNextChange(new ClusterStateObserver.Listener() {
@@ -345,7 +345,7 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
                 public void onTimeout(TimeValue timeout) {
                     throw new AssertionError("unexpected timeout");
                 }
-            }, expectedPredicate);
+            }, expectedClusterStatePredicate);
         }
         // if the below condition is passed, then we are sure that config size is restored
         assertTrue(expectedStateLatch.await(180, TimeUnit.SECONDS));
