@@ -94,7 +94,9 @@ jobs:
               ### Gradle Check (Jenkins) Run Completed with:
               * **RESULT:** ${{ env.result }} :x:
               * **FAILURES:**
+              ```
               ${{ env.test_failures }}
+              ```
               * **URL:** ${{ env.workflow_url }}
               * **CommitID:** ${{ env.pr_from_sha }}
               Please examine the workflow log, locate, and copy-paste the failure below, then iterate to green.
