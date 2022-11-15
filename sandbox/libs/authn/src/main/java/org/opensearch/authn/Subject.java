@@ -20,7 +20,11 @@ public interface Subject {
     Principal getPrincipal();
 
     /**
-     * Logs the user in
+     * Authentication check via the token
+     * throws UnsupportedAuthenticationMethod
+     * throws InvalidAuthenticationToken
+     * throws SubjectNotFound
+     * throws SubjectDisabled
      */
-    void login(AuthenticationToken authenticationToken);
+    void login(final AuthenticationToken token);
 }
