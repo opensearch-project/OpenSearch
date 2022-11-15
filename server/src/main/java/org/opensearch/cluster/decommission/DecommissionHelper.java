@@ -25,6 +25,8 @@ import static org.opensearch.action.admin.cluster.configuration.VotingConfigExcl
 
 /**
  * Static helper utilities to execute decommission
+ *
+ * @opensearch.internal
  */
 public class DecommissionHelper {
 

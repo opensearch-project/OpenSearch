@@ -45,7 +45,14 @@ public class VotingConfigExclusionsHelper {
         return newState;
     }
 
-    // throws IAE if no nodes matched or maximum exceeded
+    /**
+     * Resolves the exclusion from the request and throws IAE if no nodes matched or maximum exceeded
+     *
+     * @param request AddVotingConfigExclusionsRequest request
+     * @param state current cluster state
+     * @param maxVotingConfigExclusions max number of exclusion acceptable
+     * @return set of VotingConfigExclusion
+     */
     public static Set<VotingConfigExclusion> resolveVotingConfigExclusionsAndCheckMaximum(
         AddVotingConfigExclusionsRequest request,
         ClusterState state,
@@ -58,6 +65,12 @@ public class VotingConfigExclusionsHelper {
         );
     }
 
+    /**
+     * Clears Voting config exclusion from the given cluster state
+     *
+     * @param currentState current cluster state
+     * @return newly formed cluster state after clearing voting config exclusions
+     */
     public static ClusterState clearExclusionsAndGetState(ClusterState currentState) {
         final CoordinationMetadata newCoordinationMetadata = CoordinationMetadata.builder(currentState.coordinationMetadata())
             .clearVotingConfigExclusions()
