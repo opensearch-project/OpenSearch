@@ -13,6 +13,7 @@ import java.util.Objects;
 
 import org.opensearch.authn.AuthenticationToken;
 import org.opensearch.authn.Subject;
+import org.opensearch.authn.jwt.BadCredentialsException;
 import org.opensearch.identity.AuthenticationTokenHandler;
 
 /**
@@ -56,7 +57,7 @@ public class InternalSubject implements Subject {
     /**
      * Logs the user in via authenticating the user against current Shiro realm
      */
-    public void login(AuthenticationToken authenticationToken) {
+    public void login(AuthenticationToken authenticationToken) throws BadCredentialsException {
         org.apache.shiro.authc.AuthenticationToken authToken = AuthenticationTokenHandler.extractShiroAuthToken(authenticationToken);
         // Login via shiro realm.
         shiroSubject.login(authToken);
