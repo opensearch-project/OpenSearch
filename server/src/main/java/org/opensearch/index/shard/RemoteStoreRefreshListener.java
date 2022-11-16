@@ -29,6 +29,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -46,7 +47,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
     static final Set<String> EXCLUDE_FILES = Set.of("write.lock");
     // Visible for testing
     static final int LAST_N_METADATA_FILES_TO_KEEP = 10;
-    static final String SEGMENT_INFO_SNAPSHOT_FILENAME = "segment_infos_snapshot_filename";
+    public static final String SEGMENT_INFO_SNAPSHOT_FILENAME = "segment_infos_snapshot_filename";
 
     private final IndexShard indexShard;
     private final Directory storeDirectory;
@@ -111,6 +112,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                                 .max(Comparator.comparingLong(IndexFileNames::parseGeneration));
 
                             if (latestSegmentInfos.isPresent()) {
+                                Set<String> segmentFilesFromSnapshot = new HashSet<>(refreshedLocalFiles);
                                 refreshedLocalFiles.addAll(SegmentInfos.readCommit(storeDirectory, latestSegmentInfos.get()).files(true));
                                 segmentInfosFiles.stream()
                                     .filter(file -> !file.equals(latestSegmentInfos.get()))
@@ -118,8 +120,10 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
 
                                 boolean uploadStatus = uploadNewSegments(refreshedLocalFiles);
                                 if (uploadStatus) {
-                                    segment_info_snapshot_filename = uploadSegmentInfosSnapshot(latestSegmentInfos.get(), segmentInfos);
-                                    refreshedLocalFiles.add(segment_info_snapshot_filename);
+                                    if(segmentFilesFromSnapshot.equals(new HashSet<>(refreshedLocalFiles))) {
+                                        segment_info_snapshot_filename = uploadSegmentInfosSnapshot(latestSegmentInfos.get(), segmentInfos);
+                                        refreshedLocalFiles.add(segment_info_snapshot_filename);
+                                    }
 
                                     remoteDirectory.uploadMetadata(
                                         refreshedLocalFiles,
@@ -159,7 +163,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
 
     String uploadSegmentInfosSnapshot(String latestSegmentsNFilename, SegmentInfos segmentInfosSnapshot) throws IOException {
         long localCheckpoint = indexShard.getEngine().getProcessedLocalCheckpoint();
-        String commitGeneration = latestSegmentsNFilename.substring("segments_".length());
+        String commitGeneration = latestSegmentsNFilename.substring((IndexFileNames.SEGMENTS + "_").length());
         String segment_info_snapshot_filename = SEGMENT_INFO_SNAPSHOT_FILENAME + "__" + commitGeneration + "__" + localCheckpoint;
         IndexOutput indexOutput = storeDirectory.createOutput(segment_info_snapshot_filename, IOContext.DEFAULT);
         segmentInfosSnapshot.write(indexOutput);

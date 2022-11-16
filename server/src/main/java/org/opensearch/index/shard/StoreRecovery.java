@@ -77,6 +77,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.opensearch.common.unit.TimeValue.timeValueMillis;
+import static org.opensearch.index.shard.RemoteStoreRefreshListener.SEGMENT_INFO_SNAPSHOT_FILENAME;
 
 /**
  * This package private utility class encapsulates the logic to recover an index shard from either an existing index on
@@ -467,22 +468,24 @@ final class StoreRecovery {
             String segmentInfosSnapshotFilename = null;
             for (String file : remoteDirectory.listAll()) {
                 storeDirectory.copyFrom(remoteDirectory, file, file, IOContext.DEFAULT);
-                if (file.startsWith("segment_infos_snapshot_filename")) {
+                if (file.startsWith(SEGMENT_INFO_SNAPSHOT_FILENAME)) {
                     segmentInfosSnapshotFilename = file;
                 }
             }
 
-            SegmentInfos infos_snapshot = SegmentInfos.readCommit(
-                store.directory(),
-                new BufferedChecksumIndexInput(storeDirectory.openInput(segmentInfosSnapshotFilename, IOContext.DEFAULT)),
-                Integer.parseInt(segmentInfosSnapshotFilename.split("__")[1])
-            );
-
-            store.commitSegmentInfos(
-                infos_snapshot,
-                Long.parseLong(segmentInfosSnapshotFilename.split("__")[2]),
-                Long.parseLong(segmentInfosSnapshotFilename.split("__")[2])
-            );
+            if(segmentInfosSnapshotFilename != null) {
+                String[] filenameTokens = segmentInfosSnapshotFilename.split("__");
+                SegmentInfos infos_snapshot = SegmentInfos.readCommit(
+                    store.directory(),
+                    new BufferedChecksumIndexInput(storeDirectory.openInput(segmentInfosSnapshotFilename, IOContext.DEFAULT)),
+                    Integer.parseInt(filenameTokens[1])
+                );
+                store.commitSegmentInfos(
+                    infos_snapshot,
+                    Long.parseLong(filenameTokens[2]),
+                    Long.parseLong(filenameTokens[2])
+                );
+            }
 
             // This creates empty trans-log for now
             // ToDo: Add code to restore from remote trans-log
