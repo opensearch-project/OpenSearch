@@ -34,6 +34,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.rest.RestStatus;
 import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransport;
@@ -140,6 +141,7 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
             public void onFailure(Exception e) {
                 assertTrue(e instanceof DecommissioningFailedException);
                 assertThat(e.getMessage(), Matchers.endsWith("invalid awareness attribute requested for decommissioning"));
+                assertEquals(((DecommissioningFailedException) e).status(), RestStatus.BAD_REQUEST);
                 countDownLatch.countDown();
             }
         };
@@ -167,6 +169,7 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
                             + "Set forced awareness values before to decommission"
                     )
                 );
+                assertEquals(((DecommissioningFailedException) e).status(), RestStatus.BAD_REQUEST);
                 countDownLatch.countDown();
             }
         };
@@ -192,6 +195,7 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
                     e.getMessage(),
                     Matchers.containsString("weight for decommissioned attribute is expected to be [0.0] but found [1.0]")
                 );
+                assertEquals(((DecommissioningFailedException) e).status(), RestStatus.BAD_REQUEST);
                 countDownLatch.countDown();
             }
         };
@@ -217,6 +221,7 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
                         "no weights are set to the attribute. Please set appropriate weights before triggering decommission action"
                     )
                 );
+                assertEquals(((DecommissioningFailedException) e).status(), RestStatus.BAD_REQUEST);
                 countDownLatch.countDown();
             }
         };
@@ -254,6 +259,7 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
                 } else {
                     assertThat(e.getMessage(), Matchers.endsWith("is in progress, cannot process this request"));
                 }
+                assertEquals(((DecommissioningFailedException) e).status(), RestStatus.BAD_REQUEST);
                 countDownLatch.countDown();
             }
         };
