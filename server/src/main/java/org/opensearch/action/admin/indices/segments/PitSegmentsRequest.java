@@ -64,7 +64,7 @@ public class PitSegmentsRequest extends BroadcastRequest<PitSegmentsRequest> {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeStringArrayNullable((pitIds == null) ? null : pitIds.toArray(new String[pitIds.size()]));
+        out.writeStringArrayNullable((pitIds == null) ? null : pitIds.toArray(new String[0]));
         out.writeBoolean(verbose);
     }
 

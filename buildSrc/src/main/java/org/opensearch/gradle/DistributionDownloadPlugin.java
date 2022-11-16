@@ -174,7 +174,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
 
         project.getRepositories().exclusiveContent(exclusiveContentRepository -> {
             exclusiveContentRepository.filter(config -> config.includeGroup(group));
-            exclusiveContentRepository.forRepositories(repos.toArray(new IvyArtifactRepository[repos.size()]));
+            exclusiveContentRepository.forRepositories(repos.toArray(new IvyArtifactRepository[0]));
         });
     }
 
