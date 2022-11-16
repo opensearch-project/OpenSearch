@@ -65,6 +65,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix 'org.apache.hc.core5.http.ParseException: Invalid protocol version' under JDK 16+ ([#4827](https://github.com/opensearch-project/OpenSearch/pull/4827))
 - Fixed compression support for h2c protocol ([#4944](https://github.com/opensearch-project/OpenSearch/pull/4944))
 - Add jvm option to allow security manager ([#5194](https://github.com/opensearch-project/OpenSearch/pull/5194))
+- Fix test failing due to too long http line exception ([#5278](https://github.com/opensearch-project/OpenSearch/pull/5278))
+
 ### Security
 
 ## [Unreleased 2.x]
