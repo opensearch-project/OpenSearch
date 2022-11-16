@@ -387,18 +387,19 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
         clusterManagerNameToZone.put(clusterManagerNodes.get(2), "c");
 
         logger.info("--> starting 4 data nodes each on zones 'a' & 'b' & 'c'");
-        List<String> nodes_in_zone_a = internalCluster().startDataOnlyNodes(
+        Map<String, List<String>> zoneToNodesMap = new HashMap<>();
+        zoneToNodesMap.put("a", internalCluster().startDataOnlyNodes(
             dataNodeCountPerAZ,
             Settings.builder().put(commonSettings).put("node.attr.zone", "a").build()
-        );
-        List<String> nodes_in_zone_b = internalCluster().startDataOnlyNodes(
+        ));
+        zoneToNodesMap.put("b",internalCluster().startDataOnlyNodes(
             dataNodeCountPerAZ,
             Settings.builder().put(commonSettings).put("node.attr.zone", "b").build()
-        );
-        List<String> nodes_in_zone_c = internalCluster().startDataOnlyNodes(
+        ));
+        zoneToNodesMap.put("c",internalCluster().startDataOnlyNodes(
             dataNodeCountPerAZ,
             Settings.builder().put(commonSettings).put("node.attr.zone", "c").build()
-        );
+        ));
         ensureStableCluster(15);
         ClusterHealthResponse health = client().admin()
             .cluster()
@@ -425,13 +426,13 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
         String activeNode;
         switch (zoneToDecommission) {
             case "a":
-                activeNode = randomFrom(Stream.concat(nodes_in_zone_b.stream(), nodes_in_zone_c.stream()).collect(Collectors.toList()));
+                activeNode = randomFrom(randomFrom(zoneToNodesMap.get("b")), randomFrom(zoneToNodesMap.get("c")));
                 break;
             case "b":
-                activeNode = randomFrom(Stream.concat(nodes_in_zone_a.stream(), nodes_in_zone_c.stream()).collect(Collectors.toList()));
+                activeNode = randomFrom(randomFrom(zoneToNodesMap.get("a")), randomFrom(zoneToNodesMap.get("c")));
                 break;
             case "c":
-                activeNode = randomFrom(Stream.concat(nodes_in_zone_a.stream(), nodes_in_zone_b.stream()).collect(Collectors.toList()));
+                activeNode = randomFrom(randomFrom(zoneToNodesMap.get("a")), randomFrom(zoneToNodesMap.get("b")));
                 break;
             default:
                 throw new IllegalStateException("unexpected zone decommissioned");
