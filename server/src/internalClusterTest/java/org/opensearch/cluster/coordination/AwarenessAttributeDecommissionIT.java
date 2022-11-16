@@ -61,8 +61,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.opensearch.test.NodeRoles.onlyRole;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoTimeout;
@@ -388,18 +386,27 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
 
         logger.info("--> starting 4 data nodes each on zones 'a' & 'b' & 'c'");
         Map<String, List<String>> zoneToNodesMap = new HashMap<>();
-        zoneToNodesMap.put("a", internalCluster().startDataOnlyNodes(
-            dataNodeCountPerAZ,
-            Settings.builder().put(commonSettings).put("node.attr.zone", "a").build()
-        ));
-        zoneToNodesMap.put("b",internalCluster().startDataOnlyNodes(
-            dataNodeCountPerAZ,
-            Settings.builder().put(commonSettings).put("node.attr.zone", "b").build()
-        ));
-        zoneToNodesMap.put("c",internalCluster().startDataOnlyNodes(
-            dataNodeCountPerAZ,
-            Settings.builder().put(commonSettings).put("node.attr.zone", "c").build()
-        ));
+        zoneToNodesMap.put(
+            "a",
+            internalCluster().startDataOnlyNodes(
+                dataNodeCountPerAZ,
+                Settings.builder().put(commonSettings).put("node.attr.zone", "a").build()
+            )
+        );
+        zoneToNodesMap.put(
+            "b",
+            internalCluster().startDataOnlyNodes(
+                dataNodeCountPerAZ,
+                Settings.builder().put(commonSettings).put("node.attr.zone", "b").build()
+            )
+        );
+        zoneToNodesMap.put(
+            "c",
+            internalCluster().startDataOnlyNodes(
+                dataNodeCountPerAZ,
+                Settings.builder().put(commonSettings).put("node.attr.zone", "c").build()
+            )
+        );
         ensureStableCluster(15);
         ClusterHealthResponse health = client().admin()
             .cluster()
