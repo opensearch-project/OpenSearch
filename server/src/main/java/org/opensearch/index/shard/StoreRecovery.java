@@ -487,7 +487,7 @@ final class StoreRecovery {
                         Integer.parseInt(filenameTokens[1])
                     );
                     store.commitSegmentInfos(infos_snapshot, Long.parseLong(filenameTokens[2]), Long.parseLong(filenameTokens[2]));
-                } catch(IOException e) {
+                } catch (IOException e) {
                     logger.info("Exception while reading {}, falling back to commit level restore", segmentInfosSnapshotFilename);
                 }
             }
