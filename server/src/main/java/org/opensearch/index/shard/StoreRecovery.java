@@ -39,6 +39,7 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.BufferedChecksumIndexInput;
+import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
@@ -473,18 +474,22 @@ final class StoreRecovery {
                 }
             }
 
-            if(segmentInfosSnapshotFilename != null) {
+            if (segmentInfosSnapshotFilename != null) {
                 String[] filenameTokens = segmentInfosSnapshotFilename.split("__");
-                SegmentInfos infos_snapshot = SegmentInfos.readCommit(
-                    store.directory(),
-                    new BufferedChecksumIndexInput(storeDirectory.openInput(segmentInfosSnapshotFilename, IOContext.DEFAULT)),
-                    Integer.parseInt(filenameTokens[1])
-                );
-                store.commitSegmentInfos(
-                    infos_snapshot,
-                    Long.parseLong(filenameTokens[2]),
-                    Long.parseLong(filenameTokens[2])
-                );
+                try (
+                    ChecksumIndexInput indexInput = new BufferedChecksumIndexInput(
+                        storeDirectory.openInput(segmentInfosSnapshotFilename, IOContext.DEFAULT)
+                    )
+                ) {
+                    SegmentInfos infos_snapshot = SegmentInfos.readCommit(
+                        store.directory(),
+                        indexInput,
+                        Integer.parseInt(filenameTokens[1])
+                    );
+                    store.commitSegmentInfos(infos_snapshot, Long.parseLong(filenameTokens[2]), Long.parseLong(filenameTokens[2]));
+                } catch(IOException e) {
+                    logger.info("Exception while reading {}, falling back to commit level restore", segmentInfosSnapshotFilename);
+                }
             }
 
             // This creates empty trans-log for now

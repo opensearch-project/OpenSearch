@@ -93,10 +93,11 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                     }
                     try {
                         String lastCommittedLocalSegmentFileName = SegmentInfos.getLastCommitSegmentsFileName(storeDirectory);
-                        if (!remoteDirectory.containsFile(
-                            lastCommittedLocalSegmentFileName,
-                            getChecksumOfLocalFile(lastCommittedLocalSegmentFileName)
-                        )) {
+                        if (lastCommittedLocalSegmentFileName != null
+                            && !remoteDirectory.containsFile(
+                                lastCommittedLocalSegmentFileName,
+                                getChecksumOfLocalFile(lastCommittedLocalSegmentFileName)
+                            )) {
                             deleteStaleCommits();
                         }
                         String segment_info_snapshot_filename = null;
@@ -120,7 +121,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
 
                                 boolean uploadStatus = uploadNewSegments(refreshedLocalFiles);
                                 if (uploadStatus) {
-                                    if(segmentFilesFromSnapshot.equals(new HashSet<>(refreshedLocalFiles))) {
+                                    if (segmentFilesFromSnapshot.equals(new HashSet<>(refreshedLocalFiles))) {
                                         segment_info_snapshot_filename = uploadSegmentInfosSnapshot(latestSegmentInfos.get(), segmentInfos);
                                         refreshedLocalFiles.add(segment_info_snapshot_filename);
                                     }
