@@ -98,8 +98,8 @@ public final class CustomNormalizerProvider extends AbstractIndexAnalyzerProvide
 
         this.customAnalyzer = new CustomAnalyzer(
             tokenizerFactory,
-            charFiltersList.toArray(new CharFilterFactory[charFiltersList.size()]),
-            tokenFilterList.toArray(new TokenFilterFactory[tokenFilterList.size()])
+            charFiltersList.toArray(new CharFilterFactory[0]),
+            tokenFilterList.toArray(new TokenFilterFactory[0])
         );
     }
 

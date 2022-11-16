@@ -151,7 +151,7 @@ public class UpdateByQueryBasicTests extends ReindexTestCase {
         int slices = randomSlices(1, 10);
         int expectedSlices = expectedSliceStatuses(slices, docs.keySet());
 
-        String[] sourceIndexNames = docs.keySet().toArray(new String[docs.size()]);
+        String[] sourceIndexNames = docs.keySet().toArray(new String[0]);
         BulkByScrollResponse response = updateByQuery().source(sourceIndexNames).refresh(true).setSlices(slices).get();
         assertThat(response, matcher().updated(allDocs.size()).slices(hasSize(expectedSlices)));
 

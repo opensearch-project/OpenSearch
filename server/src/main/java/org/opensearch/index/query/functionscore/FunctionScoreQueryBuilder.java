@@ -602,7 +602,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
 
         FunctionScoreQueryBuilder functionScoreQueryBuilder = new FunctionScoreQueryBuilder(
             query,
-            filterFunctionBuilders.toArray(new FunctionScoreQueryBuilder.FilterFunctionBuilder[filterFunctionBuilders.size()])
+            filterFunctionBuilders.toArray(new FilterFunctionBuilder[0])
         );
         if (combineFunction != null) {
             functionScoreQueryBuilder.boostMode(combineFunction);
