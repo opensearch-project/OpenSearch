@@ -26,10 +26,12 @@ import java.util.function.Consumer;
 
 /**
  * This handler is used when peer recovery target is a remote store enabled replica.
+ *
+ * @opensearch.internal
  */
-public class RemoteStoreReplicaRecoverySourceHandler extends RecoverySourceHandler {
+public class RemoteStorePeerRecoverySourceHandler extends RecoverySourceHandler {
 
-    public RemoteStoreReplicaRecoverySourceHandler(
+    public RemoteStorePeerRecoverySourceHandler(
         IndexShard shard,
         RecoveryTargetHandler recoveryTarget,
         ThreadPool threadPool,
@@ -44,11 +46,8 @@ public class RemoteStoreReplicaRecoverySourceHandler extends RecoverySourceHandl
     @Override
     protected void innerRecoveryToTarget(ActionListener<RecoveryResponse> listener, Consumer<Exception> onFailure) throws IOException {
         // A replica of an index with remote translog does not require the translogs locally and keeps receiving the
-        // updated segments file on refresh, flushes, and merges. We plan to make the existing replication call to
-        // just no-op for primary term validation. Hence, there is essentially no writing to the indexWriter as well
-        // as the translogs locally. In recovery, we will resort to file-based recovery and leave the buffered writes
-        // to lucene (which are yet to be flushed as segments). Subsequent segment replication will take care of syncing
-        // the refreshed segment files to the replica.
+        // updated segments file on refresh, flushes, and merges. In recovery, here, only file-based recovery is performed
+        // and there is no translog replay done.
 
         final StepListener<SendFileResult> sendFileStep = new StepListener<>();
         final StepListener<TimeValue> prepareEngineStep = new StepListener<>();

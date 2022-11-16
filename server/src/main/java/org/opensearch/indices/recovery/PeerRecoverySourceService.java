@@ -324,7 +324,6 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
 
         private final class ShardRecoveryContext {
             final Map<RecoverySourceHandler, RemoteRecoveryTargetHandler> recoveryHandlers = new HashMap<>();
-            private final RecoverySourceHandlerFactory recoverySourceHandlerFactory = new RecoverySourceHandlerFactory();
 
             /**
              * Adds recovery source handler.
@@ -379,7 +378,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                     recoverySettings,
                     throttleTime -> shard.recoveryStats().addThrottleTime(throttleTime)
                 );
-                handler = recoverySourceHandlerFactory.create(shard, recoveryTarget, request, recoverySettings);
+                handler = RecoverySourceHandlerFactory.create(shard, recoveryTarget, request, recoverySettings);
                 return Tuple.tuple(handler, recoveryTarget);
             }
         }

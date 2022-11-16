@@ -36,12 +36,14 @@ import java.io.IOException;
 import java.util.function.Consumer;
 
 /**
- * This handler is used for the peer recovery when there is no remote store available for segments/translogs. TODO -
- * Add more details as this is refactored further.
+ * This handler is used for node-to-node peer recovery when the recovery target is a replica/ or a relocating primary
+ * shard with translog backed by local store.
+ *
+ * @opensearch.internal
  */
-public class DefaultRecoverySourceHandler extends RecoverySourceHandler {
+public class LocalStorePeerRecoverySourceHandler extends RecoverySourceHandler {
 
-    public DefaultRecoverySourceHandler(
+    public LocalStorePeerRecoverySourceHandler(
         IndexShard shard,
         RecoveryTargetHandler recoveryTarget,
         ThreadPool threadPool,

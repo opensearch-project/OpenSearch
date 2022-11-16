@@ -16,7 +16,7 @@ import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.replication.common.ReplicationType;
 
-public class RemoteStoreReplicaRecoverySourceHandlerTests extends OpenSearchIndexLevelReplicationTestCase {
+public class RemoteStorePeerRecoverySourceHandlerTests extends OpenSearchIndexLevelReplicationTestCase {
 
     private static final Settings settings = Settings.builder()
         .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)

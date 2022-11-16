@@ -120,7 +120,7 @@ public abstract class RecoverySourceHandler {
     public static final String PEER_RECOVERY_NAME = "peer-recovery";
     private final SegmentFileTransferHandler transferHandler;
 
-    public RecoverySourceHandler(
+    RecoverySourceHandler(
         IndexShard shard,
         RecoveryTargetHandler recoveryTarget,
         ThreadPool threadPool,

@@ -12,10 +12,12 @@ import org.opensearch.index.shard.IndexShard;
 
 /**
  * Factory that supplies {@link RecoverySourceHandler}.
+ *
+ * @opensearch.internal
  */
 public class RecoverySourceHandlerFactory {
 
-    public RecoverySourceHandler create(
+    public static RecoverySourceHandler create(
         IndexShard shard,
         RecoveryTargetHandler recoveryTarget,
         StartRecoveryRequest request,
@@ -23,7 +25,7 @@ public class RecoverySourceHandlerFactory {
     ) {
         boolean isReplicaRecoveryWithRemoteTranslog = request.isPrimaryRelocation() == false && shard.isRemoteTranslogEnabled();
         if (isReplicaRecoveryWithRemoteTranslog) {
-            return new RemoteStoreReplicaRecoverySourceHandler(
+            return new RemoteStorePeerRecoverySourceHandler(
                 shard,
                 recoveryTarget,
                 shard.getThreadPool(),
@@ -33,7 +35,7 @@ public class RecoverySourceHandlerFactory {
                 recoverySettings.getMaxConcurrentOperations()
             );
         } else {
-            return new DefaultRecoverySourceHandler(
+            return new LocalStorePeerRecoverySourceHandler(
                 shard,
                 recoveryTarget,
                 shard.getThreadPool(),

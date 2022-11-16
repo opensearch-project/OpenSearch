@@ -144,9 +144,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * This covers test cases for {@link RecoverySourceHandler} and {@link DefaultRecoverySourceHandler}.
+ * This covers test cases for {@link RecoverySourceHandler} and {@link LocalStorePeerRecoverySourceHandler}.
  */
-public class DefaultRecoverySourceHandlerTests extends OpenSearchTestCase {
+public class LocalStorePeerRecoverySourceHandlerTests extends OpenSearchTestCase {
     private static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings(
         "index",
         Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT).build()
@@ -218,7 +218,7 @@ public class DefaultRecoverySourceHandlerTests extends OpenSearchTestCase {
                 });
             }
         };
-        RecoverySourceHandler handler = new DefaultRecoverySourceHandler(
+        RecoverySourceHandler handler = new LocalStorePeerRecoverySourceHandler(
             null,
             new AsyncRecoveryTarget(target, recoveryExecutor),
             threadPool,
@@ -299,7 +299,7 @@ public class DefaultRecoverySourceHandlerTests extends OpenSearchTestCase {
                 listener.onResponse(checkpointOnTarget.get());
             }
         };
-        RecoverySourceHandler handler = new DefaultRecoverySourceHandler(
+        RecoverySourceHandler handler = new LocalStorePeerRecoverySourceHandler(
             shard,
             new AsyncRecoveryTarget(recoveryTarget, threadPool.generic()),
             threadPool,
@@ -362,7 +362,7 @@ public class DefaultRecoverySourceHandlerTests extends OpenSearchTestCase {
                 }
             }
         };
-        RecoverySourceHandler handler = new DefaultRecoverySourceHandler(
+        RecoverySourceHandler handler = new LocalStorePeerRecoverySourceHandler(
             shard,
             new AsyncRecoveryTarget(recoveryTarget, threadPool.generic()),
             threadPool,
@@ -436,7 +436,7 @@ public class DefaultRecoverySourceHandlerTests extends OpenSearchTestCase {
         Randomness.shuffle(operations);
         List<Translog.Operation> skipOperations = randomSubsetOf(operations);
         Translog.Snapshot snapshot = newTranslogSnapshot(operations, skipOperations);
-        RecoverySourceHandler handler = new DefaultRecoverySourceHandler(
+        RecoverySourceHandler handler = new LocalStorePeerRecoverySourceHandler(
             shard,
             new AsyncRecoveryTarget(target, recoveryExecutor),
             threadPool,
@@ -555,7 +555,7 @@ public class DefaultRecoverySourceHandlerTests extends OpenSearchTestCase {
             failedEngine.set(true);
             return null;
         }).when(mockShard).failShard(any(), any());
-        RecoverySourceHandler handler = new DefaultRecoverySourceHandler(
+        RecoverySourceHandler handler = new LocalStorePeerRecoverySourceHandler(
             mockShard,
             new AsyncRecoveryTarget(target, recoveryExecutor),
             threadPool,
@@ -630,7 +630,7 @@ public class DefaultRecoverySourceHandlerTests extends OpenSearchTestCase {
             failedEngine.set(true);
             return null;
         }).when(mockShard).failShard(any(), any());
-        RecoverySourceHandler handler = new DefaultRecoverySourceHandler(
+        RecoverySourceHandler handler = new LocalStorePeerRecoverySourceHandler(
             mockShard,
             new AsyncRecoveryTarget(target, recoveryExecutor),
             threadPool,
@@ -683,7 +683,7 @@ public class DefaultRecoverySourceHandlerTests extends OpenSearchTestCase {
         final AtomicBoolean phase1Called = new AtomicBoolean();
         final AtomicBoolean prepareTargetForTranslogCalled = new AtomicBoolean();
         final AtomicBoolean phase2Called = new AtomicBoolean();
-        final RecoverySourceHandler handler = new DefaultRecoverySourceHandler(
+        final RecoverySourceHandler handler = new LocalStorePeerRecoverySourceHandler(
             shard,
             mock(RecoveryTargetHandler.class),
             threadPool,
@@ -795,7 +795,7 @@ public class DefaultRecoverySourceHandlerTests extends OpenSearchTestCase {
         };
         final int maxConcurrentChunks = between(1, 8);
         final int chunkSize = between(1, 32);
-        final RecoverySourceHandler handler = new DefaultRecoverySourceHandler(
+        final RecoverySourceHandler handler = new LocalStorePeerRecoverySourceHandler(
             shard,
             recoveryTarget,
             threadPool,
@@ -868,7 +868,7 @@ public class DefaultRecoverySourceHandlerTests extends OpenSearchTestCase {
         };
         final int maxConcurrentChunks = between(1, 4);
         final int chunkSize = between(1, 16);
-        final RecoverySourceHandler handler = new DefaultRecoverySourceHandler(
+        final RecoverySourceHandler handler = new LocalStorePeerRecoverySourceHandler(
             null,
             new AsyncRecoveryTarget(recoveryTarget, recoveryExecutor),
             threadPool,
@@ -976,7 +976,7 @@ public class DefaultRecoverySourceHandlerTests extends OpenSearchTestCase {
             }
         };
         final StartRecoveryRequest startRecoveryRequest = getStartRecoveryRequest();
-        final RecoverySourceHandler handler = new DefaultRecoverySourceHandler(
+        final RecoverySourceHandler handler = new LocalStorePeerRecoverySourceHandler(
             shard,
             recoveryTarget,
             threadPool,
@@ -1015,7 +1015,7 @@ public class DefaultRecoverySourceHandlerTests extends OpenSearchTestCase {
     public void testVerifySeqNoStatsWhenRecoverWithSyncId() throws Exception {
         IndexShard shard = mock(IndexShard.class);
         when(shard.state()).thenReturn(IndexShardState.STARTED);
-        RecoverySourceHandler handler = new DefaultRecoverySourceHandler(
+        RecoverySourceHandler handler = new LocalStorePeerRecoverySourceHandler(
             shard,
             new TestRecoveryTargetHandler(),
             threadPool,
@@ -1070,7 +1070,7 @@ public class DefaultRecoverySourceHandlerTests extends OpenSearchTestCase {
     }
 
     private Store newStore(Path path, boolean checkIndex) throws IOException {
-        BaseDirectoryWrapper baseDirectoryWrapper = DefaultRecoverySourceHandlerTests.newFSDirectory(path);
+        BaseDirectoryWrapper baseDirectoryWrapper = LocalStorePeerRecoverySourceHandlerTests.newFSDirectory(path);
         if (checkIndex == false) {
             baseDirectoryWrapper.setCheckIndexOnClose(false); // don't run checkindex we might corrupt the index in these tests
         }

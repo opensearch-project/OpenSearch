@@ -875,7 +875,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
         recoverySettings.setChunkSize(new ByteSizeValue(fileChunkSizeInBytes));
-        final RecoverySourceHandler recovery = new RecoverySourceHandlerFactory().create(
+        final RecoverySourceHandler recovery = RecoverySourceHandlerFactory.create(
             primary,
             new AsyncRecoveryTarget(recoveryTarget, threadPool.generic()),
             request,
