@@ -240,7 +240,7 @@ public class InternalRealm extends AuthenticatingRealm {
     }
 
     /**
-     * Generates an Exception message String
+     * Generates an Exception message
      * @param primaryPrincipal to be added to this message
      * @return the exception message string
      */
