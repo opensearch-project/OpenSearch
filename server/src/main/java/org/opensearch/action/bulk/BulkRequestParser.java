@@ -78,6 +78,33 @@ public final class BulkRequestParser {
     private static final ParseField IF_PRIMARY_TERM = new ParseField("if_primary_term");
     private static final ParseField REQUIRE_ALIAS = new ParseField(DocWriteRequest.REQUIRE_ALIAS);
 
+    private enum Action {
+        CREATE,
+        DELETE,
+        INDEX,
+        UPDATE;
+
+        private static final Map<String, Action> VALID_ACTIONS = Map.of(
+            "create",
+            CREATE,
+            "delete",
+            DELETE,
+            "index",
+            INDEX,
+            "update",
+            UPDATE
+        );
+
+        static Action of(String name, int line) {
+            if (name != null && VALID_ACTIONS.containsKey(name)) {
+                return VALID_ACTIONS.get(name);
+            }
+            throw new IllegalArgumentException(
+                "Unknown action line [" + line + "], expected one of [create, delete, index, update]" + " but found [" + name + "]"
+            );
+        }
+    }
+
     private static int findNextMarker(byte marker, int from, BytesReference data) {
         final int res = data.indexOf(marker, from);
         if (res != -1) {
@@ -176,7 +203,7 @@ public final class BulkRequestParser {
                             + "]"
                     );
                 }
-                String action = parser.currentName();
+                Action action = Action.of(parser.currentName(), line);
 
                 String index = defaultIndex;
                 String id = null;
@@ -272,7 +299,7 @@ public final class BulkRequestParser {
                     );
                 }
 
-                if ("delete".equals(action)) {
+                if (action == Action.DELETE) {
                     deleteRequestConsumer.accept(
                         new DeleteRequest(index).id(id)
                             .routing(routing)
@@ -290,7 +317,7 @@ public final class BulkRequestParser {
 
                     // we use internalAdd so we don't fork here, this allows us not to copy over the big byte array to small chunks
                     // of index request.
-                    if ("index".equals(action)) {
+                    if (action == Action.INDEX) {
                         if (opType == null) {
                             indexRequestConsumer.accept(
                                 new IndexRequest(index).id(id)
@@ -317,7 +344,7 @@ public final class BulkRequestParser {
                                     .setRequireAlias(requireAlias)
                             );
                         }
-                    } else if ("create".equals(action)) {
+                    } else if (action == Action.CREATE) {
                         indexRequestConsumer.accept(
                             new IndexRequest(index).id(id)
                                 .routing(routing)
@@ -330,7 +357,7 @@ public final class BulkRequestParser {
                                 .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType)
                                 .setRequireAlias(requireAlias)
                         );
-                    } else if ("update".equals(action)) {
+                    } else if (action == Action.UPDATE) {
                         if (version != Versions.MATCH_ANY || versionType != VersionType.INTERNAL) {
                             throw new IllegalArgumentException(
                                 "Update requests do not support versioning. " + "Please use `if_seq_no` and `if_primary_term` instead"
