@@ -137,7 +137,7 @@ public class HighlightField implements ToXContentFragment, Writeable {
             while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                 values.add(new Text(parser.text()));
             }
-            fragments = values.toArray(new Text[values.size()]);
+            fragments = values.toArray(new Text[0]);
         } else if (token == XContentParser.Token.VALUE_NULL) {
             fragments = null;
         } else {

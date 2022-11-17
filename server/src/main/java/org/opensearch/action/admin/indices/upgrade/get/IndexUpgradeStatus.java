@@ -67,7 +67,7 @@ public class IndexUpgradeStatus implements Iterable<IndexShardUpgradeStatus> {
                 entry.getKey(),
                 new IndexShardUpgradeStatus(
                     entry.getValue().get(0).getShardRouting().shardId(),
-                    entry.getValue().toArray(new ShardUpgradeStatus[entry.getValue().size()])
+                    entry.getValue().toArray(new ShardUpgradeStatus[0])
                 )
             );
         }

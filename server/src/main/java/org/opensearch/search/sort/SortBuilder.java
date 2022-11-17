@@ -182,10 +182,7 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
             }
             if (sort) {
                 return Optional.of(
-                    new SortAndFormats(
-                        new Sort(sortFields.toArray(new SortField[sortFields.size()])),
-                        sortFormats.toArray(new DocValueFormat[sortFormats.size()])
-                    )
+                    new SortAndFormats(new Sort(sortFields.toArray(new SortField[0])), sortFormats.toArray(new DocValueFormat[0]))
                 );
             }
         }

@@ -143,7 +143,10 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class RecoverySourceHandlerTests extends OpenSearchTestCase {
+/**
+ * This covers test cases for {@link RecoverySourceHandler} and {@link LocalStorePeerRecoverySourceHandler}.
+ */
+public class LocalStorePeerRecoverySourceHandlerTests extends OpenSearchTestCase {
     private static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings(
         "index",
         Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT).build()
@@ -215,7 +218,7 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
                 });
             }
         };
-        RecoverySourceHandler handler = new RecoverySourceHandler(
+        RecoverySourceHandler handler = new LocalStorePeerRecoverySourceHandler(
             null,
             new AsyncRecoveryTarget(target, recoveryExecutor),
             threadPool,
@@ -296,7 +299,7 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
                 listener.onResponse(checkpointOnTarget.get());
             }
         };
-        RecoverySourceHandler handler = new RecoverySourceHandler(
+        RecoverySourceHandler handler = new LocalStorePeerRecoverySourceHandler(
             shard,
             new AsyncRecoveryTarget(recoveryTarget, threadPool.generic()),
             threadPool,
@@ -359,7 +362,7 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
                 }
             }
         };
-        RecoverySourceHandler handler = new RecoverySourceHandler(
+        RecoverySourceHandler handler = new LocalStorePeerRecoverySourceHandler(
             shard,
             new AsyncRecoveryTarget(recoveryTarget, threadPool.generic()),
             threadPool,
@@ -433,7 +436,7 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
         Randomness.shuffle(operations);
         List<Translog.Operation> skipOperations = randomSubsetOf(operations);
         Translog.Snapshot snapshot = newTranslogSnapshot(operations, skipOperations);
-        RecoverySourceHandler handler = new RecoverySourceHandler(
+        RecoverySourceHandler handler = new LocalStorePeerRecoverySourceHandler(
             shard,
             new AsyncRecoveryTarget(target, recoveryExecutor),
             threadPool,
@@ -552,7 +555,7 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
             failedEngine.set(true);
             return null;
         }).when(mockShard).failShard(any(), any());
-        RecoverySourceHandler handler = new RecoverySourceHandler(
+        RecoverySourceHandler handler = new LocalStorePeerRecoverySourceHandler(
             mockShard,
             new AsyncRecoveryTarget(target, recoveryExecutor),
             threadPool,
@@ -627,7 +630,7 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
             failedEngine.set(true);
             return null;
         }).when(mockShard).failShard(any(), any());
-        RecoverySourceHandler handler = new RecoverySourceHandler(
+        RecoverySourceHandler handler = new LocalStorePeerRecoverySourceHandler(
             mockShard,
             new AsyncRecoveryTarget(target, recoveryExecutor),
             threadPool,
@@ -680,7 +683,7 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
         final AtomicBoolean phase1Called = new AtomicBoolean();
         final AtomicBoolean prepareTargetForTranslogCalled = new AtomicBoolean();
         final AtomicBoolean phase2Called = new AtomicBoolean();
-        final RecoverySourceHandler handler = new RecoverySourceHandler(
+        final RecoverySourceHandler handler = new LocalStorePeerRecoverySourceHandler(
             shard,
             mock(RecoveryTargetHandler.class),
             threadPool,
@@ -691,9 +694,15 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
         ) {
 
             @Override
-            void phase1(IndexCommit snapshot, long startingSeqNo, IntSupplier translogOps, ActionListener<SendFileResult> listener) {
+            void phase1(
+                IndexCommit snapshot,
+                long startingSeqNo,
+                IntSupplier translogOps,
+                ActionListener<SendFileResult> listener,
+                boolean skipCreateRetentionLeaseStep
+            ) {
                 phase1Called.set(true);
-                super.phase1(snapshot, startingSeqNo, translogOps, listener);
+                super.phase1(snapshot, startingSeqNo, translogOps, listener, skipCreateRetentionLeaseStep);
             }
 
             @Override
@@ -786,7 +795,7 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
         };
         final int maxConcurrentChunks = between(1, 8);
         final int chunkSize = between(1, 32);
-        final RecoverySourceHandler handler = new RecoverySourceHandler(
+        final RecoverySourceHandler handler = new LocalStorePeerRecoverySourceHandler(
             shard,
             recoveryTarget,
             threadPool,
@@ -859,7 +868,7 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
         };
         final int maxConcurrentChunks = between(1, 4);
         final int chunkSize = between(1, 16);
-        final RecoverySourceHandler handler = new RecoverySourceHandler(
+        final RecoverySourceHandler handler = new LocalStorePeerRecoverySourceHandler(
             null,
             new AsyncRecoveryTarget(recoveryTarget, recoveryExecutor),
             threadPool,
@@ -967,7 +976,7 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
             }
         };
         final StartRecoveryRequest startRecoveryRequest = getStartRecoveryRequest();
-        final RecoverySourceHandler handler = new RecoverySourceHandler(
+        final RecoverySourceHandler handler = new LocalStorePeerRecoverySourceHandler(
             shard,
             recoveryTarget,
             threadPool,
@@ -993,7 +1002,7 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
         final StepListener<RecoverySourceHandler.SendFileResult> phase1Listener = new StepListener<>();
         try {
             final CountDownLatch latch = new CountDownLatch(1);
-            handler.phase1(DirectoryReader.listCommits(dir).get(0), 0, () -> 0, new LatchedActionListener<>(phase1Listener, latch));
+            handler.phase1(DirectoryReader.listCommits(dir).get(0), 0, () -> 0, new LatchedActionListener<>(phase1Listener, latch), false);
             latch.await();
             phase1Listener.result();
         } catch (Exception e) {
@@ -1006,7 +1015,7 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
     public void testVerifySeqNoStatsWhenRecoverWithSyncId() throws Exception {
         IndexShard shard = mock(IndexShard.class);
         when(shard.state()).thenReturn(IndexShardState.STARTED);
-        RecoverySourceHandler handler = new RecoverySourceHandler(
+        RecoverySourceHandler handler = new LocalStorePeerRecoverySourceHandler(
             shard,
             new TestRecoveryTargetHandler(),
             threadPool,
@@ -1061,7 +1070,7 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
     }
 
     private Store newStore(Path path, boolean checkIndex) throws IOException {
-        BaseDirectoryWrapper baseDirectoryWrapper = RecoverySourceHandlerTests.newFSDirectory(path);
+        BaseDirectoryWrapper baseDirectoryWrapper = LocalStorePeerRecoverySourceHandlerTests.newFSDirectory(path);
         if (checkIndex == false) {
             baseDirectoryWrapper.setCheckIndexOnClose(false); // don't run checkindex we might corrupt the index in these tests
         }

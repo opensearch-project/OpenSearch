@@ -202,13 +202,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             clusterStatus = new ClusterStateHealth(clusterService.state()).getStatus();
         }
 
-        return new ClusterStatsNodeResponse(
-            nodeInfo.getNode(),
-            clusterStatus,
-            nodeInfo,
-            nodeStats,
-            shardsStats.toArray(new ShardStats[shardsStats.size()])
-        );
+        return new ClusterStatsNodeResponse(nodeInfo.getNode(), clusterStatus, nodeInfo, nodeStats, shardsStats.toArray(new ShardStats[0]));
 
     }
 
