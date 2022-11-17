@@ -57,7 +57,11 @@ public class AuthenticationTokenHandler {
 
         final byte[] decodedAuthHeader = Base64.getDecoder().decode(token.getHeaderValue().substring("Basic".length()).trim());
         String decodedHeader = new String(decodedAuthHeader, StandardCharsets.UTF_8);
+
         final String[] decodedUserNamePassword = decodedHeader.split(":");
+
+        // Malformed AuthHeader strings
+        if (decodedUserNamePassword.length != 2) return null;
 
         logger.info("Logging in as: " + decodedUserNamePassword[0]);
 
