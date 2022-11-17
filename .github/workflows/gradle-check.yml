@@ -81,9 +81,16 @@ jobs:
         if: ${{ github.event_name == 'pull_request_target' && env.result != 'SUCCESS' }}
         run: |
             TEST_FAILURES=`curl -s "${{ env.workflow_url }}/testReport/api/json?tree=suites\[cases\[status,className,name\]\]" | jq -r '.. | objects | select(.status=="FAILED",.status=="REGRESSION") | (.className + "." +  .name)' | uniq -c | sort -n -r | head -n 10`
-            echo "test_failures<<EOF" >> $GITHUB_ENV
-            echo "$TEST_FAILURES" >> $GITHUB_ENV
-            echo "EOF" >> $GITHUB_ENV
+            if [[ "$TEST_FAILURES" != "" ]]
+            then
+              echo "test_failures<<EOF" >> $GITHUB_ENV
+              echo "" >> $GITHUB_ENV
+              echo "* **TEST FAILURES:**" >> $GITHUB_ENV
+              echo '```' >> $GITHUB_ENV
+              echo "$TEST_FAILURES" >> $GITHUB_ENV
+              echo '```' >> $GITHUB_ENV
+              echo "EOF" >> $GITHUB_ENV
+            fi
 
       - name: Create Comment Flaky
         if: ${{ github.event_name == 'pull_request_target' && success() && env.result != 'SUCCESS' }}
@@ -92,12 +99,7 @@ jobs:
           issue-number: ${{ env.pr_number }}
           body: |
             ### Gradle Check (Jenkins) Run Completed with:
-            * **RESULT:** ${{ env.result }} :grey_exclamation:
-            * **FLAKY TEST FAILURES:**
-            The following tests failed but succeeded upon retry:
-            ```
-            ${{ env.test_failures }}
-            ```
+            * **RESULT:** ${{ env.result }} :grey_exclamation: ${{ env.test_failures }}
             * **URL:** ${{ env.workflow_url }}
             * **CommitID:** ${{ env.pr_from_sha }}
             Please examine the workflow log, locate, and copy-paste the failure below, then iterate to green.
