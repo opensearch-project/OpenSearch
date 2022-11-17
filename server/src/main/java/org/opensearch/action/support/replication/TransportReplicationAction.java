@@ -149,6 +149,7 @@ public abstract class TransportReplicationAction<
     private final boolean syncGlobalCheckpointAfterOperation;
     private volatile TimeValue initialRetryBackoffBound;
     private volatile TimeValue retryTimeout;
+    private final boolean forceReplicationIfRemoteTranslogEnabled;
 
     protected TransportReplicationAction(
         Settings settings,
@@ -192,8 +193,74 @@ public abstract class TransportReplicationAction<
         Writeable.Reader<Request> requestReader,
         Writeable.Reader<ReplicaRequest> replicaRequestReader,
         String executor,
+        boolean forceReplicationIfRemoteTranslogEnabled
+    ) {
+        this(
+            settings,
+            actionName,
+            transportService,
+            clusterService,
+            indicesService,
+            threadPool,
+            shardStateAction,
+            actionFilters,
+            requestReader,
+            replicaRequestReader,
+            executor,
+            false,
+            false,
+            forceReplicationIfRemoteTranslogEnabled
+        );
+    }
+
+    protected TransportReplicationAction(
+        Settings settings,
+        String actionName,
+        TransportService transportService,
+        ClusterService clusterService,
+        IndicesService indicesService,
+        ThreadPool threadPool,
+        ShardStateAction shardStateAction,
+        ActionFilters actionFilters,
+        Writeable.Reader<Request> requestReader,
+        Writeable.Reader<ReplicaRequest> replicaRequestReader,
+        String executor,
         boolean syncGlobalCheckpointAfterOperation,
         boolean forceExecutionOnPrimary
+    ) {
+        this(
+            settings,
+            actionName,
+            transportService,
+            clusterService,
+            indicesService,
+            threadPool,
+            shardStateAction,
+            actionFilters,
+            requestReader,
+            replicaRequestReader,
+            executor,
+            syncGlobalCheckpointAfterOperation,
+            forceExecutionOnPrimary,
+            false
+        );
+    }
+
+    protected TransportReplicationAction(
+        Settings settings,
+        String actionName,
+        TransportService transportService,
+        ClusterService clusterService,
+        IndicesService indicesService,
+        ThreadPool threadPool,
+        ShardStateAction shardStateAction,
+        ActionFilters actionFilters,
+        Writeable.Reader<Request> requestReader,
+        Writeable.Reader<ReplicaRequest> replicaRequestReader,
+        String executor,
+        boolean syncGlobalCheckpointAfterOperation,
+        boolean forceExecutionOnPrimary,
+        boolean forceReplicationIfRemoteTranslogEnabled
     ) {
         super(actionName, actionFilters, transportService.getTaskManager());
         this.threadPool = threadPool;
@@ -209,6 +276,7 @@ public abstract class TransportReplicationAction<
         this.initialRetryBackoffBound = REPLICATION_INITIAL_RETRY_BACKOFF_BOUND.get(settings);
         this.retryTimeout = REPLICATION_RETRY_TIMEOUT.get(settings);
         this.forceExecutionOnPrimary = forceExecutionOnPrimary;
+        this.forceReplicationIfRemoteTranslogEnabled = forceReplicationIfRemoteTranslogEnabled;
 
         transportService.registerRequestHandler(actionName, ThreadPool.Names.SAME, requestReader, this::handleOperationRequest);
 
@@ -533,7 +601,8 @@ public abstract class TransportReplicationAction<
                         actionName,
                         primaryRequest.getPrimaryTerm(),
                         initialRetryBackoffBound,
-                        retryTimeout
+                        retryTimeout,
+                        forceReplicationIfRemoteTranslogEnabled
                     ).execute();
                 }
             } catch (Exception e) {

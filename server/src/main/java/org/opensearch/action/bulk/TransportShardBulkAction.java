@@ -143,7 +143,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             EXECUTOR_NAME_FUNCTION,
             false,
             indexingPressureService,
-            systemIndices
+            systemIndices,
+            true
         );
         this.updateHelper = updateHelper;
         this.mappingUpdatedAction = mappingUpdatedAction;

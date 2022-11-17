@@ -100,6 +100,7 @@ public class ReplicationOperation<
     private final TimeValue initialRetryBackoffBound;
     private final TimeValue retryTimeout;
     private final long primaryTerm;
+    private final boolean forceReplicationIfRemoteTranslogEnabled;
 
     // exposed for tests
     private final ActionListener<PrimaryResultT> resultListener;
@@ -120,6 +121,22 @@ public class ReplicationOperation<
         TimeValue initialRetryBackoffBound,
         TimeValue retryTimeout
     ) {
+        this(request, primary, listener, replicas, logger, threadPool, opType, primaryTerm, initialRetryBackoffBound, retryTimeout, false);
+    }
+
+    public ReplicationOperation(
+        Request request,
+        Primary<Request, ReplicaRequest, PrimaryResultT> primary,
+        ActionListener<PrimaryResultT> listener,
+        Replicas<ReplicaRequest> replicas,
+        Logger logger,
+        ThreadPool threadPool,
+        String opType,
+        long primaryTerm,
+        TimeValue initialRetryBackoffBound,
+        TimeValue retryTimeout,
+        boolean forceReplicationIfRemoteTranslogEnabled
+    ) {
         this.replicasProxy = replicas;
         this.primary = primary;
         this.resultListener = listener;
@@ -130,6 +147,7 @@ public class ReplicationOperation<
         this.primaryTerm = primaryTerm;
         this.initialRetryBackoffBound = initialRetryBackoffBound;
         this.retryTimeout = retryTimeout;
+        this.forceReplicationIfRemoteTranslogEnabled = forceReplicationIfRemoteTranslogEnabled;
     }
 
     public void execute() throws Exception {
@@ -230,7 +248,8 @@ public class ReplicationOperation<
         for (final ReplicationAwareShardRouting shardRouting : replicationGroup.getReplicationTargets()) {
             ShardRouting shard = shardRouting.getShardRouting();
             // TODO - Add condition of underlying action being replicated regardless i.e. shard bulk and publish checkpoint action
-            if (!shard.isSameAllocation(primaryRouting) && shardRouting.isReplicated()) {
+            if (!shard.isSameAllocation(primaryRouting)
+                && (shardRouting.isReplicated() || (shardRouting.isRemoteTranslogEnabled() && forceReplicationIfRemoteTranslogEnabled))) {
                 performOnReplica(shard, replicaRequest, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, pendingReplicationActions);
             }
         }

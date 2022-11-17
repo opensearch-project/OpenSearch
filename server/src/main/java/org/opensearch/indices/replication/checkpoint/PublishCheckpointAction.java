@@ -78,7 +78,8 @@ public class PublishCheckpointAction extends TransportReplicationAction<
             actionFilters,
             PublishCheckpointRequest::new,
             PublishCheckpointRequest::new,
-            ThreadPool.Names.REFRESH
+            ThreadPool.Names.REFRESH,
+            true
         );
         this.replicationService = targetService;
     }
