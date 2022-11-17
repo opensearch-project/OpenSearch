@@ -102,8 +102,7 @@ jobs:
             * **RESULT:** ${{ env.result }} :grey_exclamation: ${{ env.test_failures }}
             * **URL:** ${{ env.workflow_url }}
             * **CommitID:** ${{ env.pr_from_sha }}
-            Please examine the workflow log, locate, and copy-paste the failure below, then iterate to green.
-            Is the failure [a flaky test](https://github.com/opensearch-project/OpenSearch/blob/main/DEVELOPER_GUIDE.md#flaky-tests) unrelated to your change?
+            Please review all [flaky tests](https://github.com/opensearch-project/OpenSearch/blob/main/DEVELOPER_GUIDE.md#flaky-tests) that succeeded after retry and create an issue if one does not already exist to track the flaky failure.
 
       - name: Create Comment Failure
         if: ${{ github.event_name == 'pull_request_target' && failure() }}
@@ -112,12 +111,8 @@ jobs:
           issue-number: ${{ env.pr_number }}
           body: |
               ### Gradle Check (Jenkins) Run Completed with:
-              * **RESULT:** ${{ env.result }} :x:
-              * **FAILURES:**
-              ```
-              ${{ env.test_failures }}
-              ```
+              * **RESULT:** ${{ env.result }} :x: ${{ env.test_failures }}
               * **URL:** ${{ env.workflow_url }}
               * **CommitID:** ${{ env.pr_from_sha }}
-              Please examine the workflow log, locate, and copy-paste the failure below, then iterate to green.
+              Please examine the workflow log, locate, and copy-paste the failure(s) below, then iterate to green.
               Is the failure [a flaky test](https://github.com/opensearch-project/OpenSearch/blob/main/DEVELOPER_GUIDE.md#flaky-tests) unrelated to your change?
