@@ -37,7 +37,9 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.util.set.Sets;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -49,22 +51,32 @@ public class ReplicationGroup {
     private final IndexShardRoutingTable routingTable;
     private final Set<String> inSyncAllocationIds;
     private final Set<String> trackedAllocationIds;
+    private final Set<String> localTranslogAllocationIds;
     private final long version;
+    private final boolean remoteTranslogEnabled;
 
     private final Set<String> unavailableInSyncShards; // derived from the other fields
-    private final List<ShardRouting> replicationTargets; // derived from the other fields
+    private final List<ReplicationAwareShardRouting> replicationTargets; // derived from the other fields
     private final List<ShardRouting> skippedShards; // derived from the other fields
 
     public ReplicationGroup(
         IndexShardRoutingTable routingTable,
         Set<String> inSyncAllocationIds,
         Set<String> trackedAllocationIds,
-        long version
+        Set<String> localTranslogAllocationIds,
+        long version,
+        boolean remoteTranslogEnabled
     ) {
+        if (!remoteTranslogEnabled) {
+            assert trackedAllocationIds.equals(localTranslogAllocationIds)
+                : "In absence of remote translog store, all tracked shards must have local translog store";
+        }
         this.routingTable = routingTable;
         this.inSyncAllocationIds = inSyncAllocationIds;
         this.trackedAllocationIds = trackedAllocationIds;
+        this.localTranslogAllocationIds = localTranslogAllocationIds;
         this.version = version;
+        this.remoteTranslogEnabled = remoteTranslogEnabled;
 
         this.unavailableInSyncShards = Sets.difference(inSyncAllocationIds, routingTable.getAllAllocationIds());
         this.replicationTargets = new ArrayList<>();
@@ -75,7 +87,13 @@ public class ReplicationGroup {
                 skippedShards.add(shard);
             } else {
                 if (trackedAllocationIds.contains(shard.allocationId().getId())) {
-                    replicationTargets.add(shard);
+                    replicationTargets.add(
+                        new ReplicationAwareShardRouting(
+                            remoteTranslogEnabled,
+                            localTranslogAllocationIds.contains(shard.allocationId().getId()),
+                            shard
+                        )
+                    );
                 } else {
                     assert inSyncAllocationIds.contains(shard.allocationId().getId()) == false : "in-sync shard copy but not tracked: "
                         + shard;
@@ -84,15 +102,30 @@ public class ReplicationGroup {
                 if (shard.relocating()) {
                     ShardRouting relocationTarget = shard.getTargetRelocatingShard();
                     if (trackedAllocationIds.contains(relocationTarget.allocationId().getId())) {
-                        replicationTargets.add(relocationTarget);
+                        replicationTargets.add(
+                            new ReplicationAwareShardRouting(
+                                remoteTranslogEnabled,
+                                localTranslogAllocationIds.contains(relocationTarget.allocationId().getId()),
+                                relocationTarget
+                            )
+                        );
                     } else {
                         skippedShards.add(relocationTarget);
                         assert inSyncAllocationIds.contains(relocationTarget.allocationId().getId()) == false
-                            : "in-sync shard copy but not tracked: " + shard;
+                            : "without remote translog, in-sync shard copy but not tracked: " + shard;
                     }
                 }
             }
         }
+    }
+
+    public ReplicationGroup(
+        IndexShardRoutingTable routingTable,
+        Set<String> inSyncAllocationIds,
+        Set<String> trackedAllocationIds,
+        long version
+    ) {
+        this(routingTable, inSyncAllocationIds, trackedAllocationIds, Collections.emptySet(), version, false);
     }
 
     public long getVersion() {
@@ -119,9 +152,10 @@ public class ReplicationGroup {
     }
 
     /**
-     * Returns the subset of shards in the routing table that should be replicated to. Includes relocation targets.
+     * Returns the subset of shards in the routing table that should be replicated to basis the remoteTranslogEnabled and
+     * replicated flag. Includes relocation targets.
      */
-    public List<ShardRouting> getReplicationTargets() {
+    public List<ReplicationAwareShardRouting> getReplicationTargets() {
         return replicationTargets;
     }
 
@@ -142,7 +176,9 @@ public class ReplicationGroup {
 
         if (!routingTable.equals(that.routingTable)) return false;
         if (!inSyncAllocationIds.equals(that.inSyncAllocationIds)) return false;
-        return trackedAllocationIds.equals(that.trackedAllocationIds);
+        if (!trackedAllocationIds.equals(that.trackedAllocationIds)) return false;
+        if (!localTranslogAllocationIds.equals(that.localTranslogAllocationIds)) return false;
+        return remoteTranslogEnabled == that.remoteTranslogEnabled;
     }
 
     @Override
@@ -150,6 +186,8 @@ public class ReplicationGroup {
         int result = routingTable.hashCode();
         result = 31 * result + inSyncAllocationIds.hashCode();
         result = 31 * result + trackedAllocationIds.hashCode();
+        result = 31 * result + localTranslogAllocationIds.hashCode();
+        result = 31 * result + Boolean.hashCode(remoteTranslogEnabled);
         return result;
     }
 
@@ -162,7 +200,50 @@ public class ReplicationGroup {
             + inSyncAllocationIds
             + ", trackedAllocationIds="
             + trackedAllocationIds
+            + ", localTranslogAllocationIds="
+            + localTranslogAllocationIds
+            + ", remoteTranslogEnabled="
+            + remoteTranslogEnabled
             + '}';
+    }
+
+    /**
+     * Replication aware ShardRouting used for fanning out replication requests smartly.
+     */
+    public static final class ReplicationAwareShardRouting {
+
+        private final boolean remoteTranslogEnabled;
+
+        private final boolean replicated;
+
+        private final ShardRouting shardRouting;
+
+        public boolean isRemoteTranslogEnabled() {
+            return remoteTranslogEnabled;
+        }
+
+        public boolean isReplicated() {
+            return replicated;
+        }
+
+        public ShardRouting getShardRouting() {
+            return shardRouting;
+        }
+
+        public ReplicationAwareShardRouting(
+            final boolean remoteTranslogEnabled,
+            final boolean replicated,
+            final ShardRouting shardRouting
+        ) {
+            // Either remoteTranslogEnabled or replicated is true. It is not possible that a shard is nether having remoteTranslogEnabled as
+            // true nor replicated as true.
+            assert remoteTranslogEnabled || replicated;
+            // ShardRouting has to be non-null always.
+            assert Objects.nonNull(shardRouting);
+            this.remoteTranslogEnabled = remoteTranslogEnabled;
+            this.replicated = replicated;
+            this.shardRouting = shardRouting;
+        }
     }
 
 }

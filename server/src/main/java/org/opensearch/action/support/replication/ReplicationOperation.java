@@ -52,6 +52,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.ReplicationGroup;
+import org.opensearch.index.shard.ReplicationGroup.ReplicationAwareShardRouting;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.rest.RestStatus;
@@ -226,8 +227,10 @@ public class ReplicationOperation<
 
         final ShardRouting primaryRouting = primary.routingEntry();
 
-        for (final ShardRouting shard : replicationGroup.getReplicationTargets()) {
-            if (shard.isSameAllocation(primaryRouting) == false) {
+        for (final ReplicationAwareShardRouting shardRouting : replicationGroup.getReplicationTargets()) {
+            ShardRouting shard = shardRouting.getShardRouting();
+            // TODO - Add condition of underlying action being replicated regardless i.e. shard bulk and publish checkpoint action
+            if (!shard.isSameAllocation(primaryRouting) && shardRouting.isReplicated()) {
                 performOnReplica(shard, replicaRequest, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, pendingReplicationActions);
             }
         }
