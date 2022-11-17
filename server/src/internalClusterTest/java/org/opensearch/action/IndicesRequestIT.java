@@ -708,7 +708,7 @@ public class IndicesRequestIT extends OpenSearchIntegTestCase {
         while (uniqueIndices.size() < count) {
             uniqueIndices.add(randomFrom(this.indices));
         }
-        return uniqueIndices.toArray(new String[uniqueIndices.size()]);
+        return uniqueIndices.toArray(new String[0]);
     }
 
     private static void assertAllRequestsHaveBeenConsumed() {
