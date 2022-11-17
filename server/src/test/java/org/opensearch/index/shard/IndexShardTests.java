@@ -2736,7 +2736,15 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(target);
     }
 
-    public void testRestoreShardFromRemoteStore() throws IOException {
+    public void testRefreshLevelRestoreShardFromRemoteStore() throws IOException {
+        testRestoreShardFromRemoteStore(false);
+    }
+
+    public void testCommitLevelRestoreShardFromRemoteStore() throws IOException {
+        testRestoreShardFromRemoteStore(true);
+    }
+
+    public void testRestoreShardFromRemoteStore(boolean performFlush) throws IOException {
         IndexShard target = newStartedShard(
             true,
             Settings.builder()
@@ -2750,7 +2758,9 @@ public class IndexShardTests extends IndexShardTestCase {
         indexDoc(target, "_doc", "2");
         target.refresh("test");
         assertDocs(target, "1", "2");
-        flushShard(target);
+        if (performFlush) {
+            flushShard(target);
+        }
 
         ShardRouting routing = ShardRoutingHelper.initWithSameId(
             target.routingEntry(),
