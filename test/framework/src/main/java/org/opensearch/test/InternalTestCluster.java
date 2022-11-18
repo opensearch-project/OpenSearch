@@ -1743,7 +1743,7 @@ public final class InternalTestCluster extends TestCluster {
         for (HttpServerTransport httpServerTransport : getInstances(HttpServerTransport.class)) {
             addresses.add(httpServerTransport.boundAddress().publishAddress().address());
         }
-        return addresses.toArray(new InetSocketAddress[addresses.size()]);
+        return addresses.toArray(new InetSocketAddress[0]);
     }
 
     /**

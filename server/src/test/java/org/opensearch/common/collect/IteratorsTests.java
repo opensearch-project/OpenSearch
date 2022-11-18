@@ -104,7 +104,7 @@ public class IteratorsTests extends OpenSearchTestCase {
             }
             iterators[i] = theseValues.iterator();
         }
-        assertContainsInOrder(Iterators.concat(iterators), values.toArray(new Integer[values.size()]));
+        assertContainsInOrder(Iterators.concat(iterators), values.toArray(new Integer[0]));
     }
 
     public void testTwoEntries() {
