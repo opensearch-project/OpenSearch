@@ -95,7 +95,7 @@ public final class BulkRequestParser {
             UPDATE
         );
 
-        static Action of(String name, int line) {
+        static Action parse(String name, int line) {
             if (name != null && VALID_ACTIONS.containsKey(name)) {
                 return VALID_ACTIONS.get(name);
             }
@@ -203,7 +203,7 @@ public final class BulkRequestParser {
                             + "]"
                     );
                 }
-                Action action = Action.of(parser.currentName(), line);
+                Action action = Action.parse(parser.currentName(), line);
 
                 String index = defaultIndex;
                 String id = null;
