@@ -28,14 +28,14 @@ import static org.opensearch.test.NodeRoles.onlyRole;
 public class AwarenessAttributeDecommissionRestIT extends HttpSmokeTestCase{
 
     public void testRestStatusForDecommissioningFailedException() {
-            internalCluster().startNodes(3);
-            Request request = new Request("PUT", "/_cluster/decommission/awareness/zone/zone-1");
-            ResponseException exception = expectThrows(
-                ResponseException.class,
-                () -> getRestClient().performRequest(request)
-            );
-            assertEquals(exception.getResponse().getStatusLine().getStatusCode(), RestStatus.BAD_REQUEST.getStatus());
-            assertTrue(exception.getMessage().contains("invalid awareness attribute requested for decommissioning"));
+        internalCluster().startNodes(3);
+        Request request = new Request("PUT", "/_cluster/decommission/awareness/zone/zone-1");
+        ResponseException exception = expectThrows(
+            ResponseException.class,
+            () -> getRestClient().performRequest(request)
+        );
+        assertEquals(exception.getResponse().getStatusLine().getStatusCode(), RestStatus.BAD_REQUEST.getStatus());
+        assertTrue(exception.getMessage().contains("invalid awareness attribute requested for decommissioning"));
     }
 
     public void testRestStatusForAcknowledgedDecommission() throws IOException {
