@@ -4,6 +4,7 @@
 ### Dependencies
 - Bumps `commons-compress` from 1.21 to 1.22
 - Bumps `jcodings` from 1.0.57 to 1.0.58
+- Bumps `google-http-client-jackson2` from 1.35.0 to 1.42.3
 
 All notable changes to this project are documented in this file.
 
