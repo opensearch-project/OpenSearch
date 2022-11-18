@@ -4,7 +4,7 @@
  */
 
 opensearchplugin {
-    description 'OpenSearch Job Scheduler Plugin'
+    description 'OpenSearch Job Scheduler plugin'
     classname 'org.opensearch.jobscheduler.JobSchedulerPlugin'
 }
 
