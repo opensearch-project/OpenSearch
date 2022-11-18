@@ -33,8 +33,8 @@ public class User {
     }
 
     @JsonProperty(value = "primary_principal")
-    public void setPrimaryPrincipal(StringPrincipal principal) {
-        this.primaryPrincipal = principal;
+    public void setPrimaryPrincipal(StringPrincipal primaryPrincipal) {
+        this.primaryPrincipal = primaryPrincipal;
     }
 
     @JsonProperty(value = "hash")
