@@ -17,15 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Apply reproducible builds configuration for OpenSearch plugins through gradle plugin ([#4746](https://github.com/opensearch-project/OpenSearch/pull/4746))
 - Add project health badges to the README.md ([#4843](https://github.com/opensearch-project/OpenSearch/pull/4843))
 - [Test] Add IAE test for deprecated edgeNGram analyzer name ([#5040](https://github.com/opensearch-project/OpenSearch/pull/5040))
-- Add Cluster manager task throttling framework. Cluster manager node will throttle task submission based on throttling thresholds.
-  This throttling will be at task type level. Data nodes will perform retries on these throttling exception with exponential delay. (PR: [#4986](https://github.com/opensearch-project/OpenSearch/pull/4986)) ( Issue : [#479](https://github.com/opensearch-project/OpenSearch/issues/479))
-    - Throttling Exception / New Backoff policy([#3527](https://github.com/opensearch-project/OpenSearch/pull/3527))
-    - Cluster Manager node side change([#3882](https://github.com/opensearch-project/OpenSearch/pull/3882))
-    - Data node side change([#4204](https://github.com/opensearch-project/OpenSearch/pull/4204))
-    - on-boarding of tasks([#4542](https://github.com/opensearch-project/OpenSearch/pull/4542))
-    - Integs ([4588](https://github.com/opensearch-project/OpenSearch/pull/4588))
 - Prevent deletion of snapshots that are backing searchable snapshot indexes ([#5069](https://github.com/opensearch-project/OpenSearch/pull/5069))
-- Integration tests for searchable snapshots ([#5048](https://github.com/opensearch-project/OpenSearch/pull/5048))
 - Allow mmap to use new JDK-19 preview APIs in Apache Lucene 9.4+ ([#5151](https://github.com/opensearch-project/OpenSearch/pull/5151))
 - Add feature flag for extensions ([#5211](https://github.com/opensearch-project/OpenSearch/pull/5211))
 
