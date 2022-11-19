@@ -38,7 +38,7 @@ dependencies {
     exclude module: 'jettison'
   }
   api "org.codehaus.jettison:jettison:${versions.jettison}"
-  api "org.apache.commons:commons-compress:1.21"
+  api "org.apache.commons:commons-compress:1.22"
   api "commons-codec:commons-codec:${versions.commonscodec}"
   api "org.apache.logging.log4j:log4j-core:${versions.log4j}"
   api "io.netty:netty-all:${versions.netty}"

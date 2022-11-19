@@ -168,9 +168,9 @@ public class DiscoveryNodesTests extends OpenSearchTestCase {
             expectedNodeIdsSet.add(discoveryNode.getId());
         }
 
-        String[] resolvedNodesIds = discoveryNodes.resolveNodes(nodeSelectors.toArray(new String[nodeSelectors.size()]));
+        String[] resolvedNodesIds = discoveryNodes.resolveNodes(nodeSelectors.toArray(new String[0]));
         Arrays.sort(resolvedNodesIds);
-        String[] expectedNodesIds = expectedNodeIdsSet.toArray(new String[expectedNodeIdsSet.size()]);
+        String[] expectedNodesIds = expectedNodeIdsSet.toArray(new String[0]);
         Arrays.sort(expectedNodesIds);
         assertThat(resolvedNodesIds, equalTo(expectedNodesIds));
     }

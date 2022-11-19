@@ -1139,7 +1139,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
          */
         public ShardRouting[] drain() {
             nodes.ensureMutable();
-            ShardRouting[] mutableShardRoutings = unassigned.toArray(new ShardRouting[unassigned.size()]);
+            ShardRouting[] mutableShardRoutings = unassigned.toArray(new ShardRouting[0]);
             unassigned.clear();
             primaries = 0;
             return mutableShardRoutings;
@@ -1151,7 +1151,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
          */
         public ShardRouting[] drainIgnored() {
             nodes.ensureMutable();
-            ShardRouting[] mutableShardRoutings = ignored.toArray(new ShardRouting[ignored.size()]);
+            ShardRouting[] mutableShardRoutings = ignored.toArray(new ShardRouting[0]);
             ignored.clear();
             ignoredPrimaries = 0;
             return mutableShardRoutings;

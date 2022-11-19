@@ -32,9 +32,6 @@
 
 package org.opensearch.common;
 
-import org.opensearch.common.settings.SecureString;
-
-import java.util.Arrays;
 import java.util.Base64;
 import java.util.Random;
 
@@ -52,27 +49,6 @@ class RandomBasedUUIDGenerator implements UUIDGenerator {
     @Override
     public String getBase64UUID() {
         return getBase64UUID(SecureRandomHolder.INSTANCE);
-    }
-
-    /**
-     * Returns a Base64 encoded {@link SecureString} of a Version 4.0 compatible UUID
-     * as defined here: http://www.ietf.org/rfc/rfc4122.txt
-     */
-    public SecureString getBase64UUIDSecureString() {
-        byte[] uuidBytes = null;
-        byte[] encodedBytes = null;
-        try {
-            uuidBytes = getUUIDBytes(SecureRandomHolder.INSTANCE);
-            encodedBytes = Base64.getUrlEncoder().withoutPadding().encode(uuidBytes);
-            return new SecureString(CharArrays.utf8BytesToChars(encodedBytes));
-        } finally {
-            if (uuidBytes != null) {
-                Arrays.fill(uuidBytes, (byte) 0);
-            }
-            if (encodedBytes != null) {
-                Arrays.fill(encodedBytes, (byte) 0);
-            }
-        }
     }
 
     /**
