@@ -255,6 +255,9 @@ public class BulkRequestParserTests extends OpenSearchTestCase {
                 req -> fail()
             )
         );
-        assertEquals("Unknown action line [1], expected one of [create, delete, index, update] but found [baz]", ex.getMessage());
+        assertEquals(
+            "Malformed action/metadata line [1], expected one of [create, delete, index, update] but found [baz]",
+            ex.getMessage()
+        );
     }
 }

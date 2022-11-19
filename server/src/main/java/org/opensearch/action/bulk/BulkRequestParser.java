@@ -53,6 +53,7 @@ import org.opensearch.search.fetch.subphase.FetchSourceContext;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -78,32 +79,7 @@ public final class BulkRequestParser {
     private static final ParseField IF_PRIMARY_TERM = new ParseField("if_primary_term");
     private static final ParseField REQUIRE_ALIAS = new ParseField(DocWriteRequest.REQUIRE_ALIAS);
 
-    private enum Action {
-        CREATE,
-        DELETE,
-        INDEX,
-        UPDATE;
-
-        private static final Map<String, Action> VALID_ACTIONS = Map.of(
-            "create",
-            CREATE,
-            "delete",
-            DELETE,
-            "index",
-            INDEX,
-            "update",
-            UPDATE
-        );
-
-        static Action parse(String name, int line) {
-            if (name != null && VALID_ACTIONS.containsKey(name)) {
-                return VALID_ACTIONS.get(name);
-            }
-            throw new IllegalArgumentException(
-                "Unknown action line [" + line + "], expected one of [create, delete, index, update]" + " but found [" + name + "]"
-            );
-        }
-    }
+    private static final Set<String> VALID_ACTIONS = Set.of("create", "delete", "index", "update");
 
     private static int findNextMarker(byte marker, int from, BytesReference data) {
         final int res = data.indexOf(marker, from);
@@ -203,7 +179,16 @@ public final class BulkRequestParser {
                             + "]"
                     );
                 }
-                Action action = Action.parse(parser.currentName(), line);
+                String action = parser.currentName();
+                if (action == null || VALID_ACTIONS.contains(action) == false) {
+                    throw new IllegalArgumentException(
+                        "Malformed action/metadata line ["
+                            + line
+                            + "], expected one of [create, delete, index, update] but found ["
+                            + action
+                            + "]"
+                    );
+                }
 
                 String index = defaultIndex;
                 String id = null;
@@ -299,7 +284,7 @@ public final class BulkRequestParser {
                     );
                 }
 
-                if (action == Action.DELETE) {
+                if ("delete".equals(action)) {
                     deleteRequestConsumer.accept(
                         new DeleteRequest(index).id(id)
                             .routing(routing)
@@ -317,7 +302,7 @@ public final class BulkRequestParser {
 
                     // we use internalAdd so we don't fork here, this allows us not to copy over the big byte array to small chunks
                     // of index request.
-                    if (action == Action.INDEX) {
+                    if ("index".equals(action)) {
                         if (opType == null) {
                             indexRequestConsumer.accept(
                                 new IndexRequest(index).id(id)
@@ -344,7 +329,7 @@ public final class BulkRequestParser {
                                     .setRequireAlias(requireAlias)
                             );
                         }
-                    } else if (action == Action.CREATE) {
+                    } else if ("create".equals(action)) {
                         indexRequestConsumer.accept(
                             new IndexRequest(index).id(id)
                                 .routing(routing)
@@ -357,7 +342,7 @@ public final class BulkRequestParser {
                                 .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType)
                                 .setRequireAlias(requireAlias)
                         );
-                    } else if (action == Action.UPDATE) {
+                    } else if ("update".equals(action)) {
                         if (version != Versions.MATCH_ANY || versionType != VersionType.INTERNAL) {
                             throw new IllegalArgumentException(
                                 "Update requests do not support versioning. " + "Please use `if_seq_no` and `if_primary_term` instead"
