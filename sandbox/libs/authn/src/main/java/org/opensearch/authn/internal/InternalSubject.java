@@ -1,19 +1,17 @@
 /*
+ * Copyright OpenSearch Contributors
  * SPDX-License-Identifier: Apache-2.0
- *
- * The OpenSearch Contributors require contributions made to
- * this file be licensed under the Apache-2.0 license or a
- * compatible open source license.
  */
 
-package org.opensearch.identity.internal;
+package org.opensearch.authn.internal;
 
 import java.security.Principal;
 import java.util.Objects;
 
-import org.opensearch.authn.AuthenticationToken;
+import org.apache.shiro.authc.UsernamePasswordToken;
+import org.opensearch.authn.AuthenticationTokenHandler;
+import org.opensearch.authn.tokens.AuthenticationToken;
 import org.opensearch.authn.Subject;
-import org.opensearch.identity.AuthenticationTokenHandler;
 
 /**
  * Implementation of subject that is always authenticated
@@ -31,8 +29,17 @@ public class InternalSubject implements Subject {
 
     @Override
     public Principal getPrincipal() {
-        // TODO: what should be returned here
-        return null;
+        final Object o = shiroSubject.getPrincipal();
+
+        if (o == null) {
+            return null;
+        }
+
+        if (o instanceof Principal) {
+            return (Principal) o;
+        }
+
+        return () -> o.toString();
     }
 
     @Override

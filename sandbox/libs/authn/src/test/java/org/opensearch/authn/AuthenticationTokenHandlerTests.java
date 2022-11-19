@@ -3,11 +3,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-package org.opensearch.identity;
+package org.opensearch.authn;
 
+import org.apache.shiro.authc.UsernamePasswordToken;
 import org.hamcrest.MatcherAssert;
-import org.opensearch.authn.AuthenticationToken;
-import org.opensearch.authn.HttpHeaderToken;
+import org.opensearch.authn.tokens.AuthenticationToken;
+import org.opensearch.authn.tokens.BasicAuthToken;
 import org.opensearch.test.OpenSearchTestCase;
 
 import static org.hamcrest.Matchers.notNullValue;
@@ -20,21 +21,21 @@ public class AuthenticationTokenHandlerTests extends OpenSearchTestCase {
         // The auth header that is part of the request
         String authHeader = "Basic YWRtaW46YWRtaW4="; // admin:admin
 
-        AuthenticationToken authToken = new HttpHeaderToken(authHeader);
+        AuthenticationToken authToken = new BasicAuthToken(authHeader);
 
-        org.apache.shiro.authc.AuthenticationToken shiroAuthToken = AuthenticationTokenHandler.extractShiroAuthToken(authToken);
+        UsernamePasswordToken usernamePasswordToken = (UsernamePasswordToken) AuthenticationTokenHandler.extractShiroAuthToken(authToken);
 
-        MatcherAssert.assertThat(shiroAuthToken, notNullValue());
+        MatcherAssert.assertThat(usernamePasswordToken, notNullValue());
     }
 
     public void testShouldReturnNullWhenExtractingInvalidToken() {
         String authHeader = "Basic Nah";
 
-        AuthenticationToken authToken = new HttpHeaderToken(authHeader);
+        AuthenticationToken authToken = new BasicAuthToken(authHeader);
 
-        org.apache.shiro.authc.AuthenticationToken shiroAuthToken = AuthenticationTokenHandler.extractShiroAuthToken(authToken);
+        UsernamePasswordToken usernamePasswordToken = (UsernamePasswordToken) AuthenticationTokenHandler.extractShiroAuthToken(authToken);
 
-        MatcherAssert.assertThat(shiroAuthToken, nullValue());
+        MatcherAssert.assertThat(usernamePasswordToken, nullValue());
     }
 
     public void testShouldReturnNullWhenExtractingNullToken() {

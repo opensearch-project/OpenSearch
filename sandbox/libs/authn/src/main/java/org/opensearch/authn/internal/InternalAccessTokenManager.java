@@ -1,14 +1,11 @@
 /*
+ * Copyright OpenSearch Contributors
  * SPDX-License-Identifier: Apache-2.0
- *
- * The OpenSearch Contributors require contributions made to
- * this file be licensed under the Apache-2.0 license or a
- * compatible open source license.
  */
-package org.opensearch.identity.internal;
+package org.opensearch.authn.internal;
 
-import org.opensearch.authn.AccessToken;
-import org.opensearch.identity.AccessTokenManager;
+import org.opensearch.authn.AccessTokenManager;
+import org.opensearch.authn.tokens.AccessToken;
 
 /**
  * Implementation of access token manager that does not enforce authentication

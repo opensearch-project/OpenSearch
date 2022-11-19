@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-package org.opensearch.authn;
+package org.opensearch.authn.tokens;
 
 /**
  * Generic interface for all token formats to support to authenticate user, such as UserName/Password tokens, Access tokens, and more.

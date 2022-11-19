@@ -5,6 +5,8 @@
 
 package org.opensearch.authn;
 
+import org.opensearch.authn.tokens.AuthenticationToken;
+
 import java.security.Principal;
 
 /**

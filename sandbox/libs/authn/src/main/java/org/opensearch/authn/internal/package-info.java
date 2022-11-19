@@ -4,4 +4,4 @@
  */
 
 /** Classes for the internal authentication in OpenSearch */
-package org.opensearch.identity.internal;
+package org.opensearch.authn.internal;

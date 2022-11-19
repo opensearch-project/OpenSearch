@@ -5,8 +5,8 @@
 
 package org.opensearch.identity.noop;
 
-import org.opensearch.identity.AccessTokenManager;
-import org.opensearch.identity.AuthenticationManager;
+import org.opensearch.authn.AccessTokenManager;
+import org.opensearch.authn.AuthenticationManager;
 import org.opensearch.authn.Subject;
 
 /**

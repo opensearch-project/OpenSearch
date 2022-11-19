@@ -5,6 +5,8 @@
 
 package org.opensearch.identity;
 
+import org.opensearch.authn.AuthenticationManager;
+
 /**
  * Application wide access for identity systems
  *

@@ -37,8 +37,9 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.shiro.authc.AuthenticationException;
 import org.opensearch.OpenSearchException;
-import org.opensearch.authn.AuthenticationToken;
-import org.opensearch.authn.HttpHeaderToken;
+import org.opensearch.authn.tokens.AuthenticationToken;
+import org.opensearch.authn.tokens.BasicAuthToken;
+import org.opensearch.authn.tokens.HttpHeaderToken;
 import org.opensearch.authn.Subject;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Nullable;
@@ -622,8 +623,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
         if (authHeader.isPresent()) {
             try {
-                // support other type of header tokens
-                headerToken = new HttpHeaderToken(authHeader.get());
+                headerToken = tokenType(authHeader.get());
                 subject = Identity.getAuthManager().getSubject();
                 subject.login(headerToken);
                 logger.info("Authentication successful");
@@ -642,5 +642,16 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 */
             }
         }
+    }
+
+    /**
+     * Identifies the token type and return the correct instance
+     * @param authHeader from which to identify the correct token class
+     * @return the instance of the token type
+     */
+    private AuthenticationToken tokenType(String authHeader) {
+        if (authHeader.contains("Basic")) return new BasicAuthToken(authHeader);
+        // support other type of header tokens
+        return null;
     }
 }

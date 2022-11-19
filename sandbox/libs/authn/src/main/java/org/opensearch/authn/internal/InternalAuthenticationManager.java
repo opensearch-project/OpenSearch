@@ -1,31 +1,26 @@
 /*
+ * Copyright OpenSearch Contributors
  * SPDX-License-Identifier: Apache-2.0
- *
- * The OpenSearch Contributors require contributions made to
- * this file be licensed under the Apache-2.0 license or a
- * compatible open source license.
  */
 
-package org.opensearch.identity.internal;
+package org.opensearch.authn.internal;
 
+import org.opensearch.authn.AccessTokenManager;
+import org.opensearch.authn.AuthenticationManager;
 import org.opensearch.authn.realm.InternalRealm;
-import org.opensearch.identity.AccessTokenManager;
-import org.opensearch.identity.AuthenticationManager;
 import org.opensearch.authn.Subject;
 import org.apache.shiro.SecurityUtils;
 import org.apache.shiro.mgt.DefaultSecurityManager;
 import org.apache.shiro.mgt.SecurityManager;
-import org.opensearch.rest.RestChannel;
-import org.opensearch.rest.RestRequest;
 
 /**
- * Implementation of authentication manager that does not enforce authentication
+ * Implementation of authentication manager that enforces authentication against internal idp
  *
  * This class and related classes in this package will not return nulls or fail permissions checks
  *
  * This class manages the subjects loaded via the realm, and provides current subject
  * when authenticating the incoming request
- * Checkout {@link org.opensearch.rest.RestController#authenticate(RestRequest, RestChannel)}
+ * Checkout
  * and how the internal Identity system uses auth manager to get current subject to use for authentication
  *
  * @opensearch.internal
