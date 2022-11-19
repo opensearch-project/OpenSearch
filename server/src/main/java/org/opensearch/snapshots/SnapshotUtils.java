@@ -32,9 +32,14 @@
 package org.opensearch.snapshots;
 
 import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.regex.Regex;
+import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexNotFoundException;
+import org.opensearch.index.IndexSettings;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -42,6 +47,9 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Iterator;
 
 /**
  * Snapshot utilities
@@ -134,5 +142,37 @@ public class SnapshotUtils {
             return Collections.unmodifiableList(new ArrayList<>(Arrays.asList(selectedIndices)));
         }
         return Collections.unmodifiableList(new ArrayList<>(result));
+    }
+
+    /**
+     * Validates if there are any remote snapshots backing an index
+     * @param currentState current cluster state
+     * @param snapshotIds list of snapshot Ids to be verified
+     * @param repoName repo name for which the verification is being done
+     */
+    public static void validateSnapshotsBackingAnyIndex(ClusterState currentState, List<SnapshotId> snapshotIds, String repoName) {
+        final Map<String, SnapshotId> uuidToSnapshotId = new HashMap<>();
+        final Set<String> snapshotsToBeNotDeleted = new HashSet<>();
+        ImmutableOpenMap<String, IndexMetadata> indicesMap = currentState.getMetadata().getIndices();
+        snapshotIds.forEach(snapshotId -> uuidToSnapshotId.put(snapshotId.getUUID(), snapshotId));
+
+        for (Iterator<IndexMetadata> it = indicesMap.valuesIt(); it.hasNext();) {
+            IndexMetadata indexMetadata = it.next();
+            String storeType = indexMetadata.getSettings().get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey());
+            if (IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey().equals(storeType)) {
+                String snapshotId = indexMetadata.getSettings().get(IndexSettings.SEARCHABLE_SNAPSHOT_ID_UUID.getKey());
+                if (uuidToSnapshotId.get(snapshotId) != null) {
+                    snapshotsToBeNotDeleted.add(uuidToSnapshotId.get(snapshotId).getName());
+                }
+            }
+        }
+
+        if (!snapshotsToBeNotDeleted.isEmpty()) {
+            throw new SnapshotDeletionException(
+                repoName,
+                snapshotsToBeNotDeleted.toString(),
+                "These remote snapshots are backing some indices and hence can't be deleted! No snapshots were deleted."
+            );
+        }
     }
 }

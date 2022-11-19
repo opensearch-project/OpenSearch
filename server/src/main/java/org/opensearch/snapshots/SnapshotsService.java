@@ -92,8 +92,6 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.Index;
-import org.opensearch.index.IndexModule;
-import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoriesService;
@@ -134,6 +132,7 @@ import java.util.stream.Stream;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableList;
 import static org.opensearch.cluster.SnapshotsInProgress.completed;
+import static org.opensearch.snapshots.SnapshotUtils.validateSnapshotsBackingAnyIndex;
 
 /**
  * Service responsible for creating snapshots. This service runs all the steps executed on the cluster-manager node during snapshot creation and
@@ -1771,46 +1770,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     snapshotNames,
                     repoName
                 );
-                final List<SnapshotId> snapshotIdNotBackingIndex = filterSnapshotsBackingAnyIndex(currentState, snapshotIds);
-                deleteFromRepoTask = createDeleteStateUpdate(
-                    snapshotIdNotBackingIndex,
-                    repoName,
-                    repositoryData,
-                    Priority.NORMAL,
-                    listener
-                );
+                validateSnapshotsBackingAnyIndex(currentState, snapshotIds, repoName);
+                deleteFromRepoTask = createDeleteStateUpdate(snapshotIds, repoName, repositoryData, Priority.NORMAL, listener);
                 return deleteFromRepoTask.execute(currentState);
-            }
-
-            private List<SnapshotId> filterSnapshotsBackingAnyIndex(ClusterState currentState, List<SnapshotId> snapshotIds) {
-                final Set<SnapshotId> snapshotsToBeDeleted = new HashSet<>();
-                final Set<String> snapshotsToBeNotDeleted = new HashSet<>();
-                ImmutableOpenMap<String, IndexMetadata> indicesMap = currentState.getMetadata().getIndices();
-                for (SnapshotId snapshotId : snapshotIds) {
-                    Boolean indexBackedBySnapshotFound = false;
-                    for (Iterator<IndexMetadata> it = indicesMap.valuesIt(); it.hasNext();) {
-                        IndexMetadata indexMetadata = it.next();
-                        String storeType = indexMetadata.getSettings().get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey());
-                        if (IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey().equals(storeType)
-                            && indexMetadata.getSettings().get(IndexSettings.SEARCHABLE_SNAPSHOT_ID_UUID.getKey()).equals(snapshotId.getUUID())) {
-                            indexBackedBySnapshotFound = true;
-                            break;
-                        }
-                    }
-                    if (indexBackedBySnapshotFound == false) {
-                        snapshotsToBeDeleted.add(snapshotId);
-                    } else {
-                        snapshotsToBeNotDeleted.add(snapshotId.getName());
-                    }
-                }
-                if (snapshotIds.size() != snapshotsToBeDeleted.size()) {
-                    throw new SnapshotDeletionException(
-                        repoName,
-                        snapshotsToBeNotDeleted.toString(),
-                        "These remote snapshots are backing some indices and hence can't be deleted! No snapshots were deleted."
-                    );
-                }
-                return List.copyOf(snapshotsToBeDeleted);
             }
 
             @Override
