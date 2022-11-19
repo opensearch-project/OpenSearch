@@ -94,6 +94,7 @@ thirdPartyAudit {
     // Optional and not enabled by Elasticsearch
     'com.google.common.util.concurrent.internal.InternalFutureFailureAccess',
     'com.google.common.util.concurrent.internal.InternalFutures',
+    'com.azure.core.http.HttpHeaderName',
     'com.azure.storage.internal.avro.implementation.AvroObject',
     'com.azure.storage.internal.avro.implementation.AvroReader',
     'com.azure.storage.internal.avro.implementation.AvroReaderFactory',
