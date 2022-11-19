@@ -74,8 +74,8 @@ public class BlobStoreTransferServiceTests extends OpenSearchTestCase {
                 throw new AssertionError("Failed to perform uploadBlobAsync", e);
             }
         }, latch));
-        latch.await(1000, TimeUnit.MILLISECONDS);
-        assertEquals(true, succeeded.get());
+        assertTrue(latch.await(1000, TimeUnit.MILLISECONDS));
+        assertTrue(succeeded.get());
     }
 
     @Override

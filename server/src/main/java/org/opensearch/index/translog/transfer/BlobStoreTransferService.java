@@ -65,7 +65,6 @@ public class BlobStoreTransferService implements TransferService {
         try (InputStream inputStream = fileSnapshot.inputStream()) {
             blobStore.blobContainer(blobPath).writeBlobAtomic(fileSnapshot.getName(), inputStream, fileSnapshot.getContentLength(), true);
         } catch (Exception ex) {
-            logger.error(() -> new ParameterizedMessage("Failed to upload blob {}", fileSnapshot.getName()), ex);
             throw ex;
         }
     }

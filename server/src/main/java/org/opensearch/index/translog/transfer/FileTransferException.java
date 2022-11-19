@@ -24,11 +24,6 @@ public class FileTransferException extends RuntimeException {
         this.fileSnapshot = fileSnapshot;
     }
 
-    public FileTransferException(TransferFileSnapshot fileSnapshot, String message, Throwable cause) {
-        super(message, cause);
-        this.fileSnapshot = fileSnapshot;
-    }
-
     public TransferFileSnapshot getFileSnapshot() {
         return fileSnapshot;
     }

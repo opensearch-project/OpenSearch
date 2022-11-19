@@ -100,7 +100,6 @@ public class TranslogTransferManager {
                 }
             } catch (InterruptedException ex) {
                 exceptionList.forEach(ex::addSuppressed);
-                logger.error(() -> new ParameterizedMessage("Time failed for snapshot {}", transferSnapshot), ex);
                 Thread.currentThread().interrupt();
                 throw ex;
             }

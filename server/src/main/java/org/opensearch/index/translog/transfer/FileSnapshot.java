@@ -38,14 +38,14 @@ public class FileSnapshot implements Closeable {
     @Nullable
     private byte[] content;
 
-    public FileSnapshot(Path path) throws IOException {
+    private FileSnapshot(Path path) throws IOException {
         Objects.requireNonNull(path);
         this.name = path.getFileName().toString();
         this.path = path;
         this.fileChannel = FileChannel.open(path, StandardOpenOption.READ);
     }
 
-    public FileSnapshot(String name, byte[] content) throws IOException {
+    private FileSnapshot(String name, byte[] content) {
         Objects.requireNonNull(name);
         this.name = name;
         this.content = content;
@@ -148,7 +148,7 @@ public class FileSnapshot implements Closeable {
      *
      * @opensearch.internal
      */
-    public static class TranslogFileSnapshot extends TransferFileSnapshot {
+    public static final class TranslogFileSnapshot extends TransferFileSnapshot {
 
         private final long generation;
 
@@ -183,7 +183,7 @@ public class FileSnapshot implements Closeable {
      *
      * @opensearch.internal
      */
-    public static class CheckpointFileSnapshot extends TransferFileSnapshot {
+    public static final class CheckpointFileSnapshot extends TransferFileSnapshot {
 
         private final long generation;
 
