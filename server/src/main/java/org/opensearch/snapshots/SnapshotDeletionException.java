@@ -30,6 +30,6 @@ public class SnapshotDeletionException extends SnapshotException {
 
     @Override
     public RestStatus status() {
-        return RestStatus.FORBIDDEN;
+        return RestStatus.CONFLICT;
     }
 }
