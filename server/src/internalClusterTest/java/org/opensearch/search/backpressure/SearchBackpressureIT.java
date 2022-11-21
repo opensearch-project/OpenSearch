@@ -54,11 +54,6 @@ public class SearchBackpressureIT extends OpenSearchIntegTestCase {
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).build();
-    }
-
-    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         final List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(TestPlugin.class);
@@ -188,6 +183,12 @@ public class SearchBackpressureIT extends OpenSearchIntegTestCase {
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
             return new SearchShardTask(id, type, action, "", parentTaskId, headers);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeEnum(type);
         }
 
         public RequestType getType() {
