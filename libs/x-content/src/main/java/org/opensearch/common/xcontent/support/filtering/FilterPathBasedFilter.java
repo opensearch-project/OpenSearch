@@ -95,7 +95,7 @@ public class FilterPathBasedFilter extends TokenFilter {
             }
 
             if ((nextFilters != null) && (nextFilters.isEmpty() == false)) {
-                return new FilterPathBasedFilter(nextFilters.toArray(new FilterPath[nextFilters.size()]), inclusive);
+                return new FilterPathBasedFilter(nextFilters.toArray(new FilterPath[0]), inclusive);
             }
         }
         return NO_MATCHING;

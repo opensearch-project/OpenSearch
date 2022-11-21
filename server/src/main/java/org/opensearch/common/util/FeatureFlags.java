@@ -38,6 +38,12 @@ public class FeatureFlags {
     public static final String SEARCHABLE_SNAPSHOT = "opensearch.experimental.feature.searchable_snapshot.enabled";
 
     /**
+     * Gates the functionality of extensions.
+     * Once the feature is ready for production release, this feature flag can be removed.
+     */
+    public static final String EXTENSIONS = "opensearch.experimental.feature.extensions.enabled";
+
+    /**
      * Used to test feature flags whose values are expected to be booleans.
      * This method returns true if the value is "true" (case-insensitive),
      * and false otherwise.

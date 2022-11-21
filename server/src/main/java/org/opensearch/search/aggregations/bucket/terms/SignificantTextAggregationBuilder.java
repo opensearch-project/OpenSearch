@@ -216,7 +216,7 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
      * to also be the name of the JSON field holding the value
      */
     public SignificantTextAggregationBuilder sourceFieldNames(List<String> names) {
-        this.sourceFieldNames = names.toArray(new String[names.size()]);
+        this.sourceFieldNames = names.toArray(new String[0]);
         return this;
     }
 
