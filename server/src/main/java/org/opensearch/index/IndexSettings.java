@@ -1001,8 +1001,7 @@ public final class IndexSettings {
      * Returns if remote translog store is enabled for this index.
      */
     public boolean isRemoteTranslogStoreEnabled() {
-        // return isRemoteTranslogStoreEnabled;
-        return isSegRepEnabled();
+        return isRemoteTranslogStoreEnabled;
     }
 
     /**

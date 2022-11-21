@@ -549,7 +549,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 retentionLeaseSyncer,
                 circuitBreakerService,
                 // TODO Replace with remote translog factory in the follow up PR
-                new InternalTranslogFactory(),
+                this.indexSettings.isRemoteTranslogStoreEnabled() ? null : new InternalTranslogFactory(),
                 this.indexSettings.isSegRepEnabled() ? checkpointPublisher : null,
                 remoteStore
             );

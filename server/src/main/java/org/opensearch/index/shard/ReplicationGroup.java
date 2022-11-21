@@ -37,7 +37,6 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.util.set.Sets;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -68,7 +67,7 @@ public class ReplicationGroup {
         boolean remoteTranslogEnabled
     ) {
         if (!remoteTranslogEnabled) {
-            assert trackedAllocationIds.equals(localTranslogAllocationIds)
+            assert localTranslogAllocationIds.containsAll(trackedAllocationIds)
                 : "In absence of remote translog store, all tracked shards must have local translog store";
         }
         this.routingTable = routingTable;
@@ -125,7 +124,7 @@ public class ReplicationGroup {
         Set<String> trackedAllocationIds,
         long version
     ) {
-        this(routingTable, inSyncAllocationIds, trackedAllocationIds, Collections.emptySet(), version, false);
+        this(routingTable, inSyncAllocationIds, trackedAllocationIds, trackedAllocationIds, version, false);
     }
 
     public long getVersion() {
