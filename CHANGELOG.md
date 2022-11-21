@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## [Unreleased]
+### Dependencies
+- Bumps `json-schema-validator` from 1.0.69 to 1.0.73
+
 All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). See the [CONTRIBUTING guide](./CONTRIBUTING.md#Changelog) for instructions on how to add changelog entries.
