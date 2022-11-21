@@ -53,6 +53,7 @@ import org.opensearch.search.fetch.subphase.FetchSourceContext;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -77,6 +78,8 @@ public final class BulkRequestParser {
     private static final ParseField IF_SEQ_NO = new ParseField("if_seq_no");
     private static final ParseField IF_PRIMARY_TERM = new ParseField("if_primary_term");
     private static final ParseField REQUIRE_ALIAS = new ParseField(DocWriteRequest.REQUIRE_ALIAS);
+
+    private static final Set<String> VALID_ACTIONS = Set.of("create", "delete", "index", "update");
 
     private static int findNextMarker(byte marker, int from, BytesReference data) {
         final int res = data.indexOf(marker, from);
@@ -177,6 +180,15 @@ public final class BulkRequestParser {
                     );
                 }
                 String action = parser.currentName();
+                if (action == null || VALID_ACTIONS.contains(action) == false) {
+                    throw new IllegalArgumentException(
+                        "Malformed action/metadata line ["
+                            + line
+                            + "], expected one of [create, delete, index, update] but found ["
+                            + action
+                            + "]"
+                    );
+                }
 
                 String index = defaultIndex;
                 String id = null;
