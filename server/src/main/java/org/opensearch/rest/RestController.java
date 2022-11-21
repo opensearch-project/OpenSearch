@@ -36,6 +36,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchException;
+import org.opensearch.authn.jwt.JwtVendor;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
@@ -86,6 +87,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
     private static final Logger logger = LogManager.getLogger(RestController.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestController.class);
     private static final String OPENSEARCH_PRODUCT_ORIGIN_HTTP_HEADER = "X-opensearch-product-origin";
+
+    private static final String OPENSEARCH_AUTHENTICATION_TOKEN_HEADER = "_opensearch_auth_token";
 
     private static final BytesReference FAVICON_RESPONSE;
 
@@ -310,6 +313,12 @@ public class RestController implements HttpServerTransport.Dispatcher {
             }
 
             handler.handleRequest(request, responseChannel, client);
+
+            // The first handler is always authc + authz, if this is hit the request is authenticated
+            Map<String, String> jwtClaims = new HashMap<>();
+            jwtClaims.put("sub", "subject");
+            String encodedJwt = JwtVendor.createJwt(jwtClaims);
+            client.threadPool().getThreadContext().putHeader(OPENSEARCH_AUTHENTICATION_TOKEN_HEADER, encodedJwt);
         } catch (Exception e) {
             responseChannel.sendResponse(new BytesRestResponse(responseChannel, e));
         }

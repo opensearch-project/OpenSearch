@@ -41,7 +41,7 @@ public class JwtVendor {
         return jwk;
     }
 
-    public static String createJwt(Map<String, Object> claims) {
+    public static String createJwt(Map<String, String> claims) {
         JoseJwtProducer jwtProducer = new JoseJwtProducer();
         jwtProducer.setSignatureProvider(JwsUtils.getSignatureProvider(getDefaultJsonWebKey()));
         JwtClaims jwtClaims = new JwtClaims();
