@@ -6,6 +6,8 @@
 - Bumps `jcodings` from 1.0.57 to 1.0.58
 - Bumps `google-http-client-jackson2` from 1.35.0 to 1.42.3
 - Bumps `maxmind-db` from 2.0.0 to 2.1.0
+- Bumps `azure-core` from 1.33.0 to 1.34.0
+- Bumps `azure-core-http-netty` from 1.12.4 to 1.12.7
 
 All notable changes to this project are documented in this file.
 
