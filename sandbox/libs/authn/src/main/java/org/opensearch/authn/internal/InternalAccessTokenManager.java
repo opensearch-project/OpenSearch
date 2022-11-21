@@ -22,6 +22,11 @@ public class InternalAccessTokenManager implements AccessTokenManager {
     }
 
     @Override
+    public void expireToken(final AccessToken token){
+
+    }
+
+    @Override
     public AccessToken generate() {
         return new AccessToken();
     }

@@ -22,6 +22,11 @@ public class NoopAccessTokenManager implements AccessTokenManager {
     }
 
     @Override
+    public void expireToken(final AccessToken token){
+        // Set the time to expired
+    }
+
+    @Override
     public AccessToken generate() {
         return new AccessToken();
     }

@@ -18,6 +18,8 @@ public interface AccessTokenManager {
      */
     public void expireAllTokens();
 
+    void expireToken(AccessToken token);
+
     /**
      * Generates a new access token from the current subject
      */

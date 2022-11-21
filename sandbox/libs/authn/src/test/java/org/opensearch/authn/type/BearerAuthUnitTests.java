@@ -6,12 +6,17 @@
  * compatible open source license.
  */
 
-package org.opensearch.authn.jwt;
+package org.opensearch.authn.type;
 
 import org.apache.cxf.rs.security.jose.jwt.JwtToken;
 import org.apache.shiro.authc.AuthenticationToken;
 import org.opensearch.authn.HttpHeaderToken;
+import org.opensearch.authn.jwt.BadCredentialsException;
+import org.opensearch.authn.jwt.JwtVendor;
+import org.opensearch.authn.jwt.JwtVerifier;
 import org.opensearch.test.OpenSearchTestCase;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 import java.util.HashMap;
 import java.util.Map;

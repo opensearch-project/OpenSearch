@@ -16,6 +16,8 @@ public class BearerAuthToken extends HttpHeaderToken{
         this.headerValue = headerValue;
     }
 
+    // TODO: Determine if anything else needs to be included in this class or everything is still in the header like with basic auth
+
     @Override
     public String getHeaderValue() {
         return headerValue;

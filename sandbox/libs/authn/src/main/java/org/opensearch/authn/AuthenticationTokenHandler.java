@@ -69,17 +69,17 @@ public class AuthenticationTokenHandler {
         return new UsernamePasswordToken(decodedUserNamePassword[0], decodedUserNamePassword[1]);
     }
 
-    private static AuthenticationToken handleBearerAuth(final BearerAuthToken token) throws BadCredentialsException { // Can be moved into the InternalRealms.java class
+    private static AuthenticationToken handleBearerAuth(final BearerAuthToken token) throws BadCredentialsException {
+        // Can be moved into the InternalRealms.java class
         // Can add a positive and negative case for testing this -- a valid bearer token and then a malformed token without bearer in the header
         // Tokens should like `curl -XGET -H "Authorization: Bearer ${ACCESS_TOKEN}" http://localhost:9200`
-
 
         String encodedJWT = token.getHeaderValue().substring("Bearer".length()).trim(); // Still may need to base64 decode this
 
         try {
             JwtToken jwtToken = JwtVerifier.getVerifiedJwtToken(encodedJWT);
         } catch (BadCredentialsException e) {
-            throw (e); // Could not verify the JWT token--throw this error to prevent the return
+            throw (e); // Could not verify the JWT token--throw this error to prevent the retur
         }
 
         return new BearerToken(encodedJWT);
