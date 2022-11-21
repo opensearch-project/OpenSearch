@@ -16,10 +16,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `gradle-extra-configurations-plugin` from 7.0.0 to 8.0.0 ([#4808](https://github.com/opensearch-project/OpenSearch/pull/4808))
 - Bumps `jcodings` from 1.0.57 to 1.0.58
 - Bumps `google-http-client-jackson2` from 1.35.0 to 1.42.3
+- Bumps `azure-core` from 1.33.0 to 1.34.0
+- Bumps `azure-core-http-netty` from 1.12.4 to 1.12.7
 ### Changed
 ### Deprecated
 ### Removed
 ### Fixed
 ### Security
 
+<<<<<<< HEAD
+=======
+[Unreleased 3.0]: https://github.com/opensearch-project/OpenSearch/compare/2.4...HEAD
+>>>>>>> 0c6411ae518 (Bump azure-core from 1.33.0 to 1.34.0 and azure-core-http-netty from 1.12.4 to 1.12.7 in /plugins/repository-azure (#5235))
 [Unreleased 2.x]: https://github.com/opensearch-project/OpenSearch/compare/2.4...2.x
