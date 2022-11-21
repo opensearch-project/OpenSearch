@@ -37,6 +37,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.shiro.authc.AuthenticationException;
 import org.opensearch.OpenSearchException;
+import org.opensearch.authn.jwt.BadCredentialsException;
 import org.opensearch.authn.tokens.AuthenticationToken;
 import org.opensearch.authn.tokens.BasicAuthToken;
 import org.opensearch.authn.tokens.HttpHeaderToken;
@@ -640,6 +641,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
                  );
                  channel.sendResponse(bytesRestResponse);
                 */
+            } catch (BadCredentialsException e) {
+                throw new RuntimeException(e);
             }
         }
     }
