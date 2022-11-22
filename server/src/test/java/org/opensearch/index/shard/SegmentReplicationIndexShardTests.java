@@ -70,6 +70,10 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
         .build();
 
+    public void testPrimaryRecovery() {
+
+    }
+
     /**
      * Test that latestReplicationCheckpoint returns null only for docrep enabled indices
      */
@@ -276,6 +280,35 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             assertEquals(0, replica.translogStats().estimatedNumberOfOperations());
             assertEquals(0, primary.translogStats().getUncommittedOperations());
             assertEquals(0, replica.translogStats().getUncommittedOperations());
+        }
+    }
+
+    public void testPrimaryPrimaryRelocation() throws Exception {
+        try (ReplicationGroup shards = createGroup(0, settings, new NRTReplicationEngineFactory())) {
+            shards.startAll();
+            final IndexShard primary = shards.getPrimary();
+            SegmentReplicationTargetService segmentReplicationTargetService = prepareForReplication(primary);
+
+            // final IndexShard replica_1 = shards.getReplicas().get(0);
+            int numDocs = randomIntBetween(10, 100);
+            shards.indexDocs(numDocs);
+            flushShard(primary, false);
+            // replicateSegments(primary, List.of(replica_1));
+            IndexShardTestCase.updateRoutingEntry(primary, primary.routingEntry().relocate("s2", -1));
+            final IndexShard primaryTarget = shards.addReplica(primary.routingEntry().getTargetRelocatingShard(), false);
+
+            shards.recoverReplica(primaryTarget);
+
+            // check that local checkpoint of new primary is properly tracked after primary relocation
+            assertThat(primaryTarget.getLocalCheckpoint(), equalTo(numDocs - 1L));
+            assertThat(
+                primaryTarget.getReplicationTracker()
+                    .getTrackedLocalCheckpointForShard(primaryTarget.routingEntry().allocationId().getId())
+                    .getLocalCheckpoint(),
+                equalTo(numDocs - 1L)
+            );
+            assertDocCount(primaryTarget, numDocs);
+            closeShards(primary, primaryTarget);
         }
     }
 

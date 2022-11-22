@@ -461,10 +461,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * Used with Segment replication only
      *
-     * This function is used to perform a segment replication on target primary node in order to copy segment files
-     * previously copied to other replicas. This is done so that new primary doesn't conflict during new segment
-     * replication round with existing replicas.
-     * @param listener
+     * This function is used to force a sync target primary node with source (old primary). This is to avoid segment files
+     * conflict with replicas when target is promoted as primary.
+     * @param listener segment replication event listener
      */
     public void performSegmentReplicationRefresh(StepListener<Void> listener) {
         this.segmentReplicationTargetService.startReplication(
@@ -484,7 +483,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
                 @Override
                 public void onReplicationFailure(SegmentReplicationState state, ReplicationFailedException e, boolean sendShardFailure) {
-                    logger.error("segment replication failure post recovery {}", e);
+                    logger.error("segment replication failure post recovery", e);
                     listener.onFailure(e);
                     if (sendShardFailure == true) {
                         failShard("segment replication failure post recovery", e);
@@ -3372,10 +3371,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private EngineConfig newEngineConfig(LongSupplier globalCheckpointSupplier) throws IOException {
-        return this.newEngineConfig(globalCheckpointSupplier, false);
-    }
-
-    private EngineConfig newEngineConfig(LongSupplier globalCheckpointSupplier, boolean forceReadWriteEngine) throws IOException {
         final Sort indexSort = indexSortSupplier.get();
         final Engine.Warmer warmer = reader -> {
             assert Thread.holdsLock(mutex) == false : "warming engine under mutex";
@@ -3394,13 +3389,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             internalRefreshListener.add(new CheckpointRefreshListener(this, this.checkpointPublisher));
         }
 
-        boolean isReadOnlyReplica = indexSettings.isSegRepEnabled() && shardRouting.primary() == false;
+        logger.info("--> recoveryState.getStage() {}", recoveryState.getStage());
         /**
-         * Recover relocating primary shard as replica with segment replication.
+         * With segment replication enabled, recover replica shard as read only and primary shard as writeable during
+         * translog recovery state. This condition assumes this method is not called during finalize recovery state.
          */
-        if (shardRouting.isRelocationTarget() && shardRouting.primary() == true && forceReadWriteEngine == false) {
-            isReadOnlyReplica = true;
-        }
+        boolean isReadOnlyReplica = indexSettings.isSegRepEnabled()
+            && (shardRouting.primary() == false
+                || shardRouting.isRelocationTarget() && recoveryState.getStage() != RecoveryState.Stage.TRANSLOG);
 
         return this.engineConfigFactory.newEngineConfig(
             shardId,
@@ -4218,7 +4214,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             if (indexSettings.isRemoteStoreEnabled()) {
                 syncSegmentsFromRemoteSegmentStore(false);
             }
-            newEngineReference.set(engineFactory.newReadWriteEngine(newEngineConfig(replicationTracker, true)));
+            newEngineReference.set(engineFactory.newReadWriteEngine(newEngineConfig(replicationTracker)));
             onNewEngine(newEngineReference.get());
         }
         final TranslogRecoveryRunner translogRunner = (snapshot) -> runTranslogRecovery(

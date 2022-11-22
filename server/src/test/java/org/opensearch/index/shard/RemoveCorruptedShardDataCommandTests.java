@@ -65,6 +65,7 @@ import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.TestTranslog;
 import org.opensearch.index.translog.TranslogCorruptedException;
 import org.opensearch.index.translog.TranslogException;
+import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.test.CorruptionUtils;
 import org.opensearch.test.DummyShardLock;
 import org.junit.Before;
@@ -552,7 +553,8 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
             indexShard.getGlobalCheckpointSyncer(),
             indexShard.getRetentionLeaseSyncer(),
             EMPTY_EVENT_LISTENER,
-            null
+            null,
+            SegmentReplicationTargetService.NO_OP
         );
     }
 
