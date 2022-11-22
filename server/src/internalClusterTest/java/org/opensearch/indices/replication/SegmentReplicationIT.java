@@ -10,6 +10,7 @@ package org.opensearch.indices.replication;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.junit.BeforeClass;
+import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.indices.segments.IndexShardSegments;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentsRequest;
@@ -24,6 +25,7 @@ import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.command.CancelAllocationCommand;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.Index;
@@ -53,6 +55,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.opensearch.index.query.QueryBuilders.matchQuery;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -192,6 +195,48 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
 
         assertDocCounts(initialDocCount, replica, primary);
         assertSegmentStats(REPLICA_COUNT);
+    }
+
+    /**
+     * This test adds a new replica shard to an existing cluster which already has few docs inserted before adding replica.
+     * We don't perform any refresh on index and assert new replica shard on doc hit count.
+     * This test makes sure that when a new replica is added to an existing cluster it gets all latest segments from primary even without a refresh.
+     */
+    public void testAddNewReplica() throws Exception {
+        logger.info("--> starting [node1] ...");
+        final String node_1 = internalCluster().startNode();
+
+        logger.info("--> creating test index ...");
+        prepareCreate(INDEX_NAME, Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 1)).get();
+
+        logger.info("--> index 10 docs");
+        for (int i = 0; i < 10; i++) {
+            client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
+        }
+        logger.info("--> flush so we have an actual index");
+        client().admin().indices().prepareFlush().execute().actionGet();
+        logger.info("--> index more docs so we have something in the translog");
+        for (int i = 10; i < 20; i++) {
+            client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
+        }
+
+        logger.info("--> verifying count");
+        client().admin().indices().prepareRefresh().execute().actionGet();
+        assertThat(client().prepareSearch(INDEX_NAME).setSize(0).execute().actionGet().getHits().getTotalHits().value, equalTo(20L));
+
+        logger.info("--> start another node");
+        final String node_2 = internalCluster().startNode();
+        ClusterHealthResponse clusterHealthResponse = client().admin()
+            .cluster()
+            .prepareHealth()
+            .setWaitForEvents(Priority.LANGUID)
+            .setWaitForNodes("2")
+            .setWaitForGreenStatus()
+            .execute()
+            .actionGet();
+        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
+        waitForReplicaUpdate();
+        assertThat(client().prepareSearch(INDEX_NAME).setSize(0).execute().actionGet().getHits().getTotalHits().value, equalTo(20L));
     }
 
     public void testReplicationAfterPrimaryRefreshAndFlush() throws Exception {

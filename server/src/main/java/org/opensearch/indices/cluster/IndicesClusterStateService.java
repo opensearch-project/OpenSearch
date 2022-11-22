@@ -45,11 +45,12 @@ import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
-import org.opensearch.cluster.routing.IndexShardRoutingTable;
-import org.opensearch.cluster.routing.RecoverySource.Type;
-import org.opensearch.cluster.routing.RoutingNode;
-import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.ShardRoutingState;
+import org.opensearch.cluster.routing.RoutingTable;
+import org.opensearch.cluster.routing.IndexShardRoutingTable;
+import org.opensearch.cluster.routing.RoutingNode;
+import org.opensearch.cluster.routing.RecoverySource.Type;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.component.AbstractLifecycleComponent;
@@ -82,8 +83,10 @@ import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryListener;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.replication.SegmentReplicationSourceService;
+import org.opensearch.indices.replication.SegmentReplicationState;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
+import org.opensearch.indices.replication.common.ReplicationFailedException;
 import org.opensearch.indices.replication.common.ReplicationState;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.search.SearchService;
@@ -142,6 +145,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private final PrimaryReplicaSyncer primaryReplicaSyncer;
     private final Consumer<ShardId> globalCheckpointSyncer;
     private final RetentionLeaseSyncer retentionLeaseSyncer;
+
+    private final SegmentReplicationTargetService segmentReplicationTargetService;
 
     private final SegmentReplicationCheckpointPublisher checkpointPublisher;
 
@@ -217,6 +222,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             indexEventListeners.add(segmentReplicationTargetService);
             indexEventListeners.add(segmentReplicationSourceService);
         }
+        this.segmentReplicationTargetService = segmentReplicationTargetService;
         this.builtInIndexListener = Collections.unmodifiableList(indexEventListeners);
         this.indicesService = indicesService;
         this.clusterService = clusterService;
@@ -774,7 +780,52 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
     public void handleRecoveryDone(ReplicationState state, ShardRouting shardRouting, long primaryTerm) {
         RecoveryState RecState = (RecoveryState) state;
-        shardStateAction.shardStarted(shardRouting, primaryTerm, "after " + RecState.getRecoverySource(), SHARD_STATE_ACTION_LISTENER);
+        AllocatedIndex<? extends Shard> indexService = indicesService.indexService(shardRouting.shardId().getIndex());
+        IndexShard indexShard = (IndexShard) indexService.getShardOrNull(shardRouting.id());
+        // For Segment Replication enabled indices, we want replica shards to start a replication event to fetch latest segments before it
+        // is marked as Started.
+        if (indexShard.indexSettings().isSegRepEnabled()
+            && shardRouting.primary() == false
+            && ShardRoutingState.RELOCATING != shardRouting.state()) {
+            segmentReplicationTargetService.startReplication(indexShard, new SegmentReplicationTargetService.SegmentReplicationListener() {
+                @Override
+                public void onReplicationDone(SegmentReplicationState state) {
+                    logger.trace(
+                        () -> new ParameterizedMessage(
+                            "[shardId {}] [replication id {}] Replication complete, timing data: {}",
+                            indexShard.shardId().getId(),
+                            state.getReplicationId(),
+                            state.getTimingData()
+                        )
+                    );
+                    shardStateAction.shardStarted(
+                        shardRouting,
+                        primaryTerm,
+                        "after " + RecState.getRecoverySource(),
+                        SHARD_STATE_ACTION_LISTENER
+                    );
+                }
+
+                @Override
+                public void onReplicationFailure(SegmentReplicationState state, ReplicationFailedException e, boolean sendShardFailure) {
+                    logger.trace(
+                        () -> new ParameterizedMessage(
+                            "[shardId {}] [replication id {}] Replication failed, timing data: {}",
+                            indexShard.shardId().getId(),
+                            state.getReplicationId(),
+                            state.getTimingData()
+                        )
+                    );
+                    if (sendShardFailure == true) {
+                        logger.error("replication failure", e);
+                        indexShard.failShard("replication failure", e);
+                    }
+                }
+            });
+        } else {
+            shardStateAction.shardStarted(shardRouting, primaryTerm, "after " + RecState.getRecoverySource(), SHARD_STATE_ACTION_LISTENER);
+        }
+
     }
 
     private void failAndRemoveShard(
