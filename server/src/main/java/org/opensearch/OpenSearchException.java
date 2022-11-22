@@ -1613,7 +1613,7 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
             165,
             Version.V_2_4_0
         ),
-        SNAPSHOT_DELETION_EXCEPTION(
+        SNAPSHOT_IN_USE_DELETION_EXCEPTION(
             SnapshotInUseDeletionException.class,
             SnapshotInUseDeletionException::new,
             166,
