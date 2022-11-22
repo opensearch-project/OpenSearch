@@ -127,10 +127,6 @@ public class SnapshotUtilsTests extends OpenSearchTestCase {
             .put(IndexSettings.SEARCHABLE_SNAPSHOT_ID_UUID.getKey(), snapshot.getSnapshotId().getUUID())
             .put(IndexSettings.SEARCHABLE_SNAPSHOT_ID_NAME.getKey(), snapshot.getSnapshotId().getName())
             .build();
-        return IndexMetadata.builder(index.getName())
-            .settings(settings)
-            .numberOfShards(1)
-            .numberOfReplicas(0)
-            .build();
+        return IndexMetadata.builder(index.getName()).settings(settings).numberOfShards(1).numberOfReplicas(0).build();
     }
 }

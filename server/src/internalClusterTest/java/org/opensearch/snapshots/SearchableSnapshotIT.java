@@ -270,12 +270,7 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         ensureGreen();
     }
 
-    private void takeSnapshot(
-        Client client,
-        String snapshotName,
-        String repoName,
-        String... indices
-    ) {
+    private void takeSnapshot(Client client, String snapshotName, String repoName, String... indices) {
         logger.info("--> Take a snapshot");
         final CreateSnapshotResponse createSnapshotResponse = client.admin()
             .cluster()

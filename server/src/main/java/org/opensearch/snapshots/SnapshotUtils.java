@@ -149,7 +149,11 @@ public class SnapshotUtils {
      * @param snapshotIds list of snapshot Ids to be verified
      * @param repoName repo name for which the verification is being done
      */
-    public static void validateSnapshotsBackingAnyIndex(ImmutableOpenMap<String, IndexMetadata> metadata, List<SnapshotId> snapshotIds, String repoName) {
+    public static void validateSnapshotsBackingAnyIndex(
+        ImmutableOpenMap<String, IndexMetadata> metadata,
+        List<SnapshotId> snapshotIds,
+        String repoName
+    ) {
         final Map<String, SnapshotId> uuidToSnapshotId = new HashMap<>();
         final Set<String> snapshotsToBeNotDeleted = new HashSet<>();
         snapshotIds.forEach(snapshotId -> uuidToSnapshotId.put(snapshotId.getUUID(), snapshotId));
