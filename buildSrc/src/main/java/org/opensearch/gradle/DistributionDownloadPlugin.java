@@ -73,6 +73,8 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
     private static final String RELEASE_PATTERN_LAYOUT = "/core/opensearch/[revision]/[module]-min-[revision](-[classifier]).[ext]";
     private static final String SNAPSHOT_PATTERN_LAYOUT =
         "/snapshots/core/opensearch/[revision]/[module]-min-[revision](-[classifier])-latest.[ext]";
+    private static final String BUNDLE_PATTERN_LAYOUT =
+        "/distribution-build-opensearch/[revision]/latest/linux/x64/tar/dist/opensearch/[module]-[revision](-[classifier]).[ext]";
 
     private NamedDomainObjectContainer<OpenSearchDistribution> distributionsContainer;
     private NamedDomainObjectContainer<DistributionResolution> distributionsResolutionStrategiesContainer;
@@ -174,6 +176,19 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             return;
         }
         Object customDistributionUrl = project.findProperty("customDistributionUrl");
+        Object bundleDownload = project.findProperty("bundleDownload");
+        boolean bundleBoolean = bundleDownload != null && Boolean.parseBoolean(bundleDownload.toString());
+        if (bundleBoolean) {
+            addIvyRepo(
+                project,
+                DOWNLOAD_REPO_NAME,
+                "https://ci.opensearch.org",
+                FAKE_IVY_GROUP,
+                "/ci/dbc" + BUNDLE_PATTERN_LAYOUT
+            );
+            addIvyRepo(project, SNAPSHOT_REPO_NAME, "https://ci.opensearch.org", FAKE_SNAPSHOT_IVY_GROUP, "/ci/dbc" + BUNDLE_PATTERN_LAYOUT);
+            return;
+        }
         // checks if custom Distribution Url has been passed by user from plugins
         if (customDistributionUrl != null) {
             addIvyRepo(project, DOWNLOAD_REPO_NAME, customDistributionUrl.toString(), FAKE_IVY_GROUP, "");
