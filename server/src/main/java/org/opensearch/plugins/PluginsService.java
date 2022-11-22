@@ -50,6 +50,7 @@ import org.opensearch.common.inject.Module;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexModule;
 import org.opensearch.node.ReportingService;
 import org.opensearch.threadpool.ExecutorBuilder;
@@ -305,6 +306,9 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     }
 
     public void onIndexModule(IndexModule indexModule) {
+        if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
+            logger.info("PluginService:onIndexModule index:" + indexModule.getIndex());
+        }
         for (Tuple<PluginInfo, Plugin> plugin : plugins) {
             plugin.v2().onIndexModule(indexModule);
         }

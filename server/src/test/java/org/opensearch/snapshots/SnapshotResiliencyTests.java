@@ -156,6 +156,7 @@ import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.PrioritizedOpenSearchThreadPoolExecutor;
@@ -191,6 +192,7 @@ import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpoin
 import org.opensearch.ingest.IngestService;
 import org.opensearch.monitor.StatusInfo;
 import org.opensearch.node.ResponseCollectorService;
+import org.opensearch.extensions.ExtensionsOrchestrator;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
@@ -1795,40 +1797,79 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                 );
                 final BigArrays bigArrays = new BigArrays(new PageCacheRecycler(settings), null, "test");
                 final MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
-                indicesService = new IndicesService(
-                    settings,
-                    mock(PluginsService.class),
-                    nodeEnv,
-                    namedXContentRegistry,
-                    new AnalysisRegistry(
-                        environment,
+                if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
+                    indicesService = new IndicesService(
+                        settings,
+                        mock(PluginsService.class),
+                        mock(ExtensionsOrchestrator.class),
+                        nodeEnv,
+                        namedXContentRegistry,
+                        new AnalysisRegistry(
+                            environment,
+                            emptyMap(),
+                            emptyMap(),
+                            emptyMap(),
+                            emptyMap(),
+                            emptyMap(),
+                            emptyMap(),
+                            emptyMap(),
+                            emptyMap(),
+                            emptyMap()
+                        ),
+                        indexNameExpressionResolver,
+                        mapperRegistry,
+                        namedWriteableRegistry,
+                        threadPool,
+                        indexScopedSettings,
+                        new NoneCircuitBreakerService(),
+                        bigArrays,
+                        scriptService,
+                        clusterService,
+                        client,
+                        new MetaStateService(nodeEnv, namedXContentRegistry),
+                        Collections.emptyList(),
                         emptyMap(),
+                        null,
                         emptyMap(),
+                        new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService)
+                    );
+                } else {
+                    indicesService = new IndicesService(
+                        settings,
+                        mock(PluginsService.class),
+                        nodeEnv,
+                        namedXContentRegistry,
+                        new AnalysisRegistry(
+                            environment,
+                            emptyMap(),
+                            emptyMap(),
+                            emptyMap(),
+                            emptyMap(),
+                            emptyMap(),
+                            emptyMap(),
+                            emptyMap(),
+                            emptyMap(),
+                            emptyMap()
+                        ),
+                        indexNameExpressionResolver,
+                        mapperRegistry,
+                        namedWriteableRegistry,
+                        threadPool,
+                        indexScopedSettings,
+                        new NoneCircuitBreakerService(),
+                        bigArrays,
+                        scriptService,
+                        clusterService,
+                        client,
+                        new MetaStateService(nodeEnv, namedXContentRegistry),
+                        Collections.emptyList(),
                         emptyMap(),
+                        null,
                         emptyMap(),
-                        emptyMap(),
-                        emptyMap(),
-                        emptyMap(),
-                        emptyMap(),
-                        emptyMap()
-                    ),
-                    indexNameExpressionResolver,
-                    mapperRegistry,
-                    namedWriteableRegistry,
-                    threadPool,
-                    indexScopedSettings,
-                    new NoneCircuitBreakerService(),
-                    bigArrays,
-                    scriptService,
-                    clusterService,
-                    client,
-                    new MetaStateService(nodeEnv, namedXContentRegistry),
-                    Collections.emptyList(),
-                    emptyMap(),
-                    null,
-                    emptyMap(),
-                    new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService)
-                );
+                        new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService)
+                    );
+                }
+
                 final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
                 snapshotShardsService = new SnapshotShardsService(
                     settings,
