@@ -24,6 +24,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.command.CancelAllocationCommand;
+import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
@@ -90,9 +91,107 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
         return false;
     }
 
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.REPLICATION_TYPE, "true").build();
+    private final TimeValue ACCEPTABLE_RELOCATION_TIME = new TimeValue(5, TimeUnit.MINUTES);
+
+    public void ingestDocs(int docCount) throws Exception {
+        try (
+            BackgroundIndexer indexer = new BackgroundIndexer(
+                INDEX_NAME,
+                "_doc",
+                client(),
+                -1,
+                RandomizedTest.scaledRandomIntBetween(2, 5),
+                false,
+                random()
+            )
+        ) {
+            indexer.start(docCount);
+            waitForDocs(docCount, indexer);
+            refresh(INDEX_NAME);
+            waitForReplicaUpdate();
+        }
+    }
+
+    /**
+     * This Integration Relocates a primary shard to another node. Before Relocation and after relocation we index single document. We don't perform any flush
+     * before relocation is done.
+     * This test will pass if we perform flush before relocation.
+     */
+    public void testSimplePrimaryRelocationWithoutFlushBeforeRelocation() throws Exception {
+        logger.info("--> starting [primary] ...");
+        final String old_primary = internalCluster().startNode();
+
+        logger.info("--> creating test index ...");
+        prepareCreate(
+            INDEX_NAME,
+            Settings.builder()
+                .put("index.number_of_shards", 1)
+                .put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), false)
+                .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+                .put("index.number_of_replicas", 1)
+        ).get();
+
+        final String replica = internalCluster().startNode();
+
+        ensureGreen(INDEX_NAME);
+        final int initialDocCount = scaledRandomIntBetween(0, 200);
+        ingestDocs(initialDocCount);
+
+        logger.info("--> verifying count {}", initialDocCount);
+        assertHitCount(client(old_primary).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), initialDocCount);
+        assertHitCount(client(replica).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), initialDocCount);
+
+        // If we do a flush before relocation, this test will pass.
+        // flush(INDEX_NAME);
+
+        logger.info("--> start another node");
+        final String new_primary = internalCluster().startNode();
+        ClusterHealthResponse clusterHealthResponse = client().admin()
+            .cluster()
+            .prepareHealth()
+            .setWaitForEvents(Priority.LANGUID)
+            .setWaitForNodes("3")
+            .execute()
+            .actionGet();
+        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
+
+        logger.info("--> relocate the shard");
+
+        client().admin()
+            .cluster()
+            .prepareReroute()
+            .add(new MoveAllocationCommand(INDEX_NAME, 0, old_primary, new_primary))
+            .execute()
+            .actionGet();
+        clusterHealthResponse = client().admin()
+            .cluster()
+            .prepareHealth()
+            .setWaitForEvents(Priority.LANGUID)
+            .setWaitForNoRelocatingShards(true)
+            .setTimeout(ACCEPTABLE_RELOCATION_TIME)
+            .execute()
+            .actionGet();
+        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
+
+        final int finalDocCount = 1;
+        client().prepareIndex(INDEX_NAME).setId("20").setSource("bar", "baz").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        refresh(INDEX_NAME);
+        waitForReplicaUpdate();
+
+        logger.info("--> verifying count again {} + {}", initialDocCount, finalDocCount);
+        client().admin().indices().prepareRefresh().execute().actionGet();
+        assertBusy(() -> {
+            assertHitCount(
+                client(new_primary).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(),
+                initialDocCount + finalDocCount
+            );
+        });
+        assertBusy(() -> {
+            assertHitCount(
+                client(replica).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(),
+                initialDocCount + finalDocCount
+            );
+        });
     }
 
     public void testPrimaryStopped_ReplicaPromoted() throws Exception {

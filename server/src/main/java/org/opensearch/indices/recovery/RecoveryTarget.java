@@ -38,6 +38,7 @@ import org.apache.lucene.index.IndexFormatTooOldException;
 import org.opensearch.Assertions;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionListener;
+import org.opensearch.action.StepListener;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.UUIDs;
@@ -219,7 +220,15 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
 
     @Override
     public void finalizeRecovery(final long globalCheckpoint, final long trimAboveSeqNo, ActionListener<Void> listener) {
-        ActionListener.completeWith(listener, () -> {
+        final StepListener<Void> segrepListener = new StepListener<>();
+        // Force segment refresh on primary relocation which is recovered as replica initially & reset engine
+        if (this.indexShard.indexSettings().isSegRepEnabled() && this.state().getPrimary() == true) {
+            logger.info("--> Force segment replication event on new primary and switch to ReadWrite (Internal) engine");
+            this.indexShard.performSegmentReplicationRefresh(segrepListener);
+        } else {
+            segrepListener.onResponse(null);
+        }
+        segrepListener.whenComplete(r -> {
             indexShard.updateGlobalCheckpointOnReplica(globalCheckpoint, "finalizing recovery");
             // Persist the global checkpoint.
             indexShard.sync();
@@ -239,8 +248,8 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
                 indexShard.flush(new FlushRequest().force(true).waitIfOngoing(true));
             }
             indexShard.finalizeRecovery();
-            return null;
-        });
+            listener.onResponse(null);
+        }, listener::onFailure);
     }
 
     private boolean hasUncommittedOperations() throws IOException {

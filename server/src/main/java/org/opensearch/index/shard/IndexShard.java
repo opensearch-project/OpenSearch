@@ -62,6 +62,7 @@ import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
+import org.opensearch.action.StepListener;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.opensearch.action.admin.indices.upgrade.post.UpgradeRequest;
@@ -171,8 +172,11 @@ import org.opensearch.indices.recovery.RecoveryFailedException;
 import org.opensearch.indices.recovery.RecoveryListener;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
+import org.opensearch.indices.replication.SegmentReplicationState;
+import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
+import org.opensearch.indices.replication.common.ReplicationFailedException;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.rest.RestStatus;
@@ -321,6 +325,25 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final Store remoteStore;
     private final TranslogFactory translogFactory;
 
+    public boolean isBlockInternalCheckPointRefresh() {
+        return blockInternalCheckPointRefresh;
+    }
+
+    public void setBlockInternalCheckPointRefresh(boolean blockInternalCheckPointRefresh) {
+        this.blockInternalCheckPointRefresh = blockInternalCheckPointRefresh;
+    }
+
+    /**
+     * Used with segment replication only.
+     *
+     * The flag is meant to block the segment replication events to all replicas from existing primary. This is done in
+     * order to ensure that file copied during peer recovery does not conflict with segment files from new primary post
+     * peer recovery.
+     */
+    private boolean blockInternalCheckPointRefresh;
+
+    private final SegmentReplicationTargetService segmentReplicationTargetService;
+
     public IndexShard(
         final ShardRouting shardRouting,
         final IndexSettings indexSettings,
@@ -344,7 +367,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final CircuitBreakerService circuitBreakerService,
         final TranslogFactory translogFactory,
         @Nullable final SegmentReplicationCheckpointPublisher checkpointPublisher,
-        @Nullable final Store remoteStore
+        @Nullable final Store remoteStore,
+        @Nullable final SegmentReplicationTargetService segmentReplicationTargetService
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -430,6 +454,44 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.checkpointPublisher = checkpointPublisher;
         this.remoteStore = remoteStore;
         this.translogFactory = translogFactory;
+
+        this.segmentReplicationTargetService = segmentReplicationTargetService;
+    }
+
+    /**
+     * Used with Segment replication only
+     *
+     * This function is used to perform a segment replication on target primary node in order to copy segment files
+     * previously copied to other replicas. This is done so that new primary doesn't conflict during new segment
+     * replication round with existing replicas.
+     * @param listener
+     */
+    public void performSegmentReplicationRefresh(StepListener<Void> listener) {
+        this.segmentReplicationTargetService.startReplication(
+            ReplicationCheckpoint.empty(this.shardId()),
+            this,
+            new SegmentReplicationTargetService.SegmentReplicationListener() {
+                @Override
+                public void onReplicationDone(SegmentReplicationState state) {
+                    try {
+                        indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> { resetEngineToGlobalCheckpoint(); });
+                        listener.onResponse(null);
+                    } catch (InterruptedException | TimeoutException | IOException e) {
+                        listener.onFailure(e);
+                        throw new RuntimeException(e);
+                    }
+                }
+
+                @Override
+                public void onReplicationFailure(SegmentReplicationState state, ReplicationFailedException e, boolean sendShardFailure) {
+                    logger.error("segment replication failure post recovery {}", e);
+                    listener.onFailure(e);
+                    if (sendShardFailure == true) {
+                        failShard("segment replication failure post recovery", e);
+                    }
+                }
+            }
+        );
     }
 
     public ThreadPool getThreadPool() {
@@ -3310,6 +3372,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private EngineConfig newEngineConfig(LongSupplier globalCheckpointSupplier) throws IOException {
+        return this.newEngineConfig(globalCheckpointSupplier, false);
+    }
+
+    private EngineConfig newEngineConfig(LongSupplier globalCheckpointSupplier, boolean forceReadWriteEngine) throws IOException {
         final Sort indexSort = indexSortSupplier.get();
         final Engine.Warmer warmer = reader -> {
             assert Thread.holdsLock(mutex) == false : "warming engine under mutex";
@@ -3326,6 +3392,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
         if (this.checkpointPublisher != null && indexSettings.isSegRepEnabled() && shardRouting.primary()) {
             internalRefreshListener.add(new CheckpointRefreshListener(this, this.checkpointPublisher));
+        }
+
+        boolean isReadOnlyReplica = indexSettings.isSegRepEnabled() && shardRouting.primary() == false;
+        /**
+         * Recover relocating primary shard as replica with segment replication.
+         */
+        if (shardRouting.isRelocationTarget() && shardRouting.primary() == true && forceReadWriteEngine == false) {
+            isReadOnlyReplica = true;
         }
 
         return this.engineConfigFactory.newEngineConfig(
@@ -3351,7 +3425,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             replicationTracker::getRetentionLeases,
             () -> getOperationPrimaryTerm(),
             tombstoneDocSupplier(),
-            indexSettings.isSegRepEnabled() && shardRouting.primary() == false,
+            isReadOnlyReplica,
             translogFactory
         );
     }
@@ -4144,7 +4218,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             if (indexSettings.isRemoteStoreEnabled()) {
                 syncSegmentsFromRemoteSegmentStore(false);
             }
-            newEngineReference.set(engineFactory.newReadWriteEngine(newEngineConfig(replicationTracker)));
+            newEngineReference.set(engineFactory.newReadWriteEngine(newEngineConfig(replicationTracker, true)));
             onNewEngine(newEngineReference.get());
         }
         final TranslogRecoveryRunner translogRunner = (snapshot) -> runTranslogRecovery(

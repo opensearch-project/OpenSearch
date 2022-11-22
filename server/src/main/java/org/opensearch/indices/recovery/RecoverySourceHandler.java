@@ -188,6 +188,13 @@ public abstract class RecoverySourceHandler {
         }
     }
 
+    protected void preventRefreshOnReplicas() {
+        // Block refresh on replicas
+        if (shard.indexSettings().isSegRepEnabled() && request.isPrimaryRelocation() == true) {
+            shard.setBlockInternalCheckPointRefresh(true);
+        }
+    }
+
     protected abstract void innerRecoveryToTarget(ActionListener<RecoveryResponse> listener, Consumer<Exception> onFailure)
         throws IOException;
 

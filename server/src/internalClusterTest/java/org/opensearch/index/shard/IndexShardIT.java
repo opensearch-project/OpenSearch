@@ -85,6 +85,7 @@ import org.opensearch.index.translog.TranslogStats;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.builder.SearchSourceBuilder;
@@ -701,7 +702,8 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
             cbs,
             new InternalTranslogFactory(),
             SegmentReplicationCheckpointPublisher.EMPTY,
-            null
+            null,
+            SegmentReplicationTargetService.NO_OP
         );
     }
 

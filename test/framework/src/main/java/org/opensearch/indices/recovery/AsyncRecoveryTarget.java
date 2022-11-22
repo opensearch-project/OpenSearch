@@ -52,8 +52,7 @@ public class AsyncRecoveryTarget implements RecoveryTargetHandler {
     private final RecoveryTargetHandler target;
     private final Executor executor;
 
-    public AsyncRecoveryTarget(RecoveryTargetHandler target, Executor executor) {
-        this.executor = executor;
+    public AsyncRecoveryTarget(RecoveryTargetHandler target, Executor executor) {ethis.executor = executor;
         this.target = target;
     }
 
