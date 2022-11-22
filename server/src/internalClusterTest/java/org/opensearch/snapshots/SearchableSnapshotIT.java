@@ -7,14 +7,12 @@ package org.opensearch.snapshots;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.hamcrest.MatcherAssert;
 import org.junit.BeforeClass;
-import org.opensearch.action.StepListener;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequestBuilder;
 import org.opensearch.action.index.IndexRequestBuilder;
-import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
@@ -92,7 +90,8 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         createIndexWithDocsAndEnsureGreen(numReplicasIndex1, 100, indexName1);
         createIndexWithDocsAndEnsureGreen(numReplicasIndex2, 100, indexName2);
 
-        takeSnapshot(client, snapshotName, repoName, false, indexName1, indexName2);
+        createRepositoryWithSettings(null, repoName);
+        takeSnapshot(client, snapshotName, repoName, indexName1, indexName2);
         deleteIndicesAndEnsureGreen(client, indexName1, indexName2);
 
         internalCluster().ensureAtLeastNumSearchNodes(Math.max(numReplicasIndex1, numReplicasIndex2) + 1);
@@ -119,7 +118,8 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         internalCluster().ensureAtLeastNumSearchAndDataNodes(numReplicasIndex + 1);
         createIndexWithDocsAndEnsureGreen(numReplicasIndex, 1000, indexName);
-        takeSnapshot(client, repositorySettings, snapshotName, repoName, false, indexName);
+        createRepositoryWithSettings(repositorySettings, repoName);
+        takeSnapshot(client, snapshotName, repoName, indexName);
 
         deleteIndicesAndEnsureGreen(client, indexName);
         restoreSnapshotAndEnsureGreen(client, snapshotName, repoName);
@@ -142,7 +142,8 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         internalCluster().ensureAtLeastNumSearchAndDataNodes(numReplicasIndex + 1);
         createIndexWithDocsAndEnsureGreen(numReplicasIndex, 100, indexName);
-        takeSnapshot(client, snapshotName, repoName, false, indexName);
+        createRepositoryWithSettings(null, repoName);
+        takeSnapshot(client, snapshotName, repoName, indexName);
 
         restoreSnapshotAndEnsureGreen(client, snapshotName, repoName);
 
@@ -166,7 +167,8 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(numReplicasIndex + 1);
         createIndexWithDocsAndEnsureGreen(numReplicasIndex, 100, indexName);
 
-        takeSnapshot(client, snapshotName, repoName, false, indexName);
+        createRepositoryWithSettings(null, repoName);
+        takeSnapshot(client, snapshotName, repoName, indexName);
         deleteIndicesAndEnsureGreen(client, indexName);
 
         internalCluster().ensureAtLeastNumSearchNodes(numReplicasIndex + 1);
@@ -204,7 +206,8 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         final Client client = client();
 
         createIndexWithDocsAndEnsureGreen(0, 100, indexName);
-        takeSnapshot(client, snapshotName, repoName, false, indexName);
+        createRepositoryWithSettings(null, repoName);
+        takeSnapshot(client, snapshotName, repoName, indexName);
         deleteIndicesAndEnsureGreen(client, indexName);
 
         internalCluster().ensureAtLeastNumSearchNodes(1);
@@ -221,44 +224,36 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testDeleteSearchableSnapshotBackingIndexThrowsException() throws Exception {
-        disableRepoConsistencyCheck("reason");
         final String indexName = "test-index";
         final Client client = client();
         final String repoName = "test-repo";
         final String snapshotName = "test-snap";
-        final StepListener<AcknowledgedResponse> deleteSnapshotStepListener = new StepListener<>();
-        createRepository(repoName, FsRepository.TYPE);
+        createRepositoryWithSettings(null, repoName);
         createIndexWithDocsAndEnsureGreen(0, 100, indexName);
-        takeSnapshot(client, snapshotName, repoName, false, indexName);
+        takeSnapshot(client, snapshotName, repoName, indexName);
         internalCluster().ensureAtLeastNumSearchNodes(1);
         restoreSnapshotAndEnsureGreen(client, snapshotName, repoName);
         assertThrows(
-            SnapshotDeletionException.class,
+            SnapshotInUseDeletionException.class,
             () -> client().admin().cluster().deleteSnapshot(new DeleteSnapshotRequest(repoName, snapshotName)).actionGet()
         );
     }
 
     public void testDeleteSearchableSnapshotBackingIndex() throws Exception {
-        disableRepoConsistencyCheck("reason");
         final String indexName1 = "test-index1";
         final String indexName2 = "test-index2";
         final Client client = client();
         final String repoName = "test-repo";
         final String snapshotName1 = "test-snapshot1";
         final String snapshotName2 = "test-snap";
-        final StepListener<AcknowledgedResponse> deleteSnapshotStepListener = new StepListener<>();
-        createRepository(repoName, FsRepository.TYPE);
+        createRepositoryWithSettings(null, repoName);
         createIndexWithDocsAndEnsureGreen(0, 100, indexName1);
         createIndexWithDocsAndEnsureGreen(0, 100, indexName2);
-        takeSnapshot(client, snapshotName1, repoName, false, indexName1);
-        takeSnapshot(client, snapshotName2, repoName, true, indexName2);
+        takeSnapshot(client, snapshotName1, repoName, indexName1);
+        takeSnapshot(client, snapshotName2, repoName, indexName2);
         internalCluster().ensureAtLeastNumSearchNodes(1);
         restoreSnapshotAndEnsureGreen(client, snapshotName2, repoName);
-        try {
-            client().admin().cluster().deleteSnapshot(new DeleteSnapshotRequest(repoName, snapshotName1)).actionGet();
-        } catch (Exception e) {
-            fail("Should not have thrown any exception");
-        }
+        client().admin().cluster().deleteSnapshot(new DeleteSnapshotRequest(repoName, snapshotName1)).actionGet();
     }
 
     private void createIndexWithDocsAndEnsureGreen(int numReplicasIndex, int numOfDocs, String indexName) throws InterruptedException {
@@ -275,26 +270,12 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         ensureGreen();
     }
 
-    private void takeSnapshot(Client client, String snapshotName, String repoName, Boolean doesRepoExist, String... indices) {
-        takeSnapshot(client, null, snapshotName, repoName, doesRepoExist, indices);
-    }
-
     private void takeSnapshot(
         Client client,
-        Settings.Builder repositorySettings,
         String snapshotName,
         String repoName,
-        Boolean doesRepoExist,
         String... indices
     ) {
-        logger.info("--> Create a repository");
-        if (!doesRepoExist) {
-            if (repositorySettings == null) {
-                createRepository(repoName, FsRepository.TYPE);
-            } else {
-                createRepository(repoName, FsRepository.TYPE, repositorySettings);
-            }
-        }
         logger.info("--> Take a snapshot");
         final CreateSnapshotResponse createSnapshotResponse = client.admin()
             .cluster()
@@ -308,6 +289,15 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
             createSnapshotResponse.getSnapshotInfo().successfulShards(),
             equalTo(createSnapshotResponse.getSnapshotInfo().totalShards())
         );
+    }
+
+    private void createRepositoryWithSettings(Settings.Builder repositorySettings, String repoName) {
+        logger.info("--> Create a repository");
+        if (repositorySettings == null) {
+            createRepository(repoName, FsRepository.TYPE);
+        } else {
+            createRepository(repoName, FsRepository.TYPE, repositorySettings);
+        }
     }
 
     private void deleteIndicesAndEnsureGreen(Client client, String... indices) {

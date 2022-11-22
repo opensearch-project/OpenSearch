@@ -18,13 +18,13 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public class SnapshotDeletionException extends SnapshotException {
+public class SnapshotInUseDeletionException extends SnapshotException {
 
-    public SnapshotDeletionException(final String repositoryName, final String snapshotName, final String msg) {
+    public SnapshotInUseDeletionException(final String repositoryName, final String snapshotName, final String msg) {
         super(repositoryName, snapshotName, msg);
     }
 
-    public SnapshotDeletionException(StreamInput in) throws IOException {
+    public SnapshotInUseDeletionException(StreamInput in) throws IOException {
         super(in);
     }
 

@@ -51,6 +51,7 @@ import org.opensearch.index.Index;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
+import org.opensearch.snapshots.SnapshotInUseDeletionException;
 import org.opensearch.transport.TcpTransport;
 
 import java.io.IOException;
@@ -1613,8 +1614,8 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
             Version.V_2_4_0
         ),
         SNAPSHOT_DELETION_EXCEPTION(
-            org.opensearch.snapshots.SnapshotDeletionException.class,
-            org.opensearch.snapshots.SnapshotDeletionException::new,
+            SnapshotInUseDeletionException.class,
+            SnapshotInUseDeletionException::new,
             166,
             UNKNOWN_VERSION_ADDED
         );

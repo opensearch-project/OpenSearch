@@ -1770,7 +1770,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     snapshotNames,
                     repoName
                 );
-                validateSnapshotsBackingAnyIndex(currentState, snapshotIds, repoName);
+                validateSnapshotsBackingAnyIndex(currentState.getMetadata().getIndices(), snapshotIds, repoName);
                 deleteFromRepoTask = createDeleteStateUpdate(snapshotIds, repoName, repositoryData, Priority.NORMAL, listener);
                 return deleteFromRepoTask.execute(currentState);
             }
