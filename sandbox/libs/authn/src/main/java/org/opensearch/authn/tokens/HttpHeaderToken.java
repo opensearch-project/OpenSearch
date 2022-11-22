@@ -14,7 +14,7 @@ public abstract class HttpHeaderToken implements AuthenticationToken {
 
     /**
      * Returns the value for this authentication header
-     * @return the header (e.g. "Basic <base64-encoded-string>", "Bearer <arbitrary-string>" )
+     * @return the header (e.g. "Basic `base64-encoded-string`", "Bearer `arbitrary-string`" )
      */
     public abstract String getHeaderValue();
 }

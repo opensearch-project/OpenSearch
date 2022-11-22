@@ -8,7 +8,6 @@ package org.opensearch.authn.internal;
 import java.security.Principal;
 import java.util.Objects;
 
-import org.apache.shiro.authc.UsernamePasswordToken;
 import org.opensearch.authn.AuthenticationTokenHandler;
 import org.opensearch.authn.tokens.AuthenticationToken;
 import org.opensearch.authn.Subject;
