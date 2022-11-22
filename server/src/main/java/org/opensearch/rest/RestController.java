@@ -40,6 +40,7 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.authn.jwt.BadCredentialsException;
 import org.opensearch.authn.tokens.AuthenticationToken;
 import org.opensearch.authn.tokens.BasicAuthToken;
+import org.opensearch.authn.tokens.BearerAuthToken;
 import org.opensearch.authn.tokens.HttpHeaderToken;
 import org.opensearch.authn.Subject;
 import org.opensearch.client.node.NodeClient;
@@ -654,6 +655,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
      */
     private AuthenticationToken tokenType(String authHeader) {
         if (authHeader.contains("Basic")) return new BasicAuthToken(authHeader);
+        if (authHeader.contains("Bearer")) return new BearerAuthToken(authHeader);
         // support other type of header tokens
         return null;
     }

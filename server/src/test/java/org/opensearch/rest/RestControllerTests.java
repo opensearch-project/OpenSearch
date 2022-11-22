@@ -33,6 +33,7 @@
 package org.opensearch.rest;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
+import org.opensearch.authn.jwt.JwtVendor;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.bytes.BytesArray;
@@ -648,11 +649,18 @@ public class RestControllerTests extends OpenSearchTestCase {
         final AuthenticationManager authManager = new InternalAuthenticationManager();
         Identity.setAuthManager(authManager);
 
+        Map<String, Object> jwtClaims = new HashMap<>();
+        jwtClaims.put("sub", "testSubject");
+
+        String encodedToken = JwtVendor.createJwt(jwtClaims);
+
+        String headerBody = "Bearer " + encodedToken;
+
         final ThreadContext threadContext = client.threadPool().getThreadContext();
 
         final FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withHeaders(
-            Collections.singletonMap("Authorization", Collections.singletonList("Basic YWRtaW46YWRtaW4="))
-        ) // admin:admin
+            Collections.singletonMap("Authorization", Collections.singletonList(headerBody))
+        )
             .build();
         final AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.OK);
         restController.dispatchRequest(fakeRestRequest, channel, threadContext);
@@ -664,11 +672,54 @@ public class RestControllerTests extends OpenSearchTestCase {
         final AuthenticationManager authManager = new InternalAuthenticationManager();
         Identity.setAuthManager(authManager);
 
+        Map<String, Object> jwtClaims = new HashMap<>();
+        jwtClaims.put("sub", "testSubject");
+
+        String encodedToken = JwtVendor.createJwt(jwtClaims);
+
+        String headerBody = "Bearer " + encodedToken;
+
         final ThreadContext threadContext = client.threadPool().getThreadContext();
 
         final FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withHeaders(
-            Collections.singletonMap("Authorization", Collections.singletonList("Basic bWFydmluOmdhbGF4eQ=="))
-        ) // marvin:galaxy
+            Collections.singletonMap("Authorization", Collections.singletonList(headerBody)) //TODO: Switch to invalid JWT once figure out how to create one
+        )
+            .build();
+
+        // RestStatus is OK even though the authn information is incorrect. This is because we, yet, don't fail the request
+        // if it was unauthorized. The status should be changed to UNAUTHORIZED once the flow is updated.
+        final AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.OK);
+        restController.dispatchRequest(fakeRestRequest, channel, threadContext);
+
+        assertTrue(channel.getSendResponseCalled());
+    }
+
+    // TODO: Determine if need a pair of tests for each auth type
+    public void testRestRequestBearerAuthenticationSuccess() {
+        final AuthenticationManager authManager = new InternalAuthenticationManager();
+        Identity.setAuthManager(authManager);
+
+        final ThreadContext threadContext = client.threadPool().getThreadContext();
+
+        final FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withHeaders(
+                Collections.singletonMap("Authorization", Collections.singletonList("Basic YWRtaW46YWRtaW4="))
+            ) // admin:admin
+            .build();
+        final AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.OK);
+        restController.dispatchRequest(fakeRestRequest, channel, threadContext);
+
+        assertTrue(channel.getSendResponseCalled());
+    }
+
+    public void testRestRequestBearerAuthenticationFailure() {
+        final AuthenticationManager authManager = new InternalAuthenticationManager();
+        Identity.setAuthManager(authManager);
+
+        final ThreadContext threadContext = client.threadPool().getThreadContext();
+
+        final FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withHeaders(
+                Collections.singletonMap("Authorization", Collections.singletonList("Basic bWFydmluOmdhbGF4eQ=="))
+            ) // marvin:galaxy
             .build();
 
         // RestStatus is OK even though the authn information is incorrect. This is because we, yet, don't fail the request
