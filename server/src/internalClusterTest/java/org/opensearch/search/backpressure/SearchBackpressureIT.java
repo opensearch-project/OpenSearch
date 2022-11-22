@@ -123,11 +123,11 @@ public class SearchBackpressureIT extends OpenSearchIntegTestCase {
         // Before SearchBackpressureService cancels a task based on its heap usage, we need to build up the heap moving average
         // To build up the heap moving average, we need to hit the same node with multiple requests and then hit the same node with a
         // request having higher heap usage
-        String node = internalCluster().startDataOnlyNode();
+        String node = randomFrom(internalCluster().getNodeNames());
         final int MOVING_AVERAGE_WINDOW_SIZE = 10;
         Settings request = Settings.builder()
             .put(SearchBackpressureSettings.SETTING_MODE.getKey(), "enforced")
-            .put(HeapUsageTracker.SETTING_HEAP_PERCENT_THRESHOLD.getKey(), 0.00001)
+            .put(HeapUsageTracker.SETTING_HEAP_PERCENT_THRESHOLD.getKey(), 0.0)
             .put(HeapUsageTracker.SETTING_HEAP_VARIANCE_THRESHOLD.getKey(), 1.0)
             .put(HeapUsageTracker.SETTING_HEAP_MOVING_AVERAGE_WINDOW_SIZE.getKey(), MOVING_AVERAGE_WINDOW_SIZE)
             .build();
