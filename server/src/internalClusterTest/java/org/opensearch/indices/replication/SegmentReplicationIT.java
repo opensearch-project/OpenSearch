@@ -203,8 +203,8 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
      * This test makes sure that when a new replica is added to an existing cluster it gets all latest segments from primary even without a refresh.
      */
     public void testAddNewReplica() throws Exception {
-        logger.info("--> starting [node1] ...");
-        final String node_1 = internalCluster().startNode();
+        logger.info("--> starting [Primary Node] ...");
+        final String primary = internalCluster().startNode();
 
         logger.info("--> creating test index ...");
         prepareCreate(INDEX_NAME, Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 1)).get();
@@ -213,7 +213,7 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
         for (int i = 0; i < 10; i++) {
             client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
         }
-        logger.info("--> flush so we have an actual index");
+        logger.info("--> flush so we have some segment files on disk");
         client().admin().indices().prepareFlush().execute().actionGet();
         logger.info("--> index more docs so we have something in the translog");
         for (int i = 10; i < 20; i++) {
@@ -224,8 +224,8 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
         client().admin().indices().prepareRefresh().execute().actionGet();
         assertThat(client().prepareSearch(INDEX_NAME).setSize(0).execute().actionGet().getHits().getTotalHits().value, equalTo(20L));
 
-        logger.info("--> start another node");
-        final String node_2 = internalCluster().startNode();
+        logger.info("--> start replica node");
+        final String replica = internalCluster().startNode();
         ClusterHealthResponse clusterHealthResponse = client().admin()
             .cluster()
             .prepareHealth()

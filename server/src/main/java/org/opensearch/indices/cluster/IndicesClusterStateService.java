@@ -786,7 +786,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         // is marked as Started.
         if (indexShard.indexSettings().isSegRepEnabled()
             && shardRouting.primary() == false
-            && ShardRoutingState.RELOCATING != shardRouting.state()) {
+            && shardRouting.state() == ShardRoutingState.INITIALIZING
+            && indexShard.state() == IndexShardState.POST_RECOVERY) {
             segmentReplicationTargetService.startReplication(indexShard, new SegmentReplicationTargetService.SegmentReplicationListener() {
                 @Override
                 public void onReplicationDone(SegmentReplicationState state) {
