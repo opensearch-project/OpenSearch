@@ -85,6 +85,7 @@ import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.replication.SegmentReplicationSourceService;
 import org.opensearch.indices.replication.SegmentReplicationState;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
+import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.common.ReplicationFailedException;
 import org.opensearch.indices.replication.common.ReplicationState;
@@ -788,41 +789,49 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             && shardRouting.primary() == false
             && shardRouting.state() == ShardRoutingState.INITIALIZING
             && indexShard.state() == IndexShardState.POST_RECOVERY) {
-            segmentReplicationTargetService.startReplication(indexShard, new SegmentReplicationTargetService.SegmentReplicationListener() {
-                @Override
-                public void onReplicationDone(SegmentReplicationState state) {
-                    logger.trace(
-                        () -> new ParameterizedMessage(
-                            "[shardId {}] [replication id {}] Replication complete, timing data: {}",
-                            indexShard.shardId().getId(),
-                            state.getReplicationId(),
-                            state.getTimingData()
-                        )
-                    );
-                    shardStateAction.shardStarted(
-                        shardRouting,
-                        primaryTerm,
-                        "after " + RecState.getRecoverySource(),
-                        SHARD_STATE_ACTION_LISTENER
-                    );
-                }
+            segmentReplicationTargetService.startReplication(
+                ReplicationCheckpoint.empty(shardRouting.shardId()),
+                indexShard,
+                new SegmentReplicationTargetService.SegmentReplicationListener() {
+                    @Override
+                    public void onReplicationDone(SegmentReplicationState state) {
+                        logger.trace(
+                            () -> new ParameterizedMessage(
+                                "[shardId {}] [replication id {}] Replication complete, timing data: {}",
+                                indexShard.shardId().getId(),
+                                state.getReplicationId(),
+                                state.getTimingData()
+                            )
+                        );
+                        shardStateAction.shardStarted(
+                            shardRouting,
+                            primaryTerm,
+                            "after " + RecState.getRecoverySource(),
+                            SHARD_STATE_ACTION_LISTENER
+                        );
+                    }
 
-                @Override
-                public void onReplicationFailure(SegmentReplicationState state, ReplicationFailedException e, boolean sendShardFailure) {
-                    logger.trace(
-                        () -> new ParameterizedMessage(
-                            "[shardId {}] [replication id {}] Replication failed, timing data: {}",
-                            indexShard.shardId().getId(),
-                            state.getReplicationId(),
-                            state.getTimingData()
-                        )
-                    );
-                    if (sendShardFailure == true) {
-                        logger.error("replication failure", e);
-                        indexShard.failShard("replication failure", e);
+                    @Override
+                    public void onReplicationFailure(
+                        SegmentReplicationState state,
+                        ReplicationFailedException e,
+                        boolean sendShardFailure
+                    ) {
+                        logger.trace(
+                            () -> new ParameterizedMessage(
+                                "[shardId {}] [replication id {}] Replication failed, timing data: {}",
+                                indexShard.shardId().getId(),
+                                state.getReplicationId(),
+                                state.getTimingData()
+                            )
+                        );
+                        if (sendShardFailure == true) {
+                            logger.error("replication failure", e);
+                            indexShard.failShard("replication failure", e);
+                        }
                     }
                 }
-            });
+            );
         } else {
             shardStateAction.shardStarted(shardRouting, primaryTerm, "after " + RecState.getRecoverySource(), SHARD_STATE_ACTION_LISTENER);
         }

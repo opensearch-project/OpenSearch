@@ -230,10 +230,6 @@ public class SegmentReplicationTargetService implements IndexEventListener {
         return target;
     }
 
-    public SegmentReplicationTarget startReplication(final IndexShard indexShard, final SegmentReplicationListener listener) {
-        return startReplication(ReplicationCheckpoint.empty(indexShard.shardId()), indexShard, listener);
-    }
-
     // pkg-private for integration tests
     void startReplication(final SegmentReplicationTarget target) {
         final long replicationId = onGoingReplications.start(target, recoverySettings.activityTimeout());
