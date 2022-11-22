@@ -13,6 +13,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump bcpg-fips from 1.0.5.1 to 1.0.7.1 ([#5148](https://github.com/opensearch-project/OpenSearch/pull/5148))
 - Bumps `commons-compress` from 1.21 to 1.22 ([#5104](https://github.com/opensearch-project/OpenSearch/pull/5104))
 - Bumps `gson` from 2.9.0 to 2.10 ([#5184](https://github.com/opensearch-project/OpenSearch/pull/5184))
+- Bump `gradle-extra-configurations-plugin` from 7.0.0 to 8.0.0 ([#4808](https://github.com/opensearch-project/OpenSearch/pull/4808))
+- Bumps `jcodings` from 1.0.57 to 1.0.58
+- Bumps `google-http-client-jackson2` from 1.35.0 to 1.42.3
+- Bumps `azure-core` from 1.33.0 to 1.34.0
+- Bumps `azure-core-http-netty` from 1.12.4 to 1.12.7
+- Bumps `maxmind-db` from 2.0.0 to 2.1.0
+- Bumps `json-schema-validator` from 1.0.69 to 1.0.73 ([#5316](https://github.com/opensearch-project/OpenSearch/pull/5316))
+- Bumps `proto-google-common-protos` from 2.8.0 to 2.10.0 ([#5318](https://github.com/opensearch-project/OpenSearch/pull/5318))
+- Bumps `protobuf-java` from 3.21.7 to 3.21.9 ([#5319](https://github.com/opensearch-project/OpenSearch/pull/5319))
 ### Changed
 ### Deprecated
 ### Removed
