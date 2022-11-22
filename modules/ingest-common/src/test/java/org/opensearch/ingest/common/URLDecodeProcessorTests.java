@@ -33,12 +33,13 @@
 package org.opensearch.ingest.common;
 
 import java.io.UnsupportedEncodingException;
+import java.net.URLEncoder;
 import java.net.URLDecoder;
 
 public class URLDecodeProcessorTests extends AbstractStringProcessorTestCase<String> {
     @Override
     protected String modifyInput(String input) {
-        return "Hello%20G%C3%BCnter" + input;
+        return "Hello%20G%C3%BCnter" + urlEncode(input);
     }
 
     @Override
@@ -49,7 +50,15 @@ public class URLDecodeProcessorTests extends AbstractStringProcessorTestCase<Str
     @Override
     protected String expectedResult(String input) {
         try {
-            return "Hello Günter" + URLDecoder.decode(input, "UTF-8");
+            return "Hello Günter" + URLDecoder.decode(urlEncode(input), "UTF-8");
+        } catch (UnsupportedEncodingException e) {
+            throw new IllegalArgumentException("invalid");
+        }
+    }
+
+    private static String urlEncode(String s) {
+        try {
+            return URLEncoder.encode(s, "UTF-8");
         } catch (UnsupportedEncodingException e) {
             throw new IllegalArgumentException("invalid");
         }
