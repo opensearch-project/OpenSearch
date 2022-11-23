@@ -675,14 +675,14 @@ public class RestControllerTests extends OpenSearchTestCase {
         Map<String, Object> jwtClaims = new HashMap<>();
         jwtClaims.put("sub", "testSubject");
 
-        String encodedToken = JwtVendor.createJwt(jwtClaims);
+        String encodedToken = JwtVendor.createExpiredJwt(jwtClaims);
 
         String headerBody = "Bearer " + encodedToken;
 
         final ThreadContext threadContext = client.threadPool().getThreadContext();
 
         final FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withHeaders(
-            Collections.singletonMap("Authorization", Collections.singletonList(headerBody)) //TODO: Switch to invalid JWT once figure out how to create one
+            Collections.singletonMap("Authorization", Collections.singletonList(headerBody)) //Expired so is invalid
         )
             .build();
 
