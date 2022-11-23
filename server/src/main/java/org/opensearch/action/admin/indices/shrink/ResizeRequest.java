@@ -46,7 +46,6 @@ import org.opensearch.common.xcontent.ObjectParser;
 import org.opensearch.common.xcontent.ToXContentObject;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
-import org.opensearch.Version;
 import org.opensearch.common.unit.ByteSizeValue;
 
 import java.io.IOException;
@@ -95,11 +94,7 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         sourceIndex = in.readString();
         type = in.readEnum(ResizeType.class);
         copySettings = in.readOptionalBoolean();
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
-            if (in.readBoolean()) {
-                maxShardSize = new ByteSizeValue(in);
-            }
-        }
+        maxShardSize = in.readOptionalWriteable(ByteSizeValue::new);
     }
 
     ResizeRequest() {}
@@ -142,9 +137,7 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         out.writeString(sourceIndex);
         out.writeEnum(type);
         out.writeOptionalBoolean(copySettings);
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
-            out.writeOptionalWriteable(maxShardSize);
-        }
+        out.writeOptionalWriteable(maxShardSize);
     }
 
     @Override

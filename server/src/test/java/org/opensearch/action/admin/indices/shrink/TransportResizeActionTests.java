@@ -318,13 +318,36 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
             createClusterState(indexName, 10, 0, Settings.builder().put("index.blocks.write", true).build())
         ).nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
 
+        // Cannot set max_shard_size when split or clone
+        ResizeRequest resizeRequestForFailure = new ResizeRequest("target", indexName);
+        ResizeType resizeType = ResizeType.SPLIT;
+        if (randomBoolean()) {
+            resizeType = ResizeType.CLONE;
+        }
+        resizeRequestForFailure.setResizeType(resizeType);
+        resizeRequestForFailure.setMaxShardSize(new ByteSizeValue(100));
+        resizeRequestForFailure.getTargetIndexRequest()
+            .settings(Settings.builder().put("index.number_of_shards", randomIntBetween(1, 100)).build());
+        ClusterState finalState = clusterState;
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> TransportResizeAction.prepareCreateIndexRequest(
+                resizeRequestForFailure,
+                finalState,
+                null,
+                new StoreStats(between(1, 10000), between(1, 10000)),
+                indexName,
+                "target"
+            )
+        );
+        assertEquals("Unsupported parameter [max_shard_size]", iae.getMessage());
+
         // Cannot set max_shard_size and index.number_of_shards at the same time
         ResizeRequest resizeRequest = new ResizeRequest("target", indexName);
         resizeRequest.setResizeType(ResizeType.SHRINK);
         resizeRequest.setMaxShardSize(new ByteSizeValue(100));
         resizeRequest.getTargetIndexRequest().settings(Settings.builder().put("index.number_of_shards", randomIntBetween(1, 100)).build());
-        ClusterState finalState = clusterState;
-        IllegalArgumentException iae = expectThrows(
+        iae = expectThrows(
             IllegalArgumentException.class,
             () -> TransportResizeAction.prepareCreateIndexRequest(
                 resizeRequest,
