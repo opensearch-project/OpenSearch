@@ -179,14 +179,14 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         Object bundleDownload = project.findProperty("bundleDownload");
         boolean bundleBoolean = bundleDownload != null && Boolean.parseBoolean(bundleDownload.toString());
         if (bundleBoolean) {
+            addIvyRepo(project, DOWNLOAD_REPO_NAME, "https://ci.opensearch.org", FAKE_IVY_GROUP, "/ci/dbc" + BUNDLE_PATTERN_LAYOUT);
             addIvyRepo(
                 project,
-                DOWNLOAD_REPO_NAME,
+                SNAPSHOT_REPO_NAME,
                 "https://ci.opensearch.org",
-                FAKE_IVY_GROUP,
+                FAKE_SNAPSHOT_IVY_GROUP,
                 "/ci/dbc" + BUNDLE_PATTERN_LAYOUT
             );
-            addIvyRepo(project, SNAPSHOT_REPO_NAME, "https://ci.opensearch.org", FAKE_SNAPSHOT_IVY_GROUP, "/ci/dbc" + BUNDLE_PATTERN_LAYOUT);
             return;
         }
         // checks if custom Distribution Url has been passed by user from plugins
