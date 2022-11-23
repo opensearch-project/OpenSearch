@@ -73,10 +73,6 @@ public class WeightFactorFunction extends ScoreFunction {
         this(weight, null, null);
     }
 
-    public WeightFactorFunction(float weight, @Nullable String functionName) {
-        this(weight, null, functionName);
-    }
-
     @Override
     public LeafScoreFunction getLeafScoreFunction(LeafReaderContext ctx) throws IOException {
         final LeafScoreFunction leafFunction = scoreFunction.getLeafScoreFunction(ctx);
