@@ -450,12 +450,11 @@ gradle.projectsEvaluated {
 }
 
 // test retry configuration
-boolean isCiServer = System.getenv().containsKey("CI")
 subprojects {
   apply plugin: "org.gradle.test-retry"
   tasks.withType(Test).configureEach {
     retry {
-      if (isCiServer) {
+      if (BuildParams.isCi()) {
         maxRetries = 3
         maxFailures = 10
       }
