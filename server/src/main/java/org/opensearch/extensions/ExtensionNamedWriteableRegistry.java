@@ -31,16 +31,16 @@ public class ExtensionNamedWriteableRegistry {
     private static final Logger logger = LogManager.getLogger(ExtensionNamedWriteableRegistry.class);
 
     private Map<DiscoveryNode, Map<Class<? extends NamedWriteable>, Map<String, ExtensionReader>>> extensionNamedWriteableRegistry;
-    private List<DiscoveryExtension> extensionsInitializedList;
+    private List<DiscoveryExtensionNode> extensionsInitializedList;
     private TransportService transportService;
 
     /**
      * Initializes a new ExtensionNamedWriteableRegistry
      *
-     * @param extensionsInitializedList List of DiscoveryExtensions to send requests to
+     * @param extensionsInitializedList List of DiscoveryExtensionNodes to send requests to
      * @param transportService Service that facilitates transport requests
      */
-    public ExtensionNamedWriteableRegistry(List<DiscoveryExtension> extensionsInitializedList, TransportService transportService) {
+    public ExtensionNamedWriteableRegistry(List<DiscoveryExtensionNode> extensionsInitializedList, TransportService transportService) {
         this.extensionsInitializedList = extensionsInitializedList;
         this.extensionNamedWriteableRegistry = new HashMap<>();
         this.transportService = transportService;

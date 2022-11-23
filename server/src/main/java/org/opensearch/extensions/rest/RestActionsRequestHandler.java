@@ -8,7 +8,7 @@
 
 package org.opensearch.extensions.rest;
 
-import org.opensearch.extensions.DiscoveryExtension;
+import org.opensearch.extensions.DiscoveryExtensionNode;
 import org.opensearch.extensions.ExtensionStringResponse;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
@@ -25,19 +25,19 @@ import java.util.Map;
 public class RestActionsRequestHandler {
 
     private final RestController restController;
-    private final Map<String, DiscoveryExtension> extensionIdMap;
+    private final Map<String, DiscoveryExtensionNode> extensionIdMap;
     private final TransportService transportService;
 
     /**
      * Instantiates a new REST Actions Request Handler using the Node's RestController.
      *
      * @param restController  The Node's {@link RestController}.
-     * @param extensionIdMap  A map of extension uniqueId to DiscoveryExtension
+     * @param extensionIdMap  A map of extension uniqueId to DiscoveryExtensionNode
      * @param transportService  The Node's transportService
      */
     public RestActionsRequestHandler(
         RestController restController,
-        Map<String, DiscoveryExtension> extensionIdMap,
+        Map<String, DiscoveryExtensionNode> extensionIdMap,
         TransportService transportService
     ) {
         this.restController = restController;
@@ -53,7 +53,7 @@ public class RestActionsRequestHandler {
      * @throws Exception if the request is not handled properly.
      */
     public TransportResponse handleRegisterRestActionsRequest(RegisterRestActionsRequest restActionsRequest) throws Exception {
-        DiscoveryExtension discoveryExtension = extensionIdMap.get(restActionsRequest.getUniqueId());
+        DiscoveryExtensionNode discoveryExtension = extensionIdMap.get(restActionsRequest.getUniqueId());
         RestHandler handler = new RestSendToExtensionAction(restActionsRequest, discoveryExtension, transportService);
         restController.registerHandler(handler);
         return new ExtensionStringResponse(

@@ -28,7 +28,7 @@ import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.util.PageCacheRecycler;
-import org.opensearch.extensions.DiscoveryExtension;
+import org.opensearch.extensions.DiscoveryExtensionNode;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.plugins.PluginInfo;
 import org.opensearch.rest.RestHandler.Route;
@@ -44,7 +44,7 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
 
     private TransportService transportService;
     private MockNioTransport transport;
-    private DiscoveryExtension discoveryExtension;
+    private DiscoveryExtensionNode discoveryExtensionNode;
     private final ThreadPool threadPool = new TestThreadPool(RestSendToExtensionActionTests.class.getSimpleName());
 
     @Before
@@ -75,7 +75,7 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
             null,
             Collections.emptySet()
         );
-        discoveryExtension = new DiscoveryExtension(
+        discoveryExtensionNode = new DiscoveryExtensionNode(
             "firstExtension",
             "uniqueid1",
             "uniqueid1",
@@ -112,7 +112,7 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
         );
         RestSendToExtensionAction restSendToExtensionAction = new RestSendToExtensionAction(
             registerRestActionRequest,
-            discoveryExtension,
+            discoveryExtensionNode,
             transportService
         );
 
@@ -142,7 +142,7 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
         );
         expectThrows(
             IllegalArgumentException.class,
-            () -> new RestSendToExtensionAction(registerRestActionRequest, discoveryExtension, transportService)
+            () -> new RestSendToExtensionAction(registerRestActionRequest, discoveryExtensionNode, transportService)
         );
     }
 
@@ -153,7 +153,7 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
         );
         expectThrows(
             IllegalArgumentException.class,
-            () -> new RestSendToExtensionAction(registerRestActionRequest, discoveryExtension, transportService)
+            () -> new RestSendToExtensionAction(registerRestActionRequest, discoveryExtensionNode, transportService)
         );
     }
 }

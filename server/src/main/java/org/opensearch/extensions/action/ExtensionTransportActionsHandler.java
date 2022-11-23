@@ -13,7 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionListener;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.extensions.DiscoveryExtension;
+import org.opensearch.extensions.DiscoveryExtensionNode;
 import org.opensearch.extensions.ExtensionBooleanResponse;
 import org.opensearch.extensions.ExtensionsOrchestrator;
 import org.opensearch.extensions.RegisterTransportActionsRequest;
@@ -38,13 +38,13 @@ import java.util.concurrent.TimeUnit;
  */
 public class ExtensionTransportActionsHandler {
     private static final Logger logger = LogManager.getLogger(ExtensionTransportActionsHandler.class);
-    private Map<String, DiscoveryExtension> actionsMap;
-    private final Map<String, DiscoveryExtension> extensionIdMap;
+    private Map<String, DiscoveryExtensionNode> actionsMap;
+    private final Map<String, DiscoveryExtensionNode> extensionIdMap;
     private final TransportService transportService;
     private final NodeClient client;
 
     public ExtensionTransportActionsHandler(
-        Map<String, DiscoveryExtension> extensionIdMap,
+        Map<String, DiscoveryExtensionNode> extensionIdMap,
         TransportService transportService,
         NodeClient client
     ) {
@@ -61,7 +61,7 @@ public class ExtensionTransportActionsHandler {
      * @param extension for which action is being registered.
      * @throws IllegalArgumentException when action being registered already is registered.
      */
-    void registerAction(String action, DiscoveryExtension extension) throws IllegalArgumentException {
+    void registerAction(String action, DiscoveryExtensionNode extension) throws IllegalArgumentException {
         if (actionsMap.containsKey(action)) {
             throw new IllegalArgumentException("The " + action + " you are trying to register is already registered");
         }
@@ -74,7 +74,7 @@ public class ExtensionTransportActionsHandler {
      * @param action for which to get the registered extension.
      * @return the extension.
      */
-    public DiscoveryExtension getExtension(String action) {
+    public DiscoveryExtensionNode getExtension(String action) {
         return actionsMap.get(action);
     }
 
@@ -89,7 +89,7 @@ public class ExtensionTransportActionsHandler {
          * We are proxying the transport Actions through ExtensionProxyAction, so we really dont need to register dynamic actions for now.
          */
         logger.debug("Register Transport Actions request recieved {}", transportActionsRequest);
-        DiscoveryExtension extension = extensionIdMap.get(transportActionsRequest.getUniqueId());
+        DiscoveryExtensionNode extension = extensionIdMap.get(transportActionsRequest.getUniqueId());
         try {
             for (String action : transportActionsRequest.getTransportActions().keySet()) {
                 registerAction(action, extension);
@@ -110,7 +110,7 @@ public class ExtensionTransportActionsHandler {
      */
     public TransportResponse handleTransportActionRequestFromExtension(TransportActionRequestFromExtension request)
         throws InterruptedException {
-        DiscoveryExtension extension = extensionIdMap.get(request.getUniqueId());
+        DiscoveryExtensionNode extension = extensionIdMap.get(request.getUniqueId());
         final CountDownLatch inProgressLatch = new CountDownLatch(1);
         final TransportActionResponseToExtension response = new TransportActionResponseToExtension(new byte[0]);
         client.execute(
@@ -144,7 +144,7 @@ public class ExtensionTransportActionsHandler {
      * @throws InterruptedException when message transport fails.
      */
     public ExtensionActionResponse sendTransportRequestToExtension(ExtensionActionRequest request) throws InterruptedException {
-        DiscoveryExtension extension = actionsMap.get(request.getAction());
+        DiscoveryExtensionNode extension = actionsMap.get(request.getAction());
         if (extension == null) {
             throw new ActionNotFoundTransportException(request.getAction());
         }

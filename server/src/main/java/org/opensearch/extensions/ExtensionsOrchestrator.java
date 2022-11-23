@@ -122,9 +122,9 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     private final Path extensionsPath;
     ExtensionTransportActionsHandler extensionTransportActionsHandler;
     // A list of initialized extensions, a subset of the values of map below which includes all extensions
-    List<DiscoveryExtension> extensionsInitializedList;
+    List<DiscoveryExtensionNode> extensions;
     // A map of extension uniqueId to full extension details used for node transport here and in the RestActionsRequestHandler
-    Map<String, DiscoveryExtension> extensionIdMap;
+    Map<String, DiscoveryExtensionNode> extensionIdMap;
     RestActionsRequestHandler restActionsRequestHandler;
     CustomSettingsRequestHandler customSettingsRequestHandler;
     TransportService transportService;
@@ -147,8 +147,8 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         logger.info("ExtensionsOrchestrator initialized");
         this.extensionsPath = extensionsPath;
         this.listener = new ExtensionActionListener();
-        this.extensionsInitializedList = new ArrayList<DiscoveryExtension>();
-        this.extensionIdMap = new HashMap<String, DiscoveryExtension>();
+        this.extensions = new ArrayList<DiscoveryExtensionNode>();
+        this.extensionIdMap = new HashMap<String, DiscoveryExtensionNode>();
         // will be initialized in initializeServicesAndRestHandler which is called after the Node is initialized
         this.transportService = null;
         this.clusterService = null;
@@ -159,7 +159,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         /*
          * Now Discover extensions
          */
-        extensionsDiscovery();
+        discovery();
 
     }
 
@@ -296,7 +296,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     /*
      * Load and populate all extensions
      */
-    private void extensionsDiscovery() throws IOException {
+    private void discovery() throws IOException {
         logger.info("Extensions Config Directory :" + extensionsPath.toString());
         if (!FileSystemUtils.isAccessibleDirectory(extensionsPath, logger)) {
             return;
@@ -314,7 +314,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
                     logger.info("Duplicate uniqueId " + extension.getUniqueId() + ". Did not load extension: " + extension);
                 } else {
                     try {
-                        DiscoveryExtension discoveryExtension = new DiscoveryExtension(
+                        DiscoveryExtensionNode discoveryExtension = new DiscoveryExtensionNode(
                             extension.getName(),
                             extension.getUniqueId(),
                             // placeholder for ephemeral id, will change with POC discovery
@@ -351,16 +351,16 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     }
 
     /**
-     * Iterate through all extensions and initialize them.  Initialized extensions will be added to the {@link #extensionsInitializedList}, and the {@link #namedWriteableRegistry} will be initialized.
+     * Iterate through all extensions and initialize them.  Initialized extensions will be added to the {@link #extensions}, and the {@link #namedWriteableRegistry} will be initialized.
      */
-    public void extensionsInitialize() {
-        for (DiscoveryExtension extension : extensionIdMap.values()) {
-            extensionInitialize(extension);
+    public void initialize() {
+        for (DiscoveryExtensionNode extension : extensionIdMap.values()) {
+            initializeExtension(extension);
         }
-        this.namedWriteableRegistry = new ExtensionNamedWriteableRegistry(extensionsInitializedList, transportService);
+        this.namedWriteableRegistry = new ExtensionNamedWriteableRegistry(extensions, transportService);
     }
 
-    private void extensionInitialize(DiscoveryExtension extension) {
+    private void initializeExtension(DiscoveryExtensionNode extension) {
         final CountDownLatch inProgressLatch = new CountDownLatch(1);
         final TransportResponseHandler<InitializeExtensionsResponse> extensionResponseHandler = new TransportResponseHandler<
             InitializeExtensionsResponse>() {
@@ -372,9 +372,9 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
 
             @Override
             public void handleResponse(InitializeExtensionsResponse response) {
-                for (DiscoveryExtension extension : extensionIdMap.values()) {
+                for (DiscoveryExtensionNode extension : extensionIdMap.values()) {
                     if (extension.getName().equals(response.getName())) {
-                        extensionsInitializedList.add(extension);
+                        extensions.add(extension);
                         logger.info("Initialized extension: " + extension.getName());
                         break;
                     }

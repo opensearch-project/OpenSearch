@@ -137,7 +137,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         "     customFolderName: fakeFolder2",
         "     hasNativeController: true"
     );
-    private DiscoveryExtension extensionNode;
+    private DiscoveryExtensionNode extensionNode;
 
     @Before
     public void setup() throws Exception {
@@ -179,7 +179,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
 
         extensionDir = createTempDir();
 
-        extensionNode = new DiscoveryExtension(
+        extensionNode = new DiscoveryExtensionNode(
             "firstExtension",
             "uniqueid1",
             "uniqueid1",
@@ -216,10 +216,10 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
 
         ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
 
-        List<DiscoveryExtension> expectedExtensionsList = new ArrayList<DiscoveryExtension>();
+        List<DiscoveryExtensionNode> expectedExtensionsList = new ArrayList<DiscoveryExtensionNode>();
 
         expectedExtensionsList.add(
-            new DiscoveryExtension(
+            new DiscoveryExtensionNode(
                 "firstExtension",
                 "uniqueid1",
                 "uniqueid1",
@@ -242,7 +242,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         );
 
         expectedExtensionsList.add(
-            new DiscoveryExtension(
+            new DiscoveryExtensionNode(
                 "secondExtension",
                 "uniqueid2",
                 "uniqueid2",
@@ -277,10 +277,10 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
 
         ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, emptyExtensionDir);
 
-        List<DiscoveryExtension> expectedExtensionsList = new ArrayList<DiscoveryExtension>();
+        List<DiscoveryExtensionNode> expectedExtensionsList = new ArrayList<DiscoveryExtensionNode>();
 
         expectedExtensionsList.add(
-            new DiscoveryExtension(
+            new DiscoveryExtensionNode(
                 "firstExtension",
                 "uniqueid1",
                 "uniqueid1",
@@ -370,7 +370,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
                 )
             );
 
-            extensionsOrchestrator.extensionsInitialize();
+            extensionsOrchestrator.initialize();
 
             // Test needs to be changed to mock the connection between the local node and an extension. Assert statment is commented out for
             // now.
@@ -728,7 +728,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
                     "OpenSearchRequest failed"
                 )
             );
-            List<DiscoveryExtension> extensionsList = new ArrayList<>(extensionsOrchestrator.extensionIdMap.values());
+            List<DiscoveryExtensionNode> extensionsList = new ArrayList<>(extensionsOrchestrator.extensionIdMap.values());
             extensionsOrchestrator.namedWriteableRegistry = new ExtensionNamedWriteableRegistry(extensionsList, transportService);
             extensionsOrchestrator.namedWriteableRegistry.getNamedWriteables();
             mockLogAppender.assertAllExpectationsMatched();
@@ -740,7 +740,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
         initialize(extensionsOrchestrator);
 
-        List<DiscoveryExtension> extensionsList = new ArrayList<>(extensionsOrchestrator.extensionIdMap.values());
+        List<DiscoveryExtensionNode> extensionsList = new ArrayList<>(extensionsOrchestrator.extensionIdMap.values());
         DiscoveryNode extensionNode = extensionsList.get(0);
         String requestType = ExtensionsOrchestrator.REQUEST_OPENSEARCH_NAMED_WRITEABLE_REGISTRY;
 
@@ -776,7 +776,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
 
         extensionsOrchestrator.namedWriteableRegistry = spy(
-            new ExtensionNamedWriteableRegistry(extensionsOrchestrator.extensionsInitializedList, transportService)
+            new ExtensionNamedWriteableRegistry(extensionsOrchestrator.extensions, transportService)
         );
 
         Exception e = expectThrows(
@@ -793,7 +793,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         initialize(extensionsOrchestrator);
 
         String requestType = ExtensionsOrchestrator.REQUEST_OPENSEARCH_PARSE_NAMED_WRITEABLE;
-        List<DiscoveryExtension> extensionsList = new ArrayList<>(extensionsOrchestrator.extensionIdMap.values());
+        List<DiscoveryExtensionNode> extensionsList = new ArrayList<>(extensionsOrchestrator.extensionIdMap.values());
         DiscoveryNode extensionNode = extensionsList.get(0);
         Class<? extends NamedWriteable> categoryClass = Example.class;
 

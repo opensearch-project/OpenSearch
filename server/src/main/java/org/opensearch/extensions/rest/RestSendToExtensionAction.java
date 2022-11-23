@@ -14,7 +14,7 @@ import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.extensions.DiscoveryExtension;
+import org.opensearch.extensions.DiscoveryExtensionNode;
 import org.opensearch.extensions.ExtensionsOrchestrator;
 import org.opensearch.identity.ExtensionTokenProcessor;
 import org.opensearch.identity.PrincipalIdentifierToken;
@@ -57,7 +57,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
 
     private final List<Route> routes;
     private final String pathPrefix;
-    private final DiscoveryExtension discoveryExtension;
+    private final DiscoveryExtensionNode discoveryExtension;
     private final TransportService transportService;
 
     /**
@@ -69,7 +69,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
      */
     public RestSendToExtensionAction(
         RegisterRestActionsRequest restActionsRequest,
-        DiscoveryExtension discoveryExtension,
+        DiscoveryExtensionNode discoveryExtension,
         TransportService transportService
     ) {
         this.pathPrefix = "/_extensions/_" + restActionsRequest.getUniqueId();
