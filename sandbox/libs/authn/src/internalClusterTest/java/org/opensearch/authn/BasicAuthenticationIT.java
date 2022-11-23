@@ -48,6 +48,21 @@ public class BasicAuthenticationIT extends OpenSearchIntegTestCase {
     }
 
     public void testBasicAuth() {
+        logger.info("--> cluster has [{}] nodes", internalCluster().size());
+        if (internalCluster().size() < 5) {
+            final int nodesToStart = randomIntBetween(Math.max(2, internalCluster().size() + 1), 5);
+            logger.info("--> growing to [{}] nodes", nodesToStart);
+            internalCluster().startNodes(nodesToStart);
+        }
+        ensureGreen();
+
+        System.out.println("Node names");
+        for (String nodeName : internalCluster().getNodeNames()) {
+            System.out.println(nodeName);
+        }
+
+
+
         ClusterHealthRequest request = new ClusterHealthRequest();
         ClusterHealthResponse resp = client().admin().cluster().health(request).actionGet();
 
