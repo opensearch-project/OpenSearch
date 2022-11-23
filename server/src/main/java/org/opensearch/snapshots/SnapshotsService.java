@@ -2289,8 +2289,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         )
                     )
                     .build();
-                deleteFromRepoTask = createDeleteStateUpdate(snapshotIds, repoName, repositoryData, Priority.NORMAL, listener);
-                return deleteFromRepoTask.execute(currentState);
             }
 
             @Override
