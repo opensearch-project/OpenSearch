@@ -104,7 +104,7 @@ public final class ExceptionsHelper {
             if (t instanceof OpenSearchException) {
                 return t.getClass().getSimpleName() + "[" + t.getMessage() + "]";
             } else if (t instanceof IllegalArgumentException) {
-                return "Invalid argument" + "[" + t.getMessage() + "]";
+                return "Invalid argument [" + t.getMessage() + "]";
             } else if (t instanceof JsonParseException) {
                 return "Failed to parse JSON";
             } else if (t instanceof OpenSearchRejectedExecutionException) {
