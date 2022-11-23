@@ -767,7 +767,7 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
         List<Item> docs = new ArrayList<>(numFields);
         for (int i = 0; i < numFields; i++) {
             docs.add(new Item("test", i + ""));
-            mltQuery = moreLikeThisQuery(null, new Item[] { new Item("test", doc) }).unlike(docs.toArray(new Item[docs.size()]))
+            mltQuery = moreLikeThisQuery(null, new Item[] { new Item("test", doc) }).unlike(docs.toArray(new Item[0]))
                 .minTermFreq(0)
                 .minDocFreq(0)
                 .maxQueryTerms(100)

@@ -707,7 +707,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
             expectedWarnings.add(nestedPathDeprecationWarning);
         }
         if (expectedWarnings.isEmpty() == false) {
-            assertWarnings(expectedWarnings.toArray(new String[expectedWarnings.size()]));
+            assertWarnings(expectedWarnings.toArray(new String[0]));
             assertedWarnings.addAll(expectedWarnings);
         }
     }

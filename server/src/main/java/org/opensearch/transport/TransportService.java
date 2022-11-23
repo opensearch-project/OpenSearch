@@ -41,7 +41,6 @@ import org.opensearch.action.ActionListenerResponseHandler;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
 import org.opensearch.common.component.AbstractLifecycleComponent;
@@ -72,7 +71,6 @@ import java.io.UncheckedIOException;
 import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -826,18 +824,6 @@ public class TransportService extends AbstractLifecycleComponent
         } else {
             return connectionManager.getConnection(node);
         }
-    }
-
-    public Map<String, Version> getChannelVersion(DiscoveryNodes nodes) {
-        Map<String, Version> nodeChannelVersions = new HashMap<>(nodes.getSize());
-        for (DiscoveryNode node : nodes) {
-            try {
-                nodeChannelVersions.putIfAbsent(node.getId(), connectionManager.getConnection(node).getVersion());
-            } catch (Exception e) {
-                // ignore in case node is not connected
-            }
-        }
-        return nodeChannelVersions;
     }
 
     public final <T extends TransportResponse> void sendChildRequest(

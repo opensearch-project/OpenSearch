@@ -476,7 +476,7 @@ public class PutIndexTemplateRequest extends ClusterManagerNodeRequest<PutIndexT
 
     @Override
     public String[] indices() {
-        return indexPatterns.toArray(new String[indexPatterns.size()]);
+        return indexPatterns.toArray(new String[0]);
     }
 
     @Override
