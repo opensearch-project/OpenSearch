@@ -114,6 +114,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
  - Enforce type safety for RegisterTransportActionsRequest([#4796](https://github.com/opensearch-project/OpenSearch/pull/4796))
  - Modified local node request to return Discovery Node ([#4862](https://github.com/opensearch-project/OpenSearch/pull/4862))
  - Enforce type safety for NamedWriteableRegistryParseRequest ([#4923](https://github.com/opensearch-project/OpenSearch/pull/4923))
+ - Renaming to match merge to main branch ([5362](https://github.com/opensearch-project/OpenSearch/pull/5362))
 
 ## [Unreleased 2.x]
 ### Added
