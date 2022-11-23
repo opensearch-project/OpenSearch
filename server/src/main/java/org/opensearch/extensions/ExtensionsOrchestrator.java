@@ -85,8 +85,8 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     };
 
     private final Path extensionsPath;
-    final List<DiscoveryExtension> extensionsList;
-    List<DiscoveryExtension> extensionsInitializedList;
+    final List<DiscoveryExtensionNode> uninitializedExtensions;
+    List<DiscoveryExtensionNode> extensions;
     TransportService transportService;
     ClusterService clusterService;
 
@@ -94,14 +94,14 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         logger.info("ExtensionsOrchestrator initialized");
         this.extensionsPath = extensionsPath;
         this.transportService = null;
-        this.extensionsList = new ArrayList<DiscoveryExtension>();
-        this.extensionsInitializedList = new ArrayList<DiscoveryExtension>();
+        this.uninitializedExtensions = new ArrayList<DiscoveryExtensionNode>();
+        this.extensions = new ArrayList<DiscoveryExtensionNode>();
         this.clusterService = null;
 
         /*
          * Now Discover extensions
          */
-        extensionsDiscovery();
+        discover();
 
     }
 
@@ -149,7 +149,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     /*
      * Load and populate all extensions
      */
-    private void extensionsDiscovery() throws IOException {
+    private void discover() throws IOException {
         logger.info("Extensions Config Directory :" + extensionsPath.toString());
         if (!FileSystemUtils.isAccessibleDirectory(extensionsPath, logger)) {
             return;
@@ -164,8 +164,8 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             }
             for (Extension extension : extensions) {
                 try {
-                    extensionsList.add(
-                        new DiscoveryExtension(
+                    uninitializedExtensions.add(
+                        new DiscoveryExtensionNode(
                             extension.getName(),
                             extension.getUniqueId(),
                             // placeholder for ephemeral id, will change with POC discovery
@@ -192,7 +192,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
                     logger.error(e.toString());
                 }
             }
-            if (!extensionsList.isEmpty()) {
+            if (!uninitializedExtensions.isEmpty()) {
                 logger.info("Loaded all extensions");
             }
         } else {
@@ -200,13 +200,13 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         }
     }
 
-    public void extensionsInitialize() {
-        for (DiscoveryNode extensionNode : extensionsList) {
-            extensionInitialize(extensionNode);
+    public void initialize() {
+        for (DiscoveryNode extensionNode : uninitializedExtensions) {
+            initializeExtension(extensionNode);
         }
     }
 
-    private void extensionInitialize(DiscoveryNode extensionNode) {
+    private void initializeExtension(DiscoveryNode extensionNode) {
 
         final TransportResponseHandler<PluginResponse> pluginResponseHandler = new TransportResponseHandler<PluginResponse>() {
 
@@ -217,9 +217,9 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
 
             @Override
             public void handleResponse(PluginResponse response) {
-                for (DiscoveryExtension extension : extensionsList) {
+                for (DiscoveryExtensionNode extension : uninitializedExtensions) {
                     if (extension.getName().equals(response.getName())) {
-                        extensionsInitializedList.add(extension);
+                        extensions.add(extension);
                         break;
                     }
                 }
@@ -240,7 +240,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             transportService.sendRequest(
                 extensionNode,
                 REQUEST_EXTENSION_ACTION_NAME,
-                new PluginRequest(transportService.getLocalNode(), new ArrayList<DiscoveryExtension>(extensionsList)),
+                new PluginRequest(transportService.getLocalNode(), new ArrayList<DiscoveryExtensionNode>(uninitializedExtensions)),
                 pluginResponseHandler
             );
         } catch (Exception e) {
@@ -268,7 +268,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     }
 
     public void onIndexModule(IndexModule indexModule) throws UnknownHostException {
-        for (DiscoveryNode extensionNode : extensionsList) {
+        for (DiscoveryNode extensionNode : uninitializedExtensions) {
             onIndexModule(indexModule, extensionNode);
         }
     }

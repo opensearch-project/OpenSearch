@@ -1243,7 +1243,7 @@ public class Node implements Closeable {
             : "clusterService has a different local node than the factory provided";
         transportService.acceptIncomingRequests();
         if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
-            extensionsOrchestrator.extensionsInitialize();
+            extensionsOrchestrator.initialize();
         }
         discovery.startInitialJoin();
         final TimeValue initialStateTimeout = DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.get(settings());

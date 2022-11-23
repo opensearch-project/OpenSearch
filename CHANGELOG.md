@@ -22,19 +22,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - [Test] Add IAE test for deprecated edgeNGram analyzer name ([#5040](https://github.com/opensearch-project/OpenSearch/pull/5040))
 - Allow mmap to use new JDK-19 preview APIs in Apache Lucene 9.4+ ([#5151](https://github.com/opensearch-project/OpenSearch/pull/5151))
 - Add feature flag for extensions ([#5211](https://github.com/opensearch-project/OpenSearch/pull/5211))
-- Adding initial support for extensions ([#2796](https://github.com/opensearch-project/OpenSearch/pull/2796))
-- Adding extension framework support for first extension point ([#3107](https://github.com/opensearch-project/OpenSearch/pull/3107))
-- Updated imports with absolute path ([#3173](https://github.com/opensearch-project/OpenSearch/pull/3173))
-- Fix a bug where indexing times out when extensions do not exist ([#3188](https://github.com/opensearch-project/OpenSearch/pull/3188))
-- Integrated CreateComponent extensionPoint ([#3265](https://github.com/opensearch-project/OpenSearch/pull/3265))
-- Added javadocs for extensibility ([#3366](https://github.com/opensearch-project/OpenSearch/pull/3366))
-- Resolved javadoc error ([#3380](https://github.com/opensearch-project/OpenSearch/pull/3380))
-- Read from extensions.yml ([#3381](https://github.com/opensearch-project/OpenSearch/pull/3381))
-- Added unit tests and modified extension read logic for ExtensionsOrchestrator ([#3449](https://github.com/opensearch-project/OpenSearch/pull/3449))
-- Removed Plugin Directory code from ExtensionsOrchestrator ([#3721](https://github.com/opensearch-project/OpenSearch/pull/3721))
-- Added unit test for createComponent workflow ([#3750](https://github.com/opensearch-project/OpenSearch/pull/3750))
-- Adding support to register settings dynamically ([#3753](https://github.com/opensearch-project/OpenSearch/pull/3753))
-- Added flag to check if connectToNode request is coming from ExtensionsOrchestrator ([#3830](https://github.com/opensearch-project/OpenSearch/pull/3830))
+- Merge first batch of feature/extensions into main ([#5347](https://github.com/opensearch-project/OpenSearch/pull/5347))
 
 ### Dependencies
 - Bumps `log4j-core` from 2.18.0 to 2.19.0

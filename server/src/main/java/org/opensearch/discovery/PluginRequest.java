@@ -11,7 +11,7 @@ package org.opensearch.discovery;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.extensions.DiscoveryExtension;
+import org.opensearch.extensions.DiscoveryExtensionNode;
 import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;
@@ -28,9 +28,9 @@ public class PluginRequest extends TransportRequest {
     /*
      * TODO change DiscoveryNode to Extension information
      */
-    private final List<DiscoveryExtension> extensions;
+    private final List<DiscoveryExtensionNode> extensions;
 
-    public PluginRequest(DiscoveryNode sourceNode, List<DiscoveryExtension> extensions) {
+    public PluginRequest(DiscoveryNode sourceNode, List<DiscoveryExtensionNode> extensions) {
         this.sourceNode = sourceNode;
         this.extensions = extensions;
     }
@@ -38,7 +38,7 @@ public class PluginRequest extends TransportRequest {
     public PluginRequest(StreamInput in) throws IOException {
         super(in);
         sourceNode = new DiscoveryNode(in);
-        extensions = in.readList(DiscoveryExtension::new);
+        extensions = in.readList(DiscoveryExtensionNode::new);
     }
 
     @Override
@@ -48,7 +48,7 @@ public class PluginRequest extends TransportRequest {
         out.writeList(extensions);
     }
 
-    public List<DiscoveryExtension> getExtensions() {
+    public List<DiscoveryExtensionNode> getExtensions() {
         return extensions;
     }
 

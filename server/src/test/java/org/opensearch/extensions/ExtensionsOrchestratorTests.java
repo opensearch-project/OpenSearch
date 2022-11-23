@@ -155,10 +155,10 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
 
         ExtensionsOrchestrator extensionsOrchestrator = new ExtensionsOrchestrator(settings, extensionDir);
 
-        List<DiscoveryExtension> expectedExtensionsList = new ArrayList<DiscoveryExtension>();
+        List<DiscoveryExtensionNode> expectedUninitializedExtensions = new ArrayList<DiscoveryExtensionNode>();
 
-        expectedExtensionsList.add(
-            new DiscoveryExtension(
+        expectedUninitializedExtensions.add(
+            new DiscoveryExtensionNode(
                 "firstExtension",
                 "uniqueid1",
                 "uniqueid1",
@@ -180,8 +180,8 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
             )
         );
 
-        expectedExtensionsList.add(
-            new DiscoveryExtension(
+        expectedUninitializedExtensions.add(
+            new DiscoveryExtensionNode(
                 "secondExtension",
                 "uniqueid2",
                 "uniqueid2",
@@ -202,7 +202,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
                 )
             )
         );
-        assertEquals(expectedExtensionsList, extensionsOrchestrator.extensionsList);
+        assertEquals(expectedUninitializedExtensions, extensionsOrchestrator.uninitializedExtensions);
     }
 
     public void testNonAccessibleDirectory() throws Exception {
@@ -305,7 +305,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
                 )
             );
 
-            extensionsOrchestrator.extensionsInitialize();
+            extensionsOrchestrator.initialize();
             mockLogAppender.assertAllExpectationsMatched();
         }
     }

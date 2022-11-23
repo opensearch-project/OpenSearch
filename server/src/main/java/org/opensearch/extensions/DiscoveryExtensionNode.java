@@ -27,11 +27,11 @@ import java.util.Map;
  *
  * @opensearch.internal
  */
-public class DiscoveryExtension extends DiscoveryNode implements Writeable, ToXContentFragment {
+public class DiscoveryExtensionNode extends DiscoveryNode implements Writeable, ToXContentFragment {
 
     private final PluginInfo pluginInfo;
 
-    public DiscoveryExtension(
+    public DiscoveryExtensionNode(
         String name,
         String id,
         String ephemeralId,
@@ -53,12 +53,12 @@ public class DiscoveryExtension extends DiscoveryNode implements Writeable, ToXC
     }
 
     /**
-     * Construct DiscoveryExtension from a stream.
+     * Construct DiscoveryExtensionNode from a stream.
      *
      * @param in the stream
      * @throws IOException if an I/O exception occurred reading the plugin info from the stream
      */
-    public DiscoveryExtension(final StreamInput in) throws IOException {
+    public DiscoveryExtensionNode(final StreamInput in) throws IOException {
         super(in);
         this.pluginInfo = new PluginInfo(in);
     }
