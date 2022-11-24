@@ -77,6 +77,10 @@ public abstract class AbstractAggregationBuilder<AB extends AbstractAggregationB
         metadata = in.readMap();
     }
 
+    protected AbstractAggregationBuilder() {
+        super();
+    }
+
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);

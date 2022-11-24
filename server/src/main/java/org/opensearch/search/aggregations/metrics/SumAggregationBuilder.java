@@ -75,6 +75,10 @@ public class SumAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
         super(name);
     }
 
+    private SumAggregationBuilder() {
+        super();
+    }
+
     protected SumAggregationBuilder(
         SumAggregationBuilder clone,
         AggregatorFactories.Builder factoriesBuilder,

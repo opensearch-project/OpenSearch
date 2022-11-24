@@ -59,6 +59,10 @@ import java.util.Objects;
  */
 public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggregationBuilder<AB>> extends AbstractAggregationBuilder<AB> {
 
+    private ValuesSourceAggregationBuilder() {
+        super();
+    }
+
     public static <T> void declareFields(
         AbstractObjectParser<? extends ValuesSourceAggregationBuilder<?>, T> objectParser,
         boolean scriptable,
@@ -164,6 +168,10 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
          */
         protected LeafOnly(StreamInput in) throws IOException {
             super(in);
+        }
+
+        public LeafOnly() {
+            super();
         }
 
         @Override
