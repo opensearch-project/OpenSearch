@@ -714,7 +714,11 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             this.globalCheckpoint = in.readZLong();
             this.inSync = in.readBoolean();
             this.tracked = in.readBoolean();
-            this.localTranslog = in.readBoolean();
+            if (in.getVersion().onOrAfter(Version.CURRENT)) {
+                this.localTranslog = in.readBoolean();
+            } else {
+                this.localTranslog = true;
+            }
         }
 
         @Override
