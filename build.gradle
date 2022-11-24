@@ -48,6 +48,7 @@ plugins {
   id 'opensearch.docker-support'
   id 'opensearch.global-build-info'
   id "com.diffplug.spotless" version "6.3.0" apply false
+  id "org.gradle.test-retry" version "1.4.1" apply false
 }
 
 apply from: 'gradle/build-complete.gradle'
@@ -378,6 +379,20 @@ gradle.projectsEvaluated {
           }
         }
       }
+    }
+  }
+}
+
+// test retry configuration
+subprojects {
+  apply plugin: "org.gradle.test-retry"
+  tasks.withType(Test).configureEach {
+    retry {
+      if (BuildParams.isCi()) {
+        maxRetries = 3
+        maxFailures = 10
+      }
+      failOnPassedAfterRetry = false
     }
   }
 }
