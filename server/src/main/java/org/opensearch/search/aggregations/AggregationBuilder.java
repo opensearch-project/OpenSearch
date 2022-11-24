@@ -68,8 +68,7 @@ public abstract class AggregationBuilder
     protected AggregatorFactories.Builder factoriesBuilder = AggregatorFactories.builder();
 
     @JsonCreator
-    AggregationBuilder() {
-    }
+    AggregationBuilder() {}
 
     /**
      * Constructs a new aggregation builder.
