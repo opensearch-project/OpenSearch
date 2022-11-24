@@ -31,6 +31,7 @@
 
 package org.opensearch.action.admin.indices.shrink;
 
+import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.admin.indices.alias.Alias;
@@ -94,7 +95,9 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         sourceIndex = in.readString();
         type = in.readEnum(ResizeType.class);
         copySettings = in.readOptionalBoolean();
-        maxShardSize = in.readOptionalWriteable(ByteSizeValue::new);
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            maxShardSize = in.readOptionalWriteable(ByteSizeValue::new);
+        }
     }
 
     ResizeRequest() {}
@@ -137,7 +140,9 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         out.writeString(sourceIndex);
         out.writeEnum(type);
         out.writeOptionalBoolean(copySettings);
-        out.writeOptionalWriteable(maxShardSize);
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            out.writeOptionalWriteable(maxShardSize);
+        }
     }
 
     @Override
