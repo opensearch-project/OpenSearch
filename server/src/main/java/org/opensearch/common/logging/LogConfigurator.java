@@ -66,9 +66,7 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.EnumSet;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -182,7 +180,6 @@ public class LogConfigurator {
 
         final LoggerContext context = (LoggerContext) LogManager.getContext(false);
 
-        final Set<String> locationsWithDeprecatedPatterns = Collections.synchronizedSet(new HashSet<>());
         final List<AbstractConfiguration> configurations = new ArrayList<>();
         final PropertiesConfigurationFactory factory = new PropertiesConfigurationFactory();
         final Set<FileVisitOption> options = EnumSet.of(FileVisitOption.FOLLOW_LINKS);
@@ -206,12 +203,8 @@ public class LogConfigurator {
 
         // Redirect stdout/stderr to log4j. While we ensure Elasticsearch code does not write to those streams,
         // third party libraries may do that
-        System.setOut(
-            new PrintStream(new LoggingOutputStream(LogManager.getLogger("stdout"), Level.INFO), false, StandardCharsets.UTF_8.name())
-        );
-        System.setErr(
-            new PrintStream(new LoggingOutputStream(LogManager.getLogger("stderr"), Level.WARN), false, StandardCharsets.UTF_8.name())
-        );
+        System.setOut(new PrintStream(new LoggingOutputStream(LogManager.getLogger("stdout"), Level.INFO), false, StandardCharsets.UTF_8));
+        System.setErr(new PrintStream(new LoggingOutputStream(LogManager.getLogger("stderr"), Level.WARN), false, StandardCharsets.UTF_8));
     }
 
     private static void configureStatusLogger() {

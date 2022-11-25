@@ -99,7 +99,7 @@ public class AggregationPathTests extends OpenSearchTestCase {
         }
 
         AggregationPath.PathElement[] toArray() {
-            return tokens.toArray(new AggregationPath.PathElement[tokens.size()]);
+            return tokens.toArray(new AggregationPath.PathElement[0]);
         }
     }
 }

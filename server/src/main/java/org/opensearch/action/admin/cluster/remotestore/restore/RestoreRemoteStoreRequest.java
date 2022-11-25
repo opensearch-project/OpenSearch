@@ -86,7 +86,7 @@ public class RestoreRemoteStoreRequest extends ClusterManagerNodeRequest<Restore
      * @return this request
      */
     public RestoreRemoteStoreRequest indices(List<String> indices) {
-        this.indices = indices.toArray(new String[indices.size()]);
+        this.indices = indices.toArray(new String[0]);
         return this;
     }
 
