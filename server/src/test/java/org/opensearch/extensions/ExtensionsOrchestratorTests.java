@@ -247,7 +247,7 @@ public class ExtensionsOrchestratorTests extends OpenSearchTestCase {
         expectThrows(IOException.class, () -> new ExtensionsOrchestrator(settings, extensionDir));
     }
 
-    public void testExtensionsInitialize() throws Exception {
+    public void testInitialize() throws Exception {
         Path extensionDir = createTempDir();
 
         List<String> extensionsYmlLines = Arrays.asList(

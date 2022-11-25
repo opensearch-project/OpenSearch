@@ -172,7 +172,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             logger.info("Extensions.yml file is not present.  No extensions will be loaded.");
         }
     }
-    
+
     /**
      * Loads a single extension
      * @param extension The extension to be loaded
