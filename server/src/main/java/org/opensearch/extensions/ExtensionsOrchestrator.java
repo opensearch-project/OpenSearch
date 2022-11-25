@@ -310,43 +310,51 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
                 throw new IOException("Could not read from extensions.yml", e);
             }
             for (Extension extension : extensions) {
-                if (extensionIdMap.containsKey(extension.getUniqueId())) {
-                    logger.info("Duplicate uniqueId " + extension.getUniqueId() + ". Did not load extension: " + extension);
-                } else {
-                    try {
-                        DiscoveryExtensionNode discoveryExtension = new DiscoveryExtensionNode(
-                            extension.getName(),
-                            extension.getUniqueId(),
-                            // placeholder for ephemeral id, will change with POC discovery
-                            extension.getUniqueId(),
-                            extension.getHostName(),
-                            extension.getHostAddress(),
-                            new TransportAddress(InetAddress.getByName(extension.getHostAddress()), Integer.parseInt(extension.getPort())),
-                            new HashMap<String, String>(),
-                            Version.fromString(extension.getOpensearchVersion()),
-                            new PluginInfo(
-                                extension.getName(),
-                                extension.getDescription(),
-                                extension.getVersion(),
-                                Version.fromString(extension.getOpensearchVersion()),
-                                extension.getJavaVersion(),
-                                extension.getClassName(),
-                                new ArrayList<String>(),
-                                Boolean.parseBoolean(extension.hasNativeController())
-                            )
-                        );
-                        extensionIdMap.put(extension.getUniqueId(), discoveryExtension);
-                        logger.info("Loaded extension with uniqueId " + extension.getUniqueId() + ": " + extension);
-                    } catch (IllegalArgumentException e) {
-                        logger.error(e.toString());
-                    }
-                }
+                loadExtension(extension);
             }
             if (!extensionIdMap.isEmpty()) {
                 logger.info("Loaded all extensions");
             }
         } else {
             logger.info("Extensions.yml file is not present.  No extensions will be loaded.");
+        }
+    }
+
+    /**
+     * Loads a single extension
+     * @param extension The extension to be loaded
+     */
+    private void loadExtension(Extension extension) throws IOException {
+        if (extensionIdMap.containsKey(extension.getUniqueId())) {
+            logger.info("Duplicate uniqueId " + extension.getUniqueId() + ". Did not load extension: " + extension);
+        } else {
+            try {
+                DiscoveryExtensionNode discoveryExtension = new DiscoveryExtensionNode(
+                    extension.getName(),
+                    extension.getUniqueId(),
+                    // placeholder for ephemeral id, will change with POC discovery
+                    extension.getUniqueId(),
+                    extension.getHostName(),
+                    extension.getHostAddress(),
+                    new TransportAddress(InetAddress.getByName(extension.getHostAddress()), Integer.parseInt(extension.getPort())),
+                    new HashMap<String, String>(),
+                    Version.fromString(extension.getOpensearchVersion()),
+                    new PluginInfo(
+                        extension.getName(),
+                        extension.getDescription(),
+                        extension.getVersion(),
+                        Version.fromString(extension.getOpensearchVersion()),
+                        extension.getJavaVersion(),
+                        extension.getClassName(),
+                        new ArrayList<String>(),
+                        Boolean.parseBoolean(extension.hasNativeController())
+                    )
+                );
+                extensionIdMap.put(extension.getUniqueId(), discoveryExtension);
+                logger.info("Loaded extension with uniqueId " + extension.getUniqueId() + ": " + extension);
+            } catch (IllegalArgumentException e) {
+                logger.error(e.toString());
+            }
         }
     }
 
