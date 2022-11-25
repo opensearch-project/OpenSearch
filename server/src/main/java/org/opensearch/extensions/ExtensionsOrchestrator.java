@@ -163,40 +163,48 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
                 throw new IOException("Could not read from extensions.yml", e);
             }
             for (Extension extension : extensions) {
-                try {
-                    uninitializedExtensions.add(
-                        new DiscoveryExtensionNode(
-                            extension.getName(),
-                            extension.getUniqueId(),
-                            // placeholder for ephemeral id, will change with POC discovery
-                            extension.getUniqueId(),
-                            extension.getHostName(),
-                            extension.getHostAddress(),
-                            new TransportAddress(InetAddress.getByName(extension.getHostAddress()), Integer.parseInt(extension.getPort())),
-                            new HashMap<String, String>(),
-                            Version.fromString(extension.getOpensearchVersion()),
-                            new PluginInfo(
-                                extension.getName(),
-                                extension.getDescription(),
-                                extension.getVersion(),
-                                Version.fromString(extension.getOpensearchVersion()),
-                                extension.getJavaVersion(),
-                                extension.getClassName(),
-                                new ArrayList<String>(),
-                                Boolean.parseBoolean(extension.hasNativeController())
-                            )
-                        )
-                    );
-                    logger.info("Loaded extension: " + extension);
-                } catch (IllegalArgumentException e) {
-                    logger.error(e.toString());
-                }
+                loadExtension(extension);
             }
             if (!uninitializedExtensions.isEmpty()) {
                 logger.info("Loaded all extensions");
             }
         } else {
             logger.info("Extensions.yml file is not present.  No extensions will be loaded.");
+        }
+    }
+    
+    /**
+     * Loads a single extension
+     * @param extension The extension to be loaded
+     */
+    private void loadExtension(Extension extension) throws IOException {
+        try {
+            uninitializedExtensions.add(
+                new DiscoveryExtensionNode(
+                    extension.getName(),
+                    extension.getUniqueId(),
+                    // placeholder for ephemeral id, will change with POC discovery
+                    extension.getUniqueId(),
+                    extension.getHostName(),
+                    extension.getHostAddress(),
+                    new TransportAddress(InetAddress.getByName(extension.getHostAddress()), Integer.parseInt(extension.getPort())),
+                    new HashMap<String, String>(),
+                    Version.fromString(extension.getOpensearchVersion()),
+                    new PluginInfo(
+                        extension.getName(),
+                        extension.getDescription(),
+                        extension.getVersion(),
+                        Version.fromString(extension.getOpensearchVersion()),
+                        extension.getJavaVersion(),
+                        extension.getClassName(),
+                        new ArrayList<String>(),
+                        Boolean.parseBoolean(extension.hasNativeController())
+                    )
+                )
+            );
+            logger.info("Loaded extension: " + extension);
+        } catch (IllegalArgumentException e) {
+            logger.error(e.toString());
         }
     }
 
