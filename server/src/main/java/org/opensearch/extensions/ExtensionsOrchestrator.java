@@ -159,7 +159,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         /*
          * Now Discover extensions
          */
-        discovery();
+        discover();
 
     }
 
@@ -296,7 +296,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     /*
      * Load and populate all extensions
      */
-    private void discovery() throws IOException {
+    private void discover() throws IOException {
         logger.info("Extensions Config Directory :" + extensionsPath.toString());
         if (!FileSystemUtils.isAccessibleDirectory(extensionsPath, logger)) {
             return;
