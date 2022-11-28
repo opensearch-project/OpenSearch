@@ -19,6 +19,7 @@ import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 
 /**
@@ -67,5 +68,13 @@ public class BlobStoreTransferService implements TransferService {
         } catch (Exception ex) {
             throw ex;
         }
+    }
+
+    public InputStream readFile(Iterable<String> path, String fileName) throws IOException {
+        return blobStore.blobContainer((BlobPath) path).readBlob(fileName);
+    }
+
+    public Set<String> listAll(Iterable<String> path) throws IOException {
+        return blobStore.blobContainer((BlobPath) path).listBlobs().keySet();
     }
 }

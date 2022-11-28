@@ -120,7 +120,7 @@ public final class BufferedChecksumStreamInput extends FilterStreamInput {
     public int read() throws IOException {
         try {
             return readByte() & 0xFF;
-        } catch (EOFException e) {
+        } catch (EOFException | ArrayIndexOutOfBoundsException e) {
             return -1;
         }
     }

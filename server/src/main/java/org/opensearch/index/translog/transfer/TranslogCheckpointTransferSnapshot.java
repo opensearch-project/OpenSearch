@@ -11,6 +11,7 @@ package org.opensearch.index.translog.transfer;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.index.translog.TranslogReader;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.HashSet;
@@ -21,16 +22,16 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
+import static org.opensearch.index.translog.transfer.FileSnapshot.CheckpointFileSnapshot;
 import static org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
 import static org.opensearch.index.translog.transfer.FileSnapshot.TranslogFileSnapshot;
-import static org.opensearch.index.translog.transfer.FileSnapshot.CheckpointFileSnapshot;
 
 /**
  * Implementation for a {@link TransferSnapshot} which builds the snapshot from the translog and checkpoint files present on the local-disk
  *
  * @opensearch.internal
  */
-public class TranslogCheckpointTransferSnapshot implements TransferSnapshot {
+public class TranslogCheckpointTransferSnapshot implements TransferSnapshot, Closeable {
 
     private final Set<Tuple<TranslogFileSnapshot, CheckpointFileSnapshot>> translogCheckpointFileInfoTupleSet;
     private final int size;
@@ -67,6 +68,13 @@ public class TranslogCheckpointTransferSnapshot implements TransferSnapshot {
     @Override
     public Set<TransferFileSnapshot> getCheckpointFileSnapshots() {
         return translogCheckpointFileInfoTupleSet.stream().map(Tuple::v2).collect(Collectors.toSet());
+    }
+
+    public void close() throws IOException {
+        for (Tuple<TranslogFileSnapshot, CheckpointFileSnapshot> tlogCkpTuple : translogCheckpointFileInfoTupleSet) {
+            tlogCkpTuple.v1().close();
+            tlogCkpTuple.v2().close();
+        }
     }
 
     @Override
@@ -136,9 +144,11 @@ public class TranslogCheckpointTransferSnapshot implements TransferSnapshot {
             translogTransferSnapshot.setMinTranslogGeneration(highestGenMinTranslogGeneration);
 
             assert this.primaryTerm == highestGenPrimaryTerm : "inconsistent primary term";
-            assert this.generation == highestGeneration : "inconsistent generation";
+            assert this.generation == highestGeneration : " inconsistent generation ";
+            final long finalHighestGeneration = highestGeneration;
             assert LongStream.iterate(lowestGeneration, i -> i + 1)
                 .limit(highestGeneration)
+                .filter(l -> (l <= finalHighestGeneration))
                 .boxed()
                 .collect(Collectors.toList())
                 .equals(generations.stream().sorted().collect(Collectors.toList())) == true : "generation gaps found";
