@@ -65,6 +65,9 @@ public abstract class AggregationBuilder
     protected String name;
     protected AggregatorFactories.Builder factoriesBuilder = AggregatorFactories.builder();
 
+    /**
+     * Constructor required for Jackson parsing
+     */
     AggregationBuilder() {}
 
     /**
