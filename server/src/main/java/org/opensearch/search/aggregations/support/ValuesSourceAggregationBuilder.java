@@ -59,6 +59,9 @@ import java.util.Objects;
  */
 public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggregationBuilder<AB>> extends AbstractAggregationBuilder<AB> {
 
+    /**
+     * Constructor required for Jackson parsing
+     */
     private ValuesSourceAggregationBuilder() {
         super();
     }
@@ -170,6 +173,9 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
             super(in);
         }
 
+        /**
+         * Constructor required for Jackson parsing
+         */
         public LeafOnly() {
             super();
         }

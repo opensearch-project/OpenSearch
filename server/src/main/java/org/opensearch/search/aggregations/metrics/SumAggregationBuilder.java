@@ -75,6 +75,9 @@ public class SumAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
         super(name);
     }
 
+    /**
+     * Constructor required for Jackson parsing
+     */
     private SumAggregationBuilder() {
         super();
     }

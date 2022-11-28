@@ -77,6 +77,9 @@ public abstract class AbstractAggregationBuilder<AB extends AbstractAggregationB
         metadata = in.readMap();
     }
 
+    /**
+     * Constructor required for Jackson parsing
+     */
     protected AbstractAggregationBuilder() {
         super();
     }

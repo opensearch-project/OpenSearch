@@ -55,8 +55,6 @@ import java.util.Map;
  *
  * @opensearch.internal
  */
-@JsonTypeInfo(use = JsonTypeInfo.Id.CLASS)
-@JsonIgnoreProperties(ignoreUnknown = true)
 public abstract class AggregationBuilder
     implements
         NamedWriteable,
@@ -67,7 +65,6 @@ public abstract class AggregationBuilder
     protected String name;
     protected AggregatorFactories.Builder factoriesBuilder = AggregatorFactories.builder();
 
-    @JsonCreator
     AggregationBuilder() {}
 
     /**
@@ -109,13 +106,11 @@ public abstract class AggregationBuilder
     public abstract AggregationBuilder subAggregation(PipelineAggregationBuilder aggregation);
 
     /** Return the configured set of subaggregations **/
-    @JsonProperty("subAggregations")
     public Collection<AggregationBuilder> getSubAggregations() {
         return factoriesBuilder.getAggregatorFactories();
     }
 
     /** Return the configured set of pipeline aggregations **/
-    @JsonProperty("pipelineAggregations")
     public Collection<PipelineAggregationBuilder> getPipelineAggregations() {
         return factoriesBuilder.getPipelineAggregatorFactories();
     }
