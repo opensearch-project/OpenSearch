@@ -244,7 +244,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             }
         };
         try {
-            transportService.connectToNode(extensionNode, true);
+            transportService.connectToExtensionNode(extensionNode);
             transportService.sendRequest(
                 extensionNode,
                 REQUEST_EXTENSION_ACTION_NAME,
