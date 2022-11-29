@@ -702,8 +702,7 @@ public class IndicesRequestConvertersTests extends OpenSearchTestCase {
         RequestConvertersTests.setRandomWaitForActiveShards(resizeRequest::setWaitForActiveShards, expectedParams);
         if (resizeType == ResizeType.SPLIT) {
             resizeRequest.setSettings(Settings.builder().put("index.number_of_shards", 2).build());
-        }
-        if (resizeType == ResizeType.SHRINK) {
+        } else if (resizeType == ResizeType.SHRINK) {
             resizeRequest.setMaxShardSize(new ByteSizeValue(randomIntBetween(1, 1000)));
         }
 
