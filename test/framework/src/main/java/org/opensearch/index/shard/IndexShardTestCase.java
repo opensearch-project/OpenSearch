@@ -1287,8 +1287,9 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 }
             );
             ids.add(target);
-            countDownLatch.await(1, TimeUnit.SECONDS);
         }
+        countDownLatch.await(30, TimeUnit.SECONDS);
+        assertEquals("Replication should complete successfully", 0, countDownLatch.getCount());
         return ids;
     }
 
