@@ -31,7 +31,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 
-import static org.opensearch.index.shard.RemoteStoreRefreshListener.SEGMENT_INFO_SNAPSHOT_FILENAME;
+import static org.opensearch.index.shard.RemoteStoreRefreshListener.SEGMENT_INFO_SNAPSHOT_FILENAME_PREFIX;
 
 public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
     private IndexShard indexShard;
@@ -222,7 +222,9 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         if (segmentsNFilename != null) {
             String commitGeneration = segmentsNFilename.substring((IndexFileNames.SEGMENTS + "_").length());
             assertTrue(
-                uploadedSegments.keySet().stream().anyMatch(s -> s.startsWith(SEGMENT_INFO_SNAPSHOT_FILENAME + "__" + commitGeneration))
+                uploadedSegments.keySet()
+                    .stream()
+                    .anyMatch(s -> s.startsWith(SEGMENT_INFO_SNAPSHOT_FILENAME_PREFIX + "__" + commitGeneration))
             );
         }
     }

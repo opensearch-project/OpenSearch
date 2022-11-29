@@ -317,7 +317,7 @@ public class RemoteSegmentStoreDirectoryTests extends OpenSearchTestCase {
         storeDirectory.close();
     }
 
-    public void testCpoyFromOverride() throws IOException {
+    public void testCopyFromOverride() throws IOException {
         String filename = "_100.si";
         populateMetadata();
         remoteSegmentStoreDirectory.init();

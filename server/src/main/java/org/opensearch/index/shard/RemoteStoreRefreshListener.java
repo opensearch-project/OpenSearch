@@ -22,6 +22,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.index.engine.EngineException;
+import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 
 import java.io.IOException;
@@ -37,6 +38,8 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
+import static org.opensearch.index.seqno.SequenceNumbers.LOCAL_CHECKPOINT_KEY;
+
 /**
  * RefreshListener implementation to upload newly created segment files to the remote store
  *
@@ -47,7 +50,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
     static final Set<String> EXCLUDE_FILES = Set.of("write.lock");
     // Visible for testing
     static final int LAST_N_METADATA_FILES_TO_KEEP = 10;
-    public static final String SEGMENT_INFO_SNAPSHOT_FILENAME = "segment_infos_snapshot_filename";
+    static final String SEGMENT_INFO_SNAPSHOT_FILENAME_PREFIX = "segment_infos_snapshot_filename";
 
     private final IndexShard indexShard;
     private final Directory storeDirectory;
@@ -92,15 +95,13 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                         this.remoteDirectory.init();
                     }
                     try {
-                        String lastCommittedLocalSegmentFileName = SegmentInfos.getLastCommitSegmentsFileName(storeDirectory);
-                        if (lastCommittedLocalSegmentFileName != null
-                            && !remoteDirectory.containsFile(
-                                lastCommittedLocalSegmentFileName,
-                                getChecksumOfLocalFile(lastCommittedLocalSegmentFileName)
-                            )) {
+                        // if a new segments_N file is present in local that is not uploaded to remote store yet, it
+                        // is considered as a first refresh post commit. A cleanup of stale commit files is triggered.
+                        // Ideally, we want this to be done in async flow. (GitHub issue #4315)
+                        if (isRefreshAfterCommit()) {
                             deleteStaleCommits();
                         }
-                        String segment_info_snapshot_filename = null;
+                        String segmentInfoSnapshotFilename = null;
                         try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = indexShard.getSegmentInfosSnapshot()) {
                             SegmentInfos segmentInfos = segmentInfosGatedCloseable.get();
 
@@ -122,8 +123,8 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                                 boolean uploadStatus = uploadNewSegments(refreshedLocalFiles);
                                 if (uploadStatus) {
                                     if (segmentFilesFromSnapshot.equals(new HashSet<>(refreshedLocalFiles))) {
-                                        segment_info_snapshot_filename = uploadSegmentInfosSnapshot(latestSegmentInfos.get(), segmentInfos);
-                                        refreshedLocalFiles.add(segment_info_snapshot_filename);
+                                        segmentInfoSnapshotFilename = uploadSegmentInfosSnapshot(latestSegmentInfos.get(), segmentInfos);
+                                        refreshedLocalFiles.add(segmentInfoSnapshotFilename);
                                     }
 
                                     remoteDirectory.uploadMetadata(
@@ -143,11 +144,11 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                             logger.warn("Exception while reading SegmentInfosSnapshot", e);
                         } finally {
                             try {
-                                if (segment_info_snapshot_filename != null) {
-                                    storeDirectory.deleteFile(segment_info_snapshot_filename);
+                                if (segmentInfoSnapshotFilename != null) {
+                                    storeDirectory.deleteFile(segmentInfoSnapshotFilename);
                                 }
                             } catch (IOException e) {
-                                logger.warn("Exception while deleting: " + segment_info_snapshot_filename, e);
+                                logger.warn("Exception while deleting: " + segmentInfoSnapshotFilename, e);
                             }
                         }
                     } catch (IOException e) {
@@ -162,16 +163,33 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
         }
     }
 
+    /**
+     *
+     * @return true
+     * @throws IOException
+     */
+    private boolean isRefreshAfterCommit() throws IOException {
+        String lastCommittedLocalSegmentFileName = SegmentInfos.getLastCommitSegmentsFileName(storeDirectory);
+        return (lastCommittedLocalSegmentFileName != null
+            && !remoteDirectory.containsFile(lastCommittedLocalSegmentFileName, getChecksumOfLocalFile(lastCommittedLocalSegmentFileName)));
+    }
+
     String uploadSegmentInfosSnapshot(String latestSegmentsNFilename, SegmentInfos segmentInfosSnapshot) throws IOException {
-        long localCheckpoint = indexShard.getEngine().getProcessedLocalCheckpoint();
-        String commitGeneration = latestSegmentsNFilename.substring((IndexFileNames.SEGMENTS + "_").length());
-        String segment_info_snapshot_filename = SEGMENT_INFO_SNAPSHOT_FILENAME + "__" + commitGeneration + "__" + localCheckpoint;
-        IndexOutput indexOutput = storeDirectory.createOutput(segment_info_snapshot_filename, IOContext.DEFAULT);
-        segmentInfosSnapshot.write(indexOutput);
-        indexOutput.close();
-        storeDirectory.sync(Collections.singleton(segment_info_snapshot_filename));
-        remoteDirectory.copyFrom(storeDirectory, segment_info_snapshot_filename, segment_info_snapshot_filename, IOContext.DEFAULT, true);
-        return segment_info_snapshot_filename;
+        long processedLocalCheckpoint = indexShard.getEngine().getProcessedLocalCheckpoint();
+
+        Map<String, String> userData = segmentInfosSnapshot.getUserData();
+        userData.put(LOCAL_CHECKPOINT_KEY, String.valueOf(processedLocalCheckpoint));
+        userData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(processedLocalCheckpoint));
+        segmentInfosSnapshot.setUserData(userData, false);
+
+        long commitGeneration = IndexFileNames.parseGeneration(latestSegmentsNFilename);
+        String segmentInfoSnapshotFilename = SEGMENT_INFO_SNAPSHOT_FILENAME_PREFIX + "__" + commitGeneration;
+        try (IndexOutput indexOutput = storeDirectory.createOutput(segmentInfoSnapshotFilename, IOContext.DEFAULT)) {
+            segmentInfosSnapshot.write(indexOutput);
+        }
+        storeDirectory.sync(Collections.singleton(segmentInfoSnapshotFilename));
+        remoteDirectory.copyFrom(storeDirectory, segmentInfoSnapshotFilename, segmentInfoSnapshotFilename, IOContext.DEFAULT, true);
+        return segmentInfoSnapshotFilename;
     }
 
     // Visible for testing

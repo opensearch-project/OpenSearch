@@ -78,7 +78,8 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.opensearch.common.unit.TimeValue.timeValueMillis;
-import static org.opensearch.index.shard.RemoteStoreRefreshListener.SEGMENT_INFO_SNAPSHOT_FILENAME;
+import static org.opensearch.index.seqno.SequenceNumbers.LOCAL_CHECKPOINT_KEY;
+import static org.opensearch.index.shard.RemoteStoreRefreshListener.SEGMENT_INFO_SNAPSHOT_FILENAME_PREFIX;
 
 /**
  * This package private utility class encapsulates the logic to recover an index shard from either an existing index on
@@ -469,24 +470,24 @@ final class StoreRecovery {
             String segmentInfosSnapshotFilename = null;
             for (String file : remoteDirectory.listAll()) {
                 storeDirectory.copyFrom(remoteDirectory, file, file, IOContext.DEFAULT);
-                if (file.startsWith(SEGMENT_INFO_SNAPSHOT_FILENAME)) {
+                if (file.startsWith(SEGMENT_INFO_SNAPSHOT_FILENAME_PREFIX)) {
                     segmentInfosSnapshotFilename = file;
                 }
             }
 
             if (segmentInfosSnapshotFilename != null) {
-                String[] filenameTokens = segmentInfosSnapshotFilename.split("__");
                 try (
                     ChecksumIndexInput indexInput = new BufferedChecksumIndexInput(
                         storeDirectory.openInput(segmentInfosSnapshotFilename, IOContext.DEFAULT)
                     )
                 ) {
-                    SegmentInfos infos_snapshot = SegmentInfos.readCommit(
+                    SegmentInfos infosSnapshot = SegmentInfos.readCommit(
                         store.directory(),
                         indexInput,
-                        Integer.parseInt(filenameTokens[1])
+                        Integer.parseInt(segmentInfosSnapshotFilename.split("__")[1])
                     );
-                    store.commitSegmentInfos(infos_snapshot, Long.parseLong(filenameTokens[2]), Long.parseLong(filenameTokens[2]));
+                    long processedLocalCheckpoint = Long.parseLong(infosSnapshot.getUserData().get(LOCAL_CHECKPOINT_KEY));
+                    store.commitSegmentInfos(infosSnapshot, processedLocalCheckpoint, processedLocalCheckpoint);
                 } catch (IOException e) {
                     logger.info("Exception while reading {}, falling back to commit level restore", segmentInfosSnapshotFilename);
                 }

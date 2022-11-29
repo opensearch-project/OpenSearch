@@ -66,7 +66,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
      * To prevent explosion of refresh metadata files, we replace refresh files for the given primary term and generation
      * This is achieved by uploading refresh metadata file with the same UUID suffix.
      */
-    private String metadataFileUniqueSuffix;
+    private String commonFilenameSuffix;
 
     /**
      * Keeps track of local segment filename to uploaded filename along with other attributes like checksum.
@@ -92,7 +92,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
      * @throws IOException if there were any failures in reading the metadata file
      */
     public void init() throws IOException {
-        this.metadataFileUniqueSuffix = UUIDs.base64UUID();
+        this.commonFilenameSuffix = UUIDs.base64UUID();
         this.segmentsUploadedToRemoteStore = new ConcurrentHashMap<>(readLatestMetadataFile());
     }
 
@@ -293,10 +293,10 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
         }
     }
 
-    public void copyFrom(Directory from, String src, String dest, IOContext context, boolean override) throws IOException {
+    public void copyFrom(Directory from, String src, String dest, IOContext context, boolean useCommonSuffix) throws IOException {
         String remoteFilename;
-        if (override && segmentsUploadedToRemoteStore.containsKey(dest)) {
-            remoteFilename = segmentsUploadedToRemoteStore.get(dest).uploadedFilename;
+        if (useCommonSuffix) {
+            remoteFilename = dest + SEGMENT_NAME_UUID_SEPARATOR + this.commonFilenameSuffix;
         } else {
             remoteFilename = getNewRemoteSegmentFilename(dest);
         }
@@ -339,7 +339,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
     public void uploadMetadata(Collection<String> segmentFiles, Directory storeDirectory, long primaryTerm, long generation)
         throws IOException {
         synchronized (this) {
-            String metadataFilename = MetadataFilenameUtils.getMetadataFilename(primaryTerm, generation, this.metadataFileUniqueSuffix);
+            String metadataFilename = MetadataFilenameUtils.getMetadataFilename(primaryTerm, generation, this.commonFilenameSuffix);
             IndexOutput indexOutput = storeDirectory.createOutput(metadataFilename, IOContext.DEFAULT);
             Map<String, String> uploadedSegments = new HashMap<>();
             for (String file : segmentFiles) {
