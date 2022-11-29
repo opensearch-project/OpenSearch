@@ -484,7 +484,7 @@ final class StoreRecovery {
                     SegmentInfos infosSnapshot = SegmentInfos.readCommit(
                         store.directory(),
                         indexInput,
-                        Integer.parseInt(segmentInfosSnapshotFilename.split("__")[1])
+                        Long.parseLong(segmentInfosSnapshotFilename.split("__")[1])
                     );
                     long processedLocalCheckpoint = Long.parseLong(infosSnapshot.getUserData().get(LOCAL_CHECKPOINT_KEY));
                     store.commitSegmentInfos(infosSnapshot, processedLocalCheckpoint, processedLocalCheckpoint);

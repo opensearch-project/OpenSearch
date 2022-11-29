@@ -111,7 +111,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                                 .filter(file -> file.startsWith(IndexFileNames.SEGMENTS))
                                 .collect(Collectors.toList());
                             Optional<String> latestSegmentInfos = segmentInfosFiles.stream()
-                                .max(Comparator.comparingLong(IndexFileNames::parseGeneration));
+                                .max(Comparator.comparingLong(SegmentInfos::generationFromSegmentsFileName));
 
                             if (latestSegmentInfos.isPresent()) {
                                 Set<String> segmentFilesFromSnapshot = new HashSet<>(refreshedLocalFiles);
@@ -182,7 +182,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
         userData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(processedLocalCheckpoint));
         segmentInfosSnapshot.setUserData(userData, false);
 
-        long commitGeneration = IndexFileNames.parseGeneration(latestSegmentsNFilename);
+        long commitGeneration = SegmentInfos.generationFromSegmentsFileName(latestSegmentsNFilename);
         String segmentInfoSnapshotFilename = SEGMENT_INFO_SNAPSHOT_FILENAME_PREFIX + "__" + commitGeneration;
         try (IndexOutput indexOutput = storeDirectory.createOutput(segmentInfoSnapshotFilename, IOContext.DEFAULT)) {
             segmentInfosSnapshot.write(indexOutput);
