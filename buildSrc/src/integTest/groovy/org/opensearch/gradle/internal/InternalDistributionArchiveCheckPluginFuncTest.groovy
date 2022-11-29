@@ -29,6 +29,7 @@
 
 package org.opensearch.gradle.internal
 
+import org.gradle.internal.os.OperatingSystem
 import org.opensearch.gradle.VersionProperties
 import org.opensearch.gradle.fixtures.AbstractGradleFuncTest
 import org.gradle.testkit.runner.TaskOutcome
@@ -76,11 +77,18 @@ class InternalDistributionArchiveCheckPluginFuncTest extends AbstractGradleFuncT
                 from 'SomeFile.class'
             }
         """
-        when:
-        def result = gradleRunner(":darwin-${archiveType}:check", '--stacktrace').buildAndFail()
-        then:
-        result.task(":darwin-${archiveType}:checkExtraction").outcome == TaskOutcome.FAILED
-        result.output.contains("Detected class file in distribution ('SomeFile.class')")
+        if (OperatingSystem.current() == OperatingSystem.WINDOWS) {
+            when:
+            def result = gradleRunner(":darwin-${archiveType}:check", '--stacktrace').build()
+            then:
+            result.task(":darwin-${archiveType}:checkExtraction").outcome == TaskOutcome.SKIPPED
+        } else {
+            when:
+            def result = gradleRunner(":darwin-${archiveType}:check", '--stacktrace').buildAndFail()
+            then:
+            result.task(":darwin-${archiveType}:checkExtraction").outcome == TaskOutcome.FAILED
+            result.output.contains("Detected class file in distribution ('SomeFile.class')")
+        }
 
         where:
         archiveType << ["zip", 'tar']
@@ -102,13 +110,21 @@ Copyright 2009-2018 Acme Coorp"""
             }
         """
 
-        when:
-        def result = gradleRunner(":darwin-tar:checkNotice").buildAndFail()
-        then:
-        result.task(":darwin-tar:checkNotice").outcome == TaskOutcome.FAILED
-        normalizedOutput(result.output).contains("> expected line [2] in " +
+        if (OperatingSystem.current() == OperatingSystem.WINDOWS) {
+            when:
+            def result = gradleRunner(":darwin-tar:checkNotice").build()
+            then:
+            result.task(":darwin-tar:checkNotice").outcome == TaskOutcome.SKIPPED
+        } else {
+            when:
+            def result = gradleRunner(":darwin-tar:checkNotice").buildAndFail()
+            then:
+            result.task(":darwin-tar:checkNotice").outcome == TaskOutcome.FAILED
+            normalizedOutput(result.output).contains("> expected line [2] in " +
                 "[./darwin-tar/build/tar-extracted/opensearch-${VersionProperties.getOpenSearch()}/NOTICE.txt] " +
                 "to be [Copyright OpenSearch Contributors] but was [Copyright 2009-2018 Acme Coorp]")
+        }
+
     }
 
     void license(File file = file("licenses/APACHE-LICENSE-2.0.txt")) {
