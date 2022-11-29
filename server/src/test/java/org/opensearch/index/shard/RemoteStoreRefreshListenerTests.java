@@ -224,7 +224,11 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             assertTrue(
                 uploadedSegments.keySet()
                     .stream()
-                    .anyMatch(s -> s.startsWith(SEGMENT_INFO_SNAPSHOT_FILENAME_PREFIX + "__" + Long.parseLong(commitGeneration, Character.MAX_RADIX)))
+                    .anyMatch(
+                        s -> s.startsWith(
+                            SEGMENT_INFO_SNAPSHOT_FILENAME_PREFIX + "__" + Long.parseLong(commitGeneration, Character.MAX_RADIX)
+                        )
+                    )
             );
         }
     }
