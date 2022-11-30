@@ -45,11 +45,15 @@ public class VotingConfigExclusionsHelperTests extends OpenSearchTestCase {
     public void testResolveVotingConfigExclusions() {
         AddVotingConfigExclusionsRequest request = new AddVotingConfigExclusionsRequest(
             Strings.EMPTY_ARRAY,
-            new String[]{"other1"},
+            new String[] { "other1" },
             Strings.EMPTY_ARRAY,
             TimeValue.timeValueSeconds(30)
         );
-        Set<CoordinationMetadata.VotingConfigExclusion> votingConfigExclusions = resolveVotingConfigExclusionsAndCheckMaximum(request, initialClusterState, 10);
+        Set<CoordinationMetadata.VotingConfigExclusion> votingConfigExclusions = resolveVotingConfigExclusionsAndCheckMaximum(
+            request,
+            initialClusterState,
+            10
+        );
         assertEquals(1, votingConfigExclusions.size());
         assertTrue(votingConfigExclusions.contains(otherNode1Exclusion));
     }
@@ -57,14 +61,11 @@ public class VotingConfigExclusionsHelperTests extends OpenSearchTestCase {
     public void testResolveVotingConfigExclusionFailsWhenLimitExceeded() {
         AddVotingConfigExclusionsRequest request = new AddVotingConfigExclusionsRequest(
             Strings.EMPTY_ARRAY,
-            new String[]{"other1", "other2"},
+            new String[] { "other1", "other2" },
             Strings.EMPTY_ARRAY,
             TimeValue.timeValueSeconds(30)
         );
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> resolveVotingConfigExclusionsAndCheckMaximum(request, initialClusterState, 1)
-        );
+        expectThrows(IllegalArgumentException.class, () -> resolveVotingConfigExclusionsAndCheckMaximum(request, initialClusterState, 1));
     }
 
     public void testClearExclusionAndGetState() {
@@ -83,14 +84,40 @@ public class VotingConfigExclusionsHelperTests extends OpenSearchTestCase {
         otherNode2 = makeDiscoveryNode("other2");
         otherNode2Exclusion = new CoordinationMetadata.VotingConfigExclusion(otherNode2);
         otherDataNode = new DiscoveryNode("data", "data", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
-        final CoordinationMetadata.VotingConfiguration allNodesConfig = CoordinationMetadata.VotingConfiguration.of(localNode, otherNode1, otherNode2);
+        final CoordinationMetadata.VotingConfiguration allNodesConfig = CoordinationMetadata.VotingConfiguration.of(
+            localNode,
+            otherNode1,
+            otherNode2
+        );
         initialClusterState = ClusterState.builder(new ClusterName("cluster"))
-            .nodes(new DiscoveryNodes.Builder().add(localNode).add(otherNode1).add(otherNode2).add(otherDataNode).localNodeId(localNode.getId()).clusterManagerNodeId(localNode.getId()))
-            .metadata(Metadata.builder().coordinationMetadata(CoordinationMetadata.builder().lastAcceptedConfiguration(allNodesConfig).lastCommittedConfiguration(allNodesConfig).build()))
+            .nodes(
+                new DiscoveryNodes.Builder().add(localNode)
+                    .add(otherNode1)
+                    .add(otherNode2)
+                    .add(otherDataNode)
+                    .localNodeId(localNode.getId())
+                    .clusterManagerNodeId(localNode.getId())
+            )
+            .metadata(
+                Metadata.builder()
+                    .coordinationMetadata(
+                        CoordinationMetadata.builder()
+                            .lastAcceptedConfiguration(allNodesConfig)
+                            .lastCommittedConfiguration(allNodesConfig)
+                            .build()
+                    )
+            )
             .build();
     }
 
     private static DiscoveryNode makeDiscoveryNode(String name) {
-        return new DiscoveryNode(name, name, buildNewFakeTransportAddress(), emptyMap(), singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE), Version.CURRENT);
+        return new DiscoveryNode(
+            name,
+            name,
+            buildNewFakeTransportAddress(),
+            emptyMap(),
+            singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
+            Version.CURRENT
+        );
     }
 }
