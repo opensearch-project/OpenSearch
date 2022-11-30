@@ -89,19 +89,9 @@ public class TransportGetWeightedRoutingAction extends TransportClusterManagerNo
             weightedRoutingService.verifyAwarenessAttribute(request.getAwarenessAttribute());
             WeightedRoutingMetadata weightedRoutingMetadata = state.metadata().custom(WeightedRoutingMetadata.TYPE);
             ClusterGetWeightedRoutingResponse clusterGetWeightedRoutingResponse = new ClusterGetWeightedRoutingResponse();
-            String weight = null;
             if (weightedRoutingMetadata != null && weightedRoutingMetadata.getWeightedRouting() != null) {
                 WeightedRouting weightedRouting = weightedRoutingMetadata.getWeightedRouting();
-                if (request.local()) {
-                    DiscoveryNode localNode = state.getNodes().getLocalNode();
-                    if (localNode.getAttributes().get(request.getAwarenessAttribute()) != null) {
-                        String attrVal = localNode.getAttributes().get(request.getAwarenessAttribute());
-                        if (weightedRouting.weights().containsKey(attrVal)) {
-                            weight = weightedRouting.weights().get(attrVal).toString();
-                        }
-                    }
-                }
-                clusterGetWeightedRoutingResponse = new ClusterGetWeightedRoutingResponse(weight, weightedRouting);
+                clusterGetWeightedRoutingResponse = new ClusterGetWeightedRoutingResponse(weightedRouting, state.nodes().getClusterManagerNodeId() == null);
             }
             listener.onResponse(clusterGetWeightedRoutingResponse);
         } catch (Exception ex) {
