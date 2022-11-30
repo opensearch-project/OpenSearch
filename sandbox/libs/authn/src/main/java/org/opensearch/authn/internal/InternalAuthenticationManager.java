@@ -3,12 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-
 package org.opensearch.authn.internal;
 
 import org.opensearch.authn.AccessTokenManager;
 import org.opensearch.authn.AuthenticationManager;
-import org.opensearch.authn.internal.InternalSubject;
 import org.opensearch.authn.realm.InternalRealm;
 import org.opensearch.authn.Subject;
 import org.apache.shiro.SecurityUtils;

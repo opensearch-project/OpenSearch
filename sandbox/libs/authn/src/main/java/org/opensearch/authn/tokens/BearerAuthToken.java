@@ -8,7 +8,7 @@
 
 package org.opensearch.authn.tokens;
 
-public class BearerAuthToken extends HttpHeaderToken{
+public class BearerAuthToken extends HttpHeaderToken {
 
     private String headerValue;
 

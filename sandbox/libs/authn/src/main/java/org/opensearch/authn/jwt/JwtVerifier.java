@@ -76,9 +76,7 @@ public class JwtVerifier {
         SignatureAlgorithm tokenAlgorithm = SignatureAlgorithm.getAlgorithm(jwt.getJwsHeaders().getAlgorithm());
 
         if (!keyAlgorithm.equals(tokenAlgorithm)) {
-            throw new BadCredentialsException(
-                MISMATCH_ALGORITHM_MESSAGE + " (" + keyAlgorithm + " != " + tokenAlgorithm + ")"
-            );
+            throw new BadCredentialsException(MISMATCH_ALGORITHM_MESSAGE + " (" + keyAlgorithm + " != " + tokenAlgorithm + ")");
         }
     }
 

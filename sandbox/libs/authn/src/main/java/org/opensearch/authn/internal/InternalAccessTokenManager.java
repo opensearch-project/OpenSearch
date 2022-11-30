@@ -22,7 +22,7 @@ public class InternalAccessTokenManager implements AccessTokenManager {
     }
 
     @Override
-    public void expireToken(final AccessToken token){
+    public void expireToken(final AccessToken token) {
 
     }
 

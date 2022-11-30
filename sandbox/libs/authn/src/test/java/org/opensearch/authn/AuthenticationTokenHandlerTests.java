@@ -66,7 +66,8 @@ public class AuthenticationTokenHandlerTests extends OpenSearchTestCase {
         MatcherAssert.assertThat(usernamePasswordToken, notNullValue());
     }
 
-    public void testShouldReturnNullWhenExtractingInvalidBearerToken() throws BadCredentialsException { // TODO: Update this once determine how to create invalid JWT
+    public void testShouldReturnNullWhenExtractingInvalidBearerToken() throws BadCredentialsException { // TODO: Update this once determine
+                                                                                                        // how to create invalid JWT
         String authHeader = "Basic Nah";
 
         AuthenticationToken authToken = new BasicAuthToken(authHeader);

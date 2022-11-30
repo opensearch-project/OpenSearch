@@ -8,7 +8,6 @@ package org.opensearch.authn;
 import org.opensearch.authn.tokens.AuthenticationToken;
 import org.opensearch.authn.jwt.BadCredentialsException;
 
-
 import java.security.Principal;
 
 /**

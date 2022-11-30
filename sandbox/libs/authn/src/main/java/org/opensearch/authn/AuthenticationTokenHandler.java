@@ -30,13 +30,12 @@ public class AuthenticationTokenHandler {
 
     /**
      * Extracts shiro auth token from the given header token
-     * @param authenticationToken the token from which to extract
-     * @return the extracted shiro auth token to be used to perform login
      */
-    public static AuthenticationToken extractShiroAuthToken(org.opensearch.authn.tokens.AuthenticationToken authenticationToken) throws BadCredentialsException {
+    public static AuthenticationToken extractShiroAuthToken(org.opensearch.authn.tokens.AuthenticationToken authenticationToken)
+        throws BadCredentialsException {
         AuthenticationToken authToken = null;
 
-        if (authenticationToken instanceof BasicAuthToken) { //if (headerToken.getHeaderValue().contains("Basic"))
+        if (authenticationToken instanceof BasicAuthToken) { // if (headerToken.getHeaderValue().contains("Basic"))
             authToken = handleBasicAuth((BasicAuthToken) authenticationToken);
         }
 
@@ -71,7 +70,8 @@ public class AuthenticationTokenHandler {
 
     private static AuthenticationToken handleBearerAuth(final BearerAuthToken token) throws BadCredentialsException {
         // Can be moved into the InternalRealms.java class
-        // Can add a positive and negative case for testing this -- a valid bearer token and then a malformed token without bearer in the header
+        // Can add a positive and negative case for testing this -- a valid bearer token and then a malformed token without bearer in the
+        // header
         // Tokens should like `curl -XGET -H "Authorization: Bearer ${ACCESS_TOKEN}" http://localhost:9200`
 
         String encodedJWT = token.getHeaderValue().substring("Bearer".length()).trim(); // Still may need to base64 decode this

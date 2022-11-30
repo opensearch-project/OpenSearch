@@ -111,7 +111,8 @@ public class JwtVendor {
         JwtClaims jwtClaims = new JwtClaims();
         JwtToken jwt = new JwtToken(jwtClaims);
 
-        long expiryTime = System.currentTimeMillis() / 1000 - 1; // This means the token expired a second before it was made so should never be valid
+        long expiryTime = System.currentTimeMillis() / 1000 - 1; // This means the token expired a second before it was made so should never
+                                                                 // be valid
         jwtClaims.setExpiryTime(expiryTime);
 
         if (claims.containsKey("sub")) {

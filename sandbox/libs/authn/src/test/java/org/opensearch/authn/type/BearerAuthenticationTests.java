@@ -41,7 +41,8 @@ public class BearerAuthenticationTests extends OpenSearchTestCase {
         HttpHeaderToken HttpToken = new HttpHeaderToken(headerBody); // Create an HttpHeaderToken that just holds the 'Bearer' + JWT
 
         try {
-            AuthenticationToken extractedShiroToken = extractShiroAuthToken(HttpToken); // This should verify and then extract the shiro token for login -- should fail because expired
+            AuthenticationToken extractedShiroToken = extractShiroAuthToken(HttpToken); // This should verify and then extract the shiro
+                                                                                        // token for login -- should fail because expired
         } catch (BadCredentialsException ex) {
 
             assertFalse(ex.getMessage().isEmpty());
@@ -59,7 +60,8 @@ public class BearerAuthenticationTests extends OpenSearchTestCase {
         HttpHeaderToken HttpToken = new HttpHeaderToken(headerBody); // Create an HttpHeaderToken that just holds the 'Bearer' + JWT
 
         try {
-            AuthenticationToken extractedShiroToken = extractShiroAuthToken(HttpToken); // This should verify and then extract the shiro token for login -- should fail because expired
+            AuthenticationToken extractedShiroToken = extractShiroAuthToken(HttpToken); // This should verify and then extract the shiro
+                                                                                        // token for login -- should fail because expired
         } catch (BadCredentialsException ex) {
 
             assertFalse(ex.getMessage().isEmpty());
@@ -88,11 +90,10 @@ public class BearerAuthenticationTests extends OpenSearchTestCase {
     }
 
     public void testInvalidJwt() {
-        //TODO: Token should fail because of attempt to verify incorrect signature
+        // TODO: Token should fail because of attempt to verify incorrect signature
         Map<String, Object> jwtClaims = new HashMap<>();
         jwtClaims.put("sub", "testSubject");
         jwtClaims.put("key", "HSA512");
-
 
         String encodedToken = JwtVendor.createJwt(jwtClaims);
 
@@ -112,7 +113,8 @@ public class BearerAuthenticationTests extends OpenSearchTestCase {
         String headerBody = "Bearer " + encodedToken;
 
         Request request = new Request("GET", "/_cluster/health");
-        RequestOptions options = RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", headerBody).build(); // This needs to be a built JWT
+        RequestOptions options = RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", headerBody).build(); // This needs to be a
+                                                                                                                    // built JWT
         request.setOptions(options);
         Response response = OpenSearchRestTestCase.client().performRequest(request);
 
@@ -134,7 +136,10 @@ public class BearerAuthenticationTests extends OpenSearchTestCase {
         String headerBody = "Bearer " + encodedToken;
 
         Request request = new Request("GET", "/_cluster/health");
-        RequestOptions options = RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", headerBody).build(); //Not sure what this will do but it definitely should not pass
+        RequestOptions options = RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", headerBody).build(); // Not sure what this
+                                                                                                                    // will do but it
+                                                                                                                    // definitely should not
+                                                                                                                    // pass
 
         request.setOptions(options);
         Response response = OpenSearchRestTestCase.client().performRequest(request);
@@ -149,7 +154,8 @@ public class BearerAuthenticationTests extends OpenSearchTestCase {
 
     }
 
-    public void testClusterHealthWithInvalidBearerAuthenticationHeader() throws IOException { // Should have this use the createInvalidJwt method once that is created.
+    public void testClusterHealthWithInvalidBearerAuthenticationHeader() throws IOException { // Should have this use the createInvalidJwt
+                                                                                              // method once that is created.
 
         Map<String, Object> jwtClaims = new HashMap<>();
         jwtClaims.put("sub", "testSubject");
@@ -159,7 +165,10 @@ public class BearerAuthenticationTests extends OpenSearchTestCase {
         String headerBody = "Bearer " + encodedToken;
 
         Request request = new Request("GET", "/_cluster/health");
-        RequestOptions options = RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", headerBody).build(); //Not sure what this will do but it definitely should not pass
+        RequestOptions options = RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", headerBody).build(); // Not sure what this
+                                                                                                                    // will do but it
+                                                                                                                    // definitely should not
+                                                                                                                    // pass
 
         request.setOptions(options);
         Response response = OpenSearchRestTestCase.client().performRequest(request);
@@ -179,7 +188,10 @@ public class BearerAuthenticationTests extends OpenSearchTestCase {
         String headerBody = "Bearer NotAJWT";
 
         Request request = new Request("GET", "/_cluster/health");
-        RequestOptions options = RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", headerBody).build(); //Not sure what this will do but it definitely should not pass
+        RequestOptions options = RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", headerBody).build(); // Not sure what this
+                                                                                                                    // will do but it
+                                                                                                                    // definitely should not
+                                                                                                                    // pass
 
         request.setOptions(options);
         try {
