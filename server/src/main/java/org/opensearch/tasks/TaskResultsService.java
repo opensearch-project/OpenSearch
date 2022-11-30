@@ -86,7 +86,7 @@ public class TaskResultsService {
 
     public static final String TASK_RESULT_MAPPING_VERSION_META_FIELD = "version";
 
-    public static final int TASK_RESULT_MAPPING_VERSION = 3; // must match version in task-index-mapping.json
+    public static final int TASK_RESULT_MAPPING_VERSION = 4; // must match version in task-index-mapping.json
 
     /**
      * The backoff policy to use when saving a task result fails. The total wait
