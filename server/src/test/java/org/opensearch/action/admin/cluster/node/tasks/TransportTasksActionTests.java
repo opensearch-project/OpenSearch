@@ -44,7 +44,6 @@ import org.opensearch.action.admin.cluster.node.tasks.list.TaskGroup;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.ActionTestUtils;
 import org.opensearch.action.support.PlainActionFuture;
-import org.opensearch.action.support.nodes.BaseNodeRequest;
 import org.opensearch.action.support.nodes.BaseNodesRequest;
 import org.opensearch.action.support.tasks.BaseTasksRequest;
 import org.opensearch.action.support.tasks.BaseTasksResponse;
@@ -67,6 +66,7 @@ import org.opensearch.tasks.TaskId;
 import org.opensearch.tasks.TaskInfo;
 import org.opensearch.test.tasks.MockTaskManager;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
@@ -91,7 +91,7 @@ import static org.hamcrest.Matchers.not;
 
 public class TransportTasksActionTests extends TaskManagerTestCase {
 
-    public static class NodeRequest extends BaseNodeRequest {
+    public static class NodeRequest extends TransportRequest {
         protected String requestName;
 
         public NodeRequest(StreamInput in) throws IOException {
@@ -685,7 +685,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
                             filteredNodes.add(node);
                         }
                     }
-                    return filteredNodes.toArray(new String[filteredNodes.size()]);
+                    return filteredNodes.toArray(new String[0]);
                 }
 
                 @Override

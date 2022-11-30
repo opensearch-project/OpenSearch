@@ -32,7 +32,6 @@
 
 package org.opensearch.search.builder;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
@@ -260,19 +259,11 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         searchAfterBuilder = in.readOptionalWriteable(SearchAfterBuilder::new);
         sliceBuilder = in.readOptionalWriteable(SliceBuilder::new);
         collapse = in.readOptionalWriteable(CollapseBuilder::new);
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
-            trackTotalHitsUpTo = in.readOptionalInt();
-        } else {
-            trackTotalHitsUpTo = in.readBoolean() ? TRACK_TOTAL_HITS_ACCURATE : TRACK_TOTAL_HITS_DISABLED;
+        trackTotalHitsUpTo = in.readOptionalInt();
+        if (in.readBoolean()) {
+            fetchFields = in.readList(FieldAndFormat::new);
         }
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
-            if (in.readBoolean()) {
-                fetchFields = in.readList(FieldAndFormat::new);
-            }
-        }
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
-            pointInTimeBuilder = in.readOptionalWriteable(PointInTimeBuilder::new);
-        }
+        pointInTimeBuilder = in.readOptionalWriteable(PointInTimeBuilder::new);
     }
 
     @Override
@@ -326,20 +317,12 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         out.writeOptionalWriteable(searchAfterBuilder);
         out.writeOptionalWriteable(sliceBuilder);
         out.writeOptionalWriteable(collapse);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
-            out.writeOptionalInt(trackTotalHitsUpTo);
-        } else {
-            out.writeBoolean(trackTotalHitsUpTo == null ? true : trackTotalHitsUpTo > SearchContext.TRACK_TOTAL_HITS_DISABLED);
+        out.writeOptionalInt(trackTotalHitsUpTo);
+        out.writeBoolean(fetchFields != null);
+        if (fetchFields != null) {
+            out.writeList(fetchFields);
         }
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
-            out.writeBoolean(fetchFields != null);
-            if (fetchFields != null) {
-                out.writeList(fetchFields);
-            }
-        }
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
-            out.writeOptionalWriteable(pointInTimeBuilder);
-        }
+        out.writeOptionalWriteable(pointInTimeBuilder);
     }
 
     /**

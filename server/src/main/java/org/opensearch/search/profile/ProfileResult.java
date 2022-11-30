@@ -32,7 +32,6 @@
 
 package org.opensearch.search.profile;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -104,11 +103,7 @@ public final class ProfileResult implements Writeable, ToXContentObject {
         this.description = in.readString();
         this.nodeTime = in.readLong();
         breakdown = in.readMap(StreamInput::readString, StreamInput::readLong);
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
-            debug = in.readMap(StreamInput::readString, StreamInput::readGenericValue);
-        } else {
-            debug = org.opensearch.common.collect.Map.of();
-        }
+        debug = in.readMap(StreamInput::readString, StreamInput::readGenericValue);
         children = in.readList(ProfileResult::new);
     }
 
@@ -118,9 +113,7 @@ public final class ProfileResult implements Writeable, ToXContentObject {
         out.writeString(description);
         out.writeLong(nodeTime);            // not Vlong because can be negative
         out.writeMap(breakdown, StreamOutput::writeString, StreamOutput::writeLong);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
-            out.writeMap(debug, StreamOutput::writeString, StreamOutput::writeGenericValue);
-        }
+        out.writeMap(debug, StreamOutput::writeString, StreamOutput::writeGenericValue);
         out.writeList(children);
     }
 

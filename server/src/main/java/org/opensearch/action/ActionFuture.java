@@ -40,7 +40,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * An extension to {@link Future} allowing for simplified "get" operations.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
 public interface ActionFuture<T> extends Future<T> {
 

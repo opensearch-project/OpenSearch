@@ -195,4 +195,24 @@ public abstract class BaseWordDelimiterTokenFilterFactoryTestCase extends OpenSe
         tokenizer.setReader(new StringReader(source));
         assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
     }
+
+    private void createTokenFilterFactoryWithTypeTable(String[] rules) throws IOException {
+        OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(
+            Settings.builder()
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+                .put("index.analysis.filter.my_word_delimiter.type", type)
+                .putList("index.analysis.filter.my_word_delimiter.type_table", rules)
+                .put("index.analysis.filter.my_word_delimiter.catenate_words", "true")
+                .put("index.analysis.filter.my_word_delimiter.generate_word_parts", "true")
+                .build(),
+            new CommonAnalysisModulePlugin()
+        );
+        analysis.tokenFilter.get("my_word_delimiter");
+    }
+
+    public void testTypeTableParsingError() {
+        String[] rules = { "# This is a comment", "$ => DIGIT", "\\u200D => ALPHANUM", "abc => ALPHA" };
+        RuntimeException ex = expectThrows(RuntimeException.class, () -> createTokenFilterFactoryWithTypeTable(rules));
+        assertEquals("Line [4]: Invalid mapping rule: [abc => ALPHA]. Only a single character is allowed.", ex.getMessage());
+    }
 }

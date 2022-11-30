@@ -31,7 +31,6 @@
 
 package org.opensearch.upgrades;
 
-import org.apache.http.util.EntityUtils;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.support.PlainActionFuture;
@@ -47,8 +46,10 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.test.rest.yaml.ObjectPath;
+import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
@@ -194,25 +195,6 @@ public class RecoveryIT extends AbstractRollingTestCase {
         }
     }
 
-    private void assertDocCountOnAllCopies(String index, int expectedCount) throws Exception {
-        assertBusy(() -> {
-            Map<String, ?> state = entityAsMap(client().performRequest(new Request("GET", "/_cluster/state")));
-            String xpath = "routing_table.indices." + index + ".shards.0.node";
-            @SuppressWarnings("unchecked") List<String> assignedNodes = (List<String>) XContentMapValues.extractValue(xpath, state);
-            assertNotNull(state.toString(), assignedNodes);
-            for (String assignedNode : assignedNodes) {
-                try {
-                    assertCount(index, "_only_nodes:" + assignedNode, expectedCount);
-                } catch (ResponseException e) {
-                    if (e.getMessage().contains("no data nodes with criteria [" + assignedNode + "found for shard: [" + index + "][0]")) {
-                        throw new AssertionError(e); // shard is relocating - ask assert busy to retry
-                    }
-                    throw e;
-                }
-            }
-        });
-    }
-
     private void assertCount(final String index, final String preference, final int expectedCount) throws IOException {
         final int actualDocs;
         try {
@@ -270,6 +252,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 updateIndexSettings(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none"));
                 break;
             case MIXED:
+                // todo: verify this test can be removed in 3.0.0
                 final String newNode = getNodeId(v -> v.equals(Version.CURRENT));
                 final String oldNode = getNodeId(v -> v.before(Version.CURRENT));
                 // remove the replica and guaranteed the primary is placed on the old node
@@ -348,11 +331,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 if (randomBoolean()) {
                     indexDocs(index, i, 1); // update
                 } else if (randomBoolean()) {
-                    if (getNodeId(v -> v.onOrAfter(LegacyESVersion.V_7_0_0)) == null) {
-                        client().performRequest(new Request("DELETE", index + "/test/" + i));
-                    } else {
-                        client().performRequest(new Request("DELETE", index + "/_doc/" + i));
-                    }
+                    client().performRequest(new Request("DELETE", index + "/" + MapperService.SINGLE_MAPPING_NAME + "/" + i));
                 }
             }
         }
@@ -458,15 +437,10 @@ public class RecoveryIT extends AbstractRollingTestCase {
             closeIndex(indexName);
         }
 
-        final Version indexVersionCreated = indexVersionCreated(indexName);
-        if (indexVersionCreated.onOrAfter(LegacyESVersion.V_7_2_0)) {
-            // index was created on a version that supports the replication of closed indices,
-            // so we expect the index to be closed and replicated
-            ensureGreen(indexName);
-            assertClosedIndex(indexName, true);
-        } else {
-            assertClosedIndex(indexName, false);
-        }
+        // index was created on a version that supports the replication of closed indices,
+        // so we expect the index to be closed and replicated
+        ensureGreen(indexName);
+        assertClosedIndex(indexName, true);
     }
 
     /**
@@ -492,14 +466,10 @@ public class RecoveryIT extends AbstractRollingTestCase {
             closeIndex(indexName);
         }
 
-        if (minimumNodeVersion.onOrAfter(LegacyESVersion.V_7_2_0)) {
-            // index is created on a version that supports the replication of closed indices,
-            // so we expect the index to be closed and replicated
-            ensureGreen(indexName);
-            assertClosedIndex(indexName, true);
-        } else {
-            assertClosedIndex(indexName, false);
-        }
+        // index is created on a version that supports the replication of closed indices,
+        // so we expect the index to be closed and replicated
+        ensureGreen(indexName);
+        assertClosedIndex(indexName, true);
     }
 
     /**
@@ -526,38 +496,20 @@ public class RecoveryIT extends AbstractRollingTestCase {
             closeIndex(indexName);
         }
 
-        final Version indexVersionCreated = indexVersionCreated(indexName);
-        if (indexVersionCreated.onOrAfter(LegacyESVersion.V_7_2_0)) {
-            // index was created on a version that supports the replication of closed indices,
-            // so we expect the index to be closed and replicated
-            ensureGreen(indexName);
-            assertClosedIndex(indexName, true);
-            if (minimumNodeVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
-                switch (CLUSTER_TYPE) {
-                    case OLD: break;
-                    case MIXED:
-                        assertNoopRecoveries(indexName, s -> s.startsWith(CLUSTER_NAME + "-0"));
-                        break;
-                    case UPGRADED:
-                        assertNoopRecoveries(indexName, s -> s.startsWith(CLUSTER_NAME));
-                        break;
-                }
-            }
-        } else {
-            assertClosedIndex(indexName, false);
+        // index was created on a version that supports the replication of closed indices,
+        // so we expect the index to be closed and replicated
+        ensureGreen(indexName);
+        assertClosedIndex(indexName, true);
+
+        switch (CLUSTER_TYPE) {
+            case OLD: break;
+            case MIXED:
+                assertNoopRecoveries(indexName, s -> s.startsWith(CLUSTER_NAME + "-0"));
+                break;
+            case UPGRADED:
+                assertNoopRecoveries(indexName, s -> s.startsWith(CLUSTER_NAME));
+                break;
         }
-
-    }
-    /**
-     * Returns the version in which the given index has been created
-     */
-    private static Version indexVersionCreated(final String indexName) throws IOException {
-        final Request request = new Request("GET", "/" + indexName + "/_settings");
-        final String versionCreatedSetting = indexName + ".settings.index.version.created";
-        request.addParameter("filter_path", versionCreatedSetting);
-
-        final Response response = client().performRequest(request);
-        return Version.fromId(Integer.parseInt(ObjectPath.createFromResponse(response).evaluate(versionCreatedSetting)));
     }
 
     /**
@@ -602,20 +554,6 @@ public class RecoveryIT extends AbstractRollingTestCase {
         } else {
             assertThat(routingTable, nullValue());
             assertThat(XContentMapValues.extractValue("index.verified_before_close", settings), nullValue());
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    private void assertPeerRecoveredFiles(String reason, String index, String targetNode, Matcher<Integer> sizeMatcher) throws IOException {
-        Map<?, ?> recoveryStats = entityAsMap(client().performRequest(new Request("GET", index + "/_recovery")));
-        List<Map<?, ?>> shards = (List<Map<?, ?>>) XContentMapValues.extractValue(index + "." + "shards", recoveryStats);
-        for (Map<?, ?> shard : shards) {
-            if (Objects.equals(XContentMapValues.extractValue("type", shard), "PEER")) {
-                if (Objects.equals(XContentMapValues.extractValue("target.name", shard), targetNode)) {
-                    Integer recoveredFileSize = (Integer) XContentMapValues.extractValue("index.files.recovered", shard);
-                    assertThat(reason + " target node [" + targetNode + "] stats [" + recoveryStats + "]", recoveredFileSize, sizeMatcher);
-                }
-            }
         }
     }
 
@@ -782,12 +720,8 @@ public class RecoveryIT extends AbstractRollingTestCase {
 
         final int numberOfReplicas = Integer.parseInt(
             getIndexSettingsAsMap(indexName).get(IndexMetadata.SETTING_NUMBER_OF_REPLICAS).toString());
-        if (minimumNodeVersion.onOrAfter(LegacyESVersion.V_7_6_0)) {
-            assertEquals(nodes.size() - 2, numberOfReplicas);
-            ensureGreen(indexName);
-        } else {
-            assertEquals(nodes.size() - 1, numberOfReplicas);
-        }
+        assertEquals(nodes.size() - 2, numberOfReplicas);
+        ensureGreen(indexName);
     }
 
     public void testSoftDeletesDisabledWarning() throws Exception {

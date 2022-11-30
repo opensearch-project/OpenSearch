@@ -32,12 +32,10 @@
 
 package org.opensearch.search.aggregations.pipeline;
 
-import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -61,18 +59,6 @@ public class MaxBucketPipelineAggregator extends BucketMetricsPipelineAggregator
         super(name, bucketsPaths, gapPolicy, formatter, metadata);
     }
 
-    /**
-     * Read from a stream.
-     */
-    public MaxBucketPipelineAggregator(StreamInput in) throws IOException {
-        super(in);
-    }
-
-    @Override
-    public String getWriteableName() {
-        return MaxBucketPipelineAggregationBuilder.NAME;
-    }
-
     @Override
     protected void preCollection() {
         maxBucketKeys = new ArrayList<>();
@@ -92,7 +78,7 @@ public class MaxBucketPipelineAggregator extends BucketMetricsPipelineAggregator
 
     @Override
     protected InternalAggregation buildAggregation(Map<String, Object> metadata) {
-        String[] keys = maxBucketKeys.toArray(new String[maxBucketKeys.size()]);
+        String[] keys = maxBucketKeys.toArray(new String[0]);
         return new InternalBucketMetricValue(name(), keys, maxValue, format, metadata());
     }
 

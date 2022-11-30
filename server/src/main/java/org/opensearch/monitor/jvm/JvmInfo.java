@@ -33,7 +33,6 @@
 package org.opensearch.monitor.jvm;
 
 import org.apache.lucene.util.Constants;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.io.PathUtils;
@@ -81,7 +80,7 @@ public class JvmInfo implements ReportingService.Info {
         } catch (Exception t) {
             // ignore
         }
-        String[] inputArguments = runtimeMXBean.getInputArguments().toArray(new String[runtimeMXBean.getInputArguments().size()]);
+        String[] inputArguments = runtimeMXBean.getInputArguments().toArray(new String[0]);
         Mem mem = new Mem(heapInit, heapMax, nonHeapInit, nonHeapMax, directMemoryMax);
 
         String bootClassPath;
@@ -305,13 +304,8 @@ public class JvmInfo implements ReportingService.Info {
         vmName = in.readString();
         vmVersion = in.readString();
         vmVendor = in.readString();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
-            bundledJdk = in.readBoolean();
-            usingBundledJdk = in.readOptionalBoolean();
-        } else {
-            bundledJdk = false;
-            usingBundledJdk = null;
-        }
+        bundledJdk = in.readBoolean();
+        usingBundledJdk = in.readOptionalBoolean();
         startTime = in.readLong();
         inputArguments = new String[in.readInt()];
         for (int i = 0; i < inputArguments.length; i++) {
@@ -341,10 +335,8 @@ public class JvmInfo implements ReportingService.Info {
         out.writeString(vmName);
         out.writeString(vmVersion);
         out.writeString(vmVendor);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
-            out.writeBoolean(bundledJdk);
-            out.writeOptionalBoolean(usingBundledJdk);
-        }
+        out.writeBoolean(bundledJdk);
+        out.writeOptionalBoolean(usingBundledJdk);
         out.writeLong(startTime);
         out.writeInt(inputArguments.length);
         for (String inputArgument : inputArguments) {

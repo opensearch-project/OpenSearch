@@ -32,16 +32,12 @@
 package org.opensearch.cluster.coordination;
 
 import org.apache.logging.log4j.Logger;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateTaskExecutor;
 import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.block.ClusterBlocks;
-import org.opensearch.cluster.decommission.DecommissionAttribute;
-import org.opensearch.cluster.decommission.DecommissionAttributeMetadata;
-import org.opensearch.cluster.decommission.DecommissionStatus;
 import org.opensearch.cluster.decommission.NodeDecommissionedException;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
@@ -52,7 +48,6 @@ import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.persistent.PersistentTasksCustomMetadata;
-import org.opensearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -64,6 +59,7 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
+import static org.opensearch.cluster.decommission.DecommissionService.nodeCommissioned;
 import static org.opensearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 
 /**
@@ -77,7 +73,6 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
 
     private final Logger logger;
     private final RerouteService rerouteService;
-    private final TransportService transportService;
 
     /**
      * Task for the join task executor.
@@ -130,17 +125,10 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         private static final String FINISH_ELECTION_TASK_REASON = "_FINISH_ELECTION_";
     }
 
-    public JoinTaskExecutor(
-        Settings settings,
-        AllocationService allocationService,
-        Logger logger,
-        RerouteService rerouteService,
-        TransportService transportService
-    ) {
+    public JoinTaskExecutor(Settings settings, AllocationService allocationService, Logger logger, RerouteService rerouteService) {
         this.allocationService = allocationService;
         this.logger = logger;
         this.rerouteService = rerouteService;
-        this.transportService = transportService;
     }
 
     @Override
@@ -184,7 +172,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         for (final Task joinTask : joiningNodes) {
             if (joinTask.isBecomeClusterManagerTask() || joinTask.isFinishElectionTask()) {
                 // noop
-            } else if (currentNodes.nodeExistsWithSameRoles(joinTask.node()) && !currentNodes.nodeExistsWithBWCVersion(joinTask.node())) {
+            } else if (currentNodes.nodeExistsWithSameRoles(joinTask.node())) {
                 logger.debug("received a join request for an existing node [{}]", joinTask.node());
             } else {
                 final DiscoveryNode node = joinTask.node();
@@ -196,6 +184,9 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
                     // we do this validation quite late to prevent race conditions between nodes joining and importing dangling indices
                     // we have to reject nodes that don't support all indices we have in this cluster
                     ensureIndexCompatibility(node.getVersion(), currentState.getMetadata());
+                    // we have added the same check in handleJoinRequest method and adding it here as this method
+                    // would guarantee that a decommissioned node would never be able to join the cluster and ensures correctness
+                    ensureNodeCommissioned(node, currentState.metadata());
                     nodesBuilder.add(node);
                     nodesChanged = true;
                     minClusterNodeVersion = Version.min(minClusterNodeVersion, node.getVersion());
@@ -203,7 +194,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
                     if (node.isClusterManagerNode()) {
                         joiniedNodeNameIds.put(node.getName(), node.getId());
                     }
-                } catch (IllegalArgumentException | IllegalStateException e) {
+                } catch (IllegalArgumentException | IllegalStateException | NodeDecommissionedException e) {
                     results.failure(joinTask, e);
                     continue;
                 }
@@ -261,9 +252,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         nodesBuilder.clusterManagerNodeId(currentState.nodes().getLocalNodeId());
 
         for (final Task joinTask : joiningNodes) {
-            if (joinTask.isBecomeClusterManagerTask()) {
-                refreshDiscoveryNodeVersionAfterUpgrade(currentNodes, nodesBuilder);
-            } else if (joinTask.isFinishElectionTask()) {
+            if (joinTask.isBecomeClusterManagerTask() || joinTask.isFinishElectionTask()) {
                 // no-op
             } else {
                 final DiscoveryNode joiningNode = joinTask.node();
@@ -298,60 +287,6 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         allocationService.cleanCaches();
         tmpState = PersistentTasksCustomMetadata.disassociateDeadNodes(tmpState);
         return ClusterState.builder(allocationService.disassociateDeadNodes(tmpState, false, "removed dead nodes on election"));
-    }
-
-    private void refreshDiscoveryNodeVersionAfterUpgrade(DiscoveryNodes currentNodes, DiscoveryNodes.Builder nodesBuilder) {
-        // During the upgrade from Elasticsearch, OpenSearch node send their version as 7.10.2 to Elasticsearch master
-        // in order to successfully join the cluster. But as soon as OpenSearch node becomes the master, cluster state
-        // should show the OpenSearch nodes version as 1.x. As the cluster state was carry forwarded from ES master,
-        // version in DiscoveryNode is stale 7.10.2. As soon as OpenSearch node becomes master, it can refresh the
-        // DiscoveryNodes version and publish the updated state while finishing the election. This helps in atomically
-        // updating the version of those node which have connection with the new master.
-        // Note: This should get deprecated with BWC mode logic
-        if (null == transportService) {
-            // this logic is only applicable when OpenSearch node is cluster-manager and is noop for zen discovery node
-            return;
-        }
-        if (currentNodes.getMinNodeVersion().before(Version.V_1_0_0)) {
-            Map<String, Version> channelVersions = transportService.getChannelVersion(currentNodes);
-            for (DiscoveryNode node : currentNodes) {
-                if (channelVersions.containsKey(node.getId())) {
-                    if (channelVersions.get(node.getId()) != node.getVersion()) {
-                        DiscoveryNode tmpNode = nodesBuilder.get(node.getId());
-                        nodesBuilder.remove(node.getId());
-                        nodesBuilder.add(
-                            new DiscoveryNode(
-                                tmpNode.getName(),
-                                tmpNode.getId(),
-                                tmpNode.getEphemeralId(),
-                                tmpNode.getHostName(),
-                                tmpNode.getHostAddress(),
-                                tmpNode.getAddress(),
-                                tmpNode.getAttributes(),
-                                tmpNode.getRoles(),
-                                channelVersions.get(tmpNode.getId())
-                            )
-                        );
-                        logger.info(
-                            "Refreshed the DiscoveryNode version for node {}:{} from {} to {}",
-                            node.getId(),
-                            node.getAddress(),
-                            node.getVersion(),
-                            channelVersions.get(tmpNode.getId())
-                        );
-                    }
-                } else {
-                    // in case existing OpenSearch node is present in the cluster and but there is no connection to that node yet,
-                    // either that node will send new JoinRequest to the cluster-manager/master with version >=1.0, then no issue or
-                    // there is an edge case if doesn't send JoinRequest and connection is established,
-                    // then it can continue to report version as 7.10.2 instead of actual OpenSearch version. So,
-                    // removing the node from cluster state to prevent stale version reporting and let it reconnect.
-                    if (node.getVersion().equals(LegacyESVersion.V_7_10_2)) {
-                        nodesBuilder.remove(node.getId());
-                    }
-                }
-            }
-        }
     }
 
     @Override
@@ -477,22 +412,13 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
     }
 
     public static void ensureNodeCommissioned(DiscoveryNode node, Metadata metadata) {
-        DecommissionAttributeMetadata decommissionAttributeMetadata = metadata.decommissionAttributeMetadata();
-        if (decommissionAttributeMetadata != null) {
-            DecommissionAttribute decommissionAttribute = decommissionAttributeMetadata.decommissionAttribute();
-            DecommissionStatus status = decommissionAttributeMetadata.status();
-            if (decommissionAttribute != null && status != null) {
-                // We will let the node join the cluster if the current status is in FAILED state
-                if (node.getAttributes().get(decommissionAttribute.attributeName()).equals(decommissionAttribute.attributeValue())
-                    && status.equals(DecommissionStatus.FAILED) == false) {
-                    throw new NodeDecommissionedException(
-                        "node [{}] has decommissioned attribute [{}] with current status of decommissioning [{}]",
-                        node.toString(),
-                        decommissionAttribute.toString(),
-                        status.status()
-                    );
-                }
-            }
+        if (nodeCommissioned(node, metadata) == false) {
+            throw new NodeDecommissionedException(
+                "node [{}] has decommissioned attribute [{}] with current status of decommissioning [{}]",
+                node.toString(),
+                metadata.decommissionAttributeMetadata().decommissionAttribute().toString(),
+                metadata.decommissionAttributeMetadata().status().status()
+            );
         }
     }
 

@@ -34,7 +34,6 @@ package org.opensearch.index.query;
 
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.io.stream.StreamInput;
@@ -91,9 +90,7 @@ public class MatchPhrasePrefixQueryBuilder extends AbstractQueryBuilder<MatchPhr
         slop = in.readVInt();
         maxExpansions = in.readVInt();
         analyzer = in.readOptionalString();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
-            this.zeroTermsQuery = ZeroTermsQuery.readFromStream(in);
-        }
+        this.zeroTermsQuery = ZeroTermsQuery.readFromStream(in);
     }
 
     @Override
@@ -103,9 +100,7 @@ public class MatchPhrasePrefixQueryBuilder extends AbstractQueryBuilder<MatchPhr
         out.writeVInt(slop);
         out.writeVInt(maxExpansions);
         out.writeOptionalString(analyzer);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
-            zeroTermsQuery.writeTo(out);
-        }
+        zeroTermsQuery.writeTo(out);
     }
 
     /** Returns the field name used in this query. */

@@ -34,7 +34,10 @@ package org.opensearch.dashboards;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import org.apache.http.util.EntityUtils;
+
+import org.apache.hc.core5.http.ParseException;
+import org.apache.hc.core5.http.io.entity.EntityUtils;
+import org.opensearch.OpenSearchParseException;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 import org.opensearch.common.xcontent.XContentHelper;
@@ -73,7 +76,7 @@ public class OpenSearchDashboardsSystemIndexIT extends OpenSearchRestTestCase {
         assertThat(response.getStatusLine().getStatusCode(), is(200));
     }
 
-    public void testAliases() throws IOException {
+    public void testAliases() throws IOException, ParseException {
         assumeFalse("In this test, .opensearch_dashboards is the alias name", ".opensearch_dashboards".equals(indexName));
         Request request = new Request("PUT", "/_opensearch_dashboards/" + indexName);
         Response response = client().performRequest(request);
@@ -96,7 +99,7 @@ public class OpenSearchDashboardsSystemIndexIT extends OpenSearchRestTestCase {
         assertThat(response.getStatusLine().getStatusCode(), is(200));
     }
 
-    public void testRefresh() throws IOException {
+    public void testRefresh() throws IOException, ParseException {
         Request request = new Request("POST", "/_opensearch_dashboards/_bulk");
         request.setJsonEntity("{ \"index\" : { \"_index\" : \"" + indexName + "\", \"_id\" : \"1\" } }\n{ \"foo\" : \"bar\" }\n");
         Response response = client().performRequest(request);
@@ -114,7 +117,7 @@ public class OpenSearchDashboardsSystemIndexIT extends OpenSearchRestTestCase {
         assertThat(responseBody, containsString("bar"));
     }
 
-    public void testGetFromOpenSearchDashboardsIndex() throws IOException {
+    public void testGetFromOpenSearchDashboardsIndex() throws IOException, ParseException {
         Request request = new Request("POST", "/_opensearch_dashboards/_bulk");
         request.setJsonEntity("{ \"index\" : { \"_index\" : \"" + indexName + "\", \"_id\" : \"1\" } }\n{ \"foo\" : \"bar\" }\n");
         request.addParameter("refresh", "true");
@@ -130,7 +133,7 @@ public class OpenSearchDashboardsSystemIndexIT extends OpenSearchRestTestCase {
         assertThat(responseBody, containsString("bar"));
     }
 
-    public void testMultiGetFromOpenSearchDashboardsIndex() throws IOException {
+    public void testMultiGetFromOpenSearchDashboardsIndex() throws IOException, ParseException {
         Request request = new Request("POST", "/_opensearch_dashboards/_bulk");
         request.setJsonEntity(
             "{ \"index\" : { \"_index\" : \""
@@ -163,7 +166,7 @@ public class OpenSearchDashboardsSystemIndexIT extends OpenSearchRestTestCase {
         assertThat(responseBody, containsString("tag"));
     }
 
-    public void testSearchFromOpenSearchDashboardsIndex() throws IOException {
+    public void testSearchFromOpenSearchDashboardsIndex() throws IOException, ParseException {
         Request request = new Request("POST", "/_opensearch_dashboards/_bulk");
         request.setJsonEntity(
             "{ \"index\" : { \"_index\" : \""
@@ -241,7 +244,7 @@ public class OpenSearchDashboardsSystemIndexIT extends OpenSearchRestTestCase {
         assertThat(response.getStatusLine().getStatusCode(), is(200));
     }
 
-    public void testGetIndex() throws IOException {
+    public void testGetIndex() throws IOException, ParseException {
         Request request = new Request("PUT", "/_opensearch_dashboards/" + indexName);
         Response response = client().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), is(200));
@@ -278,7 +281,7 @@ public class OpenSearchDashboardsSystemIndexIT extends OpenSearchRestTestCase {
         assertThat(response.getStatusLine().getStatusCode(), is(200));
     }
 
-    public void testScrollingDocs() throws IOException {
+    public void testScrollingDocs() throws IOException, OpenSearchParseException, ParseException {
         Request request = new Request("POST", "/_opensearch_dashboards/_bulk");
         request.setJsonEntity(
             "{ \"index\" : { \"_index\" : \""

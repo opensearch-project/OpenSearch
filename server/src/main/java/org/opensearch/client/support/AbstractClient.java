@@ -43,6 +43,18 @@ import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainAc
 import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
 import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainRequestBuilder;
 import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
+import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionStateAction;
+import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionStateRequest;
+import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionStateRequestBuilder;
+import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionStateResponse;
+import org.opensearch.action.admin.cluster.decommission.awareness.get.GetDecommissionStateAction;
+import org.opensearch.action.admin.cluster.decommission.awareness.get.GetDecommissionStateRequest;
+import org.opensearch.action.admin.cluster.decommission.awareness.get.GetDecommissionStateRequestBuilder;
+import org.opensearch.action.admin.cluster.decommission.awareness.get.GetDecommissionStateResponse;
+import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionAction;
+import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionRequest;
+import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionRequestBuilder;
+import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionResponse;
 import org.opensearch.action.admin.cluster.health.ClusterHealthAction;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
@@ -110,6 +122,18 @@ import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsAction;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsRequestBuilder;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.delete.ClusterDeleteWeightedRoutingAction;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.delete.ClusterDeleteWeightedRoutingRequest;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.delete.ClusterDeleteWeightedRoutingRequestBuilder;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.delete.ClusterDeleteWeightedRoutingResponse;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.get.ClusterGetWeightedRoutingAction;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.get.ClusterGetWeightedRoutingRequest;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.get.ClusterGetWeightedRoutingRequestBuilder;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.get.ClusterGetWeightedRoutingResponse;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterAddWeightedRoutingAction;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingRequest;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingRequestBuilder;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingResponse;
 import org.opensearch.action.admin.cluster.snapshots.clone.CloneSnapshotAction;
 import org.opensearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequest;
 import org.opensearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequestBuilder;
@@ -1273,6 +1297,60 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
+        public ActionFuture<ClusterPutWeightedRoutingResponse> putWeightedRouting(ClusterPutWeightedRoutingRequest request) {
+            return execute(ClusterAddWeightedRoutingAction.INSTANCE, request);
+        }
+
+        @Override
+        public void putWeightedRouting(
+            ClusterPutWeightedRoutingRequest request,
+            ActionListener<ClusterPutWeightedRoutingResponse> listener
+        ) {
+            execute(ClusterAddWeightedRoutingAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public ClusterPutWeightedRoutingRequestBuilder prepareWeightedRouting() {
+            return new ClusterPutWeightedRoutingRequestBuilder(this, ClusterAddWeightedRoutingAction.INSTANCE);
+        }
+
+        @Override
+        public ActionFuture<ClusterGetWeightedRoutingResponse> getWeightedRouting(ClusterGetWeightedRoutingRequest request) {
+            return execute(ClusterGetWeightedRoutingAction.INSTANCE, request);
+        }
+
+        @Override
+        public void getWeightedRouting(
+            ClusterGetWeightedRoutingRequest request,
+            ActionListener<ClusterGetWeightedRoutingResponse> listener
+        ) {
+            execute(ClusterGetWeightedRoutingAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public ClusterGetWeightedRoutingRequestBuilder prepareGetWeightedRouting() {
+            return new ClusterGetWeightedRoutingRequestBuilder(this, ClusterGetWeightedRoutingAction.INSTANCE);
+        }
+
+        @Override
+        public ActionFuture<ClusterDeleteWeightedRoutingResponse> deleteWeightedRouting(ClusterDeleteWeightedRoutingRequest request) {
+            return execute(ClusterDeleteWeightedRoutingAction.INSTANCE, request);
+        }
+
+        @Override
+        public void deleteWeightedRouting(
+            ClusterDeleteWeightedRoutingRequest request,
+            ActionListener<ClusterDeleteWeightedRoutingResponse> listener
+        ) {
+            execute(ClusterDeleteWeightedRoutingAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public ClusterDeleteWeightedRoutingRequestBuilder prepareDeleteWeightedRouting() {
+            return new ClusterDeleteWeightedRoutingRequestBuilder(this, ClusterDeleteWeightedRoutingAction.INSTANCE);
+        }
+
+        @Override
         public void deleteDanglingIndex(DeleteDanglingIndexRequest request, ActionListener<AcknowledgedResponse> listener) {
             execute(DeleteDanglingIndexAction.INSTANCE, request, listener);
         }
@@ -1321,6 +1399,54 @@ public abstract class AbstractClient implements Client {
         @Override
         public DeleteStoredScriptRequestBuilder prepareDeleteStoredScript(String id) {
             return prepareDeleteStoredScript().setId(id);
+        }
+
+        @Override
+        public ActionFuture<DecommissionResponse> decommission(DecommissionRequest request) {
+            return execute(DecommissionAction.INSTANCE, request);
+        }
+
+        @Override
+        public void decommission(DecommissionRequest request, ActionListener<DecommissionResponse> listener) {
+            execute(DecommissionAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public DecommissionRequestBuilder prepareDecommission(DecommissionRequest request) {
+            return new DecommissionRequestBuilder(this, DecommissionAction.INSTANCE, request);
+        }
+
+        @Override
+        public ActionFuture<GetDecommissionStateResponse> getDecommissionState(GetDecommissionStateRequest request) {
+            return execute(GetDecommissionStateAction.INSTANCE, request);
+        }
+
+        @Override
+        public void getDecommissionState(GetDecommissionStateRequest request, ActionListener<GetDecommissionStateResponse> listener) {
+            execute(GetDecommissionStateAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public GetDecommissionStateRequestBuilder prepareGetDecommissionState() {
+            return new GetDecommissionStateRequestBuilder(this, GetDecommissionStateAction.INSTANCE);
+        }
+
+        @Override
+        public ActionFuture<DeleteDecommissionStateResponse> deleteDecommissionState(DeleteDecommissionStateRequest request) {
+            return execute(DeleteDecommissionStateAction.INSTANCE, request);
+        }
+
+        @Override
+        public void deleteDecommissionState(
+            DeleteDecommissionStateRequest request,
+            ActionListener<DeleteDecommissionStateResponse> listener
+        ) {
+            execute(DeleteDecommissionStateAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public DeleteDecommissionStateRequestBuilder prepareDeleteDecommissionRequest() {
+            return new DeleteDecommissionStateRequestBuilder(this, DeleteDecommissionStateAction.INSTANCE);
         }
     }
 

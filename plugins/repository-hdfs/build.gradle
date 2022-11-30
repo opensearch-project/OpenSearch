@@ -48,7 +48,7 @@ opensearchplugin {
 }
 
 versions << [
-  'hadoop3': '3.3.3'
+  'hadoop3': '3.3.4'
 ]
 
 testFixtures.useFixture ":test:fixtures:krb5kdc-fixture", "hdfs"
@@ -65,16 +65,16 @@ dependencies {
   }
   api 'org.apache.htrace:htrace-core4:4.2.0-incubating'
   api "org.apache.logging.log4j:log4j-core:${versions.log4j}"
-  api 'org.apache.avro:avro:1.11.0'
+  api 'org.apache.avro:avro:1.11.1'
   api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
-  api 'com.google.code.gson:gson:2.9.0'
+  api 'com.google.code.gson:gson:2.10'
   runtimeOnly 'com.google.guava:guava:31.1-jre'
-  api 'com.google.protobuf:protobuf-java:3.21.4'
+  api 'com.google.protobuf:protobuf-java:3.21.9'
   api "commons-logging:commons-logging:${versions.commonslogging}"
   api 'commons-cli:commons-cli:1.5.0'
   api "commons-codec:commons-codec:${versions.commonscodec}"
   api 'commons-collections:commons-collections:3.2.2'
-  api 'org.apache.commons:commons-compress:1.21'
+  api 'org.apache.commons:commons-compress:1.22'
   api 'org.apache.commons:commons-configuration2:2.8.0'
   api 'commons-io:commons-io:2.11.0'
   api 'org.apache.commons:commons-lang3:3.12.0'
@@ -83,9 +83,8 @@ dependencies {
   api "org.slf4j:slf4j-api:${versions.slf4j}"
   api "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
   api 'net.minidev:json-smart:2.4.8'
-  api 'org.apache.zookeeper:zookeeper:3.8.0'
   api "io.netty:netty-all:${versions.netty}"
-  implementation 'com.fasterxml.woodstox:woodstox-core:6.3.0'
+  implementation "com.fasterxml.woodstox:woodstox-core:${versions.woodstox}"
   implementation 'org.codehaus.woodstox:stax2-api:4.2.1'
 
   hdfsFixture project(':test:fixtures:hdfs-fixture')

@@ -40,7 +40,6 @@ import org.opensearch.action.admin.indices.stats.CommonStats;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.nodes.BaseNodeRequest;
 import org.opensearch.action.support.nodes.TransportNodesAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.health.ClusterHealthStatus;
@@ -57,6 +56,7 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.node.NodeService;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.Transports;
 
@@ -162,6 +162,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             false,
             false,
             false,
+            false,
             false
         );
         List<ShardStats> shardsStats = new ArrayList<>();
@@ -201,13 +202,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             clusterStatus = new ClusterStateHealth(clusterService.state()).getStatus();
         }
 
-        return new ClusterStatsNodeResponse(
-            nodeInfo.getNode(),
-            clusterStatus,
-            nodeInfo,
-            nodeStats,
-            shardsStats.toArray(new ShardStats[shardsStats.size()])
-        );
+        return new ClusterStatsNodeResponse(nodeInfo.getNode(), clusterStatus, nodeInfo, nodeStats, shardsStats.toArray(new ShardStats[0]));
 
     }
 
@@ -216,7 +211,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
      *
      * @opensearch.internal
      */
-    public static class ClusterStatsNodeRequest extends BaseNodeRequest {
+    public static class ClusterStatsNodeRequest extends TransportRequest {
 
         ClusterStatsRequest request;
 

@@ -51,7 +51,7 @@ import java.util.Map;
 /**
  * Aggregation Builder for geotile_grid agg
  *
- * @opensearch.internal
+ * @opensearch.api
  */
 public class GeoTileGridAggregationBuilder extends GeoGridAggregationBuilder {
     public static final String NAME = "geotile_grid";

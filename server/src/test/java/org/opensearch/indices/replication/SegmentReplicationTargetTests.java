@@ -27,7 +27,6 @@ import org.apache.lucene.util.Version;
 import org.junit.Assert;
 import org.mockito.Mockito;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
@@ -40,6 +39,7 @@ import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.store.StoreTests;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
+import org.opensearch.indices.replication.common.ReplicationFailedException;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.DummyShardLock;
 import org.opensearch.test.IndexSettingsModule;
@@ -199,7 +199,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
             @Override
             public void onFailure(Exception e) {
                 assertEquals(exception, e.getCause().getCause());
-                segrepTarget.fail(new OpenSearchException(e), false);
+                segrepTarget.fail(new ReplicationFailedException(e), false);
             }
         });
     }
@@ -242,7 +242,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
             @Override
             public void onFailure(Exception e) {
                 assertEquals(exception, e.getCause().getCause());
-                segrepTarget.fail(new OpenSearchException(e), false);
+                segrepTarget.fail(new ReplicationFailedException(e), false);
             }
         });
     }
@@ -287,7 +287,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
             @Override
             public void onFailure(Exception e) {
                 assertEquals(exception, e.getCause());
-                segrepTarget.fail(new OpenSearchException(e), false);
+                segrepTarget.fail(new ReplicationFailedException(e), false);
             }
         });
     }
@@ -332,7 +332,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
             @Override
             public void onFailure(Exception e) {
                 assertEquals(exception, e.getCause());
-                segrepTarget.fail(new OpenSearchException(e), false);
+                segrepTarget.fail(new ReplicationFailedException(e), false);
             }
         });
     }
@@ -374,14 +374,14 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
             @Override
             public void onFailure(Exception e) {
                 assert (e instanceof IllegalStateException);
-                segrepTarget.fail(new OpenSearchException(e), false);
+                segrepTarget.fail(new ReplicationFailedException(e), false);
             }
         });
     }
 
     /**
      * This tests ensures that new files generated on primary (due to delete operation) are not considered missing on replica
-     * @throws IOException
+     * @throws IOException if an indexing operation fails or segment replication fails
      */
     public void test_MissingFiles_NotCausingFailure() throws IOException {
         int docCount = 1 + random().nextInt(10);
@@ -435,9 +435,9 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
     /**
      * Generates a list of Store.MetadataSnapshot with two elements where second snapshot has extra files due to delete
      * operation. A list of snapshots is returned so that identical files have same checksum.
-     * @param docCount
-     * @return
-     * @throws IOException
+     * @param docCount the number of documents to index in the first snapshot
+     * @return a list of Store.MetadataSnapshot with two elements where second snapshot has extra files due to delete
+     * @throws IOException if one of the indexing operations fails
      */
     private List<Store.MetadataSnapshot> generateStoreMetadataSnapshot(int docCount) throws IOException {
         List<Document> docList = new ArrayList<>();

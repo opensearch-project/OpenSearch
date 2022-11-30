@@ -87,6 +87,7 @@ import static org.opensearch.cluster.coordination.NoClusterManagerBlockService.N
 import static org.opensearch.cluster.coordination.NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_SETTING;
 import static org.opensearch.cluster.coordination.NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_WRITES;
 import static org.opensearch.cluster.coordination.Reconfigurator.CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION;
+import static org.opensearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_DURING_DECOMMISSION_SETTING;
 import static org.opensearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING;
 import static org.opensearch.monitor.StatusInfo.Status.HEALTHY;
 import static org.opensearch.monitor.StatusInfo.Status.UNHEALTHY;
@@ -1777,6 +1778,48 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             ClusterState newState2 = buildNewClusterStateWithVotingConfigExclusion(currentState, newVotingConfigExclusion2);
 
             assertFalse(Coordinator.validVotingConfigExclusionState(newState2));
+        }
+    }
+
+    public void testLocalNodeAlwaysCommissionedWithoutDecommissionedException() {
+        try (Cluster cluster = new Cluster(randomIntBetween(1, 5))) {
+            cluster.runRandomly();
+            cluster.stabilise();
+            for (ClusterNode node : cluster.clusterNodes) {
+                assertTrue(node.coordinator.localNodeCommissioned());
+            }
+        }
+    }
+
+    public void testClusterStabilisesForPreviouslyDecommissionedNode() {
+        try (Cluster cluster = new Cluster(randomIntBetween(1, 5))) {
+            cluster.runRandomly();
+            cluster.stabilise();
+            for (ClusterNode node : cluster.clusterNodes) {
+                assertTrue(node.coordinator.localNodeCommissioned());
+            }
+            final ClusterNode leader = cluster.getAnyLeader();
+
+            ClusterNode decommissionedNode = cluster.new ClusterNode(
+                nextNodeIndex.getAndIncrement(), true, leader.nodeSettings, () -> new StatusInfo(HEALTHY, "healthy-info")
+            );
+            decommissionedNode.coordinator.onNodeCommissionStatusChange(false);
+            cluster.clusterNodes.add(decommissionedNode);
+
+            assertFalse(decommissionedNode.coordinator.localNodeCommissioned());
+
+            cluster.stabilise(
+                // Interval is updated to decommissioned find peer interval
+                defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_DURING_DECOMMISSION_SETTING)
+                    // One message delay to send a join
+                    + DEFAULT_DELAY_VARIABILITY
+                    // Commit a new cluster state with the new node(s). Might be split into multiple commits, and each might need a
+                    // followup reconfiguration
+                    + 3 * 2 * DEFAULT_CLUSTER_STATE_UPDATE_DELAY
+            );
+
+            // once cluster stabilises the node joins and would be commissioned
+            assertTrue(decommissionedNode.coordinator.localNodeCommissioned());
         }
     }
 

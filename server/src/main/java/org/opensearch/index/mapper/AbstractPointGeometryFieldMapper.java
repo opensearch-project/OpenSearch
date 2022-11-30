@@ -57,7 +57,7 @@ import java.util.function.Supplier;
 import static org.opensearch.index.mapper.TypeParsers.parseField;
 
 /**
- * Base class for for spatial fields that only support indexing points
+ * Base class for spatial fields that only support indexing points
  *
  * @opensearch.internal
  */

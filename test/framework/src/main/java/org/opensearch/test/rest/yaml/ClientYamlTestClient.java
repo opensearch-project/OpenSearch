@@ -32,11 +32,13 @@
 package org.opensearch.test.rest.yaml;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpHost;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.entity.ContentType;
-import org.apache.http.util.EntityUtils;
+
+import org.apache.hc.client5.http.classic.methods.HttpGet;
+import org.apache.hc.core5.http.ContentType;
+import org.apache.hc.core5.http.HttpEntity;
+import org.apache.hc.core5.http.HttpHost;
+import org.apache.hc.core5.http.ParseException;
+import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.Version;
@@ -57,6 +59,8 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -188,16 +192,20 @@ public class ClientYamlTestClient implements Closeable {
             if (false == restApi.isBodySupported()) {
                 throw new IllegalArgumentException("body is not supported by [" + restApi.getName() + "] api");
             }
-            String contentType = entity.getContentType().getValue();
+            String contentType = entity.getContentType();
             // randomly test the GET with source param instead of GET/POST with body
-            if (sendBodyAsSourceParam(supportedMethods, contentType, entity.getContentLength())) {
-                logger.debug("sending the request body as source param with GET method");
-                queryStringParams.put("source", EntityUtils.toString(entity));
-                queryStringParams.put("source_content_type", contentType);
-                requestMethod = HttpGet.METHOD_NAME;
-                entity = null;
-            } else {
-                requestMethod = RandomizedTest.randomFrom(supportedMethods);
+            try {
+                if (sendBodyAsSourceParam(supportedMethods, contentType, entity)) {
+                    logger.debug("sending the request body as source param with GET method");
+                    queryStringParams.put("source", EntityUtils.toString(entity));
+                    queryStringParams.put("source_content_type", contentType);
+                    requestMethod = HttpGet.METHOD_NAME;
+                    entity = null;
+                } else {
+                    requestMethod = RandomizedTest.randomFrom(supportedMethods);
+                }
+            } catch (final ParseException ex) {
+                throw new IOException(ex);
             }
         } else {
             if (restApi.isBodyRequired()) {
@@ -247,11 +255,13 @@ public class ClientYamlTestClient implements Closeable {
         request.setOptions(options);
     }
 
-    private static boolean sendBodyAsSourceParam(List<String> supportedMethods, String contentType, long contentLength) {
+    private static boolean sendBodyAsSourceParam(List<String> supportedMethods, String contentType, HttpEntity entity) throws IOException,
+        ParseException {
         if (false == supportedMethods.contains(HttpGet.METHOD_NAME)) {
             // The API doesn't claim to support GET anyway
             return false;
         }
+        long contentLength = entity.getContentLength();
         if (contentLength < 0) {
             // Negative length means "unknown" or "huge" in this case. Either way we can't send it as a parameter
             return false;
@@ -265,7 +275,18 @@ public class ClientYamlTestClient implements Closeable {
             // We can only encode JSON or YAML this way.
             return false;
         }
-        return RandomizedTest.rarely();
+
+        return RandomizedTest.rarely() && isUrlEncodedLengthUnderLimit(entity);
+    }
+
+    /*
+     * There is a limit of 4096 bytes for the HTTP line, otherwise there will be too_long_http_line_exception.
+     * We check if the length of the url-encoded source parameter is less than 3000, leaving remaining for
+     * url and other params.
+     */
+    private static boolean isUrlEncodedLengthUnderLimit(HttpEntity entity) throws IOException, ParseException {
+        String encoded = URLEncoder.encode(EntityUtils.toString(entity), StandardCharsets.UTF_8);
+        return encoded.length() < 3000;
     }
 
     private ClientYamlSuiteRestApi restApi(String apiName) {

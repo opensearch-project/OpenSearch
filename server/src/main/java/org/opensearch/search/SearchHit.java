@@ -33,7 +33,6 @@
 package org.opensearch.search;
 
 import org.apache.lucene.search.Explanation;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
 import org.opensearch.action.OriginalIndices;
@@ -179,20 +178,8 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         if (in.readBoolean()) {
             explanation = readExplanation(in);
         }
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_8_0)) {
-            documentFields = in.readMap(StreamInput::readString, DocumentField::new);
-            metaFields = in.readMap(StreamInput::readString, DocumentField::new);
-        } else {
-            Map<String, DocumentField> fields = readFields(in);
-            documentFields = new HashMap<>();
-            metaFields = new HashMap<>();
-            fields.forEach(
-                (fieldName, docField) -> (MapperService.META_FIELDS_BEFORE_7DOT8.contains(fieldName) ? metaFields : documentFields).put(
-                    fieldName,
-                    docField
-                )
-            );
-        }
+        documentFields = in.readMap(StreamInput::readString, DocumentField::new);
+        metaFields = in.readMap(StreamInput::readString, DocumentField::new);
 
         int size = in.readVInt();
         if (size == 0) {
@@ -283,12 +270,8 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             out.writeBoolean(true);
             writeExplanation(out, explanation);
         }
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_8_0)) {
-            out.writeMap(documentFields, StreamOutput::writeString, (stream, documentField) -> documentField.writeTo(stream));
-            out.writeMap(metaFields, StreamOutput::writeString, (stream, documentField) -> documentField.writeTo(stream));
-        } else {
-            writeFields(out, this.getFields());
-        }
+        out.writeMap(documentFields, StreamOutput::writeString, (stream, documentField) -> documentField.writeTo(stream));
+        out.writeMap(metaFields, StreamOutput::writeString, (stream, documentField) -> documentField.writeTo(stream));
         if (highlightFields == null) {
             out.writeVInt(0);
         } else {

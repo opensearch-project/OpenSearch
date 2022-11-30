@@ -32,7 +32,6 @@
 
 package org.opensearch.cluster.metadata;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchGenerationException;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
@@ -227,10 +226,7 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
         }
 
         out.writeOptionalBoolean(writeIndex());
-
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
-            out.writeOptionalBoolean(isHidden());
-        }
+        out.writeOptionalBoolean(isHidden());
     }
 
     public AliasMetadata(StreamInput in) throws IOException {
@@ -253,12 +249,7 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
             searchRoutingValues = emptySet();
         }
         writeIndex = in.readOptionalBoolean();
-
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
-            isHidden = in.readOptionalBoolean();
-        } else {
-            isHidden = null;
-        }
+        isHidden = in.readOptionalBoolean();
     }
 
     public static Diff<AliasMetadata> readDiffFrom(StreamInput in) throws IOException {

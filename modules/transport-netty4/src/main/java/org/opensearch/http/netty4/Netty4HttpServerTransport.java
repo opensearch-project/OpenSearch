@@ -332,8 +332,10 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         return new HttpChannelHandler(this, handlingSettings);
     }
 
-    static final AttributeKey<Netty4HttpChannel> HTTP_CHANNEL_KEY = AttributeKey.newInstance("opensearch-http-channel");
-    static final AttributeKey<Netty4HttpServerChannel> HTTP_SERVER_CHANNEL_KEY = AttributeKey.newInstance("opensearch-http-server-channel");
+    protected static final AttributeKey<Netty4HttpChannel> HTTP_CHANNEL_KEY = AttributeKey.newInstance("opensearch-http-channel");
+    protected static final AttributeKey<Netty4HttpServerChannel> HTTP_SERVER_CHANNEL_KEY = AttributeKey.newInstance(
+        "opensearch-http-server-channel"
+    );
 
     protected static class HttpChannelHandler extends ChannelInitializer<Channel> {
 
@@ -411,18 +413,19 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                     // If this handler is hit then no upgrade has been attempted and the client is just talking HTTP
                     final ChannelPipeline pipeline = ctx.pipeline();
                     pipeline.addAfter(ctx.name(), "handler", getRequestHandler());
-                    pipeline.replace(this, "aggregator", aggregator);
+                    pipeline.replace(this, "decoder_compress", new HttpContentDecompressor());
 
-                    ch.pipeline().addLast("decoder_compress", new HttpContentDecompressor());
-                    ch.pipeline().addLast("encoder", new HttpResponseEncoder());
+                    pipeline.addAfter("decoder_compress", "aggregator", aggregator);
                     if (handlingSettings.isCompression()) {
-                        ch.pipeline()
-                            .addAfter("aggregator", "encoder_compress", new HttpContentCompressor(handlingSettings.getCompressionLevel()));
+                        pipeline.addAfter(
+                            "aggregator",
+                            "encoder_compress",
+                            new HttpContentCompressor(handlingSettings.getCompressionLevel())
+                        );
                     }
-                    ch.pipeline().addBefore("handler", "request_creator", requestCreator);
-                    ch.pipeline().addBefore("handler", "response_creator", responseCreator);
-                    ch.pipeline()
-                        .addBefore("handler", "pipelining", new Netty4HttpPipeliningHandler(logger, transport.pipeliningMaxEvents));
+                    pipeline.addBefore("handler", "request_creator", requestCreator);
+                    pipeline.addBefore("handler", "response_creator", responseCreator);
+                    pipeline.addBefore("handler", "pipelining", new Netty4HttpPipeliningHandler(logger, transport.pipeliningMaxEvents));
 
                     ctx.fireChannelRead(ReferenceCountUtil.retain(msg));
                 }

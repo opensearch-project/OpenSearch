@@ -32,17 +32,22 @@
 
 package org.opensearch.test.rest;
 
-import org.apache.http.Header;
-import org.apache.http.HttpHost;
-import org.apache.http.HttpStatus;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.methods.HttpPut;
-import org.apache.http.message.BasicHeader;
-import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
-import org.apache.http.ssl.SSLContexts;
-import org.apache.http.util.EntityUtils;
+import org.apache.hc.client5.http.classic.methods.HttpPost;
+import org.apache.hc.client5.http.classic.methods.HttpPut;
+import org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManager;
+import org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManagerBuilder;
+import org.apache.hc.client5.http.ssl.ClientTlsStrategyBuilder;
+import org.apache.hc.core5.function.Factory;
+import org.apache.hc.core5.http.Header;
+import org.apache.hc.core5.http.HttpHost;
+import org.apache.hc.core5.http.HttpStatus;
+import org.apache.hc.core5.http.io.entity.EntityUtils;
+import org.apache.hc.core5.http.message.BasicHeader;
+import org.apache.hc.core5.http.nio.ssl.TlsStrategy;
+import org.apache.hc.core5.reactor.ssl.TlsDetails;
+import org.apache.hc.core5.ssl.SSLContexts;
+import org.apache.hc.core5.util.Timeout;
 import org.apache.lucene.util.SetOnce;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.opensearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
@@ -81,6 +86,8 @@ import org.junit.AfterClass;
 import org.junit.Before;
 
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLEngine;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -136,7 +143,7 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
      * Convert the entity from a {@link Response} into a map of maps.
      */
     public static Map<String, Object> entityAsMap(Response response) throws IOException {
-        XContentType xContentType = XContentType.fromMediaType(response.getEntity().getContentType().getValue());
+        XContentType xContentType = XContentType.fromMediaType(response.getEntity().getContentType());
         // EMPTY and THROW are fine here because `.map` doesn't use named x content or deprecation
         try (
             XContentParser parser = xContentType.xContent()
@@ -154,7 +161,7 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
      * Convert the entity from a {@link Response} into a list of maps.
      */
     public static List<Object> entityAsList(Response response) throws IOException {
-        XContentType xContentType = XContentType.fromMediaType(response.getEntity().getContentType().getValue());
+        XContentType xContentType = XContentType.fromMediaType(response.getEntity().getContentType());
         // EMPTY and THROW are fine here because `.map` doesn't use named x content or deprecation
         try (
             XContentParser parser = xContentType.xContent()
@@ -200,8 +207,8 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
             }
             clusterHosts = unmodifiableList(hosts);
             logger.info("initializing REST clients against {}", clusterHosts);
-            client = buildClient(restClientSettings(), clusterHosts.toArray(new HttpHost[clusterHosts.size()]));
-            adminClient = buildClient(restAdminSettings(), clusterHosts.toArray(new HttpHost[clusterHosts.size()]));
+            client = buildClient(restClientSettings(), clusterHosts.toArray(new HttpHost[0]));
+            adminClient = buildClient(restAdminSettings(), clusterHosts.toArray(new HttpHost[0]));
 
             nodeVersions = new TreeSet<>();
             Map<?, ?> response = entityAsMap(adminClient.performRequest(new Request("GET", "_nodes/plugins")));
@@ -344,7 +351,7 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
      * Construct an HttpHost from the given host and port
      */
     protected HttpHost buildHttpHost(String host, int port) {
-        return new HttpHost(host, port, getProtocol());
+        return new HttpHost(getProtocol(), host, port);
     }
 
     /**
@@ -530,15 +537,6 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
 
     private void wipeCluster() throws Exception {
 
-        // Clean up SLM policies before trying to wipe snapshots so that no new ones get started by SLM after wiping
-        if (nodeVersions.first().onOrAfter(LegacyESVersion.V_7_4_0) && nodeVersions.first().before(Version.V_1_0_0)) { // SLM was introduced
-                                                                                                                       // in version 7.4
-            if (preserveSLMPoliciesUponCompletion() == false) {
-                // Clean up SLM policies before trying to wipe snapshots so that no new ones get started by SLM after wiping
-                deleteAllSLMPolicies();
-            }
-        }
-
         SetOnce<Map<String, List<Map<?, ?>>>> inProgressSnapshots = new SetOnce<>();
         if (waitForAllSnapshotsWiped()) {
             AtomicReference<Map<String, List<Map<?, ?>>>> snapshots = new AtomicReference<>();
@@ -589,10 +587,9 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
     }
 
     protected static void wipeAllIndices() throws IOException {
-        boolean includeHidden = minimumNodeVersion().onOrAfter(LegacyESVersion.V_7_7_0);
         try {
             final Request deleteRequest = new Request("DELETE", "*");
-            deleteRequest.addParameter("expand_wildcards", "open,closed" + (includeHidden ? ",hidden" : ""));
+            deleteRequest.addParameter("expand_wildcards", "open,closed,hidden");
             RequestOptions.Builder allowSystemIndexAccessWarningOptions = RequestOptions.DEFAULT.toBuilder();
             allowSystemIndexAccessWarningOptions.setWarningsHandler(warnings -> {
                 if (warnings.size() == 0) {
@@ -703,9 +700,8 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
     }
 
     protected void refreshAllIndices() throws IOException {
-        boolean includeHidden = minimumNodeVersion().onOrAfter(LegacyESVersion.V_7_7_0);
         Request refreshRequest = new Request("POST", "/_refresh");
-        refreshRequest.addParameter("expand_wildcards", "open" + (includeHidden ? ",hidden" : ""));
+        refreshRequest.addParameter("expand_wildcards", "open,hidden");
         // Allow system index deprecation warnings
         final Builder requestOptions = RequestOptions.DEFAULT.toBuilder();
         requestOptions.setWarningsHandler(warnings -> {
@@ -845,9 +841,25 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
                 try (InputStream is = Files.newInputStream(path)) {
                     keyStore.load(is, keystorePass.toCharArray());
                 }
-                SSLContext sslcontext = SSLContexts.custom().loadTrustMaterial(keyStore, null).build();
-                SSLIOSessionStrategy sessionStrategy = new SSLIOSessionStrategy(sslcontext);
-                builder.setHttpClientConfigCallback(httpClientBuilder -> httpClientBuilder.setSSLStrategy(sessionStrategy));
+                final SSLContext sslcontext = SSLContexts.custom().loadTrustMaterial(keyStore, null).build();
+                builder.setHttpClientConfigCallback(httpClientBuilder -> {
+                    final TlsStrategy tlsStrategy = ClientTlsStrategyBuilder.create()
+                        .setSslContext(sslcontext)
+                        // See https://issues.apache.org/jira/browse/HTTPCLIENT-2219
+                        .setTlsDetailsFactory(new Factory<SSLEngine, TlsDetails>() {
+                            @Override
+                            public TlsDetails create(final SSLEngine sslEngine) {
+                                return new TlsDetails(sslEngine.getSession(), sslEngine.getApplicationProtocol());
+                            }
+                        })
+                        .build();
+
+                    final PoolingAsyncClientConnectionManager connectionManager = PoolingAsyncClientConnectionManagerBuilder.create()
+                        .setTlsStrategy(tlsStrategy)
+                        .build();
+
+                    return httpClientBuilder.setConnectionManager(connectionManager);
+                });
             } catch (KeyStoreException | NoSuchAlgorithmException | KeyManagementException | CertificateException e) {
                 throw new RuntimeException("Error setting up ssl", e);
             }
@@ -864,7 +876,9 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
             socketTimeoutString == null ? "60s" : socketTimeoutString,
             CLIENT_SOCKET_TIMEOUT
         );
-        builder.setRequestConfigCallback(conf -> conf.setSocketTimeout(Math.toIntExact(socketTimeout.getMillis())));
+        builder.setRequestConfigCallback(
+            conf -> conf.setResponseTimeout(Timeout.ofMilliseconds(Math.toIntExact(socketTimeout.getMillis())))
+        );
         if (settings.hasValue(CLIENT_PATH_PREFIX)) {
             builder.setPathPrefix(settings.get(CLIENT_PATH_PREFIX));
         }
@@ -990,12 +1004,6 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
     }
 
     protected static void expectSoftDeletesWarning(Request request, String indexName) {
-        final List<String> esExpectedWarnings = Collections.singletonList(
-            "Creating indices with soft-deletes disabled is deprecated and will be removed in future Elasticsearch versions. "
-                + "Please do not specify value for setting [index.soft_deletes.enabled] of index ["
-                + indexName
-                + "]."
-        );
         final List<String> opensearchExpectedWarnings = Collections.singletonList(
             "Creating indices with soft-deletes disabled is deprecated and will be removed in future OpenSearch versions. "
                 + "Please do not specify value for setting [index.soft_deletes.enabled] of index ["
@@ -1003,24 +1011,8 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
                 + "]."
         );
         final Builder requestOptions = RequestOptions.DEFAULT.toBuilder();
-        if (nodeVersions.stream().allMatch(version -> version.onOrAfter(LegacyESVersion.V_7_6_0) && version.before(Version.V_1_0_0))) {
-            requestOptions.setWarningsHandler(warnings -> warnings.equals(esExpectedWarnings) == false);
-            request.setOptions(requestOptions);
-        } else if (nodeVersions.stream()
-            .anyMatch(version -> version.onOrAfter(LegacyESVersion.V_7_6_0) && version.before(Version.V_1_0_0))) {
-                requestOptions.setWarningsHandler(warnings -> warnings.isEmpty() == false && warnings.equals(esExpectedWarnings) == false);
-                request.setOptions(requestOptions);
-            }
-
-        if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_1_0_0))) {
-            requestOptions.setWarningsHandler(warnings -> warnings.equals(opensearchExpectedWarnings) == false);
-            request.setOptions(requestOptions);
-        } else if (nodeVersions.stream().anyMatch(version -> version.onOrAfter(Version.V_1_0_0))) {
-            requestOptions.setWarningsHandler(
-                warnings -> warnings.isEmpty() == false && warnings.equals(opensearchExpectedWarnings) == false
-            );
-            request.setOptions(requestOptions);
-        }
+        requestOptions.setWarningsHandler(warnings -> warnings.equals(opensearchExpectedWarnings) == false);
+        request.setOptions(requestOptions);
     }
 
     protected static Map<String, Object> getIndexSettings(String index) throws IOException {
@@ -1082,7 +1074,7 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
     }
 
     protected static Map<String, Object> responseAsMap(Response response) throws IOException {
-        XContentType entityContentType = XContentType.fromMediaType(response.getEntity().getContentType().getValue());
+        XContentType entityContentType = XContentType.fromMediaType(response.getEntity().getContentType());
         Map<String, Object> responseEntity = XContentHelper.convertToMap(
             entityContentType.xContent(),
             response.getEntity().getContent(),
@@ -1189,7 +1181,6 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
      * that we have renewed every PRRL to the global checkpoint of the corresponding copy and properly synced to all copies.
      */
     public void ensurePeerRecoveryRetentionLeasesRenewedAndSynced(String index) throws Exception {
-        final boolean alwaysExists = minimumNodeVersion().onOrAfter(LegacyESVersion.V_7_6_0);
         assertBusy(() -> {
             Map<String, Object> stats = entityAsMap(client().performRequest(new Request("GET", index + "/_stats?level=shards")));
             @SuppressWarnings("unchecked")
@@ -1207,25 +1198,20 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
                         "retention_leases.leases",
                         copy
                     );
-                    if (alwaysExists == false && retentionLeases == null) {
-                        continue;
-                    }
                     assertNotNull(retentionLeases);
                     for (Map<String, ?> retentionLease : retentionLeases) {
                         if (((String) retentionLease.get("id")).startsWith("peer_recovery/")) {
                             assertThat(retentionLease.get("retaining_seq_no"), equalTo(globalCheckpoint + 1));
                         }
                     }
-                    if (alwaysExists) {
-                        List<String> existingLeaseIds = retentionLeases.stream()
-                            .map(lease -> (String) lease.get("id"))
-                            .collect(Collectors.toList());
-                        List<String> expectedLeaseIds = shard.stream()
-                            .map(shr -> (String) XContentMapValues.extractValue("routing.node", shr))
-                            .map(ReplicationTracker::getPeerRecoveryRetentionLeaseId)
-                            .collect(Collectors.toList());
-                        assertThat("not every active copy has established its PPRL", expectedLeaseIds, everyItem(in(existingLeaseIds)));
-                    }
+                    List<String> existingLeaseIds = retentionLeases.stream()
+                        .map(lease -> (String) lease.get("id"))
+                        .collect(Collectors.toList());
+                    List<String> expectedLeaseIds = shard.stream()
+                        .map(shr -> (String) XContentMapValues.extractValue("routing.node", shr))
+                        .map(ReplicationTracker::getPeerRecoveryRetentionLeaseId)
+                        .collect(Collectors.toList());
+                    assertThat("not every active copy has established its PPRL", expectedLeaseIds, everyItem(in(existingLeaseIds)));
                 }
             }
         }, 60, TimeUnit.SECONDS);
@@ -1265,7 +1251,7 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
         );
         if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_2_0_0))) {
             options.setWarningsHandler(warnings -> warnings.isEmpty() == false && warnings.equals(expectedWarnings) == false);
-        } else if (nodeVersions.stream().anyMatch(version -> version.onOrAfter(LegacyESVersion.V_7_6_0))) {
+        } else {
             options.setWarningsHandler(
                 warnings -> warnings.isEmpty() == false
                     && warnings.equals(expectedWarnings) == false

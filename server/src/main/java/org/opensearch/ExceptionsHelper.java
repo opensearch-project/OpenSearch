@@ -40,6 +40,7 @@ import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.opensearch.action.ShardOperationFailedException;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.compress.NotXContentException;
 import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.index.Index;
 import org.opensearch.rest.RestStatus;
@@ -94,9 +95,26 @@ public final class ExceptionsHelper {
                 return RestStatus.BAD_REQUEST;
             } else if (t instanceof OpenSearchRejectedExecutionException) {
                 return RestStatus.TOO_MANY_REQUESTS;
+            } else if (t instanceof NotXContentException) {
+                return RestStatus.BAD_REQUEST;
             }
         }
         return RestStatus.INTERNAL_SERVER_ERROR;
+    }
+
+    public static String summaryMessage(Throwable t) {
+        if (t != null) {
+            if (t instanceof OpenSearchException) {
+                return t.getClass().getSimpleName() + "[" + t.getMessage() + "]";
+            } else if (t instanceof IllegalArgumentException) {
+                return "Invalid argument";
+            } else if (t instanceof JsonParseException) {
+                return "Failed to parse JSON";
+            } else if (t instanceof OpenSearchRejectedExecutionException) {
+                return "Too many requests";
+            }
+        }
+        return "Internal failure";
     }
 
     public static Throwable unwrapCause(Throwable t) {

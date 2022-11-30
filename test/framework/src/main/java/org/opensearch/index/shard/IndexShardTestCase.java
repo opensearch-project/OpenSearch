@@ -39,7 +39,6 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.junit.Assert;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
@@ -68,6 +67,7 @@ import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.internal.io.IOUtils;
@@ -105,6 +105,7 @@ import org.opensearch.indices.recovery.RecoveryFailedException;
 import org.opensearch.indices.recovery.RecoveryResponse;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoverySourceHandler;
+import org.opensearch.indices.recovery.RecoverySourceHandlerFactory;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
 import org.opensearch.indices.recovery.StartRecoveryRequest;
@@ -119,6 +120,7 @@ import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.common.CopyState;
 import org.opensearch.indices.replication.common.ReplicationCollection;
+import org.opensearch.indices.replication.common.ReplicationFailedException;
 import org.opensearch.indices.replication.common.ReplicationListener;
 import org.opensearch.indices.replication.common.ReplicationState;
 import org.opensearch.repositories.IndexId;
@@ -132,8 +134,8 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -181,7 +183,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         }
 
         @Override
-        public void onFailure(ReplicationState state, OpenSearchException e, boolean sendShardFailure) {
+        public void onFailure(ReplicationState state, ReplicationFailedException e, boolean sendShardFailure) {
             throw new AssertionError(e);
         }
     };
@@ -861,17 +863,23 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             recoveryTarget,
             startingSeqNo
         );
-        int fileChunkSizeInBytes = Math.toIntExact(
-            randomBoolean() ? RecoverySettings.DEFAULT_CHUNK_SIZE.getBytes() : randomIntBetween(1, 10 * 1024 * 1024)
+        long fileChunkSizeInBytes = randomBoolean()
+            ? RecoverySettings.DEFAULT_CHUNK_SIZE.getBytes()
+            : randomIntBetween(1, 10 * 1024 * 1024);
+        final Settings settings = Settings.builder()
+            .put("indices.recovery.max_concurrent_file_chunks", Integer.toString(between(1, 4)))
+            .put("indices.recovery.max_concurrent_operations", Integer.toString(between(1, 4)))
+            .build();
+        RecoverySettings recoverySettings = new RecoverySettings(
+            settings,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
-        final RecoverySourceHandler recovery = new RecoverySourceHandler(
+        recoverySettings.setChunkSize(new ByteSizeValue(fileChunkSizeInBytes));
+        final RecoverySourceHandler recovery = RecoverySourceHandlerFactory.create(
             primary,
             new AsyncRecoveryTarget(recoveryTarget, threadPool.generic()),
-            threadPool,
             request,
-            fileChunkSizeInBytes,
-            between(1, 8),
-            between(1, 8)
+            recoverySettings
         );
         primary.updateShardState(
             primary.routingEntry(),
@@ -1282,15 +1290,20 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                     }
 
                     @Override
-                    public void onReplicationFailure(SegmentReplicationState state, OpenSearchException e, boolean sendShardFailure) {
+                    public void onReplicationFailure(
+                        SegmentReplicationState state,
+                        ReplicationFailedException e,
+                        boolean sendShardFailure
+                    ) {
                         logger.error("Unexpected replication failure in test", e);
                         Assert.fail("test replication should not fail: " + e);
                     }
                 }
             );
             ids.add(target);
-            countDownLatch.await(1, TimeUnit.SECONDS);
         }
+        countDownLatch.await(30, TimeUnit.SECONDS);
+        assertEquals("Replication should complete successfully", 0, countDownLatch.getCount());
         return ids;
     }
 

@@ -52,7 +52,6 @@ import org.apache.lucene.util.SetOnce;
 import org.apache.lucene.util.ThreadInterruptedException;
 import org.opensearch.Assertions;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
@@ -679,7 +678,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             this.shardRouting = newRouting;
 
             assert this.shardRouting.primary() == false || this.shardRouting.started() == false || // note that we use started and not
-                                                                                                   // active to avoid relocating shards
+            // active to avoid relocating shards
                 this.indexShardOperationPermits.isBlocked() || // if permits are blocked, we are still transitioning
                 this.replicationTracker.isPrimaryMode() : "a started primary with non-pending operation term must be in primary mode "
                     + this.shardRouting;
@@ -1441,6 +1440,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             logger.warn("Ignoring new replication checkpoint - shard is in primaryMode and cannot receive any checkpoints.");
             return false;
         }
+        if (this.routingEntry().primary()) {
+            logger.warn("Ignoring new replication checkpoint - primary shard cannot receive any checkpoints.");
+            return false;
+        }
         ReplicationCheckpoint localCheckpoint = getLatestReplicationCheckpoint();
         if (localCheckpoint.isAheadOf(requestCheckpoint)) {
             logger.trace(
@@ -1987,7 +1990,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 translogRecoveryStats::incrementRecoveredOperations
             );
         };
-        loadGlobalCheckpointToReplicationTracker();
+
+        // Do not load the global checkpoint if this is a remote snapshot index
+        if (IndexModule.Type.REMOTE_SNAPSHOT.match(indexSettings) == false) {
+            loadGlobalCheckpointToReplicationTracker();
+        }
+
         innerOpenEngineAndTranslog(replicationTracker);
         getEngine().translogManager()
             .recoverFromTranslog(translogRecoveryRunner, getEngine().getProcessedLocalCheckpoint(), Long.MAX_VALUE);
@@ -3086,13 +3094,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 }
                 break;
             case SNAPSHOT:
-                final String repo = ((SnapshotRecoverySource) recoveryState.getRecoverySource()).snapshot().getRepository();
-                executeRecovery(
-                    "from snapshot",
-                    recoveryState,
-                    recoveryListener,
-                    l -> restoreFromRepository(repositoriesService.repository(repo), l)
-                );
+                final SnapshotRecoverySource recoverySource = (SnapshotRecoverySource) recoveryState.getRecoverySource();
+                if (recoverySource.isSearchableSnapshot()) {
+                    executeRecovery("from snapshot (remote)", recoveryState, recoveryListener, this::recoverFromStore);
+                } else {
+                    final String repo = recoverySource.snapshot().getRepository();
+                    executeRecovery(
+                        "from snapshot",
+                        recoveryState,
+                        recoveryListener,
+                        l -> restoreFromRepository(repositoriesService.repository(repo), l)
+                    );
+                }
                 break;
             case LOCAL_SHARDS:
                 final IndexMetadata indexMetadata = indexSettings().getIndexMetadata();
@@ -3183,7 +3196,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     ) {
         assert assertPrimaryMode();
         // only needed for BWC reasons involving rolling upgrades from versions that do not support PRRLs:
-        assert indexSettings.getIndexVersionCreated().before(LegacyESVersion.V_7_4_0) || indexSettings.isSoftDeleteEnabled() == false;
+        assert indexSettings.isSoftDeleteEnabled() == false;
         return replicationTracker.addPeerRecoveryRetentionLease(nodeId, globalCheckpoint, listener);
     }
 
@@ -3253,10 +3266,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 writeReason = "routing changed from " + currentRouting + " to " + newRouting;
             }
             logger.trace("{} writing shard state, reason [{}]", shardId, writeReason);
+
+            final ShardStateMetadata.IndexDataLocation indexDataLocation = IndexSettings.SEARCHABLE_SNAPSHOT_REPOSITORY.exists(
+                indexSettings.getSettings()
+            ) ? ShardStateMetadata.IndexDataLocation.REMOTE : ShardStateMetadata.IndexDataLocation.LOCAL;
             final ShardStateMetadata newShardStateMetadata = new ShardStateMetadata(
                 newRouting.primary(),
                 indexSettings.getUUID(),
-                newRouting.allocationId()
+                newRouting.allocationId(),
+                indexDataLocation
             );
             ShardStateMetadata.FORMAT.writeAndCleanup(newShardStateMetadata, shardPath.getShardStatePath());
         } else {

@@ -33,15 +33,18 @@
 package org.opensearch.index.reindex;
 
 import java.util.Optional;
-import org.apache.http.Header;
-import org.apache.http.HttpHost;
-import org.apache.http.HttpRequestInterceptor;
-import org.apache.http.auth.AuthScope;
-import org.apache.http.auth.UsernamePasswordCredentials;
-import org.apache.http.client.CredentialsProvider;
-import org.apache.http.impl.client.BasicCredentialsProvider;
-import org.apache.http.impl.nio.reactor.IOReactorConfig;
-import org.apache.http.message.BasicHeader;
+
+import org.apache.hc.client5.http.auth.AuthScope;
+import org.apache.hc.client5.http.auth.UsernamePasswordCredentials;
+import org.apache.hc.client5.http.impl.auth.BasicCredentialsProvider;
+import org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManager;
+import org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManagerBuilder;
+import org.apache.hc.core5.http.Header;
+import org.apache.hc.core5.http.HttpHost;
+import org.apache.hc.core5.http.HttpRequestInterceptor;
+import org.apache.hc.core5.http.message.BasicHeader;
+import org.apache.hc.core5.reactor.IOReactorConfig;
+import org.apache.hc.core5.util.Timeout;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionListener;
@@ -202,21 +205,23 @@ public class Reindexer {
         for (Map.Entry<String, String> header : remoteInfo.getHeaders().entrySet()) {
             clientHeaders[i++] = new BasicHeader(header.getKey(), header.getValue());
         }
-        final RestClientBuilder builder = RestClient.builder(
-            new HttpHost(remoteInfo.getHost(), remoteInfo.getPort(), remoteInfo.getScheme())
-        ).setDefaultHeaders(clientHeaders).setRequestConfigCallback(c -> {
-            c.setConnectTimeout(Math.toIntExact(remoteInfo.getConnectTimeout().millis()));
-            c.setSocketTimeout(Math.toIntExact(remoteInfo.getSocketTimeout().millis()));
+        final HttpHost httpHost = new HttpHost(remoteInfo.getScheme(), remoteInfo.getHost(), remoteInfo.getPort());
+        final RestClientBuilder builder = RestClient.builder(httpHost).setDefaultHeaders(clientHeaders).setRequestConfigCallback(c -> {
+            c.setConnectTimeout(Timeout.ofMilliseconds(Math.toIntExact(remoteInfo.getConnectTimeout().millis())));
+            c.setResponseTimeout(Timeout.ofMilliseconds(Math.toIntExact(remoteInfo.getSocketTimeout().millis())));
             return c;
         }).setHttpClientConfigCallback(c -> {
             // Enable basic auth if it is configured
             if (remoteInfo.getUsername() != null) {
-                UsernamePasswordCredentials creds = new UsernamePasswordCredentials(remoteInfo.getUsername(), remoteInfo.getPassword());
-                CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
-                credentialsProvider.setCredentials(AuthScope.ANY, creds);
+                UsernamePasswordCredentials creds = new UsernamePasswordCredentials(
+                    remoteInfo.getUsername(),
+                    remoteInfo.getPassword().toCharArray()
+                );
+                BasicCredentialsProvider credentialsProvider = new BasicCredentialsProvider();
+                credentialsProvider.setCredentials(new AuthScope(httpHost, null, "Basic"), creds);
                 c.setDefaultCredentialsProvider(credentialsProvider);
             } else {
-                restInterceptor.ifPresent(interceptor -> c.addInterceptorLast(interceptor));
+                restInterceptor.ifPresent(interceptor -> c.addRequestInterceptorLast(interceptor));
             }
             // Stick the task id in the thread name so we can track down tasks from stack traces
             AtomicInteger threads = new AtomicInteger();
@@ -227,8 +232,13 @@ public class Reindexer {
                 return t;
             });
             // Limit ourselves to one reactor thread because for now the search process is single threaded.
-            c.setDefaultIOReactorConfig(IOReactorConfig.custom().setIoThreadCount(1).build());
-            c.setSSLStrategy(sslConfig.getStrategy());
+            c.setIOReactorConfig(IOReactorConfig.custom().setIoThreadCount(1).build());
+
+            final PoolingAsyncClientConnectionManager connectionManager = PoolingAsyncClientConnectionManagerBuilder.create()
+                .setTlsStrategy(sslConfig.getStrategy())
+                .build();
+
+            c.setConnectionManager(connectionManager);
             return c;
         });
         if (Strings.hasLength(remoteInfo.getPathPrefix()) && "/".equals(remoteInfo.getPathPrefix()) == false) {

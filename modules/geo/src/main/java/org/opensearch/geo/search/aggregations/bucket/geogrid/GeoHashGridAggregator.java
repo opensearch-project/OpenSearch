@@ -47,9 +47,9 @@ import java.util.Map;
  *
  * @opensearch.internal
  */
-public class GeoHashGridAggregator extends GeoGridAggregator<InternalGeoHashGrid> {
+class GeoHashGridAggregator extends GeoGridAggregator<GeoHashGrid> {
 
-    public GeoHashGridAggregator(
+    GeoHashGridAggregator(
         String name,
         AggregatorFactories factories,
         ValuesSource.Numeric valuesSource,
@@ -64,16 +64,17 @@ public class GeoHashGridAggregator extends GeoGridAggregator<InternalGeoHashGrid
     }
 
     @Override
-    InternalGeoHashGrid buildAggregation(String name, int requiredSize, List<InternalGeoGridBucket> buckets, Map<String, Object> metadata) {
-        return new InternalGeoHashGrid(name, requiredSize, buckets, metadata);
+    protected GeoHashGrid buildAggregation(String name, int requiredSize, List<BaseGeoGridBucket> buckets, Map<String, Object> metadata) {
+        return new GeoHashGrid(name, requiredSize, buckets, metadata);
     }
 
     @Override
-    public InternalGeoHashGrid buildEmptyAggregation() {
-        return new InternalGeoHashGrid(name, requiredSize, Collections.emptyList(), metadata());
+    public GeoHashGrid buildEmptyAggregation() {
+        return new GeoHashGrid(name, requiredSize, Collections.emptyList(), metadata());
     }
 
-    InternalGeoGridBucket newEmptyBucket() {
+    @Override
+    protected BaseGeoGridBucket newEmptyBucket() {
         return new InternalGeoHashGridBucket(0, 0, null);
     }
 }

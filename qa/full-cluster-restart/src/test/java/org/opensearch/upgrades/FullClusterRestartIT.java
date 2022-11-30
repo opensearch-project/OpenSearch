@@ -32,8 +32,6 @@
 
 package org.opensearch.upgrades;
 
-import org.apache.http.util.EntityUtils;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
@@ -53,6 +51,8 @@ import org.opensearch.test.NotEqualMessageBuilder;
 import org.opensearch.test.XContentTestUtils;
 import org.opensearch.test.rest.OpenSearchRestTestCase;
 import org.opensearch.test.rest.yaml.ObjectPath;
+import org.apache.hc.core5.http.ParseException;
+import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -71,7 +71,6 @@ import java.util.regex.Pattern;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
-import static org.opensearch.cluster.metadata.IndexNameExpressionResolver.SYSTEM_INDEX_ENFORCEMENT_VERSION;
 import static org.opensearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 import static org.opensearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -286,7 +285,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
     }
 
-    public void testShrink() throws IOException {
+    public void testShrink() throws IOException, NumberFormatException, ParseException {
         String shrunkenIndex = index + "_shrunk";
         int numDocs;
         if (isRunningAgainstOldCluster()) {
@@ -329,9 +328,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             client().performRequest(updateSettingsRequest);
 
             Request shrinkIndexRequest = new Request("PUT", "/" + index + "/_shrink/" + shrunkenIndex);
-            if (getOldClusterVersion().before(LegacyESVersion.V_7_0_0)) {
-                shrinkIndexRequest.addParameter("copy_settings", "true");
-            }
             shrinkIndexRequest.setJsonEntity("{\"settings\": {\"index.number_of_shards\": 1}}");
             client().performRequest(shrinkIndexRequest);
 
@@ -359,7 +355,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertEquals(numDocs, totalHits);
     }
 
-    public void testShrinkAfterUpgrade() throws IOException {
+    public void testShrinkAfterUpgrade() throws IOException, ParseException {
         String shrunkenIndex = index + "_shrunk";
         int numDocs;
         if (isRunningAgainstOldCluster()) {
@@ -447,7 +443,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
      *  <li>Make sure the document count is correct
      * </ol>
      */
-    public void testRollover() throws IOException {
+    public void testRollover() throws IOException, ParseException {
         if (isRunningAgainstOldCluster()) {
             Request createIndex = new Request("PUT", "/" + index + "-000001");
             createIndex.setJsonEntity("{"
@@ -529,7 +525,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         }
     }
 
-    void assertAllSearchWorks(int count) throws IOException {
+    void assertAllSearchWorks(int count) throws IOException, ParseException {
         logger.info("--> testing _all search");
         Map<String, Object> response = entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search")));
         assertNoFailures(response);
@@ -626,14 +622,14 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         }
     }
 
-    static String toStr(Response response) throws IOException {
+    static String toStr(Response response) throws IOException, ParseException {
         return EntityUtils.toString(response.getEntity());
     }
 
     /**
      * Tests that a single document survives. Super basic smoke test.
      */
-    public void testSingleDoc() throws IOException {
+    public void testSingleDoc() throws IOException, ParseException {
         String docLocation = "/" + index + "/" + type + "/1";
         String doc = "{\"test\": \"test\"}";
 
@@ -795,7 +791,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
      * old and new versions. All of the snapshots include an index, a template,
      * and some routing configuration.
      */
-    public void testSnapshotRestore() throws IOException {
+    public void testSnapshotRestore() throws IOException, ParseException {
         int count;
         if (isRunningAgainstOldCluster()) {
             // Create the index
@@ -1006,12 +1002,8 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             closeIndex(index);
         }
 
-        if (getOldClusterVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
-            ensureGreenLongWait(index);
-            assertClosedIndex(index, true);
-        } else {
-            assertClosedIndex(index, false);
-        }
+        ensureGreenLongWait(index);
+        assertClosedIndex(index, true);
 
         if (isRunningAgainstOldCluster() == false) {
             openIndex(index);
@@ -1067,7 +1059,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         }
     }
 
-    private void checkSnapshot(final String snapshotName, final int count, final Version tookOnVersion) throws IOException {
+    private void checkSnapshot(final String snapshotName, final int count, final Version tookOnVersion) throws IOException, ParseException {
         // Check the snapshot metadata, especially the version
         Request listSnapshotRequest = new Request("GET", "/_snapshot/repo/" + snapshotName);
         Map<String, Object> listSnapshotResponse = entityAsMap(client().performRequest(listSnapshotRequest));
@@ -1186,7 +1178,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertOK(client().performRequest(indexRequest));
     }
 
-    private int countOfIndexedRandomDocuments() throws IOException {
+    private int countOfIndexedRandomDocuments() throws IOException, NumberFormatException, ParseException {
         return Integer.parseInt(loadInfoDocument(index + "_count"));
     }
 
@@ -1201,7 +1193,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         client().performRequest(request);
     }
 
-    private String loadInfoDocument(String id) throws IOException {
+    private String loadInfoDocument(String id) throws IOException, ParseException {
         Request request = new Request("GET", "/info/_doc/" + id);
         request.addParameter("filter_path", "_source");
         String doc = toStr(client().performRequest(request));
@@ -1253,7 +1245,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 settings.startObject("settings");
                 settings.field("number_of_shards", between(1, 5));
                 settings.field("number_of_replicas", between(0, 1));
-                if (randomBoolean() || getOldClusterVersion().before(LegacyESVersion.V_7_0_0)) {
+                if (randomBoolean()) {
                     // this is the default after v7.0.0, but is required before that
                     settings.field("soft_deletes.enabled", true);
                 }
@@ -1436,10 +1428,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             // make sure .tasks index exists
             Request getTasksIndex = new Request("GET", "/.tasks");
             getTasksIndex.addParameter("allow_no_indices", "false");
-            if (getOldClusterVersion().before(LegacyESVersion.V_7_0_0)) {
-                getTasksIndex.addParameter("include_type_name", "false");
-            }
-
             getTasksIndex.setOptions(expectVersionSpecificWarnings(v -> {
                 v.current(systemIndexWarning);
                 v.compatible(systemIndexWarning);
@@ -1451,20 +1439,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                     throw new AssertionError(".tasks index does not exist yet");
                 }
             });
-
-            // If we are on 7.x create an alias that includes both a system index and a non-system index so we can be sure it gets
-            // upgraded properly. If we're already on 8.x, skip this part of the test.
-            if (minimumNodeVersion().before(SYSTEM_INDEX_ENFORCEMENT_VERSION)) {
-                // Create an alias to make sure it gets upgraded properly
-                Request putAliasRequest = new Request("POST", "/_aliases");
-                putAliasRequest.setJsonEntity("{\n" +
-                    "  \"actions\": [\n" +
-                    "    {\"add\":  {\"index\":  \".tasks\", \"alias\": \"test-system-alias\"}},\n" +
-                    "    {\"add\":  {\"index\":  \"test_index_reindex\", \"alias\": \"test-system-alias\"}}\n" +
-                    "  ]\n" +
-                    "}");
-                assertThat(client().performRequest(putAliasRequest).getStatusLine().getStatusCode(), is(200));
-            }
         } else {
             assertBusy(() -> {
                 Request clusterStateRequest = new Request("GET", "/_cluster/state/metadata");
@@ -1479,21 +1453,8 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 XContentTestUtils.JsonMapView tasksIndex = new XContentTestUtils.JsonMapView((Map<String, Object>) indices.get(".tasks"));
                 assertThat(tasksIndex.get("system"), is(true));
 
-                // If .tasks was created in a 7.x version, it should have an alias on it that we need to make sure got upgraded properly.
                 final String tasksCreatedVersionString = tasksIndex.get("settings.index.version.created");
                 assertThat(tasksCreatedVersionString, notNullValue());
-                final Version tasksCreatedVersion = Version.fromId(Integer.parseInt(tasksCreatedVersionString));
-                if (tasksCreatedVersion.before(SYSTEM_INDEX_ENFORCEMENT_VERSION)) {
-                    // Verify that the alias survived the upgrade
-                    Request getAliasRequest = new Request("GET", "/_alias/test-system-alias");
-                    getAliasRequest.setOptions(expectVersionSpecificWarnings(v -> {
-                        v.current(systemIndexWarning);
-                        v.compatible(systemIndexWarning);
-                    }));
-                    Map<String, Object> aliasResponse = entityAsMap(client().performRequest(getAliasRequest));
-                    assertThat(aliasResponse, hasKey(".tasks"));
-                    assertThat(aliasResponse, hasKey("test_index_reindex"));
-                }
             });
         }
     }

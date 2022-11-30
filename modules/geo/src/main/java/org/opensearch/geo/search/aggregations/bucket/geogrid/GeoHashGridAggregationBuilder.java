@@ -51,7 +51,7 @@ import java.util.Map;
 /**
  * Aggregation Builder for geohash_grid
  *
- * @opensearch.internal
+ * @opensearch.api
  */
 public class GeoHashGridAggregationBuilder extends GeoGridAggregationBuilder {
     public static final String NAME = "geohash_grid";
