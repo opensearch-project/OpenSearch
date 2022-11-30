@@ -211,7 +211,10 @@ public class RemoteFsTranslog extends Translog {
                     closeOnTragicEvent(e);
                     throw e;
                 }
+            } else if (generation < current.getGeneration()) {
+                return false;
             }
+
             // Do we need remote writes in sync fashion ?
             // If we don't , we should swallow FileAlreadyExistsException while writing to remote store
             // and also verify for same during primary-primary relocation
@@ -293,9 +296,7 @@ public class RemoteFsTranslog extends Translog {
             : "Translog.close method is called from inside Translog, but not via closeOnTragicEvent method";
         if (closed.compareAndSet(false, true)) {
             try (ReleasableLock lock = writeLock.acquire()) {
-                if (current.syncNeeded()) {
-                    prepareAndUpload(primaryTermSupplier.getAsLong(), null);
-                }
+                sync();
             } finally {
                 logger.debug("translog closed");
                 closeFilesIfNoPendingRetentionLocks();
