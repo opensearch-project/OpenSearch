@@ -20,6 +20,7 @@ import org.opensearch.client.RequestOptions;
 import org.opensearch.client.Response;
 import org.opensearch.client.ResponseException;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.rest.OpenSearchRestTestCase;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -27,7 +28,6 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.opensearch.authn.AuthenticationTokenHandler.extractShiroAuthToken;
-import static org.opensearch.test.rest.OpenSearchRestTestCase.*;
 
 public class BearerAuthenticationTests extends OpenSearchTestCase {
 
@@ -114,13 +114,13 @@ public class BearerAuthenticationTests extends OpenSearchTestCase {
         Request request = new Request("GET", "/_cluster/health");
         RequestOptions options = RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", headerBody).build(); // This needs to be a built JWT
         request.setOptions(options);
-        Response response = client().performRequest(request);
+        Response response = OpenSearchRestTestCase.client().performRequest(request);
 
-        assertOK(response);
+        OpenSearchRestTestCase.assertOK(response);
 
         // Standard cluster health response
-        MatcherAssert.assertThat(entityAsMap(response).size(), equalTo(17));
-        MatcherAssert.assertThat(entityAsMap(response).get("status"), equalTo("green"));
+        MatcherAssert.assertThat(OpenSearchRestTestCase.entityAsMap(response).size(), equalTo(17));
+        MatcherAssert.assertThat(OpenSearchRestTestCase.entityAsMap(response).get("status"), equalTo("green"));
 
     }
 
@@ -137,15 +137,15 @@ public class BearerAuthenticationTests extends OpenSearchTestCase {
         RequestOptions options = RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", headerBody).build(); //Not sure what this will do but it definitely should not pass
 
         request.setOptions(options);
-        Response response = client().performRequest(request);
+        Response response = OpenSearchRestTestCase.client().performRequest(request);
 
         // Should not fail, because current implementation allows a unauthorized request to pass
         // TODO: Update this to test for UNAUTHORIZED once that flow is implemented
-        assertOK(response);
+        OpenSearchRestTestCase.assertOK(response);
 
         // Standard cluster health response
-        MatcherAssert.assertThat(entityAsMap(response).size(), equalTo(17));
-        MatcherAssert.assertThat(entityAsMap(response).get("status"), equalTo("green"));
+        MatcherAssert.assertThat(OpenSearchRestTestCase.entityAsMap(response).size(), equalTo(17));
+        MatcherAssert.assertThat(OpenSearchRestTestCase.entityAsMap(response).get("status"), equalTo("green"));
 
     }
 
@@ -162,15 +162,15 @@ public class BearerAuthenticationTests extends OpenSearchTestCase {
         RequestOptions options = RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", headerBody).build(); //Not sure what this will do but it definitely should not pass
 
         request.setOptions(options);
-        Response response = client().performRequest(request);
+        Response response = OpenSearchRestTestCase.client().performRequest(request);
 
         // Should not fail, because current implementation allows a unauthorized request to pass
         // TODO: Update this to test for UNAUTHORIZED once that flow is implemented
-        assertOK(response);
+        OpenSearchRestTestCase.assertOK(response);
 
         // Standard cluster health response
-        MatcherAssert.assertThat(entityAsMap(response).size(), equalTo(17));
-        MatcherAssert.assertThat(entityAsMap(response).get("status"), equalTo("green"));
+        MatcherAssert.assertThat(OpenSearchRestTestCase.entityAsMap(response).size(), equalTo(17));
+        MatcherAssert.assertThat(OpenSearchRestTestCase.entityAsMap(response).get("status"), equalTo("green"));
 
     }
 
@@ -183,7 +183,7 @@ public class BearerAuthenticationTests extends OpenSearchTestCase {
 
         request.setOptions(options);
         try {
-            client().performRequest(request);
+            OpenSearchRestTestCase.client().performRequest(request);
         } catch (ResponseException e) {
             MatcherAssert.assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(405));
         }
