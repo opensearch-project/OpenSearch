@@ -48,13 +48,29 @@ public class AuthenticationTokenHandler {
         final byte[] decodedAuthHeader = Base64.getDecoder().decode(token.getHeaderValue().substring("Basic".length()).trim());
         String decodedHeader = new String(decodedAuthHeader, StandardCharsets.UTF_8);
 
-        final String[] decodedUserNamePassword = decodedHeader.split(":");
+        final int firstColonIndex = decodedHeader.indexOf(':');
 
-        // Malformed AuthHeader strings
-        if (decodedUserNamePassword.length != 2) return null;
+        String username = null;
+        String password = null;
 
-        logger.info("Logging in as: " + decodedUserNamePassword[0]);
+        if (firstColonIndex > 0) {
+            username = decodedHeader.substring(0, firstColonIndex);
 
-        return new UsernamePasswordToken(decodedUserNamePassword[0], decodedUserNamePassword[1]);
+            if (decodedHeader.length() - 1 != firstColonIndex) {
+                password = decodedHeader.substring(firstColonIndex + 1);
+            } else {
+                // blank password
+                password = "";
+            }
+        }
+
+        if (username == null || password == null) {
+            logger.warn("Invalid 'Authorization' header, send 401 and 'WWW-Authenticate Basic'");
+            return null;
+        }
+
+        logger.info("Logging in as: " + username);
+
+        return new UsernamePasswordToken(username, password);
     }
 }

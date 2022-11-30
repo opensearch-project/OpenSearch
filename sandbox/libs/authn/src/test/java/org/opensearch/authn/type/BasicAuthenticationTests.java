@@ -32,6 +32,20 @@ public class BasicAuthenticationTests extends OpenSearchRestTestCase {
 
     }
 
+    public void testClusterHealthWithValidAuthenticationHeader_twoSemiColonPassword() throws IOException {
+        Request request = new Request("GET", "/_cluster/health");
+        RequestOptions options = RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Basic dGVzdDp0ZTpzdA==").build(); // test:te:st
+        request.setOptions(options);
+        Response response = client().performRequest(request);
+
+        assertOK(response);
+
+        // Standard cluster health response
+        MatcherAssert.assertThat(entityAsMap(response).size(), equalTo(17));
+        MatcherAssert.assertThat(entityAsMap(response).get("status"), equalTo("green"));
+
+    }
+
     public void testClusterHealthWithNoHeader() throws IOException {
         Request request = new Request("GET", "/_cluster/health");
         RequestOptions options = RequestOptions.DEFAULT.toBuilder().build(); // admin:admin
@@ -65,8 +79,7 @@ public class BasicAuthenticationTests extends OpenSearchRestTestCase {
 
     public void testClusterHealthWithCorruptAuthenticationHeader() throws IOException {
         Request request = new Request("GET", "/_cluster/health");
-        RequestOptions options = RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Basic bleh").build(); // marvin:galaxy
-        request.setOptions(options);
+        RequestOptions options = RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Basic bleh").build();
         try {
             client().performRequest(request);
         } catch (ResponseException e) {

@@ -30,3 +30,7 @@ readall:
 
 snapshotrestore:
   hash: "$2y$12$DpwmetHKwgYnorbgdvORCenv4NAK8cPUg8AI6pxLCuWf/ALc0.v7W"
+
+# Two semi-colon password
+test:
+  hash: "$2y$12$fG1vNbK3X73j9eujLfh6We43fbKdy8O8RP5tGnLjg/CWMot48kAwO"    # te:st
