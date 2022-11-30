@@ -22,6 +22,7 @@ import java.util.Base64;
 /**
  * Extracts Shiro's {@link AuthenticationToken} from different types of auth headers
  *
+ *
  * @opensearch.experimental
  */
 public class AuthenticationTokenHandler {
