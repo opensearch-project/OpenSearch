@@ -22,11 +22,11 @@ jobs:
 
       - name: Checkout code
         uses: actions/checkout@v2
-        
+
       - name: Edit the issue template
         run: |
           echo "https://github.com/opensearch-project/OpenSearch/pull/${{ env.PR_NUMBER }}." >> ./ci/documentation/issue.md
-          
+
       - name: Create Issue From File
         id: create-issue
         uses: peter-evans/create-issue-from-file@v4
@@ -36,6 +36,6 @@ jobs:
           labels: documentation
           repository: opensearch-project/documentation-website
           token: ${{ steps.github_app_token.outputs.token }}
-      
+
       - name: Print Issue
         run: echo Created related documentation issue ${{ steps.create-issue.outputs.issue-number }}

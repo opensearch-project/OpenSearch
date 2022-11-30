@@ -1,9 +1,9 @@
 name: Delete merged branch of the backport PRs
-on: 
+on:
   pull_request:
     types:
       - closed
-  
+
 jobs:
   delete-branch:
     runs-on: ubuntu-latest
