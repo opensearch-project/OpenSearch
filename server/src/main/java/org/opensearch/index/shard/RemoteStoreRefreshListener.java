@@ -105,37 +105,38 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                         try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = indexShard.getSegmentInfosSnapshot()) {
                             SegmentInfos segmentInfos = segmentInfosGatedCloseable.get();
 
-                            Collection<String> refreshedLocalFiles = segmentInfos.files(true);
+                            Collection<String> localSegmentsPostRefresh = segmentInfos.files(true);
 
-                            List<String> segmentInfosFiles = refreshedLocalFiles.stream()
+                            List<String> segmentInfosFiles = localSegmentsPostRefresh.stream()
                                 .filter(file -> file.startsWith(IndexFileNames.SEGMENTS))
                                 .collect(Collectors.toList());
                             Optional<String> latestSegmentInfos = segmentInfosFiles.stream()
                                 .max(Comparator.comparingLong(SegmentInfos::generationFromSegmentsFileName));
 
                             if (latestSegmentInfos.isPresent()) {
-                                Set<String> segmentFilesFromSnapshot = new HashSet<>(refreshedLocalFiles);
-                                refreshedLocalFiles.addAll(SegmentInfos.readCommit(storeDirectory, latestSegmentInfos.get()).files(true));
+                                // SegmentInfosSnapshot is a snapshot of reader's view of segments and may not contain
+                                // all the segments from last commit if they are merged away but not yet committed.
+                                // Each metadata file in the remote segment store represents a commit and the following
+                                // statement keeps sure that each metadata will always contain all the segments from last commit + refreshed segments.
+                                localSegmentsPostRefresh.addAll(SegmentInfos.readCommit(storeDirectory, latestSegmentInfos.get()).files(true));
                                 segmentInfosFiles.stream()
                                     .filter(file -> !file.equals(latestSegmentInfos.get()))
-                                    .forEach(refreshedLocalFiles::remove);
+                                    .forEach(localSegmentsPostRefresh::remove);
 
-                                boolean uploadStatus = uploadNewSegments(refreshedLocalFiles);
+                                boolean uploadStatus = uploadNewSegments(localSegmentsPostRefresh);
                                 if (uploadStatus) {
-                                    if (segmentFilesFromSnapshot.equals(new HashSet<>(refreshedLocalFiles))) {
-                                        segmentInfoSnapshotFilename = uploadSegmentInfosSnapshot(latestSegmentInfos.get(), segmentInfos);
-                                        refreshedLocalFiles.add(segmentInfoSnapshotFilename);
-                                    }
+                                    segmentInfoSnapshotFilename = uploadSegmentInfosSnapshot(latestSegmentInfos.get(), segmentInfos);
+                                    localSegmentsPostRefresh.add(segmentInfoSnapshotFilename);
 
                                     remoteDirectory.uploadMetadata(
-                                        refreshedLocalFiles,
+                                        localSegmentsPostRefresh,
                                         storeDirectory,
                                         indexShard.getOperationPrimaryTerm(),
                                         segmentInfos.getGeneration()
                                     );
                                     localSegmentChecksumMap.keySet()
                                         .stream()
-                                        .filter(file -> !refreshedLocalFiles.contains(file))
+                                        .filter(file -> !localSegmentsPostRefresh.contains(file))
                                         .collect(Collectors.toSet())
                                         .forEach(localSegmentChecksumMap::remove);
                                 }
@@ -163,11 +164,6 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
         }
     }
 
-    /**
-     *
-     * @return true
-     * @throws IOException
-     */
     private boolean isRefreshAfterCommit() throws IOException {
         String lastCommittedLocalSegmentFileName = SegmentInfos.getLastCommitSegmentsFileName(storeDirectory);
         return (lastCommittedLocalSegmentFileName != null
