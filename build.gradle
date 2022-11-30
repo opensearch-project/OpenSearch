@@ -316,10 +316,7 @@ allprojects {
     javadoc.options.encoding = 'UTF8'
     javadoc.options.addStringOption('Xdoclint:all,-missing', '-quiet')
     javadoc.options.tags = ["opensearch.internal", "opensearch.api", "opensearch.experimental"]
-    if (BuildParams.runtimeJavaVersion >= JavaVersion.VERSION_19) {
-      javadoc.options.addBooleanOption("-enable-preview", true)
-      javadoc.options.addStringOption("-release", BuildParams.runtimeJavaVersion.majorVersion)
-    }
+    javadoc.options.addStringOption("-release", targetCompatibility.majorVersion)
   }
 
   // support for reproducible builds
@@ -415,6 +412,9 @@ gradle.projectsEvaluated {
       if (task != null) {
         if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_17) {
           task.jvmArgs += ["-Djava.security.manager=allow"]
+        }
+        if (BuildParams.runtimeJavaVersion >= JavaVersion.VERSION_19) {
+          task.jvmArgs += ["--enable-preview"]
         }
       }
     }

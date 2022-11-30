@@ -163,7 +163,7 @@ public class GetIndexIT extends OpenSearchIntegTestCase {
         }
         GetIndexResponse response = runWithRandomFeatureMethod(
             client().admin().indices().prepareGetIndex().addIndices("idx"),
-            features.toArray(new Feature[features.size()])
+            features.toArray(new Feature[0])
         );
         String[] indices = response.indices();
         assertThat(indices, notNullValue());
@@ -194,7 +194,7 @@ public class GetIndexIT extends OpenSearchIntegTestCase {
         }
         GetIndexResponse response = runWithRandomFeatureMethod(
             client().admin().indices().prepareGetIndex().addIndices("empty_idx"),
-            features.toArray(new Feature[features.size()])
+            features.toArray(new Feature[0])
         );
         String[] indices = response.indices();
         assertThat(indices, notNullValue());

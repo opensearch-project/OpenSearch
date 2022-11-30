@@ -1040,7 +1040,7 @@ public final class Settings implements ToXContentFragment {
         }
 
         private void processLegacyLists(Map<String, Object> map) {
-            String[] array = map.keySet().toArray(new String[map.size()]);
+            String[] array = map.keySet().toArray(new String[0]);
             for (String key : array) {
                 if (key.endsWith(".0")) { // let's only look at the head of the list and convert in order starting there.
                     int counter = 0;

@@ -147,7 +147,7 @@ public class GeoDistanceIT extends OpenSearchIntegTestCase {
                     .setSource(jsonBuilder().startObject().field("value", i * 2).field("location", "52.0945, 5.116").endObject())
             );
         }
-        indexRandom(true, builders.toArray(new IndexRequestBuilder[builders.size()]));
+        indexRandom(true, builders.toArray(new IndexRequestBuilder[0]));
         ensureSearchable();
     }
 

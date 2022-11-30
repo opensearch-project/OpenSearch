@@ -11,6 +11,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Apply reproducible builds configuration for OpenSearch plugins through gradle plugin ([#4746](https://github.com/opensearch-project/OpenSearch/pull/4746))
 - Add project health badges to the README.md ([#4843](https://github.com/opensearch-project/OpenSearch/pull/4843))
 - [Test] Add IAE test for deprecated edgeNGram analyzer name ([#5040](https://github.com/opensearch-project/OpenSearch/pull/5040))
+- Allow mmap to use new JDK-19 preview APIs in Apache Lucene 9.4+ ([#5151](https://github.com/opensearch-project/OpenSearch/pull/5151))
+- Add feature flag for extensions ([#5211](https://github.com/opensearch-project/OpenSearch/pull/5211))
 - [Identity] Document identity roadmap and feature branch processes ([#4583](https://github.com/opensearch-project/OpenSearch/pull/4583))
 - [Identity] Add stubs for AccessTokenManager  ([#4612](https://github.com/opensearch-project/OpenSearch/pull/4612))
 - [Identity] Permissions check API ([#4516](https://github.com/opensearch-project/OpenSearch/pull/4516))
@@ -21,7 +23,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - [Identity] Strategy for Delegated Authority using Tokens ([#4826](https://github.com/opensearch-project/OpenSearch/pull/4826))
 - [Identity] User operations: create update delete ([#4741](https://github.com/opensearch-project/OpenSearch/pull/4741))
 - [Identity] Adds Basic Auth mechanism via Internal IdP ([#4798](https://github.com/opensearch-project/OpenSearch/pull/4798))
-
 
 ### Dependencies
 - Bumps `log4j-core` from 2.18.0 to 2.19.0
@@ -45,11 +46,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bumps `reactor-core` from 3.4.18 to 3.4.23 ([#4548](https://github.com/opensearch-project/OpenSearch/pull/4548))
 - Bumps `jempbox` from 1.8.16 to 1.8.17 ([#4550](https://github.com/opensearch-project/OpenSearch/pull/4550))
 - Update Apache Lucene to 9.5.0-snapshot-a4ef70f ([#4979](https://github.com/opensearch-project/OpenSearch/pull/4979))
-- Bumps `bcpg-fips` from 1.0.5.1 to 1.0.7.1
 - Update to Gradle 7.6 and JDK-19 ([#4973](https://github.com/opensearch-project/OpenSearch/pull/4973))
 
 ### Changed
-<<<<<<< HEAD
 
 - Dependency updates (httpcore, mockito, slf4j, httpasyncclient, commons-codec) ([#4308](https://github.com/opensearch-project/OpenSearch/pull/4308))
 - Use RemoteSegmentStoreDirectory instead of RemoteDirectory ([#4240](https://github.com/opensearch-project/OpenSearch/pull/4240))
@@ -57,8 +56,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Weighted round-robin scheduling policy for shard coordination traffic ([#4241](https://github.com/opensearch-project/OpenSearch/pull/4241))
 - Add index specific setting for remote repository ([#4253](https://github.com/opensearch-project/OpenSearch/pull/4253))
 - [Segment Replication] Update replicas to commit SegmentInfos instead of relying on SIS files from primary shards. ([#4402](https://github.com/opensearch-project/OpenSearch/pull/4402))
-=======
->>>>>>> origin/main
 - [CCR] Add getHistoryOperationsFromTranslog method to fetch the history snapshot from translogs ([#3948](https://github.com/opensearch-project/OpenSearch/pull/3948))
 - Relax visibility of the HTTP_CHANNEL_KEY and HTTP_SERVER_CHANNEL_KEY to make it possible for the plugins to access associated Netty4HttpChannel / Netty4HttpServerChannel instance ([#4638](https://github.com/opensearch-project/OpenSearch/pull/4638))
 - Use ReplicationFailedException instead of OpensearchException in ReplicationTarget ([#4725](https://github.com/opensearch-project/OpenSearch/pull/4725))
@@ -82,7 +79,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Remove Version.V_1_ Constants ([#5021](https://github.com/opensearch-project/OpenSearch/pull/5021))
 
 ### Fixed
-<<<<<<< HEAD
 
 - `opensearch-service.bat start` and `opensearch-service.bat manager` failing to run ([#4289](https://github.com/opensearch-project/OpenSearch/pull/4289))
 - PR reference to checkout code for changelog verifier ([#4296](https://github.com/opensearch-project/OpenSearch/pull/4296))
@@ -130,11 +126,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix decommission status update to non leader nodes ([4800](https://github.com/opensearch-project/OpenSearch/pull/4800))
 - Fix recovery path for searchable snapshots ([4813](https://github.com/opensearch-project/OpenSearch/pull/4813))
 - Fix bug in AwarenessAttributeDecommissionIT([4822](https://github.com/opensearch-project/OpenSearch/pull/4822))
-=======
->>>>>>> origin/main
 - Fix 'org.apache.hc.core5.http.ParseException: Invalid protocol version' under JDK 16+ ([#4827](https://github.com/opensearch-project/OpenSearch/pull/4827))
 - Fixed compression support for h2c protocol ([#4944](https://github.com/opensearch-project/OpenSearch/pull/4944))
-
+- Add jvm option to allow security manager ([#5194](https://github.com/opensearch-project/OpenSearch/pull/5194))
 ### Security
 <<<<<<< HEAD
 
@@ -158,6 +152,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ## [Unreleased 2.x]
 ### Added
 ### Dependencies
+<<<<<<< HEAD
+>>>>>>> origin/main
+=======
+- Bumps `bcpg-fips` from 1.0.5.1 to 1.0.7.1
+- Bumps `azure-storage-blob` from 12.16.1 to 12.20.0 ([#4995](https://github.com/opensearch-project/OpenSearch/pull/4995))
+- Bumps `commons-compress` from 1.21 to 1.22 ([#5104](https://github.com/opensearch-project/OpenSearch/pull/5104))
+- Bump `opencensus-contrib-http-util` from 0.18.0 to 0.31.1 ([#3633](https://github.com/opensearch-project/OpenSearch/pull/3633))
+- Bump `geoip2` from 3.0.1 to 3.0.2 ([#5103](https://github.com/opensearch-project/OpenSearch/pull/5103))
 >>>>>>> origin/main
 ### Changed
 ### Deprecated

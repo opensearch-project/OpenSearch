@@ -215,7 +215,7 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
         // finally, add the marker file
         pluginPaths.add(removing);
 
-        IOUtils.rm(pluginPaths.toArray(new Path[pluginPaths.size()]));
+        IOUtils.rm(pluginPaths.toArray(new Path[0]));
     }
 
 }
