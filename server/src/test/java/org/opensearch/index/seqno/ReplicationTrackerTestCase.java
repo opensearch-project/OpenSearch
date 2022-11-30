@@ -55,12 +55,13 @@ public abstract class ReplicationTrackerTestCase extends OpenSearchTestCase {
     ReplicationTracker newTracker(
         final AllocationId allocationId,
         final LongConsumer updatedGlobalCheckpoint,
-        final LongSupplier currentTimeMillisSupplier
+        final LongSupplier currentTimeMillisSupplier,
+        final Settings settings
     ) {
         return new ReplicationTracker(
             new ShardId("test", "_na_", 0),
             allocationId.getId(),
-            IndexSettingsModule.newIndexSettings("test", Settings.EMPTY),
+            IndexSettingsModule.newIndexSettings("test", settings),
             randomNonNegativeLong(),
             UNASSIGNED_SEQ_NO,
             updatedGlobalCheckpoint,
@@ -68,6 +69,14 @@ public abstract class ReplicationTrackerTestCase extends OpenSearchTestCase {
             (leases, listener) -> {},
             OPS_BASED_RECOVERY_ALWAYS_REASONABLE
         );
+    }
+
+    ReplicationTracker newTracker(
+        final AllocationId allocationId,
+        final LongConsumer updatedGlobalCheckpoint,
+        final LongSupplier currentTimeMillisSupplier
+    ) {
+        return newTracker(allocationId, updatedGlobalCheckpoint, currentTimeMillisSupplier, Settings.EMPTY);
     }
 
     static final Supplier<SafeCommitInfo> OPS_BASED_RECOVERY_ALWAYS_REASONABLE = () -> SafeCommitInfo.EMPTY;

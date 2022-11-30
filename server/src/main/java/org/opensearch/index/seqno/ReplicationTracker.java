@@ -693,8 +693,6 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
          */
         boolean tracked;
 
-        // TODO - Need to check if CheckpointState or ReplicationTracker needs a remote stored tracking variable. This can be helpful later.
-
         /**
          * Whether this shard has a local translog copy. This would be true iff it is primary shard or relocating target of primary shard
          * in case of remote translog store. Otherwise, this will be always true.
@@ -1353,13 +1351,13 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         updateLocalCheckpoint(allocationId, cps, localCheckpoint);
         // if it was already in-sync (because of a previously failed recovery attempt), global checkpoint must have been
         // stuck from advancing
-        assert !cps.inSync || (cps.localCheckpoint >= getGlobalCheckpoint()) : "shard copy "
+        assert !cps.inSync || (cps.localTranslog && cps.localCheckpoint >= getGlobalCheckpoint()) : "shard copy "
             + allocationId
             + " that's already in-sync should have a local checkpoint "
             + cps.localCheckpoint
             + " that's above the global checkpoint "
             + getGlobalCheckpoint();
-        if (cps.localCheckpoint < getGlobalCheckpoint()) {
+        if (cps.localTranslog && cps.localCheckpoint < getGlobalCheckpoint()) {
             pendingInSync.add(allocationId);
             try {
                 while (true) {
@@ -1430,7 +1428,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             logger.trace("marked [{}] as in-sync", allocationId);
             notifyAllWaiters();
         }
-        if (increasedLocalCheckpoint && pending == false) {
+        if (cps.localTranslog && increasedLocalCheckpoint && pending == false) {
             updateGlobalCheckpointOnPrimary();
         }
         assert invariant();

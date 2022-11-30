@@ -46,6 +46,7 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.shard.ReplicationGroup;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.test.IndexSettingsModule;
 
@@ -182,6 +183,80 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
 
         // now it should be incremented
         assertThat(tracker.getGlobalCheckpoint(), greaterThan(minLocalCheckpoint));
+    }
+
+    public void testGlobalCheckpointUpdateWithRemoteTranslogEnabled() {
+        final long initialClusterStateVersion = randomNonNegativeLong();
+        Map<AllocationId, Long> activeWithCheckpoints = randomAllocationsWithLocalCheckpoints(1, 5);
+        Set<AllocationId> active = new HashSet<>(activeWithCheckpoints.keySet());
+        Map<AllocationId, Long> allocations = new HashMap<>(activeWithCheckpoints);
+        Map<AllocationId, Long> initializingWithCheckpoints = randomAllocationsWithLocalCheckpoints(0, 5);
+        Set<AllocationId> initializing = new HashSet<>(initializingWithCheckpoints.keySet());
+        allocations.putAll(initializingWithCheckpoints);
+        assertThat(allocations.size(), equalTo(active.size() + initializing.size()));
+
+        final AllocationId primaryId = active.iterator().next();
+        Settings settings = Settings.builder().put("index.remote_store.translog.enabled", "true").build();
+        final ReplicationTracker tracker = newTracker(primaryId, settings);
+        assertThat(tracker.getGlobalCheckpoint(), equalTo(UNASSIGNED_SEQ_NO));
+
+        long primaryLocalCheckpoint = activeWithCheckpoints.get(primaryId);
+
+        logger.info("--> using allocations");
+        allocations.keySet().forEach(aId -> {
+            final String type;
+            if (active.contains(aId)) {
+                type = "active";
+            } else if (initializing.contains(aId)) {
+                type = "init";
+            } else {
+                throw new IllegalStateException(aId + " not found in any map");
+            }
+            logger.info("  - [{}], local checkpoint [{}], [{}]", aId, allocations.get(aId), type);
+        });
+
+        tracker.updateFromClusterManager(initialClusterStateVersion, ids(active), routingTable(initializing, primaryId));
+        tracker.activatePrimaryMode(NO_OPS_PERFORMED);
+        assertThat(tracker.getReplicationGroup().getReplicationTargets().size(), equalTo(1));
+        initializing.forEach(aId -> markAsTrackingAndInSyncQuietly(tracker, aId.getId(), NO_OPS_PERFORMED, false));
+        assertThat(tracker.getReplicationGroup().getReplicationTargets().size(), equalTo(1 + initializing.size()));
+        assertEquals(tracker.getReplicationGroup().getReplicationTargets().stream().filter(x -> x.isReplicated()).count() , 1);
+        allocations.keySet().forEach(aId -> updateLocalCheckpoint(tracker, aId.getId(), allocations.get(aId)));
+
+        assertEquals(tracker.getGlobalCheckpoint(), primaryLocalCheckpoint);
+
+        // increment checkpoints
+        active.forEach(aId -> allocations.put(aId, allocations.get(aId) + 1 + randomInt(4)));
+        initializing.forEach(aId -> allocations.put(aId, allocations.get(aId) + 1 + randomInt(4)));
+        allocations.keySet().forEach(aId -> updateLocalCheckpoint(tracker, aId.getId(), allocations.get(aId)));
+
+        final long minLocalCheckpointAfterUpdates = allocations.entrySet()
+            .stream()
+            .map(Map.Entry::getValue)
+            .min(Long::compareTo)
+            .orElse(UNASSIGNED_SEQ_NO);
+
+        // now insert an unknown active/insync id , the checkpoint shouldn't change but a refresh should be requested.
+        final AllocationId extraId = AllocationId.newInitializing();
+
+        // first check that adding it without the cluster-manager blessing doesn't change anything.
+        updateLocalCheckpoint(tracker, extraId.getId(), minLocalCheckpointAfterUpdates + 1 + randomInt(4));
+        assertNull(tracker.checkpoints.get(extraId.getId()));
+        expectThrows(IllegalStateException.class, () -> tracker.initiateTracking(extraId.getId()));
+
+        Set<AllocationId> newInitializing = new HashSet<>(initializing);
+        newInitializing.add(extraId);
+        tracker.updateFromClusterManager(initialClusterStateVersion + 1, ids(active), routingTable(newInitializing, primaryId));
+
+        tracker.initiateTracking(extraId.getId());
+
+        // now notify for the new id
+        if (randomBoolean()) {
+            updateLocalCheckpoint(tracker, extraId.getId(), minLocalCheckpointAfterUpdates + 1 + randomInt(4));
+            markAsTrackingAndInSyncQuietly(tracker, extraId.getId(), randomInt((int) minLocalCheckpointAfterUpdates), false);
+        } else {
+            markAsTrackingAndInSyncQuietly(tracker, extraId.getId(), minLocalCheckpointAfterUpdates + 1 + randomInt(4), false);
+        }
     }
 
     public void testUpdateGlobalCheckpointOnReplica() {
@@ -436,6 +511,10 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
     }
 
     private AtomicLong updatedGlobalCheckpoint = new AtomicLong(UNASSIGNED_SEQ_NO);
+
+    private ReplicationTracker newTracker(final AllocationId allocationId, Settings settings) {
+        return newTracker(allocationId, updatedGlobalCheckpoint::set, () -> 0L, settings);
+    }
 
     private ReplicationTracker newTracker(final AllocationId allocationId) {
         return newTracker(allocationId, updatedGlobalCheckpoint::set, () -> 0L);
@@ -1049,6 +1128,24 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
     ) {
         try {
             addPeerRecoveryRetentionLease(tracker, allocationId);
+            tracker.initiateTracking(allocationId);
+            tracker.markAllocationIdAsInSync(allocationId, localCheckpoint);
+        } catch (final InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+        markAsTrackingAndInSyncQuietly(tracker, allocationId, localCheckpoint, true);
+    }
+
+    private static void markAsTrackingAndInSyncQuietly(
+        final ReplicationTracker tracker,
+        final String allocationId,
+        final long localCheckpoint,
+        final boolean addPRRL
+    ) {
+        try {
+            if (addPRRL) {
+                addPeerRecoveryRetentionLease(tracker, allocationId);
+            }
             tracker.initiateTracking(allocationId);
             tracker.markAllocationIdAsInSync(allocationId, localCheckpoint);
         } catch (final InterruptedException e) {
