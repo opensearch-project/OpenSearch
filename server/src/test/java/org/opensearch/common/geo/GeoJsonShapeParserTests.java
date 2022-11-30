@@ -352,7 +352,7 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
         shellCoordinates.add(new Coordinate(101, 1));
         shellCoordinates.add(new Coordinate(100, 1));
         shellCoordinates.add(new Coordinate(100, 0));
-        Coordinate[] coordinates = shellCoordinates.toArray(new Coordinate[shellCoordinates.size()]);
+        Coordinate[] coordinates = shellCoordinates.toArray(new Coordinate[0]);
         LinearRing shell = GEOMETRY_FACTORY.createLinearRing(coordinates);
         Polygon expected = GEOMETRY_FACTORY.createPolygon(shell, null);
         assertGeometryEquals(jtsGeom(expected), polygonGeoJson, true);
@@ -404,7 +404,7 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
         shellCoordinates.add(new Coordinate(101, 1, 10));
         shellCoordinates.add(new Coordinate(100, 1, 10));
         shellCoordinates.add(new Coordinate(100, 0, 10));
-        Coordinate[] coordinates = shellCoordinates.toArray(new Coordinate[shellCoordinates.size()]);
+        Coordinate[] coordinates = shellCoordinates.toArray(new Coordinate[0]);
 
         Version randomVersion = VersionUtils.randomIndexCompatibleVersion(random());
         Settings indexSettings = Settings.builder()
@@ -414,7 +414,7 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
             .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
             .build();
 
-        LinearRing shell = GEOMETRY_FACTORY.createLinearRing(shellCoordinates.toArray(new Coordinate[shellCoordinates.size()]));
+        LinearRing shell = GEOMETRY_FACTORY.createLinearRing(shellCoordinates.toArray(new Coordinate[0]));
         Polygon expected = GEOMETRY_FACTORY.createPolygon(shell, null);
         Mapper.BuilderContext mockBuilderContext = new Mapper.BuilderContext(indexSettings, new ContentPath());
         final LegacyGeoShapeFieldMapper mapperBuilder = (LegacyGeoShapeFieldMapper) (new LegacyGeoShapeFieldMapper.Builder("test")
@@ -1389,9 +1389,9 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
         holeCoordinates.add(new Coordinate(100.2, 0.8));
         holeCoordinates.add(new Coordinate(100.2, 0.2));
 
-        LinearRing shell = GEOMETRY_FACTORY.createLinearRing(shellCoordinates.toArray(new Coordinate[shellCoordinates.size()]));
+        LinearRing shell = GEOMETRY_FACTORY.createLinearRing(shellCoordinates.toArray(new Coordinate[0]));
         LinearRing[] holes = new LinearRing[1];
-        holes[0] = GEOMETRY_FACTORY.createLinearRing(holeCoordinates.toArray(new Coordinate[holeCoordinates.size()]));
+        holes[0] = GEOMETRY_FACTORY.createLinearRing(holeCoordinates.toArray(new Coordinate[0]));
         Polygon expected = GEOMETRY_FACTORY.createPolygon(shell, holes);
         assertGeometryEquals(jtsGeom(expected), polygonGeoJson, true);
 
@@ -1574,9 +1574,9 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
         holeCoordinates.add(new Coordinate(100.2, 0.8));
         holeCoordinates.add(new Coordinate(100.2, 0.2));
 
-        LinearRing shell = GEOMETRY_FACTORY.createLinearRing(shellCoordinates.toArray(new Coordinate[shellCoordinates.size()]));
+        LinearRing shell = GEOMETRY_FACTORY.createLinearRing(shellCoordinates.toArray(new Coordinate[0]));
         LinearRing[] holes = new LinearRing[1];
-        holes[0] = GEOMETRY_FACTORY.createLinearRing(holeCoordinates.toArray(new Coordinate[holeCoordinates.size()]));
+        holes[0] = GEOMETRY_FACTORY.createLinearRing(holeCoordinates.toArray(new Coordinate[0]));
         Polygon withHoles = GEOMETRY_FACTORY.createPolygon(shell, holes);
 
         shellCoordinates = new ArrayList<>();
@@ -1586,7 +1586,7 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
         shellCoordinates.add(new Coordinate(102, 2));
         shellCoordinates.add(new Coordinate(102, 3));
 
-        shell = GEOMETRY_FACTORY.createLinearRing(shellCoordinates.toArray(new Coordinate[shellCoordinates.size()]));
+        shell = GEOMETRY_FACTORY.createLinearRing(shellCoordinates.toArray(new Coordinate[0]));
         Polygon withoutHoles = GEOMETRY_FACTORY.createPolygon(shell, null);
 
         Shape expected = shapeCollection(withoutHoles, withHoles);
@@ -1688,9 +1688,9 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
         holeCoordinates.add(new Coordinate(100.8, 0.8));
         holeCoordinates.add(new Coordinate(100.2, 0.8));
 
-        shell = GEOMETRY_FACTORY.createLinearRing(shellCoordinates.toArray(new Coordinate[shellCoordinates.size()]));
+        shell = GEOMETRY_FACTORY.createLinearRing(shellCoordinates.toArray(new Coordinate[0]));
         holes = new LinearRing[1];
-        holes[0] = GEOMETRY_FACTORY.createLinearRing(holeCoordinates.toArray(new Coordinate[holeCoordinates.size()]));
+        holes[0] = GEOMETRY_FACTORY.createLinearRing(holeCoordinates.toArray(new Coordinate[0]));
         withHoles = GEOMETRY_FACTORY.createPolygon(shell, holes);
 
         assertGeometryEquals(jtsGeom(withHoles), multiPolygonGeoJson, true);
@@ -1789,8 +1789,8 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
         expected[0] = jtsGeom(expectedLineString);
         Point expectedPoint = GEOMETRY_FACTORY.createPoint(new Coordinate(102.0, 2.0));
         expected[1] = new JtsPoint(expectedPoint, SPATIAL_CONTEXT);
-        LinearRing shell1 = GEOMETRY_FACTORY.createLinearRing(shellCoordinates1.toArray(new Coordinate[shellCoordinates1.size()]));
-        LinearRing shell2 = GEOMETRY_FACTORY.createLinearRing(shellCoordinates2.toArray(new Coordinate[shellCoordinates2.size()]));
+        LinearRing shell1 = GEOMETRY_FACTORY.createLinearRing(shellCoordinates1.toArray(new Coordinate[0]));
+        LinearRing shell2 = GEOMETRY_FACTORY.createLinearRing(shellCoordinates2.toArray(new Coordinate[0]));
         MultiPolygon expectedMultiPoly = GEOMETRY_FACTORY.createMultiPolygon(
             new Polygon[] { GEOMETRY_FACTORY.createPolygon(shell1), GEOMETRY_FACTORY.createPolygon(shell2) }
         );

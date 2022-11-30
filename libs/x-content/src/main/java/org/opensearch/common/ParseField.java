@@ -68,12 +68,12 @@ public class ParseField {
         } else {
             final HashSet<String> set = new HashSet<>();
             Collections.addAll(set, deprecatedNames);
-            this.deprecatedNames = set.toArray(new String[set.size()]);
+            this.deprecatedNames = set.toArray(new String[0]);
         }
         Set<String> allNames = new HashSet<>();
         allNames.add(name);
         Collections.addAll(allNames, this.deprecatedNames);
-        this.allNames = allNames.toArray(new String[allNames.size()]);
+        this.allNames = allNames.toArray(new String[0]);
     }
 
     /**

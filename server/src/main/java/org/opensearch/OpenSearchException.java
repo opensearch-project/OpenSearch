@@ -51,6 +51,7 @@ import org.opensearch.index.Index;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
+import org.opensearch.snapshots.SnapshotInUseDeletionException;
 import org.opensearch.transport.TcpTransport;
 
 import java.io.IOException;
@@ -655,8 +656,8 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
              * parsing exception because that is generally the most interesting
              * exception to return to the user. If that exception is caused by
              * an OpenSearchException we'd like to keep unwrapping because
-             * ElasticserachExceptions tend to contain useful information for
-             * the user.
+             * OpenSearchException instances tend to contain useful information
+             * for the user.
              */
             Throwable cause = ex.getCause();
             if (cause != null) {
@@ -1611,6 +1612,12 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
             ClusterManagerThrottlingException::new,
             165,
             Version.V_2_4_0
+        ),
+        SNAPSHOT_IN_USE_DELETION_EXCEPTION(
+            SnapshotInUseDeletionException.class,
+            SnapshotInUseDeletionException::new,
+            166,
+            UNKNOWN_VERSION_ADDED
         );
 
         final Class<? extends OpenSearchException> exceptionClass;

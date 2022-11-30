@@ -586,11 +586,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         if (shardFailures.size() == 0) {
             return RestStatus.OK;
         }
-        return RestStatus.status(
-            successfulShards,
-            totalShards,
-            shardFailures.toArray(new ShardOperationFailedException[shardFailures.size()])
-        );
+        return RestStatus.status(successfulShards, totalShards, shardFailures.toArray(new ShardOperationFailedException[0]));
     }
 
     @Override

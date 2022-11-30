@@ -80,7 +80,7 @@ public class JvmInfo implements ReportingService.Info {
         } catch (Exception t) {
             // ignore
         }
-        String[] inputArguments = runtimeMXBean.getInputArguments().toArray(new String[runtimeMXBean.getInputArguments().size()]);
+        String[] inputArguments = runtimeMXBean.getInputArguments().toArray(new String[0]);
         Mem mem = new Mem(heapInit, heapMax, nonHeapInit, nonHeapMax, directMemoryMax);
 
         String bootClassPath;
