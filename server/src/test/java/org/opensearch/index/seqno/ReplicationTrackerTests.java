@@ -563,6 +563,28 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         assertThat(tracker.getGlobalCheckpoint(), not(equalTo(UNASSIGNED_SEQ_NO)));
     }
 
+    public void testInSyncIdsAreIgnoredIfNotValidatedByClusterManagerWithRemoteTranslogEnabled() {
+        final Map<AllocationId, Long> active = randomAllocationsWithLocalCheckpoints(1, 5);
+        final Map<AllocationId, Long> initializing = randomAllocationsWithLocalCheckpoints(1, 5);
+        final Map<AllocationId, Long> nonApproved = randomAllocationsWithLocalCheckpoints(1, 5);
+        final AllocationId primaryId = active.keySet().iterator().next();
+        Settings settings = Settings.builder().put("index.remote_store.translog.enabled", "true").build();
+        final ReplicationTracker tracker = newTracker(primaryId, settings);
+        tracker.updateFromClusterManager(randomNonNegativeLong(), ids(active.keySet()), routingTable(initializing.keySet(), primaryId));
+        tracker.activatePrimaryMode(NO_OPS_PERFORMED);
+        initializing.keySet().forEach(k -> markAsTrackingAndInSyncQuietly(tracker, k.getId(), NO_OPS_PERFORMED));
+        nonApproved.keySet()
+            .forEach(
+                k -> expectThrows(IllegalStateException.class, () -> markAsTrackingAndInSyncQuietly(tracker, k.getId(), NO_OPS_PERFORMED))
+            );
+
+        List<Map<AllocationId, Long>> allocations = Arrays.asList(active, initializing, nonApproved);
+        Collections.shuffle(allocations, random());
+        allocations.forEach(a -> a.forEach((aid, localCP) -> updateLocalCheckpoint(tracker, aid.getId(), localCP)));
+
+        assertNotEquals(UNASSIGNED_SEQ_NO, tracker.getGlobalCheckpoint());
+    }
+
     public void testInSyncIdsAreRemovedIfNotValidatedByClusterManager() {
         final long initialClusterStateVersion = randomNonNegativeLong();
         final Map<AllocationId, Long> activeToStay = randomAllocationsWithLocalCheckpoints(1, 5);
