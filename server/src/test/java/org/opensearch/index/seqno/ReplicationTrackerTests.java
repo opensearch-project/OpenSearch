@@ -516,6 +516,32 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         assertThat(updatedGlobalCheckpoint.get(), not(equalTo(UNASSIGNED_SEQ_NO)));
     }
 
+    public void testMissingInSyncIdsDoesNotPreventAdvanceWithRemoteTranslogEnabled() {
+        final Map<AllocationId, Long> active = randomAllocationsWithLocalCheckpoints(1, 5);
+        final Map<AllocationId, Long> initializing = randomAllocationsWithLocalCheckpoints(2, 5);
+        logger.info("active: {}, initializing: {}", active, initializing);
+
+        AllocationId primaryId = active.keySet().iterator().next();
+        Settings settings = Settings.builder().put("index.remote_store.translog.enabled", "true").build();
+        final ReplicationTracker tracker = newTracker(primaryId, settings);
+        tracker.updateFromClusterManager(randomNonNegativeLong(), ids(active.keySet()), routingTable(initializing.keySet(), primaryId));
+        tracker.activatePrimaryMode(NO_OPS_PERFORMED);
+        randomSubsetOf(randomIntBetween(1, initializing.size() - 1), initializing.keySet()).forEach(
+            aId -> markAsTrackingAndInSyncQuietly(tracker, aId.getId(), NO_OPS_PERFORMED)
+        );
+        long primaryLocalCheckpoint = active.get(primaryId);
+
+        active.forEach((aid, localCP) -> updateLocalCheckpoint(tracker, aid.getId(), localCP));
+
+        assertEquals(tracker.getGlobalCheckpoint(), primaryLocalCheckpoint);
+        assertEquals(updatedGlobalCheckpoint.get(), primaryLocalCheckpoint);
+
+        // update again
+        initializing.forEach((aid, localCP) -> updateLocalCheckpoint(tracker, aid.getId(), localCP));
+        assertEquals(tracker.getGlobalCheckpoint(), primaryLocalCheckpoint);
+        assertEquals(updatedGlobalCheckpoint.get(), primaryLocalCheckpoint);
+    }
+
     public void testInSyncIdsAreIgnoredIfNotValidatedByClusterManager() {
         final Map<AllocationId, Long> active = randomAllocationsWithLocalCheckpoints(1, 5);
         final Map<AllocationId, Long> initializing = randomAllocationsWithLocalCheckpoints(1, 5);
