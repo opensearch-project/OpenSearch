@@ -1132,10 +1132,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
             assertTrue(tracker.getTrackedLocalCheckpointForShard(newSyncingAllocationId.getId()).inSync);
         });
 
-        tracker.updateLocalCheckpoint(
-            newSyncingAllocationId.getId(),
-            randomIntBetween(Math.toIntExact(primaryLocalCheckpoint), 1024)
-        );
+        tracker.updateLocalCheckpoint(newSyncingAllocationId.getId(), randomIntBetween(Math.toIntExact(primaryLocalCheckpoint), 1024));
 
         barrier.await();
 
@@ -1227,6 +1224,183 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
 
     public void testPrimaryContextHandoff() throws IOException {
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", Settings.EMPTY);
+        final ShardId shardId = new ShardId("test", "_na_", 0);
+
+        FakeClusterState clusterState = initialState();
+        final AllocationId aId = clusterState.routingTable.primaryShard().allocationId();
+        final LongConsumer onUpdate = updatedGlobalCheckpoint -> {};
+        final long primaryTerm = randomNonNegativeLong();
+        final long globalCheckpoint = UNASSIGNED_SEQ_NO;
+        final BiConsumer<RetentionLeases, ActionListener<ReplicationResponse>> onNewRetentionLease = (leases, listener) -> {};
+        ReplicationTracker oldPrimary = new ReplicationTracker(
+            shardId,
+            aId.getId(),
+            indexSettings,
+            primaryTerm,
+            globalCheckpoint,
+            onUpdate,
+            () -> 0L,
+            onNewRetentionLease,
+            OPS_BASED_RECOVERY_ALWAYS_REASONABLE
+        );
+        ReplicationTracker newPrimary = new ReplicationTracker(
+            shardId,
+            aId.getRelocationId(),
+            indexSettings,
+            primaryTerm,
+            globalCheckpoint,
+            onUpdate,
+            () -> 0L,
+            onNewRetentionLease,
+            OPS_BASED_RECOVERY_ALWAYS_REASONABLE
+        );
+
+        Set<String> allocationIds = new HashSet<>(Arrays.asList(oldPrimary.shardAllocationId, newPrimary.shardAllocationId));
+
+        clusterState.apply(oldPrimary);
+        clusterState.apply(newPrimary);
+
+        oldPrimary.activatePrimaryMode(randomIntBetween(Math.toIntExact(NO_OPS_PERFORMED), 10));
+        addPeerRecoveryRetentionLease(oldPrimary, newPrimary.shardAllocationId);
+        newPrimary.updateRetentionLeasesOnReplica(oldPrimary.getRetentionLeases());
+
+        final int numUpdates = randomInt(10);
+        for (int i = 0; i < numUpdates; i++) {
+            if (rarely()) {
+                clusterState = randomUpdateClusterState(allocationIds, clusterState);
+                clusterState.apply(oldPrimary);
+                clusterState.apply(newPrimary);
+            }
+            if (randomBoolean()) {
+                randomLocalCheckpointUpdate(oldPrimary);
+            }
+            if (randomBoolean()) {
+                randomMarkInSync(oldPrimary, newPrimary);
+            }
+        }
+
+        // simulate transferring the global checkpoint to the new primary after finalizing recovery before the handoff
+        markAsTrackingAndInSyncQuietly(
+            oldPrimary,
+            newPrimary.shardAllocationId,
+            Math.max(SequenceNumbers.NO_OPS_PERFORMED, oldPrimary.getGlobalCheckpoint() + randomInt(5))
+        );
+        oldPrimary.updateGlobalCheckpointForShard(newPrimary.shardAllocationId, oldPrimary.getGlobalCheckpoint());
+        ReplicationTracker.PrimaryContext primaryContext = oldPrimary.startRelocationHandoff(newPrimary.shardAllocationId);
+
+        if (randomBoolean()) {
+            // cluster state update after primary context handoff
+            if (randomBoolean()) {
+                clusterState = randomUpdateClusterState(allocationIds, clusterState);
+                clusterState.apply(oldPrimary);
+                clusterState.apply(newPrimary);
+            }
+
+            // abort handoff, check that we can continue updates and retry handoff
+            oldPrimary.abortRelocationHandoff();
+
+            if (rarely()) {
+                clusterState = randomUpdateClusterState(allocationIds, clusterState);
+                clusterState.apply(oldPrimary);
+                clusterState.apply(newPrimary);
+            }
+            if (randomBoolean()) {
+                randomLocalCheckpointUpdate(oldPrimary);
+            }
+            if (randomBoolean()) {
+                randomMarkInSync(oldPrimary, newPrimary);
+            }
+
+            // do another handoff
+            primaryContext = oldPrimary.startRelocationHandoff(newPrimary.shardAllocationId);
+        }
+
+        // send primary context through the wire
+        BytesStreamOutput output = new BytesStreamOutput();
+        primaryContext.writeTo(output);
+        StreamInput streamInput = output.bytes().streamInput();
+        primaryContext = new ReplicationTracker.PrimaryContext(streamInput);
+        switch (randomInt(3)) {
+            case 0: {
+                // apply cluster state update on old primary while primary context is being transferred
+                clusterState = randomUpdateClusterState(allocationIds, clusterState);
+                clusterState.apply(oldPrimary);
+                // activate new primary
+                newPrimary.activateWithPrimaryContext(primaryContext);
+                // apply cluster state update on new primary so that the states on old and new primary are comparable
+                clusterState.apply(newPrimary);
+                break;
+            }
+            case 1: {
+                // apply cluster state update on new primary while primary context is being transferred
+                clusterState = randomUpdateClusterState(allocationIds, clusterState);
+                clusterState.apply(newPrimary);
+                // activate new primary
+                newPrimary.activateWithPrimaryContext(primaryContext);
+                // apply cluster state update on old primary so that the states on old and new primary are comparable
+                clusterState.apply(oldPrimary);
+                break;
+            }
+            case 2: {
+                // apply cluster state update on both copies while primary context is being transferred
+                clusterState = randomUpdateClusterState(allocationIds, clusterState);
+                clusterState.apply(oldPrimary);
+                clusterState.apply(newPrimary);
+                newPrimary.activateWithPrimaryContext(primaryContext);
+                break;
+            }
+            case 3: {
+                // no cluster state update
+                newPrimary.activateWithPrimaryContext(primaryContext);
+                break;
+            }
+        }
+
+        assertTrue(oldPrimary.primaryMode);
+        assertTrue(newPrimary.primaryMode);
+        assertThat(newPrimary.appliedClusterStateVersion, equalTo(oldPrimary.appliedClusterStateVersion));
+        /*
+         * We can not assert on shared knowledge of the global checkpoint between the old primary and the new primary as the new primary
+         * will update its global checkpoint state without the old primary learning of it, and the old primary could have updated its
+         * global checkpoint state after the primary context was transferred.
+         */
+        Map<String, ReplicationTracker.CheckpointState> oldPrimaryCheckpointsCopy = new HashMap<>(oldPrimary.checkpoints);
+        oldPrimaryCheckpointsCopy.remove(oldPrimary.shardAllocationId);
+        oldPrimaryCheckpointsCopy.remove(newPrimary.shardAllocationId);
+        Map<String, ReplicationTracker.CheckpointState> newPrimaryCheckpointsCopy = new HashMap<>(newPrimary.checkpoints);
+        newPrimaryCheckpointsCopy.remove(oldPrimary.shardAllocationId);
+        newPrimaryCheckpointsCopy.remove(newPrimary.shardAllocationId);
+        assertThat(newPrimaryCheckpointsCopy, equalTo(oldPrimaryCheckpointsCopy));
+        // we can however assert that shared knowledge of the local checkpoint and in-sync status is equal
+        assertThat(
+            oldPrimary.checkpoints.get(oldPrimary.shardAllocationId).localCheckpoint,
+            equalTo(newPrimary.checkpoints.get(oldPrimary.shardAllocationId).localCheckpoint)
+        );
+        assertThat(
+            oldPrimary.checkpoints.get(newPrimary.shardAllocationId).localCheckpoint,
+            equalTo(newPrimary.checkpoints.get(newPrimary.shardAllocationId).localCheckpoint)
+        );
+        assertThat(
+            oldPrimary.checkpoints.get(oldPrimary.shardAllocationId).inSync,
+            equalTo(newPrimary.checkpoints.get(oldPrimary.shardAllocationId).inSync)
+        );
+        assertThat(
+            oldPrimary.checkpoints.get(newPrimary.shardAllocationId).inSync,
+            equalTo(newPrimary.checkpoints.get(newPrimary.shardAllocationId).inSync)
+        );
+        assertThat(newPrimary.getGlobalCheckpoint(), equalTo(oldPrimary.getGlobalCheckpoint()));
+        assertThat(newPrimary.routingTable, equalTo(oldPrimary.routingTable));
+        assertThat(newPrimary.replicationGroup, equalTo(oldPrimary.replicationGroup));
+
+        assertFalse(oldPrimary.relocated);
+        oldPrimary.completeRelocationHandoff();
+        assertFalse(oldPrimary.primaryMode);
+        assertTrue(oldPrimary.relocated);
+    }
+
+    public void testPrimaryContextHandoffWithRemoteTranslogEnabled() throws IOException {
+        Settings settings = Settings.builder().put("index.remote_store.translog.enabled", "true").build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", settings);
         final ShardId shardId = new ShardId("test", "_na_", 0);
 
         FakeClusterState clusterState = initialState();
@@ -1550,13 +1724,6 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         final String allocationId,
         final long localCheckpoint
     ) {
-        try {
-            addPeerRecoveryRetentionLease(tracker, allocationId);
-            tracker.initiateTracking(allocationId);
-            tracker.markAllocationIdAsInSync(allocationId, localCheckpoint);
-        } catch (final InterruptedException e) {
-            throw new RuntimeException(e);
-        }
         markAsTrackingAndInSyncQuietly(tracker, allocationId, localCheckpoint, true);
     }
 
