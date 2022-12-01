@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-package org.opensearch.authn;
+package org.opensearch.authn.tokens;
 
 /**
  * Tamperproof encapsulation the identity of a subject

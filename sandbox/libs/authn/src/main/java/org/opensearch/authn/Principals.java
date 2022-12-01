@@ -21,7 +21,7 @@ public enum Principals {
 
     private final Principal principal;
 
-    private Principals(final Principal principal) {
+    Principals(final Principal principal) {
         this.principal = principal;
     }
 

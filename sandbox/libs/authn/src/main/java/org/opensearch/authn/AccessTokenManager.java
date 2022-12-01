@@ -3,9 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-package org.opensearch.identity;
+package org.opensearch.authn;
 
-import org.opensearch.authn.AccessToken;
+import org.opensearch.authn.tokens.AccessToken;
 
 /**
  * Vends out access tokens

@@ -22,6 +22,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - [Identity] Prototype Internal IdP ([#4659](https://github.com/opensearch-project/OpenSearch/pull/4659))
 - [Identity] Strategy for Delegated Authority using Tokens ([#4826](https://github.com/opensearch-project/OpenSearch/pull/4826))
 - [Identity] User operations: create update delete ([#4741](https://github.com/opensearch-project/OpenSearch/pull/4741))
+- [Identity] Adds Basic Auth mechanism via Internal IdP ([#4798](https://github.com/opensearch-project/OpenSearch/pull/4798))
 
 ### Dependencies
 - Bumps `log4j-core` from 2.18.0 to 2.19.0

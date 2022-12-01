@@ -2,10 +2,10 @@
  * Copyright OpenSearch Contributors
  * SPDX-License-Identifier: Apache-2.0
  */
-package org.opensearch.identity.noop;
+package org.opensearch.authn.internal;
 
-import org.opensearch.authn.tokens.AccessToken;
 import org.opensearch.authn.AccessTokenManager;
+import org.opensearch.authn.tokens.AccessToken;
 
 /**
  * Implementation of access token manager that does not enforce authentication
@@ -14,7 +14,7 @@ import org.opensearch.authn.AccessTokenManager;
  *
  * @opensearch.internal
  */
-public class NoopAccessTokenManager implements AccessTokenManager {
+public class InternalAccessTokenManager implements AccessTokenManager {
 
     @Override
     public void expireAllTokens() {

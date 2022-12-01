@@ -30,3 +30,14 @@ readall:
 
 snapshotrestore:
   hash: "$2y$12$DpwmetHKwgYnorbgdvORCenv4NAK8cPUg8AI6pxLCuWf/ALc0.v7W"
+
+# used by ReIndexFromRemote
+Aladdin:
+  hash: "$2y$12$UxTDJyVmn/LIQBEGRt6Mq.9RF6GvC34sFPT6HjK.K0kmT3ANm1CZS" # open sesame
+
+# Two semi-colon password
+test:
+  hash: "$2y$12$fG1vNbK3X73j9eujLfh6We43fbKdy8O8RP5tGnLjg/CWMot48kAwO"    # te:st
+
+test_user:
+  hash: "$2y$12$BSFKmk3/FTTTH3eijILyxuVUGAoe4F.SPMoYHyrOfL.H8PagCqcZO"

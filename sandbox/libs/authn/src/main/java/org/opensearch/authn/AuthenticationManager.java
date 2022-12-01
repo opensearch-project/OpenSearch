@@ -3,9 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-package org.opensearch.identity;
-
-import org.opensearch.authn.Subject;
+package org.opensearch.authn;
 
 /**
  * Authentication management for OpenSearch.

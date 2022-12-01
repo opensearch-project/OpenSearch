@@ -3,14 +3,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-package org.opensearch.identity.noop;
+package org.opensearch.authn.internal;
 
 import java.security.Principal;
 import java.util.Objects;
 
+import org.opensearch.authn.AuthenticationTokenHandler;
 import org.opensearch.authn.tokens.AuthenticationToken;
 import org.opensearch.authn.Subject;
-import org.opensearch.authn.Principals;
 
 /**
  * Implementation of subject that is always authenticated
@@ -19,11 +19,26 @@ import org.opensearch.authn.Principals;
  *
  * @opensearch.internal
  */
-public class NoopSubject implements Subject {
+public class InternalSubject implements Subject {
+    private final org.apache.shiro.subject.Subject shiroSubject;
+
+    public InternalSubject(org.apache.shiro.subject.Subject subject) {
+        shiroSubject = subject;
+    }
 
     @Override
     public Principal getPrincipal() {
-        return Principals.UNAUTHENTICATED.getPrincipal();
+        final Object o = shiroSubject.getPrincipal();
+
+        if (o == null) {
+            return null;
+        }
+
+        if (o instanceof Principal) {
+            return (Principal) o;
+        }
+
+        return () -> o.toString();
     }
 
     @Override
@@ -41,14 +56,15 @@ public class NoopSubject implements Subject {
 
     @Override
     public String toString() {
-        return "NoopSubject(principal=" + getPrincipal() + ")";
+        return "InternalSubject (principal=" + getPrincipal() + ")";
     }
 
     /**
-     * Logs the user in
+     * Logs the user in via authenticating the user against current Shiro realm
      */
-    @Override
     public void login(AuthenticationToken authenticationToken) {
-        // Do nothing as noop subject is always logged in
+        org.apache.shiro.authc.AuthenticationToken authToken = AuthenticationTokenHandler.extractShiroAuthToken(authenticationToken);
+        // Login via shiro realm.
+        shiroSubject.login(authToken);
     }
 }

@@ -10,6 +10,12 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.Collections;
 import java.util.Map;
 
+/**
+ * A non-volatile and immutable object in the storage.
+ *
+ * @opensearch.experimental
+ */
+
 public class User {
 
     @JsonProperty(value = "primary_principal")
@@ -17,6 +23,8 @@ public class User {
 
     @JsonProperty(value = "hash")
     private String bcryptHash;
+
+    @JsonProperty(value = "attributes")
     private Map<String, String> attributes = Collections.emptyMap();
 
     @JsonProperty(value = "primary_principal")
@@ -39,10 +47,12 @@ public class User {
         this.bcryptHash = bcryptHash;
     }
 
+    @JsonProperty(value = "attributes")
     public Map<String, String> getAttributes() {
         return attributes;
     }
 
+    @JsonProperty(value = "attributes")
     public void setAttributes(Map<String, String> attributes) {
         this.attributes = attributes;
     }

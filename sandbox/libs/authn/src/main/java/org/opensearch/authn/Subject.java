@@ -5,12 +5,12 @@
 
 package org.opensearch.authn;
 
+import org.opensearch.authn.tokens.AuthenticationToken;
+
 import java.security.Principal;
 
 /**
  * An individual, process, or device that causes information to flow among objects or change to the system state.
- *
- * Used to authorize activities inside of the OpenSearch ecosystem.
  *
  * @opensearch.experimental
  */
@@ -22,7 +22,7 @@ public interface Subject {
     Principal getPrincipal();
 
     /**
-     * Authentications from a token
+     * Authentication check via the token
      * throws UnsupportedAuthenticationMethod
      * throws InvalidAuthenticationToken
      * throws SubjectNotFound
