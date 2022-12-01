@@ -34,6 +34,7 @@ import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
 import org.apache.tools.zip.ZipEntry
 import org.apache.tools.zip.ZipFile
+import org.gradle.internal.os.OperatingSystem
 import org.opensearch.gradle.fixtures.AbstractGradleFuncTest
 import org.gradle.testkit.runner.BuildResult
 import org.gradle.testkit.runner.TaskOutcome
@@ -43,7 +44,6 @@ class InternalDistributionArchiveSetupPluginFuncTest extends AbstractGradleFuncT
     def setup() {
         buildFile << """
         import org.opensearch.gradle.tar.SymbolicLinkPreservingTar
-
         plugins {
             id 'opensearch.internal-distribution-archive-setup'
         }
@@ -106,7 +106,6 @@ class InternalDistributionArchiveSetupPluginFuncTest extends AbstractGradleFuncT
         buildFile << """
         import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
         import org.gradle.api.internal.artifacts.ArtifactAttributes;
-
         def snapshotFile = file("snapshot-\${version}.txt")
         snapshotFile << 'some snapshot content'
         distribution_archives {
@@ -119,53 +118,64 @@ class InternalDistributionArchiveSetupPluginFuncTest extends AbstractGradleFuncT
                 }
             }
         }
-
         project('consumer') { p ->
             configurations {
                 consumeArchive {}
                 consumeDir {}
             }
-
             dependencies {
                 consumeDir project(path: ':producer-tar', configuration:'extracted')
                 consumeArchive project(path: ':producer-tar', configuration:'default' )
             }
-
             tasks.register("copyDir", Copy) {
                 from(configurations.consumeDir)
                 into('build/dir')
             }
-
             tasks.register("copyArchive", Copy) {
                 from(configurations.consumeArchive)
                 into('build/archives')
             }
         }
         """
-        when:
-        def result = gradleRunner("copyArchive").build()
 
-        then: "tar task executed and target folder contains plain tar"
-        result.task(':buildProducerTar').outcome == TaskOutcome.SUCCESS
-        result.task(':consumer:copyArchive').outcome == TaskOutcome.SUCCESS
-        file("producer-tar/build/distributions/opensearch-min.tar.gz").exists()
-        file("consumer/build/archives/opensearch-min.tar.gz").exists()
+        if (OperatingSystem.current() != OperatingSystem.WINDOWS) {
+            when:
+            def result = gradleRunner("copyArchive").build()
+            then: "tar task executed and target folder contains plain tar"
+            result.task(':buildProducerTar').outcome == TaskOutcome.SUCCESS
+            result.task(':consumer:copyArchive').outcome == TaskOutcome.SUCCESS
+            file("producer-tar/build/distributions/opensearch-min.tar.gz").exists()
+            file("consumer/build/archives/opensearch-min.tar.gz").exists()
 
-        when:
-        result = gradleRunner("copyDir", "-Pversion=1.0").build()
-        then: "plain copy task executed and target folder contains plain content"
-        result.task(':buildProducer').outcome == TaskOutcome.SUCCESS
-        result.task(':consumer:copyDir').outcome == TaskOutcome.SUCCESS
-        file("producer-tar/build/install/someFile.txt").exists()
-        file("producer-tar/build/install/snapshot-1.0.txt").exists()
-        file("consumer/build/dir/someFile.txt").exists()
+            when:
+            result = gradleRunner("copyDir", "-Pversion=1.0").build()
+            then: "plain copy task executed and target folder contains plain content"
+            result.task(':buildProducer').outcome == TaskOutcome.SUCCESS
+            result.task(':consumer:copyDir').outcome == TaskOutcome.SUCCESS
+            file("producer-tar/build/install/someFile.txt").exists()
+            file("producer-tar/build/install/snapshot-1.0.txt").exists()
+            file("consumer/build/dir/someFile.txt").exists()
 
-        when:
-        gradleRunner("copyDir", "-Pversion=2.0").build()
-        then: "old content is cleared out"
-        file("producer-tar/build/install/someFile.txt").exists()
-        !file("producer-tar/build/install/snapshot-1.0.txt").exists()
-        file("producer-tar/build/install/snapshot-2.0.txt").exists()
+            when:
+            gradleRunner("copyDir", "-Pversion=2.0").build()
+            then: "old content is cleared out"
+            file("producer-tar/build/install/someFile.txt").exists()
+            !file("producer-tar/build/install/snapshot-1.0.txt").exists()
+            file("producer-tar/build/install/snapshot-2.0.txt").exists()
+        } else {
+            when:
+            def result = gradleRunner("copyArchive").build()
+            then: "tar task execution skipped on windows"
+            result.task(':buildProducerTar').outcome == TaskOutcome.SKIPPED
+            result.task(':consumer:copyArchive').outcome == TaskOutcome.NO_SOURCE
+
+            when:
+            result = gradleRunner("copyDir", "-Pversion=1.0").build()
+            then: "plain copy task execution skipped on windows"
+            result.task(':buildProducer').outcome == TaskOutcome.SKIPPED
+            result.task(':consumer:copyDir').outcome == TaskOutcome.NO_SOURCE
+        }
+
     }
 
     private static boolean assertTarPermissionDefaults(File tarArchive) {
