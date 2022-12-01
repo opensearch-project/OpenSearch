@@ -87,14 +87,23 @@ jobs:
       - name: Extract Test Failure
         if: ${{ github.event_name == 'pull_request_target' && env.result != 'SUCCESS' }}
         run: |
-            TEST_FAILURES=`curl -s "${{ env.workflow_url }}/testReport/api/json?tree=suites\[cases\[status,className,name\]\]" | jq -r '.. | objects | select(.status=="FAILED",.status=="REGRESSION") | (.className + "." +  .name)' | uniq -c | sort -n -r | head -n 10`
-            if [[ "$TEST_FAILURES" != "" ]]
+            TEST_FAILURES=`curl -s "${{ env.workflow_url }}/testReport/api/json?tree=suites\[cases\[status,className,name\]\]" | jq -r '.. | objects | select(.status=="FAILED",.status=="REGRESSION") | (.className + "." +  .name)'`           
+            TEST_FAILURES_WITH_ISSUES=""
+            IFS=$'\n'
+            for i in $TEST_FAILURES; do
+              if [[ "$TEST_FAILURES_WITH_ISSUES" != "" ]]; then TEST_FAILURES_WITH_ISSUES+=$'\n'; fi
+              GITHUB_ISSUE=`gh api "/search/issues?q=repo:opensearch-project/OpenSearch+is%3Aissue+is%3Aopen+$i" -q ".items[].number" | head -n 1`
+              TEST_FAILURES_WITH_ISSUES+="$i${GITHUB_ISSUE:+ #$GITHUB_ISSUE}"
+            done
+            IFS=
+            TEST_FAILURES_WITH_COUNTS=`echo "$TEST_FAILURES_WITH_ISSUES" | uniq -c | sort -n -r | head -n 10`
+            if [[ "$TEST_FAILURES_WITH_COUNTS" != "" ]]
             then
               echo "test_failures<<EOF" >> $GITHUB_ENV
               echo "" >> $GITHUB_ENV
               echo "* **TEST FAILURES:**" >> $GITHUB_ENV
               echo '```' >> $GITHUB_ENV
-              echo "$TEST_FAILURES" >> $GITHUB_ENV
+              echo "$TEST_FAILURES_WITH_COUNTS" >> $GITHUB_ENV
               echo '```' >> $GITHUB_ENV
               echo "EOF" >> $GITHUB_ENV
             fi
