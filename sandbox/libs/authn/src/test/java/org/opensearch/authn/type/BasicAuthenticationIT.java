@@ -17,7 +17,8 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class BasicAuthenticationTests extends OpenSearchRestTestCase {
+// Testing authentication against remote cluster
+public class BasicAuthenticationIT extends OpenSearchRestTestCase {
 
     public void testClusterHealthWithValidAuthenticationHeader() throws IOException {
         Request request = new Request("GET", "/_cluster/health");
