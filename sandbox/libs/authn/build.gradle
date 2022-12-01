@@ -276,3 +276,7 @@ thirdPartyAudit.ignoreMissingClasses(
   'org.yaml.snakeyaml.parser.ParserImpl',
   'org.yaml.snakeyaml.resolver.Resolver',
 )
+
+tasks.register("integTest", Test) {
+  include '**/*IT.class'
+}
