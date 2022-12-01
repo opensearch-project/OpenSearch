@@ -5,7 +5,7 @@ on:
       - 'backport/**'
       - 'create-pull-request/**'
       - 'dependabot/**'
-  pull_request_target:
+  pull_request:
     types: [opened, synchronize, reopened]
 
 permissions:
@@ -26,7 +26,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Setup environment variables (PR)
-        if: github.event_name == 'pull_request_target'
+        if: github.event_name == 'pull_request'
         run: |
             echo "pr_from_sha=$(jq --raw-output .pull_request.head.sha $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
             echo "pr_from_clone_url=$(jq --raw-output .pull_request.head.repo.clone_url $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
@@ -55,26 +55,18 @@ jobs:
 
       - name: Trigger jenkins workflow to run gradle check
         run: |
-            set -e
-            set -o pipefail
-            bash opensearch-build/scripts/gradle/gradle-check.sh ${{ secrets.JENKINS_GRADLE_CHECK_GENERIC_WEBHOOK_TOKEN }} | tee -a gradle-check.log
+            # ignore
 
       - name: Setup Result Status
         if: always()
         run: |
-            WORKFLOW_URL=`cat gradle-check.log | grep 'WORKFLOW_URL' | awk '{print $2}'`
+            WORKFLOW_URL=https://build.ci.opensearch.org/job/gradle-check/7517/
             RESULT=`cat gradle-check.log | grep 'Result:' | awk '{print $2}'`
             echo "workflow_url=$WORKFLOW_URL" >> $GITHUB_ENV
             echo "result=$RESULT" >> $GITHUB_ENV
 
-      - name: Upload Coverage Report
-        if: success()
-        uses: codecov/codecov-action@v2
-        with:
-          files: ./codeCoverage.xml
-
       - name: Create Comment Success
-        if: ${{ github.event_name == 'pull_request_target' && success() && env.result == 'SUCCESS' }}
+        if: ${{ github.event_name == 'pull_request' && success() && env.result == 'SUCCESS' }}
         uses: peter-evans/create-or-update-comment@v2
         with:
           issue-number: ${{ env.pr_number }}
@@ -85,31 +77,22 @@ jobs:
               * **CommitID:** ${{ env.pr_from_sha }}
 
       - name: Extract Test Failure
-        if: ${{ github.event_name == 'pull_request_target' && env.result != 'SUCCESS' }}
+        if: ${{ github.event_name == 'pull_request' && env.result != 'SUCCESS' }}
         run: |
-            TEST_FAILURES=`curl -s "${{ env.workflow_url }}/testReport/api/json?tree=suites\[cases\[status,className,name\]\]" | jq -r '.. | objects | select(.status=="FAILED",.status=="REGRESSION") | (.className + "." +  .name)'`           
-            TEST_FAILURES_WITH_ISSUES=""
-            IFS=$'\n'
-            for i in $TEST_FAILURES; do
-              if [[ "$TEST_FAILURES_WITH_ISSUES" != "" ]]; then TEST_FAILURES_WITH_ISSUES+=$'\n'; fi
-              GITHUB_ISSUE=`gh api "/search/issues?q=repo:opensearch-project/OpenSearch+is%3Aissue+is%3Aopen+$i" -q ".items[].number" | head -n 1`
-              TEST_FAILURES_WITH_ISSUES+="$i${GITHUB_ISSUE:+ #$GITHUB_ISSUE}"
-            done
-            IFS=
-            TEST_FAILURES_WITH_COUNTS=`echo "$TEST_FAILURES_WITH_ISSUES" | uniq -c | sort -n -r | head -n 10`
-            if [[ "$TEST_FAILURES_WITH_COUNTS" != "" ]]
+            TEST_FAILURES=`curl -s "${{ env.workflow_url }}/testReport/api/json?tree=suites\[cases\[status,className,name\]\]" | jq -r '.. | objects | select(.status=="FAILED",.status=="REGRESSION") | (.className + "." +  .name)' | uniq -c | sort -n -r | head -n 10`
+            if [[ "$TEST_FAILURES" != "" ]]
             then
               echo "test_failures<<EOF" >> $GITHUB_ENV
               echo "" >> $GITHUB_ENV
               echo "* **TEST FAILURES:**" >> $GITHUB_ENV
               echo '```' >> $GITHUB_ENV
-              echo "$TEST_FAILURES_WITH_COUNTS" >> $GITHUB_ENV
+              echo "$TEST_FAILURES" >> $GITHUB_ENV
               echo '```' >> $GITHUB_ENV
               echo "EOF" >> $GITHUB_ENV
             fi
 
       - name: Create Comment Flaky
-        if: ${{ github.event_name == 'pull_request_target' && success() && env.result != 'SUCCESS' }}
+        if: ${{ github.event_name == 'pull_request' && success() && env.result != 'SUCCESS' }}
         uses: peter-evans/create-or-update-comment@v2
         with:
           issue-number: ${{ env.pr_number }}
@@ -121,7 +104,7 @@ jobs:
             Please review all [flaky tests](https://github.com/opensearch-project/OpenSearch/blob/main/DEVELOPER_GUIDE.md#flaky-tests) that succeeded after retry and create an issue if one does not already exist to track the flaky failure.
 
       - name: Create Comment Failure
-        if: ${{ github.event_name == 'pull_request_target' && failure() }}
+        if: ${{ github.event_name == 'pull_request' && failure() }}
         uses: peter-evans/create-or-update-comment@v2
         with:
           issue-number: ${{ env.pr_number }}
