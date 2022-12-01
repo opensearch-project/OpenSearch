@@ -461,6 +461,37 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         assertThat(updatedGlobalCheckpoint.get(), not(equalTo(UNASSIGNED_SEQ_NO)));
     }
 
+    public void testMissingActiveIdsDoesNotPreventAdvanceWithRemoteTranslogEnabled() {
+        final Map<AllocationId, Long> active = randomAllocationsWithLocalCheckpoints(2, 5);
+        final Map<AllocationId, Long> initializing = randomAllocationsWithLocalCheckpoints(0, 5);
+        final Map<AllocationId, Long> assigned = new HashMap<>();
+        assigned.putAll(active);
+        assigned.putAll(initializing);
+        AllocationId primaryId = active.keySet().iterator().next();
+        Settings settings = Settings.builder().put("index.remote_store.translog.enabled", "true").build();
+        final ReplicationTracker tracker = newTracker(primaryId, settings);
+        tracker.updateFromClusterManager(randomNonNegativeLong(), ids(active.keySet()), routingTable(initializing.keySet(), primaryId));
+        tracker.activatePrimaryMode(NO_OPS_PERFORMED);
+        List<AllocationId> initializingRandomSubset = randomSubsetOf(initializing.keySet());
+        initializingRandomSubset.forEach(k -> markAsTrackingAndInSyncQuietly(tracker, k.getId(), NO_OPS_PERFORMED));
+        final AllocationId missingActiveID = randomFrom(active.keySet());
+        assigned.entrySet()
+            .stream()
+            .filter(e -> !e.getKey().equals(missingActiveID))
+            .forEach(e -> updateLocalCheckpoint(tracker, e.getKey().getId(), e.getValue()));
+        long primaryLocalCheckpoint = active.get(primaryId);
+
+        assertEquals(1 + initializingRandomSubset.size(), tracker.getReplicationGroup().getReplicationTargets().size());
+        if (missingActiveID.equals(primaryId) == false) {
+            assertEquals(tracker.getGlobalCheckpoint(), primaryLocalCheckpoint);
+            assertEquals(updatedGlobalCheckpoint.get(), primaryLocalCheckpoint);
+        }
+        // now update all knowledge of all shards
+        assigned.forEach((aid, localCP) -> updateLocalCheckpoint(tracker, aid.getId(), 10 + localCP));
+        assertEquals(tracker.getGlobalCheckpoint(), 10 + primaryLocalCheckpoint);
+        assertEquals(updatedGlobalCheckpoint.get(), 10 + primaryLocalCheckpoint);
+    }
+
     public void testMissingInSyncIdsPreventAdvance() {
         final Map<AllocationId, Long> active = randomAllocationsWithLocalCheckpoints(1, 5);
         final Map<AllocationId, Long> initializing = randomAllocationsWithLocalCheckpoints(2, 5);
