@@ -43,6 +43,7 @@ import org.opensearch.index.shard.ShardId;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.IndexSettingsModule;
 
+import java.util.Collections;
 import java.util.Set;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
@@ -86,6 +87,14 @@ public abstract class ReplicationTrackerTestCase extends OpenSearchTestCase {
     }
 
     static IndexShardRoutingTable routingTable(final Set<AllocationId> initializingIds, final AllocationId primaryId) {
+        return routingTable(initializingIds, Collections.singleton(primaryId), primaryId);
+    }
+
+    static IndexShardRoutingTable routingTable(
+        final Set<AllocationId> initializingIds,
+        final Set<AllocationId> activeIds,
+        final AllocationId primaryId
+    ) {
         final ShardId shardId = new ShardId("test", "_na_", 0);
         final ShardRouting primaryShard = TestShardRouting.newShardRouting(
             shardId,
@@ -95,11 +104,17 @@ public abstract class ReplicationTrackerTestCase extends OpenSearchTestCase {
             ShardRoutingState.STARTED,
             primaryId
         );
-        return routingTable(initializingIds, primaryShard);
+        return routingTable(initializingIds, activeIds, primaryShard);
     }
 
-    static IndexShardRoutingTable routingTable(final Set<AllocationId> initializingIds, final ShardRouting primaryShard) {
+    static IndexShardRoutingTable routingTable(
+        final Set<AllocationId> initializingIds,
+        final Set<AllocationId> activeIds,
+        final ShardRouting primaryShard
+    ) {
+        assert initializingIds != null && activeIds != null;
         assert !initializingIds.contains(primaryShard.allocationId());
+        assert activeIds.contains(primaryShard.allocationId());
         final ShardId shardId = new ShardId("test", "_na_", 0);
         final IndexShardRoutingTable.Builder builder = new IndexShardRoutingTable.Builder(shardId);
         for (final AllocationId initializingId : initializingIds) {
@@ -111,6 +126,21 @@ public abstract class ReplicationTrackerTestCase extends OpenSearchTestCase {
                     false,
                     ShardRoutingState.INITIALIZING,
                     initializingId
+                )
+            );
+        }
+        for (final AllocationId activeId : activeIds) {
+            if (activeId.equals(primaryShard.allocationId())) {
+                continue;
+            }
+            builder.addShard(
+                TestShardRouting.newShardRouting(
+                    shardId,
+                    nodeIdFromAllocationId(activeId),
+                    null,
+                    false,
+                    ShardRoutingState.STARTED,
+                    activeId
                 )
             );
         }

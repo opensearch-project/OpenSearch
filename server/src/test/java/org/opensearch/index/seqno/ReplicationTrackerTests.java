@@ -262,6 +262,80 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         }
     }
 
+    public void testUpdateFromClusterManagerWithRemoteTranslogEnabled() {
+        final long initialClusterStateVersion = randomNonNegativeLong();
+        Map<AllocationId, Long> activeWithCheckpoints = randomAllocationsWithLocalCheckpoints(2, 5);
+        Set<AllocationId> active = new HashSet<>(activeWithCheckpoints.keySet());
+        Map<AllocationId, Long> allocations = new HashMap<>(activeWithCheckpoints);
+        Map<AllocationId, Long> initializingWithCheckpoints = randomAllocationsWithLocalCheckpoints(0, 5);
+        Set<AllocationId> initializing = new HashSet<>(initializingWithCheckpoints.keySet());
+        allocations.putAll(initializingWithCheckpoints);
+        assertThat(allocations.size(), equalTo(active.size() + initializing.size()));
+
+        final AllocationId primaryId = active.iterator().next();
+        Settings settings = Settings.builder().put("index.remote_store.translog.enabled", "true").build();
+        final ReplicationTracker tracker = newTracker(primaryId, settings);
+        assertThat(tracker.getGlobalCheckpoint(), equalTo(UNASSIGNED_SEQ_NO));
+
+        long primaryLocalCheckpoint = activeWithCheckpoints.get(primaryId);
+
+        logger.info("--> using allocations");
+        allocations.keySet().forEach(aId -> {
+            final String type;
+            if (active.contains(aId)) {
+                type = "active";
+            } else if (initializing.contains(aId)) {
+                type = "init";
+            } else {
+                throw new IllegalStateException(aId + " not found in any map");
+            }
+            logger.info("  - [{}], local checkpoint [{}], [{}]", aId, allocations.get(aId), type);
+        });
+
+        tracker.updateFromClusterManager(initialClusterStateVersion, ids(active), routingTable(initializing, active, primaryId));
+        tracker.activatePrimaryMode(NO_OPS_PERFORMED);
+        assertThat(tracker.getReplicationGroup().getReplicationTargets().size(), equalTo(active.size()));
+        initializing.forEach(aId -> markAsTrackingAndInSyncQuietly(tracker, aId.getId(), NO_OPS_PERFORMED, false));
+        assertThat(tracker.getReplicationGroup().getReplicationTargets().size(), equalTo(active.size() + initializing.size()));
+        assertEquals(tracker.getReplicationGroup().getReplicationTargets().stream().filter(x -> x.isReplicated()).count(), 1);
+        allocations.keySet().forEach(aId -> updateLocalCheckpoint(tracker, aId.getId(), allocations.get(aId)));
+
+        assertEquals(tracker.getGlobalCheckpoint(), primaryLocalCheckpoint);
+
+        // increment checkpoints
+        active.forEach(aId -> allocations.put(aId, allocations.get(aId) + 1 + randomInt(4)));
+        initializing.forEach(aId -> allocations.put(aId, allocations.get(aId) + 1 + randomInt(4)));
+        allocations.keySet().forEach(aId -> updateLocalCheckpoint(tracker, aId.getId(), allocations.get(aId)));
+
+        final long minLocalCheckpointAfterUpdates = allocations.entrySet()
+            .stream()
+            .map(Map.Entry::getValue)
+            .min(Long::compareTo)
+            .orElse(UNASSIGNED_SEQ_NO);
+
+        // now insert an unknown active/insync id , the checkpoint shouldn't change but a refresh should be requested.
+        final AllocationId extraId = AllocationId.newInitializing();
+
+        // first check that adding it without the cluster-manager blessing doesn't change anything.
+        updateLocalCheckpoint(tracker, extraId.getId(), minLocalCheckpointAfterUpdates + 1 + randomInt(4));
+        assertNull(tracker.checkpoints.get(extraId.getId()));
+        expectThrows(IllegalStateException.class, () -> tracker.initiateTracking(extraId.getId()));
+
+        Set<AllocationId> newInitializing = new HashSet<>(initializing);
+        newInitializing.add(extraId);
+        tracker.updateFromClusterManager(initialClusterStateVersion + 1, ids(active), routingTable(newInitializing, primaryId));
+
+        tracker.initiateTracking(extraId.getId());
+
+        // now notify for the new id
+        if (randomBoolean()) {
+            updateLocalCheckpoint(tracker, extraId.getId(), minLocalCheckpointAfterUpdates + 1 + randomInt(4));
+            markAsTrackingAndInSyncQuietly(tracker, extraId.getId(), randomInt((int) minLocalCheckpointAfterUpdates), false);
+        } else {
+            markAsTrackingAndInSyncQuietly(tracker, extraId.getId(), minLocalCheckpointAfterUpdates + 1 + randomInt(4), false);
+        }
+    }
+
     public void testUpdateGlobalCheckpointOnReplica() {
         final AllocationId active = AllocationId.newInitializing();
         final ReplicationTracker tracker = newTracker(active);
@@ -1067,7 +1141,11 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
             relocatingId
         );
 
-        return new FakeClusterState(initialClusterStateVersion, activeAllocationIds, routingTable(initializingAllocationIds, primaryShard));
+        return new FakeClusterState(
+            initialClusterStateVersion,
+            activeAllocationIds,
+            routingTable(initializingAllocationIds, Collections.singleton(primaryShard.allocationId()), primaryShard)
+        );
     }
 
     private static void randomLocalCheckpointUpdate(ReplicationTracker gcp) {
@@ -1108,6 +1186,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
             remainingInSyncIds.isEmpty() ? clusterState.inSyncIds : remainingInSyncIds,
             routingTable(
                 Sets.difference(Sets.union(initializingIdsExceptRelocationTargets, initializingIdsToAdd), initializingIdsToRemove),
+                Collections.singleton(clusterState.routingTable.primaryShard().allocationId()),
                 clusterState.routingTable.primaryShard()
             )
         );
