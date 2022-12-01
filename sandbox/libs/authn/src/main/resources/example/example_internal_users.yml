@@ -38,3 +38,6 @@ Aladdin:
 # Two semi-colon password
 test:
   hash: "$2y$12$fG1vNbK3X73j9eujLfh6We43fbKdy8O8RP5tGnLjg/CWMot48kAwO"    # te:st
+
+test_user:
+  hash: "$2y$12$BSFKmk3/FTTTH3eijILyxuVUGAoe4F.SPMoYHyrOfL.H8PagCqcZO"
