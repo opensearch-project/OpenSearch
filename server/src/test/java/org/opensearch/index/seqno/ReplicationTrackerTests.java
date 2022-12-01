@@ -46,7 +46,6 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.shard.ReplicationGroup;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.test.IndexSettingsModule;
 
@@ -220,7 +219,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         assertThat(tracker.getReplicationGroup().getReplicationTargets().size(), equalTo(1));
         initializing.forEach(aId -> markAsTrackingAndInSyncQuietly(tracker, aId.getId(), NO_OPS_PERFORMED, false));
         assertThat(tracker.getReplicationGroup().getReplicationTargets().size(), equalTo(1 + initializing.size()));
-        assertEquals(tracker.getReplicationGroup().getReplicationTargets().stream().filter(x -> x.isReplicated()).count() , 1);
+        assertEquals(tracker.getReplicationGroup().getReplicationTargets().stream().filter(x -> x.isReplicated()).count(), 1);
         allocations.keySet().forEach(aId -> updateLocalCheckpoint(tracker, aId.getId(), allocations.get(aId)));
 
         assertEquals(tracker.getGlobalCheckpoint(), primaryLocalCheckpoint);
