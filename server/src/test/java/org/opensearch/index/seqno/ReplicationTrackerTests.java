@@ -184,6 +184,10 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         assertThat(tracker.getGlobalCheckpoint(), greaterThan(minLocalCheckpoint));
     }
 
+    /**
+     * This test checks that the global checkpoint update mechanism is honored and relies only on the shards that have
+     * translog stored locally.
+     */
     public void testGlobalCheckpointUpdateWithRemoteTranslogEnabled() {
         final long initialClusterStateVersion = randomNonNegativeLong();
         Map<AllocationId, Long> activeWithCheckpoints = randomAllocationsWithLocalCheckpoints(1, 5);
@@ -261,6 +265,25 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
     public void testUpdateGlobalCheckpointOnReplica() {
         final AllocationId active = AllocationId.newInitializing();
         final ReplicationTracker tracker = newTracker(active);
+        final long globalCheckpoint = randomLongBetween(NO_OPS_PERFORMED, Long.MAX_VALUE - 1);
+        tracker.updateGlobalCheckpointOnReplica(globalCheckpoint, "test");
+        assertThat(updatedGlobalCheckpoint.get(), equalTo(globalCheckpoint));
+        final long nonUpdate = randomLongBetween(NO_OPS_PERFORMED, globalCheckpoint);
+        updatedGlobalCheckpoint.set(UNASSIGNED_SEQ_NO);
+        tracker.updateGlobalCheckpointOnReplica(nonUpdate, "test");
+        assertThat(updatedGlobalCheckpoint.get(), equalTo(UNASSIGNED_SEQ_NO));
+        final long update = randomLongBetween(globalCheckpoint, Long.MAX_VALUE);
+        tracker.updateGlobalCheckpointOnReplica(update, "test");
+        assertThat(updatedGlobalCheckpoint.get(), equalTo(update));
+    }
+
+    /**
+     * This test checks that updateGlobalCheckpointOnReplica with remote translog does not violate any of the invariants
+     */
+    public void testUpdateGlobalCheckpointOnReplicaWithRemoteTranslogEnabled() {
+        final AllocationId active = AllocationId.newInitializing();
+        Settings settings = Settings.builder().put("index.remote_store.translog.enabled", "true").build();
+        final ReplicationTracker tracker = newTracker(active, settings);
         final long globalCheckpoint = randomLongBetween(NO_OPS_PERFORMED, Long.MAX_VALUE - 1);
         tracker.updateGlobalCheckpointOnReplica(globalCheckpoint, "test");
         assertThat(updatedGlobalCheckpoint.get(), equalTo(globalCheckpoint));
