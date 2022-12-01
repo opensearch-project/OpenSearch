@@ -673,7 +673,7 @@ public class RestControllerTests extends OpenSearchTestCase {
 
         // RestStatus is OK even though the authn information is incorrect. This is because we, yet, don't fail the request
         // if it was unauthorized. The status should be changed to UNAUTHORIZED once the flow is updated.
-        final AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.OK);
+        final AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.UNAUTHORIZED);
         restController.dispatchRequest(fakeRestRequest, channel, threadContext);
 
         assertTrue(channel.getSendResponseCalled());

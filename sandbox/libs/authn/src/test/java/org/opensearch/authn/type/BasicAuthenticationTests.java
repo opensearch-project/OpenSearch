@@ -13,6 +13,7 @@ import org.opensearch.client.ResponseException;
 import org.opensearch.test.rest.OpenSearchRestTestCase;
 
 import java.io.IOException;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -52,29 +53,27 @@ public class BasicAuthenticationTests extends OpenSearchRestTestCase {
         request.setOptions(options);
         Response response = client().performRequest(request);
 
-        // allowed if no authorization header was passed. Should be updated once that is fixed
+        // Should not fail, because current implementation allows a request with missing header to pass
+        // TODO: Update this test to check for missing-header response, once that is implemented
         assertOK(response);
 
         // Standard cluster health response
         MatcherAssert.assertThat(entityAsMap(response).size(), equalTo(17));
         MatcherAssert.assertThat(entityAsMap(response).get("status"), equalTo("green"));
-
     }
 
     public void testClusterHealthWithInvalidAuthenticationHeader() throws IOException {
         Request request = new Request("GET", "/_cluster/health");
         RequestOptions options = RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Basic bWFydmluOmdhbGF4eQ==").build(); // marvin:galaxy
         request.setOptions(options);
-        Response response = client().performRequest(request);
-
-        // Should not fail, because current implementation allows a unauthorized request to pass
-        // TODO: Update this to test for UNAUTHORIZED once that flow is implemented
-        assertOK(response);
-
-        // Standard cluster health response
-        MatcherAssert.assertThat(entityAsMap(response).size(), equalTo(17));
-        MatcherAssert.assertThat(entityAsMap(response).get("status"), equalTo("green"));
-
+        try {
+            client().performRequest(request);
+        } catch (ResponseException re) {
+            Map<String, Object> responseMap = entityAsMap(re.getResponse());
+            MatcherAssert.assertThat(responseMap.size(), equalTo(2));
+            MatcherAssert.assertThat(responseMap.get("status"), equalTo(401));
+            MatcherAssert.assertThat(responseMap.get("error"), equalTo("marvin does not exist in internal realm."));
+        }
     }
 
     public void testClusterHealthWithCorruptAuthenticationHeader() throws IOException {
