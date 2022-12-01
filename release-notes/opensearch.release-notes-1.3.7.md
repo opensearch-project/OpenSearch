@@ -21,4 +21,3 @@
 * Skip SymbolicLinkPreservingTarIT when running on Windows ([#5294](https://github.com/opensearch-project/OpenSearch/pull/5294))
 * Fixed flaky test org.opensearch.repositories.s3.RepositoryS3ClientYamlTestSuiteIT/test ([#5339](https://github.com/opensearch-project/OpenSearch/pull/5339))
 * Fixed for InternalDistributionArchiveCheckPluginFuncTest failure on Windows ([#5401](https://github.com/opensearch-project/OpenSearch/pull/5401))
-
