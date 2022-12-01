@@ -55,6 +55,7 @@ import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.shard.AbstractIndexShardComponent;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ReplicationGroup;
+import org.opensearch.index.shard.ReplicationGroup.ReplicationAwareShardRouting;
 import org.opensearch.index.shard.ShardId;
 
 import java.io.IOException;
@@ -1154,10 +1155,11 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     }
 
     /**
-     * Creates a peer recovery retention lease for this shard, if one does not already exist and this shard is the sole shard copy in the
-     * replication group. If one does not already exist and yet there are other shard copies in this group then we must have just done
-     * a rolling upgrade from a version before {@code LegacyESVersion#V_7_4_0}, in which case the missing leases should be created
-     * asynchronously by the caller using {@link ReplicationTracker#createMissingPeerRecoveryRetentionLeases(ActionListener)}.
+     * Creates a peer recovery retention lease for this shard, if one does not already exist and this shard is the sole
+     * shard copy with local translog in the replication group. If one does not already exist and yet there are other
+     * shard copies in this group then we must have just done a rolling upgrade from a version before {@code LegacyESVersion#V_7_4_0},
+     * in which case the missing leases should be created asynchronously by the caller using
+     * {@link ReplicationTracker#createMissingPeerRecoveryRetentionLeases(ActionListener)}.
      */
     private void addPeerRecoveryRetentionLeaseForSolePrimary() {
         assert primaryMode;
@@ -1166,8 +1168,12 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         final ShardRouting primaryShard = routingTable.primaryShard();
         final String leaseId = getPeerRecoveryRetentionLeaseId(primaryShard);
         if (retentionLeases.get(leaseId) == null) {
-            if (replicationGroup.getReplicationTargets().size() == 1
-                && replicationGroup.getReplicationTargets().get(0).getShardRouting().equals(primaryShard)) {
+            List<ShardRouting> replicatedShardRoutingList = replicationGroup.getReplicationTargets()
+                .stream()
+                .filter(ReplicationAwareShardRouting::isReplicated)
+                .map(ReplicationAwareShardRouting::getShardRouting)
+                .collect(Collectors.toList());
+            if (replicatedShardRoutingList.equals(Collections.singletonList(primaryShard))) {
                 assert primaryShard.allocationId().getId().equals(shardAllocationId) : routingTable.assignedShards()
                     + " vs "
                     + shardAllocationId;
