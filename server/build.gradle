@@ -31,7 +31,7 @@
 import org.opensearch.gradle.info.BuildParams
 
 apply plugin: 'opensearch.build'
-apply plugin: 'nebula.optional-base'
+apply plugin: 'com.netflix.nebula.optional-base'
 apply plugin: 'opensearch.publish'
 apply plugin: 'opensearch.internal-cluster-test'
 

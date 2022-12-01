@@ -9,6 +9,7 @@ import org.hamcrest.MatcherAssert;
 import org.junit.BeforeClass;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.opensearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequestBuilder;
 import org.opensearch.action.index.IndexRequestBuilder;
@@ -27,6 +28,7 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.monitor.fs.FsInfo;
+import org.opensearch.repositories.fs.FsRepository;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -74,23 +76,30 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
      * Ensures availability of sufficient data nodes and search capable nodes.
      */
     public void testCreateSearchableSnapshot() throws Exception {
+        final String snapshotName = "test-snap";
+        final String repoName = "test-repo";
+        final String indexName1 = "test-idx-1";
+        final String restoredIndexName1 = indexName1 + "-copy";
+        final String indexName2 = "test-idx-2";
+        final String restoredIndexName2 = indexName2 + "-copy";
         final int numReplicasIndex1 = randomIntBetween(1, 4);
         final int numReplicasIndex2 = randomIntBetween(0, 2);
         final Client client = client();
 
         internalCluster().ensureAtLeastNumDataNodes(Math.max(numReplicasIndex1, numReplicasIndex2) + 1);
-        createIndexWithDocsAndEnsureGreen(numReplicasIndex1, 100, "test-idx-1");
-        createIndexWithDocsAndEnsureGreen(numReplicasIndex2, 100, "test-idx-2");
+        createIndexWithDocsAndEnsureGreen(numReplicasIndex1, 100, indexName1);
+        createIndexWithDocsAndEnsureGreen(numReplicasIndex2, 100, indexName2);
 
-        takeSnapshot(client, "test-idx-1", "test-idx-2");
-        deleteIndicesAndEnsureGreen(client, "test-idx-1", "test-idx-2");
+        createRepositoryWithSettings(null, repoName);
+        takeSnapshot(client, snapshotName, repoName, indexName1, indexName2);
+        deleteIndicesAndEnsureGreen(client, indexName1, indexName2);
 
         internalCluster().ensureAtLeastNumSearchNodes(Math.max(numReplicasIndex1, numReplicasIndex2) + 1);
-        restoreSnapshotAndEnsureGreen(client);
+        restoreSnapshotAndEnsureGreen(client, snapshotName, repoName);
 
-        assertDocCount("test-idx-1-copy", 100L);
-        assertDocCount("test-idx-2-copy", 100L);
-        assertIndexDirectoryDoesNotExist("test-idx-1-copy", "test-idx-2-copy");
+        assertDocCount(restoredIndexName1, 100L);
+        assertDocCount(restoredIndexName2, 100L);
+        assertIndexDirectoryDoesNotExist(restoredIndexName1, restoredIndexName2);
     }
 
     /**
@@ -101,16 +110,19 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         final int numReplicasIndex = randomIntBetween(1, 4);
         final String indexName = "test-idx";
         final String restoredIndexName = indexName + "-copy";
+        final String repoName = "test-repo";
+        final String snapshotName = "test-snap";
         final Client client = client();
 
         Settings.Builder repositorySettings = chunkedRepositorySettings();
 
         internalCluster().ensureAtLeastNumSearchAndDataNodes(numReplicasIndex + 1);
         createIndexWithDocsAndEnsureGreen(numReplicasIndex, 1000, indexName);
-        takeSnapshot(client, repositorySettings, indexName);
+        createRepositoryWithSettings(repositorySettings, repoName);
+        takeSnapshot(client, snapshotName, repoName, indexName);
 
         deleteIndicesAndEnsureGreen(client, indexName);
-        restoreSnapshotAndEnsureGreen(client);
+        restoreSnapshotAndEnsureGreen(client, snapshotName, repoName);
 
         assertDocCount(restoredIndexName, 1000L);
     }
@@ -124,13 +136,16 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         final int numReplicasIndex = randomIntBetween(1, 4);
         final String indexName = "test-idx";
         final String restoredIndexName = indexName + "-copy";
+        final String repoName = "test-repo";
+        final String snapshotName = "test-snap";
         final Client client = client();
 
         internalCluster().ensureAtLeastNumSearchAndDataNodes(numReplicasIndex + 1);
         createIndexWithDocsAndEnsureGreen(numReplicasIndex, 100, indexName);
-        takeSnapshot(client, indexName);
+        createRepositoryWithSettings(null, repoName);
+        takeSnapshot(client, snapshotName, repoName, indexName);
 
-        restoreSnapshotAndEnsureGreen(client);
+        restoreSnapshotAndEnsureGreen(client, snapshotName, repoName);
 
         assertDocCount(restoredIndexName, 100L);
         assertDocCount(indexName, 100L);
@@ -145,16 +160,19 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         final int numReplicasIndex = 1;
         final String indexName = "test-idx";
         final String restoredIndexName = indexName + "-copy";
+        final String repoName = "test-repo";
+        final String snapshotName = "test-snap";
         final Client client = client();
 
         internalCluster().ensureAtLeastNumDataNodes(numReplicasIndex + 1);
         createIndexWithDocsAndEnsureGreen(numReplicasIndex, 100, indexName);
 
-        takeSnapshot(client, indexName);
+        createRepositoryWithSettings(null, repoName);
+        takeSnapshot(client, snapshotName, repoName, indexName);
         deleteIndicesAndEnsureGreen(client, indexName);
 
         internalCluster().ensureAtLeastNumSearchNodes(numReplicasIndex + 1);
-        restoreSnapshotAndEnsureGreen(client);
+        restoreSnapshotAndEnsureGreen(client, snapshotName, repoName);
         assertDocCount(restoredIndexName, 100L);
 
         logger.info("--> stop a random search node");
@@ -183,14 +201,17 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
     public void testSearchableSnapshotIndexIsReadOnly() throws Exception {
         final String indexName = "test-index";
         final String restoredIndexName = indexName + "-copy";
+        final String repoName = "test-repo";
+        final String snapshotName = "test-snap";
         final Client client = client();
 
         createIndexWithDocsAndEnsureGreen(0, 100, indexName);
-        takeSnapshot(client, indexName);
+        createRepositoryWithSettings(null, repoName);
+        takeSnapshot(client, snapshotName, repoName, indexName);
         deleteIndicesAndEnsureGreen(client, indexName);
 
         internalCluster().ensureAtLeastNumSearchNodes(1);
-        restoreSnapshotAndEnsureGreen(client);
+        restoreSnapshotAndEnsureGreen(client, snapshotName, repoName);
 
         assertIndexingBlocked(restoredIndexName);
         assertIndexSettingChangeBlocked(restoredIndexName);
@@ -200,6 +221,39 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
             IndexNotFoundException.class,
             () -> client.admin().indices().prepareGetIndex().setIndices(restoredIndexName).execute().actionGet()
         );
+    }
+
+    public void testDeleteSearchableSnapshotBackingIndexThrowsException() throws Exception {
+        final String indexName = "test-index";
+        final Client client = client();
+        final String repoName = "test-repo";
+        final String snapshotName = "test-snap";
+        createRepositoryWithSettings(null, repoName);
+        createIndexWithDocsAndEnsureGreen(0, 100, indexName);
+        takeSnapshot(client, snapshotName, repoName, indexName);
+        internalCluster().ensureAtLeastNumSearchNodes(1);
+        restoreSnapshotAndEnsureGreen(client, snapshotName, repoName);
+        assertThrows(
+            SnapshotInUseDeletionException.class,
+            () -> client().admin().cluster().deleteSnapshot(new DeleteSnapshotRequest(repoName, snapshotName)).actionGet()
+        );
+    }
+
+    public void testDeleteSearchableSnapshotBackingIndex() throws Exception {
+        final String indexName1 = "test-index1";
+        final String indexName2 = "test-index2";
+        final Client client = client();
+        final String repoName = "test-repo";
+        final String snapshotName1 = "test-snapshot1";
+        final String snapshotName2 = "test-snap";
+        createRepositoryWithSettings(null, repoName);
+        createIndexWithDocsAndEnsureGreen(0, 100, indexName1);
+        createIndexWithDocsAndEnsureGreen(0, 100, indexName2);
+        takeSnapshot(client, snapshotName1, repoName, indexName1);
+        takeSnapshot(client, snapshotName2, repoName, indexName2);
+        internalCluster().ensureAtLeastNumSearchNodes(1);
+        restoreSnapshotAndEnsureGreen(client, snapshotName2, repoName);
+        client().admin().cluster().deleteSnapshot(new DeleteSnapshotRequest(repoName, snapshotName1)).actionGet();
     }
 
     private void createIndexWithDocsAndEnsureGreen(int numReplicasIndex, int numOfDocs, String indexName) throws InterruptedException {
@@ -216,21 +270,11 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         ensureGreen();
     }
 
-    private void takeSnapshot(Client client, String... indices) {
-        takeSnapshot(client, null, indices);
-    }
-
-    private void takeSnapshot(Client client, Settings.Builder repositorySettings, String... indices) {
-        logger.info("--> Create a repository");
-        if (repositorySettings == null) {
-            createRepository("test-repo", "fs");
-        } else {
-            createRepository("test-repo", "fs", repositorySettings);
-        }
+    private void takeSnapshot(Client client, String snapshotName, String repoName, String... indices) {
         logger.info("--> Take a snapshot");
         final CreateSnapshotResponse createSnapshotResponse = client.admin()
             .cluster()
-            .prepareCreateSnapshot("test-repo", "test-snap")
+            .prepareCreateSnapshot(repoName, snapshotName)
             .setWaitForCompletion(true)
             .setIndices(indices)
             .get();
@@ -242,16 +286,25 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         );
     }
 
+    private void createRepositoryWithSettings(Settings.Builder repositorySettings, String repoName) {
+        logger.info("--> Create a repository");
+        if (repositorySettings == null) {
+            createRepository(repoName, FsRepository.TYPE);
+        } else {
+            createRepository(repoName, FsRepository.TYPE, repositorySettings);
+        }
+    }
+
     private void deleteIndicesAndEnsureGreen(Client client, String... indices) {
         assertTrue(client.admin().indices().prepareDelete(indices).get().isAcknowledged());
         ensureGreen();
     }
 
-    private void restoreSnapshotAndEnsureGreen(Client client) {
+    private void restoreSnapshotAndEnsureGreen(Client client, String snapshotName, String repoName) {
         logger.info("--> restore indices as 'remote_snapshot'");
         client.admin()
             .cluster()
-            .prepareRestoreSnapshot("test-repo", "test-snap")
+            .prepareRestoreSnapshot(repoName, snapshotName)
             .setRenamePattern("(.+)")
             .setRenameReplacement("$1-copy")
             .setStorageType(RestoreSnapshotRequest.StorageType.REMOTE_SNAPSHOT)

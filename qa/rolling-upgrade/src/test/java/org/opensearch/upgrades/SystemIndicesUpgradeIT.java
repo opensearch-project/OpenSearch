@@ -32,14 +32,16 @@
 
 package org.opensearch.upgrades;
 
-import org.opensearch.LegacyESVersion;
-import org.opensearch.Version;
+import org.hamcrest.MatcherAssert;
 import org.opensearch.client.Request;
+import org.opensearch.client.Response;
 import org.opensearch.client.ResponseException;
 import org.opensearch.test.XContentTestUtils.JsonMapView;
 
+import java.io.IOException;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -62,25 +64,7 @@ public class SystemIndicesUpgradeIT extends AbstractRollingTestCase {
                 "{\"f1\": \"v1\", \"f2\": \"v2\"}\n");
             client().performRequest(bulk);
 
-            // start a async reindex job
-            Request reindex = new Request("POST", "/_reindex");
-            reindex.setJsonEntity(
-                "{\n" +
-                    "  \"source\":{\n" +
-                    "    \"index\":\"test_index_old\"\n" +
-                    "  },\n" +
-                    "  \"dest\":{\n" +
-                    "    \"index\":\"test_index_reindex\"\n" +
-                    "  }\n" +
-                    "}");
-            reindex.addParameter("wait_for_completion", "false");
-            Map<String, Object> response = entityAsMap(client().performRequest(reindex));
-            String taskId = (String) response.get("task");
-
-            // wait for task
-            Request getTask = new Request("GET", "/_tasks/" + taskId);
-            getTask.addParameter("wait_for_completion", "true");
-            client().performRequest(getTask);
+            createAndVerifyStoredTask();
 
             // make sure .tasks index exists
             Request getTasksIndex = new Request("GET", "/.tasks");
@@ -97,6 +81,8 @@ public class SystemIndicesUpgradeIT extends AbstractRollingTestCase {
                 }
             });
         } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {
+            createAndVerifyStoredTask();
+
             assertBusy(() -> {
                 Request clusterStateRequest = new Request("GET", "/_cluster/state/metadata");
                 Map<String, Object> indices = new JsonMapView(entityAsMap(client().performRequest(clusterStateRequest)))
@@ -114,5 +100,30 @@ public class SystemIndicesUpgradeIT extends AbstractRollingTestCase {
                 assertThat(tasksCreatedVersionString, notNullValue());
             });
         }
+    }
+
+    /**
+     * Completed tasks get persisted into the .tasks index, so this method waits
+     * until the task is completed in order to verify that it has been successfully
+     * written to the index and can be retrieved.
+     */
+    private static void createAndVerifyStoredTask() throws Exception {
+        // Use update by query to create an async task
+        final Request updateByQueryRequest = new Request("POST", "/test_index_old/_update_by_query");
+        updateByQueryRequest.addParameter("wait_for_completion", "false");
+        final Response updateByQueryResponse = client().performRequest(updateByQueryRequest);
+        MatcherAssert.assertThat(updateByQueryResponse.getStatusLine().getStatusCode(), equalTo(200));
+        final String taskId = (String) entityAsMap(updateByQueryResponse).get("task");
+
+        // wait for task to complete
+        waitUntil(() -> {
+            try {
+                final Response getTaskResponse = client().performRequest(new Request("GET", "/_tasks/" + taskId));
+                MatcherAssert.assertThat(getTaskResponse.getStatusLine().getStatusCode(), equalTo(200));
+                return (Boolean) entityAsMap(getTaskResponse).get("completed");
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        });
     }
 }

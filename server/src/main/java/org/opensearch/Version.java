@@ -67,27 +67,32 @@ public class Version implements Comparable<Version>, ToXContentFragment {
      * All listed versions MUST be released versions, except the last major, the last minor and the last revison. ONLY those are required
      * as unreleased versions.
      *
-     * Example: assume the last release is 7.3.0
-     * The unreleased last major is the next major release, e.g. _8_.0.0
-     * The unreleased last minor is the current major with a upped minor: 7._4_.0
-     * The unreleased revision is the very release with a upped revision 7.3._1_
+     * Example: assume the last release is 2.4.0
+     * The unreleased last major is the next major release, e.g. _3_.0.0
+     * The unreleased last minor is the current major with a upped minor: 2._5_.0
+     * The unreleased revision is the very release with a upped revision 2.4._1_
      */
     public static final int V_EMPTY_ID = 0;
     public static final Version V_EMPTY = new Version(V_EMPTY_ID, org.apache.lucene.util.Version.LATEST);
 
+    // RELEASED
     public static final Version V_2_0_0 = new Version(2000099, org.apache.lucene.util.Version.LUCENE_9_1_0);
     public static final Version V_2_0_1 = new Version(2000199, org.apache.lucene.util.Version.LUCENE_9_1_0);
-    public static final Version V_2_0_2 = new Version(2000299, org.apache.lucene.util.Version.LUCENE_9_1_0);
     public static final Version V_2_1_0 = new Version(2010099, org.apache.lucene.util.Version.LUCENE_9_2_0);
-    public static final Version V_2_1_1 = new Version(2010199, org.apache.lucene.util.Version.LUCENE_9_2_0);
     public static final Version V_2_2_0 = new Version(2020099, org.apache.lucene.util.Version.LUCENE_9_3_0);
     public static final Version V_2_2_1 = new Version(2020199, org.apache.lucene.util.Version.LUCENE_9_3_0);
-    public static final Version V_2_2_2 = new Version(2020299, org.apache.lucene.util.Version.LUCENE_9_3_0);
     public static final Version V_2_3_0 = new Version(2030099, org.apache.lucene.util.Version.LUCENE_9_3_0);
-    public static final Version V_2_3_1 = new Version(2030199, org.apache.lucene.util.Version.LUCENE_9_3_0);
     public static final Version V_2_4_0 = new Version(2040099, org.apache.lucene.util.Version.LUCENE_9_4_1);
-    public static final Version V_2_4_1 = new Version(2040199, org.apache.lucene.util.Version.LUCENE_9_4_1);
-    public static final Version V_2_5_0 = new Version(2050099, org.apache.lucene.util.Version.LUCENE_9_4_1);
+
+    // UNRELEASED
+    public static final Version V_2_4_1 = new Version(
+        2040199,
+        org.apache.lucene.util.Version.fromBits(9, 4, 2) /** needs updated 9.5.0 snapshots */
+    );
+    public static final Version V_2_5_0 = new Version(
+        2050099,
+        org.apache.lucene.util.Version.fromBits(9, 4, 2) /** needs updated 9.5.0 snapshots */
+    );
     public static final Version V_3_0_0 = new Version(3000099, org.apache.lucene.util.Version.LUCENE_9_5_0);
     public static final Version CURRENT = V_3_0_0;
 

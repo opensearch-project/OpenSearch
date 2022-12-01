@@ -57,6 +57,7 @@ import org.opensearch.authn.AuthenticationManager;
 import org.opensearch.identity.Identity;
 import org.opensearch.authn.internal.InternalAuthenticationManager;
 import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
+import org.opensearch.rest.action.admin.indices.RestCreateIndexAction;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.client.NoOpNodeClient;
 import org.opensearch.test.rest.FakeRestRequest;
@@ -565,6 +566,20 @@ public class RestControllerTests extends OpenSearchTestCase {
         final AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.BAD_REQUEST);
         restController.dispatchRequest(fakeRestRequest, channel, client.threadPool().getThreadContext());
         assertThat(channel.getRestResponse().content().utf8ToString(), containsString("invalid uri has been requested"));
+    }
+
+    public void testHandleBadInputWithCreateIndex() {
+        final FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withPath("/foo")
+            .withMethod(RestRequest.Method.PUT)
+            .withContent(new BytesArray("ddd"), XContentType.JSON)
+            .build();
+        final AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.BAD_REQUEST);
+        restController.registerHandler(RestRequest.Method.PUT, "/foo", new RestCreateIndexAction());
+        restController.dispatchRequest(fakeRestRequest, channel, client.threadPool().getThreadContext());
+        assertEquals(
+            channel.getRestResponse().content().utf8ToString(),
+            "{\"error\":{\"root_cause\":[{\"type\":\"not_x_content_exception\",\"reason\":\"Compressor detection can only be called on some xcontent bytes or compressed xcontent bytes\"}],\"type\":\"not_x_content_exception\",\"reason\":\"Compressor detection can only be called on some xcontent bytes or compressed xcontent bytes\"},\"status\":400}"
+        );
     }
 
     public void testDispatchUnsupportedHttpMethod() {

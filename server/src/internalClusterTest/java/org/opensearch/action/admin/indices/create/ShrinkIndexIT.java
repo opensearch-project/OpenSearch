@@ -66,6 +66,7 @@ import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider
 import org.opensearch.common.Priority;
 import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.Index;
@@ -75,8 +76,8 @@ import org.opensearch.index.query.TermsQueryBuilder;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
-import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalTestCluster;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.VersionUtils;
 
 import java.util.Arrays;
@@ -759,5 +760,73 @@ public class ShrinkIndexIT extends OpenSearchIntegTestCase {
                 .setResizeType(ResizeType.SPLIT)
         );
         ensureGreen("splitagain");
+    }
+
+    public void testCreateShrinkIndexWithMaxShardSize() {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        final String shrinkNode = internalCluster().startDataOnlyNode();
+
+        final int shardCount = between(2, 5);
+        prepareCreate("source").setSettings(
+            Settings.builder()
+                .put(indexSettings())
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shardCount)
+        ).get();
+        for (int i = 0; i < 20; i++) {
+            client().prepareIndex("source").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
+        }
+        client().admin().indices().prepareFlush("source").get();
+        ensureGreen();
+
+        client().admin()
+            .indices()
+            .prepareUpdateSettings("source")
+            .setSettings(
+                Settings.builder()
+                    .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(), shrinkNode)
+                    .put(IndexMetadata.SETTING_BLOCKS_WRITE, true)
+            )
+            .get();
+        ensureGreen();
+
+        // Cannot set max_shard_size and index.number_of_shards at the same time
+        IllegalArgumentException exc = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin()
+                .indices()
+                .prepareResizeIndex("source", "target")
+                .setSettings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .build()
+                )
+                .setMaxShardSize(new ByteSizeValue(1))
+                .setResizeType(ResizeType.SHRINK)
+                .get()
+        );
+        assertEquals(exc.getMessage(), "Cannot set max_shard_size and index.number_of_shards at the same time!");
+
+        // use max_shard_size to calculate the target index's shards number
+        // set max_shard_size to 1 then the target index's shards number will be same with the source index's
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareResizeIndex("source", "target")
+                .setSettings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .putNull(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey())
+                        .build()
+                )
+                .setMaxShardSize(new ByteSizeValue(1))
+                .setResizeType(ResizeType.SHRINK)
+                .get()
+        );
+        ensureGreen();
+
+        GetSettingsResponse target = client().admin().indices().prepareGetSettings("target").get();
+        assertEquals(String.valueOf(shardCount), target.getIndexToSettings().get("target").get("index.number_of_shards"));
     }
 }
