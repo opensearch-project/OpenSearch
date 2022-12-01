@@ -32,6 +32,7 @@
 
 package org.opensearch.index.reindex;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 import org.apache.lucene.util.SetOnce;
 import org.opensearch.OpenSearchSecurityException;
 import org.opensearch.OpenSearchStatusException;
@@ -82,6 +83,7 @@ import static java.util.Collections.singletonMap;
 import static org.opensearch.index.reindex.ReindexTestCase.matcher;
 import static org.hamcrest.Matchers.containsString;
 
+@ThreadLeakScope(ThreadLeakScope.Scope.NONE)
 public class ReindexFromRemoteWithAuthTests extends OpenSearchSingleNodeTestCase {
     private TransportAddress address;
 
