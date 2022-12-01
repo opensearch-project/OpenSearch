@@ -48,6 +48,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bumps `protobuf-java` from 3.21.7 to 3.21.9 ([#5319](https://github.com/opensearch-project/OpenSearch/pull/5319))
 - Update Apache Lucene to 9.5.0-snapshot-a4ef70f ([#4979](https://github.com/opensearch-project/OpenSearch/pull/4979))
 - Update to Gradle 7.6 and JDK-19 ([#4973](https://github.com/opensearch-project/OpenSearch/pull/4973))
+- Bumps `spock-core` from 2.3-groovy-3.0 to 2.3-groovy-4.0 ([#5388](https://github.com/opensearch-project/OpenSearch/pull/5388))
 
 ### Changed
 - [CCR] Add getHistoryOperationsFromTranslog method to fetch the history snapshot from translogs ([#3948](https://github.com/opensearch-project/OpenSearch/pull/3948))
