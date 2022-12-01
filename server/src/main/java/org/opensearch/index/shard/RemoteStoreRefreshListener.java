@@ -30,7 +30,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -117,8 +116,11 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                                 // SegmentInfosSnapshot is a snapshot of reader's view of segments and may not contain
                                 // all the segments from last commit if they are merged away but not yet committed.
                                 // Each metadata file in the remote segment store represents a commit and the following
-                                // statement keeps sure that each metadata will always contain all the segments from last commit + refreshed segments.
-                                localSegmentsPostRefresh.addAll(SegmentInfos.readCommit(storeDirectory, latestSegmentInfos.get()).files(true));
+                                // statement keeps sure that each metadata will always contain all the segments from last commit + refreshed
+                                // segments.
+                                localSegmentsPostRefresh.addAll(
+                                    SegmentInfos.readCommit(storeDirectory, latestSegmentInfos.get()).files(true)
+                                );
                                 segmentInfosFiles.stream()
                                     .filter(file -> !file.equals(latestSegmentInfos.get()))
                                     .forEach(localSegmentsPostRefresh::remove);
