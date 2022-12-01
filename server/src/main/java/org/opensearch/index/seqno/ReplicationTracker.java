@@ -1357,12 +1357,13 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         updateLocalCheckpoint(allocationId, cps, localCheckpoint);
         // if it was already in-sync (because of a previously failed recovery attempt), global checkpoint must have been
         // stuck from advancing
-        assert !cps.inSync || (cps.localTranslog && cps.localCheckpoint >= getGlobalCheckpoint()) : "shard copy "
+        assert !cps.inSync || cps.localCheckpoint >= getGlobalCheckpoint() || !cps.localTranslog : "shard copy "
             + allocationId
             + " that's already in-sync should have a local checkpoint "
             + cps.localCheckpoint
             + " that's above the global checkpoint "
-            + getGlobalCheckpoint();
+            + getGlobalCheckpoint()
+            + " or it does not have a local translog";
         if (cps.localTranslog && cps.localCheckpoint < getGlobalCheckpoint()) {
             pendingInSync.add(allocationId);
             try {
