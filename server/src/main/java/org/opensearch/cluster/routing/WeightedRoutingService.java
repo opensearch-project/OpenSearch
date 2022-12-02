@@ -189,7 +189,7 @@ public class WeightedRoutingService {
         }
         if (Objects.equals(weightedRouting.weights().get(decommissionAttribute.attributeValue()), 0.0) == false) {
             throw new IllegalStateException(
-                "weight for [" + decommissionAttribute.attributeValue() + "] must be set to [0.0] as it is under decommission action"
+                "weight for [" + decommissionAttribute.attributeValue() + "] must be set to [0] as it is under decommission action"
             );
         }
     }
