@@ -247,7 +247,6 @@ public class ReplicationOperation<
 
         for (final ReplicationAwareShardRouting shardRouting : replicationGroup.getReplicationTargets()) {
             ShardRouting shard = shardRouting.getShardRouting();
-            // TODO - Add condition of underlying action being replicated regardless i.e. shard bulk and publish checkpoint action
             if (!shard.isSameAllocation(primaryRouting)
                 && (shardRouting.isReplicated() || (shardRouting.isRemoteTranslogEnabled() && forceReplicationIfRemoteTranslogEnabled))) {
                 performOnReplica(shard, replicaRequest, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, pendingReplicationActions);
