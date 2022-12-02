@@ -99,7 +99,8 @@ public class ExtensionTransportActionsHandlerTests extends OpenSearchTestCase {
                 "fakeClass1",
                 new ArrayList<String>(),
                 false
-            )
+            ),
+            Collections.emptyList()
         );
         client = new NoOpNodeClient(this.getTestName());
         extensionTransportActionsHandler = new ExtensionTransportActionsHandler(
