@@ -163,7 +163,7 @@ public class WeightedRoutingService {
 
     public void ensureNoWeightUpdateForDecommissionedAttribute(ClusterState state, ClusterPutWeightedRoutingRequest request) {
         DecommissionAttributeMetadata decommissionAttributeMetadata = state.metadata().decommissionAttributeMetadata();
-        if (decommissionAttributeMetadata == null || !decommissionAttributeMetadata.status().equals(DecommissionStatus.FAILED)) {
+        if (decommissionAttributeMetadata == null || decommissionAttributeMetadata.status().equals(DecommissionStatus.FAILED)) {
             // here either there's no decommission action is ongoing or it is in failed state. In this case, we will allow weight update
             return;
         }
@@ -184,11 +184,13 @@ public class WeightedRoutingService {
             throw new IllegalStateException(
                 "weight for ["
                     + decommissionAttribute.attributeValue()
-                    + "] is not specified. Please specify its weight as zero as it is under decommission action"
+                    + "] is not specified. Please specify its weight to [0] as it is under decommission action"
             );
         }
         if (Objects.equals(weightedRouting.weights().get(decommissionAttribute.attributeValue()), 0.0) == false) {
-            throw new IllegalStateException("weight for [" + decommissionAttribute.attributeValue() + "] must be set to [0.0]");
+            throw new IllegalStateException(
+                "weight for [" + decommissionAttribute.attributeValue() + "] must be set to [0.0] as it is under decommission action"
+            );
         }
     }
 }
