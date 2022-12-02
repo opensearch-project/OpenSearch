@@ -101,9 +101,9 @@ public class TokenBucket {
      */
     private static class State {
         final double tokens;
-        final double lastRefilledAt;
+        final long lastRefilledAt;
 
-        public State(double tokens, double lastRefilledAt) {
+        public State(double tokens, long lastRefilledAt) {
             this.tokens = tokens;
             this.lastRefilledAt = lastRefilledAt;
         }
@@ -113,7 +113,7 @@ public class TokenBucket {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             State state = (State) o;
-            return Double.compare(state.tokens, tokens) == 0 && Double.compare(state.lastRefilledAt, lastRefilledAt) == 0;
+            return Double.compare(state.tokens, tokens) == 0 && lastRefilledAt == state.lastRefilledAt;
         }
 
         @Override

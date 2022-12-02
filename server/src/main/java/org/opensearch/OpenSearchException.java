@@ -34,6 +34,7 @@ package org.opensearch;
 
 import org.opensearch.action.support.replication.ReplicationOperation;
 import org.opensearch.cluster.action.shard.ShardStateAction;
+import org.opensearch.cluster.service.ClusterManagerThrottlingException;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.ParseField;
@@ -50,6 +51,7 @@ import org.opensearch.index.Index;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
+import org.opensearch.snapshots.SnapshotInUseDeletionException;
 import org.opensearch.transport.TcpTransport;
 
 import java.io.IOException;
@@ -67,6 +69,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.opensearch.Version.V_2_1_0;
+import static org.opensearch.Version.V_2_4_0;
 import static org.opensearch.Version.V_3_0_0;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VALUE;
 import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -114,7 +117,6 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
     private static final Map<Class<? extends OpenSearchException>, OpenSearchExceptionHandle> CLASS_TO_OPENSEARCH_EXCEPTION_HANDLE;
 
     private static final Pattern OS_METADATA = Pattern.compile("^opensearch\\.");
-    private static final Pattern ES_METADATA = Pattern.compile("^es\\.");
 
     private final Map<String, List<String>> metadata = new HashMap<>();
     private final Map<String, List<String>> headers = new HashMap<>();
@@ -158,16 +160,7 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
         super(in.readOptionalString(), in.readException());
         readStackTrace(this, in);
         headers.putAll(in.readMapOfLists(StreamInput::readString, StreamInput::readString));
-        metadata.putAll(in.readMapOfLists(OpenSearchException::readAndReplace, StreamInput::readString));
-    }
-
-    private static String readAndReplace(StreamInput in) throws IOException {
-        String str = in.readString();
-        return in.getVersion().onOrBefore(LegacyESVersion.V_7_10_2) ? ES_METADATA.matcher(str).replaceFirst("opensearch.") : str;
-    }
-
-    private static void replaceAndWrite(StreamOutput out, String str) throws IOException {
-        out.writeString(out.getVersion().onOrBefore(LegacyESVersion.V_7_10_2) ? OS_METADATA.matcher(str).replaceFirst("es.") : str);
+        metadata.putAll(in.readMapOfLists(StreamInput::readString, StreamInput::readString));
     }
 
     /**
@@ -310,7 +303,7 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
         out.writeException(this.getCause());
         writeStackTraces(this, out, StreamOutput::writeException);
         out.writeMapOfLists(headers, StreamOutput::writeString, StreamOutput::writeString);
-        out.writeMapOfLists(metadata, OpenSearchException::replaceAndWrite, StreamOutput::writeString);
+        out.writeMapOfLists(metadata, StreamOutput::writeString, StreamOutput::writeString);
     }
 
     public static OpenSearchException readException(StreamInput input, int id) throws IOException {
@@ -596,7 +589,7 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
                 }
                 t = t.getCause();
             }
-            builder.field(ERROR, ExceptionsHelper.summaryMessage(e));
+            builder.field(ERROR, ExceptionsHelper.summaryMessage(t != null ? t : e));
             return;
         }
 
@@ -663,8 +656,8 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
              * parsing exception because that is generally the most interesting
              * exception to return to the user. If that exception is caused by
              * an OpenSearchException we'd like to keep unwrapping because
-             * ElasticserachExceptions tend to contain useful information for
-             * the user.
+             * OpenSearchException instances tend to contain useful information
+             * for the user.
              */
             Throwable cause = ex.getCause();
             if (cause != null) {
@@ -1576,19 +1569,19 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
             org.opensearch.indices.recovery.PeerRecoveryNotFound.class,
             org.opensearch.indices.recovery.PeerRecoveryNotFound::new,
             158,
-            LegacyESVersion.V_7_9_0
+            UNKNOWN_VERSION_ADDED
         ),
         NODE_HEALTH_CHECK_FAILURE_EXCEPTION(
             org.opensearch.cluster.coordination.NodeHealthCheckFailureException.class,
             org.opensearch.cluster.coordination.NodeHealthCheckFailureException::new,
             159,
-            LegacyESVersion.V_7_9_0
+            UNKNOWN_VERSION_ADDED
         ),
         NO_SEED_NODE_LEFT_EXCEPTION(
             org.opensearch.transport.NoSeedNodeLeftException.class,
             org.opensearch.transport.NoSeedNodeLeftException::new,
             160,
-            LegacyESVersion.V_7_10_0
+            UNKNOWN_VERSION_ADDED
         ),
         REPLICATION_FAILED_EXCEPTION(
             org.opensearch.indices.replication.common.ReplicationFailedException.class,
@@ -1606,13 +1599,25 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
             org.opensearch.cluster.decommission.DecommissioningFailedException.class,
             org.opensearch.cluster.decommission.DecommissioningFailedException::new,
             163,
-            V_3_0_0
+            V_2_4_0
         ),
         NODE_DECOMMISSIONED_EXCEPTION(
             org.opensearch.cluster.decommission.NodeDecommissionedException.class,
             org.opensearch.cluster.decommission.NodeDecommissionedException::new,
             164,
             V_3_0_0
+        ),
+        CLUSTER_MANAGER_TASK_THROTTLED_EXCEPTION(
+            ClusterManagerThrottlingException.class,
+            ClusterManagerThrottlingException::new,
+            165,
+            Version.V_2_4_0
+        ),
+        SNAPSHOT_IN_USE_DELETION_EXCEPTION(
+            SnapshotInUseDeletionException.class,
+            SnapshotInUseDeletionException::new,
+            166,
+            UNKNOWN_VERSION_ADDED
         );
 
         final Class<? extends OpenSearchException> exceptionClass;

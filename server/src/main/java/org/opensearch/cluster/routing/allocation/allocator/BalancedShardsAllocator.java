@@ -50,6 +50,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -145,6 +146,13 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         localShardsBalancer.allocateUnassigned();
         localShardsBalancer.moveShards();
         localShardsBalancer.balance();
+
+        if (FeatureFlags.isEnabled(FeatureFlags.SEARCHABLE_SNAPSHOT)) {
+            final ShardsBalancer remoteShardsBalancer = new RemoteShardsBalancer(logger, allocation);
+            remoteShardsBalancer.allocateUnassigned();
+            remoteShardsBalancer.moveShards();
+            remoteShardsBalancer.balance();
+        }
     }
 
     @Override

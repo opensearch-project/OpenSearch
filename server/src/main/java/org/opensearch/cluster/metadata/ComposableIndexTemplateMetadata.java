@@ -32,7 +32,6 @@
 
 package org.opensearch.cluster.metadata;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.DiffableUtils;
@@ -60,6 +59,8 @@ import java.util.Objects;
 public class ComposableIndexTemplateMetadata implements Metadata.Custom {
     public static final String TYPE = "index_template";
     private static final ParseField INDEX_TEMPLATE = new ParseField("index_template");
+    // minimial supported version when composable templates were introduced
+    protected static Version MINIMMAL_SUPPORTED_VERSION = Version.fromId(7070099);
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<ComposableIndexTemplateMetadata, Void> PARSER = new ConstructingObjectParser<>(
         TYPE,
@@ -117,7 +118,7 @@ public class ComposableIndexTemplateMetadata implements Metadata.Custom {
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return LegacyESVersion.V_7_7_0;
+        return MINIMMAL_SUPPORTED_VERSION;
     }
 
     @Override

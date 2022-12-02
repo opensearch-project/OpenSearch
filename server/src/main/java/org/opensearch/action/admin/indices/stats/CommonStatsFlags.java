@@ -87,10 +87,8 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         completionDataFields = in.readStringArray();
         includeSegmentFileSizes = in.readBoolean();
         includeUnloadedSegments = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_1_2_0)) {
-            includeAllShardIndexingPressureTrackers = in.readBoolean();
-            includeOnlyTopIndexingPressureMetrics = in.readBoolean();
-        }
+        includeAllShardIndexingPressureTrackers = in.readBoolean();
+        includeOnlyTopIndexingPressureMetrics = in.readBoolean();
     }
 
     @Override
@@ -109,10 +107,8 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         out.writeStringArrayNullable(completionDataFields);
         out.writeBoolean(includeSegmentFileSizes);
         out.writeBoolean(includeUnloadedSegments);
-        if (out.getVersion().onOrAfter(Version.V_1_2_0)) {
-            out.writeBoolean(includeAllShardIndexingPressureTrackers);
-            out.writeBoolean(includeOnlyTopIndexingPressureMetrics);
-        }
+        out.writeBoolean(includeAllShardIndexingPressureTrackers);
+        out.writeBoolean(includeOnlyTopIndexingPressureMetrics);
     }
 
     /**
@@ -150,7 +146,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
     }
 
     public Flag[] getFlags() {
-        return flags.toArray(new Flag[flags.size()]);
+        return flags.toArray(new Flag[0]);
     }
 
     /**

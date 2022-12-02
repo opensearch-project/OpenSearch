@@ -76,6 +76,8 @@ import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.service.ClusterManagerTaskKeys;
+import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
@@ -130,6 +132,7 @@ import java.util.stream.Stream;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableList;
 import static org.opensearch.cluster.SnapshotsInProgress.completed;
+import static org.opensearch.snapshots.SnapshotUtils.validateSnapshotsBackingAnyIndex;
 
 /**
  * Service responsible for creating snapshots. This service runs all the steps executed on the cluster-manager node during snapshot creation and
@@ -175,6 +178,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     private final OngoingRepositoryOperations repositoryOperations = new OngoingRepositoryOperations();
 
+    private final ClusterManagerTaskThrottler.ThrottlingKey createSnapshotTaskKey;
+    private final ClusterManagerTaskThrottler.ThrottlingKey deleteSnapshotTaskKey;
+    private static ClusterManagerTaskThrottler.ThrottlingKey updateSnapshotStateTaskKey;
+
     /**
      * Setting that specifies the maximum number of allowed concurrent snapshot create and delete operations in the
      * cluster state. The number of concurrent operations in a cluster state is defined as the sum of the sizes of
@@ -219,6 +226,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             clusterService.getClusterSettings()
                 .addSettingsUpdateConsumer(MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING, i -> maxConcurrentOperations = i);
         }
+
+        // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
+        createSnapshotTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.CREATE_SNAPSHOT_KEY, true);
+        deleteSnapshotTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.DELETE_SNAPSHOT_KEY, true);
+        updateSnapshotStateTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.UPDATE_SNAPSHOT_STATE_KEY, true);
     }
 
     /**
@@ -348,6 +360,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             public void onFailure(String source, Exception e) {
                 logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to create snapshot", repositoryName, snapshotName), e);
                 listener.onFailure(e);
+            }
+
+            @Override
+            public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
+                return createSnapshotTaskKey;
             }
 
             @Override
@@ -935,21 +952,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         assert assertNoDanglingSnapshots(event.state());
     }
 
-    /**
-     * Cleanup all snapshots found in the given cluster state that have no more work left:
-     * 1. Completed snapshots
-     * 2. Snapshots in state INIT that a previous cluster-manager of an older version failed to start
-     * 3. Snapshots in any other state that have all their shard tasks completed
-     */
-    private void endCompletedSnapshots(ClusterState state) {
-        SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE);
-        assert snapshotsInProgress != null;
-        snapshotsInProgress.entries()
-            .stream()
-            .filter(entry -> entry.state().completed() || entry.state() == State.INIT || completed(entry.shards().values()))
-            .forEach(entry -> endSnapshot(entry, state.metadata(), null));
-    }
-
     private boolean assertConsistentWithClusterState(ClusterState state) {
         final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
         if (snapshotsInProgress.entries().isEmpty() == false) {
@@ -1293,31 +1295,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             }
             return false;
         });
-    }
-
-    /**
-     * Returns list of indices with missing shards, and list of indices that are closed
-     *
-     * @param shards list of shard statuses
-     * @return list of failed and closed indices
-     */
-    private static Tuple<Set<String>, Set<String>> indicesWithMissingShards(
-        ImmutableOpenMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards,
-        Metadata metadata
-    ) {
-        Set<String> missing = new HashSet<>();
-        Set<String> closed = new HashSet<>();
-        for (ObjectObjectCursor<ShardId, SnapshotsInProgress.ShardSnapshotStatus> entry : shards) {
-            if (entry.value.state() == ShardState.MISSING) {
-                if (metadata.hasIndex(entry.key.getIndex().getName())
-                    && metadata.getIndexSafe(entry.key.getIndex()).getState() == IndexMetadata.State.CLOSE) {
-                    closed.add(entry.key.getIndex().getName());
-                } else {
-                    missing.add(entry.key.getIndex().getName());
-                }
-            }
-        }
-        return new Tuple<>(missing, closed);
     }
 
     /**
@@ -1793,8 +1770,14 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     snapshotNames,
                     repoName
                 );
+                validateSnapshotsBackingAnyIndex(currentState.getMetadata().getIndices(), snapshotIds, repoName);
                 deleteFromRepoTask = createDeleteStateUpdate(snapshotIds, repoName, repositoryData, Priority.NORMAL, listener);
                 return deleteFromRepoTask.execute(currentState);
+            }
+
+            @Override
+            public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
+                return deleteSnapshotTaskKey;
             }
 
             @Override
@@ -2707,7 +2690,20 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      *
      * Package private to allow for tests.
      */
-    static final ClusterStateTaskExecutor<ShardSnapshotUpdate> SHARD_STATE_EXECUTOR = (currentState, tasks) -> {
+    static final ClusterStateTaskExecutor<ShardSnapshotUpdate> SHARD_STATE_EXECUTOR = new ClusterStateTaskExecutor<ShardSnapshotUpdate>() {
+        @Override
+        public ClusterTasksResult<ShardSnapshotUpdate> execute(ClusterState currentState, List<ShardSnapshotUpdate> tasks)
+            throws Exception {
+            return shardStateExecutor.execute(currentState, tasks);
+        }
+
+        @Override
+        public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
+            return updateSnapshotStateTaskKey;
+        }
+    };
+
+    static final ClusterStateTaskExecutor<ShardSnapshotUpdate> shardStateExecutor = (currentState, tasks) -> {
         int changedCount = 0;
         int startedCount = 0;
         final List<SnapshotsInProgress.Entry> entries = new ArrayList<>();

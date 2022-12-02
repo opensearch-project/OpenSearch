@@ -622,6 +622,19 @@ public class UpdateNumberOfReplicasIT extends OpenSearchIntegTestCase {
                 .actionGet();
             updated++;
 
+            // Since auto expand replica setting take precedence, this should pass
+            client().admin()
+                .indices()
+                .prepareUpdateSettings("aware-replica")
+                .setSettings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2)
+                        .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
+                )
+                .execute()
+                .actionGet();
+            updated++;
+
             // system index - should be able to update
             client().admin()
                 .indices()
@@ -637,14 +650,14 @@ public class UpdateNumberOfReplicasIT extends OpenSearchIntegTestCase {
                 .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2))
                 .execute()
                 .actionGet();
-            fail("should have thrown an exception about the replica  count");
+            fail("should have thrown an exception about the replica count");
 
         } catch (IllegalArgumentException e) {
             assertEquals(
                 "Validation Failed: 1: expected total copies needs to be a multiple of total awareness attributes [2];",
                 e.getMessage()
             );
-            assertEquals(2, updated);
+            assertEquals(3, updated);
         } finally {
             manageReplicaBalanceSetting(false);
         }

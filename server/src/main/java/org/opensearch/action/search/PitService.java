@@ -176,7 +176,7 @@ public class PitService {
             DiscoveryNode node = cursor.value;
             nodes.add(node);
         }
-        DiscoveryNode[] disNodesArr = nodes.toArray(new DiscoveryNode[nodes.size()]);
+        DiscoveryNode[] disNodesArr = nodes.toArray(new DiscoveryNode[0]);
         GetAllPitNodesRequest getAllPitNodesRequest = new GetAllPitNodesRequest(disNodesArr);
         transportService.sendRequest(
             transportService.getLocalNode(),

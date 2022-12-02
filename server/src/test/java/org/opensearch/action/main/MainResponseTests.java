@@ -57,14 +57,14 @@ public class MainResponseTests extends AbstractSerializingTestCase<MainResponse>
         ClusterName clusterName = new ClusterName(randomAlphaOfLength(10));
         String nodeName = randomAlphaOfLength(10);
         final String date = new Date(randomNonNegativeLong()).toString();
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
         Build build = new Build(
             Build.Type.UNKNOWN,
             randomAlphaOfLength(8),
             date,
             randomBoolean(),
             version.toString(),
-            version.onOrAfter(Version.V_1_0_0) ? randomAlphaOfLength(10) : ""
+            randomAlphaOfLength(10)
         );
         return new MainResponse(nodeName, version, clusterName, clusterUuid, build);
     }

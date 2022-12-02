@@ -163,7 +163,7 @@ class CustomFieldHighlighter extends FieldHighlighter {
         } while (off.nextPosition());
         maybeAddPassage(passageQueue, passageScorer, passage, contentLength);
 
-        Passage[] passages = passageQueue.toArray(new Passage[passageQueue.size()]);
+        Passage[] passages = passageQueue.toArray(new Passage[0]);
         // sort in ascending order
         Arrays.sort(passages, Comparator.comparingInt(Passage::getStartOffset));
         return passages;

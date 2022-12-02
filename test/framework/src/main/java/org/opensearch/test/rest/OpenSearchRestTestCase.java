@@ -48,7 +48,6 @@ import org.apache.hc.core5.reactor.ssl.TlsDetails;
 import org.apache.hc.core5.ssl.SSLContexts;
 import org.apache.hc.core5.util.Timeout;
 import org.apache.lucene.util.SetOnce;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.opensearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
@@ -208,8 +207,8 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
             }
             clusterHosts = unmodifiableList(hosts);
             logger.info("initializing REST clients against {}", clusterHosts);
-            client = buildClient(restClientSettings(), clusterHosts.toArray(new HttpHost[clusterHosts.size()]));
-            adminClient = buildClient(restAdminSettings(), clusterHosts.toArray(new HttpHost[clusterHosts.size()]));
+            client = buildClient(restClientSettings(), clusterHosts.toArray(new HttpHost[0]));
+            adminClient = buildClient(restAdminSettings(), clusterHosts.toArray(new HttpHost[0]));
 
             nodeVersions = new TreeSet<>();
             Map<?, ?> response = entityAsMap(adminClient.performRequest(new Request("GET", "_nodes/plugins")));
@@ -538,15 +537,6 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
 
     private void wipeCluster() throws Exception {
 
-        // Clean up SLM policies before trying to wipe snapshots so that no new ones get started by SLM after wiping
-        if (nodeVersions.first().before(Version.V_1_0_0)) { // SLM was introduced
-                                                            // in version 7.4
-            if (preserveSLMPoliciesUponCompletion() == false) {
-                // Clean up SLM policies before trying to wipe snapshots so that no new ones get started by SLM after wiping
-                deleteAllSLMPolicies();
-            }
-        }
-
         SetOnce<Map<String, List<Map<?, ?>>>> inProgressSnapshots = new SetOnce<>();
         if (waitForAllSnapshotsWiped()) {
             AtomicReference<Map<String, List<Map<?, ?>>>> snapshots = new AtomicReference<>();
@@ -597,10 +587,9 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
     }
 
     protected static void wipeAllIndices() throws IOException {
-        boolean includeHidden = minimumNodeVersion().onOrAfter(LegacyESVersion.V_7_7_0);
         try {
             final Request deleteRequest = new Request("DELETE", "*");
-            deleteRequest.addParameter("expand_wildcards", "open,closed" + (includeHidden ? ",hidden" : ""));
+            deleteRequest.addParameter("expand_wildcards", "open,closed,hidden");
             RequestOptions.Builder allowSystemIndexAccessWarningOptions = RequestOptions.DEFAULT.toBuilder();
             allowSystemIndexAccessWarningOptions.setWarningsHandler(warnings -> {
                 if (warnings.size() == 0) {
@@ -711,9 +700,8 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
     }
 
     protected void refreshAllIndices() throws IOException {
-        boolean includeHidden = minimumNodeVersion().onOrAfter(LegacyESVersion.V_7_7_0);
         Request refreshRequest = new Request("POST", "/_refresh");
-        refreshRequest.addParameter("expand_wildcards", "open" + (includeHidden ? ",hidden" : ""));
+        refreshRequest.addParameter("expand_wildcards", "open,hidden");
         // Allow system index deprecation warnings
         final Builder requestOptions = RequestOptions.DEFAULT.toBuilder();
         requestOptions.setWarningsHandler(warnings -> {
@@ -1016,12 +1004,6 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
     }
 
     protected static void expectSoftDeletesWarning(Request request, String indexName) {
-        final List<String> esExpectedWarnings = Collections.singletonList(
-            "Creating indices with soft-deletes disabled is deprecated and will be removed in future Elasticsearch versions. "
-                + "Please do not specify value for setting [index.soft_deletes.enabled] of index ["
-                + indexName
-                + "]."
-        );
         final List<String> opensearchExpectedWarnings = Collections.singletonList(
             "Creating indices with soft-deletes disabled is deprecated and will be removed in future OpenSearch versions. "
                 + "Please do not specify value for setting [index.soft_deletes.enabled] of index ["
@@ -1029,24 +1011,8 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
                 + "]."
         );
         final Builder requestOptions = RequestOptions.DEFAULT.toBuilder();
-        if (nodeVersions.stream().allMatch(version -> version.onOrAfter(LegacyESVersion.V_7_6_0) && version.before(Version.V_1_0_0))) {
-            requestOptions.setWarningsHandler(warnings -> warnings.equals(esExpectedWarnings) == false);
-            request.setOptions(requestOptions);
-        } else if (nodeVersions.stream()
-            .anyMatch(version -> version.onOrAfter(LegacyESVersion.V_7_6_0) && version.before(Version.V_1_0_0))) {
-                requestOptions.setWarningsHandler(warnings -> warnings.isEmpty() == false && warnings.equals(esExpectedWarnings) == false);
-                request.setOptions(requestOptions);
-            }
-
-        if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_1_0_0))) {
-            requestOptions.setWarningsHandler(warnings -> warnings.equals(opensearchExpectedWarnings) == false);
-            request.setOptions(requestOptions);
-        } else if (nodeVersions.stream().anyMatch(version -> version.onOrAfter(Version.V_1_0_0))) {
-            requestOptions.setWarningsHandler(
-                warnings -> warnings.isEmpty() == false && warnings.equals(opensearchExpectedWarnings) == false
-            );
-            request.setOptions(requestOptions);
-        }
+        requestOptions.setWarningsHandler(warnings -> warnings.equals(opensearchExpectedWarnings) == false);
+        request.setOptions(requestOptions);
     }
 
     protected static Map<String, Object> getIndexSettings(String index) throws IOException {
@@ -1215,7 +1181,6 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
      * that we have renewed every PRRL to the global checkpoint of the corresponding copy and properly synced to all copies.
      */
     public void ensurePeerRecoveryRetentionLeasesRenewedAndSynced(String index) throws Exception {
-        final boolean alwaysExists = minimumNodeVersion().onOrAfter(LegacyESVersion.V_7_6_0);
         assertBusy(() -> {
             Map<String, Object> stats = entityAsMap(client().performRequest(new Request("GET", index + "/_stats?level=shards")));
             @SuppressWarnings("unchecked")
@@ -1233,25 +1198,20 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
                         "retention_leases.leases",
                         copy
                     );
-                    if (alwaysExists == false && retentionLeases == null) {
-                        continue;
-                    }
                     assertNotNull(retentionLeases);
                     for (Map<String, ?> retentionLease : retentionLeases) {
                         if (((String) retentionLease.get("id")).startsWith("peer_recovery/")) {
                             assertThat(retentionLease.get("retaining_seq_no"), equalTo(globalCheckpoint + 1));
                         }
                     }
-                    if (alwaysExists) {
-                        List<String> existingLeaseIds = retentionLeases.stream()
-                            .map(lease -> (String) lease.get("id"))
-                            .collect(Collectors.toList());
-                        List<String> expectedLeaseIds = shard.stream()
-                            .map(shr -> (String) XContentMapValues.extractValue("routing.node", shr))
-                            .map(ReplicationTracker::getPeerRecoveryRetentionLeaseId)
-                            .collect(Collectors.toList());
-                        assertThat("not every active copy has established its PPRL", expectedLeaseIds, everyItem(in(existingLeaseIds)));
-                    }
+                    List<String> existingLeaseIds = retentionLeases.stream()
+                        .map(lease -> (String) lease.get("id"))
+                        .collect(Collectors.toList());
+                    List<String> expectedLeaseIds = shard.stream()
+                        .map(shr -> (String) XContentMapValues.extractValue("routing.node", shr))
+                        .map(ReplicationTracker::getPeerRecoveryRetentionLeaseId)
+                        .collect(Collectors.toList());
+                    assertThat("not every active copy has established its PPRL", expectedLeaseIds, everyItem(in(existingLeaseIds)));
                 }
             }
         }, 60, TimeUnit.SECONDS);
@@ -1291,7 +1251,7 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
         );
         if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_2_0_0))) {
             options.setWarningsHandler(warnings -> warnings.isEmpty() == false && warnings.equals(expectedWarnings) == false);
-        } else if (nodeVersions.stream().anyMatch(version -> version.onOrAfter(LegacyESVersion.V_7_6_0))) {
+        } else {
             options.setWarningsHandler(
                 warnings -> warnings.isEmpty() == false
                     && warnings.equals(expectedWarnings) == false
