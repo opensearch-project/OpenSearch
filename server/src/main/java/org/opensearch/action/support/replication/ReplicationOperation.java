@@ -246,12 +246,53 @@ public class ReplicationOperation<
         final ShardRouting primaryRouting = primary.routingEntry();
 
         for (final ReplicationAwareShardRouting shardRouting : replicationGroup.getReplicationTargets()) {
-            ShardRouting shard = shardRouting.getShardRouting();
-            if (!shard.isSameAllocation(primaryRouting)
-                && (shardRouting.isReplicated() || (shardRouting.isRemoteTranslogEnabled() && forceReplicationIfRemoteTranslogEnabled))) {
-                performOnReplica(shard, replicaRequest, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, pendingReplicationActions);
-            }
+            new PerformOnReplicaProxyFactory().create(
+                primaryRouting,
+                shardRouting,
+                replicaRequest,
+                globalCheckpoint,
+                maxSeqNoOfUpdatesOrDeletes,
+                replicationGroup,
+                pendingReplicationActions
+            ).run();
         }
+    }
+
+    interface PerformOnReplicaProxy extends Runnable {}
+
+    private class PerformOnReplicaProxyFactory {
+        PerformOnReplicaProxy create(
+            final ShardRouting primaryRouting,
+            final ReplicationAwareShardRouting shardRouting,
+            final ReplicaRequest replicaRequest,
+            final long globalCheckpoint,
+            final long maxSeqNoOfUpdatesOrDeletes,
+            final ReplicationGroup replicationGroup,
+            final PendingReplicationActions pendingReplicationActions
+        ) {
+            if (needsReplication(primaryRouting, shardRouting, forceReplicationIfRemoteTranslogEnabled)) {
+                return () -> {
+                    performOnReplica(
+                        shardRouting.getShardRouting(),
+                        replicaRequest,
+                        globalCheckpoint,
+                        maxSeqNoOfUpdatesOrDeletes,
+                        pendingReplicationActions
+                    );
+                };
+            }
+            return () -> {};
+        }
+    }
+
+    private static boolean needsReplication(
+        ShardRouting primaryRouting,
+        ReplicationAwareShardRouting shardRouting,
+        boolean forceReplication
+    ) {
+        ShardRouting shard = shardRouting.getShardRouting();
+        return !shard.isSameAllocation(primaryRouting)
+            && (shardRouting.isReplicated() || (shardRouting.isRemoteTranslogEnabled() && forceReplication));
     }
 
     private void performOnReplica(
