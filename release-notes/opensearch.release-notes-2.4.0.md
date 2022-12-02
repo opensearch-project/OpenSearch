@@ -97,4 +97,5 @@
 - Fix build failures on the Windows platform ([#4924](https://github.com/opensearch-project/OpenSearch/issues/4924))
 
 ### Security
+- Fixes CVE-2022-41917 ([#5141](https://github.com/opensearch-project/OpenSearch/pull/5141))
 - CVE-2022-25857 org.yaml:snakeyaml DOS vulnerability ([#4341](https://github.com/opensearch-project/OpenSearch/pull/4341))
