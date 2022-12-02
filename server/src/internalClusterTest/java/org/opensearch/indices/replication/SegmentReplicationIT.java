@@ -24,7 +24,6 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
-import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.allocation.command.CancelAllocationCommand;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
@@ -73,7 +72,7 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
 
     @BeforeClass
     public static void assumeFeatureFlag() {
-        assumeTrue("Segment replication Feature flag is enabled", true);
+        assumeTrue("Segment replication Feature flag is enabled", Boolean.parseBoolean(System.getProperty(FeatureFlags.REPLICATION_TYPE)));
     }
 
     @Override
@@ -208,7 +207,10 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
         final String primary = internalCluster().startNode();
 
         logger.info("--> creating test index ...");
-        prepareCreate(INDEX_NAME, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)).get();
+        prepareCreate(
+            INDEX_NAME,
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+        ).get();
 
         logger.info("--> index 10 docs");
         for (int i = 0; i < 10; i++) {
@@ -229,10 +231,7 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
         final String replica = internalCluster().startNode();
 
         // Mock transport service to add behaviour of throwing corruption exception during segment replication process.
-        MockTransportService mockTransportService = ((MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            primary
-        ));
+        MockTransportService mockTransportService = ((MockTransportService) internalCluster().getInstance(TransportService.class, primary));
         mockTransportService.addSendBehavior(
             internalCluster().getInstance(TransportService.class, replica),
             (connection, requestId, action, request, options) -> {
