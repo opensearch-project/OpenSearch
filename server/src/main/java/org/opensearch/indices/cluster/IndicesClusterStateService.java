@@ -785,7 +785,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         IndexShard indexShard = (IndexShard) indexService.getShardOrNull(shardRouting.id());
         // For Segment Replication enabled indices, we want replica shards to start a replication event to fetch latest segments before it
         // is marked as Started.
-        if (indexShard.indexSettings().isSegRepEnabled()
+        if (indexShard != null && indexShard.indexSettings().isSegRepEnabled()
             && shardRouting.primary() == false
             && shardRouting.state() == ShardRoutingState.INITIALIZING
             && indexShard.state() == IndexShardState.POST_RECOVERY) {
@@ -829,6 +829,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                             logger.error("replication failure", e);
                             indexShard.failShard("replication failure", e);
                         }
+                        handleRecoveryFailure(shardRouting, sendShardFailure, e);
                     }
                 }
             );
