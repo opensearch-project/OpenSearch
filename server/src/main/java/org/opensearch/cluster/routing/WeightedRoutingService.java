@@ -73,7 +73,7 @@ public class WeightedRoutingService {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 // verify weights will not be updated for a decommissioned attribute
-                ensureNoWeightUpdateForDecommissionedAttribute(currentState, request);
+                ensureDecommissionedAttributeHasZeroWeight(currentState, request);
                 Metadata metadata = currentState.metadata();
                 Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
                 WeightedRoutingMetadata weightedRoutingMetadata = metadata.custom(WeightedRoutingMetadata.TYPE);
@@ -161,7 +161,7 @@ public class WeightedRoutingService {
         }
     }
 
-    public void ensureNoWeightUpdateForDecommissionedAttribute(ClusterState state, ClusterPutWeightedRoutingRequest request) {
+    public void ensureDecommissionedAttributeHasZeroWeight(ClusterState state, ClusterPutWeightedRoutingRequest request) {
         DecommissionAttributeMetadata decommissionAttributeMetadata = state.metadata().decommissionAttributeMetadata();
         if (decommissionAttributeMetadata == null || decommissionAttributeMetadata.status().equals(DecommissionStatus.FAILED)) {
             // here either there's no decommission action is ongoing or it is in failed state. In this case, we will allow weight update
