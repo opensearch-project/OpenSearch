@@ -177,7 +177,10 @@ public class Lucene {
         IndexCommit latestCommit = indexCommits.get(indexCommits.size() - 1);
         int minSupportedLuceneMajor = org.opensearch.Version.CURRENT.minimumIndexCompatibilityVersion().luceneVersion.major;
         StandardDirectoryReader reader = (StandardDirectoryReader) DirectoryReader.open(latestCommit, minSupportedLuceneMajor, null);
-        return reader.getSegmentInfos();
+        // cache the SegmentInfos object before closing the reader to prevent any open file handles
+        SegmentInfos si = reader.getSegmentInfos();
+        reader.close();
+        return si;
     }
 
     /**

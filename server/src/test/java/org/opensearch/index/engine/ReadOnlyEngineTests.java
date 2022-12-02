@@ -33,10 +33,14 @@ package org.opensearch.index.engine;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.apache.lucene.tests.util.TestUtil;
 import org.opensearch.Version;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.index.seqno.SeqNoStats;
@@ -45,6 +49,9 @@ import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.TranslogStats;
 
 import java.io.IOException;
+import java.nio.file.Path;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
@@ -225,6 +232,32 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                 expectThrows(expectedException, () -> readOnlyEngine.delete(null));
                 expectThrows(expectedException, () -> readOnlyEngine.noOp(null));
             }
+        }
+    }
+
+    @SuppressForbidden(reason = "tests creation of a ReadOnlyEngine with a feature flag enabled")
+    public void testReadOldIndices() throws IOException {
+        IOUtils.close(engine, store);
+        // The index has one document in it, so the checkpoint cannot be NO_OPS_PERFORMED
+        final AtomicLong globalCheckpoint = new AtomicLong(0);
+        final String pathToTestIndex = "/indices/bwc/testIndex-6.3.0.zip";
+        Path tmp = createTempDir();
+        TestUtil.unzip(getClass().getResourceAsStream(pathToTestIndex), tmp);
+        try (BaseDirectoryWrapper dir = newFSDirectory(tmp); Store store = createStore(dir)) {
+            // set the feature flag for extended backward compatibility
+            AccessController.doPrivileged(
+                (PrivilegedAction<String>) () -> System.setProperty(FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_BWC, "true")
+            );
+            EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
+            try (
+                ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(config, null, new TranslogStats(), true, Function.identity(), true, true)
+            ) {
+                assertVisibleCount(readOnlyEngine, 1, false);
+            }
+        } finally {
+            AccessController.doPrivileged(
+                (PrivilegedAction<String>) () -> System.clearProperty(FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_BWC)
+            );
         }
     }
 

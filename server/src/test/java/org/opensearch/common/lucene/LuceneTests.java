@@ -31,6 +31,7 @@
 
 package org.opensearch.common.lucene;
 
+import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.document.Document;
@@ -71,10 +72,13 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
+import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
@@ -87,6 +91,9 @@ import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.io.StringReader;
+import java.nio.file.Path;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -366,6 +373,28 @@ public class LuceneTests extends OpenSearchTestCase {
         assertEquals(2 + deleteTerms.size(), Lucene.getNumDocs(segmentCommitInfos));
         writer.close();
         dir.close();
+    }
+
+    @SuppressForbidden(reason = "tests readAnySegmentInfos with a feature flag enabled")
+    public void testReadAnySegmentInfos() throws IOException {
+        final String pathToTestIndex = "/indices/bwc/testIndex-6.3.0.zip";
+        Path tmp = createTempDir();
+        TestUtil.unzip(getClass().getResourceAsStream(pathToTestIndex), tmp);
+        MockDirectoryWrapper dir = newMockFSDirectory(tmp);
+        try (dir) {
+            // The standard API will throw an exception
+            expectThrows(IndexFormatTooOldException.class, () -> Lucene.readSegmentInfos(dir));
+            // set the feature flag for extended backward compatibility
+            AccessController.doPrivileged(
+                (PrivilegedAction<String>) () -> System.setProperty(FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_BWC, "true")
+            );
+            SegmentInfos si = Lucene.readAnySegmentInfos(dir);
+            assertEquals(1, Lucene.getNumDocs(si));
+        } finally {
+            AccessController.doPrivileged(
+                (PrivilegedAction<String>) () -> System.clearProperty(FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_BWC)
+            );
+        }
     }
 
     public void testCount() throws Exception {
