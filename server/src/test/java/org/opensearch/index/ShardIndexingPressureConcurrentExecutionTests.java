@@ -269,7 +269,6 @@ public class ShardIndexingPressureConcurrentExecutionTests extends OpenSearchTes
 
         nodeStats = shardIndexingPressure.stats();
         IndexingPressurePerShardStats shardStoreStats = shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId1);
-        System.out.println("rejection count is: "+rejectionCount.get());
         if(rejectionCount.get() == NUM_THREADS){
             assertEquals(10, shardStoreStats.getCurrentPrimaryAndCoordinatingLimits());
         }
