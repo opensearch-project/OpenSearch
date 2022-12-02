@@ -19,6 +19,7 @@ import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPu
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
+import org.opensearch.cluster.decommission.DecommissionAttribute;
 import org.opensearch.cluster.decommission.DecommissionAttributeMetadata;
 import org.opensearch.cluster.decommission.DecommissionStatus;
 import org.opensearch.cluster.metadata.Metadata;
@@ -162,21 +163,27 @@ public class WeightedRoutingService {
 
     public void ensureNoWeightUpdateForDecommissionedAttribute(ClusterState state, ClusterPutWeightedRoutingRequest request) {
         DecommissionAttributeMetadata decommissionAttributeMetadata = state.metadata().decommissionAttributeMetadata();
-        if (decommissionAttributeMetadata != null
-            && decommissionAttributeMetadata.status().equals(DecommissionStatus.FAILED) == false
-            && Objects.equals(
-                request.getWeightedRouting().attributeName(),
-                decommissionAttributeMetadata.decommissionAttribute().attributeName()
-            )
-            && Objects.equals(
-                request.getWeightedRouting().weights().get(decommissionAttributeMetadata.decommissionAttribute().attributeValue()),
-                0.0
-            ) == false) {
-            throw new IllegalStateException(
-                "a decommission action is ongoing with status ["
-                    + decommissionAttributeMetadata.status().status()
-                    + "], cannot update weight during this state"
+        if (decommissionAttributeMetadata == null || !decommissionAttributeMetadata.status().equals(DecommissionStatus.FAILED)) {
+            // here either there's no decommission action is ongoing or it is in failed state. In this case, we will allow weight update
+            return;
+        }
+        DecommissionAttribute decommissionAttribute = decommissionAttributeMetadata.decommissionAttribute();
+        WeightedRouting weightedRouting = request.getWeightedRouting();
+        if (weightedRouting.attributeName().equals(decommissionAttribute.attributeName()) == false) {
+            // this is unexpected when a different attribute is requested for decommission and weight update is on another attribute
+            throw new IllegalStateException("decommission action ongoing for attribute ["
+                + decommissionAttribute.attributeName()
+                + "], cannot update weight for ["
+                + weightedRouting.attributeName()
+                + "]"
             );
+        }
+        if (weightedRouting.weights().containsKey(decommissionAttribute.attributeValue()) == false) {
+            // weight of an attribute undergoing decommission must be specified
+            throw new IllegalStateException("weight for [" + decommissionAttribute.attributeValue() + "] is not specified. Please specify its weight as zero as it is under decommission action");
+        }
+        if (Objects.equals(weightedRouting.weights().get(decommissionAttribute.attributeValue()), 0.0) == false) {
+            throw new IllegalStateException("weight for [" + decommissionAttribute.attributeValue() + "] must be set to [0.0]");
         }
     }
 }
