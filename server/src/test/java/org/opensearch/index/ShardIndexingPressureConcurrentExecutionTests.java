@@ -269,10 +269,9 @@ public class ShardIndexingPressureConcurrentExecutionTests extends OpenSearchTes
 
         nodeStats = shardIndexingPressure.stats();
         IndexingPressurePerShardStats shardStoreStats = shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId1);
-        if(rejectionCount.get() == NUM_THREADS){
+        if (rejectionCount.get() == NUM_THREADS) {
             assertEquals(10, shardStoreStats.getCurrentPrimaryAndCoordinatingLimits());
-        }
-        else{
+        } else {
             assertNull(shardStoreStats);
         }
         shardStats = shardIndexingPressure.coldStats();
@@ -336,10 +335,9 @@ public class ShardIndexingPressureConcurrentExecutionTests extends OpenSearchTes
         assertEquals(0, nodeStats.getCurrentReplicaBytes());
 
         IndexingPressurePerShardStats shardStoreStats = shardIndexingPressure.shardStats().getIndexingPressureShardStats(shardId1);
-        if(rejectionCount.get() == NUM_THREADS){
+        if (rejectionCount.get() == NUM_THREADS) {
             assertEquals(15, shardStoreStats.getCurrentReplicaLimits());
-        }
-        else{
+        } else {
             assertNull(shardStoreStats);
         }
 
