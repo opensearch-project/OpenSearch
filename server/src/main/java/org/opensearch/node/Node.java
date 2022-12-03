@@ -43,7 +43,7 @@ import org.opensearch.index.IndexingPressureService;
 import org.opensearch.indices.replication.SegmentReplicationSourceFactory;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.indices.replication.SegmentReplicationSourceService;
-import org.opensearch.extensions.ExtensionsOrchestrator;
+import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.search.backpressure.SearchBackpressureService;
 import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
 import org.opensearch.tasks.TaskResourceTrackingService;
@@ -341,7 +341,7 @@ public class Node implements Closeable {
     private final Environment environment;
     private final NodeEnvironment nodeEnvironment;
     private final PluginsService pluginsService;
-    private final ExtensionsOrchestrator extensionsOrchestrator;
+    private final ExtensionsManager extensionsManager;
     private final NodeClient client;
     private final Collection<LifecycleComponent> pluginLifecycleComponents;
     private final LocalNodeFactory localNodeFactory;
@@ -428,9 +428,9 @@ public class Node implements Closeable {
             );
 
             if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
-                this.extensionsOrchestrator = new ExtensionsOrchestrator(tmpSettings, initialEnvironment.extensionDir());
+                this.extensionsManager = new ExtensionsManager(tmpSettings, initialEnvironment.extensionDir());
             } else {
-                this.extensionsOrchestrator = null;
+                this.extensionsManager = null;
             }
 
             final Settings settings = pluginsService.updatedSettings();
@@ -667,7 +667,7 @@ public class Node implements Closeable {
                 indicesService = new IndicesService(
                     settings,
                     pluginsService,
-                    extensionsOrchestrator,
+                    extensionsManager,
                     nodeEnvironment,
                     xContentRegistry,
                     analysisModule.getAnalysisRegistry(),
@@ -826,8 +826,8 @@ public class Node implements Closeable {
                 taskHeaders
             );
             if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
-                this.extensionsOrchestrator.setTransportService(transportService);
-                this.extensionsOrchestrator.setClusterService(clusterService);
+                this.extensionsManager.setTransportService(transportService);
+                this.extensionsManager.setClusterService(clusterService);
             }
             final GatewayMetaState gatewayMetaState = new GatewayMetaState();
             final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
@@ -1243,7 +1243,7 @@ public class Node implements Closeable {
             : "clusterService has a different local node than the factory provided";
         transportService.acceptIncomingRequests();
         if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
-            extensionsOrchestrator.initialize();
+            extensionsManager.initialize();
         }
         discovery.startInitialJoin();
         final TimeValue initialStateTimeout = DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.get(settings());

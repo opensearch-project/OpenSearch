@@ -19,18 +19,18 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public class IndicesModuleNameResponse extends TransportResponse {
+public class AcknowledgedResponse extends TransportResponse {
     private boolean requestAck;
 
-    public IndicesModuleNameResponse(StreamInput in) throws IOException {
+    public AcknowledgedResponse(StreamInput in) throws IOException {
         this.requestAck = in.readBoolean();
     }
 
-    public IndicesModuleNameResponse(Boolean requestAck) {
+    public AcknowledgedResponse(Boolean requestAck) {
         this.requestAck = requestAck;
     }
 
-    public void IndicesModuleNameResponse(StreamInput in) throws IOException {
+    public void AcknowledgedResponse(StreamInput in) throws IOException {
         this.requestAck = in.readBoolean();
     }
 

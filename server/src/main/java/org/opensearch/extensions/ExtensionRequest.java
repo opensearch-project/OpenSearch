@@ -24,15 +24,15 @@ import java.util.Objects;
  */
 public class ExtensionRequest extends TransportRequest {
     private static final Logger logger = LogManager.getLogger(ExtensionRequest.class);
-    private ExtensionsOrchestrator.RequestType requestType;
+    private ExtensionsManager.RequestType requestType;
 
-    public ExtensionRequest(ExtensionsOrchestrator.RequestType requestType) {
+    public ExtensionRequest(ExtensionsManager.RequestType requestType) {
         this.requestType = requestType;
     }
 
     public ExtensionRequest(StreamInput in) throws IOException {
         super(in);
-        this.requestType = in.readEnum(ExtensionsOrchestrator.RequestType.class);
+        this.requestType = in.readEnum(ExtensionsManager.RequestType.class);
     }
 
     @Override
@@ -41,7 +41,7 @@ public class ExtensionRequest extends TransportRequest {
         out.writeEnum(requestType);
     }
 
-    public ExtensionsOrchestrator.RequestType getRequestType() {
+    public ExtensionsManager.RequestType getRequestType() {
         return this.requestType;
     }
 

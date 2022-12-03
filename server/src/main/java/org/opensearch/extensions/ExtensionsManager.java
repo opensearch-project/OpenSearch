@@ -39,7 +39,7 @@ import org.opensearch.discovery.PluginResponse;
 import org.opensearch.extensions.ExtensionsSettings.Extension;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexService;
-import org.opensearch.index.IndicesModuleNameResponse;
+import org.opensearch.index.AcknowledgedResponse;
 import org.opensearch.index.IndicesModuleRequest;
 import org.opensearch.index.IndicesModuleResponse;
 import org.opensearch.index.shard.IndexEventListener;
@@ -60,7 +60,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
  *
  * @opensearch.internal
  */
-public class ExtensionsOrchestrator implements ReportingService<PluginsAndModules> {
+public class ExtensionsManager implements ReportingService<PluginsAndModules> {
     public static final String REQUEST_EXTENSION_ACTION_NAME = "internal:discovery/extensions";
     public static final String INDICES_EXTENSION_POINT_ACTION_NAME = "indices:internal/extensions";
     public static final String INDICES_EXTENSION_NAME_ACTION_NAME = "indices:internal/name";
@@ -68,7 +68,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     public static final String REQUEST_EXTENSION_LOCAL_NODE = "internal:discovery/localnode";
     public static final String REQUEST_EXTENSION_CLUSTER_SETTINGS = "internal:discovery/clustersettings";
 
-    private static final Logger logger = LogManager.getLogger(ExtensionsOrchestrator.class);
+    private static final Logger logger = LogManager.getLogger(ExtensionsManager.class);
 
     /**
      * Enum for Extension Requests
@@ -85,13 +85,13 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     };
 
     private final Path extensionsPath;
-    final List<DiscoveryExtensionNode> uninitializedExtensions;
-    List<DiscoveryExtensionNode> extensions;
-    TransportService transportService;
-    ClusterService clusterService;
+    private final List<DiscoveryExtensionNode> uninitializedExtensions;
+    private List<DiscoveryExtensionNode> extensions;
+    private TransportService transportService;
+    private ClusterService clusterService;
 
-    public ExtensionsOrchestrator(Settings settings, Path extensionsPath) throws IOException {
-        logger.info("ExtensionsOrchestrator initialized");
+    public ExtensionsManager(Settings settings, Path extensionsPath) throws IOException {
+        logger.info("ExtensionsManager initialized");
         this.extensionsPath = extensionsPath;
         this.transportService = null;
         this.uninitializedExtensions = new ArrayList<DiscoveryExtensionNode>();
@@ -204,7 +204,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             );
             logger.info("Loaded extension: " + extension);
         } catch (IllegalArgumentException e) {
-            logger.error(e.toString());
+            throw e;
         }
     }
 
@@ -252,7 +252,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
                 pluginResponseHandler
             );
         } catch (Exception e) {
-            logger.error(e.toString());
+            throw e;
         }
     }
 
@@ -272,7 +272,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             ClusterSettingsResponse clusterSettingsResponse = new ClusterSettingsResponse(clusterService);
             return clusterSettingsResponse;
         }
-        throw new Exception("Handler not present for the provided request");
+        throw new IllegalStateException("Handler not present for the provided request: " + extensionRequest.getRequestType());
     }
 
     public void onIndexModule(IndexModule indexModule) throws UnknownHostException {
@@ -286,10 +286,10 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         final CountDownLatch inProgressLatch = new CountDownLatch(1);
         final CountDownLatch inProgressIndexNameLatch = new CountDownLatch(1);
 
-        final TransportResponseHandler<IndicesModuleNameResponse> indicesModuleNameResponseHandler = new TransportResponseHandler<
-            IndicesModuleNameResponse>() {
+        final TransportResponseHandler<AcknowledgedResponse> acknowledgedResponseHandler = new TransportResponseHandler<
+            AcknowledgedResponse>() {
             @Override
-            public void handleResponse(IndicesModuleNameResponse response) {
+            public void handleResponse(AcknowledgedResponse response) {
                 logger.info("ACK Response" + response);
                 inProgressIndexNameLatch.countDown();
             }
@@ -305,8 +305,8 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             }
 
             @Override
-            public IndicesModuleNameResponse read(StreamInput in) throws IOException {
-                return new IndicesModuleNameResponse(in);
+            public AcknowledgedResponse read(StreamInput in) throws IOException {
+                return new AcknowledgedResponse(in);
             }
 
         };
@@ -338,7 +338,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
                                     extensionNode,
                                     INDICES_EXTENSION_NAME_ACTION_NAME,
                                     new IndicesModuleRequest(indexModule),
-                                    indicesModuleNameResponseHandler
+                                    acknowledgedResponseHandler
                                 );
                                 /*
                                  * Making async synchronous for now.
@@ -389,6 +389,54 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         InputStream input = Files.newInputStream(filePath);
         ExtensionsSettings extensionSettings = objectMapper.readValue(input, ExtensionsSettings.class);
         return extensionSettings;
+    }
+
+    public static String getRequestExtensionActionName() {
+        return REQUEST_EXTENSION_ACTION_NAME;
+    }
+
+    public static String getIndicesExtensionPointActionName() {
+        return INDICES_EXTENSION_POINT_ACTION_NAME;
+    }
+
+    public static String getIndicesExtensionNameActionName() {
+        return INDICES_EXTENSION_NAME_ACTION_NAME;
+    }
+
+    public static String getRequestExtensionClusterState() {
+        return REQUEST_EXTENSION_CLUSTER_STATE;
+    }
+
+    public static String getRequestExtensionLocalNode() {
+        return REQUEST_EXTENSION_LOCAL_NODE;
+    }
+
+    public static String getRequestExtensionClusterSettings() {
+        return REQUEST_EXTENSION_CLUSTER_SETTINGS;
+    }
+
+    public static Logger getLogger() {
+        return logger;
+    }
+
+    public Path getExtensionsPath() {
+        return extensionsPath;
+    }
+
+    public List<DiscoveryExtensionNode> getUninitializedExtensions() {
+        return uninitializedExtensions;
+    }
+
+    public List<DiscoveryExtensionNode> getExtensions() {
+        return extensions;
+    }
+
+    public TransportService getTransportService() {
+        return transportService;
+    }
+
+    public ClusterService getClusterService() {
+        return clusterService;
     }
 
 }

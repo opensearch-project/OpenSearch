@@ -39,7 +39,7 @@ public class ExtensionsSettings {
         private String version;
         private String description;
         private String opensearchVersion;
-        private String javaVersion;
+        private String jvmVersion;
         private String className;
         private String customFolderName;
         private String hasNativeController;
@@ -53,7 +53,7 @@ public class ExtensionsSettings {
             version = "";
             description = "";
             opensearchVersion = "";
-            javaVersion = "";
+            jvmVersion = "";
             className = "";
             customFolderName = "";
             hasNativeController = "false";
@@ -121,8 +121,8 @@ public class ExtensionsSettings {
                 + hostAddress
                 + ", hostName="
                 + hostName
-                + ", javaVersion="
-                + javaVersion
+                + ", jvmVersion="
+                + jvmVersion
                 + ", name="
                 + name
                 + ", opensearchVersion="
@@ -153,11 +153,11 @@ public class ExtensionsSettings {
         }
 
         public String getJavaVersion() {
-            return javaVersion;
+            return jvmVersion;
         }
 
-        public void setJavaVersion(String javaVersion) {
-            this.javaVersion = javaVersion;
+        public void setJavaVersion(String jvmVersion) {
+            this.jvmVersion = jvmVersion;
         }
 
         public String getClassName() {
