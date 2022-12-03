@@ -403,7 +403,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         };
         try {
             logger.info("Sending extension request type: " + REQUEST_EXTENSION_ACTION_NAME);
-            transportService.connectToNode(extension, true);
+            transportService.connectToExtensionNode(extension);
             transportService.sendRequest(
                 extension,
                 REQUEST_EXTENSION_ACTION_NAME,
