@@ -144,7 +144,7 @@ public abstract class AbstractScopedSettings {
         settingUpdaters.addAll(other.settingUpdaters);
     }
 
-    protected boolean registerSetting(Setting<?> setting) {
+    public boolean registerSetting(Setting<?> setting) {
         validateSettingKey(setting);
         if (setting.hasComplexMatcher()) {
             return setting != complexMatchers.putIfAbsent(setting.getKey(), setting);

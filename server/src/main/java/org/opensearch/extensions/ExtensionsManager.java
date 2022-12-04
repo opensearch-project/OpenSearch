@@ -120,21 +120,21 @@ public class ExtensionsManager implements ReportingService<PluginsAndModules> {
     }
 
     private final Path extensionsPath;
-    ExtensionTransportActionsHandler extensionTransportActionsHandler;
+    private ExtensionTransportActionsHandler extensionTransportActionsHandler;
     // A list of initialized extensions, a subset of the values of map below which includes all extensions
-    List<DiscoveryExtensionNode> extensions;
+    private List<DiscoveryExtensionNode> extensions;
     // A map of extension uniqueId to full extension details used for node transport here and in the RestActionsRequestHandler
-    Map<String, DiscoveryExtensionNode> extensionIdMap;
-    RestActionsRequestHandler restActionsRequestHandler;
-    CustomSettingsRequestHandler customSettingsRequestHandler;
-    TransportService transportService;
-    ClusterService clusterService;
-    ExtensionNamedWriteableRegistry namedWriteableRegistry;
-    ExtensionActionListener listener;
-    ExtensionActionListenerHandler listenerHandler;
-    Settings environmentSettings;
-    AddSettingsUpdateConsumerRequestHandler addSettingsUpdateConsumerRequestHandler;
-    NodeClient client;
+    private Map<String, DiscoveryExtensionNode> extensionIdMap;
+    private RestActionsRequestHandler restActionsRequestHandler;
+    private CustomSettingsRequestHandler customSettingsRequestHandler;
+    private TransportService transportService;
+    private ClusterService clusterService;
+    private ExtensionNamedWriteableRegistry namedWriteableRegistry;
+    private ExtensionActionListener listener;
+    private ExtensionActionListenerHandler listenerHandler;
+    private Settings environmentSettings;
+    private AddSettingsUpdateConsumerRequestHandler addSettingsUpdateConsumerRequestHandler;
+    private NodeClient client;
 
     /**
      * Instantiate a new ExtensionsManager object to handle requests and responses from extensions. This is called during Node bootstrap.
@@ -412,7 +412,11 @@ public class ExtensionsManager implements ReportingService<PluginsAndModules> {
             );
             inProgressLatch.await(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS);
         } catch (Exception e) {
-            throw e;
+            try {
+                throw e;
+            } catch (Exception e1) {
+                logger.error(e1.toString());
+            }
         }
     }
 
@@ -550,6 +554,142 @@ public class ExtensionsManager implements ReportingService<PluginsAndModules> {
         InputStream input = Files.newInputStream(filePath);
         ExtensionsSettings extensionSettings = objectMapper.readValue(input, ExtensionsSettings.class);
         return extensionSettings;
+    }
+
+    public static String getRequestExtensionActionName() {
+        return REQUEST_EXTENSION_ACTION_NAME;
+    }
+
+    public static String getIndicesExtensionPointActionName() {
+        return INDICES_EXTENSION_POINT_ACTION_NAME;
+    }
+
+    public static String getIndicesExtensionNameActionName() {
+        return INDICES_EXTENSION_NAME_ACTION_NAME;
+    }
+
+    public static String getRequestExtensionClusterState() {
+        return REQUEST_EXTENSION_CLUSTER_STATE;
+    }
+
+    public static String getRequestExtensionClusterSettings() {
+        return REQUEST_EXTENSION_CLUSTER_SETTINGS;
+    }
+
+    public static String getRequestExtensionEnvironmentSettings() {
+        return REQUEST_EXTENSION_ENVIRONMENT_SETTINGS;
+    }
+
+    public static String getRequestExtensionAddSettingsUpdateConsumer() {
+        return REQUEST_EXTENSION_ADD_SETTINGS_UPDATE_CONSUMER;
+    }
+
+    public static String getRequestExtensionUpdateSettings() {
+        return REQUEST_EXTENSION_UPDATE_SETTINGS;
+    }
+
+    public static String getRequestExtensionRegisterCustomSettings() {
+        return REQUEST_EXTENSION_REGISTER_CUSTOM_SETTINGS;
+    }
+
+    public static String getRequestExtensionRegisterRestActions() {
+        return REQUEST_EXTENSION_REGISTER_REST_ACTIONS;
+    }
+
+    public static String getRequestExtensionRegisterTransportActions() {
+        return REQUEST_EXTENSION_REGISTER_TRANSPORT_ACTIONS;
+    }
+
+    public static String getRequestOpensearchNamedWriteableRegistry() {
+        return REQUEST_OPENSEARCH_NAMED_WRITEABLE_REGISTRY;
+    }
+
+    public static String getRequestOpensearchParseNamedWriteable() {
+        return REQUEST_OPENSEARCH_PARSE_NAMED_WRITEABLE;
+    }
+
+    public static String getRequestExtensionActionListenerOnFailure() {
+        return REQUEST_EXTENSION_ACTION_LISTENER_ON_FAILURE;
+    }
+
+    public static String getRequestRestExecuteOnExtensionAction() {
+        return REQUEST_REST_EXECUTE_ON_EXTENSION_ACTION;
+    }
+
+    public static String getRequestExtensionHandleTransportAction() {
+        return REQUEST_EXTENSION_HANDLE_TRANSPORT_ACTION;
+    }
+
+    public static String getTransportActionRequestFromExtension() {
+        return TRANSPORT_ACTION_REQUEST_FROM_EXTENSION;
+    }
+
+    public static int getExtensionRequestWaitTimeout() {
+        return EXTENSION_REQUEST_WAIT_TIMEOUT;
+    }
+
+    public static Logger getLogger() {
+        return logger;
+    }
+
+    public Path getExtensionsPath() {
+        return extensionsPath;
+    }
+
+    public ExtensionTransportActionsHandler getExtensionTransportActionsHandler() {
+        return extensionTransportActionsHandler;
+    }
+
+    public List<DiscoveryExtensionNode> getExtensions() {
+        return extensions;
+    }
+
+    public Map<String, DiscoveryExtensionNode> getExtensionIdMap() {
+        return extensionIdMap;
+    }
+
+    public RestActionsRequestHandler getRestActionsRequestHandler() {
+        return restActionsRequestHandler;
+    }
+
+    public CustomSettingsRequestHandler getCustomSettingsRequestHandler() {
+        return customSettingsRequestHandler;
+    }
+
+    public TransportService getTransportService() {
+        return transportService;
+    }
+
+    public ClusterService getClusterService() {
+        return clusterService;
+    }
+
+    public ExtensionNamedWriteableRegistry getNamedWriteableRegistry() {
+        return namedWriteableRegistry;
+    }
+
+    public ExtensionActionListener getListener() {
+        return listener;
+    }
+
+    public ExtensionActionListenerHandler getListenerHandler() {
+        return listenerHandler;
+    }
+
+    public Settings getEnvironmentSettings() {
+        return environmentSettings;
+    }
+
+    public AddSettingsUpdateConsumerRequestHandler getAddSettingsUpdateConsumerRequestHandler() {
+        return addSettingsUpdateConsumerRequestHandler;
+    }
+
+    public NodeClient getClient() {
+        return client;
+    }
+
+    public void setNamedWriteableRegistry(ExtensionNamedWriteableRegistry namedWriteableRegistry) {
+        this.namedWriteableRegistry = namedWriteableRegistry;
     }
 
 }
