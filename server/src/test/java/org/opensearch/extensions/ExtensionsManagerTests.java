@@ -323,7 +323,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             mockLogAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "No Extensions File Present",
-                    "org.opensearch.extensions.ExtensionsOrchestrator",
+                    "org.opensearch.extensions.ExtensionsManager",
                     Level.INFO,
                     "Extensions.yml file is not present.  No extensions will be loaded."
                 )
@@ -355,7 +355,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             mockLogAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "Connect Transport Exception 1",
-                    "org.opensearch.extensions.ExtensionsOrchestrator",
+                    "org.opensearch.extensions.ExtensionsManager",
                     Level.ERROR,
                     "ConnectTransportException[[firstExtension][127.0.0.0:9300] connect_timeout[30s]]"
                 )
@@ -364,7 +364,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             mockLogAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "Connect Transport Exception 2",
-                    "org.opensearch.extensions.ExtensionsOrchestrator",
+                    "org.opensearch.extensions.ExtensionsManager",
                     Level.ERROR,
                     "ConnectTransportException[[secondExtension][127.0.0.1:9301] connect_exception]; nested: ConnectException[Connection refused];"
                 )
@@ -855,7 +855,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             mockLogAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "IndicesModuleRequest Failure",
-                    "org.opensearch.extensions.ExtensionsOrchestrator",
+                    "org.opensearch.extensions.ExtensionsManager",
                     Level.ERROR,
                     "IndicesModuleRequest failed"
                 )
