@@ -71,7 +71,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
  *
  * @opensearch.internal
  */
-public class ExtensionsOrchestrator implements ReportingService<PluginsAndModules> {
+public class ExtensionsManager implements ReportingService<PluginsAndModules> {
     public static final String REQUEST_EXTENSION_ACTION_NAME = "internal:discovery/extensions";
     public static final String INDICES_EXTENSION_POINT_ACTION_NAME = "indices:internal/extensions";
     public static final String INDICES_EXTENSION_NAME_ACTION_NAME = "indices:internal/name";
@@ -91,7 +91,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     public static final String TRANSPORT_ACTION_REQUEST_FROM_EXTENSION = "internal:extensions/request-transportaction-from-extension";
     public static final int EXTENSION_REQUEST_WAIT_TIMEOUT = 10;
 
-    private static final Logger logger = LogManager.getLogger(ExtensionsOrchestrator.class);
+    private static final Logger logger = LogManager.getLogger(ExtensionsManager.class);
 
     /**
      * Enum for Extension Requests
@@ -137,14 +137,14 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     NodeClient client;
 
     /**
-     * Instantiate a new ExtensionsOrchestrator object to handle requests and responses from extensions. This is called during Node bootstrap.
+     * Instantiate a new ExtensionsManager object to handle requests and responses from extensions. This is called during Node bootstrap.
      *
      * @param settings  Settings from the node the orchestrator is running on.
      * @param extensionsPath  Path to a directory containing extension configuration file.
      * @throws IOException  If the extensions discovery file is not properly retrieved.
      */
-    public ExtensionsOrchestrator(Settings settings, Path extensionsPath) throws IOException {
-        logger.info("ExtensionsOrchestrator initialized");
+    public ExtensionsManager(Settings settings, Path extensionsPath) throws IOException {
+        logger.info("ExtensionsManager initialized");
         this.extensionsPath = extensionsPath;
         this.listener = new ExtensionActionListener();
         this.extensions = new ArrayList<DiscoveryExtensionNode>();
@@ -353,7 +353,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
                 extensionIdMap.put(extension.getUniqueId(), discoveryExtension);
                 logger.info("Loaded extension with uniqueId " + extension.getUniqueId() + ": " + extension);
             } catch (IllegalArgumentException e) {
-                logger.error(e.toString());
+                throw e;
             }
         }
     }
@@ -412,7 +412,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             );
             inProgressLatch.await(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS);
         } catch (Exception e) {
-            logger.error(e.toString());
+            throw e;
         }
     }
 

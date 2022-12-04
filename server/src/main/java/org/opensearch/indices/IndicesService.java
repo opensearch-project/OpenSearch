@@ -142,7 +142,7 @@ import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.node.Node;
 import org.opensearch.plugins.IndexStorePlugin;
-import org.opensearch.extensions.ExtensionsOrchestrator;
+import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
@@ -228,7 +228,7 @@ public class IndicesService extends AbstractLifecycleComponent
      */
     private final Settings settings;
     private final PluginsService pluginsService;
-    private final ExtensionsOrchestrator extensionsOrchestrator;
+    private final ExtensionsManager extensionsManager;
     private final NodeEnvironment nodeEnv;
     private final NamedXContentRegistry xContentRegistry;
     private final TimeValue shardsClosedTimeout;
@@ -278,7 +278,7 @@ public class IndicesService extends AbstractLifecycleComponent
     public IndicesService(
         Settings settings,
         PluginsService pluginsService,
-        ExtensionsOrchestrator extensionsOrchestrator,
+        ExtensionsManager extensionsManager,
         NodeEnvironment nodeEnv,
         NamedXContentRegistry xContentRegistry,
         AnalysisRegistry analysisRegistry,
@@ -302,7 +302,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.settings = settings;
         this.threadPool = threadPool;
         this.pluginsService = pluginsService;
-        this.extensionsOrchestrator = extensionsOrchestrator;
+        this.extensionsManager = extensionsManager;
         this.nodeEnv = nodeEnv;
         this.xContentRegistry = xContentRegistry;
         this.valuesSourceRegistry = valuesSourceRegistry;
@@ -725,7 +725,7 @@ public class IndicesService extends AbstractLifecycleComponent
             indexModule.addIndexOperationListener(operationListener);
         }
         pluginsService.onIndexModule(indexModule);
-        extensionsOrchestrator.onIndexModule(indexModule);
+        extensionsManager.onIndexModule(indexModule);
         for (IndexEventListener listener : builtInListeners) {
             indexModule.addIndexEventListener(listener);
         }

@@ -16,7 +16,7 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.analyze.AnalyzeAction.Response;
 
 /**
- * ActionListener for ExtensionsOrchestrator
+ * ActionListener for ExtensionsManager
  *
  * @opensearch.internal
  */

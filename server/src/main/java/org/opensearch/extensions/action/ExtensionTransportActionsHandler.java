@@ -15,7 +15,7 @@ import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.extensions.DiscoveryExtensionNode;
 import org.opensearch.extensions.ExtensionBooleanResponse;
-import org.opensearch.extensions.ExtensionsOrchestrator;
+import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.extensions.RegisterTransportActionsRequest;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.ActionNotFoundTransportException;
@@ -132,7 +132,7 @@ public class ExtensionTransportActionsHandler {
                 }
             }
         );
-        inProgressLatch.await(ExtensionsOrchestrator.EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS);
+        inProgressLatch.await(ExtensionsManager.EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS);
         return response;
     }
 
@@ -180,14 +180,14 @@ public class ExtensionTransportActionsHandler {
         try {
             transportService.sendRequest(
                 extension,
-                ExtensionsOrchestrator.REQUEST_EXTENSION_HANDLE_TRANSPORT_ACTION,
+                ExtensionsManager.REQUEST_EXTENSION_HANDLE_TRANSPORT_ACTION,
                 new ExtensionHandleTransportRequest(request.getAction(), request.getRequestBytes()),
                 extensionActionResponseTransportResponseHandler
             );
         } catch (Exception e) {
             logger.info("Failed to send transport action to extension " + extension.getName(), e);
         }
-        inProgressLatch.await(ExtensionsOrchestrator.EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS);
+        inProgressLatch.await(ExtensionsManager.EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS);
         return extensionActionResponse;
     }
 }

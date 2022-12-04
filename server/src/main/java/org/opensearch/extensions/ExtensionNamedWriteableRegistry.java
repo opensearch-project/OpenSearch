@@ -18,7 +18,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.NamedWriteable;
-import org.opensearch.extensions.ExtensionsOrchestrator.OpenSearchRequestType;
+import org.opensearch.extensions.ExtensionsManager.OpenSearchRequestType;
 import org.opensearch.transport.TransportService;
 
 /**
@@ -82,13 +82,13 @@ public class ExtensionNamedWriteableRegistry {
         NamedWriteableRegistryResponseHandler namedWriteableRegistryResponseHandler = new NamedWriteableRegistryResponseHandler(
             extensionNode,
             transportService,
-            ExtensionsOrchestrator.REQUEST_OPENSEARCH_PARSE_NAMED_WRITEABLE
+            ExtensionsManager.REQUEST_OPENSEARCH_PARSE_NAMED_WRITEABLE
         );
         try {
-            logger.info("Sending extension request type: " + ExtensionsOrchestrator.REQUEST_OPENSEARCH_NAMED_WRITEABLE_REGISTRY);
+            logger.info("Sending extension request type: " + ExtensionsManager.REQUEST_OPENSEARCH_NAMED_WRITEABLE_REGISTRY);
             transportService.sendRequest(
                 extensionNode,
-                ExtensionsOrchestrator.REQUEST_OPENSEARCH_NAMED_WRITEABLE_REGISTRY,
+                ExtensionsManager.REQUEST_OPENSEARCH_NAMED_WRITEABLE_REGISTRY,
                 new OpenSearchRequest(OpenSearchRequestType.REQUEST_OPENSEARCH_NAMED_WRITEABLE_REGISTRY),
                 namedWriteableRegistryResponseHandler
             );

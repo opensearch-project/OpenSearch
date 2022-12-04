@@ -40,7 +40,7 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexingPressureService;
-import org.opensearch.extensions.ExtensionsOrchestrator;
+import org.opensearch.extensions.ExtensionsManager;
 //import org.opensearch.index.store.RemoteDirectoryFactory;
 import org.opensearch.indices.replication.SegmentReplicationSourceFactory;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
@@ -342,7 +342,7 @@ public class Node implements Closeable {
     private final Environment environment;
     private final NodeEnvironment nodeEnvironment;
     private final PluginsService pluginsService;
-    private final ExtensionsOrchestrator extensionsOrchestrator;
+    private final ExtensionsManager extensionsManager;
     private final NodeClient client;
     private final Collection<LifecycleComponent> pluginLifecycleComponents;
     private final LocalNodeFactory localNodeFactory;
@@ -427,7 +427,7 @@ public class Node implements Closeable {
                 initialEnvironment.pluginsDir(),
                 classpathPlugins
             );
-            this.extensionsOrchestrator = new ExtensionsOrchestrator(tmpSettings, initialEnvironment.extensionDir());
+            this.extensionsManager = new ExtensionsManager(tmpSettings, initialEnvironment.extensionDir());
             final Settings settings = pluginsService.updatedSettings();
 
             final Set<DiscoveryNodeRole> additionalRoles = pluginsService.filterPlugins(Plugin.class)
@@ -659,7 +659,7 @@ public class Node implements Closeable {
             final IndicesService indicesService = new IndicesService(
                 settings,
                 pluginsService,
-                extensionsOrchestrator,
+                extensionsManager,
                 nodeEnvironment,
                 xContentRegistry,
                 analysisModule.getAnalysisRegistry(),
@@ -797,7 +797,7 @@ public class Node implements Closeable {
              * TODO: Understand the dependencies from plugins to initialize TransportService.
              *  This seems like a chicken and egg problem.
              */
-            this.extensionsOrchestrator.initializeServicesAndRestHandler(
+            this.extensionsManager.initializeServicesAndRestHandler(
                 restController,
                 settingsModule,
                 transportService,
@@ -970,7 +970,7 @@ public class Node implements Closeable {
                 b.bind(Client.class).toInstance(client);
                 b.bind(NodeClient.class).toInstance(client);
                 b.bind(Environment.class).toInstance(this.environment);
-                b.bind(ExtensionsOrchestrator.class).toInstance(this.extensionsOrchestrator);
+                b.bind(ExtensionsManager.class).toInstance(this.extensionsManager);
                 b.bind(ThreadPool.class).toInstance(threadPool);
                 b.bind(NodeEnvironment.class).toInstance(nodeEnvironment);
                 b.bind(ResourceWatcherService.class).toInstance(resourceWatcherService);
@@ -1219,7 +1219,7 @@ public class Node implements Closeable {
         assert clusterService.localNode().equals(localNodeFactory.getNode())
             : "clusterService has a different local node than the factory provided";
         transportService.acceptIncomingRequests();
-        extensionsOrchestrator.initialize();
+        extensionsManager.initialize();
         discovery.startInitialJoin();
         final TimeValue initialStateTimeout = DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.get(settings());
         configureNodeAndClusterIdStateListener(clusterService);
