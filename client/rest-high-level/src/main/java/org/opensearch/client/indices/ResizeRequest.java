@@ -39,6 +39,7 @@ import org.opensearch.client.ValidationException;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.ToXContentObject;
 import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.unit.ByteSizeValue;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -58,6 +59,7 @@ public class ResizeRequest extends TimedRequest implements Validatable, ToXConte
     private final String targetIndex;
     private Settings settings = Settings.EMPTY;
     private Set<Alias> aliases = new HashSet<>();
+    private ByteSizeValue maxShardSize;
 
     /**
      * Creates a new resize request
@@ -153,6 +155,24 @@ public class ResizeRequest extends TimedRequest implements Validatable, ToXConte
 
     public ActiveShardCount getWaitForActiveShards() {
         return waitForActiveShards;
+    }
+
+    /**
+     * Sets the maximum size of a primary shard in the new shrunken index.
+     * This parameter can be used to calculate the lowest factor of the source index's shards number
+     * which satisfies the maximum shard size requirement.
+     *
+     * @param maxShardSize the maximum size of a primary shard in the new shrunken index
+     */
+    public void setMaxShardSize(ByteSizeValue maxShardSize) {
+        this.maxShardSize = maxShardSize;
+    }
+
+    /**
+     * Returns the maximum size of a primary shard in the new shrunken index.
+     */
+    public ByteSizeValue getMaxShardSize() {
+        return maxShardSize;
     }
 
     @Override
