@@ -18,6 +18,7 @@ import org.apache.cxf.rs.security.jose.jwt.JwtClaims;
 import org.apache.cxf.rs.security.jose.jwt.JwtToken;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.Base64;
 import java.util.Map;
 
@@ -55,6 +56,12 @@ public class JwtVendor {
             jwtClaims.setProperty("sub", claims.get("sub"));
         } else {
             jwtClaims.setProperty("sub", "example_subject");
+        }
+
+        if (claims.containsKey("iat")) {
+            jwtClaims.setProperty("iat", claims.get("iat"));
+        } else {
+            jwtClaims.setProperty("iat", Instant.now().toString());
         }
 
         String encodedJwt = jwtProducer.processJwt(jwt);

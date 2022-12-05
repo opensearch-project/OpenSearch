@@ -58,6 +58,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -313,15 +314,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
             }
 
             handler.handleRequest(request, responseChannel, client);
-
-            // The first handler is always authc + authz, if this is hit the request is authenticated
-            // TODO Move this logic to right after successful login
-            Map<String, String> jwtClaims = new HashMap<>();
-            jwtClaims.put("sub", "subject");
-            String encodedJwt = JwtVendor.createJwt(jwtClaims);
-            logger.warn("Created internal access token " + encodedJwt);
-            System.out.println("Created internal access token " + encodedJwt);
-            client.threadPool().getThreadContext().putHeader(OPENSEARCH_AUTHENTICATION_TOKEN_HEADER, encodedJwt);
         } catch (Exception e) {
             responseChannel.sendResponse(new BytesRestResponse(responseChannel, e));
         }
