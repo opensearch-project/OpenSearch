@@ -1,6 +1,8 @@
 package org.opensearch.extensions;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 
 import org.opensearch.Version;
@@ -37,7 +39,7 @@ public class ExtensionDependency implements Writeable {
     }
     
     public String toString() {
-        return "RestActionsRequest{uniqueId=" + uniqueId + ", version=" + version + "}";
+        return "ExtensionDependency:{uniqueId=" + uniqueId + ", version=" + version + "}";
     }
 
     public boolean equals(Object obj) {
