@@ -17,7 +17,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.logging.log4j.LogManager;
@@ -283,15 +283,14 @@ public class ExtensionsManager implements ReportingService<PluginsAndModules> {
 
     private void onIndexModule(IndexModule indexModule, DiscoveryNode extensionNode) throws UnknownHostException {
         logger.info("onIndexModule index:" + indexModule.getIndex());
-        final CountDownLatch inProgressLatch = new CountDownLatch(1);
-        final CountDownLatch inProgressIndexNameLatch = new CountDownLatch(1);
-
+        final CompletableFuture<IndicesModuleResponse> inProgressFuture = new CompletableFuture<>();
+        final CompletableFuture<AcknowledgedResponse> inProgressIndexNameFuture = new CompletableFuture<>();
         final TransportResponseHandler<AcknowledgedResponse> acknowledgedResponseHandler = new TransportResponseHandler<
             AcknowledgedResponse>() {
             @Override
             public void handleResponse(AcknowledgedResponse response) {
                 logger.info("ACK Response" + response);
-                inProgressIndexNameLatch.countDown();
+                inProgressIndexNameFuture.complete(response);
             }
 
             @Override
@@ -343,7 +342,7 @@ public class ExtensionsManager implements ReportingService<PluginsAndModules> {
                                 /*
                                  * Making async synchronous for now.
                                  */
-                                inProgressIndexNameLatch.await(100, TimeUnit.SECONDS);
+                                inProgressIndexNameFuture.get(100, TimeUnit.SECONDS);
                                 logger.info("Received ack response from Extension");
                             } catch (Exception e) {
                                 logger.error(e.toString());
@@ -351,13 +350,13 @@ public class ExtensionsManager implements ReportingService<PluginsAndModules> {
                         }
                     });
                 }
-                inProgressLatch.countDown();
+                inProgressFuture.complete(response);
             }
 
             @Override
             public void handleException(TransportException exp) {
-                logger.error(new ParameterizedMessage("IndicesModuleRequest failed"), exp);
-                inProgressLatch.countDown();
+                logger.info(new ParameterizedMessage("IndicesModuleRequest failed"), exp);
+                inProgressFuture.completeExceptionally(exp);
             }
 
             @Override
@@ -377,7 +376,7 @@ public class ExtensionsManager implements ReportingService<PluginsAndModules> {
             /*
              * Making async synchronous for now.
              */
-            inProgressLatch.await(100, TimeUnit.SECONDS);
+            inProgressFuture.get(100, TimeUnit.SECONDS);
             logger.info("Received response from Extension");
         } catch (Exception e) {
             logger.error(e.toString());
