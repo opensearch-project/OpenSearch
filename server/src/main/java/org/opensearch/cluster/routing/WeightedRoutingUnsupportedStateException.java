@@ -23,6 +23,7 @@ public class WeightedRoutingUnsupportedStateException extends OpenSearchExceptio
     public WeightedRoutingUnsupportedStateException(StreamInput in) throws IOException {
         super(in);
     }
+
     public WeightedRoutingUnsupportedStateException(String msg, Object... args) {
         super(msg, args);
     }
