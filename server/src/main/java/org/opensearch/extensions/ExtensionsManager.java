@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -415,7 +416,7 @@ public class ExtensionsManager implements ReportingService<PluginsAndModules> {
             try {
                 throw e;
             } catch (Exception e1) {
-                logger.error(e1.toString());
+                logger.error(e.toString());
             }
         }
     }
@@ -448,15 +449,15 @@ public class ExtensionsManager implements ReportingService<PluginsAndModules> {
 
     private void onIndexModule(IndexModule indexModule, DiscoveryNode extensionNode) throws UnknownHostException {
         logger.info("onIndexModule index:" + indexModule.getIndex());
-        final CountDownLatch inProgressLatch = new CountDownLatch(1);
-        final CountDownLatch inProgressIndexNameLatch = new CountDownLatch(1);
+        final CompletableFuture<IndicesModuleResponse> inProgressFuture = new CompletableFuture<>();
+        final CompletableFuture<ExtensionBooleanResponse> inProgressIndexNameFuture = new CompletableFuture<>();
 
         final TransportResponseHandler<ExtensionBooleanResponse> indicesModuleNameResponseHandler = new TransportResponseHandler<
             ExtensionBooleanResponse>() {
             @Override
             public void handleResponse(ExtensionBooleanResponse response) {
                 logger.info("ACK Response" + response);
-                inProgressIndexNameLatch.countDown();
+                inProgressIndexNameFuture.complete(response);
             }
 
             @Override
@@ -508,7 +509,7 @@ public class ExtensionsManager implements ReportingService<PluginsAndModules> {
                                 /*
                                  * Making async synchronous for now.
                                  */
-                                inProgressIndexNameLatch.await(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS);
+                                inProgressIndexNameFuture.get(100, TimeUnit.SECONDS);
                                 logger.info("Received ack response from Extension");
                             } catch (Exception e) {
                                 logger.error(e.toString());
@@ -516,13 +517,13 @@ public class ExtensionsManager implements ReportingService<PluginsAndModules> {
                         }
                     });
                 }
-                inProgressLatch.countDown();
+                inProgressFuture.complete(response);
             }
 
             @Override
             public void handleException(TransportException exp) {
                 logger.error(new ParameterizedMessage("IndicesModuleRequest failed"), exp);
-                inProgressLatch.countDown();
+                inProgressFuture.completeExceptionally(exp);
             }
 
             @Override
@@ -542,7 +543,7 @@ public class ExtensionsManager implements ReportingService<PluginsAndModules> {
             /*
              * Making asynchronous for now.
              */
-            inProgressLatch.await(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS);
+            inProgressFuture.get(100, TimeUnit.SECONDS);
             logger.info("Received response from Extension");
         } catch (Exception e) {
             logger.error(e.toString());

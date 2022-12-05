@@ -252,7 +252,6 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
     }
 
     public boolean registerSetting(Setting<?> setting) {
-        validateSettingKey(setting);
         return super.registerSetting(setting);
     }
 
