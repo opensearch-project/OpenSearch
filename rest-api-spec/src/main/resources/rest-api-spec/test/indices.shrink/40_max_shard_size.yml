@@ -1,0 +1,82 @@
+---
+"Shrink index with max_shard_size":
+  # shrink index with max_shard_size parameter, which is used to generate an optimum
+  # number_of_shards for the target index.
+
+  - skip:
+      version: " - 2.9.99"
+      reason: "only available in 3.0+"
+      features: allowed_warnings
+
+  - do:
+      nodes.info:
+        node_id: data:true
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - do:
+      indices.create:
+        index: source
+        wait_for_active_shards: 1
+        body:
+          settings:
+            # ensure everything is allocated on the same data node
+            index.routing.allocation.include._id: $node_id
+            index.number_of_shards: 3
+            index.number_of_replicas: 0
+  - do:
+      index:
+        index: source
+        id:    "1"
+        body:  { "foo": "hello world" }
+
+  - do:
+      get:
+        index: source
+        id:    "1"
+
+  - match: { _index:   source }
+  - match: { _id:      "1"     }
+  - match: { _source:  { foo: "hello world" } }
+
+  # make it read-only
+  - do:
+      indices.put_settings:
+        index: source
+        body:
+          index.blocks.write: true
+          index.number_of_replicas: 0
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+        index: source
+
+  # shrink with max_shard_size
+  - do:
+      allowed_warnings:
+        - "Parameter [master_timeout] is deprecated and will be removed in 3.0. To support inclusive language, please use [cluster_manager_timeout] instead."
+      indices.shrink:
+        index: "source"
+        target: "new_shrunken_index"
+        wait_for_active_shards: 1
+        master_timeout: 10s
+        body:
+          settings:
+            index.number_of_replicas: 0
+          max_shard_size: "10gb"
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+  - do:
+      get:
+        index: "new_shrunken_index"
+        id:    "1"
+
+  - do:
+      indices.get_settings:
+        index: "new_shrunken_index"
+
+  - match: { new_shrunken_index.settings.index.number_of_shards: "1" }

@@ -32,6 +32,7 @@
 
 package org.opensearch.index.reindex;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 import org.apache.lucene.util.SetOnce;
 import org.opensearch.OpenSearchSecurityException;
 import org.opensearch.OpenSearchStatusException;
@@ -82,6 +83,7 @@ import static java.util.Collections.singletonMap;
 import static org.opensearch.index.reindex.ReindexTestCase.matcher;
 import static org.hamcrest.Matchers.containsString;
 
+@ThreadLeakScope(ThreadLeakScope.Scope.NONE)
 public class ReindexFromRemoteWithAuthTests extends OpenSearchSingleNodeTestCase {
     private TransportAddress address;
 
@@ -144,6 +146,7 @@ public class ReindexFromRemoteWithAuthTests extends OpenSearchSingleNodeTestCase
         ReindexRequestBuilder request = new ReindexRequestBuilder(client(), ReindexAction.INSTANCE).source("source")
             .destination("dest")
             .setRemoteInfo(newRemoteInfo(null, null, singletonMap(TestFilter.EXAMPLE_HEADER, "doesn't matter")));
+
         OpenSearchStatusException e = expectThrows(OpenSearchStatusException.class, () -> request.get());
         assertEquals(RestStatus.BAD_REQUEST, e.status());
         assertThat(e.getMessage(), containsString("Hurray! Sent the header!"));
@@ -164,7 +167,8 @@ public class ReindexFromRemoteWithAuthTests extends OpenSearchSingleNodeTestCase
             .destination("dest")
             .setRemoteInfo(newRemoteInfo("junk", "auth", emptyMap()));
         OpenSearchStatusException e = expectThrows(OpenSearchStatusException.class, () -> request.get());
-        assertThat(e.getMessage(), containsString("\"reason\":\"Bad Authorization\""));
+        assertThat(e.getMessage(), containsString("\"error\":\"junk does not exist in internal realm.\"")); // Due to native auth
+                                                                                                            // implementation
     }
 
     /**

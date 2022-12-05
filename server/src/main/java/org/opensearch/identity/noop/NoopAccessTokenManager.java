@@ -4,8 +4,8 @@
  */
 package org.opensearch.identity.noop;
 
-import org.opensearch.authn.AccessToken;
-import org.opensearch.identity.AccessTokenManager;
+import org.opensearch.authn.tokens.AccessToken;
+import org.opensearch.authn.AccessTokenManager;
 
 /**
  * Implementation of access token manager that does not enforce authentication

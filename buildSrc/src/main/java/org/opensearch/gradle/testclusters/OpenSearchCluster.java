@@ -32,7 +32,6 @@
 package org.opensearch.gradle.testclusters;
 
 import org.opensearch.gradle.FileSupplier;
-import org.opensearch.gradle.Jdk;
 import org.opensearch.gradle.PropertyNormalization;
 import org.opensearch.gradle.ReaperService;
 import org.opensearch.gradle.http.WaitForHttpResource;
@@ -75,7 +74,6 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
     private final String path;
     private final String clusterName;
     private final NamedDomainObjectContainer<OpenSearchNode> nodes;
-    private final Jdk bwcJdk;
     private final File workingDirBase;
     private final LinkedHashMap<String, Predicate<TestClusterConfiguration>> waitConditions = new LinkedHashMap<>();
     private final Project project;
@@ -92,8 +90,7 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
         ReaperService reaper,
         File workingDirBase,
         FileSystemOperations fileSystemOperations,
-        ArchiveOperations archiveOperations,
-        Jdk bwcJdk
+        ArchiveOperations archiveOperations
     ) {
         this.path = project.getPath();
         this.clusterName = clusterName;
@@ -103,7 +100,6 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
         this.archiveOperations = archiveOperations;
         this.workingDirBase = workingDirBase;
         this.nodes = project.container(OpenSearchNode.class);
-        this.bwcJdk = bwcJdk;
 
         // Always add the first node
         String zone = hasZoneProperty() ? "zone-1" : "";
@@ -167,7 +163,6 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
             fileSystemOperations,
             archiveOperations,
             workingDirBase,
-            bwcJdk,
             zoneName
         );
         // configure the cluster name eagerly

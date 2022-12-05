@@ -36,6 +36,8 @@ public class InternalRealm extends AuthenticatingRealm {
 
     public static final String INVALID_ARGUMENTS_MESSAGE = "primaryPrincipal or hash can't be null or empty";
 
+    public static final String INCORRECT_CREDENTIALS_MESSAGE = "Incorrect credentials";
+
     private static final String DEFAULT_REALM_NAME = "internal";
 
     private static final String DEFAULT_INTERNAL_USERS_FILE = "example/example_internal_users.yml";
@@ -109,7 +111,7 @@ public class InternalRealm extends AuthenticatingRealm {
                 return sai;
             } else {
                 // Bad password
-                throw new IncorrectCredentialsException();
+                throw new IncorrectCredentialsException(INCORRECT_CREDENTIALS_MESSAGE);
             }
         }
         // Don't know what to do with this token
@@ -240,7 +242,7 @@ public class InternalRealm extends AuthenticatingRealm {
     }
 
     /**
-     * Generates an Exception message String
+     * Generates an Exception message
      * @param primaryPrincipal to be added to this message
      * @return the exception message string
      */

@@ -5,6 +5,7 @@
 
 package org.opensearch.identity;
 
+import org.opensearch.authn.AuthenticationManager;
 import org.opensearch.test.OpenSearchTestCase;
 
 import static org.mockito.Mockito.mock;

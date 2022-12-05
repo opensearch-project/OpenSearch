@@ -504,6 +504,7 @@ public class ActionModule extends AbstractModule {
             Stream.of(new RestHeaderDefinition(Task.X_OPAQUE_ID, false))
         ).collect(Collectors.toSet());
         UnaryOperator<RestHandler> restWrapper = null;
+        // Only one plugin is allowed to have a rest wrapper. i.e. Security plugin
         for (ActionPlugin plugin : actionPlugins) {
             UnaryOperator<RestHandler> newRestWrapper = plugin.getRestHandlerWrapper(threadPool.getThreadContext());
             if (newRestWrapper != null) {
@@ -514,6 +515,7 @@ public class ActionModule extends AbstractModule {
                 restWrapper = newRestWrapper;
             }
         }
+
         mappingRequestValidators = new RequestValidators<>(
             actionPlugins.stream().flatMap(p -> p.mappingRequestValidators().stream()).collect(Collectors.toList())
         );

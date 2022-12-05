@@ -105,7 +105,7 @@ public class BwcVersions {
     private final Map<Integer, List<Version>> groupByMajor;
     private final Map<Version, UnreleasedVersionInfo> unreleased;
 
-    public class UnreleasedVersionInfo {
+    public static class UnreleasedVersionInfo {
         public final Version version;
         public final String branch;
         public final String gradleProjectPath;
@@ -149,13 +149,7 @@ public class BwcVersions {
 
         groupByMajor = allVersions.stream()
             // We only care about the last 2 majors when it comes to BWC.
-            // It might take us time to remove the older ones from versionLines, so we allow them to exist.
-            // Adjust the major number since OpenSearch 1.x is released after predecessor version 7.x
-            .filter(
-                version -> (version.getMajor() == 1 ? 7 : version.getMajor()) > (currentVersion.getMajor() == 1
-                    ? 7
-                    : currentVersion.getMajor()) - 2
-            )
+            .filter(version -> version.getMajor() > currentVersion.getMajor() - 2)
             .collect(Collectors.groupingBy(Version::getMajor, Collectors.toList()));
 
         assertCurrentVersionMatchesParsed(currentVersionProperty);
@@ -174,9 +168,7 @@ public class BwcVersions {
 
     private void assertNoOlderThanTwoMajors() {
         Set<Integer> majors = groupByMajor.keySet();
-        // until OpenSearch 3.0 we will need to carry three major support
-        // (1, 7, 6) && (2, 1, 7) since OpenSearch 1.0 === Legacy 7.x
-        int numSupportedMajors = (currentVersion.getMajor() < 3) ? 3 : 2;
+        int numSupportedMajors = 2;
         if (majors.size() != numSupportedMajors && currentVersion.getMinor() != 0 && currentVersion.getRevision() != 0) {
             throw new IllegalStateException("Expected exactly 2 majors in parsed versions but found: " + majors);
         }
@@ -207,7 +199,7 @@ public class BwcVersions {
             .map(version -> new UnreleasedVersionInfo(version, getBranchFor(version), getGradleProjectPathFor(version)))
             .collect(Collectors.toList());
 
-        collect.forEach(uvi -> consumer.accept(uvi));
+        collect.forEach(consumer);
     }
 
     private String getGradleProjectPathFor(Version version) {
@@ -271,18 +263,9 @@ public class BwcVersions {
         // The current version is being worked, is always unreleased
         unreleased.add(currentVersion);
 
-        // No unreleased versions for 1.0.0
-        // todo remove this hack
-        if (currentVersion.equals(Version.fromString("1.0.0"))) {
-            return unmodifiableList(unreleased);
-        }
-
         // the tip of the previous major is unreleased for sure, be it a minor or a bugfix
         if (currentVersion.getMajor() != 1) {
-            final Version latestOfPreviousMajor = getLatestVersionByKey(
-                this.groupByMajor,
-                currentVersion.getMajor() == 1 ? 7 : currentVersion.getMajor() - 1
-            );
+            final Version latestOfPreviousMajor = getLatestVersionByKey(this.groupByMajor, currentVersion.getMajor() - 1);
             unreleased.add(latestOfPreviousMajor);
             if (latestOfPreviousMajor.getRevision() == 0) {
                 // if the previous major is a x.y.0 release, then the tip of the minor before that (y-1) is also unreleased
@@ -311,7 +294,7 @@ public class BwcVersions {
             }
         }
 
-        return unmodifiableList(unreleased.stream().sorted().distinct().collect(Collectors.toList()));
+        return unreleased.stream().sorted().distinct().collect(Collectors.toUnmodifiableList());
     }
 
     private Version getLatestInMinor(int major, int minor) {
@@ -342,7 +325,7 @@ public class BwcVersions {
 
     public void compareToAuthoritative(List<Version> authoritativeReleasedVersions) {
         Set<Version> notReallyReleased = new HashSet<>(getReleased());
-        notReallyReleased.removeAll(authoritativeReleasedVersions);
+        authoritativeReleasedVersions.forEach(notReallyReleased::remove);
         if (notReallyReleased.isEmpty() == false) {
             throw new IllegalStateException(
                 "out-of-date released versions"
@@ -370,32 +353,21 @@ public class BwcVersions {
             .stream()
             .flatMap(Collection::stream)
             .filter(each -> unreleased.contains(each) == false)
-            // this is to make sure we only consider OpenSearch versions
-            // TODO remove this filter once legacy ES versions are no longer supported
-            .filter(v -> v.onOrAfter("1.0.0"))
             .collect(Collectors.toList());
     }
 
     public List<Version> getIndexCompatible() {
         int currentMajor = currentVersion.getMajor();
         int prevMajor = getPreviousMajor(currentMajor);
-        List<Version> result = Stream.concat(groupByMajor.get(prevMajor).stream(), groupByMajor.get(currentMajor).stream())
+        return Stream.concat(groupByMajor.get(prevMajor).stream(), groupByMajor.get(currentMajor).stream())
             .filter(version -> version.equals(currentVersion) == false)
-            .collect(Collectors.toList());
-        if (currentMajor == 1) {
-            // add 6.x compatible for OpenSearch 1.0.0
-            return unmodifiableList(Stream.concat(groupByMajor.get(prevMajor - 1).stream(), result.stream()).collect(Collectors.toList()));
-        } else if (currentMajor == 2) {
-            // add 7.x compatible for OpenSearch 2.0.0
-            return unmodifiableList(Stream.concat(groupByMajor.get(7).stream(), result.stream()).collect(Collectors.toList()));
-        }
-        return unmodifiableList(result);
+            .collect(Collectors.toUnmodifiableList());
     }
 
     public List<Version> getWireCompatible() {
         List<Version> wireCompat = new ArrayList<>();
         int currentMajor = currentVersion.getMajor();
-        int lastMajor = currentMajor == 1 ? 6 : currentMajor == 2 ? 7 : currentMajor - 1;
+        int lastMajor = currentMajor - 1;
         List<Version> lastMajorList = groupByMajor.get(lastMajor);
         if (lastMajorList == null) {
             throw new IllegalStateException("Expected to find a list of versions for version: " + lastMajor);
@@ -403,20 +375,6 @@ public class BwcVersions {
         int minor = lastMajorList.get(lastMajorList.size() - 1).getMinor();
         for (int i = lastMajorList.size() - 1; i > 0 && lastMajorList.get(i).getMinor() == minor; --i) {
             wireCompat.add(lastMajorList.get(i));
-        }
-
-        // if current is OpenSearch 1.0.0 add all of the 7.x line:
-        if (currentMajor == 1) {
-            List<Version> previousMajor = groupByMajor.get(7);
-            for (Version v : previousMajor) {
-                wireCompat.add(v);
-            }
-        } else if (currentMajor == 2) {
-            // add all of the 1.x line:
-            List<Version> previousMajor = groupByMajor.get(1);
-            for (Version v : previousMajor) {
-                wireCompat.add(v);
-            }
         }
 
         wireCompat.addAll(groupByMajor.get(currentMajor));
@@ -438,7 +396,7 @@ public class BwcVersions {
     }
 
     private int getPreviousMajor(int currentMajor) {
-        return currentMajor == 1 ? 7 : currentMajor - 1;
+        return currentMajor - 1;
     }
 
 }

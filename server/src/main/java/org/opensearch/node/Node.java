@@ -130,9 +130,9 @@ import org.opensearch.gateway.GatewayService;
 import org.opensearch.gateway.MetaStateService;
 import org.opensearch.gateway.PersistedClusterStateService;
 import org.opensearch.http.HttpServerTransport;
-import org.opensearch.identity.AuthenticationManager;
+import org.opensearch.authn.AuthenticationManager;
 import org.opensearch.identity.Identity;
-import org.opensearch.identity.noop.NoopAuthenticationManager;
+import org.opensearch.authn.internal.InternalAuthenticationManager;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.index.engine.EngineFactory;
@@ -458,7 +458,8 @@ public class Node implements Closeable {
             resourcesToClose.add(nodeEnvironment);
             localNodeFactory = new LocalNodeFactory(settings, nodeEnvironment.nodeId());
 
-            final AuthenticationManager authManager = new NoopAuthenticationManager();
+            // TODO: revisit this
+            final AuthenticationManager authManager = new InternalAuthenticationManager();
             Identity.setAuthManager(authManager);
 
             final List<ExecutorBuilder<?>> executorBuilders = pluginsService.getExecutorBuilders(settings);

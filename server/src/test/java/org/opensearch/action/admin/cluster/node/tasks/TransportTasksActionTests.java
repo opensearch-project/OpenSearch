@@ -685,7 +685,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
                             filteredNodes.add(node);
                         }
                     }
-                    return filteredNodes.toArray(new String[filteredNodes.size()]);
+                    return filteredNodes.toArray(new String[0]);
                 }
 
                 @Override
