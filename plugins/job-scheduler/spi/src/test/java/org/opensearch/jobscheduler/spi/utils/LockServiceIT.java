@@ -17,6 +17,7 @@ import org.opensearch.jobscheduler.spi.LockModel;
 import org.opensearch.jobscheduler.spi.ScheduledJobParameter;
 import org.opensearch.jobscheduler.spi.schedule.Schedule;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.common.SuppressForbidden;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -283,6 +284,7 @@ public class LockServiceIT extends OpenSearchIntegTestCase {
 
     private static volatile AtomicInteger multiThreadCreateLockCounter = new AtomicInteger(0);
 
+    @SuppressForbidden(reason = "")
     @Ignore
     public void testMultiThreadCreateLock() throws Exception {
         String uniqSuffix = "_multi_thread_create";
@@ -346,6 +348,7 @@ public class LockServiceIT extends OpenSearchIntegTestCase {
 
     private static volatile AtomicInteger multiThreadAcquireLockCounter = new AtomicInteger(0);
 
+    @SuppressForbidden(reason = "")
     @Ignore
     public void testMultiThreadAcquireLock() throws Exception {
         String uniqSuffix = "_multi_thread_acquire";

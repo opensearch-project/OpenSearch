@@ -9,6 +9,7 @@ import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.common.SuppressForbidden;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -45,6 +46,7 @@ public class ScheduleParserTests extends OpenSearchTestCase {
         Assert.assertEquals(ChronoUnit.MINUTES, ((IntervalSchedule) schedule).getUnit());
     }
 
+    @SuppressForbidden(reason = "")
     @Test(expected = IllegalArgumentException.class)
     public void testUnknownScheduleType() throws IOException {
         String scheduleJsonStr = "{\"unknown_type\":{\"field\":\"value\"}}";
@@ -54,6 +56,7 @@ public class ScheduleParserTests extends OpenSearchTestCase {
         ScheduleParser.parse(parser);
     }
 
+    @SuppressForbidden(reason = "")
     @Test(expected = IllegalArgumentException.class)
     public void test_unknownFieldInCronSchedule() throws IOException {
         String cronScheduleJsonStr = "{\"cron\":{\"expression\":\"* * * * *\",\"unknown_field\":\"value\"}}";
