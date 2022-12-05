@@ -567,6 +567,8 @@ final class DocumentParser {
     private static void parseArray(ParseContext context, ObjectMapper parentMapper, String lastFieldName, String[] paths)
         throws IOException {
         String arrayFieldName = lastFieldName;
+        context.incrementFieldArrayDepth();
+        context.checkFieldArrayDepthLimit();
 
         Mapper mapper = getMapper(context, parentMapper, lastFieldName, paths);
         if (mapper != null) {
@@ -611,6 +613,7 @@ final class DocumentParser {
                 context.path().remove();
             }
         }
+        context.decrementFieldArrayDepth();
     }
 
     private static boolean parsesArrayValue(Mapper mapper) {

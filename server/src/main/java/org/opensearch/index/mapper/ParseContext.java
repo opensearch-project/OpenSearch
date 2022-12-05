@@ -328,6 +328,21 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
         public void checkFieldDepthLimit() {
             in.checkFieldDepthLimit();
         }
+
+        @Override
+        public void incrementFieldArrayDepth() {
+            in.incrementFieldArrayDepth();
+        }
+
+        @Override
+        public void decrementFieldArrayDepth() {
+            in.decrementFieldArrayDepth();
+        }
+
+        @Override
+        public void checkFieldArrayDepthLimit() {
+            in.checkFieldArrayDepthLimit();
+        }
     }
 
     /**
@@ -365,6 +380,10 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
 
         private final long maxAllowedFieldDepth;
 
+        private long currentArrayDepth;
+
+        private final long maxAllowedArrayDepth;
+
         private final List<Mapper> dynamicMappers;
 
         private boolean docsReversed = false;
@@ -392,7 +411,9 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
             this.maxAllowedNumNestedDocs = indexSettings.getMappingNestedDocsLimit();
             this.numNestedDocs = 0L;
             this.currentFieldDepth = 0L;
+            this.currentArrayDepth = 0L;
             this.maxAllowedFieldDepth = indexSettings.getMappingDepthLimit();
+            this.maxAllowedArrayDepth = indexSettings.getMappingDepthLimit();
         }
 
         @Override
@@ -572,6 +593,32 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
             }
         }
 
+        @Override
+        public void incrementFieldArrayDepth() {
+            this.currentArrayDepth++;
+        }
+
+        @Override
+        public void decrementFieldArrayDepth() {
+            if (this.currentArrayDepth > 0) {
+                this.currentArrayDepth--;
+            }
+        }
+
+        @Override
+        public void checkFieldArrayDepthLimit() {
+            if (this.currentArrayDepth > maxAllowedArrayDepth) {
+                this.currentArrayDepth = 0;
+                throw new OpenSearchParseException(
+                    "The depth of the nested array field has exceeded the allowed limit of ["
+                        + maxAllowedArrayDepth
+                        + "]."
+                        + " This limit can be set by changing the ["
+                        + MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING.getKey()
+                        + "] index level setting."
+                );
+            }
+        }
     }
 
     /**
@@ -743,5 +790,11 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
     public abstract void decrementFieldCurrentDepth();
 
     public abstract void checkFieldDepthLimit();
+
+    public abstract void incrementFieldArrayDepth();
+
+    public abstract void decrementFieldArrayDepth();
+
+    public abstract void checkFieldArrayDepthLimit();
 
 }

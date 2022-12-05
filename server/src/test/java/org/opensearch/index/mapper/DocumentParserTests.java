@@ -1560,4 +1560,41 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertNotNull(inner3_mapper);
         assertThat(doc.rootDoc().get("inner1.inner2.inner3.inner3_field1"), equalTo("inner3_value1"));
     }
+
+    public void testDocumentContainsDeepNestedFieldParsingShouldFail() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> { b.field("type", "nested"); }));
+        long depth_limit = MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING.getDefault(Settings.EMPTY);
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> {
+            b.startObject("field");
+            b.startArray("inner");
+            for (int i = 1; i <= depth_limit; i++) {
+                b.startArray();
+            }
+            b.startArray().value(0).value(0).endArray();
+            for (int i = 1; i <= depth_limit; i++) {
+                b.endArray();
+            }
+            b.endArray();
+            b.endObject();
+        })));
+        // check parsing success for nested array within allowed depth limit
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.startObject("field");
+            b.startArray("inner");
+            for (int i = 1; i < depth_limit - 1; i++) {
+                b.startArray();
+            }
+            b.startArray().value(0).value(0).endArray();
+            for (int i = 1; i < depth_limit - 1; i++) {
+                b.endArray();
+            }
+            b.endArray();
+            b.endObject();
+        }
+
+        ));
+        Mapping update = doc.dynamicMappingsUpdate();
+        assertNotNull(update); // dynamic mapping update
+
+    }
 }
