@@ -1,0 +1,32 @@
+name: BWC Test Workflow
+# This workflow is triggered on pull requests and pushes to main or an OpenSearch release branch
+on:
+  pull_request:
+    branches:
+      - "*"
+  push:
+    branches:
+      - "*"
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        java: [ 11 ]
+    # Job name
+    name: Build and test Job-scheduler
+    # This job runs on Linux
+    runs-on: ubuntu-latest
+    steps:
+      # This step uses the setup-java Github action: https://github.com/actions/setup-java
+      - name: Set Up JDK ${{ matrix.java }}
+        uses: actions/setup-java@v1
+        with:
+          java-version: ${{ matrix.java }}
+      # This step uses the checkout Github action: https://github.com/actions/checkout
+      - name: Checkout Branch
+        uses: actions/checkout@v2
+      - name: Run Job-scheduler Backwards Compatibility Tests
+        run: |
+          echo "Running backwards compatibility tests..."
+          ./gradlew bwcTestSuite

@@ -1,0 +1,18 @@
+name: Developer Certificate of Origin Check
+
+on: [pull_request]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Get PR Commits
+      id: 'get-pr-commits'
+      uses: tim-actions/get-pr-commits@v1.1.0
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+    - name: DCO Check
+      uses: tim-actions/dco@v1.1.0
+      with:
+        commits: ${{ steps.get-pr-commits.outputs.commits }}

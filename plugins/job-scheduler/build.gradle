@@ -1,0 +1,316 @@
+/*
+ * Copyright OpenSearch Contributors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
+import org.opensearch.gradle.test.RestIntegTestTask
+
+buildscript {
+    ext {
+        opensearch_version = System.getProperty("opensearch.version", "3.0.0-SNAPSHOT")
+        isSnapshot = "true" == System.getProperty("build.snapshot", "true")
+        buildVersionQualifier = System.getProperty("build.version_qualifier", "")
+    }
+
+    repositories {
+        mavenLocal()
+        mavenCentral()
+        maven { url "https://aws.oss.sonatype.org/content/repositories/snapshots" }
+    }
+
+    dependencies {
+        classpath "org.opensearch.gradle:build-tools:${opensearch_version}"
+    }
+}
+
+plugins {
+    id 'nebula.ospackage' version "8.3.0"
+    id 'java-library'
+}
+
+apply plugin: 'opensearch.opensearchplugin'
+apply plugin: 'opensearch.testclusters'
+apply plugin: 'opensearch.java-rest-test'
+apply plugin: 'opensearch.pluginzip'
+apply from: 'build-tools/opensearchplugin-coverage.gradle'
+
+ext {
+    projectSubstitutions = [:]
+    licenseFile = rootProject.file('LICENSE.txt')
+    noticeFile = rootProject.file('NOTICE')
+}
+
+licenseHeaders.enabled = true
+testingConventions.enabled = false
+forbiddenApis.ignoreFailures = false
+
+dependencyLicenses.enabled = false
+thirdPartyAudit.enabled = false
+forbiddenApisTest.ignoreFailures = true
+validateNebulaPom.enabled = false
+loggerUsageCheck.enabled = false
+
+opensearchplugin {
+    name 'opensearch-job-scheduler'
+    description 'OpenSearch Job Scheduler plugin'
+    classname 'org.opensearch.jobscheduler.JobSchedulerPlugin'
+}
+
+javaRestTest {
+    // add "-Dtests.security.manager=false" to VM options if you want to run integ tests in IntelliJ
+    systemProperty 'tests.security.manager', 'false'
+}
+
+testClusters.javaRestTest {
+    testDistribution = 'INTEG_TEST'
+}
+
+allprojects {
+    group = 'org.opensearch'
+    version = opensearch_version.tokenize('-')[0] + '.0'
+    if (buildVersionQualifier) {
+        version += "-${buildVersionQualifier}"
+    }
+    if (isSnapshot) {
+        version += "-SNAPSHOT"
+    }
+
+    apply from: "$rootDir/build-tools/repositories.gradle"
+
+    plugins.withId('java') {
+        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_11
+    }
+}
+
+allprojects {
+    // Default to the apache license
+    project.ext.licenseName = 'The Apache Software License, Version 2.0'
+    project.ext.licenseUrl = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+    plugins.withType(ShadowPlugin).whenPluginAdded {
+        publishing {
+            repositories {
+                maven {
+                    name = 'staging'
+                    url = "${rootProject.buildDir}/local-staging-repo"
+                }
+            }
+            publications {
+                // add license information to generated poms
+                all {
+                    pom.withXml { XmlProvider xml ->
+                        Node node = xml.asNode()
+                        node.appendNode('inceptionYear', '2021')
+
+                        Node license = node.appendNode('licenses').appendNode('license')
+                        license.appendNode('name', project.licenseName)
+                        license.appendNode('url', project.licenseUrl)
+
+                        Node developer = node.appendNode('developers').appendNode('developer')
+                        developer.appendNode('name', 'OpenSearch')
+                        developer.appendNode('url', 'https://github.com/opensearch-project/job-scheduler')
+                    }
+                }
+            }
+        }
+    }
+}
+
+publishing {
+    publications {
+        pluginZip(MavenPublication) { publication ->
+            pom {
+                name = "opensearch-job-scheduler"
+                description = "OpenSearch Job Scheduler plugin"
+                groupId = "org.opensearch.plugin"
+            }
+        }
+    }
+}
+
+repositories {
+    mavenLocal()
+    mavenCentral()
+    maven { url "https://aws.oss.sonatype.org/content/repositories/snapshots" }
+}
+
+dependencies {
+    implementation project(path: ":${rootProject.name}-spi", configuration: 'shadow')
+    javaRestTestImplementation project.sourceSets.main.runtimeClasspath
+}
+
+// RPM & Debian build
+apply plugin: 'nebula.ospackage'
+
+def es_tmp_dir = rootProject.file('build/private/es_tmp').absoluteFile
+es_tmp_dir.mkdirs()
+
+File repo = file("$buildDir/testclusters/repo")
+def _numNodes = findProperty('numNodes') as Integer ?: 1
+
+def opensearch_tmp_dir = rootProject.file('build/private/opensearch_tmp').absoluteFile
+opensearch_tmp_dir.mkdirs()
+
+task integTest(type: RestIntegTestTask) {
+    description = "Run tests against a cluster"
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+}
+tasks.named("check").configure { dependsOn(integTest) }
+
+integTest {
+    if (project.hasProperty('excludeTests')) {
+        project.properties['excludeTests']?.replaceAll('\\s', '')?.split('[,;]')?.each {
+            exclude "${it}"
+        }
+    }
+    systemProperty 'tests.security.manager', 'false'
+    systemProperty 'java.io.tmpdir', es_tmp_dir.absolutePath
+
+    systemProperty "https", System.getProperty("https")
+    systemProperty "user", System.getProperty("user")
+    systemProperty "password", System.getProperty("password")
+    // Tell the test JVM if the cluster JVM is running under a debugger so that tests can use longer timeouts for
+    // requests. The 'doFirst' delays reading the debug setting on the cluster till execution time.
+    doFirst {
+        // Tell the test JVM if the cluster JVM is running under a debugger so that tests can
+        // use longer timeouts for requests.
+        def isDebuggingCluster = getDebug() || System.getProperty("test.debug") != null
+        systemProperty 'cluster.debug', isDebuggingCluster
+        // Set number of nodes system property to be used in tests
+        systemProperty 'cluster.number_of_nodes', "${_numNodes}"
+        // There seems to be an issue when running multi node run or integ tasks with unicast_hosts
+        // not being written, the waitForAllConditions ensures it's written
+        getClusters().forEach { cluster ->
+            cluster.waitForAllConditions()
+        }
+    }
+
+    // The -Dcluster.debug option makes the cluster debuggable; this makes the tests debuggable
+    if (System.getProperty("test.debug") != null) {
+        jvmArgs '-agentlib:jdwp=transport=dt_socket,server=n,suspend=y,address=8000'
+    }
+}
+Zip bundle = (Zip) project.getTasks().getByName("bundlePlugin");
+integTest.dependsOn(bundle)
+integTest.getClusters().forEach{c -> {
+    c.plugin(project.getObjects().fileProperty().value(bundle.getArchiveFile()))
+}}
+
+testClusters.integTest {
+    testDistribution = 'INTEG_TEST'
+
+    // Cluster shrink exception thrown if we try to set numberOfNodes to 1, so only apply if > 1
+    if (_numNodes > 1) numberOfNodes = _numNodes
+    // When running integration tests it doesn't forward the --debug-jvm to the cluster anymore
+    // i.e. we have to use a custom property to flag when we want to debug OpenSearch JVM
+    // since we also support multi node integration tests we increase debugPort per node
+    if (System.getProperty("cluster.debug") != null) {
+        def debugPort = 5005
+        nodes.forEach { node ->
+            node.jvmArgs("-agentlib:jdwp=transport=dt_socket,server=n,suspend=y,address=*:${debugPort}")
+            debugPort += 1
+        }
+    }
+    setting 'path.repo', repo.absolutePath
+}
+
+run {
+    doFirst {
+        // There seems to be an issue when running multi node run or integ tasks with unicast_hosts
+        // not being written, the waitForAllConditions ensures it's written
+        getClusters().forEach { cluster ->
+            cluster.waitForAllConditions()
+        }
+    }
+    useCluster testClusters.integTest
+}
+
+task integTestRemote(type: RestIntegTestTask) {
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    systemProperty 'tests.security.manager', 'false'
+    systemProperty 'java.io.tmpdir', opensearch_tmp_dir.absolutePath
+
+    systemProperty "https", System.getProperty("https")
+    systemProperty "security", System.getProperty("security")
+    systemProperty "user", System.getProperty("user")
+    systemProperty "password", System.getProperty("password")
+
+    if (System.getProperty("tests.rest.cluster") != null) {
+        filter {
+            includeTestsMatching "org.opensearch.jobscheduler.*RestIT"
+        }
+    }
+}
+integTestRemote.enabled = System.getProperty("tests.rest.cluster") != null
+
+// This is afterEvaluate because the bundlePlugin ZIP task is updated afterEvaluate and changes the ZIP name to match the plugin name
+afterEvaluate {
+    ospackage {
+        packageName = "${name}"
+        release = isSnapshot ? "0.1" : '1'
+        version = "${project.version}"
+
+        into '/usr/share/opensearch/plugins'
+        from(zipTree(bundlePlugin.archivePath)) {
+            into opensearchplugin.name
+        }
+
+        user 'root'
+        permissionGroup 'root'
+        fileMode 0644
+        dirMode 0755
+
+        requires('opensearch', versions.opensearch, EQUAL)
+        packager = 'Amazon'
+        vendor = 'Amazon'
+        os = 'LINUX'
+        prefix '/usr'
+
+        license 'ASL-2.0'
+        maintainer 'OpenSearch Team <opensearch@amazon.com>'
+        url 'https://opensearch.org/downloads.html'
+        summary '''
+         JobScheduler plugin for OpenSearch. 
+         Reference documentation can be found at https://docs-beta.opensearch.org/.
+    '''.stripIndent().replace('\n', ' ').trim()
+    }
+
+    buildRpm {
+        arch = 'NOARCH'
+        dependsOn 'assemble'
+        finalizedBy 'renameRpm'
+        task renameRpm(type: Copy) {
+            from("$buildDir/distributions")
+            into("$buildDir/distributions")
+            include archiveName
+            rename archiveName, "${packageName}-${version}.rpm"
+            doLast { delete file("$buildDir/distributions/$archiveName") }
+        }
+    }
+
+    buildDeb {
+        arch = 'all'
+        dependsOn 'assemble'
+        finalizedBy 'renameDeb'
+        task renameDeb(type: Copy) {
+            from("$buildDir/distributions")
+            into("$buildDir/distributions")
+            include archiveName
+            rename archiveName, "${packageName}-${version}.deb"
+            doLast { delete file("$buildDir/distributions/$archiveName") }
+        }
+    }
+}
+// updateVersion: Task to auto increment to the next development iteration
+task updateVersion {
+    onlyIf { System.getProperty('newVersion') }
+    doLast {
+        ext.newVersion = System.getProperty('newVersion')
+        println "Setting version to ${newVersion}."
+        // String tokenization to support -SNAPSHOT
+        // Include the required files that needs to be updated with new Version
+        ant.replaceregexp(file:'build.gradle', match: '"opensearch.version", "\\d.*"', replace: '"opensearch.version", "' + newVersion.tokenize('-')[0] + '-SNAPSHOT"', flags:'g', byline:true)
+    }
+}

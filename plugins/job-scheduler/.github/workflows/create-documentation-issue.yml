@@ -1,0 +1,41 @@
+name: Create Documentation Issue
+on:
+  pull_request:
+    types:
+      - labeled
+env:
+  PR_NUMBER: ${{ github.event.number }}
+
+jobs:
+  create-issue:
+    if: ${{ github.event.label.name == 'needs-documentation' }}
+    runs-on: ubuntu-latest
+    name: Create Documentation Issue
+    steps:
+      - name: GitHub App token
+        id: github_app_token
+        uses: tibdex/github-app-token@v1.5.0
+        with:
+          app_id: ${{ secrets.APP_ID }}
+          private_key: ${{ secrets.APP_PRIVATE_KEY }}
+          installation_id: 22958780
+
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Edit the issue template
+        run: |
+          echo "https://github.com/opensearch-project/job-scheduler/pull/${{ env.PR_NUMBER }}." >> ./.github/ISSUE_TEMPLATE/documentation.md
+
+      - name: Create Issue From File
+        id: create-issue
+        uses: peter-evans/create-issue-from-file@v4
+        with:
+          title: Add documentation related to new feature
+          content-filepath: ./.github/ISSUE_TEMPLATE/documentation.md
+          labels: documentation
+          repository: opensearch-project/documentation-website
+          token: ${{ steps.github_app_token.outputs.token }}
+
+      - name: Print Issue
+        run: echo Created related documentation issue ${{ steps.create-issue.outputs.issue-number }}

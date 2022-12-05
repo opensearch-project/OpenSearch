@@ -1,0 +1,49 @@
+/*
+ * Copyright OpenSearch Contributors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/**
+ * OpenSearch Plugin build tools don't work with the Gradle Jacoco Plugin to report coverage out of the box.
+ * https://github.com/elastic/elasticsearch/issues/28867.
+ *
+ * This code sets up coverage reporting manually for OpenSearch plugin tests. This is complicated because:
+ *  1. The OpenSearch integTest Task doesn't implement Gradle's JavaForkOptions so we have to manually start the jacoco agent with the test JVM
+ *  2. The cluster nodes are stopped using 'kill -9' which means jacoco can't dump it's execution output to a file on VM shutdown
+ *  3. The Java Security Manager prevents JMX from writing execution output to the file.
+ *
+ *  To workaround these we start the cluster with jmx enabled and then use Jacoco's JMX MBean to get the execution data before the
+ *  cluster is stopped and dump it to a file. Luckily our current security policy seems to allow this. This will also probably
+ *  break if there are multiple nodes in the integTestCluster. But for now... it sorta works. 
+ */
+apply plugin: 'jacoco'
+
+// Get gradle to generate the required jvm agent arg for us using a dummy tasks of type Test. Unfortunately Elastic's
+// testing tasks don't derive from Test so the jacoco plugin can't do this automatically.
+def jacocoDir = "${buildDir}/jacoco"
+task dummyTest(type: Test) {
+    enabled = false
+    workingDir = file("/") // Force absolute path to jacoco agent jar
+    jacoco {
+        destinationFile = file("${jacocoDir}/test.exec")
+        destinationFile.parentFile.mkdirs()
+        jmx = true
+    }
+}
+
+jacocoTestReport {
+    dependsOn test
+    executionData dummyTest.jacoco.destinationFile
+    getSourceDirectories().from(sourceSets.main.allSource)
+    getClassDirectories().from(sourceSets.main.output)
+    reports {
+        html.required = true // human readable
+        xml.required = true // for coverlay
+    }
+}
+
+project.gradle.projectsEvaluated {
+    jacocoTestReport.dependsOn test
+}
+
+check.dependsOn jacocoTestReport
