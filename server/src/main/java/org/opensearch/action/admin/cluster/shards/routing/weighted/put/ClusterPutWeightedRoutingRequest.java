@@ -28,7 +28,6 @@ import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
