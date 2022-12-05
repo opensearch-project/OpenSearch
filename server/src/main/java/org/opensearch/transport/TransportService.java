@@ -102,7 +102,7 @@ public class TransportService extends AbstractLifecycleComponent
     public static final String DIRECT_RESPONSE_PROFILE = ".direct";
     public static final String HANDSHAKE_ACTION_NAME = "internal:transport/handshake";
 
-    private static final String OPENSEARCH_AUTHENTICATION_TOKEN_HEADER = "_opensearch_auth_token";
+    public static final String OPENSEARCH_AUTHENTICATION_TOKEN_HEADER = "_opensearch_auth_token";
 
     private final AtomicBoolean handleIncomingRequests = new AtomicBoolean();
     private final DelegatingTransportMessageListener messageListener = new DelegatingTransportMessageListener();

@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.authn;
+package org.opensearch.identity;
 
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -20,6 +20,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.index.query.Operator;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.store.IndicesStore;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.InternalTestCluster;
@@ -32,6 +34,8 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -42,6 +46,10 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
 @ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class BasicAuthenticationIT extends OpenSearchIntegTestCase {
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Collections.singletonList(IdentityPlugin.class);
+    }
 
     public void testBasicAuth() throws Exception {
         logger.info("--> cluster has [{}] nodes", internalCluster().size());

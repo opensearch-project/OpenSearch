@@ -7,13 +7,22 @@
  */
 
 configure(subprojects.findAll { it.parent.path == project.path }) {
-  group = 'org.opensearch.sandbox'
+  group = 'org.opensearch.sandbox.plugin' // for modules which publish client jars
   apply plugin: 'opensearch.testclusters'
   apply plugin: 'opensearch.opensearchplugin'
 
   opensearchplugin {
+    // for local OpenSearch plugins, the name of the plugin is the same as the directory
     name project.name
-    licenseFile rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
-    noticeFile rootProject.file('NOTICE.txt')
+  }
+
+  if (project.file('src/main/packaging').exists()) {
+    throw new InvalidModelException("Modules cannot contain packaging files")
+  }
+  if (project.file('src/main/bin').exists()) {
+    throw new InvalidModelException("Modules cannot contain bin files")
+  }
+  if (project.file('src/main/config').exists()) {
+    throw new InvalidModelException("Modules cannot contain config files")
   }
 }
