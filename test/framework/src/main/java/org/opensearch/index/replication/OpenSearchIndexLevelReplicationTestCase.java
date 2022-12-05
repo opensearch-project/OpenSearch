@@ -727,7 +727,8 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
                     opType,
                     primaryTerm,
                     TimeValue.timeValueMillis(20),
-                    TimeValue.timeValueSeconds(60)
+                    TimeValue.timeValueSeconds(60),
+                    null
                 ).execute();
             } catch (Exception e) {
                 listener.onFailure(e);

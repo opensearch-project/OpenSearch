@@ -74,6 +74,7 @@ import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
+import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardClosedException;
 import org.opensearch.index.shard.IndexShardState;
@@ -112,6 +113,7 @@ import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -950,7 +952,10 @@ public class TransportReplicationActionTests extends OpenSearchTestCase {
         Set<String> inSyncIds = randomBoolean()
             ? singleton(routingEntry.allocationId().getId())
             : clusterService.state().metadata().index(index).inSyncAllocationIds(0);
-        ReplicationGroup replicationGroup = new ReplicationGroup(shardRoutingTable, inSyncIds, shardRoutingTable.getAllAllocationIds(), 0);
+        Set<String> trackedAllocationIds = shardRoutingTable.getAllAllocationIds();
+        Map<String, ReplicationTracker.ReplicationMode> replicationModeMap = trackedAllocationIds.stream()
+            .collect(Collectors.toMap(v -> v, v -> ReplicationTracker.ReplicationMode.LOGICAL_REPLICATION));
+        ReplicationGroup replicationGroup = new ReplicationGroup(shardRoutingTable, inSyncIds, trackedAllocationIds, replicationModeMap, 0);
         when(shard.getReplicationGroup()).thenReturn(replicationGroup);
         PendingReplicationActions replicationActions = new PendingReplicationActions(shardId, threadPool);
         replicationActions.accept(replicationGroup);

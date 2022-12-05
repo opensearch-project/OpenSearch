@@ -53,6 +53,7 @@ import org.opensearch.index.Index;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IndexingPressureService;
+import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ReplicationGroup;
 import org.opensearch.index.shard.ShardId;
@@ -72,8 +73,11 @@ import org.junit.BeforeClass;
 import java.nio.charset.Charset;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -168,11 +172,15 @@ public class TransportResyncReplicationActionTests extends OpenSearchTestCase {
                     callback.onResponse(acquiredPermits::decrementAndGet);
                     return null;
                 }).when(indexShard).acquirePrimaryOperationPermit(any(ActionListener.class), anyString(), any(), eq(true));
+                Set<String> trackedAllocationIds = shardRoutingTable.getAllAllocationIds();
+                Map<String, ReplicationTracker.ReplicationMode> replicationModeMap = trackedAllocationIds.stream()
+                    .collect(Collectors.toMap(v -> v, v -> ReplicationTracker.ReplicationMode.LOGICAL_REPLICATION));
                 when(indexShard.getReplicationGroup()).thenReturn(
                     new ReplicationGroup(
                         shardRoutingTable,
                         clusterService.state().metadata().index(index).inSyncAllocationIds(shardId.id()),
-                        shardRoutingTable.getAllAllocationIds(),
+                        trackedAllocationIds,
+                        replicationModeMap,
                         0
                     )
                 );

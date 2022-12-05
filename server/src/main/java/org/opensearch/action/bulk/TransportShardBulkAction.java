@@ -94,6 +94,9 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
+import static org.opensearch.action.support.replication.ReplicationOperation.ReplicationOverridePolicy;
+import static org.opensearch.index.seqno.ReplicationTracker.ReplicationMode;
+
 /**
  * Performs shard-level bulk (index, delete or update) operations
  *
@@ -143,8 +146,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             EXECUTOR_NAME_FUNCTION,
             false,
             indexingPressureService,
-            systemIndices,
-            true
+            systemIndices
         );
         this.updateHelper = updateHelper;
         this.mappingUpdatedAction = mappingUpdatedAction;
@@ -192,6 +194,14 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     @Override
     protected long primaryOperationSize(BulkShardRequest request) {
         return request.ramBytesUsed();
+    }
+
+    @Override
+    protected ReplicationOverridePolicy overrideReplicationPolicy(IndexShard indexShard) {
+        if (indexShard.isRemoteTranslogEnabled()) {
+            return new ReplicationOverridePolicy(true, ReplicationMode.PRIMARY_TERM_VALIDATION);
+        }
+        return super.overrideReplicationPolicy(indexShard);
     }
 
     public static void performOnPrimary(

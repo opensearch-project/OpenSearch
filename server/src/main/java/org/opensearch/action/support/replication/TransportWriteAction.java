@@ -99,42 +99,6 @@ public abstract class TransportWriteAction<
         IndexingPressureService indexingPressureService,
         SystemIndices systemIndices
     ) {
-        this(
-            settings,
-            actionName,
-            transportService,
-            clusterService,
-            indicesService,
-            threadPool,
-            shardStateAction,
-            actionFilters,
-            request,
-            replicaRequest,
-            executorFunction,
-            forceExecutionOnPrimary,
-            indexingPressureService,
-            systemIndices,
-            false
-        );
-    }
-
-    protected TransportWriteAction(
-        Settings settings,
-        String actionName,
-        TransportService transportService,
-        ClusterService clusterService,
-        IndicesService indicesService,
-        ThreadPool threadPool,
-        ShardStateAction shardStateAction,
-        ActionFilters actionFilters,
-        Writeable.Reader<Request> request,
-        Writeable.Reader<ReplicaRequest> replicaRequest,
-        Function<IndexShard, String> executorFunction,
-        boolean forceExecutionOnPrimary,
-        IndexingPressureService indexingPressureService,
-        SystemIndices systemIndices,
-        boolean forceReplicationIfRemoteTranslogEnabled
-    ) {
         // We pass ThreadPool.Names.SAME to the super class as we control the dispatching to the
         // ThreadPool.Names.WRITE/ThreadPool.Names.SYSTEM_WRITE thread pools in this class.
         super(
@@ -150,8 +114,7 @@ public abstract class TransportWriteAction<
             replicaRequest,
             ThreadPool.Names.SAME,
             true,
-            forceExecutionOnPrimary,
-            forceReplicationIfRemoteTranslogEnabled
+            forceExecutionOnPrimary
         );
         this.executorFunction = executorFunction;
         this.indexingPressureService = indexingPressureService;

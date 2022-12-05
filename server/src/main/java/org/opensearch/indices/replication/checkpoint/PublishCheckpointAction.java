@@ -15,6 +15,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.replication.ReplicationOperation.ReplicationOverridePolicy;
 import org.opensearch.action.support.replication.ReplicationResponse;
 import org.opensearch.action.support.replication.ReplicationTask;
 import org.opensearch.action.support.replication.TransportReplicationAction;
@@ -39,6 +40,8 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Objects;
+
+import static org.opensearch.index.seqno.ReplicationTracker.ReplicationMode;
 
 /**
  * Replication action responsible for publishing checkpoint to a replica shard.
@@ -78,8 +81,7 @@ public class PublishCheckpointAction extends TransportReplicationAction<
             actionFilters,
             PublishCheckpointRequest::new,
             PublishCheckpointRequest::new,
-            ThreadPool.Names.REFRESH,
-            true
+            ThreadPool.Names.REFRESH
         );
         this.replicationService = targetService;
     }
@@ -92,6 +94,14 @@ public class PublishCheckpointAction extends TransportReplicationAction<
     @Override
     protected void doExecute(Task task, PublishCheckpointRequest request, ActionListener<ReplicationResponse> listener) {
         assert false : "use PublishCheckpointAction#publish";
+    }
+
+    @Override
+    protected ReplicationOverridePolicy overrideReplicationPolicy(IndexShard indexShard) {
+        if (indexShard.isRemoteTranslogEnabled()) {
+            return new ReplicationOverridePolicy(true, ReplicationMode.LOGICAL_REPLICATION);
+        }
+        return super.overrideReplicationPolicy(indexShard);
     }
 
     /**
