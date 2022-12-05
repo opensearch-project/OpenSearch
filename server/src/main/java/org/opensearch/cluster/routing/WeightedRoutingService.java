@@ -40,7 +40,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
 import static org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING;
@@ -195,14 +194,17 @@ public class WeightedRoutingService {
                 discoveredAwarenessValues.add(node.getAttributes().get(attributeName));
             }
         });
-        Set<String> allAwarenessValues = new HashSet<>(forcedAwarenessAttributes.get(attributeName));
+        Set<String> allAwarenessValues;
+        if (forcedAwarenessAttributes.get(attributeName) == null) {
+            allAwarenessValues = new HashSet<>();
+        } else {
+            allAwarenessValues = new HashSet<>(forcedAwarenessAttributes.get(attributeName));
+        }
         allAwarenessValues.addAll(discoveredAwarenessValues);
         allAwarenessValues.forEach(awarenessValue -> {
             if (request.getWeightedRouting().weights().containsKey(awarenessValue) == false) {
                 throw new WeightedRoutingUnsupportedStateException(
-                    "weight for ["
-                    + awarenessValue
-                    + "] is not set and it is part of forced awareness value or a node has this attribute."
+                    "weight for [" + awarenessValue + "] is not set and it is part of forced awareness value or a node has this attribute."
                 );
             }
         });
