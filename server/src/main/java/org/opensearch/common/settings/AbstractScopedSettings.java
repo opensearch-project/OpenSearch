@@ -151,6 +151,7 @@ public abstract class AbstractScopedSettings {
     }
 
     public boolean registerSetting(Setting<?> setting) {
+        validateSettingKey(setting);
         if (setting.hasComplexMatcher()) {
             return setting != complexMatchers.putIfAbsent(setting.getKey(), setting);
         } else {
