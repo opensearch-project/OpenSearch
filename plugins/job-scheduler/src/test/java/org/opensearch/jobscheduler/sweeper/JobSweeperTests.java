@@ -60,7 +60,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-@SuppressWarnings({"unchecked", "rawtypes"})
+@SuppressWarnings({ "unchecked", "rawtypes" })
 public class JobSweeperTests extends OpenSearchAllocationTestCase {
 
     private Client client;
@@ -87,7 +87,7 @@ public class JobSweeperTests extends OpenSearchAllocationTestCase {
         this.jobParser = Mockito.mock(ScheduledJobParser.class);
 
         // NamedXContentRegistry.Entry xContentRegistryEntry = new NamedXContentRegistry.Entry(ScheduledJobParameter.class,
-        //         new ParseField("JOB_TYPE"), this.jobParser);
+        // new ParseField("JOB_TYPE"), this.jobParser);
         List<NamedXContentRegistry.Entry> namedXContentRegistryEntries = new ArrayList<>();
         // namedXContentRegistryEntries.add(xContentRegistryEntry);
         this.xContentRegistry = new NamedXContentRegistry(namedXContentRegistryEntries);
@@ -109,13 +109,20 @@ public class JobSweeperTests extends OpenSearchAllocationTestCase {
         ClusterService originClusterService = ClusterServiceUtils.createClusterService(this.threadPool, discoveryNode, clusterSettings);
         this.clusterService = Mockito.spy(originClusterService);
 
-        ScheduledJobProvider jobProvider = new ScheduledJobProvider("JOB_TYPE", "job-index-name",
-                this.jobParser, this.jobRunner);
+        ScheduledJobProvider jobProvider = new ScheduledJobProvider("JOB_TYPE", "job-index-name", this.jobParser, this.jobRunner);
         Map<String, ScheduledJobProvider> jobProviderMap = new HashMap<>();
         jobProviderMap.put("index-name", jobProvider);
 
-        sweeper = new JobSweeper(settings, this.client, this.clusterService, this.threadPool, xContentRegistry,
-                jobProviderMap, scheduler, new LockService(client, clusterService));
+        sweeper = new JobSweeper(
+            settings,
+            this.client,
+            this.clusterService,
+            this.threadPool,
+            xContentRegistry,
+            jobProviderMap,
+            scheduler,
+            new LockService(client, clusterService)
+        );
     }
 
     public void testAfterStart() {
@@ -132,8 +139,7 @@ public class JobSweeperTests extends OpenSearchAllocationTestCase {
 
         this.sweeper.initBackgroundSweep();
         Mockito.verify(cancellable).cancel();
-        Mockito.verify(this.threadPool, Mockito.times(2))
-                .scheduleWithFixedDelay(Mockito.any(), Mockito.any(), Mockito.anyString());
+        Mockito.verify(this.threadPool, Mockito.times(2)).scheduleWithFixedDelay(Mockito.any(), Mockito.any(), Mockito.anyString());
     }
 
     public void testBeforeStop() {
@@ -157,41 +163,39 @@ public class JobSweeperTests extends OpenSearchAllocationTestCase {
         Engine.Index index = this.getIndexOperation();
         Engine.IndexResult indexResult = new Engine.IndexResult(1L, 1L, 1L, true);
 
-        Metadata metadata = Metadata.builder()
-                .put(createIndexMetadata("index-name", 1, 3))
-                .build();
-        RoutingTable routingTable = new RoutingTable.Builder()
-                .add(new IndexRoutingTable.Builder(metadata.index("index-name").getIndex())
-                        .initializeAsNew(metadata.index("index-name")).build())
-                .build();
+        Metadata metadata = Metadata.builder().put(createIndexMetadata("index-name", 1, 3)).build();
+        RoutingTable routingTable = new RoutingTable.Builder().add(
+            new IndexRoutingTable.Builder(metadata.index("index-name").getIndex()).initializeAsNew(metadata.index("index-name")).build()
+        ).build();
         ClusterState clusterState = ClusterState.builder(new ClusterName("cluster-name"))
-                .metadata(metadata)
-                .routingTable(routingTable)
-                .build();
+            .metadata(metadata)
+            .routingTable(routingTable)
+            .build();
 
         clusterState = this.addNodesToCluter(clusterState, 2);
         clusterState = this.initializeAllShards(clusterState);
 
         OngoingStubbing stubbing = null;
         Iterator<DiscoveryNode> iter = clusterState.getNodes().iterator();
-        while(iter.hasNext()) {
-            if(stubbing == null) {
+        while (iter.hasNext()) {
+            if (stubbing == null) {
                 stubbing = Mockito.when(this.clusterService.localNode()).thenReturn(iter.next());
-            }else {
+            } else {
                 stubbing = stubbing.thenReturn(iter.next());
             }
         }
 
         Mockito.when(this.clusterService.state()).thenReturn(clusterState);
         JobSweeper testSweeper = Mockito.spy(this.sweeper);
-        Mockito.doNothing().when(testSweeper).sweep(Mockito.any(), Mockito.anyString(), Mockito.any(BytesReference.class),
-                Mockito.any(JobDocVersion.class));
-        for (int i = 0; i<clusterState.getNodes().getSize(); i++) {
+        Mockito.doNothing()
+            .when(testSweeper)
+            .sweep(Mockito.any(), Mockito.anyString(), Mockito.any(BytesReference.class), Mockito.any(JobDocVersion.class));
+        for (int i = 0; i < clusterState.getNodes().getSize(); i++) {
             testSweeper.postIndex(shardId, index, indexResult);
         }
 
-        Mockito.verify(testSweeper).sweep(Mockito.any(), Mockito.anyString(), Mockito.any(BytesReference.class),
-                Mockito.any(JobDocVersion.class));
+        Mockito.verify(testSweeper)
+            .sweep(Mockito.any(), Mockito.anyString(), Mockito.any(BytesReference.class), Mockito.any(JobDocVersion.class));
     }
 
     public void testPostIndex_indexFailed() {
@@ -215,7 +219,7 @@ public class JobSweeperTests extends OpenSearchAllocationTestCase {
 
         ActionFuture<DeleteResponse> actionFuture = Mockito.mock(ActionFuture.class);
         Mockito.when(this.client.delete(Mockito.any())).thenReturn(actionFuture);
-        DeleteResponse response = new DeleteResponse(new ShardId(new Index("name","uuid"), 0), "id", 1L, 2L, 3L, true);
+        DeleteResponse response = new DeleteResponse(new ShardId(new Index("name", "uuid"), 0), "id", 1L, 2L, 3L, true);
         Mockito.when(actionFuture.actionGet()).thenReturn(response);
 
         this.sweeper.postDelete(shardId, delete, deleteResult);
@@ -237,8 +241,15 @@ public class JobSweeperTests extends OpenSearchAllocationTestCase {
         ShardId shardId = new ShardId(new Index("index-name", IndexMetadata.INDEX_UUID_NA_VALUE), 1);
 
         this.sweeper.sweep(shardId, "id", this.getTestJsonSource(), new JobDocVersion(1L, 1L, 2L));
-        Mockito.verify(this.scheduler, Mockito.times(0)).schedule(Mockito.anyString(), Mockito.anyString(),
-                Mockito.any(), Mockito.any(), Mockito.any(JobDocVersion.class), Mockito.any(Double.class));
+        Mockito.verify(this.scheduler, Mockito.times(0))
+            .schedule(
+                Mockito.anyString(),
+                Mockito.anyString(),
+                Mockito.any(),
+                Mockito.any(),
+                Mockito.any(JobDocVersion.class),
+                Mockito.any(Double.class)
+            );
 
         ScheduledJobParameter mockJobParameter = Mockito.mock(ScheduledJobParameter.class);
         Mockito.when(mockJobParameter.isEnabled()).thenReturn(true);
@@ -246,13 +257,20 @@ public class JobSweeperTests extends OpenSearchAllocationTestCase {
             .thenReturn(mockJobParameter);
 
         this.sweeper.sweep(shardId, "id", this.getTestJsonSource(), new JobDocVersion(1L, 1L, 2L));
-        Mockito.verify(this.scheduler).schedule(Mockito.anyString(), Mockito.anyString(), Mockito.any(), Mockito.any(),
-                Mockito.any(JobDocVersion.class), Mockito.any(Double.class));
+        Mockito.verify(this.scheduler)
+            .schedule(
+                Mockito.anyString(),
+                Mockito.anyString(),
+                Mockito.any(),
+                Mockito.any(),
+                Mockito.any(JobDocVersion.class),
+                Mockito.any(Double.class)
+            );
     }
 
     private ClusterState addNodesToCluter(ClusterState clusterState, int nodeCount) {
         DiscoveryNodes.Builder nodeBuilder = DiscoveryNodes.builder();
-        for (int i = 1; i<=nodeCount; i++) {
+        for (int i = 1; i <= nodeCount; i++) {
             nodeBuilder.add(OpenSearchAllocationTestCase.newNode("node-" + i));
         }
 
@@ -260,15 +278,21 @@ public class JobSweeperTests extends OpenSearchAllocationTestCase {
     }
 
     private ClusterState initializeAllShards(ClusterState clusterState) {
-        AllocationService allocationService = createAllocationService(Settings.builder()
+        AllocationService allocationService = createAllocationService(
+            Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", Integer.MAX_VALUE)
                 .put("cluster.routing.allocation.node_initial_parimaries_recoveries", Integer.MAX_VALUE)
-                .build());
+                .build()
+        );
         clusterState = allocationService.reroute(clusterState, "reroute");
-        clusterState = allocationService.applyStartedShards(clusterState, clusterState.getRoutingNodes()
-                .shardsWithState("index-name", ShardRoutingState.INITIALIZING)); // start primary shard
-        clusterState = allocationService.applyStartedShards(clusterState, clusterState.getRoutingNodes()
-                .shardsWithState("index-name", ShardRoutingState.INITIALIZING)); // start replica shards
+        clusterState = allocationService.applyStartedShards(
+            clusterState,
+            clusterState.getRoutingNodes().shardsWithState("index-name", ShardRoutingState.INITIALIZING)
+        ); // start primary shard
+        clusterState = allocationService.applyStartedShards(
+            clusterState,
+            clusterState.getRoutingNodes().shardsWithState("index-name", ShardRoutingState.INITIALIZING)
+        ); // start replica shards
         return clusterState;
     }
 
@@ -297,28 +321,27 @@ public class JobSweeperTests extends OpenSearchAllocationTestCase {
     }
 
     private BytesReference getTestJsonSource() {
-        return new BytesArray("{\n" +
-                "\t\"id\": \"id\",\n" +
-                "\t\"name\": \"name\",\n" +
-                "\t\"version\": 3,\n" +
-                "\t\"enabled\": true,\n" +
-                "\t\"schedule\": {\n" +
-                "\t\t\"cron\": {\n" +
-                "\t\t\t\"expression\": \"* * * * *\",\n" +
-                "\t\t\t\"timezone\": \"PST8PDT\"\n" +
-                "\t\t}\n" +
-                "\t},\n" +
-                "\t\"sample_param\": \"sample parameter\",\n" +
-                "\t\"enable_time\": 1550105987448,\n" +
-                "\t\"last_update_time\": 1550105987448\n" +
-                "}");
+        return new BytesArray(
+            "{\n"
+                + "\t\"id\": \"id\",\n"
+                + "\t\"name\": \"name\",\n"
+                + "\t\"version\": 3,\n"
+                + "\t\"enabled\": true,\n"
+                + "\t\"schedule\": {\n"
+                + "\t\t\"cron\": {\n"
+                + "\t\t\t\"expression\": \"* * * * *\",\n"
+                + "\t\t\t\"timezone\": \"PST8PDT\"\n"
+                + "\t\t}\n"
+                + "\t},\n"
+                + "\t\"sample_param\": \"sample parameter\",\n"
+                + "\t\"enable_time\": 1550105987448,\n"
+                + "\t\"last_update_time\": 1550105987448\n"
+                + "}"
+        );
     }
 
     private IndexMetadata.Builder createIndexMetadata(String indexName, int replicaNumber, int shardNumber) {
         Settings defaultSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
-        return new IndexMetadata.Builder(indexName)
-                .settings(defaultSettings)
-                .numberOfReplicas(replicaNumber)
-                .numberOfShards(shardNumber);
+        return new IndexMetadata.Builder(indexName).settings(defaultSettings).numberOfReplicas(replicaNumber).numberOfShards(shardNumber);
     }
 }

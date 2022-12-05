@@ -80,7 +80,9 @@ public class CronSchedule implements Schedule {
         return this.expression;
     }
 
-    public Long getDelay() { return this.scheduleDelay; }
+    public Long getDelay() {
+        return this.scheduleDelay;
+    }
 
     @Override
     public Instant getNextExecutionTime(Instant time) {
@@ -115,7 +117,9 @@ public class CronSchedule implements Schedule {
             realStartTime = startTime;
         } else {
             Instant now = this.clock.instant();
-            Optional<ZonedDateTime> lastExecutionTime = this.executionTime.lastExecution(ZonedDateTime.ofInstant(now.minusMillis(delay), this.timezone));
+            Optional<ZonedDateTime> lastExecutionTime = this.executionTime.lastExecution(
+                ZonedDateTime.ofInstant(now.minusMillis(delay), this.timezone)
+            );
             if (!lastExecutionTime.isPresent()) {
                 return new Tuple<>(now, now);
             }
@@ -152,22 +156,22 @@ public class CronSchedule implements Schedule {
 
     private XContentBuilder toXContentNoDelay(XContentBuilder builder) throws IOException {
         builder.startObject()
-                .startObject(CRON_FIELD)
-                .field(EXPRESSION_FIELD, this.expression)
-                .field(TIMEZONE_FIELD, this.timezone.getId())
-                .endObject()
-                .endObject();
+            .startObject(CRON_FIELD)
+            .field(EXPRESSION_FIELD, this.expression)
+            .field(TIMEZONE_FIELD, this.timezone.getId())
+            .endObject()
+            .endObject();
         return builder;
     }
 
     private XContentBuilder toXContentWithDelay(XContentBuilder builder) throws IOException {
         builder.startObject()
-                .startObject(CRON_FIELD)
-                .field(EXPRESSION_FIELD, this.expression)
-                .field(TIMEZONE_FIELD, this.timezone.getId())
-                .field(DELAY_FIELD, this.scheduleDelay)
-                .endObject()
-                .endObject();
+            .startObject(CRON_FIELD)
+            .field(EXPRESSION_FIELD, this.expression)
+            .field(TIMEZONE_FIELD, this.timezone.getId())
+            .field(DELAY_FIELD, this.scheduleDelay)
+            .endObject()
+            .endObject();
         return builder;
     }
 
@@ -181,9 +185,9 @@ public class CronSchedule implements Schedule {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         CronSchedule cronSchedule = (CronSchedule) o;
-        return timezone.equals(cronSchedule.timezone) &&
-                expression.equals(cronSchedule.expression) &&
-                Objects.equals(scheduleDelay, cronSchedule.scheduleDelay);
+        return timezone.equals(cronSchedule.timezone)
+            && expression.equals(cronSchedule.expression)
+            && Objects.equals(scheduleDelay, cronSchedule.scheduleDelay);
     }
 
     @Override

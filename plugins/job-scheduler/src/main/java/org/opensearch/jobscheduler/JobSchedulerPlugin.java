@@ -46,7 +46,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 
-
 public class JobSchedulerPlugin extends Plugin implements ExtensiblePlugin {
 
     public static final String OPEN_DISTRO_JOB_SCHEDULER_THREAD_POOL_NAME = "open_distro_job_scheduler";
@@ -65,16 +64,30 @@ public class JobSchedulerPlugin extends Plugin implements ExtensiblePlugin {
     }
 
     @Override
-    public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
-                           ResourceWatcherService resourceWatcherService, ScriptService scriptService,
-                           NamedXContentRegistry xContentRegistry, Environment environment,
-                           NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
-                           IndexNameExpressionResolver indexNameExpressionResolver,
-                           Supplier<RepositoriesService> repositoriesServiceSupplier) {
+    public Collection<Object> createComponents(
+        Client client,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ResourceWatcherService resourceWatcherService,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        Environment environment,
+        NodeEnvironment nodeEnvironment,
+        NamedWriteableRegistry namedWriteableRegistry,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<RepositoriesService> repositoriesServiceSupplier
+    ) {
         this.lockService = new LockService(client, clusterService);
         this.scheduler = new JobScheduler(threadPool, this.lockService);
-        this.sweeper = initSweeper(environment.settings(), client, clusterService, threadPool, xContentRegistry,
-                                   this.scheduler, this.lockService);
+        this.sweeper = initSweeper(
+            environment.settings(),
+            client,
+            clusterService,
+            threadPool,
+            xContentRegistry,
+            this.scheduler,
+            this.lockService
+        );
         clusterService.addListener(this.sweeper);
         clusterService.addLifecycleListener(this.sweeper);
 
@@ -104,15 +117,22 @@ public class JobSchedulerPlugin extends Plugin implements ExtensiblePlugin {
         final int processorCount = OpenSearchExecutors.allocatedProcessors(settings);
 
         List<ExecutorBuilder<?>> executorBuilders = new ArrayList<>();
-        executorBuilders.add(new FixedExecutorBuilder(settings, OPEN_DISTRO_JOB_SCHEDULER_THREAD_POOL_NAME,
-                processorCount, 200, "opendistro.jobscheduler.threadpool"));
+        executorBuilders.add(
+            new FixedExecutorBuilder(
+                settings,
+                OPEN_DISTRO_JOB_SCHEDULER_THREAD_POOL_NAME,
+                processorCount,
+                200,
+                "opendistro.jobscheduler.threadpool"
+            )
+        );
 
         return executorBuilders;
     }
 
     @Override
     public void onIndexModule(IndexModule indexModule) {
-        if(this.indicesToListen.contains(indexModule.getIndex().getName())) {
+        if (this.indicesToListen.contains(indexModule.getIndex().getName())) {
             indexModule.addIndexOperationListener(this.sweeper);
             log.info("JobSweeper started listening to operations on index {}", indexModule.getIndex().getName());
         }
@@ -126,7 +146,7 @@ public class JobSchedulerPlugin extends Plugin implements ExtensiblePlugin {
             String jobIndexName = extension.getJobIndex();
             ScheduledJobParser jobParser = extension.getJobParser();
             ScheduledJobRunner runner = extension.getJobRunner();
-            if(this.indexToJobProviders.containsKey(jobIndexName)) {
+            if (this.indexToJobProviders.containsKey(jobIndexName)) {
                 continue;
             }
 
@@ -142,17 +162,24 @@ public class JobSchedulerPlugin extends Plugin implements ExtensiblePlugin {
 
         // register schedule
         NamedXContentRegistry.Entry scheduleEntry = new NamedXContentRegistry.Entry(
-                Schedule.class,
-                new ParseField("schedule"),
-                ScheduleParser::parse);
+            Schedule.class,
+            new ParseField("schedule"),
+            ScheduleParser::parse
+        );
         registryEntries.add(scheduleEntry);
 
         return registryEntries;
     }
 
-    private JobSweeper initSweeper(Settings settings, Client client, ClusterService clusterService, ThreadPool threadPool,
-                                   NamedXContentRegistry registry, JobScheduler scheduler, LockService lockService) {
-        return new JobSweeper(settings, client, clusterService, threadPool, registry,
-                              this.indexToJobProviders, scheduler, lockService);
+    private JobSweeper initSweeper(
+        Settings settings,
+        Client client,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        NamedXContentRegistry registry,
+        JobScheduler scheduler,
+        LockService lockService
+    ) {
+        return new JobSweeper(settings, client, clusterService, threadPool, registry, this.indexToJobProviders, scheduler, lockService);
     }
 }
