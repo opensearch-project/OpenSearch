@@ -77,6 +77,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -173,7 +174,14 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
         final TestReplicaProxy replicasProxy = new TestReplicaProxy(simulatedFailures);
 
         final TestPrimary primary = new TestPrimary(primaryShard, () -> replicationGroup, threadPool);
-        final TestReplicationOperation op = new TestReplicationOperation(request, primary, listener, replicasProxy, primaryTerm, null);
+        final TestReplicationOperation op = new TestReplicationOperation(
+            request,
+            primary,
+            listener,
+            replicasProxy,
+            primaryTerm,
+            Optional.empty()
+        );
         op.execute();
         assertThat("request was not processed on primary", request.processedOnPrimary.get(), equalTo(true));
         assertThat(request.processedOnReplicas, equalTo(expectedReplicas));
@@ -247,7 +255,7 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
         Map<ShardRouting, Exception> simulatedFailures = new HashMap<>();
         TestReplicaProxy replicasProxy = new TestReplicaProxy(simulatedFailures);
         TestPrimary primary = new TestPrimary(primaryShard, () -> replicationGroup, threadPool);
-        ReplicationOverridePolicy overridePolicy = new ReplicationOverridePolicy(true, ReplicationMode.NONE);
+        Optional<ReplicationOverridePolicy> overridePolicy = Optional.of(new ReplicationOverridePolicy(ReplicationMode.NONE));
         final TestReplicationOperation op = new TestReplicationOperation(request, primary, listener, replicasProxy, 0, overridePolicy);
         op.execute();
         assertTrue("request was not processed on primary", request.processedOnPrimary.get());
@@ -319,7 +327,7 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
         Map<ShardRouting, Exception> simulatedFailures = new HashMap<>();
         TestReplicaProxy replicasProxy = new TestReplicaProxy(simulatedFailures);
         TestPrimary primary = new TestPrimary(primaryShard, () -> replicationGroup, threadPool);
-        ReplicationOverridePolicy overridePolicy = new ReplicationOverridePolicy(true, ReplicationMode.NONE);
+        Optional<ReplicationOverridePolicy> overridePolicy = Optional.of(new ReplicationOverridePolicy(ReplicationMode.NONE));
         final TestReplicationOperation op = new TestReplicationOperation(request, primary, listener, replicasProxy, 0, overridePolicy);
         op.execute();
         assertTrue("request was not processed on primary", request.processedOnPrimary.get());
@@ -385,7 +393,7 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
         Map<ShardRouting, Exception> simulatedFailures = new HashMap<>();
         TestReplicaProxy replicasProxy = new TestReplicaProxy(simulatedFailures);
         TestPrimary primary = new TestPrimary(primaryShard, () -> replicationGroup, threadPool);
-        final TestReplicationOperation op = new TestReplicationOperation(request, primary, listener, replicasProxy, 0, null);
+        final TestReplicationOperation op = new TestReplicationOperation(request, primary, listener, replicasProxy, 0, Optional.empty());
         op.execute();
         assertTrue("request was not processed on primary", request.processedOnPrimary.get());
         assertEquals(activeIds.size() - 1, request.processedOnReplicas.size());
@@ -474,7 +482,7 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
             primaryTerm,
             TimeValue.timeValueMillis(20),
             TimeValue.timeValueSeconds(60),
-            null
+            Optional.empty()
         );
         op.execute();
         assertThat("request was not processed on primary", request.processedOnPrimary.get(), equalTo(true));
@@ -619,7 +627,14 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
                 assertTrue(primaryFailed.compareAndSet(false, true));
             }
         };
-        final TestReplicationOperation op = new TestReplicationOperation(request, primary, listener, replicasProxy, primaryTerm, null);
+        final TestReplicationOperation op = new TestReplicationOperation(
+            request,
+            primary,
+            listener,
+            replicasProxy,
+            primaryTerm,
+            Optional.empty()
+        );
         op.execute();
 
         assertThat("request was not processed on primary", request.processedOnPrimary.get(), equalTo(true));
@@ -699,7 +714,7 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
             listener,
             new TestReplicaProxy(),
             primaryTerm,
-            null
+            Optional.empty()
         );
         op.execute();
 
@@ -764,7 +779,7 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
             threadPool,
             "test",
             primaryTerm,
-            null
+            Optional.empty()
         );
 
         if (passesActiveShardCheck) {
@@ -833,7 +848,14 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
 
         final PlainActionFuture<TestPrimary.Result> listener = new PlainActionFuture<>();
         final ReplicationOperation.Replicas<Request> replicas = new TestReplicaProxy(Collections.emptyMap());
-        TestReplicationOperation operation = new TestReplicationOperation(request, primary, listener, replicas, primaryTerm, null);
+        TestReplicationOperation operation = new TestReplicationOperation(
+            request,
+            primary,
+            listener,
+            replicas,
+            primaryTerm,
+            Optional.empty()
+        );
         operation.execute();
 
         assertThat(primaryFailed.get(), equalTo(fatal));
@@ -1121,7 +1143,7 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
             long primaryTerm,
             TimeValue initialRetryBackoffBound,
             TimeValue retryTimeout,
-            ReplicationOverridePolicy overridePolicy
+            Optional<ReplicationOverridePolicy> overridePolicy
         ) {
             this(
                 request,
@@ -1144,7 +1166,7 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
             ActionListener<TestPrimary.Result> listener,
             Replicas<Request> replicas,
             long primaryTerm,
-            ReplicationOverridePolicy overridePolicy
+            Optional<ReplicationOverridePolicy> overridePolicy
         ) {
             this(
                 request,
@@ -1168,7 +1190,7 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
             ThreadPool threadPool,
             String opType,
             long primaryTerm,
-            ReplicationOverridePolicy overridePolicy
+            Optional<ReplicationOverridePolicy> overridePolicy
         ) {
             this(
                 request,
@@ -1196,7 +1218,7 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
             long primaryTerm,
             TimeValue initialRetryBackoffBound,
             TimeValue retryTimeout,
-            ReplicationOverridePolicy overridePolicy
+            Optional<ReplicationOverridePolicy> overridePolicy
         ) {
             super(
                 request,

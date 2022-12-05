@@ -66,6 +66,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongSupplier;
@@ -122,7 +123,7 @@ public class ReplicationOperation<
         long primaryTerm,
         TimeValue initialRetryBackoffBound,
         TimeValue retryTimeout,
-        ReplicationOverridePolicy overridePolicy
+        Optional<ReplicationOverridePolicy> overridePolicy
     ) {
         this.replicasProxy = replicas;
         this.primary = primary;
@@ -250,11 +251,11 @@ public class ReplicationOperation<
      * @opensearch.internal
      */
     private class ReplicationProxyFactory {
-        ReplicationProxy create(final ReplicationOverridePolicy overridePolicy) {
-            if (overridePolicy == null) {
+        ReplicationProxy create(final Optional<ReplicationOverridePolicy> overridePolicy) {
+            if (overridePolicy.isEmpty()) {
                 return new FanoutReplicationProxy();
             } else {
-                return new ReplicationModeAwareOverrideProxy(overridePolicy);
+                return new ReplicationModeAwareOverrideProxy(overridePolicy.get());
             }
         }
     }
@@ -364,7 +365,7 @@ public class ReplicationOperation<
             }
 
             // If the current routing's replication mode is none, then we check for override and return overridden mode.
-            if (overridePolicy.allowOverride) {
+            if (Objects.nonNull(overridePolicy)) {
                 return overridePolicy.overriddenMode;
             }
 
@@ -380,12 +381,9 @@ public class ReplicationOperation<
      */
     public static class ReplicationOverridePolicy {
 
-        private final boolean allowOverride;
-
         private final ReplicationMode overriddenMode;
 
-        public ReplicationOverridePolicy(boolean allowOverride, ReplicationMode overriddenMode) {
-            this.allowOverride = allowOverride;
+        public ReplicationOverridePolicy(ReplicationMode overriddenMode) {
             this.overriddenMode = Objects.requireNonNull(overriddenMode);
         }
     }

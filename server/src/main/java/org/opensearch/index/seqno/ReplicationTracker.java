@@ -712,7 +712,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             this.globalCheckpoint = globalCheckpoint;
             this.inSync = inSync;
             this.tracked = tracked;
-            this.replicationMode = replicationMode;
+            this.replicationMode = Objects.requireNonNull(replicationMode);
         }
 
         public CheckpointState(StreamInput in) throws IOException {

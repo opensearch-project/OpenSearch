@@ -75,6 +75,7 @@ import org.mockito.ArgumentCaptor;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -302,7 +303,7 @@ public class TransportVerifyShardBeforeCloseActionTests extends OpenSearchTestCa
                 primaryTerm,
                 TimeValue.timeValueMillis(20),
                 TimeValue.timeValueSeconds(60),
-                null
+                Optional.empty()
             );
         operation.execute();
 

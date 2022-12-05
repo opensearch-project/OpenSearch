@@ -110,6 +110,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Future;
@@ -728,7 +729,7 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
                     primaryTerm,
                     TimeValue.timeValueMillis(20),
                     TimeValue.timeValueSeconds(60),
-                    null
+                    Optional.empty()
                 ).execute();
             } catch (Exception e) {
                 listener.onFailure(e);

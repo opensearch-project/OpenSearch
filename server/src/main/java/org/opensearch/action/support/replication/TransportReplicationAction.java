@@ -96,6 +96,7 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -265,8 +266,8 @@ public abstract class TransportReplicationAction<
      * @param indexShard index shard used to determining the policy.
      * @return the override policy.
      */
-    protected ReplicationOverridePolicy overrideReplicationPolicy(IndexShard indexShard) {
-        return null;
+    protected Optional<ReplicationOverridePolicy> getReplicationOverridePolicy(IndexShard indexShard) {
+        return Optional.empty();
     }
 
     protected abstract Response newResponseInstance(StreamInput in) throws IOException;
@@ -545,7 +546,7 @@ public abstract class TransportReplicationAction<
                         primaryRequest.getPrimaryTerm(),
                         initialRetryBackoffBound,
                         retryTimeout,
-                        overrideReplicationPolicy(primaryShardReference.indexShard)
+                        getReplicationOverridePolicy(primaryShardReference.indexShard)
                     ).execute();
                 }
             } catch (Exception e) {

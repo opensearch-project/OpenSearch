@@ -40,6 +40,7 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.Optional;
 
 import static org.opensearch.index.seqno.ReplicationTracker.ReplicationMode;
 
@@ -97,11 +98,11 @@ public class PublishCheckpointAction extends TransportReplicationAction<
     }
 
     @Override
-    protected ReplicationOverridePolicy overrideReplicationPolicy(IndexShard indexShard) {
+    protected Optional<ReplicationOverridePolicy> getReplicationOverridePolicy(IndexShard indexShard) {
         if (indexShard.isRemoteTranslogEnabled()) {
-            return new ReplicationOverridePolicy(true, ReplicationMode.LOGICAL_REPLICATION);
+            return Optional.of(new ReplicationOverridePolicy(ReplicationMode.LOGICAL_REPLICATION));
         }
-        return super.overrideReplicationPolicy(indexShard);
+        return super.getReplicationOverridePolicy(indexShard);
     }
 
     /**

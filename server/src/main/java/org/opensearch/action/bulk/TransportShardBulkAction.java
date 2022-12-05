@@ -89,6 +89,7 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -197,11 +198,11 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     @Override
-    protected ReplicationOverridePolicy overrideReplicationPolicy(IndexShard indexShard) {
+    protected Optional<ReplicationOverridePolicy> getReplicationOverridePolicy(IndexShard indexShard) {
         if (indexShard.isRemoteTranslogEnabled()) {
-            return new ReplicationOverridePolicy(true, ReplicationMode.PRIMARY_TERM_VALIDATION);
+            return Optional.of(new ReplicationOverridePolicy(ReplicationMode.PRIMARY_TERM_VALIDATION));
         }
-        return super.overrideReplicationPolicy(indexShard);
+        return super.getReplicationOverridePolicy(indexShard);
     }
 
     public static void performOnPrimary(
