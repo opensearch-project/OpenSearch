@@ -32,7 +32,7 @@ public class InstallPluginsTaskTests extends OpenSearchTestCase {
     private Environment env;
 
     private static final String OFFICIAL_PLUGIN = "analysis-icu";
-    private static final String CUSTOM_PLUGIN = "job-scheduler";
+    private static final String CUSTOM_PLUGIN = "anomaly-detection";
 
     @Before
     public void setUpTask() throws IOException {
