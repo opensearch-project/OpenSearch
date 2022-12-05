@@ -46,6 +46,7 @@ import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.ChannelActionListener;
 import org.opensearch.action.support.TransportAction;
 import org.opensearch.action.support.TransportActions;
+import org.opensearch.action.support.replication.ReplicationOperation.ReplicationOverridePolicy;
 import org.opensearch.client.transport.NoNodeAvailableException;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
@@ -70,6 +71,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
+import org.opensearch.index.seqno.ReplicationTracker.ReplicationMode;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardClosedException;
@@ -149,7 +151,6 @@ public abstract class TransportReplicationAction<
     private final boolean syncGlobalCheckpointAfterOperation;
     private volatile TimeValue initialRetryBackoffBound;
     private volatile TimeValue retryTimeout;
-    private final boolean forceReplicationIfRemoteTranslogEnabled;
 
     protected TransportReplicationAction(
         Settings settings,
@@ -193,74 +194,8 @@ public abstract class TransportReplicationAction<
         Writeable.Reader<Request> requestReader,
         Writeable.Reader<ReplicaRequest> replicaRequestReader,
         String executor,
-        boolean forceReplicationIfRemoteTranslogEnabled
-    ) {
-        this(
-            settings,
-            actionName,
-            transportService,
-            clusterService,
-            indicesService,
-            threadPool,
-            shardStateAction,
-            actionFilters,
-            requestReader,
-            replicaRequestReader,
-            executor,
-            false,
-            false,
-            forceReplicationIfRemoteTranslogEnabled
-        );
-    }
-
-    protected TransportReplicationAction(
-        Settings settings,
-        String actionName,
-        TransportService transportService,
-        ClusterService clusterService,
-        IndicesService indicesService,
-        ThreadPool threadPool,
-        ShardStateAction shardStateAction,
-        ActionFilters actionFilters,
-        Writeable.Reader<Request> requestReader,
-        Writeable.Reader<ReplicaRequest> replicaRequestReader,
-        String executor,
         boolean syncGlobalCheckpointAfterOperation,
         boolean forceExecutionOnPrimary
-    ) {
-        this(
-            settings,
-            actionName,
-            transportService,
-            clusterService,
-            indicesService,
-            threadPool,
-            shardStateAction,
-            actionFilters,
-            requestReader,
-            replicaRequestReader,
-            executor,
-            syncGlobalCheckpointAfterOperation,
-            forceExecutionOnPrimary,
-            false
-        );
-    }
-
-    protected TransportReplicationAction(
-        Settings settings,
-        String actionName,
-        TransportService transportService,
-        ClusterService clusterService,
-        IndicesService indicesService,
-        ThreadPool threadPool,
-        ShardStateAction shardStateAction,
-        ActionFilters actionFilters,
-        Writeable.Reader<Request> requestReader,
-        Writeable.Reader<ReplicaRequest> replicaRequestReader,
-        String executor,
-        boolean syncGlobalCheckpointAfterOperation,
-        boolean forceExecutionOnPrimary,
-        boolean forceReplicationIfRemoteTranslogEnabled
     ) {
         super(actionName, actionFilters, transportService.getTaskManager());
         this.threadPool = threadPool;
@@ -276,7 +211,6 @@ public abstract class TransportReplicationAction<
         this.initialRetryBackoffBound = REPLICATION_INITIAL_RETRY_BACKOFF_BOUND.get(settings);
         this.retryTimeout = REPLICATION_RETRY_TIMEOUT.get(settings);
         this.forceExecutionOnPrimary = forceExecutionOnPrimary;
-        this.forceReplicationIfRemoteTranslogEnabled = forceReplicationIfRemoteTranslogEnabled;
 
         transportService.registerRequestHandler(actionName, ThreadPool.Names.SAME, requestReader, this::handleOperationRequest);
 
@@ -324,6 +258,15 @@ public abstract class TransportReplicationAction<
 
     protected ReplicationOperation.Replicas<ReplicaRequest> newReplicasProxy() {
         return new ReplicasProxy();
+    }
+
+    /**
+     * This method is used for defining the {@link ReplicationMode} override policy per {@link TransportReplicationAction}.
+     * @param indexShard index shard used to determining the policy.
+     * @return the override policy.
+     */
+    protected ReplicationOverridePolicy overrideReplicationPolicy(IndexShard indexShard) {
+        return null;
     }
 
     protected abstract Response newResponseInstance(StreamInput in) throws IOException;
@@ -602,7 +545,7 @@ public abstract class TransportReplicationAction<
                         primaryRequest.getPrimaryTerm(),
                         initialRetryBackoffBound,
                         retryTimeout,
-                        forceReplicationIfRemoteTranslogEnabled
+                        overrideReplicationPolicy(primaryShardReference.indexShard)
                     ).execute();
                 }
             } catch (Exception e) {

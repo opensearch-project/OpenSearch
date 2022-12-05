@@ -54,6 +54,7 @@ import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.index.seqno.ReplicationTracker.ReplicationMode;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ReplicationGroup;
 import org.opensearch.index.shard.ShardId;
@@ -73,9 +74,11 @@ import org.mockito.ArgumentCaptor;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static org.mockito.Mockito.doNothing;
 import static org.opensearch.action.support.replication.ClusterStateCreationUtils.state;
@@ -265,7 +268,15 @@ public class TransportVerifyShardBeforeCloseActionTests extends OpenSearchTestCa
         unavailableShards.forEach(shardRoutingTableBuilder::removeShard);
         shardRoutingTable = shardRoutingTableBuilder.build();
 
-        final ReplicationGroup replicationGroup = new ReplicationGroup(shardRoutingTable, inSyncAllocationIds, trackedShards, 0);
+        Map<String, ReplicationMode> replicationModeMap = trackedShards.stream()
+            .collect(Collectors.toMap(v -> v, v -> ReplicationMode.LOGICAL_REPLICATION));
+        final ReplicationGroup replicationGroup = new ReplicationGroup(
+            shardRoutingTable,
+            inSyncAllocationIds,
+            trackedShards,
+            replicationModeMap,
+            0
+        );
         assertThat(replicationGroup.getUnavailableInSyncShards().size(), greaterThan(0));
 
         final PlainActionFuture<PrimaryResult> listener = new PlainActionFuture<>();
@@ -290,7 +301,8 @@ public class TransportVerifyShardBeforeCloseActionTests extends OpenSearchTestCa
                 "test",
                 primaryTerm,
                 TimeValue.timeValueMillis(20),
-                TimeValue.timeValueSeconds(60)
+                TimeValue.timeValueSeconds(60),
+                null
             );
         operation.execute();
 

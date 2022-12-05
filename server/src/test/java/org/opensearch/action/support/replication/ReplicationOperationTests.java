@@ -56,10 +56,11 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.common.util.set.Sets;
+import org.opensearch.index.seqno.ReplicationTracker.ReplicationMode;
 import org.opensearch.index.shard.IndexShardNotStartedException;
 import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.shard.ReplicationGroup;
-import org.opensearch.index.shard.ReplicationGroup.ReplicationAwareShardRouting;
+import org.opensearch.index.shard.ReplicationGroup.ReplicationModeAwareShardRouting;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.test.OpenSearchTestCase;
@@ -136,7 +137,15 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
         addTrackingInfo(indexShardRoutingTable, primaryShard, trackedShards, untrackedShards);
         trackedShards.addAll(staleAllocationIds);
 
-        final ReplicationGroup replicationGroup = new ReplicationGroup(indexShardRoutingTable, inSyncAllocationIds, trackedShards, 0);
+        Map<String, ReplicationMode> replicationModeMap = trackedShards.stream()
+            .collect(Collectors.toMap(v -> v, v -> ReplicationMode.LOGICAL_REPLICATION));
+        final ReplicationGroup replicationGroup = new ReplicationGroup(
+            indexShardRoutingTable,
+            inSyncAllocationIds,
+            trackedShards,
+            replicationModeMap,
+            0
+        );
 
         final Set<ShardRouting> expectedReplicas = getExpectedReplicas(shardId, initialState, trackedShards);
 
@@ -162,7 +171,7 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
         final TestReplicaProxy replicasProxy = new TestReplicaProxy(simulatedFailures);
 
         final TestPrimary primary = new TestPrimary(primaryShard, () -> replicationGroup, threadPool);
-        final TestReplicationOperation op = new TestReplicationOperation(request, primary, listener, replicasProxy, primaryTerm, false);
+        final TestReplicationOperation op = new TestReplicationOperation(request, primary, listener, replicasProxy, primaryTerm);
         op.execute();
         assertThat("request was not processed on primary", request.processedOnPrimary.get(), equalTo(true));
         assertThat(request.processedOnReplicas, equalTo(expectedReplicas));
@@ -214,25 +223,25 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
         IndexShardRoutingTable routingTable = builder.build();
 
         Set<String> inSyncAllocationIds = activeIds.stream().map(AllocationId::getId).collect(Collectors.toSet());
-        Set<String> localTranslogAllocationIds = Collections.singleton(primaryId.getId());
+        Map<String, ReplicationMode> replicationModeMap = new HashMap<>();
+        replicationModeMap.put(primaryId.getId(), ReplicationMode.LOGICAL_REPLICATION);
         ReplicationGroup replicationGroup = new ReplicationGroup(
             routingTable,
             inSyncAllocationIds,
             inSyncAllocationIds,
-            localTranslogAllocationIds,
-            0,
-            true
+            replicationModeMap,
+            0
         );
-        List<ReplicationAwareShardRouting> replicationTargets = replicationGroup.getReplicationTargets();
+        List<ReplicationModeAwareShardRouting> replicationTargets = replicationGroup.getReplicationTargets();
         assertEquals(inSyncAllocationIds.size(), replicationTargets.size());
-        assertEquals(1, replicationTargets.stream().filter(ReplicationAwareShardRouting::isReplicated).count());
+        assertEquals(1, replicationTargets.stream().filter(s -> s.getReplicationMode() == ReplicationMode.LOGICAL_REPLICATION).count());
 
         Request request = new Request(shardId);
         PlainActionFuture<TestPrimary.Result> listener = new PlainActionFuture<>();
         Map<ShardRouting, Exception> simulatedFailures = new HashMap<>();
         TestReplicaProxy replicasProxy = new TestReplicaProxy(simulatedFailures);
         TestPrimary primary = new TestPrimary(primaryShard, () -> replicationGroup, threadPool);
-        final TestReplicationOperation op = new TestReplicationOperation(request, primary, listener, replicasProxy, 0, false);
+        final TestReplicationOperation op = new TestReplicationOperation(request, primary, listener, replicasProxy, 0);
         op.execute();
         assertTrue("request was not processed on primary", request.processedOnPrimary.get());
         assertEquals(0, request.processedOnReplicas.size());
@@ -281,24 +290,25 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
         Set<String> localTranslogAllocationIds = new HashSet<>();
         localTranslogAllocationIds.add(primaryId.getId());
         localTranslogAllocationIds.add(relocationTargetId.getId());
+        Map<String, ReplicationMode> replicationModeMap = localTranslogAllocationIds.stream()
+            .collect(Collectors.toMap(v -> v, v -> ReplicationMode.LOGICAL_REPLICATION));
         ReplicationGroup replicationGroup = new ReplicationGroup(
             routingTable,
             inSyncAllocationIds,
             inSyncAllocationIds,
-            localTranslogAllocationIds,
-            0,
-            true
+            replicationModeMap,
+            0
         );
-        List<ReplicationAwareShardRouting> replicationTargets = replicationGroup.getReplicationTargets();
+        List<ReplicationModeAwareShardRouting> replicationTargets = replicationGroup.getReplicationTargets();
         assertEquals(inSyncAllocationIds.size(), replicationTargets.size());
-        assertEquals(2, replicationTargets.stream().filter(ReplicationAwareShardRouting::isReplicated).count());
+        assertEquals(2, replicationTargets.stream().filter(s -> s.getReplicationMode() == ReplicationMode.LOGICAL_REPLICATION).count());
 
         Request request = new Request(shardId);
         PlainActionFuture<TestPrimary.Result> listener = new PlainActionFuture<>();
         Map<ShardRouting, Exception> simulatedFailures = new HashMap<>();
         TestReplicaProxy replicasProxy = new TestReplicaProxy(simulatedFailures);
         TestPrimary primary = new TestPrimary(primaryShard, () -> replicationGroup, threadPool);
-        final TestReplicationOperation op = new TestReplicationOperation(request, primary, listener, replicasProxy, 0, false);
+        final TestReplicationOperation op = new TestReplicationOperation(request, primary, listener, replicasProxy, 0);
         op.execute();
         assertTrue("request was not processed on primary", request.processedOnPrimary.get());
         assertEquals(1, request.processedOnReplicas.size());
@@ -341,25 +351,25 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
         IndexShardRoutingTable routingTable = builder.build();
 
         Set<String> inSyncAllocationIds = activeIds.stream().map(AllocationId::getId).collect(Collectors.toSet());
-        Set<String> localTranslogAllocationIds = Collections.singleton(primaryId.getId());
+        Map<String, ReplicationMode> replicationModeMap = new HashMap<>();
+        replicationModeMap.put(primaryId.getId(), ReplicationMode.LOGICAL_REPLICATION);
         ReplicationGroup replicationGroup = new ReplicationGroup(
             routingTable,
             inSyncAllocationIds,
             inSyncAllocationIds,
-            localTranslogAllocationIds,
-            0,
-            true
+            replicationModeMap,
+            0
         );
-        List<ReplicationAwareShardRouting> replicationTargets = replicationGroup.getReplicationTargets();
+        List<ReplicationModeAwareShardRouting> replicationTargets = replicationGroup.getReplicationTargets();
         assertEquals(inSyncAllocationIds.size(), replicationTargets.size());
-        assertEquals(1, replicationTargets.stream().filter(ReplicationAwareShardRouting::isReplicated).count());
+        assertEquals(1, replicationTargets.stream().filter(s -> s.getReplicationMode() == ReplicationMode.LOGICAL_REPLICATION).count());
 
         Request request = new Request(shardId);
         PlainActionFuture<TestPrimary.Result> listener = new PlainActionFuture<>();
         Map<ShardRouting, Exception> simulatedFailures = new HashMap<>();
         TestReplicaProxy replicasProxy = new TestReplicaProxy(simulatedFailures);
         TestPrimary primary = new TestPrimary(primaryShard, () -> replicationGroup, threadPool);
-        final TestReplicationOperation op = new TestReplicationOperation(request, primary, listener, replicasProxy, 0, true);
+        final TestReplicationOperation op = new TestReplicationOperation(request, primary, listener, replicasProxy, 0);
         op.execute();
         assertTrue("request was not processed on primary", request.processedOnPrimary.get());
         assertEquals(activeIds.size() - 1, request.processedOnReplicas.size());
@@ -402,7 +412,15 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
         addTrackingInfo(indexShardRoutingTable, primaryShard, trackedShards, untrackedShards);
         trackedShards.addAll(staleAllocationIds);
 
-        final ReplicationGroup replicationGroup = new ReplicationGroup(indexShardRoutingTable, inSyncAllocationIds, trackedShards, 0);
+        Map<String, ReplicationMode> replicationModeMap = trackedShards.stream()
+            .collect(Collectors.toMap(v -> v, v -> ReplicationMode.LOGICAL_REPLICATION));
+        final ReplicationGroup replicationGroup = new ReplicationGroup(
+            indexShardRoutingTable,
+            inSyncAllocationIds,
+            trackedShards,
+            replicationModeMap,
+            0
+        );
 
         final Set<ShardRouting> expectedReplicas = getExpectedReplicas(shardId, initialState, trackedShards);
 
@@ -510,7 +528,15 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
         addTrackingInfo(indexShardRoutingTable, primaryShard, trackedShards, new HashSet<>());
         trackedShards.addAll(staleAllocationIds);
 
-        final ReplicationGroup replicationGroup = new ReplicationGroup(indexShardRoutingTable, inSyncAllocationIds, trackedShards, 0);
+        Map<String, ReplicationMode> replicationModeMap = trackedShards.stream()
+            .collect(Collectors.toMap(v -> v, v -> ReplicationMode.LOGICAL_REPLICATION));
+        final ReplicationGroup replicationGroup = new ReplicationGroup(
+            indexShardRoutingTable,
+            inSyncAllocationIds,
+            trackedShards,
+            replicationModeMap,
+            0
+        );
 
         final Set<ShardRouting> expectedReplicas = getExpectedReplicas(shardId, initialState, trackedShards);
 
@@ -576,7 +602,7 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
                 assertTrue(primaryFailed.compareAndSet(false, true));
             }
         };
-        final TestReplicationOperation op = new TestReplicationOperation(request, primary, listener, replicasProxy, primaryTerm, false);
+        final TestReplicationOperation op = new TestReplicationOperation(request, primary, listener, replicasProxy, primaryTerm);
         op.execute();
 
         assertThat("request was not processed on primary", request.processedOnPrimary.get(), equalTo(true));
@@ -597,7 +623,15 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
         IndexShardRoutingTable shardRoutingTable = initialState.getRoutingTable().shardRoutingTable(shardId);
         Set<String> trackedShards = new HashSet<>();
         addTrackingInfo(shardRoutingTable, null, trackedShards, new HashSet<>());
-        ReplicationGroup initialReplicationGroup = new ReplicationGroup(shardRoutingTable, inSyncAllocationIds, trackedShards, 0);
+        Map<String, ReplicationMode> replicationModeMap = trackedShards.stream()
+            .collect(Collectors.toMap(v -> v, v -> ReplicationMode.LOGICAL_REPLICATION));
+        ReplicationGroup initialReplicationGroup = new ReplicationGroup(
+            shardRoutingTable,
+            inSyncAllocationIds,
+            trackedShards,
+            replicationModeMap,
+            0
+        );
 
         final ClusterState stateWithAddedReplicas;
         if (randomBoolean()) {
@@ -616,7 +650,14 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
         trackedShards = new HashSet<>();
         addTrackingInfo(shardRoutingTable, null, trackedShards, new HashSet<>());
 
-        ReplicationGroup updatedReplicationGroup = new ReplicationGroup(shardRoutingTable, inSyncAllocationIds, trackedShards, 0);
+        replicationModeMap = trackedShards.stream().collect(Collectors.toMap(v -> v, v -> ReplicationMode.LOGICAL_REPLICATION));
+        ReplicationGroup updatedReplicationGroup = new ReplicationGroup(
+            shardRoutingTable,
+            inSyncAllocationIds,
+            trackedShards,
+            replicationModeMap,
+            0
+        );
 
         final AtomicReference<ReplicationGroup> replicationGroup = new AtomicReference<>(initialReplicationGroup);
         logger.debug("--> using initial replicationGroup:\n{}", replicationGroup.get());
@@ -635,14 +676,7 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
 
         Request request = new Request(shardId);
         PlainActionFuture<TestPrimary.Result> listener = new PlainActionFuture<>();
-        final TestReplicationOperation op = new TestReplicationOperation(
-            request,
-            primary,
-            listener,
-            new TestReplicaProxy(),
-            primaryTerm,
-            false
-        );
+        final TestReplicationOperation op = new TestReplicationOperation(request, primary, listener, new TestReplicaProxy(), primaryTerm);
         op.execute();
 
         assertThat("request was not processed on primary", request.processedOnPrimary.get(), equalTo(true));
@@ -685,7 +719,15 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
         final Set<String> inSyncAllocationIds = state.metadata().index(index).inSyncAllocationIds(0);
         Set<String> trackedShards = new HashSet<>();
         addTrackingInfo(shardRoutingTable, null, trackedShards, new HashSet<>());
-        final ReplicationGroup initialReplicationGroup = new ReplicationGroup(shardRoutingTable, inSyncAllocationIds, trackedShards, 0);
+        Map<String, ReplicationMode> replicationModeMap = trackedShards.stream()
+            .collect(Collectors.toMap(v -> v, v -> ReplicationMode.LOGICAL_REPLICATION));
+        final ReplicationGroup initialReplicationGroup = new ReplicationGroup(
+            shardRoutingTable,
+            inSyncAllocationIds,
+            trackedShards,
+            replicationModeMap,
+            0
+        );
 
         PlainActionFuture<TestPrimary.Result> listener = new PlainActionFuture<>();
         final ShardRouting primaryShard = shardRoutingTable.primaryShard();
@@ -697,8 +739,7 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
             logger,
             threadPool,
             "test",
-            primaryTerm,
-            false
+            primaryTerm
         );
 
         if (passesActiveShardCheck) {
@@ -727,7 +768,15 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
         final Set<String> inSyncAllocationIds = indexMetadata.inSyncAllocationIds(0);
         final IndexShardRoutingTable shardRoutingTable = state.routingTable().index(index).shard(shardId.id());
         final Set<String> trackedShards = shardRoutingTable.getAllAllocationIds();
-        final ReplicationGroup initialReplicationGroup = new ReplicationGroup(shardRoutingTable, inSyncAllocationIds, trackedShards, 0);
+        Map<String, ReplicationMode> replicationModeMap = trackedShards.stream()
+            .collect(Collectors.toMap(v -> v, v -> ReplicationMode.LOGICAL_REPLICATION));
+        final ReplicationGroup initialReplicationGroup = new ReplicationGroup(
+            shardRoutingTable,
+            inSyncAllocationIds,
+            trackedShards,
+            replicationModeMap,
+            0
+        );
 
         final boolean fatal = randomBoolean();
         final AtomicBoolean primaryFailed = new AtomicBoolean();
@@ -759,7 +808,7 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
 
         final PlainActionFuture<TestPrimary.Result> listener = new PlainActionFuture<>();
         final ReplicationOperation.Replicas<Request> replicas = new TestReplicaProxy(Collections.emptyMap());
-        TestReplicationOperation operation = new TestReplicationOperation(request, primary, listener, replicas, primaryTerm, false);
+        TestReplicationOperation operation = new TestReplicationOperation(request, primary, listener, replicas, primaryTerm);
         operation.execute();
 
         assertThat(primaryFailed.get(), equalTo(fatal));
@@ -1058,8 +1107,7 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
                 "test",
                 primaryTerm,
                 initialRetryBackoffBound,
-                retryTimeout,
-                false
+                retryTimeout
             );
         }
 
@@ -1068,20 +1116,9 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
             Primary<Request, Request, TestPrimary.Result> primary,
             ActionListener<TestPrimary.Result> listener,
             Replicas<Request> replicas,
-            long primaryTerm,
-            boolean forceReplication
+            long primaryTerm
         ) {
-            this(
-                request,
-                primary,
-                listener,
-                replicas,
-                ReplicationOperationTests.this.logger,
-                threadPool,
-                "test",
-                primaryTerm,
-                forceReplication
-            );
+            this(request, primary, listener, replicas, ReplicationOperationTests.this.logger, threadPool, "test", primaryTerm);
         }
 
         TestReplicationOperation(
@@ -1092,8 +1129,7 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
             Logger logger,
             ThreadPool threadPool,
             String opType,
-            long primaryTerm,
-            boolean forceReplication
+            long primaryTerm
         ) {
             this(
                 request,
@@ -1105,8 +1141,7 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
                 opType,
                 primaryTerm,
                 TimeValue.timeValueMillis(50),
-                TimeValue.timeValueSeconds(1),
-                forceReplication
+                TimeValue.timeValueSeconds(1)
             );
         }
 
@@ -1120,8 +1155,7 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
             String opType,
             long primaryTerm,
             TimeValue initialRetryBackoffBound,
-            TimeValue retryTimeout,
-            boolean forceReplication
+            TimeValue retryTimeout
         ) {
             super(
                 request,
@@ -1134,7 +1168,7 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
                 primaryTerm,
                 initialRetryBackoffBound,
                 retryTimeout,
-                forceReplication
+                null
             );
         }
     }
