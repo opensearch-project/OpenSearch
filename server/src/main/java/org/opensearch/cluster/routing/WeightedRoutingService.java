@@ -33,11 +33,17 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.threadpool.ThreadPool;
 
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
+import static org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING;
 
 /**
  * * Service responsible for updating cluster state metadata with weighted routing weights
@@ -47,6 +53,7 @@ public class WeightedRoutingService {
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
     private volatile List<String> awarenessAttributes;
+    private volatile Map<String, List<String>> forcedAwarenessAttributes;
 
     @Inject
     public WeightedRoutingService(
@@ -62,6 +69,11 @@ public class WeightedRoutingService {
             AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING,
             this::setAwarenessAttributes
         );
+        setForcedAwarenessAttributes(CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.get(settings));
+        clusterSettings.addSettingsUpdateConsumer(
+            CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING,
+            this::setForcedAwarenessAttributes
+        );
     }
 
     public void registerWeightedRoutingMetadata(
@@ -72,6 +84,8 @@ public class WeightedRoutingService {
         clusterService.submitStateUpdateTask("update_weighted_routing", new ClusterStateUpdateTask(Priority.URGENT) {
             @Override
             public ClusterState execute(ClusterState currentState) {
+                // verify that request object has weights for all discovered and forced awareness values
+                ensureWeightsSetForAllDiscoveredAndForcedAwarenessValues(currentState, request);
                 // verify weights will not be updated for a decommissioned attribute
                 ensureDecommissionedAttributeHasZeroWeight(currentState, request);
                 Metadata metadata = currentState.metadata();
@@ -150,6 +164,18 @@ public class WeightedRoutingService {
         this.awarenessAttributes = awarenessAttributes;
     }
 
+    private void setForcedAwarenessAttributes(Settings forceSettings) {
+        Map<String, List<String>> forcedAwarenessAttributes = new HashMap<>();
+        Map<String, Settings> forceGroups = forceSettings.getAsGroups();
+        for (Map.Entry<String, Settings> entry : forceGroups.entrySet()) {
+            List<String> aValues = entry.getValue().getAsList("values");
+            if (aValues.size() > 0) {
+                forcedAwarenessAttributes.put(entry.getKey(), aValues);
+            }
+        }
+        this.forcedAwarenessAttributes = forcedAwarenessAttributes;
+    }
+
     public void verifyAwarenessAttribute(String attributeName) {
         if (getAwarenessAttributes().contains(attributeName) == false) {
             ActionRequestValidationException validationException = null;
@@ -161,7 +187,28 @@ public class WeightedRoutingService {
         }
     }
 
-    public void ensureDecommissionedAttributeHasZeroWeight(ClusterState state, ClusterPutWeightedRoutingRequest request) {
+    private void ensureWeightsSetForAllDiscoveredAndForcedAwarenessValues(ClusterState state, ClusterPutWeightedRoutingRequest request) {
+        String attributeName = request.getWeightedRouting().attributeName();
+        Set<String> discoveredAwarenessValues = new HashSet<>();
+        state.nodes().forEach(node -> {
+            if (node.getAttributes().containsKey(attributeName)) {
+                discoveredAwarenessValues.add(node.getAttributes().get(attributeName));
+            }
+        });
+        Set<String> allAwarenessValues = new HashSet<>(forcedAwarenessAttributes.get(attributeName));
+        allAwarenessValues.addAll(discoveredAwarenessValues);
+        allAwarenessValues.forEach(awarenessValue -> {
+            if (request.getWeightedRouting().weights().containsKey(awarenessValue) == false) {
+                throw new WeightedRoutingUnsupportedStateException(
+                    "weight for ["
+                    + awarenessValue
+                    + "] is not set and it is part of forced awareness value or a node has this attribute."
+                );
+            }
+        });
+    }
+
+    private void ensureDecommissionedAttributeHasZeroWeight(ClusterState state, ClusterPutWeightedRoutingRequest request) {
         DecommissionAttributeMetadata decommissionAttributeMetadata = state.metadata().decommissionAttributeMetadata();
         if (decommissionAttributeMetadata == null || decommissionAttributeMetadata.status().equals(DecommissionStatus.FAILED)) {
             // here either there's no decommission action is ongoing or it is in failed state. In this case, we will allow weight update
