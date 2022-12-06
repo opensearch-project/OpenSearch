@@ -24,7 +24,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.Version;
-import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.cluster.ClusterSettingsResponse;
 import org.opensearch.cluster.LocalNodeResponse;
@@ -44,7 +43,6 @@ import org.opensearch.index.IndicesModuleRequest;
 import org.opensearch.index.IndicesModuleResponse;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
-import org.opensearch.node.ReportingService;
 import org.opensearch.plugins.PluginInfo;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportException;
@@ -60,7 +58,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
  *
  * @opensearch.internal
  */
-public class ExtensionsManager implements ReportingService<PluginsAndModules> {
+public class ExtensionsManager {
     public static final String REQUEST_EXTENSION_ACTION_NAME = "internal:discovery/extensions";
     public static final String INDICES_EXTENSION_POINT_ACTION_NAME = "indices:internal/extensions";
     public static final String INDICES_EXTENSION_NAME_ACTION_NAME = "indices:internal/name";
@@ -139,11 +137,6 @@ public class ExtensionsManager implements ReportingService<PluginsAndModules> {
             ExtensionRequest::new,
             ((request, channel, task) -> channel.sendResponse(handleExtensionRequest(request)))
         );
-    }
-
-    @Override
-    public PluginsAndModules info() {
-        return null;
     }
 
     /*

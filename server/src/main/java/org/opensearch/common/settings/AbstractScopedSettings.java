@@ -39,7 +39,6 @@ import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.regex.Regex;
 
 import java.util.ArrayList;
@@ -122,13 +121,8 @@ public abstract class AbstractScopedSettings {
                 keySettings.putIfAbsent(setting.getKey(), setting);
             }
         }
-        if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
-            this.complexMatchers = complexMatchers;
-            this.keySettings = keySettings;
-        } else {
-            this.complexMatchers = Collections.unmodifiableMap(complexMatchers);
-            this.keySettings = Collections.unmodifiableMap(keySettings);
-        }
+        this.complexMatchers = Collections.unmodifiableMap(complexMatchers);
+        this.keySettings = Collections.unmodifiableMap(keySettings);
     }
 
     protected void validateSettingKey(Setting<?> setting) {
@@ -148,15 +142,6 @@ public abstract class AbstractScopedSettings {
         keySettings = other.keySettings;
         settingUpgraders = Collections.unmodifiableMap(new HashMap<>(other.settingUpgraders));
         settingUpdaters.addAll(other.settingUpdaters);
-    }
-
-    public boolean registerSetting(Setting<?> setting) {
-        validateSettingKey(setting);
-        if (setting.hasComplexMatcher()) {
-            return setting != complexMatchers.putIfAbsent(setting.getKey(), setting);
-        } else {
-            return setting != keySettings.putIfAbsent(setting.getKey(), setting);
-        }
     }
 
     /**
