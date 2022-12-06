@@ -8,42 +8,54 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 
-<<<<<<< HEAD
+/**
+ * The extension dependency information
+ *
+ * @opensearch.internal
+ */
 public class ExtensionDependency implements Writeable {
-    public String uniqueId;
-    public Version version;
-
-    public ExtensionDependency(String uniqueId, Version version){
-=======
-public class ExtensionDenpendency implements Writeable {
     private String uniqueId;
-    private String version;
+    private Version version;
 
-    public ExtensionDenpendency(String uniqueId, String version){
->>>>>>> 053b62670fa (add option field)
+    public ExtensionDependency(String uniqueId, Version version) {
         this.uniqueId = uniqueId;
         this.version = version;
     }
 
+    /**
+    * Reads the extension dependency information
+    *
+    * @throws IOException if an I/O exception occurred reading the extension dependency information
+    */
     public ExtensionDependency(StreamInput in) throws IOException {
         uniqueId = in.readString();
-        version = in.readString();
+        version = Version.readVersion(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(uniqueId);
-        Version.fromString(getVersion());
+        Version.writeVersion(version, out);
     }
 
-    public String getUniqueId(){
+    /**
+    * The uniqueId of the dependency extension
+    *
+    * @return the extension uniqueId
+    */
+    public String getUniqueId() {
         return uniqueId;
     }
 
-    public String getVersion(){
+    /**
+    * The minimum version of the dependency extension
+    *
+    * @return the extension version
+    */
+    public Version getVersion() {
         return version;
     }
-    
+
     public String toString() {
         return "ExtensionDependency:{uniqueId=" + uniqueId + ", version=" + version + "}";
     }

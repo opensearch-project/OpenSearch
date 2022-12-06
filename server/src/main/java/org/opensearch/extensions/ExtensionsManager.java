@@ -304,44 +304,7 @@ public class ExtensionsManager {
                 throw new IOException("Could not read from extensions.yml", e);
             }
             for (Extension extension : extensions) {
-<<<<<<< HEAD:server/src/main/java/org/opensearch/extensions/ExtensionsManager.java
                 loadExtension(extension);
-=======
-                if (extensionIdMap.containsKey(extension.getUniqueId())) {
-                    logger.info("Duplicate uniqueId " + extension.getUniqueId() + ". Did not load extension: " + extension);
-                } else {
-                    try {
-                        List<ExtensionDependency> dependenices = Collections.<ExtensionDependency>emptyList();
-                        dependenices.add(new ExtensionDependency(extension.getUniqueId(), extension.getVersion()));
-                        DiscoveryExtension discoveryExtension = new DiscoveryExtension(
-                            extension.getName(),
-                            extension.getUniqueId(),
-                            // placeholder for ephemeral id, will change with POC discovery
-                            extension.getUniqueId(),
-                            extension.getHostName(),
-                            extension.getHostAddress(),
-                            new TransportAddress(InetAddress.getByName(extension.getHostAddress()), Integer.parseInt(extension.getPort())),
-                            new HashMap<String, String>(),
-                            Version.fromString(extension.getOpensearchVersion()),
-                            new PluginInfo(
-                                extension.getName(),
-                                extension.getDescription(),
-                                extension.getVersion(),
-                                Version.fromString(extension.getOpensearchVersion()),
-                                extension.getJavaVersion(),
-                                extension.getClassName(),
-                                new ArrayList<String>(),
-                                Boolean.parseBoolean(extension.hasNativeController())
-                            ),
-                            dependenices
-                        );
-                        extensionIdMap.put(extension.getUniqueId(), discoveryExtension);
-                        logger.info("Loaded extension with uniqueId " + extension.getUniqueId() + ": " + extension);
-                    } catch (IllegalArgumentException e) {
-                        logger.error(e.toString());
-                    }
-                }
->>>>>>> 053b62670fa (add option field):server/src/main/java/org/opensearch/extensions/ExtensionsOrchestrator.java
             }
             if (!extensionIdMap.isEmpty()) {
                 logger.info("Loaded all extensions");

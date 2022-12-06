@@ -33,11 +33,7 @@ import java.util.Map;
 public class DiscoveryExtensionNode extends DiscoveryNode implements Writeable, ToXContentFragment {
 
     private final PluginInfo pluginInfo;
-<<<<<<< HEAD:server/src/main/java/org/opensearch/extensions/DiscoveryExtensionNode.java
     private List<ExtensionDependency> dependencies = Collections.emptyList();
-=======
-    private List<ExtensionDependency> dependencies;
->>>>>>> 053b62670fa (add option field):server/src/main/java/org/opensearch/extensions/DiscoveryExtension.java
 
     public DiscoveryExtensionNode(
         String name,
@@ -61,13 +57,8 @@ public class DiscoveryExtensionNode extends DiscoveryNode implements Writeable, 
         super.writeTo(out);
         pluginInfo.writeTo(out);
         out.writeVInt(dependencies.size());
-<<<<<<< HEAD:server/src/main/java/org/opensearch/extensions/DiscoveryExtensionNode.java
         for (ExtensionDependency dependency : dependencies) {
             dependency.writeTo(out);
-=======
-        for(ExtensionDependency result : dependencies){
-            result.writeTo(out);
->>>>>>> 053b62670fa (add option field):server/src/main/java/org/opensearch/extensions/DiscoveryExtension.java
         }
     }
 
@@ -82,7 +73,6 @@ public class DiscoveryExtensionNode extends DiscoveryNode implements Writeable, 
         this.pluginInfo = new PluginInfo(in);
         int size = in.readVInt();
         dependencies = new ArrayList<>(size);
-<<<<<<< HEAD:server/src/main/java/org/opensearch/extensions/DiscoveryExtensionNode.java
         for (int i = 0; i < size; i++) {
             dependencies.add(new ExtensionDependency(in));
         }
@@ -90,11 +80,6 @@ public class DiscoveryExtensionNode extends DiscoveryNode implements Writeable, 
 
     public List<ExtensionDependency> getDependency() {
         return dependencies;
-=======
-        for(int i = 0; i < size; i++){
-            dependencies.add(new ExtensionDependency(in));
-        }
->>>>>>> 053b62670fa (add option field):server/src/main/java/org/opensearch/extensions/DiscoveryExtension.java
     }
 
     @Override
