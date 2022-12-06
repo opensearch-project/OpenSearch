@@ -12,7 +12,6 @@ import java.io.IOException;
 import java.nio.file.Path;
 import org.opensearch.common.settings.Settings;
 
-
 /**
  * Noop class for ExtensionsManager
  *
