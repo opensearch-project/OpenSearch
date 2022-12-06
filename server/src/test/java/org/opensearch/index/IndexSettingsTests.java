@@ -32,6 +32,7 @@
 
 package org.opensearch.index;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.AbstractScopedSettings;
@@ -942,5 +943,48 @@ public class IndexSettingsTests extends OpenSearchTestCase {
             () -> IndexMetadata.INDEX_REMOTE_STORE_REPOSITORY_SETTING.get(indexSettings)
         );
         assertEquals("Setting index.remote_store.repository should be provided with non-empty repository ID", iae.getMessage());
+    }
+
+    public void testExtendedCompatibilityVersionForRemoteSnapshot() {
+        int version = randomIntBetween(1000000, 6999999);
+        Version expected = LegacyESVersion.fromId(version);
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey())
+                .put(IndexSettings.SEARCHABLE_SNAPSHOT_MINIMUM_VERSION.getKey(), version)
+                .build()
+        );
+        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertTrue(settings.isRemoteSnapshot());
+        assertEquals(expected, settings.getExtendedCompatibilitySnapshotVersion());
+    }
+
+    public void testExtendedCompatibilityVersionForNonRemoteSnapshot() {
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.FS.getSettingsKey())
+                .put(IndexSettings.SEARCHABLE_SNAPSHOT_MINIMUM_VERSION.getKey(), 99)
+                .build()
+        );
+        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertFalse(settings.isRemoteSnapshot());
+        assertNull(settings.getExtendedCompatibilitySnapshotVersion());
+    }
+
+    public void testExtendedCompatibilityVersionMissingKey() {
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey())
+                .build()
+        );
+        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertTrue(settings.isRemoteSnapshot());
+        assertNull(settings.getExtendedCompatibilitySnapshotVersion());
     }
 }

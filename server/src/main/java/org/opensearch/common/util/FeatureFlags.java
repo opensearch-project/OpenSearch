@@ -39,10 +39,10 @@ public class FeatureFlags {
 
     /**
      * Gates the ability for Searchable Snapshots to read snapshots that are older than the
-     * guaranteed backward compatibilty for OpenSearch (one prior major version) on a best effort basis.
+     * guaranteed backward compatibility for OpenSearch (one prior major version) on a best effort basis.
      */
-    public static final String SEARCHABLE_SNAPSHOT_EXTENDED_BWC =
-        "opensearch.experimental.feature.searchable_snapshot.extended_bwc.enabled";
+    public static final String SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY =
+        "opensearch.experimental.feature.searchable_snapshot.extended_compatibility.enabled";
 
     /**
      * Gates the functionality of extensions.

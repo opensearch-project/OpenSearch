@@ -169,18 +169,17 @@ public class Lucene {
      * "expert" readLatestCommit API is currently package-private in Lucene. First, all commits in
      * the given {@link Directory} are listed - this result includes older Lucene commits. Then,
      * the latest index commit is opened via {@link DirectoryReader} by including a minimum supported
-     * Lucene major version - this is based on the minimum index compatiblity version of OpenSearch.
+     * Lucene major version based on the minimum compatibility of the given {@link org.opensearch.Version}.
      */
-    public static SegmentInfos readAnySegmentInfos(Directory directory) throws IOException {
+    public static SegmentInfos readSegmentInfosExtendedCompatibility(Directory directory, org.opensearch.Version minimumVersion)
+        throws IOException {
         // This list is sorted from oldest to latest
         List<IndexCommit> indexCommits = DirectoryReader.listCommits(directory);
         IndexCommit latestCommit = indexCommits.get(indexCommits.size() - 1);
-        int minSupportedLuceneMajor = org.opensearch.Version.CURRENT.minimumIndexCompatibilityVersion().luceneVersion.major;
-        StandardDirectoryReader reader = (StandardDirectoryReader) DirectoryReader.open(latestCommit, minSupportedLuceneMajor, null);
-        // cache the SegmentInfos object before closing the reader to prevent any open file handles
-        SegmentInfos si = reader.getSegmentInfos();
-        reader.close();
-        return si;
+        final int minSupportedLuceneMajor = minimumVersion.minimumIndexCompatibilityVersion().luceneVersion.major;
+        try (StandardDirectoryReader reader = (StandardDirectoryReader) DirectoryReader.open(latestCommit, minSupportedLuceneMajor, null)) {
+            return reader.getSegmentInfos();
+        }
     }
 
     /**

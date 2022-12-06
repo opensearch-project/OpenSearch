@@ -79,7 +79,6 @@ import org.opensearch.common.lucene.store.InputStreamIndexInput;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.AbstractRefCounted;
 import org.opensearch.common.util.concurrent.RefCounted;
 import org.opensearch.common.util.iterable.Iterables;
@@ -87,7 +86,6 @@ import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.ShardLock;
 import org.opensearch.env.ShardLockObtainFailedException;
-import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.CombinedDeletionPolicy;
 import org.opensearch.index.engine.Engine;
@@ -223,9 +221,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     public SegmentInfos readLastCommittedSegmentsInfo() throws IOException {
         failIfCorrupted();
         try {
-            if (IndexModule.Type.REMOTE_SNAPSHOT.match(indexSettings)
-                && FeatureFlags.isEnabled(FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_BWC)) {
-                return readAnySegmentsInfo(directory());
+            if (indexSettings.isRemoteSnapshot() && indexSettings.getExtendedCompatibilitySnapshotVersion() != null) {
+                return readSegmentInfosExtendedCompatibility(directory(), indexSettings.getExtendedCompatibilitySnapshotVersion());
             } else {
                 return readSegmentsInfo(null, directory());
             }
@@ -238,7 +235,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     /**
      * Returns the segments info for the given commit or for the latest commit if the given commit is <code>null</code>.
      * This method will throw an exception if the index is older than the standard backwards compatibility
-     * policy ( current major - 1). See also {@link #readAnySegmentsInfo(Directory)}.
+     * policy ( current major - 1). See also {@link #readSegmentInfosExtendedCompatibility(Directory, org.opensearch.Version)}.
      *
      * @throws IOException if the index is corrupted or the segments file is not present
      */
@@ -263,9 +260,10 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      *
      * @throws IOException if the index is corrupted or the segments file is not present
      */
-    private static SegmentInfos readAnySegmentsInfo(Directory directory) throws IOException {
+    private static SegmentInfos readSegmentInfosExtendedCompatibility(Directory directory, org.opensearch.Version minimumVersion)
+        throws IOException {
         try {
-            return Lucene.readAnySegmentInfos(directory);
+            return Lucene.readSegmentInfosExtendedCompatibility(directory, minimumVersion);
         } catch (EOFException eof) {
             // TODO this should be caught by lucene - EOF is almost certainly an index corruption
             throw new CorruptIndexException("Read past EOF while reading segment infos", "<latest-commit>", eof);

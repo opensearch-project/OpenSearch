@@ -93,7 +93,7 @@ public class ReadOnlyEngine extends Engine {
     private final CompletionStatsCache completionStatsCache;
     private final boolean requireCompleteHistory;
     private final TranslogManager translogManager;
-    private final boolean allowOldIndices;
+    private final Version minimumSupportedVersion;
 
     protected volatile TranslogStats translogStats;
 
@@ -108,7 +108,15 @@ public class ReadOnlyEngine extends Engine {
         Function<DirectoryReader, DirectoryReader> readerWrapperFunction,
         boolean requireCompleteHistory
     ) {
-        this(config, seqNoStats, translogStats, obtainLock, readerWrapperFunction, requireCompleteHistory, false);
+        this(
+            config,
+            seqNoStats,
+            translogStats,
+            obtainLock,
+            readerWrapperFunction,
+            requireCompleteHistory,
+            Version.CURRENT.minimumIndexCompatibilityVersion()
+        );
     }
 
     /**
@@ -123,6 +131,7 @@ public class ReadOnlyEngine extends Engine {
      *                   the lock won't be obtained
      * @param readerWrapperFunction allows to wrap the index-reader for this engine.
      * @param requireCompleteHistory indicates whether this engine permits an incomplete history (i.e. LCP &lt; MSN)
+     * @param minimumSupportedVersion for extended backward compatibility use-cases, the minimum {@link Version} this engine is allowed to read
      */
     public ReadOnlyEngine(
         EngineConfig config,
@@ -131,11 +140,11 @@ public class ReadOnlyEngine extends Engine {
         boolean obtainLock,
         Function<DirectoryReader, DirectoryReader> readerWrapperFunction,
         boolean requireCompleteHistory,
-        boolean allowOldIndices
+        Version minimumSupportedVersion
     ) {
         super(config);
         this.requireCompleteHistory = requireCompleteHistory;
-        this.allowOldIndices = allowOldIndices;
+        this.minimumSupportedVersion = minimumSupportedVersion;
         try {
             Store store = config.getStore();
             store.incRef();
@@ -147,8 +156,8 @@ public class ReadOnlyEngine extends Engine {
                 // we obtain the IW lock even though we never modify the index.
                 // yet this makes sure nobody else does. including some testing tools that try to be messy
                 indexWriterLock = obtainLock ? directory.obtainLock(IndexWriter.WRITE_LOCK_NAME) : null;
-                if (this.allowOldIndices) {
-                    this.lastCommittedSegmentInfos = Lucene.readAnySegmentInfos(directory);
+                if (isExtendedCompatibility()) {
+                    this.lastCommittedSegmentInfos = Lucene.readSegmentInfosExtendedCompatibility(directory, this.minimumSupportedVersion);
                 } else {
                     this.lastCommittedSegmentInfos = Lucene.readSegmentInfos(directory);
                 }
@@ -245,13 +254,16 @@ public class ReadOnlyEngine extends Engine {
     protected DirectoryReader open(IndexCommit commit) throws IOException {
         assert Transports.assertNotTransportThread("opening index commit of a read-only engine");
         DirectoryReader reader;
-        if (this.allowOldIndices) {
-            int minSupportedLuceneMajor = org.opensearch.Version.CURRENT.minimumIndexCompatibilityVersion().luceneVersion.major;
-            reader = DirectoryReader.open(commit, minSupportedLuceneMajor, null);
+        if (isExtendedCompatibility()) {
+            reader = DirectoryReader.open(commit, this.minimumSupportedVersion.luceneVersion.major, null);
         } else {
             reader = DirectoryReader.open(commit);
         }
         return new SoftDeletesDirectoryReaderWrapper(reader, Lucene.SOFT_DELETES_FIELD);
+    }
+
+    private boolean isExtendedCompatibility() {
+        return this.minimumSupportedVersion.before(Version.CURRENT.minimumIndexCompatibilityVersion());
     }
 
     @Override

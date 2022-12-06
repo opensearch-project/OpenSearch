@@ -575,6 +575,13 @@ public final class IndexSettings {
         Property.InternalIndex
     );
 
+    public static final Setting<Integer> SEARCHABLE_SNAPSHOT_MINIMUM_VERSION = Setting.intSetting(
+        "index.searchable_snapshot.minversion",
+        0,
+        Property.IndexScope,
+        Property.InternalIndex
+    );
+
     private final Index index;
     private final Version version;
     private final Logger logger;
@@ -585,6 +592,8 @@ public final class IndexSettings {
     private final boolean isRemoteStoreEnabled;
     private final String remoteStoreRepository;
     private final boolean isRemoteTranslogStoreEnabled;
+    private final boolean isRemoteSnapshot;
+    private Version extendedCompatibilitySnapshotVersion;
     // volatile fields are updated via #updateIndexMetadata(IndexMetadata) under lock
     private volatile Settings settings;
     private volatile IndexMetadata indexMetadata;
@@ -747,6 +756,13 @@ public final class IndexSettings {
         isRemoteStoreEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false);
         remoteStoreRepository = settings.get(IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY);
         isRemoteTranslogStoreEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, false);
+        isRemoteSnapshot = IndexModule.Type.REMOTE_SNAPSHOT.match(this);
+        if (isRemoteSnapshot) {
+            Integer minVersion = settings.getAsInt(SEARCHABLE_SNAPSHOT_MINIMUM_VERSION.getKey(), Version.V_EMPTY_ID);
+            if (minVersion > Version.V_EMPTY_ID) {
+                extendedCompatibilitySnapshotVersion = LegacyESVersion.fromId(minVersion);
+            }
+        }
         this.searchThrottled = INDEX_SEARCH_THROTTLED.get(settings);
         this.queryStringLenient = QUERY_STRING_LENIENT_SETTING.get(settings);
         this.queryStringAnalyzeWildcard = QUERY_STRING_ANALYZE_WILDCARD.get(nodeSettings);
@@ -1010,6 +1026,22 @@ public final class IndexSettings {
      */
     public boolean isRemoteTranslogStoreEnabled() {
         return isRemoteTranslogStoreEnabled;
+    }
+
+    /**
+     * Returns true if this is remote/searchable snapshot
+     */
+    public boolean isRemoteSnapshot() {
+        return isRemoteSnapshot;
+    }
+
+    /**
+     * If this is a remote snapshot and the extended compatibility
+     * feature flag is enabled, this returns the minimum {@link Version}
+     * supported. In all other cases, the return value is null.
+     */
+    public Version getExtendedCompatibilitySnapshotVersion() {
+        return extendedCompatibilitySnapshotVersion;
     }
 
     /**

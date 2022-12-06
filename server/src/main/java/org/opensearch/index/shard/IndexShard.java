@@ -85,7 +85,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.AsyncIOProcessor;
 import org.opensearch.common.util.concurrent.RunOnce;
@@ -1985,7 +1984,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         };
 
         // Do not load the global checkpoint if this is a remote snapshot index
-        if (isRemoteSnapshotIndex() == false) {
+        if (indexSettings.isRemoteSnapshot() == false) {
             loadGlobalCheckpointToReplicationTracker();
         }
 
@@ -2040,13 +2039,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private boolean assertSequenceNumbersInCommit() throws IOException {
-        final Map<String, String> userData;
-        if (isRemoteSnapshotIndex() && FeatureFlags.isEnabled(FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_BWC)) {
-            // Inefficient method to support reading old Lucene indexes
-            userData = Lucene.readAnySegmentInfos(store.directory()).getUserData();
-        } else {
-            userData = Lucene.readSegmentInfos(store.directory()).getUserData();
-        }
+        final Map<String, String> userData = fetchUserData();
         assert userData.containsKey(SequenceNumbers.LOCAL_CHECKPOINT_KEY) : "commit point doesn't contains a local checkpoint";
         assert userData.containsKey(MAX_SEQ_NO) : "commit point doesn't contains a maximum sequence number";
         assert userData.containsKey(Engine.HISTORY_UUID_KEY) : "commit point doesn't contains a history uuid";
@@ -2061,8 +2054,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return true;
     }
 
-    private boolean isRemoteSnapshotIndex() {
-        return IndexModule.Type.REMOTE_SNAPSHOT.match(indexSettings);
+    private Map<String, String> fetchUserData() throws IOException {
+        if (indexSettings.isRemoteSnapshot() && indexSettings.getExtendedCompatibilitySnapshotVersion() != null) {
+            // Inefficient method to support reading old Lucene indexes
+            return Lucene.readSegmentInfosExtendedCompatibility(store.directory(), indexSettings.getExtendedCompatibilitySnapshotVersion())
+                .getUserData();
+        } else {
+            return SegmentInfos.readLatestCommit(store.directory()).getUserData();
+        }
     }
 
     private void onNewEngine(Engine newEngine) {

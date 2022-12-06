@@ -1830,8 +1830,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             Version legacyVersion = LegacyESVersion.fromId(6050099);
             if (Assertions.ENABLED && Version.indexCreated(builder.settings).onOrAfter(legacyVersion)) {
                 assert mappingVersion : "mapping version should be present for indices";
-            }
-            if (Assertions.ENABLED && Version.indexCreated(builder.settings).onOrAfter(legacyVersion)) {
                 assert settingsVersion : "settings version should be present for indices";
             }
             if (Assertions.ENABLED && Version.indexCreated(builder.settings).onOrAfter(LegacyESVersion.V_7_2_0)) {
