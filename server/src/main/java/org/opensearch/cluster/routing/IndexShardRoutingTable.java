@@ -32,6 +32,8 @@
 
 package org.opensearch.cluster.routing;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.Nullable;
@@ -89,6 +91,8 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     private final Object shardsByWeightMutex = new Object();
     private volatile Map<WeightedRoutingKey, List<ShardRouting>> activeShardsByWeight = emptyMap();
     private volatile Map<WeightedRoutingKey, List<ShardRouting>> initializingShardsByWeight = emptyMap();
+
+    private static final Logger logger = LogManager.getLogger(IndexShardRoutingTable.class);
 
     /**
      * The initializing list, including ones that are initializing on a target node because of relocation.
@@ -336,7 +340,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         } catch (IllegalArgumentException e) {
             // this exception is thrown by {@link onlyNodeSelectorActiveInitializingShardsIt} in case count of shard
             // copies found is zero
-            System.out.println();
+            logger.debug("no shard copies found for shard id [{}] for node attribute with weight zero", shardId);
         }
 
         return new PlainShardIterator(shardId, ordered);
