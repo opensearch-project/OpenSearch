@@ -19,4 +19,7 @@ opensearchplugin {
 dependencies {
   api project(':libs:opensearch-core')
   api project(':sandbox:libs:opensearch-authn')
+
+  testImplementation project(path: ':modules:transport-netty4') // for http
+  testImplementation project(path: ':plugins:transport-nio') // for http
 }

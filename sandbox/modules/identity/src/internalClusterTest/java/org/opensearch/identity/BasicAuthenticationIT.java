@@ -14,6 +14,7 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.client.Request;
 import org.opensearch.client.RequestOptions;
 import org.opensearch.client.Response;
+import org.opensearch.client.RestClient;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.Settings;
@@ -50,11 +51,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
 @ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class BasicAuthenticationIT extends OpenSearchIntegTestCase {
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singletonList(IdentityPlugin.class);
-    }
+public class BasicAuthenticationIT extends HttpSmokeTestCaseWithIdentity {
 
     public void testBasicAuth() throws Exception {
         logger.info("--> cluster has [{}] nodes", internalCluster().size());
@@ -103,9 +100,10 @@ public class BasicAuthenticationIT extends OpenSearchIntegTestCase {
 //        System.out.println("Sending Cluster Health Request");
 //        ClusterHealthResponse resp = client().admin().cluster().health(request).actionGet();
 
-        Map<String, String> params = new HashMap<>();
-        FakeRestRequest restRequest = buildRestRequest(params);
-        ClusterHealthRequest clusterHealthRequest = RestClusterHealthAction.fromRequest(restRequest);
+//        Map<String, String> params = new HashMap<>();
+//        FakeRestRequest restRequest = buildRestRequest(params);
+//        ClusterHealthRequest clusterHealthRequest = RestClusterHealthAction.fromRequest(request);
+//        ClusterHealthResponse resp = client().admin().cluster().health(clusterHealthRequest).actionGet();
 
 
         System.out.println("Sending Cluster Health Request");
@@ -116,6 +114,7 @@ public class BasicAuthenticationIT extends OpenSearchIntegTestCase {
 
         System.out.println("=== HERE ===");
         System.out.println("testBasicAuth");
+//        System.out.println(resp);
         System.out.println(response);
 
         ensureStableCluster(2);
