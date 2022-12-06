@@ -488,8 +488,6 @@ final class StoreRecovery {
                     );
                     long processedLocalCheckpoint = Long.parseLong(infosSnapshot.getUserData().get(LOCAL_CHECKPOINT_KEY));
                     store.commitSegmentInfos(infosSnapshot, processedLocalCheckpoint, processedLocalCheckpoint);
-                } catch (IOException e) {
-                    logger.info("Exception while reading {}, falling back to commit level restore", segmentInfosSnapshotFilename);
                 }
             }
 
