@@ -66,6 +66,7 @@ public class ScheduleParserTests extends OpenSearchTestCase {
         ScheduleParser.parse(parser);
     }
 
+    @SuppressForbidden(reason = "")
     @Test(expected = IllegalArgumentException.class)
     public void test_unknownFiledInIntervalSchedule() throws IOException {
         String intervalScheduleJsonStr = "{\"interval\":{\"start_time\":1546329600000,\"period\":1,\"unknown_filed\":\"value\"}}";
