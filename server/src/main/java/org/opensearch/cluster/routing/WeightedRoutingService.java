@@ -203,7 +203,7 @@ public class WeightedRoutingService {
         allAwarenessValues.addAll(discoveredAwarenessValues);
         allAwarenessValues.forEach(awarenessValue -> {
             if (request.getWeightedRouting().weights().containsKey(awarenessValue) == false) {
-                throw new WeightedRoutingUnsupportedStateException(
+                throw new UnsupportedWeightedRoutingStateException(
                     "weight for [" + awarenessValue + "] is not set and it is part of forced awareness value or a node has this attribute."
                 );
             }
@@ -220,7 +220,7 @@ public class WeightedRoutingService {
         WeightedRouting weightedRouting = request.getWeightedRouting();
         if (weightedRouting.attributeName().equals(decommissionAttribute.attributeName()) == false) {
             // this is unexpected when a different attribute is requested for decommission and weight update is on another attribute
-            throw new WeightedRoutingUnsupportedStateException(
+            throw new UnsupportedWeightedRoutingStateException(
                 "decommission action ongoing for attribute ["
                     + decommissionAttribute.attributeName()
                     + "], cannot update weight for ["
@@ -230,14 +230,14 @@ public class WeightedRoutingService {
         }
         if (weightedRouting.weights().containsKey(decommissionAttribute.attributeValue()) == false) {
             // weight of an attribute undergoing decommission must be specified
-            throw new WeightedRoutingUnsupportedStateException(
+            throw new UnsupportedWeightedRoutingStateException(
                 "weight for ["
                     + decommissionAttribute.attributeValue()
                     + "] is not specified. Please specify its weight to [0] as it is under decommission action"
             );
         }
         if (Objects.equals(weightedRouting.weights().get(decommissionAttribute.attributeValue()), 0.0) == false) {
-            throw new WeightedRoutingUnsupportedStateException(
+            throw new UnsupportedWeightedRoutingStateException(
                 "weight for [" + decommissionAttribute.attributeValue() + "] must be set to [0] as it is under decommission action"
             );
         }

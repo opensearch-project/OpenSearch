@@ -19,12 +19,12 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public class WeightedRoutingUnsupportedStateException extends OpenSearchException {
-    public WeightedRoutingUnsupportedStateException(StreamInput in) throws IOException {
+public class UnsupportedWeightedRoutingStateException extends OpenSearchException {
+    public UnsupportedWeightedRoutingStateException(StreamInput in) throws IOException {
         super(in);
     }
 
-    public WeightedRoutingUnsupportedStateException(String msg, Object... args) {
+    public UnsupportedWeightedRoutingStateException(String msg, Object... args) {
         super(msg, args);
     }
 

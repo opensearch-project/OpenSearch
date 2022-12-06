@@ -320,7 +320,7 @@ public class WeightedRoutingServiceTests extends OpenSearchTestCase {
         weightedRoutingService.registerWeightedRoutingMetadata(request.request(), listener);
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
         MatcherAssert.assertThat("Expected onFailure to be called", exceptionReference.get(), notNullValue());
-        MatcherAssert.assertThat(exceptionReference.get(), instanceOf(WeightedRoutingUnsupportedStateException.class));
+        MatcherAssert.assertThat(exceptionReference.get(), instanceOf(UnsupportedWeightedRoutingStateException.class));
         MatcherAssert.assertThat(
             exceptionReference.get().getMessage(),
             containsString("weight for [zone_B] is not set and it is part of forced awareness value or a node has this attribute.")
@@ -359,7 +359,7 @@ public class WeightedRoutingServiceTests extends OpenSearchTestCase {
         weightedRoutingService.registerWeightedRoutingMetadata(request.request(), listener);
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
         MatcherAssert.assertThat("Expected onFailure to be called", exceptionReference.get(), notNullValue());
-        MatcherAssert.assertThat(exceptionReference.get(), instanceOf(WeightedRoutingUnsupportedStateException.class));
+        MatcherAssert.assertThat(exceptionReference.get(), instanceOf(UnsupportedWeightedRoutingStateException.class));
         MatcherAssert.assertThat(
             exceptionReference.get().getMessage(),
             containsString("weight for [zone_A] must be set to [0] as it is under decommission action")
