@@ -49,7 +49,7 @@ public class DiscoveryExtensionNode extends DiscoveryNode implements Writeable, 
     ) {
         super(name, id, ephemeralId, hostName, hostAddress, address, attributes, DiscoveryNodeRole.BUILT_IN_ROLES, version);
         this.pluginInfo = pluginInfo;
-        this.dependencies = dependencies;   
+        this.dependencies = dependencies;
     }
 
     @Override
