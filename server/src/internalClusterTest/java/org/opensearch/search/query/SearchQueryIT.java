@@ -2092,8 +2092,14 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
         refresh();
 
         {
+            // test default case insensitivity: false
             WildcardQueryBuilder wildCardQuery = wildcardQuery("field1", "Bb*");
             SearchResponse searchResponse = client().prepareSearch().setQuery(wildCardQuery).get();
+            assertHitCount(searchResponse, 0L);
+
+            // test case insensitivity set to true
+            wildCardQuery = wildcardQuery("field1", "Bb*").caseInsensitive(true);
+            searchResponse = client().prepareSearch().setQuery(wildCardQuery).get();
             assertHitCount(searchResponse, 1L);
 
             wildCardQuery = wildcardQuery("field1", "bb*");
