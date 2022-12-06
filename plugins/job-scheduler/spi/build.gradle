@@ -20,6 +20,13 @@ dependencies {
     testImplementation project(":test:framework")
 }
 
+configurations.all {
+    if (it.state != Configuration.State.UNRESOLVED) return
+    resolutionStrategy {
+        force "org.slf4j:slf4j-api:${slf4j_version_of_cronutils}"
+    }
+}
+
 tasks.register("integTest", Test) {
   include "**/*IT.class"
 }
