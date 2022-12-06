@@ -24,6 +24,10 @@ exit /B 1
 set OPENSEARCH_VERSION=${project.version}
 
 if "%SERVICE_LOG_DIR%" == "" set SERVICE_LOG_DIR=%OPENSEARCH_HOME%\logs
+rem The logs directory must exist for the service to start.
+if not exist "%SERVICE_LOG_DIR%" (
+	mkdir "%SERVICE_LOG_DIR%"
+)
 
 if "x%1x" == "xx" goto displayUsage
 set SERVICE_CMD=%1
