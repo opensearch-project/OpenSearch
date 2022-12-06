@@ -95,7 +95,6 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
-import static org.opensearch.action.support.replication.ReplicationOperation.ReplicationOverridePolicy;
 import static org.opensearch.index.seqno.ReplicationTracker.ReplicationMode;
 
 /**
@@ -198,11 +197,11 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     @Override
-    protected Optional<ReplicationOverridePolicy> getReplicationOverridePolicy(IndexShard indexShard) {
+    protected Optional<ReplicationMode> getReplicationModeOverride(IndexShard indexShard) {
         if (indexShard.isRemoteTranslogEnabled()) {
-            return Optional.of(new ReplicationOverridePolicy(ReplicationMode.PRIMARY_TERM_VALIDATION));
+            return Optional.of(ReplicationMode.PRIMARY_TERM_VALIDATION);
         }
-        return super.getReplicationOverridePolicy(indexShard);
+        return super.getReplicationModeOverride(indexShard);
     }
 
     public static void performOnPrimary(

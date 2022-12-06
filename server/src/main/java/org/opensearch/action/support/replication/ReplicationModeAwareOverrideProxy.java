@@ -8,9 +8,8 @@
 
 package org.opensearch.action.support.replication;
 
-import org.opensearch.action.support.replication.ReplicationOperation.ReplicationOverridePolicy;
 import org.opensearch.cluster.routing.ShardRouting;
-import org.opensearch.index.seqno.ReplicationTracker;
+import org.opensearch.index.seqno.ReplicationTracker.ReplicationMode;
 import org.opensearch.index.shard.ReplicationGroup.ReplicationModeAwareShardRouting;
 
 import java.util.Objects;
@@ -23,36 +22,27 @@ import java.util.Objects;
  */
 public class ReplicationModeAwareOverrideProxy<ReplicaRequest> extends ReplicationProxy<ReplicaRequest> {
 
-    private final ReplicationOverridePolicy overridePolicy;
+    private final ReplicationMode replicationModeOverride;
 
-    public ReplicationModeAwareOverrideProxy(ReplicationOverridePolicy overridePolicy) {
-        assert Objects.nonNull(overridePolicy);
-        this.overridePolicy = overridePolicy;
+    public ReplicationModeAwareOverrideProxy(ReplicationMode replicationModeOverride) {
+        assert Objects.nonNull(replicationModeOverride);
+        this.replicationModeOverride = replicationModeOverride;
     }
 
     @Override
-    ReplicationTracker.ReplicationMode determineReplicationMode(
-        ReplicationModeAwareShardRouting shardRouting,
-        ShardRouting primaryRouting
-    ) {
+    ReplicationMode determineReplicationMode(ReplicationModeAwareShardRouting shardRouting, ShardRouting primaryRouting) {
         ShardRouting currentRouting = shardRouting.getShardRouting();
 
         // If the current routing is the primary, then it does not need to be replicated
         if (currentRouting.isSameAllocation(primaryRouting)) {
-            return ReplicationTracker.ReplicationMode.NO_REPLICATION;
+            return ReplicationMode.NO_REPLICATION;
         }
 
-        // If the current routing's replication mode is not NONE, then we return the original replication mode.
-        if (shardRouting.getReplicationMode() != ReplicationTracker.ReplicationMode.NO_REPLICATION) {
+        // If the current routing's replication mode is full replication or primary term validation, then we return the original mode
+        if (shardRouting.getReplicationMode() == ReplicationMode.FULL_REPLICATION
+            || shardRouting.getReplicationMode() == ReplicationMode.PRIMARY_TERM_VALIDATION) {
             return shardRouting.getReplicationMode();
         }
-
-        // If the current routing's replication mode is none, then we check for override and return overridden mode.
-        if (Objects.nonNull(overridePolicy)) {
-            return overridePolicy.getOverriddenMode();
-        }
-
-        // At the end, return NONE.
-        return ReplicationTracker.ReplicationMode.NO_REPLICATION;
+        return replicationModeOverride;
     }
 }

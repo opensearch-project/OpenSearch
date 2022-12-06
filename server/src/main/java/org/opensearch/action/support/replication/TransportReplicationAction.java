@@ -46,7 +46,6 @@ import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.ChannelActionListener;
 import org.opensearch.action.support.TransportAction;
 import org.opensearch.action.support.TransportActions;
-import org.opensearch.action.support.replication.ReplicationOperation.ReplicationOverridePolicy;
 import org.opensearch.client.transport.NoNodeAvailableException;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
@@ -262,11 +261,11 @@ public abstract class TransportReplicationAction<
     }
 
     /**
-     * This method is used for defining the {@link ReplicationMode} override policy per {@link TransportReplicationAction}.
+     * This method is used for defining the {@link ReplicationMode} override per {@link TransportReplicationAction}.
      * @param indexShard index shard used to determining the policy.
-     * @return the override policy.
+     * @return the overridden replication mode.
      */
-    protected Optional<ReplicationOverridePolicy> getReplicationOverridePolicy(IndexShard indexShard) {
+    protected Optional<ReplicationMode> getReplicationModeOverride(IndexShard indexShard) {
         return Optional.empty();
     }
 
@@ -546,7 +545,7 @@ public abstract class TransportReplicationAction<
                         primaryRequest.getPrimaryTerm(),
                         initialRetryBackoffBound,
                         retryTimeout,
-                        ReplicationProxyFactory.create(getReplicationOverridePolicy(primaryShardReference.indexShard))
+                        ReplicationProxyFactory.create(getReplicationModeOverride(primaryShardReference.indexShard))
                     ).execute();
                 }
             } catch (Exception e) {

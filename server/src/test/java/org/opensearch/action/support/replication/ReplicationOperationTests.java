@@ -93,7 +93,6 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.opensearch.action.support.replication.ClusterStateCreationUtils.state;
 import static org.opensearch.action.support.replication.ClusterStateCreationUtils.stateWithActivePrimary;
-import static org.opensearch.action.support.replication.ReplicationOperation.ReplicationOverridePolicy;
 import static org.opensearch.action.support.replication.ReplicationOperation.RetryOnPrimaryException;
 import static org.opensearch.cluster.routing.TestShardRouting.newShardRouting;
 
@@ -260,7 +259,7 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
             listener,
             replicasProxy,
             0,
-            new ReplicationModeAwareOverrideProxy<>(new ReplicationOverridePolicy(ReplicationMode.NO_REPLICATION))
+            new ReplicationModeAwareOverrideProxy<>(ReplicationMode.NO_REPLICATION)
         );
         op.execute();
         assertTrue("request was not processed on primary", request.processedOnPrimary.get());
@@ -338,7 +337,7 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
             listener,
             replicasProxy,
             0,
-            new ReplicationModeAwareOverrideProxy<>(new ReplicationOverridePolicy(ReplicationMode.NO_REPLICATION))
+            new ReplicationModeAwareOverrideProxy<>(ReplicationMode.NO_REPLICATION)
         );
         op.execute();
         assertTrue("request was not processed on primary", request.processedOnPrimary.get());

@@ -15,7 +15,6 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.replication.ReplicationOperation.ReplicationOverridePolicy;
 import org.opensearch.action.support.replication.ReplicationResponse;
 import org.opensearch.action.support.replication.ReplicationTask;
 import org.opensearch.action.support.replication.TransportReplicationAction;
@@ -98,11 +97,11 @@ public class PublishCheckpointAction extends TransportReplicationAction<
     }
 
     @Override
-    protected Optional<ReplicationOverridePolicy> getReplicationOverridePolicy(IndexShard indexShard) {
+    protected Optional<ReplicationMode> getReplicationModeOverride(IndexShard indexShard) {
         if (indexShard.isRemoteTranslogEnabled()) {
-            return Optional.of(new ReplicationOverridePolicy(ReplicationMode.FULL_REPLICATION));
+            return Optional.of(ReplicationMode.FULL_REPLICATION);
         }
-        return super.getReplicationOverridePolicy(indexShard);
+        return super.getReplicationModeOverride(indexShard);
     }
 
     /**

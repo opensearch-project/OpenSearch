@@ -8,22 +8,22 @@
 
 package org.opensearch.action.support.replication;
 
-import org.opensearch.action.support.replication.ReplicationOperation.ReplicationOverridePolicy;
+import org.opensearch.index.seqno.ReplicationTracker.ReplicationMode;
 
 import java.util.Optional;
 
 /**
- * Factory that returns the {@link ReplicationProxy} instance basis the {@link ReplicationOverridePolicy}.
+ * Factory that returns the {@link ReplicationProxy} instance basis the {@link ReplicationMode}.
  *
  * @opensearch.internal
  */
 public class ReplicationProxyFactory {
 
-    public static <ReplicaRequest> ReplicationProxy<ReplicaRequest> create(final Optional<ReplicationOverridePolicy> overridePolicy) {
-        if (overridePolicy.isEmpty()) {
+    public static <ReplicaRequest> ReplicationProxy<ReplicaRequest> create(final Optional<ReplicationMode> replicationMode) {
+        if (replicationMode.isEmpty()) {
             return new FanoutReplicationProxy<>();
         } else {
-            return new ReplicationModeAwareOverrideProxy<>(overridePolicy.get());
+            return new ReplicationModeAwareOverrideProxy<>(replicationMode.get());
         }
     }
 }

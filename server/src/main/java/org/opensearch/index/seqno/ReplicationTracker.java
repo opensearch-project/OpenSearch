@@ -810,12 +810,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         /**
          * In this mode, a {@code TransportReplicationAction} does not fan out to the underlying concerned shard.
          */
-        NO_REPLICATION(2),
-
-        /**
-         * For handling deserialization related issues.
-         */
-        UNKNOWN(99);
+        NO_REPLICATION(2);
 
         private final byte type;
 
@@ -824,8 +819,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         }
 
         public static ReplicationMode readFrom(StreamInput in) throws IOException {
-            byte type = in.readByte();
-            switch (type) {
+            byte value = in.readByte();
+            switch (value) {
                 case 0:
                     return FULL_REPLICATION;
                 case 1:
@@ -833,7 +828,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                 case 2:
                     return NO_REPLICATION;
                 default:
-                    return UNKNOWN;
+                    throw new IllegalArgumentException("No replication mode for value [" + value + "]");
             }
         }
 
