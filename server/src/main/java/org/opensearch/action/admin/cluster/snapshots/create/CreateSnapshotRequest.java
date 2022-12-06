@@ -253,7 +253,7 @@ public class CreateSnapshotRequest extends ClusterManagerNodeRequest<CreateSnaps
      * @return this request
      */
     public CreateSnapshotRequest indices(List<String> indices) {
-        this.indices = indices.toArray(new String[indices.size()]);
+        this.indices = indices.toArray(new String[0]);
         return this;
     }
 

@@ -31,13 +31,22 @@
 
 package org.opensearch.snapshots;
 
+import org.opensearch.Version;
 import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.common.collect.ImmutableOpenMap;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.index.Index;
+import org.opensearch.index.IndexModule;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 
 public class SnapshotUtilsTests extends OpenSearchTestCase {
     public void testIndexNameFiltering() {
@@ -84,5 +93,40 @@ public class SnapshotUtilsTests extends OpenSearchTestCase {
         List<String> indicesList = Arrays.asList(indices);
         List<String> actual = SnapshotUtils.filterIndices(indicesList, filter, indicesOptions);
         assertThat(actual, containsInAnyOrder(expected));
+    }
+
+    public void testValidateSnapshotsBackingAnyIndex() {
+        final String repoName = "test-repo";
+        final SnapshotId snapshotId1 = new SnapshotId("testSnapshot1", "uuid1");
+        final SnapshotId snapshotId2 = new SnapshotId("testSnapshot2", "uuid2");
+        SnapshotUtils.validateSnapshotsBackingAnyIndex(getIndexMetadata(snapshotId1, repoName), List.of(snapshotId2), repoName);
+    }
+
+    public void testValidateSnapshotsBackingAnyIndexThrowsException() {
+        final String repoName = "test-repo";
+        final SnapshotId snapshotId1 = new SnapshotId("testSnapshot1", "uuid1");
+        expectThrows(
+            SnapshotInUseDeletionException.class,
+            () -> SnapshotUtils.validateSnapshotsBackingAnyIndex(getIndexMetadata(snapshotId1, repoName), List.of(snapshotId1), repoName)
+        );
+    }
+
+    private static ImmutableOpenMap<String, IndexMetadata> getIndexMetadata(SnapshotId snapshotId, String repoName) {
+        final String index = "test-index";
+        Snapshot snapshot = new Snapshot(repoName, snapshotId);
+        final Metadata.Builder builder = Metadata.builder();
+        builder.put(createIndexMetadata(new Index(index, "uuid"), snapshot), true);
+        return builder.build().getIndices();
+    }
+
+    private static IndexMetadata createIndexMetadata(final Index index, Snapshot snapshot) {
+        final Settings settings = Settings.builder()
+            .put(SETTING_VERSION_CREATED, Version.CURRENT.id)
+            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey())
+            .put(IndexSettings.SEARCHABLE_SNAPSHOT_REPOSITORY.getKey(), snapshot.getRepository())
+            .put(IndexSettings.SEARCHABLE_SNAPSHOT_ID_UUID.getKey(), snapshot.getSnapshotId().getUUID())
+            .put(IndexSettings.SEARCHABLE_SNAPSHOT_ID_NAME.getKey(), snapshot.getSnapshotId().getName())
+            .build();
+        return IndexMetadata.builder(index.getName()).settings(settings).numberOfShards(1).numberOfReplicas(0).build();
     }
 }

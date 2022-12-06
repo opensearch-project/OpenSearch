@@ -99,7 +99,7 @@ public class OpenSearchGeoAssertions {
     }
 
     private static Coordinate[] fixedOrderedRing(List<Coordinate> coordinates, boolean direction) {
-        return fixedOrderedRing(coordinates.toArray(new Coordinate[coordinates.size()]), direction);
+        return fixedOrderedRing(coordinates.toArray(new Coordinate[0]), direction);
     }
 
     private static Coordinate[] fixedOrderedRing(Coordinate[] points, boolean direction) {

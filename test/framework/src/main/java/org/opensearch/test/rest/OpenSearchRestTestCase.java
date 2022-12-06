@@ -207,8 +207,8 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
             }
             clusterHosts = unmodifiableList(hosts);
             logger.info("initializing REST clients against {}", clusterHosts);
-            client = buildClient(restClientSettings(), clusterHosts.toArray(new HttpHost[clusterHosts.size()]));
-            adminClient = buildClient(restAdminSettings(), clusterHosts.toArray(new HttpHost[clusterHosts.size()]));
+            client = buildClient(restClientSettings(), clusterHosts.toArray(new HttpHost[0]));
+            adminClient = buildClient(restAdminSettings(), clusterHosts.toArray(new HttpHost[0]));
 
             nodeVersions = new TreeSet<>();
             Map<?, ?> response = entityAsMap(adminClient.performRequest(new Request("GET", "_nodes/plugins")));

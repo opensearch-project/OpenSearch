@@ -1047,7 +1047,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
             }
         }
 
-        Segment[] segmentsArr = segments.values().toArray(new Segment[segments.values().size()]);
+        Segment[] segmentsArr = segments.values().toArray(new Segment[0]);
         Arrays.sort(segmentsArr, Comparator.comparingLong(Segment::getGeneration));
         return segmentsArr;
     }
