@@ -72,7 +72,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
  *
  * @opensearch.internal
  */
-public class ExtensionsManager implements ReportingService<PluginsAndModules> {
+public class ExtensionsManager {
     public static final String REQUEST_EXTENSION_ACTION_NAME = "internal:discovery/extensions";
     public static final String INDICES_EXTENSION_POINT_ACTION_NAME = "indices:internal/extensions";
     public static final String INDICES_EXTENSION_NAME_ACTION_NAME = "indices:internal/name";
@@ -287,11 +287,6 @@ public class ExtensionsManager implements ReportingService<PluginsAndModules> {
                 extensionTransportActionsHandler.handleTransportActionRequestFromExtension(request)
             ))
         );
-    }
-
-    @Override
-    public PluginsAndModules info() {
-        return null;
     }
 
     /*
