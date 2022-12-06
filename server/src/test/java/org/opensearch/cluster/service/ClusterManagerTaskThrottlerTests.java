@@ -114,6 +114,15 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
 
         Settings newSettings = Settings.builder().put("cluster_manager.throttling.thresholds.put-mapping.value", newLimit).build();
         assertThrows(IllegalArgumentException.class, () -> throttler.validateSetting(newSettings));
+
+        // validate for empty setting, it shouldn't throw exception
+        Settings emptySettings = Settings.builder().build();
+        try {
+            throttler.validateSetting(emptySettings);
+        } catch (Exception e) {
+            // it shouldn't throw exception
+            throw new AssertionError(e);
+        }
     }
 
     public void testValidateSettingsForTaskWihtoutRetryOnDataNode() {

@@ -108,10 +108,12 @@ public class ClusterManagerTaskThrottler implements TaskBatcherListener {
     }
 
     void validateSetting(final Settings settings) {
-        if (minNodeVersionSupplier.get().compareTo(Version.V_2_4_0) < 0) {
-            throw new IllegalArgumentException("All the nodes in cluster should be on version later than or equal to 2.4.0");
-        }
         Map<String, Settings> groups = settings.getAsGroups();
+        if (groups.size() > 0) {
+            if (minNodeVersionSupplier.get().compareTo(Version.V_2_4_0) < 0) {
+                throw new IllegalArgumentException("All the nodes in cluster should be on version later than or equal to 2.4.0");
+            }
+        }
         for (String key : groups.keySet()) {
             if (!THROTTLING_TASK_KEYS.containsKey(key)) {
                 throw new IllegalArgumentException("Cluster manager task throttling is not configured for given task type: " + key);
