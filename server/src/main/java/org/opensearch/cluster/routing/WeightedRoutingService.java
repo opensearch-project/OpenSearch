@@ -53,6 +53,7 @@ public class WeightedRoutingService {
     private final ThreadPool threadPool;
     private volatile List<String> awarenessAttributes;
     private volatile Map<String, List<String>> forcedAwarenessAttributes;
+    private static final Double DECOMMISSIONED_AWARENESS_VALUE_WEIGHT = 0.0;
 
     @Inject
     public WeightedRoutingService(
@@ -236,7 +237,10 @@ public class WeightedRoutingService {
                     + "] is not specified. Please specify its weight to [0] as it is under decommission action"
             );
         }
-        if (Objects.equals(weightedRouting.weights().get(decommissionAttribute.attributeValue()), 0.0) == false) {
+        if (Objects.equals(
+            weightedRouting.weights().get(decommissionAttribute.attributeValue()),
+            DECOMMISSIONED_AWARENESS_VALUE_WEIGHT
+        ) == false) {
             throw new UnsupportedWeightedRoutingStateException(
                 "weight for [" + decommissionAttribute.attributeValue() + "] must be set to [0] as it is under decommission action"
             );
