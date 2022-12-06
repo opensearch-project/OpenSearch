@@ -8,6 +8,10 @@ if /i "%1" == "install" set NOJAVA=
 
 call "%~dp0opensearch-env.bat" %NOJAVA% || exit /b 1
 
+rem opensearch-service-x64.exe is based off of the Apache Commons Daemon procrun service application.
+rem Run "opensearch-service-x64.exe version" for version information.
+rem Run "opensearch-service-x64.exe help" for command options.
+rem See https://commons.apache.org/proper/commons-daemon/procrun.html for more information.
 set EXECUTABLE=%OPENSEARCH_HOME%\bin\opensearch-service-x64.exe
 if "%SERVICE_ID%" == "" set SERVICE_ID=opensearch-service-x64
 set ARCH=64-bit
@@ -45,7 +49,8 @@ echo Usage: opensearch-service.bat install^|remove^|start^|stop^|manager [SERVIC
 goto:eof
 
 :doStart
-"%EXECUTABLE%" //OPENSEARCH//%SERVICE_ID% %LOG_OPTS%
+rem //ES == Execute Service
+"%EXECUTABLE%" //ES//%SERVICE_ID% %LOG_OPTS%
 if not errorlevel 1 goto started
 echo Failed starting '%SERVICE_ID%' service
 exit /B 1
@@ -55,6 +60,7 @@ echo The service '%SERVICE_ID%' has been started
 goto:eof
 
 :doStop
+rem //SS == Stop Service
 "%EXECUTABLE%" //SS//%SERVICE_ID% %LOG_OPTS%
 if not errorlevel 1 goto stopped
 echo Failed stopping '%SERVICE_ID%' service
@@ -65,8 +71,11 @@ echo The service '%SERVICE_ID%' has been stopped
 goto:eof
 
 :doManagment
+rem opensearch-service-mgr.exe is based off of the Apache Commons Daemon procrun monitor application.
+rem See https://commons.apache.org/proper/commons-daemon/procrun.html for more information.
 set EXECUTABLE_MGR=%OPENSEARCH_HOME%\bin\opensearch-service-mgr
-"%EXECUTABLE_MGR%" //OPENSEARCH//%SERVICE_ID%
+rem //ES == Edit Service
+"%EXECUTABLE_MGR%" //ES//%SERVICE_ID%
 if not errorlevel 1 goto managed
 echo Failed starting service manager for '%SERVICE_ID%'
 exit /B 1
@@ -77,6 +86,7 @@ goto:eof
 
 :doRemove
 rem Remove the service
+rem //DS == Delete Service
 "%EXECUTABLE%" //DS//%SERVICE_ID% %LOG_OPTS%
 if not errorlevel 1 goto removed
 echo Failed removing '%SERVICE_ID%' service
@@ -207,6 +217,7 @@ if not "%SERVICE_USERNAME%" == "" (
 		set SERVICE_PARAMS=%SERVICE_PARAMS% --ServiceUser "%SERVICE_USERNAME%" --ServicePassword "%SERVICE_PASSWORD%"
 	)
 )
+rem //IS == Install Service
 "%EXECUTABLE%" //IS//%SERVICE_ID% --Startup %OPENSEARCH_START_TYPE% --StopTimeout %OPENSEARCH_STOP_TIMEOUT% --StartClass org.opensearch.bootstrap.OpenSearch --StartMethod main ++StartParams --quiet --StopClass org.opensearch.bootstrap.OpenSearch --StopMethod close --Classpath "%OPENSEARCH_CLASSPATH%" --JvmMs %JVM_MS% --JvmMx %JVM_MX% --JvmSs %JVM_SS% --JvmOptions %OTHER_JAVA_OPTS% ++JvmOptions %OPENSEARCH_PARAMS% %LOG_OPTS% --PidFile "%SERVICE_ID%.pid" --DisplayName "%SERVICE_DISPLAY_NAME%" --Description "%SERVICE_DESCRIPTION%" --Jvm "%JAVA_HOME%%JVM_DLL%" --StartMode jvm --StopMode jvm --StartPath "%OPENSEARCH_HOME%" %SERVICE_PARAMS% ++Environment HOSTNAME="%%COMPUTERNAME%%"
 
 if not errorlevel 1 goto installed
