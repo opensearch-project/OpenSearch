@@ -281,7 +281,7 @@ public abstract class MappedFieldType {
     ) {
         throw new QueryShardException(
             context,
-            "Can only use prefix queries on keyword, text and wildcard fields - not on [" + name + "] which is of type [" + typeName() + "]"
+            "Can only use prefix queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]"
         );
     }
 
