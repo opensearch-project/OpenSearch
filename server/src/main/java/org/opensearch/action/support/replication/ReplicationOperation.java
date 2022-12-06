@@ -42,6 +42,7 @@ import org.opensearch.action.UnavailableShardsException;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.RetryableAction;
 import org.opensearch.action.support.TransportActions;
+import org.opensearch.action.support.replication.ReplicationProxyRequest.Builder;
 import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
@@ -66,7 +67,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongSupplier;
@@ -103,7 +103,7 @@ public class ReplicationOperation<
     private final TimeValue initialRetryBackoffBound;
     private final TimeValue retryTimeout;
     private final long primaryTerm;
-    private final ReplicationProxy replicationProxy;
+    private final ReplicationProxy<ReplicaRequest> replicationProxy;
 
     // exposed for tests
     private final ActionListener<PrimaryResultT> resultListener;
@@ -123,7 +123,7 @@ public class ReplicationOperation<
         long primaryTerm,
         TimeValue initialRetryBackoffBound,
         TimeValue retryTimeout,
-        Optional<ReplicationOverridePolicy> overridePolicy
+        ReplicationProxy<ReplicaRequest> replicationProxy
     ) {
         this.replicasProxy = replicas;
         this.primary = primary;
@@ -135,7 +135,7 @@ public class ReplicationOperation<
         this.primaryTerm = primaryTerm;
         this.initialRetryBackoffBound = initialRetryBackoffBound;
         this.retryTimeout = retryTimeout;
-        this.replicationProxy = new ReplicationProxyFactory().create(overridePolicy);
+        this.replicationProxy = replicationProxy;
     }
 
     public void execute() throws Exception {
@@ -234,139 +234,14 @@ public class ReplicationOperation<
         final ShardRouting primaryRouting = primary.routingEntry();
 
         for (final ReplicationModeAwareShardRouting shardRouting : replicationGroup.getReplicationTargets()) {
-            replicationProxy.performOnReplica(
-                shardRouting,
-                primaryRouting,
-                replicaRequest,
-                globalCheckpoint,
-                maxSeqNoOfUpdatesOrDeletes,
-                pendingReplicationActions
-            );
-        }
-    }
-
-    /**
-     * Factory that return the {@link ReplicationProxy} instance basis the {@link ReplicationModeAwareOverrideProxy}.
-     *
-     * @opensearch.internal
-     */
-    private class ReplicationProxyFactory {
-        ReplicationProxy create(final Optional<ReplicationOverridePolicy> overridePolicy) {
-            if (overridePolicy.isEmpty()) {
-                return new FanoutReplicationProxy();
-            } else {
-                return new ReplicationModeAwareOverrideProxy(overridePolicy.get());
-            }
-        }
-    }
-
-    /**
-     * Used for performing any replication operation on replicas. Depending on the implementation, the replication call
-     * can fanout or stops here.
-     *
-     * @opensearch.internal
-     */
-    private abstract class ReplicationProxy {
-
-        /**
-         * Depending on the actual implementation and the passed {@link ReplicationModeAwareShardRouting}, the replication
-         * mode is determined using which the replication request is performed on the replica or not.
-         *
-         * @param shardRouting replication mode aware ShardRouting
-         * @param primaryRouting primary ShardRouting
-         * @param replicaRequest replication request
-         * @param globalCheckpoint current global checkpoint on primary
-         * @param maxSeqNoOfUpdatesOrDeletes maxSeqNoOfUpdatesOrDeletes
-         * @param pendingReplicationActions pendingReplicationActions
-         */
-        private void performOnReplica(
-            final ReplicationModeAwareShardRouting shardRouting,
-            final ShardRouting primaryRouting,
-            final ReplicaRequest replicaRequest,
-            final long globalCheckpoint,
-            final long maxSeqNoOfUpdatesOrDeletes,
-            final PendingReplicationActions pendingReplicationActions
-        ) {
-            ReplicationMode replicationMode = determineReplicationMode(shardRouting, primaryRouting);
-            // If the replication modes are 1. Logical replication or 2. Primary term validation, we let the call get performed on the
-            // replica shard.
-            if (replicationMode == ReplicationMode.FULL_REPLICATION || replicationMode == ReplicationMode.PRIMARY_TERM_VALIDATION) {
-                ReplicationOperation.this.performOnReplica(
-                    shardRouting.getShardRouting(),
-                    replicaRequest,
-                    globalCheckpoint,
-                    maxSeqNoOfUpdatesOrDeletes,
-                    pendingReplicationActions
-                );
-            }
-        }
-
-        /**
-         * Determines what is the replication mode basis the constructor arguments of the implementation and the current
-         * replication mode aware shard routing.
-         *
-         * @param shardRouting replication mode aware ShardRouting
-         * @param primaryRouting primary ShardRouting
-         * @return the determined replication mode.
-         */
-        abstract ReplicationMode determineReplicationMode(
-            final ReplicationModeAwareShardRouting shardRouting,
-            final ShardRouting primaryRouting
-        );
-    }
-
-    /**
-     * This implementation of {@link ReplicationProxy} fans out the replication request to current shard routing if
-     * it is not the primary and has replication mode as {@link ReplicationMode#FULL_REPLICATION}.
-     *
-     * @opensearch.internal
-     */
-    private class FanoutReplicationProxy extends ReplicationProxy {
-
-        @Override
-        ReplicationMode determineReplicationMode(ReplicationModeAwareShardRouting shardRouting, ShardRouting primaryRouting) {
-            return shardRouting.getShardRouting().isSameAllocation(primaryRouting) == false
-                ? ReplicationMode.FULL_REPLICATION
-                : ReplicationMode.NO_REPLICATION;
-        }
-    }
-
-    /**
-     * This implementation of {@link ReplicationProxy} fans out the replication request to current shard routing basis
-     * the shard routing's replication mode and replication override policy.
-     *
-     * @opensearch.internal
-     */
-    private class ReplicationModeAwareOverrideProxy extends ReplicationProxy {
-
-        private final ReplicationOverridePolicy overridePolicy;
-
-        private ReplicationModeAwareOverrideProxy(ReplicationOverridePolicy overridePolicy) {
-            assert Objects.nonNull(overridePolicy);
-            this.overridePolicy = overridePolicy;
-        }
-
-        @Override
-        ReplicationMode determineReplicationMode(ReplicationModeAwareShardRouting shardRouting, ShardRouting primaryRouting) {
-            ShardRouting currentRouting = shardRouting.getShardRouting();
-
-            // If the current routing is the primary, then it does not need to be replicated
-            if (currentRouting.isSameAllocation(primaryRouting)) {
-                return ReplicationMode.NO_REPLICATION;
-            }
-
-            // If the current routing's replication mode is not NONE, then we return the original replication mode.
-            if (shardRouting.getReplicationMode() != ReplicationMode.NO_REPLICATION) {
-                return shardRouting.getReplicationMode();
-            }
-
-            // If the current routing's replication mode is none, then we check for override and return overridden mode.
-            if (Objects.nonNull(overridePolicy)) {
-                return overridePolicy.overriddenMode;
-            }
-
-            // At the end, return NONE.
-            return ReplicationMode.NO_REPLICATION;
+            ReplicationProxyRequest<ReplicaRequest> proxyRequest = new Builder<ReplicaRequest>().setPrimaryRouting(primaryRouting)
+                .setReplicationModeAwareShardRouting(shardRouting)
+                .setGlobalCheckpoint(globalCheckpoint)
+                .setMaxSeqNoOfUpdatesOrDeletes(maxSeqNoOfUpdatesOrDeletes)
+                .setPendingReplicationActions(pendingReplicationActions)
+                .setReplicaRequest(replicaRequest)
+                .build();
+            replicationProxy.performOnReplicaProxy(proxyRequest, this::performOnReplica);
         }
     }
 
@@ -379,18 +254,22 @@ public class ReplicationOperation<
 
         private final ReplicationMode overriddenMode;
 
+        public ReplicationMode getOverriddenMode() {
+            return overriddenMode;
+        }
+
         public ReplicationOverridePolicy(ReplicationMode overriddenMode) {
             this.overriddenMode = Objects.requireNonNull(overriddenMode);
         }
     }
 
-    private void performOnReplica(
-        final ShardRouting shard,
-        final ReplicaRequest replicaRequest,
-        final long globalCheckpoint,
-        final long maxSeqNoOfUpdatesOrDeletes,
-        final PendingReplicationActions pendingReplicationActions
-    ) {
+    private void performOnReplica(final ReplicationProxyRequest<ReplicaRequest> replicationProxyRequest) {
+        final ShardRouting shard = replicationProxyRequest.getReplicationModeAwareShardRouting().getShardRouting();
+        final ReplicaRequest replicaRequest = replicationProxyRequest.getReplicaRequest();
+        final long globalCheckpoint = replicationProxyRequest.getGlobalCheckpoint();
+        final long maxSeqNoOfUpdatesOrDeletes = replicationProxyRequest.getMaxSeqNoOfUpdatesOrDeletes();
+        final PendingReplicationActions pendingReplicationActions = replicationProxyRequest.getPendingReplicationActions();
+
         if (logger.isTraceEnabled()) {
             logger.trace("[{}] sending op [{}] to replica {} for request [{}]", shard.shardId(), opType, shard, replicaRequest);
         }

@@ -36,6 +36,7 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.PlainActionFuture;
+import org.opensearch.action.support.replication.FanoutReplicationProxy;
 import org.opensearch.action.support.replication.PendingReplicationActions;
 import org.opensearch.action.support.replication.ReplicationOperation;
 import org.opensearch.action.support.replication.ReplicationResponse;
@@ -75,7 +76,6 @@ import org.mockito.ArgumentCaptor;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -303,7 +303,7 @@ public class TransportVerifyShardBeforeCloseActionTests extends OpenSearchTestCa
                 primaryTerm,
                 TimeValue.timeValueMillis(20),
                 TimeValue.timeValueSeconds(60),
-                Optional.empty()
+                new FanoutReplicationProxy<>()
             );
         operation.execute();
 

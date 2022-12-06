@@ -546,7 +546,7 @@ public abstract class TransportReplicationAction<
                         primaryRequest.getPrimaryTerm(),
                         initialRetryBackoffBound,
                         retryTimeout,
-                        getReplicationOverridePolicy(primaryShardReference.indexShard)
+                        ReplicationProxyFactory.create(getReplicationOverridePolicy(primaryShardReference.indexShard))
                     ).execute();
                 }
             } catch (Exception e) {
