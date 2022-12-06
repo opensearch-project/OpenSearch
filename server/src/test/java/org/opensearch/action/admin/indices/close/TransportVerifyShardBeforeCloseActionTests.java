@@ -270,7 +270,7 @@ public class TransportVerifyShardBeforeCloseActionTests extends OpenSearchTestCa
         shardRoutingTable = shardRoutingTableBuilder.build();
 
         Map<String, ReplicationMode> replicationModeMap = trackedShards.stream()
-            .collect(Collectors.toMap(v -> v, v -> ReplicationMode.LOGICAL_REPLICATION));
+            .collect(Collectors.toMap(v -> v, v -> ReplicationMode.FULL_REPLICATION));
         final ReplicationGroup replicationGroup = new ReplicationGroup(
             shardRoutingTable,
             inSyncAllocationIds,

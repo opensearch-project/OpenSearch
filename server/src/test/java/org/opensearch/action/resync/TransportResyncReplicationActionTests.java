@@ -174,7 +174,7 @@ public class TransportResyncReplicationActionTests extends OpenSearchTestCase {
                 }).when(indexShard).acquirePrimaryOperationPermit(any(ActionListener.class), anyString(), any(), eq(true));
                 Set<String> trackedAllocationIds = shardRoutingTable.getAllAllocationIds();
                 Map<String, ReplicationTracker.ReplicationMode> replicationModeMap = trackedAllocationIds.stream()
-                    .collect(Collectors.toMap(v -> v, v -> ReplicationTracker.ReplicationMode.LOGICAL_REPLICATION));
+                    .collect(Collectors.toMap(v -> v, v -> ReplicationTracker.ReplicationMode.FULL_REPLICATION));
                 when(indexShard.getReplicationGroup()).thenReturn(
                     new ReplicationGroup(
                         shardRoutingTable,

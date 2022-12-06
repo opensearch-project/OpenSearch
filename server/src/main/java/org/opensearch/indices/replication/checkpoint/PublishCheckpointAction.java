@@ -100,7 +100,7 @@ public class PublishCheckpointAction extends TransportReplicationAction<
     @Override
     protected Optional<ReplicationOverridePolicy> getReplicationOverridePolicy(IndexShard indexShard) {
         if (indexShard.isRemoteTranslogEnabled()) {
-            return Optional.of(new ReplicationOverridePolicy(ReplicationMode.LOGICAL_REPLICATION));
+            return Optional.of(new ReplicationOverridePolicy(ReplicationMode.FULL_REPLICATION));
         }
         return super.getReplicationOverridePolicy(indexShard);
     }

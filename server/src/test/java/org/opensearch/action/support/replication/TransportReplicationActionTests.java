@@ -954,7 +954,7 @@ public class TransportReplicationActionTests extends OpenSearchTestCase {
             : clusterService.state().metadata().index(index).inSyncAllocationIds(0);
         Set<String> trackedAllocationIds = shardRoutingTable.getAllAllocationIds();
         Map<String, ReplicationTracker.ReplicationMode> replicationModeMap = trackedAllocationIds.stream()
-            .collect(Collectors.toMap(v -> v, v -> ReplicationTracker.ReplicationMode.LOGICAL_REPLICATION));
+            .collect(Collectors.toMap(v -> v, v -> ReplicationTracker.ReplicationMode.FULL_REPLICATION));
         ReplicationGroup replicationGroup = new ReplicationGroup(shardRoutingTable, inSyncIds, trackedAllocationIds, replicationModeMap, 0);
         when(shard.getReplicationGroup()).thenReturn(replicationGroup);
         PendingReplicationActions replicationActions = new PendingReplicationActions(shardId, threadPool);

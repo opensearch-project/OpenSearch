@@ -290,7 +290,7 @@ public class ReplicationOperation<
             ReplicationMode replicationMode = determineReplicationMode(shardRouting, primaryRouting);
             // If the replication modes are 1. Logical replication or 2. Primary term validation, we let the call get performed on the
             // replica shard.
-            if (replicationMode == ReplicationMode.LOGICAL_REPLICATION || replicationMode == ReplicationMode.PRIMARY_TERM_VALIDATION) {
+            if (replicationMode == ReplicationMode.FULL_REPLICATION || replicationMode == ReplicationMode.PRIMARY_TERM_VALIDATION) {
                 ReplicationOperation.this.performOnReplica(
                     shardRouting.getShardRouting(),
                     replicaRequest,
@@ -317,21 +317,17 @@ public class ReplicationOperation<
 
     /**
      * This implementation of {@link ReplicationProxy} fans out the replication request to current shard routing if
-     * it is not the primary and has replication mode as {@link ReplicationMode#LOGICAL_REPLICATION}.
+     * it is not the primary and has replication mode as {@link ReplicationMode#FULL_REPLICATION}.
      *
      * @opensearch.internal
      */
     private class FanoutReplicationProxy extends ReplicationProxy {
 
-        private FanoutReplicationProxy() {
-
-        }
-
         @Override
         ReplicationMode determineReplicationMode(ReplicationModeAwareShardRouting shardRouting, ShardRouting primaryRouting) {
             return shardRouting.getShardRouting().isSameAllocation(primaryRouting) == false
-                ? ReplicationMode.LOGICAL_REPLICATION
-                : ReplicationMode.NONE;
+                ? ReplicationMode.FULL_REPLICATION
+                : ReplicationMode.NO_REPLICATION;
         }
     }
 
@@ -356,11 +352,11 @@ public class ReplicationOperation<
 
             // If the current routing is the primary, then it does not need to be replicated
             if (currentRouting.isSameAllocation(primaryRouting)) {
-                return ReplicationMode.NONE;
+                return ReplicationMode.NO_REPLICATION;
             }
 
             // If the current routing's replication mode is not NONE, then we return the original replication mode.
-            if (shardRouting.getReplicationMode() != ReplicationMode.NONE) {
+            if (shardRouting.getReplicationMode() != ReplicationMode.NO_REPLICATION) {
                 return shardRouting.getReplicationMode();
             }
 
@@ -370,7 +366,7 @@ public class ReplicationOperation<
             }
 
             // At the end, return NONE.
-            return ReplicationMode.NONE;
+            return ReplicationMode.NO_REPLICATION;
         }
     }
 

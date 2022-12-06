@@ -1315,7 +1315,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
             tracker.getReplicationGroup()
                 .getReplicationTargets()
                 .stream()
-                .filter(s -> s.getReplicationMode() == ReplicationTracker.ReplicationMode.LOGICAL_REPLICATION)
+                .filter(s -> s.getReplicationMode() == ReplicationTracker.ReplicationMode.FULL_REPLICATION)
                 .count(),
             1
         );
@@ -1396,7 +1396,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
             tracker.getReplicationGroup()
                 .getReplicationTargets()
                 .stream()
-                .filter(s -> s.getReplicationMode() == ReplicationTracker.ReplicationMode.LOGICAL_REPLICATION)
+                .filter(s -> s.getReplicationMode() == ReplicationTracker.ReplicationMode.FULL_REPLICATION)
                 .count(),
             1
         );
