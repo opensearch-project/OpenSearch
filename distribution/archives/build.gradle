@@ -167,6 +167,15 @@ distribution_archives {
     }
   }
 
+  // Should really be `no-jdk-linux-ppc64le` as it ships without a JDK, however it seems that the build can't handle
+  // the absence of the `linux-ppc64le` target.
+  linuxPpc64leTar {
+    archiveClassifier = 'linux-ppc64le'
+    content {
+      archiveFiles(modulesFiles('linux-ppc64le'), 'tar', 'linux', 'ppc64le', false)
+    }
+  }
+
   windowsZip {
     archiveClassifier = 'windows-x64'
     content {
