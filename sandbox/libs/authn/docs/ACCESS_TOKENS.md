@@ -12,13 +12,10 @@ OpenSearch makes use of access tokens to manage account access after authenticat
 
 ## How are Access Tokens used in OpenSearch?
 
-As mentioned, Access Tokens are a way for OpenSearch to manage the continued authentication of users. By providing short-term access, the tokens allow the user to execute calls to OpenSearch extensions without the immediate need to re-verify oneself. An Access Token wil last up to 1 hour before it must be refreshed. During that time, the user is treated as already authenticated by all extensions and OpenSearch processes.
+As mentioned, Access Tokens are a way for OpenSearch to manage the continued authentication of users. By providing short-term access, the tokens allow the user to execute calls to OpenSearch extensions without the immediate need to re-verify themselves. An Access Token wil last up to 1 hour before it must be refreshed. During that time, the user is treated as already authenticated by all extensions and OpenSearch processes.
 
-Access Tokens are also used by OpenSearch in order to provide alternative methods of login through third-party Identity Providers (IdPs).
+Access Tokens are also used by OpenSearch in order to provide alternative methods of login through third-party Identity Providers (IdPs). If a user chooses to use a third-party IdP to login into OpenSearch via a directory hosted on another platform, an Access Token will be issued by the IdP to allow the user to access the IdPs own API. For more information on Access Tokens please visit the Okta AuthO [website](https://auth0.com/docs/secure/tokens/access-tokens).
 
 ## What Types of Authentication are Supported?
 
 Using Access Tokens, OpenSearch is able to support several types of authentication. Basic Authentication is supported through the use of username-password verification which then provides the subject an Access Token when login is successful. Bearer Authentication is supported through the use of [JWTs](./jwt.md) which provide an Access Token on the successful verification of a signed JWT.
-
-
-
