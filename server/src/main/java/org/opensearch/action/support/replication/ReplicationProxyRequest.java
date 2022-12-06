@@ -79,45 +79,27 @@ public class ReplicationProxyRequest<ReplicaRequest> {
      */
     public static class Builder<ReplicaRequest> {
 
-        private ReplicationModeAwareShardRouting replicationModeAwareShardRouting;
-        private ShardRouting primaryRouting;
-        private long globalCheckpoint;
-        private long maxSeqNoOfUpdatesOrDeletes;
-        private PendingReplicationActions pendingReplicationActions;
-        private ReplicaRequest replicaRequest;
+        private final ReplicationModeAwareShardRouting replicationModeAwareShardRouting;
+        private final ShardRouting primaryRouting;
+        private final long globalCheckpoint;
+        private final long maxSeqNoOfUpdatesOrDeletes;
+        private final PendingReplicationActions pendingReplicationActions;
+        private final ReplicaRequest replicaRequest;
 
-        public Builder() {}
-
-        public Builder<ReplicaRequest> setReplicationModeAwareShardRouting(
-            ReplicationModeAwareShardRouting replicationModeAwareShardRouting
+        public Builder(
+            ReplicationModeAwareShardRouting replicationModeAwareShardRouting,
+            ShardRouting primaryRouting,
+            long globalCheckpoint,
+            long maxSeqNoOfUpdatesOrDeletes,
+            PendingReplicationActions pendingReplicationActions,
+            ReplicaRequest replicaRequest
         ) {
             this.replicationModeAwareShardRouting = replicationModeAwareShardRouting;
-            return this;
-        }
-
-        public Builder<ReplicaRequest> setPrimaryRouting(ShardRouting primaryRouting) {
             this.primaryRouting = primaryRouting;
-            return this;
-        }
-
-        public Builder<ReplicaRequest> setGlobalCheckpoint(long globalCheckpoint) {
             this.globalCheckpoint = globalCheckpoint;
-            return this;
-        }
-
-        public Builder<ReplicaRequest> setMaxSeqNoOfUpdatesOrDeletes(long maxSeqNoOfUpdatesOrDeletes) {
             this.maxSeqNoOfUpdatesOrDeletes = maxSeqNoOfUpdatesOrDeletes;
-            return this;
-        }
-
-        public Builder<ReplicaRequest> setPendingReplicationActions(PendingReplicationActions pendingReplicationActions) {
             this.pendingReplicationActions = pendingReplicationActions;
-            return this;
-        }
-
-        public Builder<ReplicaRequest> setReplicaRequest(ReplicaRequest replicaRequest) {
             this.replicaRequest = replicaRequest;
-            return this;
         }
 
         public ReplicationProxyRequest<ReplicaRequest> build() {

@@ -265,7 +265,7 @@ public abstract class TransportReplicationAction<
      * @param indexShard index shard used to determining the policy.
      * @return the overridden replication mode.
      */
-    protected Optional<ReplicationMode> getReplicationModeOverride(IndexShard indexShard) {
+    protected Optional<ReplicationMode> getReplicationMode(IndexShard indexShard) {
         return Optional.empty();
     }
 
@@ -545,7 +545,7 @@ public abstract class TransportReplicationAction<
                         primaryRequest.getPrimaryTerm(),
                         initialRetryBackoffBound,
                         retryTimeout,
-                        ReplicationProxyFactory.create(getReplicationModeOverride(primaryShardReference.indexShard))
+                        ReplicationProxyFactory.create(getReplicationMode(primaryShardReference.indexShard))
                     ).execute();
                 }
             } catch (Exception e) {

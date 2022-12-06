@@ -51,7 +51,6 @@ import org.opensearch.common.breaker.CircuitBreakingException;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
-import org.opensearch.index.seqno.ReplicationTracker.ReplicationMode;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.ReplicationGroup;
 import org.opensearch.index.shard.ReplicationGroup.ReplicationModeAwareShardRouting;
@@ -66,7 +65,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
-import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongSupplier;
@@ -234,32 +232,15 @@ public class ReplicationOperation<
         final ShardRouting primaryRouting = primary.routingEntry();
 
         for (final ReplicationModeAwareShardRouting shardRouting : replicationGroup.getReplicationTargets()) {
-            ReplicationProxyRequest<ReplicaRequest> proxyRequest = new Builder<ReplicaRequest>().setPrimaryRouting(primaryRouting)
-                .setReplicationModeAwareShardRouting(shardRouting)
-                .setGlobalCheckpoint(globalCheckpoint)
-                .setMaxSeqNoOfUpdatesOrDeletes(maxSeqNoOfUpdatesOrDeletes)
-                .setPendingReplicationActions(pendingReplicationActions)
-                .setReplicaRequest(replicaRequest)
-                .build();
+            ReplicationProxyRequest<ReplicaRequest> proxyRequest = new Builder<ReplicaRequest>(
+                shardRouting,
+                primaryRouting,
+                globalCheckpoint,
+                maxSeqNoOfUpdatesOrDeletes,
+                pendingReplicationActions,
+                replicaRequest
+            ).build();
             replicationProxy.performOnReplicaProxy(proxyRequest, this::performOnReplica);
-        }
-    }
-
-    /**
-     * Defines the replication override policy which individual {@link TransportReplicationAction} can implement.
-     *
-     * @opensearch.internal
-     */
-    public static class ReplicationOverridePolicy {
-
-        private final ReplicationMode overriddenMode;
-
-        public ReplicationMode getOverriddenMode() {
-            return overriddenMode;
-        }
-
-        public ReplicationOverridePolicy(ReplicationMode overriddenMode) {
-            this.overriddenMode = Objects.requireNonNull(overriddenMode);
         }
     }
 

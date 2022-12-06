@@ -23,7 +23,7 @@ public class ReplicationProxyFactory {
         if (replicationMode.isEmpty()) {
             return new FanoutReplicationProxy<>();
         } else {
-            return new ReplicationModeAwareOverrideProxy<>(replicationMode.get());
+            return new ReplicationModeAwareProxy<>(replicationMode.get());
         }
     }
 }

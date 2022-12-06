@@ -20,11 +20,11 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
-public class ReplicationModeAwareOverrideProxy<ReplicaRequest> extends ReplicationProxy<ReplicaRequest> {
+public class ReplicationModeAwareProxy<ReplicaRequest> extends ReplicationProxy<ReplicaRequest> {
 
     private final ReplicationMode replicationModeOverride;
 
-    public ReplicationModeAwareOverrideProxy(ReplicationMode replicationModeOverride) {
+    public ReplicationModeAwareProxy(ReplicationMode replicationModeOverride) {
         assert Objects.nonNull(replicationModeOverride);
         this.replicationModeOverride = replicationModeOverride;
     }

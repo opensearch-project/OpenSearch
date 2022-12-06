@@ -259,7 +259,7 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
             listener,
             replicasProxy,
             0,
-            new ReplicationModeAwareOverrideProxy<>(ReplicationMode.NO_REPLICATION)
+            new ReplicationModeAwareProxy<>(ReplicationMode.NO_REPLICATION)
         );
         op.execute();
         assertTrue("request was not processed on primary", request.processedOnPrimary.get());
@@ -337,7 +337,7 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
             listener,
             replicasProxy,
             0,
-            new ReplicationModeAwareOverrideProxy<>(ReplicationMode.NO_REPLICATION)
+            new ReplicationModeAwareProxy<>(ReplicationMode.NO_REPLICATION)
         );
         op.execute();
         assertTrue("request was not processed on primary", request.processedOnPrimary.get());

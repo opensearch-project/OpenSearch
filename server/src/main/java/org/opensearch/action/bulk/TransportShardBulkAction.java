@@ -197,11 +197,11 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     @Override
-    protected Optional<ReplicationMode> getReplicationModeOverride(IndexShard indexShard) {
+    protected Optional<ReplicationMode> getReplicationMode(IndexShard indexShard) {
         if (indexShard.isRemoteTranslogEnabled()) {
             return Optional.of(ReplicationMode.PRIMARY_TERM_VALIDATION);
         }
-        return super.getReplicationModeOverride(indexShard);
+        return super.getReplicationMode(indexShard);
     }
 
     public static void performOnPrimary(

@@ -97,11 +97,11 @@ public class PublishCheckpointAction extends TransportReplicationAction<
     }
 
     @Override
-    protected Optional<ReplicationMode> getReplicationModeOverride(IndexShard indexShard) {
+    protected Optional<ReplicationMode> getReplicationMode(IndexShard indexShard) {
         if (indexShard.isRemoteTranslogEnabled()) {
             return Optional.of(ReplicationMode.FULL_REPLICATION);
         }
-        return super.getReplicationModeOverride(indexShard);
+        return super.getReplicationMode(indexShard);
     }
 
     /**
