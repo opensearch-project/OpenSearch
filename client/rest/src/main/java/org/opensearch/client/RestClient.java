@@ -336,7 +336,6 @@ public class RestClient implements Closeable {
         try {
             httpResponse = client.execute(context.requestProducer, context.asyncResponseConsumer, context.context, null).get();
         } catch (Exception e) {
-            System.out.println("Request Exception: " + e);
             RequestLogger.logFailedRequest(logger, request.httpRequest, context.node, e);
             onFailure(context.node);
             Exception cause = extractAndWrapCause(e);
