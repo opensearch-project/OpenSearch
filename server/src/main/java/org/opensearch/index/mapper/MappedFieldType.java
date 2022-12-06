@@ -298,11 +298,14 @@ public abstract class MappedFieldType {
     ) {
         throw new QueryShardException(
             context,
-            "Can only use wildcard queries on keyword, text and wildcard fields - not on ["
-                + name
-                + "] which is of type ["
-                + typeName()
-                + "]"
+            "Can only use wildcard queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]"
+        );
+    }
+
+    public Query normalizedWildcardQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+        throw new QueryShardException(
+            context,
+            "Can only use wildcard queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]"
         );
     }
 

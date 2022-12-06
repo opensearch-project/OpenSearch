@@ -89,12 +89,15 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.regex.Pattern;
 
 import static java.util.Collections.singletonMap;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -2099,6 +2102,24 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
         }
     }
 
+    /** tests wildcard case sensitivity */
+    public void testWildcardCaseSensitivity() {
+        assertAcked(prepareCreate("test").setMapping("field", "type=text"));
+        client().prepareIndex("test").setId("1").setSource("field", "lowercase text").get();
+        refresh();
+
+        // test case sensitive
+        SearchResponse response = client().prepareSearch("test").setQuery(wildcardQuery("field", "Text").caseInsensitive(false)).get();
+        assertNoFailures(response);
+        assertHitCount(response, 0);
+
+        // test case insensitive
+        response = client().prepareSearch("test").setQuery(wildcardQuery("field", "Text").caseInsensitive(true)).get();
+        assertNoFailures(response);
+        assertHitCount(response, 1);
+        assertHits(response.getHits(), "1");
+    }
+
     /**
      * Reserved characters should be excluded when the normalization is applied for keyword fields.
      * See https://github.com/elastic/elasticsearch/issues/46300 for details.
@@ -2174,5 +2195,17 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
         BoolQueryBuilder query = boolQuery().filter(spanMultiTermQueryBuilder(fuzzyQuery("field", "foobarbiz").rewrite("constant_score")));
         SearchResponse response = client().prepareSearch("test").setQuery(query).get();
         assertHitCount(response, 1);
+    }
+
+    /**
+     * asserts the search response hits include the expected ids
+     */
+    private void assertHits(SearchHits hits, String... ids) {
+        assertThat(hits.getTotalHits().value, equalTo((long) ids.length));
+        Set<String> hitIds = new HashSet<>();
+        for (SearchHit hit : hits.getHits()) {
+            hitIds.add(hit.getId());
+        }
+        assertThat(hitIds, containsInAnyOrder(ids));
     }
 }
