@@ -11,7 +11,6 @@
 
 apply plugin: 'opensearch.build'
 apply plugin: 'opensearch.publish'
-apply plugin: 'opensearch.internal-cluster-test'
 
 dependencies {
   implementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"

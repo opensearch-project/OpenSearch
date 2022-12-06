@@ -64,19 +64,18 @@ public class SecurityFilter implements ActionFilter {
             // TODO Get jwt here and verify
             // The first handler is always authc + authz, if this is hit the request is authenticated
             // TODO Move this logic to right after successful login
-            if (threadContext.getHeader(TransportService.OPENSEARCH_AUTHENTICATION_TOKEN_HEADER) == null) {
-                Map<String, String> jwtClaims = new HashMap<>();
-                jwtClaims.put("sub", "subject");
-                jwtClaims.put("iat", Instant.now().toString());
-                String encodedJwt = JwtVendor.createJwt(jwtClaims);
-
-                String prefix = "(nodeName=" + cs.localNode().getName() + ", requestId=" + request.getParentTask().getId() + ", action=" + action + ", jwtClaims=" + jwtClaims + " apply0)";
-                log.info(prefix + " Created internal access token " + encodedJwt);
-                threadContext.putHeader(TransportService.OPENSEARCH_AUTHENTICATION_TOKEN_HEADER, encodedJwt);
-            } else {
-                String encodedJwt = threadContext.getHeader(TransportService.OPENSEARCH_AUTHENTICATION_TOKEN_HEADER);
+            if (threadContext.getHeader(ThreadContextConstants.OPENSEARCH_AUTHENTICATION_TOKEN_HEADER) != null) {
+                String encodedJwt = threadContext.getHeader(ThreadContextConstants.OPENSEARCH_AUTHENTICATION_TOKEN_HEADER);
                 String prefix = "(nodeName=" + cs.localNode().getName() + ", requestId=" + request.getParentTask().getId() + ", action=" + action + " apply0)";
-                log.info(prefix + " Access token exists" + encodedJwt);
+                log.info(prefix + " Access token provided" + encodedJwt);
+            } else {
+                // TODO Figure out where internal actions are invoked and create token on invocation
+                // No token provided, may be an internal request
+                // Token in ThreadContext is created on REST layer and passed to Transport Layer.
+                String prefix = "(nodeName=" + cs.localNode().getName() + ", requestId=" + request.getParentTask().getId() + ", action=" + action + " apply0)";
+                log.info(prefix + "No authorization provided in the request, internal request");
+                // String err = "Access token not provided";
+                // listener.onFailure(new OpenSearchSecurityException(err, RestStatus.FORBIDDEN));
             }
 
             final PrivilegesEvaluatorResponse pres = new PrivilegesEvaluatorResponse(); // eval.evaluate(user, action, request, task, injectedRoles);

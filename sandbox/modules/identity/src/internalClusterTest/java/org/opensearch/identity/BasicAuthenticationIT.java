@@ -21,10 +21,13 @@ import org.opensearch.index.query.Operator;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.store.IndicesStore;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.rest.RestRequest;
+import org.opensearch.rest.action.admin.cluster.RestClusterHealthAction;
 import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.InternalTestCluster;
+import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportMessageListener;
@@ -36,7 +39,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.core.Is.is;
@@ -98,12 +103,16 @@ public class BasicAuthenticationIT extends OpenSearchIntegTestCase {
 //        System.out.println("Sending Cluster Health Request");
 //        ClusterHealthResponse resp = client().admin().cluster().health(request).actionGet();
 
+        Map<String, String> params = new HashMap<>();
+        FakeRestRequest restRequest = buildRestRequest(params);
+        ClusterHealthRequest clusterHealthRequest = RestClusterHealthAction.fromRequest(restRequest);
+
 
         System.out.println("Sending Cluster Health Request");
-        Request request = new Request("GET", "/_cluster/health");
+        Request request2 = new Request("GET", "/_cluster/health");
         RequestOptions options = RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Basic YWRtaW46YWRtaW4=").build(); // admin:admin
-        request.setOptions(options);
-        Response response = getRestClient().performRequest(request);
+        request2.setOptions(options);
+        Response response = getRestClient().performRequest(request2);
 
         System.out.println("=== HERE ===");
         System.out.println("testBasicAuth");
@@ -111,6 +120,13 @@ public class BasicAuthenticationIT extends OpenSearchIntegTestCase {
 
         ensureStableCluster(2);
         assertThat(internalCluster().size(), is(2));
+    }
+
+    private FakeRestRequest buildRestRequest(Map<String, String> params) {
+        return new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
+            .withPath("/_cluster/health")
+            .withParams(params)
+            .build();
     }
 }
 

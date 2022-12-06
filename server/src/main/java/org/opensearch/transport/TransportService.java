@@ -39,7 +39,6 @@ import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionListenerResponseHandler;
 import org.opensearch.action.support.PlainActionFuture;
-import org.opensearch.authn.jwt.JwtVendor;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
@@ -70,10 +69,8 @@ import org.opensearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.UnknownHostException;
-import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -101,8 +98,6 @@ public class TransportService extends AbstractLifecycleComponent
 
     public static final String DIRECT_RESPONSE_PROFILE = ".direct";
     public static final String HANDSHAKE_ACTION_NAME = "internal:transport/handshake";
-
-    public static final String OPENSEARCH_AUTHENTICATION_TOKEN_HEADER = "_opensearch_auth_token";
 
     private final AtomicBoolean handleIncomingRequests = new AtomicBoolean();
     private final DelegatingTransportMessageListener messageListener = new DelegatingTransportMessageListener();
@@ -770,17 +765,6 @@ public class TransportService extends AbstractLifecycleComponent
                 };
             } else {
                 delegate = handler;
-            }
-            // The first handler is always authc + authz, if this is hit the request is authenticated
-            // TODO Move this logic to right after successful login
-            if (threadPool.getThreadContext().getHeader(OPENSEARCH_AUTHENTICATION_TOKEN_HEADER) == null) {
-                Map<String, String> jwtClaims = new HashMap<>();
-                jwtClaims.put("sub", "subject");
-                jwtClaims.put("iat", Instant.now().toString());
-                String encodedJwt = JwtVendor.createJwt(jwtClaims);
-                String prefix = "(nodeName=" + localNode.getName() + ", requestId=" + request.getParentTask().getId() + ", action=" + action + ", jwtClaims=" + jwtClaims + " sendRequest)";
-                logger.info(prefix + " Created internal access token " + encodedJwt);
-                threadPool.getThreadContext().putHeader(OPENSEARCH_AUTHENTICATION_TOKEN_HEADER, encodedJwt);
             }
             asyncSender.sendRequest(connection, action, request, options, delegate);
         } catch (final Exception ex) {
