@@ -12,6 +12,12 @@ import java.io.IOException;
 import java.nio.file.Path;
 import org.opensearch.common.settings.Settings;
 
+
+/**
+ * Noop class for ExtensionsManager
+ *
+ * @opensearch.internal
+ */
 public class NoopExtensionsManager extends ExtensionsManager {
 
     public NoopExtensionsManager(Settings settings, Path extensionsPath) throws IOException {
