@@ -21,11 +21,21 @@ import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.plugins.ActionPlugin;
+import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.rest.RestHandler;
 import org.opensearch.script.ScriptService;
+import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.Transport;
+import org.opensearch.transport.TransportChannel;
+import org.opensearch.transport.TransportInterceptor;
+import org.opensearch.transport.TransportRequest;
+import org.opensearch.transport.TransportRequestHandler;
+import org.opensearch.transport.TransportRequestOptions;
+import org.opensearch.transport.TransportResponse;
+import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.watcher.ResourceWatcherService;
 
 import java.nio.file.Path;
@@ -36,10 +46,11 @@ import java.util.Objects;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
-public final class IdentityPlugin extends Plugin implements ActionPlugin {
+public final class IdentityPlugin extends Plugin implements ActionPlugin, NetworkPlugin {
     private volatile Logger log = LogManager.getLogger(this.getClass());
 
     private volatile SecurityRestFilter securityRestHandler;
+    private volatile SecurityInterceptor si;
     private volatile Settings settings;
 
     private volatile Path configPath;
@@ -77,38 +88,35 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin {
 //    @Override
 //    public List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry, ThreadContext threadContext) {
 //        List<TransportInterceptor> interceptors = new ArrayList<TransportInterceptor>(1);
+//        interceptors.add(new TransportInterceptor() {
 //
-//        if (!client && !disabled && !SSLConfig.isSslOnlyMode()) {
-//            interceptors.add(new TransportInterceptor() {
+//            @Override
+//            public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action, String executor,
+//                                                                                            boolean forceExecution, TransportRequestHandler<T> actualHandler) {
 //
-//                @Override
-//                public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action, String executor,
-//                                                                                                boolean forceExecution, TransportRequestHandler<T> actualHandler) {
+//                return new TransportRequestHandler<T>() {
 //
-//                    return new TransportRequestHandler<T>() {
+//                    @Override
+//                    public void messageReceived(T request, TransportChannel channel, Task task) throws Exception {
+//                        si.getHandler(action, actualHandler).messageReceived(request, channel, task);
+//                    }
+//                };
 //
-//                        @Override
-//                        public void messageReceived(T request, TransportChannel channel, Task task) throws Exception {
-//                            si.getHandler(action, actualHandler).messageReceived(request, channel, task);
-//                        }
-//                    };
+//            }
 //
-//                }
+//            @Override
+//            public AsyncSender interceptSender(AsyncSender sender) {
 //
-//                @Override
-//                public AsyncSender interceptSender(AsyncSender sender) {
+//                return new AsyncSender() {
 //
-//                    return new AsyncSender() {
-//
-//                        @Override
-//                        public <T extends TransportResponse> void sendRequest(Connection connection, String action,
-//                                                                              TransportRequest request, TransportRequestOptions options, TransportResponseHandler<T> handler) {
-//                            si.sendRequestDecorate(sender, connection, action, request, options, handler);
-//                        }
-//                    };
-//                }
-//            });
-//        }
+//                    @Override
+//                    public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action,
+//                                                                          TransportRequest request, TransportRequestOptions options, TransportResponseHandler<T> handler) {
+//                        si.sendRequestDecorate(sender, connection, action, request, options, handler);
+//                    }
+//                };
+//            }
+//        });
 //
 //        return interceptors;
 //    }
@@ -130,6 +138,8 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin {
         sf = new SecurityFilter(localClient, settings, threadPool, cs);
 
         securityRestHandler = new SecurityRestFilter(threadPool, settings, configPath);
+
+        si = new SecurityInterceptor(settings, threadPool, cs);
 
         return components;
 

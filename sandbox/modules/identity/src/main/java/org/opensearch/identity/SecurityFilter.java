@@ -66,8 +66,8 @@ public class SecurityFilter implements ActionFilter {
             // TODO Move this logic to right after successful login
             if (threadContext.getHeader(ThreadContextConstants.OPENSEARCH_AUTHENTICATION_TOKEN_HEADER) != null) {
                 String encodedJwt = threadContext.getHeader(ThreadContextConstants.OPENSEARCH_AUTHENTICATION_TOKEN_HEADER);
-                String prefix = "(nodeName=" + cs.localNode().getName() + ", requestId=" + request.getParentTask().getId() + ", action=" + action + " apply0)";
-                log.info(prefix + " Access token provided" + encodedJwt);
+                String prefix = "(nodeName=" + cs.localNode().getId() + ", requestId=" + request.getParentTask().getId() + ", action=" + action + " apply0)";
+                log.info(prefix + " Access token provided " + encodedJwt);
             } else {
                 // TODO Figure out where internal actions are invoked and create token on invocation
                 // No token provided, may be an internal request

@@ -59,7 +59,6 @@ public class SecurityRestFilter {
             @Override
             public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
                 org.apache.logging.log4j.ThreadContext.clearAll();
-                System.out.println("SecurityRestFilter handleRequest");
                 if (checkAndAuthenticateRequest(request, channel, client)) {
                     original.handleRequest(request, channel, client);
                 }
