@@ -34,21 +34,45 @@ Trigger: The user has configured an OpenSearch cluster and wants to log back in;
 
 1. Access an OpenSearch cluster using Basic Authentication
 
-    * Description: User accesses an existing OpenSearch cluster using Basic Authentication. It begins when a user first navigates to the login page of the OpenSearch dashboard and ends when they are successfully authenticated.
+    * Description: User accesses an existing OpenSearch cluster using Basic Authentication. It begins when a user first navigates to the login page of the OpenSearch dashboard and ends when they successfully operate on the cluster.
     * Actors: User
     * Trigger: The user wants to view their cluster information or operate on their cluster.
     * Preconditions: Actor has configured an OpenSearch cluster and created an account using the internal IdP.
     * Normal Flow:
-      - Step 1: The user selects the
-      - Step 2:
-      - Step 3:
-      - Step 4:
+      - Step 1: The user enters the correct credentials into the username and password fields on the login page of their OpenSearch instance.
+      - Step 2: OpenSearch authenticates the credential pair and issues the user an access token
+      - Step 3: The user completes their operations on the cluster and closes the connection.
+      - Step 4: The user again accesses the cluster but identifying they possess an access token, OpenSearch simply validates the token instead of requiring the user to re-authenticate themselves.
+    * Alternative Flow:
+      - Step 1a: The user enters the correct credentials as part of manual REST request to the URI of their OpenSearch instance.
+    * Post-conditions: The user successfully operates on the cluster both times they access it.
 
-2. Access an OpenSearch cluster using Bearer Authentication from an External IdP
+2. Traverse Nodes in an OpenSearch cluster using Basic Authentication
 
-    * Description: User accesses an existing OpenSearch cluster using Bearer Authentication by redirect from an external identity provider.
+    * Description: User accesses an existing OpenSearch cluster using Basic Authentication. It begins when a user first navigates to the login page of the OpenSearch dashboard and ends when they successfully traverse the nodes of the cluster during an operation.
+    * Actors: User
+    * Trigger: The user wants to view the nodes of the OpenSearch cluster or complete a multi-node operation such as Search.
+    * Preconditions: Actor has configured an OpenSearch cluster with multiple nodes and created an account using the internal IdP.
+    * Normal Flow:
+        - Step 1: The user enters the correct credentials into the username and password fields on the login page of their OpenSearch instance.
+        - Step 2: OpenSearch authenticates the credential pair and issues the user an access token
+        - Step 3: The user initiates a node-traversing operation on the cluster such as Search.
+        - Step 4: Instead of having to authenticate themselves to every node in the cluster, the user is authenticated by each node via the presence of their Access Token.
+    * Alternative Flow:
+        - Step 1a: The user enters the correct credentials and starts the multi-node operation as part of manual REST request to the URI of their OpenSearch instance.
+    * Post-conditions: The user successfully operates on the cluster.
+
+3. Access an OpenSearch cluster using Bearer Authentication from an External IdP
+
+    * Description: User accesses an existing OpenSearch cluster using Bearer Authentication by redirect from an external identity provider. It begins when the user accesses the OpenSearch cluster through redirect from an external IdP and ends when the user completes an operation on the cluster.
     * Actors: User
     * Trigger: The user wants to view their cluster information or operate on their cluster.
     * Preconditions: Actor has configured an OpenSearch cluster and has an account configured with an external IdP which is connected to the OpenSearch instances.
     * Normal Flow:
-
+        - Step 1: The user enters the correct credentials into the external IdP they connected to OpenSearch. The external IdP provides a JWT to the user for successful authentication signing it with a secret key.
+        - Step 2: When the user now tries to access OpenSearch, the JWT is processed on OpenSearch and verified using the secret key which only the external IdP knows.
+        - Step 3: The user is provided an access token which allows them to access the external IdPs API for as long as it is valid (1 hour expiration is the default).
+        - Step 4: The user completes the desired operation on the OpenSearch cluster being automatically verified by the presence of the valid access token.
+   * Alternative Flow:
+       - Step 1a: The user enters the correct credentials and starts the multi-node operation as part of manual REST request to the URI of their OpenSearch instance.
+   * Post-conditions: The user successfully operates on the cluster.
