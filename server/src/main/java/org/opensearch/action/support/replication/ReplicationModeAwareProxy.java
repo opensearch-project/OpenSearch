@@ -36,7 +36,7 @@ public class ReplicationModeAwareProxy<ReplicaRequest> extends ReplicationProxy<
             return ReplicationMode.NO_REPLICATION;
         }
 
-        if (primaryRouting.getTargetRelocatingShard() != null && shardRouting.isSameAllocation(primaryRouting.getTargetRelocatingShard())) {
+        if (primaryRouting.relocating() && shardRouting.isSameAllocation(primaryRouting.getTargetRelocatingShard())) {
             return ReplicationMode.FULL_REPLICATION;
         }
 
