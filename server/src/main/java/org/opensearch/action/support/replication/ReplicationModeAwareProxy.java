@@ -9,7 +9,6 @@
 package org.opensearch.action.support.replication;
 
 import org.opensearch.cluster.routing.ShardRouting;
-import org.opensearch.index.seqno.ReplicationTracker.ReplicationMode;
 
 import java.util.Objects;
 

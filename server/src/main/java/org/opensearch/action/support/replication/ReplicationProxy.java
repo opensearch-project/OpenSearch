@@ -9,8 +9,6 @@
 package org.opensearch.action.support.replication;
 
 import org.opensearch.cluster.routing.ShardRouting;
-import org.opensearch.index.seqno.ReplicationTracker.ReplicationMode;
-import org.opensearch.index.shard.ReplicationGroup.ReplicationModeAwareShardRouting;
 
 import java.util.function.Consumer;
 
@@ -23,10 +21,10 @@ import java.util.function.Consumer;
 public abstract class ReplicationProxy<ReplicaRequest> {
 
     /**
-     * Depending on the actual implementation and the passed {@link ReplicationModeAwareShardRouting}, the replication
+     * Depending on the actual implementation and the passed {@link ReplicationMode}, the replication
      * mode is determined using which the replication request is performed on the replica or not.
      *
-     * @param proxyRequest          replication proxy request
+     * @param proxyRequest                     replication proxy request
      * @param originalPerformOnReplicaConsumer original performOnReplica method passed as consumer
      */
     public void performOnReplicaProxy(

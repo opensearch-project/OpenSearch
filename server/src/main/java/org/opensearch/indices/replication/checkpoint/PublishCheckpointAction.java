@@ -40,7 +40,7 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.opensearch.index.seqno.ReplicationTracker.ReplicationMode;
+import org.opensearch.action.support.replication.ReplicationMode;
 
 /**
  * Replication action responsible for publishing checkpoint to a replica shard.

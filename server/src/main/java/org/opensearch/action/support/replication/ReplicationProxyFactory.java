@@ -8,7 +8,6 @@
 
 package org.opensearch.action.support.replication;
 
-import org.opensearch.index.seqno.ReplicationTracker.ReplicationMode;
 import org.opensearch.index.shard.IndexShard;
 
 /**

@@ -785,52 +785,6 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     }
 
     /**
-     * The type of replication used for inter-node replication.
-     */
-    public enum ReplicationMode implements Writeable {
-        /**
-         * In this mode, a {@code TransportReplicationAction} is fanned out to underlying concerned shard and is replicated logically.
-         * In short, this mode would replicate the {@link org.opensearch.action.support.replication.ReplicationRequest} to
-         * the replica shard along with primary term validation.
-         */
-        FULL_REPLICATION(0),
-        /**
-         * In this mode, a {@code TransportReplicationAction} is fanned out to underlying concerned shard and used for
-         * primary term validation only. The request is not replicated logically.
-         */
-        PRIMARY_TERM_VALIDATION(1),
-        /**
-         * In this mode, a {@code TransportReplicationAction} does not fan out to the underlying concerned shard.
-         */
-        NO_REPLICATION(2);
-
-        private final byte type;
-
-        ReplicationMode(int type) {
-            this.type = (byte) type;
-        }
-
-        public static ReplicationMode readFrom(StreamInput in) throws IOException {
-            byte value = in.readByte();
-            switch (value) {
-                case 0:
-                    return FULL_REPLICATION;
-                case 1:
-                    return PRIMARY_TERM_VALIDATION;
-                case 2:
-                    return NO_REPLICATION;
-                default:
-                    throw new IllegalArgumentException("No replication mode for value [" + value + "]");
-            }
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeByte(type);
-        }
-    }
-
-    /**
      * Get the local knowledge of the persisted global checkpoints for all in-sync allocation IDs.
      *
      * @return a map from allocation ID to the local knowledge of the persisted global checkpoint for that allocation ID
@@ -1104,7 +1058,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             newVersion = replicationGroup.getVersion() + 1;
         }
 
-        assert indexSettings().isRemoteTranslogStoreEnabled() != false
+        assert indexSettings().isRemoteTranslogStoreEnabled()
             || checkpoints.entrySet().stream().filter(e -> e.getValue().tracked).allMatch(e -> e.getValue().replicated)
             : "In absence of remote translog store, all tracked shards must have replication mode as LOGICAL_REPLICATION";
 

@@ -35,11 +35,9 @@ package org.opensearch.index.shard;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.util.set.Sets;
-import org.opensearch.index.seqno.ReplicationTracker.ReplicationMode;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -165,35 +163,6 @@ public class ReplicationGroup {
             + ", trackedAllocationIds="
             + trackedAllocationIds
             + '}';
-    }
-
-    /**
-     * Replication aware ShardRouting used for fanning out replication requests smartly.
-     *
-     * @opensearch.internal
-     */
-    public static final class ReplicationModeAwareShardRouting {
-
-        private final ShardRouting shardRouting;
-
-        private final ReplicationMode replicationMode;
-
-        public ShardRouting getShardRouting() {
-            return shardRouting;
-        }
-
-        public ReplicationMode getReplicationMode() {
-            return replicationMode;
-        }
-
-        public ReplicationModeAwareShardRouting(final ReplicationMode replicationMode, final ShardRouting shardRouting) {
-            // ReplicationMode has to be non-null always.
-            assert Objects.nonNull(replicationMode);
-            // ShardRouting has to be non-null always.
-            assert Objects.nonNull(shardRouting);
-            this.replicationMode = replicationMode;
-            this.shardRouting = shardRouting;
-        }
     }
 
 }

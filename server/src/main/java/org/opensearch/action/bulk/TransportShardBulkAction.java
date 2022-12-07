@@ -94,7 +94,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
-import static org.opensearch.index.seqno.ReplicationTracker.ReplicationMode;
+import org.opensearch.action.support.replication.ReplicationMode;
 
 /**
  * Performs shard-level bulk (index, delete or update) operations

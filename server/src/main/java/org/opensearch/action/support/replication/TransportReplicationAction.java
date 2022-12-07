@@ -70,7 +70,6 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
-import org.opensearch.index.seqno.ReplicationTracker.ReplicationMode;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardClosedException;

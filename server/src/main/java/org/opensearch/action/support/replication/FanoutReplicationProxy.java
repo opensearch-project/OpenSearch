@@ -10,8 +10,6 @@ package org.opensearch.action.support.replication;
 
 import org.opensearch.cluster.routing.ShardRouting;
 
-import static org.opensearch.index.seqno.ReplicationTracker.ReplicationMode;
-
 /**
  * This implementation of {@link ReplicationProxy} fans out the replication request to current shard routing if
  * it is not the primary and has replication mode as {@link ReplicationMode#FULL_REPLICATION}.
