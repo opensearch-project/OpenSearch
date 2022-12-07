@@ -19,8 +19,11 @@ import org.opensearch.transport.Netty4ModulePlugin;
 import java.util.Collection;
 import java.util.List;
 
+/**
+ * Base test case for integration tests against the identity plugin.
+ */
 @ThreadLeakScope(ThreadLeakScope.Scope.NONE)
-public class AbstractIdentityTest extends OpenSearchIntegTestCase {
+public abstract class AbstractIdentityTestCase extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

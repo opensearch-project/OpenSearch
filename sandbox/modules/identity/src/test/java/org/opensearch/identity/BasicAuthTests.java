@@ -17,7 +17,7 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import java.nio.charset.StandardCharsets;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, numDataNodes = 1)
-public class BasicAuthTests extends AbstractIdentityTest {
+public class BasicAuthTests extends AbstractIdentityTestCase {
     public void testBasicAuthSuccess() throws Exception {
         Request request = new Request("GET", "/_cluster/health");
         RequestOptions options = RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Basic YWRtaW46YWRtaW4=").build(); // admin:admin
