@@ -26,21 +26,18 @@ public abstract class ReplicationProxy<ReplicaRequest> {
      * Depending on the actual implementation and the passed {@link ReplicationModeAwareShardRouting}, the replication
      * mode is determined using which the replication request is performed on the replica or not.
      *
-     * @param replicationProxyRequest          replication proxy request
+     * @param proxyRequest          replication proxy request
      * @param originalPerformOnReplicaConsumer original performOnReplica method passed as consumer
      */
     public void performOnReplicaProxy(
-        ReplicationProxyRequest<ReplicaRequest> replicationProxyRequest,
+        ReplicationProxyRequest<ReplicaRequest> proxyRequest,
         Consumer<ReplicationProxyRequest<ReplicaRequest>> originalPerformOnReplicaConsumer
     ) {
-        ReplicationMode replicationMode = determineReplicationMode(
-            replicationProxyRequest.getReplicationModeAwareShardRouting(),
-            replicationProxyRequest.getPrimaryRouting()
-        );
+        ReplicationMode replicationMode = determineReplicationMode(proxyRequest.getShardRouting(), proxyRequest.getPrimaryRouting());
         // If the replication modes are 1. Logical replication or 2. Primary term validation, we let the call get performed on the
         // replica shard.
         if (replicationMode == ReplicationMode.FULL_REPLICATION || replicationMode == ReplicationMode.PRIMARY_TERM_VALIDATION) {
-            originalPerformOnReplicaConsumer.accept(replicationProxyRequest);
+            originalPerformOnReplicaConsumer.accept(proxyRequest);
         }
     }
 
@@ -52,8 +49,5 @@ public abstract class ReplicationProxy<ReplicaRequest> {
      * @param primaryRouting primary ShardRouting
      * @return the determined replication mode.
      */
-    abstract ReplicationMode determineReplicationMode(
-        final ReplicationModeAwareShardRouting shardRouting,
-        final ShardRouting primaryRouting
-    );
+    abstract ReplicationMode determineReplicationMode(final ShardRouting shardRouting, final ShardRouting primaryRouting);
 }

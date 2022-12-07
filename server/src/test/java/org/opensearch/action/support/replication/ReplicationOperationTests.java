@@ -60,7 +60,6 @@ import org.opensearch.index.seqno.ReplicationTracker.ReplicationMode;
 import org.opensearch.index.shard.IndexShardNotStartedException;
 import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.shard.ReplicationGroup;
-import org.opensearch.index.shard.ReplicationGroup.ReplicationModeAwareShardRouting;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.test.OpenSearchTestCase;
@@ -138,15 +137,7 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
         addTrackingInfo(indexShardRoutingTable, primaryShard, trackedShards, untrackedShards);
         trackedShards.addAll(staleAllocationIds);
 
-        Map<String, ReplicationMode> replicationModeMap = trackedShards.stream()
-            .collect(Collectors.toMap(v -> v, v -> ReplicationMode.FULL_REPLICATION));
-        final ReplicationGroup replicationGroup = new ReplicationGroup(
-            indexShardRoutingTable,
-            inSyncAllocationIds,
-            trackedShards,
-            replicationModeMap,
-            0
-        );
+        final ReplicationGroup replicationGroup = new ReplicationGroup(indexShardRoutingTable, inSyncAllocationIds, trackedShards, 0);
 
         final Set<ShardRouting> expectedReplicas = getExpectedReplicas(shardId, initialState, trackedShards);
 
@@ -231,22 +222,10 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
         IndexShardRoutingTable routingTable = builder.build();
 
         Set<String> inSyncAllocationIds = activeIds.stream().map(AllocationId::getId).collect(Collectors.toSet());
-        Map<String, ReplicationMode> replicationModeMap = new HashMap<>();
-        replicationModeMap.put(primaryId.getId(), ReplicationMode.FULL_REPLICATION);
-        // Add allocation ids which are there in inSyncAllocationIds but not in the map already with replication mode NONE
-        inSyncAllocationIds.stream()
-            .filter(i -> replicationModeMap.containsKey(i) == false)
-            .forEach(i -> replicationModeMap.put(i, ReplicationMode.NO_REPLICATION));
-        ReplicationGroup replicationGroup = new ReplicationGroup(
-            routingTable,
-            inSyncAllocationIds,
-            inSyncAllocationIds,
-            replicationModeMap,
-            0
-        );
-        List<ReplicationModeAwareShardRouting> replicationTargets = replicationGroup.getReplicationTargets();
+        ReplicationGroup replicationGroup = new ReplicationGroup(routingTable, inSyncAllocationIds, inSyncAllocationIds, 0);
+        List<ShardRouting> replicationTargets = replicationGroup.getReplicationTargets();
         assertEquals(inSyncAllocationIds.size(), replicationTargets.size());
-        assertEquals(1, replicationTargets.stream().filter(s -> s.getReplicationMode() == ReplicationMode.FULL_REPLICATION).count());
+        // assertEquals(1, replicationTargets.stream().filter(s -> s.getReplicationMode() == ReplicationMode.FULL_REPLICATION).count());
 
         Request request = new Request(shardId);
         PlainActionFuture<TestPrimary.Result> listener = new PlainActionFuture<>();
@@ -306,25 +285,10 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
         activeIds.add(relocationTargetId);
 
         Set<String> inSyncAllocationIds = activeIds.stream().map(AllocationId::getId).collect(Collectors.toSet());
-        Set<String> localTranslogAllocationIds = new HashSet<>();
-        localTranslogAllocationIds.add(primaryId.getId());
-        localTranslogAllocationIds.add(relocationTargetId.getId());
-        Map<String, ReplicationMode> replicationModeMap = localTranslogAllocationIds.stream()
-            .collect(Collectors.toMap(v -> v, v -> ReplicationMode.FULL_REPLICATION));
-        // Add allocation ids which are there in inSyncAllocationIds but not in the map already with replication mode NONE
-        inSyncAllocationIds.stream()
-            .filter(i -> replicationModeMap.containsKey(i) == false)
-            .forEach(i -> replicationModeMap.put(i, ReplicationMode.NO_REPLICATION));
-        ReplicationGroup replicationGroup = new ReplicationGroup(
-            routingTable,
-            inSyncAllocationIds,
-            inSyncAllocationIds,
-            replicationModeMap,
-            0
-        );
-        List<ReplicationModeAwareShardRouting> replicationTargets = replicationGroup.getReplicationTargets();
+        ReplicationGroup replicationGroup = new ReplicationGroup(routingTable, inSyncAllocationIds, inSyncAllocationIds, 0);
+        List<ShardRouting> replicationTargets = replicationGroup.getReplicationTargets();
         assertEquals(inSyncAllocationIds.size(), replicationTargets.size());
-        assertEquals(2, replicationTargets.stream().filter(s -> s.getReplicationMode() == ReplicationMode.FULL_REPLICATION).count());
+        // assertEquals(2, replicationTargets.stream().filter(s -> s.getReplicationMode() == ReplicationMode.FULL_REPLICATION).count());
 
         Request request = new Request(shardId);
         PlainActionFuture<TestPrimary.Result> listener = new PlainActionFuture<>();
@@ -381,22 +345,10 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
         IndexShardRoutingTable routingTable = builder.build();
 
         Set<String> inSyncAllocationIds = activeIds.stream().map(AllocationId::getId).collect(Collectors.toSet());
-        Map<String, ReplicationMode> replicationModeMap = new HashMap<>();
-        replicationModeMap.put(primaryId.getId(), ReplicationMode.FULL_REPLICATION);
-        // Add allocation ids which are there in inSyncAllocationIds but not in the map already with replication mode NONE
-        inSyncAllocationIds.stream()
-            .filter(i -> replicationModeMap.containsKey(i) == false)
-            .forEach(i -> replicationModeMap.put(i, ReplicationMode.NO_REPLICATION));
-        ReplicationGroup replicationGroup = new ReplicationGroup(
-            routingTable,
-            inSyncAllocationIds,
-            inSyncAllocationIds,
-            replicationModeMap,
-            0
-        );
-        List<ReplicationModeAwareShardRouting> replicationTargets = replicationGroup.getReplicationTargets();
+        ReplicationGroup replicationGroup = new ReplicationGroup(routingTable, inSyncAllocationIds, inSyncAllocationIds, 0);
+        List<ShardRouting> replicationTargets = replicationGroup.getReplicationTargets();
         assertEquals(inSyncAllocationIds.size(), replicationTargets.size());
-        assertEquals(1, replicationTargets.stream().filter(s -> s.getReplicationMode() == ReplicationMode.FULL_REPLICATION).count());
+        // assertEquals(1, replicationTargets.stream().filter(s -> s.getReplicationMode() == ReplicationMode.FULL_REPLICATION).count());
 
         Request request = new Request(shardId);
         PlainActionFuture<TestPrimary.Result> listener = new PlainActionFuture<>();
@@ -453,15 +405,7 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
         addTrackingInfo(indexShardRoutingTable, primaryShard, trackedShards, untrackedShards);
         trackedShards.addAll(staleAllocationIds);
 
-        Map<String, ReplicationMode> replicationModeMap = trackedShards.stream()
-            .collect(Collectors.toMap(v -> v, v -> ReplicationMode.FULL_REPLICATION));
-        final ReplicationGroup replicationGroup = new ReplicationGroup(
-            indexShardRoutingTable,
-            inSyncAllocationIds,
-            trackedShards,
-            replicationModeMap,
-            0
-        );
+        final ReplicationGroup replicationGroup = new ReplicationGroup(indexShardRoutingTable, inSyncAllocationIds, trackedShards, 0);
 
         final Set<ShardRouting> expectedReplicas = getExpectedReplicas(shardId, initialState, trackedShards);
 
@@ -570,15 +514,7 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
         addTrackingInfo(indexShardRoutingTable, primaryShard, trackedShards, new HashSet<>());
         trackedShards.addAll(staleAllocationIds);
 
-        Map<String, ReplicationMode> replicationModeMap = trackedShards.stream()
-            .collect(Collectors.toMap(v -> v, v -> ReplicationMode.FULL_REPLICATION));
-        final ReplicationGroup replicationGroup = new ReplicationGroup(
-            indexShardRoutingTable,
-            inSyncAllocationIds,
-            trackedShards,
-            replicationModeMap,
-            0
-        );
+        final ReplicationGroup replicationGroup = new ReplicationGroup(indexShardRoutingTable, inSyncAllocationIds, trackedShards, 0);
 
         final Set<ShardRouting> expectedReplicas = getExpectedReplicas(shardId, initialState, trackedShards);
 
@@ -672,15 +608,7 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
         IndexShardRoutingTable shardRoutingTable = initialState.getRoutingTable().shardRoutingTable(shardId);
         Set<String> trackedShards = new HashSet<>();
         addTrackingInfo(shardRoutingTable, null, trackedShards, new HashSet<>());
-        Map<String, ReplicationMode> replicationModeMap = trackedShards.stream()
-            .collect(Collectors.toMap(v -> v, v -> ReplicationMode.FULL_REPLICATION));
-        ReplicationGroup initialReplicationGroup = new ReplicationGroup(
-            shardRoutingTable,
-            inSyncAllocationIds,
-            trackedShards,
-            replicationModeMap,
-            0
-        );
+        ReplicationGroup initialReplicationGroup = new ReplicationGroup(shardRoutingTable, inSyncAllocationIds, trackedShards, 0);
 
         final ClusterState stateWithAddedReplicas;
         if (randomBoolean()) {
@@ -699,14 +627,7 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
         trackedShards = new HashSet<>();
         addTrackingInfo(shardRoutingTable, null, trackedShards, new HashSet<>());
 
-        replicationModeMap = trackedShards.stream().collect(Collectors.toMap(v -> v, v -> ReplicationMode.FULL_REPLICATION));
-        ReplicationGroup updatedReplicationGroup = new ReplicationGroup(
-            shardRoutingTable,
-            inSyncAllocationIds,
-            trackedShards,
-            replicationModeMap,
-            0
-        );
+        ReplicationGroup updatedReplicationGroup = new ReplicationGroup(shardRoutingTable, inSyncAllocationIds, trackedShards, 0);
 
         final AtomicReference<ReplicationGroup> replicationGroup = new AtomicReference<>(initialReplicationGroup);
         logger.debug("--> using initial replicationGroup:\n{}", replicationGroup.get());
@@ -775,15 +696,7 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
         final Set<String> inSyncAllocationIds = state.metadata().index(index).inSyncAllocationIds(0);
         Set<String> trackedShards = new HashSet<>();
         addTrackingInfo(shardRoutingTable, null, trackedShards, new HashSet<>());
-        Map<String, ReplicationMode> replicationModeMap = trackedShards.stream()
-            .collect(Collectors.toMap(v -> v, v -> ReplicationMode.FULL_REPLICATION));
-        final ReplicationGroup initialReplicationGroup = new ReplicationGroup(
-            shardRoutingTable,
-            inSyncAllocationIds,
-            trackedShards,
-            replicationModeMap,
-            0
-        );
+        final ReplicationGroup initialReplicationGroup = new ReplicationGroup(shardRoutingTable, inSyncAllocationIds, trackedShards, 0);
 
         PlainActionFuture<TestPrimary.Result> listener = new PlainActionFuture<>();
         final ShardRouting primaryShard = shardRoutingTable.primaryShard();
@@ -825,15 +738,7 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
         final Set<String> inSyncAllocationIds = indexMetadata.inSyncAllocationIds(0);
         final IndexShardRoutingTable shardRoutingTable = state.routingTable().index(index).shard(shardId.id());
         final Set<String> trackedShards = shardRoutingTable.getAllAllocationIds();
-        Map<String, ReplicationMode> replicationModeMap = trackedShards.stream()
-            .collect(Collectors.toMap(v -> v, v -> ReplicationMode.FULL_REPLICATION));
-        final ReplicationGroup initialReplicationGroup = new ReplicationGroup(
-            shardRoutingTable,
-            inSyncAllocationIds,
-            trackedShards,
-            replicationModeMap,
-            0
-        );
+        final ReplicationGroup initialReplicationGroup = new ReplicationGroup(shardRoutingTable, inSyncAllocationIds, trackedShards, 0);
 
         final boolean fatal = randomBoolean();
         final AtomicBoolean primaryFailed = new AtomicBoolean();

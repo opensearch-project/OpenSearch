@@ -9,7 +9,6 @@
 package org.opensearch.action.support.replication;
 
 import org.opensearch.cluster.routing.ShardRouting;
-import org.opensearch.index.shard.ReplicationGroup;
 
 import static org.opensearch.index.seqno.ReplicationTracker.ReplicationMode;
 
@@ -22,9 +21,7 @@ import static org.opensearch.index.seqno.ReplicationTracker.ReplicationMode;
 public class FanoutReplicationProxy<ReplicaRequest> extends ReplicationProxy<ReplicaRequest> {
 
     @Override
-    ReplicationMode determineReplicationMode(ReplicationGroup.ReplicationModeAwareShardRouting shardRouting, ShardRouting primaryRouting) {
-        return shardRouting.getShardRouting().isSameAllocation(primaryRouting) == false
-            ? ReplicationMode.FULL_REPLICATION
-            : ReplicationMode.NO_REPLICATION;
+    ReplicationMode determineReplicationMode(ShardRouting shardRouting, ShardRouting primaryRouting) {
+        return shardRouting.isSameAllocation(primaryRouting) == false ? ReplicationMode.FULL_REPLICATION : ReplicationMode.NO_REPLICATION;
     }
 }

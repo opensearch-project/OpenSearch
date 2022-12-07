@@ -9,7 +9,6 @@
 package org.opensearch.action.support.replication;
 
 import org.opensearch.cluster.routing.ShardRouting;
-import org.opensearch.index.shard.ReplicationGroup.ReplicationModeAwareShardRouting;
 
 import java.util.Objects;
 
@@ -20,7 +19,7 @@ import java.util.Objects;
  */
 public class ReplicationProxyRequest<ReplicaRequest> {
 
-    private final ReplicationModeAwareShardRouting replicationModeAwareShardRouting;
+    private final ShardRouting shardRouting;
 
     private final ShardRouting primaryRouting;
 
@@ -33,14 +32,14 @@ public class ReplicationProxyRequest<ReplicaRequest> {
     private final ReplicaRequest replicaRequest;
 
     private ReplicationProxyRequest(
-        ReplicationModeAwareShardRouting replicationModeAwareShardRouting,
+        ShardRouting shardRouting,
         ShardRouting primaryRouting,
         long globalCheckpoint,
         long maxSeqNoOfUpdatesOrDeletes,
         PendingReplicationActions pendingReplicationActions,
         ReplicaRequest replicaRequest
     ) {
-        this.replicationModeAwareShardRouting = Objects.requireNonNull(replicationModeAwareShardRouting);
+        this.shardRouting = Objects.requireNonNull(shardRouting);
         this.primaryRouting = Objects.requireNonNull(primaryRouting);
         this.globalCheckpoint = globalCheckpoint;
         this.maxSeqNoOfUpdatesOrDeletes = maxSeqNoOfUpdatesOrDeletes;
@@ -48,8 +47,8 @@ public class ReplicationProxyRequest<ReplicaRequest> {
         this.replicaRequest = Objects.requireNonNull(replicaRequest);
     }
 
-    public ReplicationModeAwareShardRouting getReplicationModeAwareShardRouting() {
-        return replicationModeAwareShardRouting;
+    public ShardRouting getShardRouting() {
+        return shardRouting;
     }
 
     public ShardRouting getPrimaryRouting() {
@@ -79,7 +78,7 @@ public class ReplicationProxyRequest<ReplicaRequest> {
      */
     public static class Builder<ReplicaRequest> {
 
-        private final ReplicationModeAwareShardRouting replicationModeAwareShardRouting;
+        private final ShardRouting shardRouting;
         private final ShardRouting primaryRouting;
         private final long globalCheckpoint;
         private final long maxSeqNoOfUpdatesOrDeletes;
@@ -87,14 +86,14 @@ public class ReplicationProxyRequest<ReplicaRequest> {
         private final ReplicaRequest replicaRequest;
 
         public Builder(
-            ReplicationModeAwareShardRouting replicationModeAwareShardRouting,
+            ShardRouting shardRouting,
             ShardRouting primaryRouting,
             long globalCheckpoint,
             long maxSeqNoOfUpdatesOrDeletes,
             PendingReplicationActions pendingReplicationActions,
             ReplicaRequest replicaRequest
         ) {
-            this.replicationModeAwareShardRouting = replicationModeAwareShardRouting;
+            this.shardRouting = shardRouting;
             this.primaryRouting = primaryRouting;
             this.globalCheckpoint = globalCheckpoint;
             this.maxSeqNoOfUpdatesOrDeletes = maxSeqNoOfUpdatesOrDeletes;
@@ -104,7 +103,7 @@ public class ReplicationProxyRequest<ReplicaRequest> {
 
         public ReplicationProxyRequest<ReplicaRequest> build() {
             return new ReplicationProxyRequest<>(
-                replicationModeAwareShardRouting,
+                shardRouting,
                 primaryRouting,
                 globalCheckpoint,
                 maxSeqNoOfUpdatesOrDeletes,

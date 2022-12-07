@@ -53,7 +53,6 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.ReplicationGroup;
-import org.opensearch.index.shard.ReplicationGroup.ReplicationModeAwareShardRouting;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.rest.RestStatus;
@@ -231,7 +230,7 @@ public class ReplicationOperation<
 
         final ShardRouting primaryRouting = primary.routingEntry();
 
-        for (final ReplicationModeAwareShardRouting shardRouting : replicationGroup.getReplicationTargets()) {
+        for (final ShardRouting shardRouting : replicationGroup.getReplicationTargets()) {
             ReplicationProxyRequest<ReplicaRequest> proxyRequest = new Builder<ReplicaRequest>(
                 shardRouting,
                 primaryRouting,
@@ -245,7 +244,7 @@ public class ReplicationOperation<
     }
 
     private void performOnReplica(final ReplicationProxyRequest<ReplicaRequest> replicationProxyRequest) {
-        final ShardRouting shard = replicationProxyRequest.getReplicationModeAwareShardRouting().getShardRouting();
+        final ShardRouting shard = replicationProxyRequest.getShardRouting();
         final ReplicaRequest replicaRequest = replicationProxyRequest.getReplicaRequest();
         final long globalCheckpoint = replicationProxyRequest.getGlobalCheckpoint();
         final long maxSeqNoOfUpdatesOrDeletes = replicationProxyRequest.getMaxSeqNoOfUpdatesOrDeletes();

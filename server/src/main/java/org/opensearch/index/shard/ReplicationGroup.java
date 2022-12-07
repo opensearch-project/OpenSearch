@@ -39,7 +39,6 @@ import org.opensearch.index.seqno.ReplicationTracker.ReplicationMode;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -52,24 +51,21 @@ public class ReplicationGroup {
     private final IndexShardRoutingTable routingTable;
     private final Set<String> inSyncAllocationIds;
     private final Set<String> trackedAllocationIds;
-    private final Map<String, ReplicationMode> replicationModeMap;
     private final long version;
 
     private final Set<String> unavailableInSyncShards; // derived from the other fields
-    private final List<ReplicationModeAwareShardRouting> replicationTargets; // derived from the other fields
+    private final List<ShardRouting> replicationTargets; // derived from the other fields
     private final List<ShardRouting> skippedShards; // derived from the other fields
 
     public ReplicationGroup(
         IndexShardRoutingTable routingTable,
         Set<String> inSyncAllocationIds,
         Set<String> trackedAllocationIds,
-        Map<String, ReplicationMode> replicationModeMap,
         long version
     ) {
         this.routingTable = routingTable;
         this.inSyncAllocationIds = inSyncAllocationIds;
         this.trackedAllocationIds = trackedAllocationIds;
-        this.replicationModeMap = replicationModeMap;
         this.version = version;
 
         this.unavailableInSyncShards = Sets.difference(inSyncAllocationIds, routingTable.getAllAllocationIds());
@@ -81,9 +77,7 @@ public class ReplicationGroup {
                 skippedShards.add(shard);
             } else {
                 if (trackedAllocationIds.contains(shard.allocationId().getId())) {
-                    replicationTargets.add(
-                        new ReplicationModeAwareShardRouting(replicationModeMap.get(shard.allocationId().getId()), shard)
-                    );
+                    replicationTargets.add(shard);
                 } else {
                     assert inSyncAllocationIds.contains(shard.allocationId().getId()) == false : "in-sync shard copy but not tracked: "
                         + shard;
@@ -92,12 +86,7 @@ public class ReplicationGroup {
                 if (shard.relocating()) {
                     ShardRouting relocationTarget = shard.getTargetRelocatingShard();
                     if (trackedAllocationIds.contains(relocationTarget.allocationId().getId())) {
-                        replicationTargets.add(
-                            new ReplicationModeAwareShardRouting(
-                                replicationModeMap.get(relocationTarget.allocationId().getId()),
-                                relocationTarget
-                            )
-                        );
+                        replicationTargets.add(relocationTarget);
                     } else {
                         skippedShards.add(relocationTarget);
                         assert inSyncAllocationIds.contains(relocationTarget.allocationId().getId()) == false
@@ -134,7 +123,7 @@ public class ReplicationGroup {
     /**
      * Returns the subset of shards in the routing table that should be replicated to. Includes relocation targets.
      */
-    public List<ReplicationModeAwareShardRouting> getReplicationTargets() {
+    public List<ShardRouting> getReplicationTargets() {
         return replicationTargets;
     }
 
@@ -155,8 +144,7 @@ public class ReplicationGroup {
 
         if (!routingTable.equals(that.routingTable)) return false;
         if (!inSyncAllocationIds.equals(that.inSyncAllocationIds)) return false;
-        if (!trackedAllocationIds.equals(that.trackedAllocationIds)) return false;
-        return replicationModeMap.equals(that.replicationModeMap);
+        return trackedAllocationIds.equals(that.trackedAllocationIds);
     }
 
     @Override
@@ -164,7 +152,6 @@ public class ReplicationGroup {
         int result = routingTable.hashCode();
         result = 31 * result + inSyncAllocationIds.hashCode();
         result = 31 * result + trackedAllocationIds.hashCode();
-        result = 31 * result + replicationModeMap.hashCode();
         return result;
     }
 
@@ -177,8 +164,6 @@ public class ReplicationGroup {
             + inSyncAllocationIds
             + ", trackedAllocationIds="
             + trackedAllocationIds
-            + ", replicationModeMap="
-            + replicationModeMap
             + '}';
     }
 

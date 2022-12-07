@@ -10,7 +10,6 @@ package org.opensearch.action.support.replication;
 
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.index.seqno.ReplicationTracker.ReplicationMode;
-import org.opensearch.index.shard.ReplicationGroup.ReplicationModeAwareShardRouting;
 
 import java.util.Objects;
 
@@ -30,19 +29,17 @@ public class ReplicationModeAwareProxy<ReplicaRequest> extends ReplicationProxy<
     }
 
     @Override
-    ReplicationMode determineReplicationMode(ReplicationModeAwareShardRouting shardRouting, ShardRouting primaryRouting) {
-        ShardRouting currentRouting = shardRouting.getShardRouting();
+    ReplicationMode determineReplicationMode(ShardRouting shardRouting, ShardRouting primaryRouting) {
 
         // If the current routing is the primary, then it does not need to be replicated
-        if (currentRouting.isSameAllocation(primaryRouting)) {
+        if (shardRouting.isSameAllocation(primaryRouting)) {
             return ReplicationMode.NO_REPLICATION;
         }
 
-        // If the current routing's replication mode is full replication or primary term validation, then we return the original mode
-        if (shardRouting.getReplicationMode() == ReplicationMode.FULL_REPLICATION
-            || shardRouting.getReplicationMode() == ReplicationMode.PRIMARY_TERM_VALIDATION) {
-            return shardRouting.getReplicationMode();
+        if (primaryRouting.getTargetRelocatingShard() != null && shardRouting.isSameAllocation(primaryRouting.getTargetRelocatingShard())) {
+            return ReplicationMode.FULL_REPLICATION;
         }
+
         return replicationModeOverride;
     }
 }

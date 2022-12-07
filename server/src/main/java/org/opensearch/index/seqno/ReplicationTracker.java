@@ -55,7 +55,6 @@ import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.shard.AbstractIndexShardComponent;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ReplicationGroup;
-import org.opensearch.index.shard.ReplicationGroup.ReplicationModeAwareShardRouting;
 import org.opensearch.index.shard.ShardId;
 
 import java.io.IOException;
@@ -624,7 +623,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                      * create peer recovery retention leases for every shard copy.
                      */
                     assert (checkpoints.get(shardRouting.allocationId().getId()).tracked
-                        && checkpoints.get(shardRouting.allocationId().getId()).replicationMode != ReplicationMode.FULL_REPLICATION)
+                        && checkpoints.get(shardRouting.allocationId().getId()).replicated == false)
                         || checkpoints.get(shardRouting.allocationId().getId()).tracked == false
                         || hasAllPeerRecoveryRetentionLeases == false;
                     return false;
@@ -684,8 +683,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         long globalCheckpoint;
         /**
          * When a shard is in-sync, it is capable of being promoted as the primary during a failover. An in-sync shard
-         * contributes to global checkpoint calculation on the primary iff {@link CheckpointState#replicationMode} is
-         * {@link ReplicationMode#FULL_REPLICATION}.
+         * contributes to global checkpoint calculation on the primary iff {@link CheckpointState#replicated} is true.
          */
         boolean inSync;
 
@@ -697,22 +695,16 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         boolean tracked;
 
         /**
-         * Defines the mode of replication used for inter-node replication for {@link org.opensearch.action.support.replication.TransportReplicationAction}.
+         * Whether the replication requests to the primary are replicated to the concerned shard or not.
          */
-        final ReplicationMode replicationMode;
+        boolean replicated;
 
-        public CheckpointState(
-            long localCheckpoint,
-            long globalCheckpoint,
-            boolean inSync,
-            boolean tracked,
-            ReplicationMode replicationMode
-        ) {
+        public CheckpointState(long localCheckpoint, long globalCheckpoint, boolean inSync, boolean tracked, boolean replicated) {
             this.localCheckpoint = localCheckpoint;
             this.globalCheckpoint = globalCheckpoint;
             this.inSync = inSync;
             this.tracked = tracked;
-            this.replicationMode = Objects.requireNonNull(replicationMode);
+            this.replicated = replicated;
         }
 
         public CheckpointState(StreamInput in) throws IOException {
@@ -721,9 +713,9 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             this.inSync = in.readBoolean();
             this.tracked = in.readBoolean();
             if (in.getVersion().onOrAfter(Version.CURRENT)) {
-                this.replicationMode = ReplicationMode.readFrom(in);
+                this.replicated = in.readBoolean();
             } else {
-                this.replicationMode = ReplicationMode.FULL_REPLICATION;
+                this.replicated = true;
             }
         }
 
@@ -733,14 +725,14 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             out.writeZLong(globalCheckpoint);
             out.writeBoolean(inSync);
             out.writeBoolean(tracked);
-            replicationMode.writeTo(out);
+            out.writeBoolean(replicated);
         }
 
         /**
          * Returns a full copy of this object
          */
         public CheckpointState copy() {
-            return new CheckpointState(localCheckpoint, globalCheckpoint, inSync, tracked, replicationMode);
+            return new CheckpointState(localCheckpoint, globalCheckpoint, inSync, tracked, replicated);
         }
 
         public long getLocalCheckpoint() {
@@ -762,8 +754,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                 + inSync
                 + ", tracked="
                 + tracked
-                + ", replicationMode="
-                + replicationMode
+                + ", replicated="
+                + replicated
                 + '}';
         }
 
@@ -778,7 +770,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             if (globalCheckpoint != that.globalCheckpoint) return false;
             if (inSync != that.inSync) return false;
             if (tracked != that.tracked) return false;
-            return replicationMode == that.replicationMode;
+            return replicated == that.replicated;
         }
 
         @Override
@@ -787,7 +779,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             result = 31 * result + Long.hashCode(globalCheckpoint);
             result = 31 * result + Boolean.hashCode(inSync);
             result = 31 * result + Boolean.hashCode(tracked);
-            result = 31 * result + Objects.hashCode(replicationMode);
+            result = 31 * result + Boolean.hashCode(replicated);
             return result;
         }
     }
@@ -849,7 +841,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         final ObjectLongMap<String> globalCheckpoints = new ObjectLongHashMap<>(checkpoints.size()); // upper bound on the size
         checkpoints.entrySet()
             .stream()
-            .filter(e -> e.getValue().inSync && e.getValue().replicationMode == ReplicationMode.FULL_REPLICATION)
+            .filter(e -> e.getValue().inSync && e.getValue().replicated)
             .forEach(e -> globalCheckpoints.put(e.getKey(), e.getValue().globalCheckpoint));
         return globalCheckpoints;
     }
@@ -981,7 +973,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             // all tracked shard copies have a corresponding peer-recovery retention lease
             for (final ShardRouting shardRouting : routingTable.assignedShards()) {
                 final CheckpointState cps = checkpoints.get(shardRouting.allocationId().getId());
-                if (cps.tracked && cps.replicationMode == ReplicationMode.FULL_REPLICATION) {
+                if (cps.tracked && cps.replicated) {
                     assert retentionLeases.contains(getPeerRecoveryRetentionLeaseId(shardRouting))
                         : "no retention lease for tracked shard [" + shardRouting + "] in " + retentionLeases;
                     assert PEER_RECOVERY_RETENTION_LEASE_SOURCE.equals(
@@ -1007,7 +999,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         final OptionalLong value = reducer.apply(
             checkpoints.values()
                 .stream()
-                .filter(cps -> cps.inSync && cps.replicationMode == ReplicationMode.FULL_REPLICATION)
+                .filter(cps -> cps.inSync && cps.replicated)
                 .mapToLong(function)
                 .filter(v -> v != SequenceNumbers.UNASSIGNED_SEQ_NO)
         );
@@ -1113,17 +1105,13 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         }
 
         assert indexSettings().isRemoteTranslogStoreEnabled() != false
-            || checkpoints.entrySet()
-                .stream()
-                .filter(e -> e.getValue().tracked)
-                .allMatch(e -> ReplicationMode.FULL_REPLICATION == e.getValue().replicationMode)
+            || checkpoints.entrySet().stream().filter(e -> e.getValue().tracked).allMatch(e -> e.getValue().replicated)
             : "In absence of remote translog store, all tracked shards must have replication mode as LOGICAL_REPLICATION";
 
         return new ReplicationGroup(
             routingTable,
             checkpoints.entrySet().stream().filter(e -> e.getValue().inSync).map(Map.Entry::getKey).collect(Collectors.toSet()),
             checkpoints.entrySet().stream().filter(e -> e.getValue().tracked).map(Map.Entry::getKey).collect(Collectors.toSet()),
-            checkpoints.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().replicationMode)),
             newVersion
         );
     }
@@ -1227,12 +1215,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         final ShardRouting primaryShard = routingTable.primaryShard();
         final String leaseId = getPeerRecoveryRetentionLeaseId(primaryShard);
         if (retentionLeases.get(leaseId) == null) {
-            List<ShardRouting> replicatedShardRoutingList = replicationGroup.getReplicationTargets()
-                .stream()
-                .filter(s -> s.getReplicationMode() == ReplicationMode.FULL_REPLICATION)
-                .map(ReplicationModeAwareShardRouting::getShardRouting)
-                .collect(Collectors.toList());
-            if (replicatedShardRoutingList.equals(Collections.singletonList(primaryShard))) {
+            if (replicationGroup.getReplicationTargets().equals(Collections.singletonList(primaryShard))) {
                 assert primaryShard.allocationId().getId().equals(shardAllocationId) : routingTable.assignedShards()
                     + " vs "
                     + shardAllocationId;
@@ -1318,7 +1301,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                                 globalCheckpoint,
                                 inSync,
                                 inSync,
-                                getReplicationMode(initializingId, primaryAllocationId, primaryTargetAllocationId)
+                                isReplicated(initializingId, primaryAllocationId, primaryTargetAllocationId)
                             )
                         );
                     }
@@ -1337,7 +1320,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                             globalCheckpoint,
                             false,
                             false,
-                            getReplicationMode(initializingId, primaryAllocationId, primaryTargetAllocationId)
+                            isReplicated(initializingId, primaryAllocationId, primaryTargetAllocationId)
                         )
                     );
                 }
@@ -1351,7 +1334,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                             globalCheckpoint,
                             true,
                             true,
-                            getReplicationMode(inSyncId, primaryAllocationId, primaryTargetAllocationId)
+                            isReplicated(inSyncId, primaryAllocationId, primaryTargetAllocationId)
                         )
                     );
                 }
@@ -1369,23 +1352,23 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     }
 
     /**
-     * Returns the replication mode considering the remote translog existence, current/primary/primary target allocation ids.
+     * Returns whether the requests are replicated considering the remote translog existence, current/primary/primary target allocation ids.
      *
      * @param allocationId              given allocation id
      * @param primaryAllocationId       primary allocation id
      * @param primaryTargetAllocationId primary target allocation id
      * @return the replication mode.
      */
-    private ReplicationMode getReplicationMode(String allocationId, String primaryAllocationId, String primaryTargetAllocationId) {
+    private boolean isReplicated(String allocationId, String primaryAllocationId, String primaryTargetAllocationId) {
         // If remote translog is enabled, then returns replication mode checking current allocation id against the
         // primary and primary target allocation id.
+        // If remote translog is enabled, then returns true if given allocation id matches the primary or it's relocation target allocation
+        // id.
         if (indexSettings().isRemoteTranslogStoreEnabled()) {
-            return (allocationId.equals(primaryAllocationId) || allocationId.equals(primaryTargetAllocationId))
-                ? ReplicationMode.FULL_REPLICATION
-                : ReplicationMode.NO_REPLICATION;
+            return (allocationId.equals(primaryAllocationId) || allocationId.equals(primaryTargetAllocationId));
         }
-        // For all other case, it is logical replication mode.
-        return ReplicationMode.FULL_REPLICATION;
+        // For other case which is local translog, return true as the requests are replicated to all shards in the replication group.
+        return true;
     }
 
     /**
@@ -1449,15 +1432,14 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         updateLocalCheckpoint(allocationId, cps, localCheckpoint);
         // if it was already in-sync (because of a previously failed recovery attempt), global checkpoint must have been
         // stuck from advancing
-        assert !cps.inSync || cps.localCheckpoint >= getGlobalCheckpoint() || cps.replicationMode != ReplicationMode.FULL_REPLICATION
-            : "shard copy "
-                + allocationId
-                + " that's already in-sync should have a local checkpoint "
-                + cps.localCheckpoint
-                + " that's above the global checkpoint "
-                + getGlobalCheckpoint()
-                + " or it's replication mode is logical";
-        if (cps.replicationMode == ReplicationMode.FULL_REPLICATION && cps.localCheckpoint < getGlobalCheckpoint()) {
+        assert !cps.inSync || cps.localCheckpoint >= getGlobalCheckpoint() || cps.replicated == false : "shard copy "
+            + allocationId
+            + " that's already in-sync should have a local checkpoint "
+            + cps.localCheckpoint
+            + " that's above the global checkpoint "
+            + getGlobalCheckpoint()
+            + " or it's not replicated";
+        if (cps.replicated && cps.localCheckpoint < getGlobalCheckpoint()) {
             pendingInSync.add(allocationId);
             try {
                 while (true) {
@@ -1528,7 +1510,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             logger.trace("marked [{}] as in-sync", allocationId);
             notifyAllWaiters();
         }
-        if (cps.replicationMode == ReplicationMode.FULL_REPLICATION && increasedLocalCheckpoint && pending == false) {
+        if (cps.replicated && increasedLocalCheckpoint && pending == false) {
             updateGlobalCheckpointOnPrimary();
         }
         assert invariant();
@@ -1548,7 +1530,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             return fallback;
         }
         for (final CheckpointState cps : localCheckpoints) {
-            if (cps.inSync && cps.replicationMode == ReplicationMode.FULL_REPLICATION) {
+            if (cps.inSync && cps.replicated) {
                 if (cps.localCheckpoint == SequenceNumbers.UNASSIGNED_SEQ_NO) {
                     // unassigned in-sync replica
                     return fallback;
