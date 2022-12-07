@@ -21,6 +21,7 @@ import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.extensions.DiscoveryExtensionNode;
 import org.opensearch.extensions.ExtensionBooleanResponse;
+import org.opensearch.extensions.ExtensionDependency;
 import org.opensearch.extensions.RegisterTransportActionsRequest;
 import org.opensearch.extensions.rest.RestSendToExtensionActionTests;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
@@ -39,6 +40,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
