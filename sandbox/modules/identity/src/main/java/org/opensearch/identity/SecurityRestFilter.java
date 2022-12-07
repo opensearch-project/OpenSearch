@@ -119,8 +119,6 @@ public class SecurityRestFilter {
                 return true;
             } catch (final AuthenticationException ae) {
                 log.info("Authentication finally failed: {}", ae.getMessage());
-
-                channel.sendResponse(new BytesRestResponse(channel, RestStatus.UNAUTHORIZED, ae));
                 return false;
             }
         }

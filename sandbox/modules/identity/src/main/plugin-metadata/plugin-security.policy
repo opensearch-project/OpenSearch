@@ -8,4 +8,6 @@
 
 grant {
   permission java.lang.RuntimePermission "setContextClassLoader";
+
+  permission java.net.SocketPermission "*", "accept,connect";
 };
