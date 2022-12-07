@@ -19,32 +19,37 @@ public class PrivilegesEvaluatorResponse {
     Set<String> missingPrivileges = new HashSet<String>();
     Set<String> missingSecurityRoles = new HashSet<>();
     Set<String> resolvedSecurityRoles = new HashSet<>();
-    Map<String,Set<String>> allowedFlsFields;
-    Map<String,Set<String>> maskedFields;
-    Map<String,Set<String>> queries;
+    Map<String, Set<String>> allowedFlsFields;
+    Map<String, Set<String>> maskedFields;
+    Map<String, Set<String>> queries;
     PrivilegesEvaluatorResponseState state = PrivilegesEvaluatorResponseState.PENDING;
     CreateIndexRequestBuilder createIndexRequestBuilder;
 
     public boolean isAllowed() {
         return allowed;
     }
+
     public Set<String> getMissingPrivileges() {
         return new HashSet<String>(missingPrivileges);
     }
 
-    public Set<String> getMissingSecurityRoles() {return new HashSet<>(missingSecurityRoles); }
+    public Set<String> getMissingSecurityRoles() {
+        return new HashSet<>(missingSecurityRoles);
+    }
 
-    public Set<String> getResolvedSecurityRoles() {return new HashSet<>(resolvedSecurityRoles); }
+    public Set<String> getResolvedSecurityRoles() {
+        return new HashSet<>(resolvedSecurityRoles);
+    }
 
-    public Map<String,Set<String>> getAllowedFlsFields() {
+    public Map<String, Set<String>> getAllowedFlsFields() {
         return allowedFlsFields;
     }
 
-    public Map<String,Set<String>> getMaskedFields() {
+    public Map<String, Set<String>> getMaskedFields() {
         return maskedFields;
     }
 
-    public Map<String,Set<String>> getQueries() {
+    public Map<String, Set<String>> getQueries() {
         return queries;
     }
 
@@ -72,8 +77,17 @@ public class PrivilegesEvaluatorResponse {
 
     @Override
     public String toString() {
-        return "PrivEvalResponse [allowed=" + allowed + ", missingPrivileges=" + missingPrivileges
-            + ", allowedFlsFields=" + allowedFlsFields + ", maskedFields=" + maskedFields + ", queries=" + queries + "]";
+        return "PrivEvalResponse [allowed="
+            + allowed
+            + ", missingPrivileges="
+            + missingPrivileges
+            + ", allowedFlsFields="
+            + allowedFlsFields
+            + ", maskedFields="
+            + maskedFields
+            + ", queries="
+            + queries
+            + "]";
     }
 
     public static enum PrivilegesEvaluatorResponseState {

@@ -41,7 +41,6 @@ public class SecurityRestFilter {
     private final Settings settings;
     private final Path configPath;
 
-
     public SecurityRestFilter(final ThreadPool threadPool, final Settings settings, final Path configPath) {
         super();
         this.threadContext = threadPool.getThreadContext();
@@ -67,8 +66,7 @@ public class SecurityRestFilter {
     }
 
     // True is authenticated, false if not - this is opposite of the Security plugin
-    private boolean checkAndAuthenticateRequest(RestRequest request, RestChannel channel,
-                                                NodeClient client) throws Exception {
+    private boolean checkAndAuthenticateRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         if (!authenticate(request, channel)) {
             channel.sendResponse(new BytesRestResponse(RestStatus.UNAUTHORIZED, "Authentication failed"));
             return false;
@@ -79,7 +77,15 @@ public class SecurityRestFilter {
             jwtClaims.put("sub", "subject");
             jwtClaims.put("iat", Instant.now().toString());
             String encodedJwt = JwtVendor.createJwt(jwtClaims);
-            String prefix = "(nodeName=" + client.getLocalNodeId() + ", requestId=" + request.getRequestId() + ", path=" + request.path() + ", jwtClaims=" + jwtClaims + " checkAndAuthenticateRequest)";
+            String prefix = "(nodeName="
+                + client.getLocalNodeId()
+                + ", requestId="
+                + request.getRequestId()
+                + ", path="
+                + request.path()
+                + ", jwtClaims="
+                + jwtClaims
+                + " checkAndAuthenticateRequest)";
             log.info(prefix + " Created internal access token " + encodedJwt);
             threadContext.putHeader(ThreadContextConstants.OPENSEARCH_AUTHENTICATION_TOKEN_HEADER, encodedJwt);
         }

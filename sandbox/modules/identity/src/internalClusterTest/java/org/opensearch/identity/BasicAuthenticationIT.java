@@ -42,6 +42,7 @@ public class BasicAuthenticationIT extends HttpSmokeTestCaseWithIdentity {
 
     public static Map<String, String> interceptedTokens = new HashMap<>();
     private static String expectedActionName = "cluster:monitor/health";
+
     public static class TokenInterceptorPlugin extends Plugin implements NetworkPlugin {
         public TokenInterceptorPlugin() {}
 
@@ -66,11 +67,15 @@ public class BasicAuthenticationIT extends HttpSmokeTestCaseWithIdentity {
                             Map<String, String> tcHeaders = threadContext.getHeaders();
                             if (expectedActionName.equals(action)) {
                                 if (tcHeaders.containsKey(ThreadContextConstants.OPENSEARCH_AUTHENTICATION_TOKEN_HEADER)) {
-                                    interceptedTokens.put(request.getParentTask().getNodeId(), tcHeaders.get(ThreadContextConstants.OPENSEARCH_AUTHENTICATION_TOKEN_HEADER));
+                                    interceptedTokens.put(
+                                        request.getParentTask().getNodeId(),
+                                        tcHeaders.get(ThreadContextConstants.OPENSEARCH_AUTHENTICATION_TOKEN_HEADER)
+                                    );
                                 }
                             }
-//                            String prefix = "(nodeName=" + request.getParentTask().getNodeId() + ", requestId=" + request.getParentTask().getId() + ", action=" + action + " interceptSender)";
-//                            System.out.println(prefix + " Headers: " + threadContext.getHeaders());
+                            // String prefix = "(nodeName=" + request.getParentTask().getNodeId() + ", requestId=" +
+                            // request.getParentTask().getId() + ", action=" + action + " interceptSender)";
+                            // System.out.println(prefix + " Headers: " + threadContext.getHeaders());
                             sender.sendRequest(connection, action, request, options, handler);
                         }
                     };
@@ -104,11 +109,15 @@ public class BasicAuthenticationIT extends HttpSmokeTestCaseWithIdentity {
                     Map<String, String> tcHeaders = threadPool.getThreadContext().getHeaders();
                     if (expectedActionName.equals(action)) {
                         if (tcHeaders.containsKey(ThreadContextConstants.OPENSEARCH_AUTHENTICATION_TOKEN_HEADER)) {
-                            interceptedTokens.put(service.getLocalNode().getId(), tcHeaders.get(ThreadContextConstants.OPENSEARCH_AUTHENTICATION_TOKEN_HEADER));
+                            interceptedTokens.put(
+                                service.getLocalNode().getId(),
+                                tcHeaders.get(ThreadContextConstants.OPENSEARCH_AUTHENTICATION_TOKEN_HEADER)
+                            );
                         }
                     }
-//                    String prefix = "(nodeName=" + service.getLocalNode().getId() + ", requestId=" + requestId + ", action=" + action + " onRequestReceived)";
-//                    System.out.println(prefix + " Headers: " + threadPool.getThreadContext().getHeaders());
+                    // String prefix = "(nodeName=" + service.getLocalNode().getId() + ", requestId=" + requestId + ", action=" + action + "
+                    // onRequestReceived)";
+                    // System.out.println(prefix + " Headers: " + threadPool.getThreadContext().getHeaders());
                 }
 
                 @Override
@@ -123,11 +132,15 @@ public class BasicAuthenticationIT extends HttpSmokeTestCaseWithIdentity {
                     Map<String, String> tcHeaders = threadPool.getThreadContext().getHeaders();
                     if (expectedActionName.equals(action)) {
                         if (tcHeaders.containsKey(ThreadContextConstants.OPENSEARCH_AUTHENTICATION_TOKEN_HEADER)) {
-                            interceptedTokens.put(service.getLocalNode().getId(), tcHeaders.get(ThreadContextConstants.OPENSEARCH_AUTHENTICATION_TOKEN_HEADER));
+                            interceptedTokens.put(
+                                service.getLocalNode().getId(),
+                                tcHeaders.get(ThreadContextConstants.OPENSEARCH_AUTHENTICATION_TOKEN_HEADER)
+                            );
                         }
                     }
-//                    String prefix = "(nodeName=" + service.getLocalNode().getId() + ", requestId=" + requestId + ", action=" + action + " onRequestSent)";
-//                    System.out.println(prefix + " Headers: " + threadPool.getThreadContext().getHeaders());
+                    // String prefix = "(nodeName=" + service.getLocalNode().getId() + ", requestId=" + requestId + ", action=" + action + "
+                    // onRequestSent)";
+                    // System.out.println(prefix + " Headers: " + threadPool.getThreadContext().getHeaders());
                 }
             });
         }
@@ -141,7 +154,7 @@ public class BasicAuthenticationIT extends HttpSmokeTestCaseWithIdentity {
 
         String content = new String(response.getEntity().getContent().readAllBytes(), StandardCharsets.UTF_8);
 
-//        System.out.println("interceptedTokens: " + interceptedTokens);
+        // System.out.println("interceptedTokens: " + interceptedTokens);
 
         assertFalse(interceptedTokens.values().contains(null));
 

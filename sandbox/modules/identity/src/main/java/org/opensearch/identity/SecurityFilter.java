@@ -17,7 +17,6 @@ import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.action.support.ActionFilter;
 import org.opensearch.action.support.ActionFilterChain;
-import org.opensearch.authn.jwt.JwtVendor;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
@@ -26,11 +25,6 @@ import org.opensearch.common.util.concurrent.ThreadContext.StoredContext;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.TransportService;
-
-import java.time.Instant;
-import java.util.HashMap;
-import java.util.Map;
 
 public class SecurityFilter implements ActionFilter {
 
@@ -51,34 +45,58 @@ public class SecurityFilter implements ActionFilter {
     }
 
     @Override
-    public <Request extends ActionRequest, Response extends ActionResponse> void apply(Task task, final String action, Request request,
-                                                                                       ActionListener<Response> listener, ActionFilterChain<Request, Response> chain) {
-        try (StoredContext ctx = threadContext.newStoredContext(true)){
+    public <Request extends ActionRequest, Response extends ActionResponse> void apply(
+        Task task,
+        final String action,
+        Request request,
+        ActionListener<Response> listener,
+        ActionFilterChain<Request, Response> chain
+    ) {
+        try (StoredContext ctx = threadContext.newStoredContext(true)) {
             org.apache.logging.log4j.ThreadContext.clearAll();
             apply0(task, action, request, listener, chain);
         }
     }
-    private <Request extends ActionRequest, Response extends ActionResponse> void apply0(Task task, final String action, Request request,
-                                                                                         ActionListener<Response> listener, ActionFilterChain<Request, Response> chain) {
+
+    private <Request extends ActionRequest, Response extends ActionResponse> void apply0(
+        Task task,
+        final String action,
+        Request request,
+        ActionListener<Response> listener,
+        ActionFilterChain<Request, Response> chain
+    ) {
         try {
             // TODO Get jwt here and verify
             // The first handler is always authc + authz, if this is hit the request is authenticated
             // TODO Move this logic to right after successful login
             if (threadContext.getHeader(ThreadContextConstants.OPENSEARCH_AUTHENTICATION_TOKEN_HEADER) != null) {
                 String encodedJwt = threadContext.getHeader(ThreadContextConstants.OPENSEARCH_AUTHENTICATION_TOKEN_HEADER);
-                String prefix = "(nodeName=" + cs.localNode().getId() + ", requestId=" + request.getParentTask().getId() + ", action=" + action + " apply0)";
+                String prefix = "(nodeName="
+                    + cs.localNode().getId()
+                    + ", requestId="
+                    + request.getParentTask().getId()
+                    + ", action="
+                    + action
+                    + " apply0)";
                 log.info(prefix + " Access token provided " + encodedJwt);
             } else {
                 // TODO Figure out where internal actions are invoked and create token on invocation
                 // No token provided, may be an internal request
                 // Token in ThreadContext is created on REST layer and passed to Transport Layer.
-                String prefix = "(nodeName=" + cs.localNode().getName() + ", requestId=" + request.getParentTask().getId() + ", action=" + action + " apply0)";
+                String prefix = "(nodeName="
+                    + cs.localNode().getName()
+                    + ", requestId="
+                    + request.getParentTask().getId()
+                    + ", action="
+                    + action
+                    + " apply0)";
                 log.info(prefix + "No authorization provided in the request, internal request");
                 // String err = "Access token not provided";
                 // listener.onFailure(new OpenSearchSecurityException(err, RestStatus.FORBIDDEN));
             }
 
-            final PrivilegesEvaluatorResponse pres = new PrivilegesEvaluatorResponse(); // eval.evaluate(user, action, request, task, injectedRoles);
+            final PrivilegesEvaluatorResponse pres = new PrivilegesEvaluatorResponse(); // eval.evaluate(user, action, request, task,
+                                                                                        // injectedRoles);
             pres.allowed = true;
 
             if (log.isDebugEnabled()) {
@@ -86,18 +104,18 @@ public class SecurityFilter implements ActionFilter {
             }
 
             if (pres.isAllowed()) {
-//                auditLog.logGrantedPrivileges(action, request, task);
-//                auditLog.logIndexEvent(action, request, task);
+                // auditLog.logGrantedPrivileges(action, request, task);
+                // auditLog.logIndexEvent(action, request, task);
                 log.info("Permission granted");
                 chain.proceed(task, action, request, listener);
             } else {
-                 // auditLog.logMissingPrivileges(action, request, task);
+                // auditLog.logMissingPrivileges(action, request, task);
                 String err = "";
-//                if(!pres.getMissingSecurityRoles().isEmpty()) {
-//                    err = String.format("No mapping for %s on roles %s", user, pres.getMissingSecurityRoles());
-//                } else {
-//                    err = String.format("no permissions for %s and %s", pres.getMissingPrivileges(), user);
-//                }
+                // if(!pres.getMissingSecurityRoles().isEmpty()) {
+                // err = String.format("No mapping for %s on roles %s", user, pres.getMissingSecurityRoles());
+                // } else {
+                // err = String.format("no permissions for %s and %s", pres.getMissingPrivileges(), user);
+                // }
                 log.debug(err);
                 listener.onFailure(new OpenSearchSecurityException(err, RestStatus.FORBIDDEN));
             }
@@ -109,7 +127,7 @@ public class SecurityFilter implements ActionFilter {
             }
             listener.onFailure(e);
         } catch (Throwable e) {
-            log.error("Unexpected exception "+e, e);
+            log.error("Unexpected exception " + e, e);
             listener.onFailure(new OpenSearchSecurityException("Unexpected exception " + action, RestStatus.INTERNAL_SERVER_ERROR));
         }
     }

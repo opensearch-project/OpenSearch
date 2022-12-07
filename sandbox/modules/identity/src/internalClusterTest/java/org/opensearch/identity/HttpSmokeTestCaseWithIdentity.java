@@ -67,7 +67,8 @@ public abstract class HttpSmokeTestCaseWithIdentity extends OpenSearchIntegTestC
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
             .put(NetworkModule.TRANSPORT_TYPE_KEY, nodeTransportTypeKey)
-            .put(NetworkModule.HTTP_TYPE_KEY, nodeHttpTypeKey).build();
+            .put(NetworkModule.HTTP_TYPE_KEY, nodeHttpTypeKey)
+            .build();
     }
 
     @Override

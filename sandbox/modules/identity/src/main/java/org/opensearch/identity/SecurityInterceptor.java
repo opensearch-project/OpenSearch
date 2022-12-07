@@ -34,22 +34,24 @@ public class SecurityInterceptor {
     private final ClusterService cs;
     private final Settings settings;
 
-    public SecurityInterceptor(final Settings settings,
-                               final ThreadPool threadPool,
-                               final ClusterService cs) {
+    public SecurityInterceptor(final Settings settings, final ThreadPool threadPool, final ClusterService cs) {
         this.threadPool = threadPool;
         this.cs = cs;
         this.settings = settings;
     }
 
-    public <T extends TransportRequest> SecurityRequestHandler<T> getHandler(String action,
-                                                                             TransportRequestHandler<T> actualHandler) {
+    public <T extends TransportRequest> SecurityRequestHandler<T> getHandler(String action, TransportRequestHandler<T> actualHandler) {
         return new SecurityRequestHandler<T>(action, actualHandler, threadPool, cs);
     }
 
-
-    public <T extends TransportResponse> void sendRequestDecorate(AsyncSender sender, Connection connection, String action,
-                                                                  TransportRequest request, TransportRequestOptions options, TransportResponseHandler<T> handler) {
+    public <T extends TransportResponse> void sendRequestDecorate(
+        AsyncSender sender,
+        Connection connection,
+        String action,
+        TransportRequest request,
+        TransportRequestOptions options,
+        TransportResponseHandler<T> handler
+    ) {
 
         final Map<String, String> origHeaders0 = getThreadContext().getHeaders();
 
@@ -68,9 +70,9 @@ public class SecurityInterceptor {
         return threadPool.getThreadContext().getHeaders();
     }
 
-    //based on
-    //org.opensearch.transport.TransportService.ContextRestoreResponseHandler<T>
-    //which is private scoped
+    // based on
+    // org.opensearch.transport.TransportService.ContextRestoreResponseHandler<T>
+    // which is private scoped
     private class RestoringTransportResponseHandler<T extends TransportResponse> implements TransportResponseHandler<T> {
 
         private final ThreadContext.StoredContext contextToRestore;

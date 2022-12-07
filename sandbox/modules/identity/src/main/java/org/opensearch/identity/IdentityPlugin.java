@@ -55,7 +55,7 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
     public IdentityPlugin(final Settings settings, final Path configPath) {
         this.configPath = configPath;
 
-        if(this.configPath != null) {
+        if (this.configPath != null) {
             log.info("OpenSearch Config path is {}", this.configPath.toAbsolutePath());
         } else {
             log.info("OpenSearch Config path is not set");
@@ -76,49 +76,57 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
         return filters;
     }
 
-//    @Override
-//    public List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry, ThreadContext threadContext) {
-//        List<TransportInterceptor> interceptors = new ArrayList<TransportInterceptor>(1);
-//        interceptors.add(new TransportInterceptor() {
-//
-//            @Override
-//            public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action, String executor,
-//                                                                                            boolean forceExecution, TransportRequestHandler<T> actualHandler) {
-//
-//                return new TransportRequestHandler<T>() {
-//
-//                    @Override
-//                    public void messageReceived(T request, TransportChannel channel, Task task) throws Exception {
-//                        si.getHandler(action, actualHandler).messageReceived(request, channel, task);
-//                    }
-//                };
-//
-//            }
-//
-//            @Override
-//            public AsyncSender interceptSender(AsyncSender sender) {
-//
-//                return new AsyncSender() {
-//
-//                    @Override
-//                    public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action,
-//                                                                          TransportRequest request, TransportRequestOptions options, TransportResponseHandler<T> handler) {
-//                        si.sendRequestDecorate(sender, connection, action, request, options, handler);
-//                    }
-//                };
-//            }
-//        });
-//
-//        return interceptors;
-//    }
-
+    // @Override
+    // public List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry, ThreadContext
+    // threadContext) {
+    // List<TransportInterceptor> interceptors = new ArrayList<TransportInterceptor>(1);
+    // interceptors.add(new TransportInterceptor() {
+    //
+    // @Override
+    // public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action, String executor,
+    // boolean forceExecution, TransportRequestHandler<T> actualHandler) {
+    //
+    // return new TransportRequestHandler<T>() {
+    //
+    // @Override
+    // public void messageReceived(T request, TransportChannel channel, Task task) throws Exception {
+    // si.getHandler(action, actualHandler).messageReceived(request, channel, task);
+    // }
+    // };
+    //
+    // }
+    //
+    // @Override
+    // public AsyncSender interceptSender(AsyncSender sender) {
+    //
+    // return new AsyncSender() {
+    //
+    // @Override
+    // public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action,
+    // TransportRequest request, TransportRequestOptions options, TransportResponseHandler<T> handler) {
+    // si.sendRequestDecorate(sender, connection, action, request, options, handler);
+    // }
+    // };
+    // }
+    // });
+    //
+    // return interceptors;
+    // }
 
     @Override
-    public Collection<Object> createComponents(Client localClient, ClusterService clusterService, ThreadPool threadPool,
-                                               ResourceWatcherService resourceWatcherService, ScriptService scriptService, NamedXContentRegistry xContentRegistry,
-                                               Environment environment, NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
-                                               IndexNameExpressionResolver indexNameExpressionResolver, Supplier<RepositoriesService> repositoriesServiceSupplier) {
-
+    public Collection<Object> createComponents(
+        Client localClient,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ResourceWatcherService resourceWatcherService,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        Environment environment,
+        NodeEnvironment nodeEnvironment,
+        NamedWriteableRegistry namedWriteableRegistry,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<RepositoriesService> repositoriesServiceSupplier
+    ) {
 
         this.threadPool = threadPool;
         this.cs = clusterService;

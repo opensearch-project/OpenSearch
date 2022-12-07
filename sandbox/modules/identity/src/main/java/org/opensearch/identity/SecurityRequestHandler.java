@@ -22,10 +22,12 @@ public class SecurityRequestHandler<T extends TransportRequest> implements Trans
     private final ThreadPool threadPool;
     private final ClusterService cs;
 
-    SecurityRequestHandler(String action,
-                           final TransportRequestHandler<T> actualHandler,
-                           final ThreadPool threadPool,
-                           final ClusterService cs) {
+    SecurityRequestHandler(
+        String action,
+        final TransportRequestHandler<T> actualHandler,
+        final ThreadPool threadPool,
+        final ClusterService cs
+    ) {
         this.action = action;
         this.actualHandler = actualHandler;
         this.threadPool = threadPool;
