@@ -125,6 +125,7 @@ configure([
   project(":modules:repository-url"),
   project(":modules:systemd"),
   project(":modules:transport-netty4"),
+  project(":sandbox:modules:identity"),
   project(":plugins:analysis-icu"),
   project(":plugins:analysis-kuromoji"),
   project(":plugins:analysis-nori"),
