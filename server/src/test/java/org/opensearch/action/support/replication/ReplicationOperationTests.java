@@ -225,7 +225,9 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
         ReplicationGroup replicationGroup = new ReplicationGroup(routingTable, inSyncAllocationIds, inSyncAllocationIds, 0);
         List<ShardRouting> replicationTargets = replicationGroup.getReplicationTargets();
         assertEquals(inSyncAllocationIds.size(), replicationTargets.size());
-        // assertEquals(1, replicationTargets.stream().filter(s -> s.getReplicationMode() == ReplicationMode.FULL_REPLICATION).count());
+        assertTrue(
+            replicationTargets.stream().map(sh -> sh.allocationId().getId()).collect(Collectors.toSet()).containsAll(inSyncAllocationIds)
+        );
 
         Request request = new Request(shardId);
         PlainActionFuture<TestPrimary.Result> listener = new PlainActionFuture<>();
@@ -288,7 +290,9 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
         ReplicationGroup replicationGroup = new ReplicationGroup(routingTable, inSyncAllocationIds, inSyncAllocationIds, 0);
         List<ShardRouting> replicationTargets = replicationGroup.getReplicationTargets();
         assertEquals(inSyncAllocationIds.size(), replicationTargets.size());
-        // assertEquals(2, replicationTargets.stream().filter(s -> s.getReplicationMode() == ReplicationMode.FULL_REPLICATION).count());
+        assertTrue(
+            replicationTargets.stream().map(sh -> sh.allocationId().getId()).collect(Collectors.toSet()).containsAll(inSyncAllocationIds)
+        );
 
         Request request = new Request(shardId);
         PlainActionFuture<TestPrimary.Result> listener = new PlainActionFuture<>();
@@ -348,7 +352,9 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
         ReplicationGroup replicationGroup = new ReplicationGroup(routingTable, inSyncAllocationIds, inSyncAllocationIds, 0);
         List<ShardRouting> replicationTargets = replicationGroup.getReplicationTargets();
         assertEquals(inSyncAllocationIds.size(), replicationTargets.size());
-        // assertEquals(1, replicationTargets.stream().filter(s -> s.getReplicationMode() == ReplicationMode.FULL_REPLICATION).count());
+        assertTrue(
+            replicationTargets.stream().map(sh -> sh.allocationId().getId()).collect(Collectors.toSet()).containsAll(inSyncAllocationIds)
+        );
 
         Request request = new Request(shardId);
         PlainActionFuture<TestPrimary.Result> listener = new PlainActionFuture<>();

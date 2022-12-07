@@ -1311,14 +1311,12 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         assertThat(tracker.getReplicationGroup().getReplicationTargets().size(), equalTo(1));
         initializing.forEach(aId -> markAsTrackingAndInSyncQuietly(tracker, aId.getId(), NO_OPS_PERFORMED, false));
         assertThat(tracker.getReplicationGroup().getReplicationTargets().size(), equalTo(1 + initializing.size()));
-        // assertEquals(
-        // tracker.getReplicationGroup()
-        // .getReplicationTargets()
-        // .stream()
-        // .filter(s -> s.getReplicationMode() == ReplicationTracker.ReplicationMode.FULL_REPLICATION)
-        // .count(),
-        // 1
-        // );
+        Set<AllocationId> replicationTargets = tracker.getReplicationGroup()
+            .getReplicationTargets()
+            .stream()
+            .map(ShardRouting::allocationId)
+            .collect(Collectors.toSet());
+        assertTrue(replicationTargets.containsAll(initializing));
         allocations.keySet().forEach(aId -> updateLocalCheckpoint(tracker, aId.getId(), allocations.get(aId)));
 
         assertEquals(tracker.getGlobalCheckpoint(), primaryLocalCheckpoint);
@@ -1328,11 +1326,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         initializing.forEach(aId -> allocations.put(aId, allocations.get(aId) + 1 + randomInt(4)));
         allocations.keySet().forEach(aId -> updateLocalCheckpoint(tracker, aId.getId(), allocations.get(aId)));
 
-        final long minLocalCheckpointAfterUpdates = allocations.entrySet()
-            .stream()
-            .map(Map.Entry::getValue)
-            .min(Long::compareTo)
-            .orElse(UNASSIGNED_SEQ_NO);
+        final long minLocalCheckpointAfterUpdates = allocations.values().stream().min(Long::compareTo).orElse(UNASSIGNED_SEQ_NO);
 
         // now insert an unknown active/insync id , the checkpoint shouldn't change but a refresh should be requested.
         final AllocationId extraId = AllocationId.newInitializing();
@@ -1392,14 +1386,13 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         assertEquals(tracker.getReplicationGroup().getReplicationTargets().size(), active.size());
         initializing.forEach(aId -> markAsTrackingAndInSyncQuietly(tracker, aId.getId(), NO_OPS_PERFORMED, false));
         assertEquals(tracker.getReplicationGroup().getReplicationTargets().size(), active.size() + initializing.size());
-        // assertEquals(
-        // tracker.getReplicationGroup()
-        // .getReplicationTargets()
-        // .stream()
-        // .filter(s -> s.getReplicationMode() == ReplicationTracker.ReplicationMode.FULL_REPLICATION)
-        // .count(),
-        // 1
-        // );
+        Set<AllocationId> replicationTargets = tracker.getReplicationGroup()
+            .getReplicationTargets()
+            .stream()
+            .map(ShardRouting::allocationId)
+            .collect(Collectors.toSet());
+        assertTrue(replicationTargets.containsAll(initializing));
+        assertTrue(replicationTargets.containsAll(active));
         allocations.keySet().forEach(aId -> updateLocalCheckpoint(tracker, aId.getId(), allocations.get(aId)));
 
         assertEquals(tracker.getGlobalCheckpoint(), primaryLocalCheckpoint);
