@@ -8,8 +8,13 @@
 
 package org.opensearch.extensions;
 
+/**
+ * Noop class for ExtensionsManager
+ *
+ * @opensearch.internal
+ */
 public class NoopExtensionsManager extends ExtensionsManager {
-    
+
     public NoopExtensionsManager() {
         super();
     }
