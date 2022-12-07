@@ -14,6 +14,7 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -87,6 +88,11 @@ public class ExtensionsManager {
     private List<DiscoveryExtensionNode> extensions;
     private TransportService transportService;
     private ClusterService clusterService;
+
+    public ExtensionsManager() {
+        this.extensionsPath = Paths.get("");
+        this.uninitializedExtensions = new ArrayList<DiscoveryExtensionNode>();
+    }
 
     public ExtensionsManager(Settings settings, Path extensionsPath) throws IOException {
         logger.info("ExtensionsManager initialized");
