@@ -9,8 +9,7 @@
 package org.opensearch.action.support.replication;
 
 import org.opensearch.index.seqno.ReplicationTracker.ReplicationMode;
-
-import java.util.Optional;
+import org.opensearch.index.shard.IndexShard;
 
 /**
  * Factory that returns the {@link ReplicationProxy} instance basis the {@link ReplicationMode}.
@@ -19,11 +18,13 @@ import java.util.Optional;
  */
 public class ReplicationProxyFactory {
 
-    public static <ReplicaRequest> ReplicationProxy<ReplicaRequest> create(final Optional<ReplicationMode> replicationMode) {
-        if (replicationMode.isEmpty()) {
-            return new FanoutReplicationProxy<>();
-        } else {
-            return new ReplicationModeAwareProxy<>(replicationMode.get());
+    public static <ReplicaRequest> ReplicationProxy<ReplicaRequest> create(
+        final IndexShard indexShard,
+        final ReplicationMode replicationModeOverride
+    ) {
+        if (indexShard.isRemoteTranslogEnabled()) {
+            return new ReplicationModeAwareProxy<>(replicationModeOverride);
         }
+        return new FanoutReplicationProxy<>();
     }
 }

@@ -95,7 +95,6 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -262,11 +261,15 @@ public abstract class TransportReplicationAction<
 
     /**
      * This method is used for defining the {@link ReplicationMode} override per {@link TransportReplicationAction}.
+     *
      * @param indexShard index shard used to determining the policy.
      * @return the overridden replication mode.
      */
-    protected Optional<ReplicationMode> getReplicationMode(IndexShard indexShard) {
-        return Optional.empty();
+    protected ReplicationMode getReplicationMode(IndexShard indexShard) {
+        if (indexShard.isRemoteTranslogEnabled()) {
+            return ReplicationMode.NO_REPLICATION;
+        }
+        return ReplicationMode.FULL_REPLICATION;
     }
 
     protected abstract Response newResponseInstance(StreamInput in) throws IOException;
@@ -545,7 +548,10 @@ public abstract class TransportReplicationAction<
                         primaryRequest.getPrimaryTerm(),
                         initialRetryBackoffBound,
                         retryTimeout,
-                        ReplicationProxyFactory.create(getReplicationMode(primaryShardReference.indexShard))
+                        ReplicationProxyFactory.create(
+                            primaryShardReference.indexShard,
+                            getReplicationMode(primaryShardReference.indexShard)
+                        )
                     ).execute();
                 }
             } catch (Exception e) {

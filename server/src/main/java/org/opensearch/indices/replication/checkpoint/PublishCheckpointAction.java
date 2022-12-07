@@ -39,7 +39,6 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.Optional;
 
 import static org.opensearch.index.seqno.ReplicationTracker.ReplicationMode;
 
@@ -97,9 +96,9 @@ public class PublishCheckpointAction extends TransportReplicationAction<
     }
 
     @Override
-    protected Optional<ReplicationMode> getReplicationMode(IndexShard indexShard) {
+    protected ReplicationMode getReplicationMode(IndexShard indexShard) {
         if (indexShard.isRemoteTranslogEnabled()) {
-            return Optional.of(ReplicationMode.FULL_REPLICATION);
+            return ReplicationMode.FULL_REPLICATION;
         }
         return super.getReplicationMode(indexShard);
     }

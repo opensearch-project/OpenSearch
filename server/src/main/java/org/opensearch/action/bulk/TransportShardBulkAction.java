@@ -89,7 +89,6 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -197,9 +196,9 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     @Override
-    protected Optional<ReplicationMode> getReplicationMode(IndexShard indexShard) {
+    protected ReplicationMode getReplicationMode(IndexShard indexShard) {
         if (indexShard.isRemoteTranslogEnabled()) {
-            return Optional.of(ReplicationMode.PRIMARY_TERM_VALIDATION);
+            return ReplicationMode.PRIMARY_TERM_VALIDATION;
         }
         return super.getReplicationMode(indexShard);
     }
