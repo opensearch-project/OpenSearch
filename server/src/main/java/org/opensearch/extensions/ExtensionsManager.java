@@ -14,7 +14,6 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -31,11 +30,14 @@ import org.opensearch.cluster.LocalNodeResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.io.FileSystemUtils;
+import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
+
 import org.opensearch.discovery.PluginRequest;
 import org.opensearch.discovery.PluginResponse;
+import org.opensearch.env.Environment;
 import org.opensearch.extensions.ExtensionsSettings.Extension;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexService;
@@ -90,7 +92,7 @@ public class ExtensionsManager {
     private ClusterService clusterService;
 
     public ExtensionsManager() {
-        this.extensionsPath = Paths.get("");
+        this.extensionsPath = Path.of("");
         this.uninitializedExtensions = new ArrayList<DiscoveryExtensionNode>();
     }
 
