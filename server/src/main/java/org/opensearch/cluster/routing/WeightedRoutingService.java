@@ -222,19 +222,17 @@ public class WeightedRoutingService {
         if (weightedRouting.attributeName().equals(decommissionAttribute.attributeName()) == false) {
             // this is unexpected when a different attribute is requested for decommission and weight update is on another attribute
             throw new UnsupportedWeightedRoutingStateException(
-                "decommission action ongoing for attribute ["
-                    + decommissionAttribute.attributeName()
-                    + "], cannot update weight for ["
-                    + weightedRouting.attributeName()
-                    + "]"
+                "decommission action ongoing for attribute [{}], cannot update weight for [{}]",
+                decommissionAttribute.attributeName(),
+                weightedRouting.attributeName()
             );
         }
         if (weightedRouting.weights().containsKey(decommissionAttribute.attributeValue()) == false) {
             // weight of an attribute undergoing decommission must be specified
             throw new UnsupportedWeightedRoutingStateException(
-                "weight for ["
-                    + decommissionAttribute.attributeValue()
-                    + "] is not specified. Please specify its weight to [0] as it is under decommission action"
+                "weight for [{}] is not specified. Please specify its weight to [{}] as it is under decommission action",
+                decommissionAttribute.attributeValue(),
+                DECOMMISSIONED_AWARENESS_VALUE_WEIGHT
             );
         }
         if (Objects.equals(
@@ -242,7 +240,9 @@ public class WeightedRoutingService {
             DECOMMISSIONED_AWARENESS_VALUE_WEIGHT
         ) == false) {
             throw new UnsupportedWeightedRoutingStateException(
-                "weight for [" + decommissionAttribute.attributeValue() + "] must be set to [0] as it is under decommission action"
+                "weight for [{}] must be set to [{}] as it is under decommission action",
+                decommissionAttribute.attributeValue(),
+                DECOMMISSIONED_AWARENESS_VALUE_WEIGHT
             );
         }
     }

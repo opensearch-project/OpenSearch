@@ -362,7 +362,7 @@ public class WeightedRoutingServiceTests extends OpenSearchTestCase {
         MatcherAssert.assertThat(exceptionReference.get(), instanceOf(UnsupportedWeightedRoutingStateException.class));
         MatcherAssert.assertThat(
             exceptionReference.get().getMessage(),
-            containsString("weight for [zone_A] must be set to [0] as it is under decommission action")
+            containsString("weight for [zone_A] must be set to [0.0] as it is under decommission action")
         );
     }
 
