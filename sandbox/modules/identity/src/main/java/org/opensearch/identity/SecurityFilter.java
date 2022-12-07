@@ -121,9 +121,9 @@ public class SecurityFilter implements ActionFilter {
             }
         } catch (OpenSearchException e) {
             if (task != null) {
-                log.debug("Failed to apply filter. Task id: {} ({}). Action: {}", task.getId(), task.getDescription(), action, e);
+                log.debug("Failed to apply filter. Task id: {} ({}). Action: {}. Error: {}", task.getId(), task.getDescription(), action, e);
             } else {
-                log.debug("Failed to apply filter. Action: {}", action, e);
+                log.debug("Failed to apply filter. Action: {}. Error: {}", action, e);
             }
             listener.onFailure(e);
         } catch (Throwable e) {
