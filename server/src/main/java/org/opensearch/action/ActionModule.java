@@ -505,10 +505,8 @@ public class ActionModule extends AbstractModule {
         ).collect(Collectors.toSet());
         UnaryOperator<RestHandler> restWrapper = null;
         // Only one plugin is allowed to have a rest wrapper. i.e. Security plugin
-        System.out.println("Action plugins: " + actionPlugins);
         for (ActionPlugin plugin : actionPlugins) {
             UnaryOperator<RestHandler> newRestWrapper = plugin.getRestHandlerWrapper(threadPool.getThreadContext());
-            System.out.println("newRestWrapper: " + newRestWrapper);
             if (newRestWrapper != null) {
                 logger.debug("Using REST wrapper from plugin " + plugin.getClass().getName());
                 if (restWrapper != null) {
