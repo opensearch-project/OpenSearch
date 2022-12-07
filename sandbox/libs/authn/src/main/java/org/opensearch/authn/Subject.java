@@ -29,4 +29,15 @@ public interface Subject {
      * throws SubjectDisabled
      */
     void login(final AuthenticationToken token);
+
+    /**
+     * Logs this subject out and kills any session associated with it
+     */
+    void logout();
+
+    /**
+     * Checks the current authentication status of this subject
+     * @return true if authenticated, false otherwise
+     */
+    boolean isAuthenticated();
 }

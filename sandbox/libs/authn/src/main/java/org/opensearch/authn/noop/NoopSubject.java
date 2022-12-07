@@ -47,11 +47,19 @@ public class NoopSubject implements Subject {
         return "NoopSubject(principal=" + getPrincipal() + ")";
     }
 
-    /**
-     * Logs the user in
-     */
     @Override
     public void login(AuthenticationToken authenticationToken) {
         // Do nothing as noop subject is always logged in
+    }
+
+    @Override
+    public void logout() {
+        // Do nothing as noop subject should not be logged out
+    }
+
+    @Override
+    public boolean isAuthenticated() {
+        // Noop subject is always authenticated
+        return true;
     }
 }
