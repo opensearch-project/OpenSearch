@@ -149,7 +149,7 @@ public class SecurityRestFilter {
      * @param authHeader from which to identify the correct token class
      * @return the instance of the token type
      */
-    private AuthenticationToken tokenType(String authHeader) {
+    static AuthenticationToken tokenType(String authHeader) {
         if (authHeader.contains("Basic")) return new BasicAuthToken(authHeader);
         // support other type of header tokens
         return null;
