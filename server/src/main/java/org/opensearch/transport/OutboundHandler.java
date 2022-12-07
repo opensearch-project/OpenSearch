@@ -124,8 +124,6 @@ final class OutboundHandler {
             isHandshake,
             compressRequest
         );
-        // TODO figure out another method to intercept this to probe the ThreadContext headers, NetworkPlugin?
-        messageListener.onRequestSent(node, requestId, action, request, options);
         ActionListener<Void> listener = ActionListener.wrap(() -> messageListener.onRequestSent(node, requestId, action, request, options));
         sendMessage(channel, message, listener);
     }
