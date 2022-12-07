@@ -67,6 +67,15 @@ public class InternalSubject implements Subject {
 
         org.apache.shiro.authc.AuthenticationToken authToken = AuthenticationTokenHandler.extractShiroAuthToken(authenticationToken);
 
+        // If already authenticated, do not check login info again
+        /*
+            TODO: understand potential repercussions in following situations:
+             1. How to handle this in password change situations
+             2. Can two subjects in same environment have same principal name? if so the following check is invalid
+         */
+        if (this.isAuthenticated() && this.getPrincipal().getName().equals(authToken.getPrincipal())) {
+            return;
+        }
         // Login via shiro realm.
         shiroSubject.login(authToken);
     }

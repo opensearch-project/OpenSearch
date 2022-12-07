@@ -74,7 +74,7 @@ public class AuthenticationTokenHandler {
             return null;
         }
 
-        logger.info("Logging in as: " + username);
+        logger.info("Attempting authentication as: " + username);
 
         return new UsernamePasswordToken(username, password);
     }
