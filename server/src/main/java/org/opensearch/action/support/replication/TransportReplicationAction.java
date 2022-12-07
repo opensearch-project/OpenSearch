@@ -92,6 +92,7 @@ import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -99,7 +100,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * Base class for requests that should be executed on a primary copy followed by replica copies.
  * Subclasses can resolve the target shard and provide implementation for primary and replica operations.
- *
+ * <p>
  * The action samples cluster state on the receiving node to reroute to node with primary copy and on the
  * primary node to validate request before primary operation followed by sampling state again for resolving
  * nodes with replica copies to perform replication.
@@ -132,6 +133,8 @@ public abstract class TransportReplicationAction<
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
+
+    private final ReplicaActionFactory REPLICA_ACTION_FACTORY = new ReplicaActionFactory();
 
     protected final ThreadPool threadPool;
     protected final TransportService transportService;
@@ -666,8 +669,12 @@ public abstract class TransportReplicationAction<
             releasable::close
         );
 
+        final ShardId shardId = replicaRequest.getRequest().shardId();
+        assert shardId != null : "request shardId must be set";
+        IndexShard replica = getIndexShard(shardId);
+
         try {
-            new AsyncReplicaAction(replicaRequest, listener, (ReplicationTask) task).run();
+            REPLICA_ACTION_FACTORY.create(replica, getReplicationMode(replica), replicaRequest, listener, (ReplicationTask) task).run();
         } catch (RuntimeException e) {
             listener.onFailure(e);
         }
@@ -694,12 +701,88 @@ public abstract class TransportReplicationAction<
         }
     }
 
+    private class ReplicaActionFactory {
+
+        private ReplicaAction create(
+            IndexShard replica,
+            ReplicationMode replicationMode,
+            ConcreteReplicaRequest<ReplicaRequest> replicaRequest,
+            ActionListener<ReplicaResponse> onCompletionListener,
+            ReplicationTask task
+        ) {
+            if (replicationMode == ReplicationMode.FULL_REPLICATION) {
+                return new FullReplicationAsyncReplicaAction(replicaRequest, onCompletionListener, task, replica);
+            } else if (replicationMode == ReplicationMode.PRIMARY_TERM_VALIDATION) {
+                if (replica.routingEntry().primary()) {
+                    return new FullReplicationAsyncReplicaAction(replicaRequest, onCompletionListener, task, replica);
+                } else {
+                    return new PrimaryTermValidationReplicaAction(replicaRequest, onCompletionListener, task, replica);
+                }
+            }
+            // TODO - revisit exception type and the string arg
+            throw new RuntimeException("This call should not have come");
+        }
+    }
+
+    private abstract static class ReplicaAction extends AbstractRunnable implements ActionListener<Releasable> {}
+
+    private final class PrimaryTermValidationReplicaAction extends ReplicaAction {
+
+        public PrimaryTermValidationReplicaAction(
+            ConcreteReplicaRequest<ReplicaRequest> replicaRequest,
+            ActionListener<ReplicaResponse> onCompletionListener,
+            ReplicationTask task,
+            IndexShard replica
+        ) {
+            this.replicaRequest = replicaRequest;
+            this.onCompletionListener = onCompletionListener;
+            this.task = task;
+            this.replica = replica;
+        }
+
+        private final ActionListener<ReplicaResponse> onCompletionListener;
+        private final IndexShard replica;
+        /**
+         * The task on the node with the replica shard.
+         */
+        private final ReplicationTask task;
+        private final ConcreteReplicaRequest<ReplicaRequest> replicaRequest;
+
+        @Override
+        public void onResponse(Releasable releasable) {
+            onCompletionListener.onResponse(new ReplicaResponse(-2, -2));
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            onCompletionListener.onFailure(e);
+        }
+
+        @Override
+        protected void doRun() throws Exception {
+            setPhase(task, "replica");
+            // Check operation primary term against the incoming primary term
+            // If the request primary term is low, then trigger lister failure
+            if (replicaRequest.getPrimaryTerm() < replica.getOperationPrimaryTerm()) {
+                final String message = String.format(
+                    Locale.ROOT,
+                    "%s operation primary term [%d] is too old (current [%d])",
+                    replicaRequest.getRequest().shardId(),
+                    replicaRequest.getPrimaryTerm(),
+                    replica.getOperationPrimaryTerm()
+                );
+                onFailure(new IllegalStateException(message));
+            }
+            onResponse(null);
+        }
+    }
+
     /**
      * Asynchronous replica action
      *
      * @opensearch.internal
      */
-    private final class AsyncReplicaAction extends AbstractRunnable implements ActionListener<Releasable> {
+    private final class FullReplicationAsyncReplicaAction extends ReplicaAction {
         private final ActionListener<ReplicaResponse> onCompletionListener;
         private final IndexShard replica;
         /**
@@ -711,17 +794,16 @@ public abstract class TransportReplicationAction<
         private final ClusterStateObserver observer = new ClusterStateObserver(clusterService, null, logger, threadPool.getThreadContext());
         private final ConcreteReplicaRequest<ReplicaRequest> replicaRequest;
 
-        AsyncReplicaAction(
+        FullReplicationAsyncReplicaAction(
             ConcreteReplicaRequest<ReplicaRequest> replicaRequest,
             ActionListener<ReplicaResponse> onCompletionListener,
-            ReplicationTask task
+            ReplicationTask task,
+            IndexShard replica
         ) {
             this.replicaRequest = replicaRequest;
             this.onCompletionListener = onCompletionListener;
             this.task = task;
-            final ShardId shardId = replicaRequest.getRequest().shardId();
-            assert shardId != null : "request shardId must be set";
-            this.replica = getIndexShard(shardId);
+            this.replica = replica;
         }
 
         @Override
@@ -752,13 +834,13 @@ public abstract class TransportReplicationAction<
                         responseWithFailure(e);
                     })), e -> {
                         Releasables.closeWhileHandlingException(releasable); // release shard operation lock before responding to caller
-                        AsyncReplicaAction.this.onFailure(e);
+                        FullReplicationAsyncReplicaAction.this.onFailure(e);
                     })
                 );
                 // TODO: Evaluate if we still need to catch this exception
             } catch (Exception e) {
                 Releasables.closeWhileHandlingException(releasable); // release shard operation lock before responding to caller
-                AsyncReplicaAction.this.onFailure(e);
+                FullReplicationAsyncReplicaAction.this.onFailure(e);
             }
         }
 
@@ -839,7 +921,7 @@ public abstract class TransportReplicationAction<
      * Responsible for routing and retrying failed operations on the primary.
      * The actual primary operation is done in {@link ReplicationOperation} on the
      * node with primary copy.
-     *
+     * <p>
      * Resolves index and shard id for the request before routing it to target node
      *
      * @opensearch.internal
@@ -1401,7 +1483,9 @@ public abstract class TransportReplicationAction<
      */
     public static class ConcreteShardRequest<R extends TransportRequest> extends TransportRequest {
 
-        /** {@link AllocationId#getId()} of the shard this request is sent to **/
+        /**
+         * {@link AllocationId#getId()} of the shard this request is sent to
+         **/
         private final String targetAllocationID;
         private final long primaryTerm;
         private final R request;
