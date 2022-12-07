@@ -379,22 +379,19 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         }
     }
 
-    public void testExtensionDependency() throws Exception{
+    public void testExtensionDependency() throws Exception {
         String expectedUniqueId = "Test uniqueId";
         Version expectedVersion = Version.fromString("3.0.0");
 
-        ExtensionDependency dependency = new ExtensionDependency(
-            expectedUniqueId,
-            expectedVersion
-        );
+        ExtensionDependency dependency = new ExtensionDependency(expectedUniqueId, expectedVersion);
 
         assertEquals(expectedUniqueId, dependency.getUniqueId());
         assertEquals(expectedVersion, dependency.getVersion());
 
-        try(BytesStreamOutput out = new BytesStreamOutput()){
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
             dependency.writeTo(out);
             out.flush();
-            try(BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))){
+            try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
                 dependency = new ExtensionDependency(in);
                 assertEquals(expectedUniqueId, dependency.getUniqueId());
                 assertEquals(expectedVersion, dependency.getVersion());

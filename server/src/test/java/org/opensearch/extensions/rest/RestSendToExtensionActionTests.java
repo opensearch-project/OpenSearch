@@ -28,12 +28,7 @@ import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.util.PageCacheRecycler;
-<<<<<<< HEAD
 import org.opensearch.extensions.DiscoveryExtensionNode;
-=======
-import org.opensearch.extensions.DiscoveryExtension;
-import org.opensearch.extensions.ExtensionDependency;
->>>>>>> de24172c73c (fix compiler error)
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.plugins.PluginInfo;
 import org.opensearch.rest.RestHandler.Route;

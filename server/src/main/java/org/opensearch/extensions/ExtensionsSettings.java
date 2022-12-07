@@ -190,7 +190,7 @@ public class ExtensionsSettings {
             return dependencies;
         }
 
-        public void setDependencies(List<ExtensionDependency> dependencies){
+        public void setDependencies(List<ExtensionDependency> dependencies) {
             this.dependencies = dependencies;
         }
 
