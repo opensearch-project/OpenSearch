@@ -81,4 +81,3 @@ public abstract class HttpSmokeTestCaseWithIdentity extends OpenSearchIntegTestC
     }
 
 }
-

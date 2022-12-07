@@ -8,38 +8,17 @@
 
 package org.opensearch.identity;
 
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
-import org.opensearch.action.ActionRequest;
-import org.opensearch.action.ActionResponse;
-import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
-import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.opensearch.action.search.SearchResponse;
 import org.opensearch.client.Request;
 import org.opensearch.client.RequestOptions;
 import org.opensearch.client.Response;
-import org.opensearch.client.RestClient;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.http.HttpTransportSettings;
-import org.opensearch.index.query.Operator;
-import org.opensearch.indices.recovery.PeerRecoveryTargetService;
-import org.opensearch.indices.store.IndicesStore;
-import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.rest.RestRequest;
-import org.opensearch.rest.action.admin.cluster.RestClusterHealthAction;
-import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
-import org.opensearch.test.InternalTestCluster;
-import org.opensearch.test.rest.FakeRestRequest;
-import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.Netty4ModulePlugin;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportInterceptor;
 import org.opensearch.transport.TransportMessageListener;
@@ -48,28 +27,15 @@ import org.opensearch.transport.TransportRequestOptions;
 import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
-import org.opensearch.transport.nio.NioTransportPlugin;
 
-import java.io.IOException;
-import java.nio.file.Files;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
-
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.hamcrest.core.Is.is;
-import static org.opensearch.index.query.QueryBuilders.queryStringQuery;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
 @ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 2)
 public class BasicAuthenticationIT extends HttpSmokeTestCaseWithIdentity {
@@ -173,7 +139,7 @@ public class BasicAuthenticationIT extends HttpSmokeTestCaseWithIdentity {
         request.setOptions(options);
         Response response = getRestClient().performRequest(request);
 
-        String content = new String(response.getEntity().getContent().readAllBytes());
+        String content = new String(response.getEntity().getContent().readAllBytes(), StandardCharsets.UTF_8);
 
 //        System.out.println("interceptedTokens: " + interceptedTokens);
 
@@ -188,4 +154,3 @@ public class BasicAuthenticationIT extends HttpSmokeTestCaseWithIdentity {
         assertTrue(content.contains("\"status\":\"green\""));
     }
 }
-

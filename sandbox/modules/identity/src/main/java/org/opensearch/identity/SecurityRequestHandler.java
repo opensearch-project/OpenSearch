@@ -37,4 +37,3 @@ public class SecurityRequestHandler<T extends TransportRequest> implements Trans
         actualHandler.messageReceived(request, channel, task);
     }
 }
-
