@@ -175,11 +175,16 @@ public class MatchBoolPrefixQueryBuilder extends AbstractQueryBuilder<MatchBoolP
         return this.minimumShouldMatch;
     }
 
+    @Deprecated
+    /** Sets the fuzziness used when evaluated to a fuzzy query type. Defaults to "AUTO". */
+    public MatchBoolPrefixQueryBuilder fuzziness(Object fuzziness) {
+        this.fuzziness = Fuzziness.build(fuzziness);
+        return this;
+    }
+
     /** Sets the fuzziness used when evaluated to a fuzzy query type. Defaults to "AUTO". */
     public MatchBoolPrefixQueryBuilder fuzziness(Fuzziness fuzziness) {
-        if (fuzziness != null) {
-            this.fuzziness = fuzziness;
-        }
+        this.fuzziness = fuzziness;
         return this;
     }
 
@@ -350,8 +355,7 @@ public class MatchBoolPrefixQueryBuilder extends AbstractQueryBuilder<MatchBoolP
             }
         }
 
-        MatchBoolPrefixQueryBuilder queryBuilder = new MatchBoolPrefixQueryBuilder(fieldName, value)
-            .analyzer(analyzer)
+        MatchBoolPrefixQueryBuilder queryBuilder = new MatchBoolPrefixQueryBuilder(fieldName, value).analyzer(analyzer)
             .operator(operator)
             .minimumShouldMatch(minimumShouldMatch)
             .boost(boost)

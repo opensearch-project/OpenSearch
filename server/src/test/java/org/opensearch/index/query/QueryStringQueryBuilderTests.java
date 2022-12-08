@@ -869,7 +869,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
 
     public void testDefaultFuzziness() {
         QueryStringQueryBuilder queryStringQueryBuilder = new QueryStringQueryBuilder(TEXT_FIELD_NAME).fuzziness(null);
-        assertEquals(QueryStringQueryBuilder.DEFAULT_FUZZINESS, queryStringQueryBuilder.fuzziness());
+        assertNull(queryStringQueryBuilder.fuzziness());
     }
 
     public void testPrefixNumeric() throws Exception {

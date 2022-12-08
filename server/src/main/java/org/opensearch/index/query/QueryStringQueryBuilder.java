@@ -417,9 +417,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
      * Set the edit distance for fuzzy queries. Default is "AUTO".
      */
     public QueryStringQueryBuilder fuzziness(Fuzziness fuzziness) {
-        if (fuzziness != null) {
-            this.fuzziness = fuzziness;
-        }
+        this.fuzziness = fuzziness;
         return this;
     }
 
