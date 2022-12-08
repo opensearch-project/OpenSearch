@@ -67,7 +67,6 @@ public class SecurityFilter implements ActionFilter {
     ) {
         try {
             // TODO Get jwt here and verify
-            // The first handler is always authc + authz, if this is hit the request is authenticated
             // TODO Move this logic to right after successful login
             if (threadContext.getHeader(ThreadContextConstants.OPENSEARCH_AUTHENTICATION_TOKEN_HEADER) != null) {
                 String encodedJwt = threadContext.getHeader(ThreadContextConstants.OPENSEARCH_AUTHENTICATION_TOKEN_HEADER);

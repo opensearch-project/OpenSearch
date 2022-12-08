@@ -41,7 +41,6 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
     private volatile Logger log = LogManager.getLogger(this.getClass());
 
     private volatile SecurityRestFilter securityRestHandler;
-    private volatile SecurityInterceptor si;
     private volatile Settings settings;
 
     private volatile Path configPath;
@@ -76,43 +75,6 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
         return filters;
     }
 
-    // @Override
-    // public List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry, ThreadContext
-    // threadContext) {
-    // List<TransportInterceptor> interceptors = new ArrayList<TransportInterceptor>(1);
-    // interceptors.add(new TransportInterceptor() {
-    //
-    // @Override
-    // public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action, String executor,
-    // boolean forceExecution, TransportRequestHandler<T> actualHandler) {
-    //
-    // return new TransportRequestHandler<T>() {
-    //
-    // @Override
-    // public void messageReceived(T request, TransportChannel channel, Task task) throws Exception {
-    // si.getHandler(action, actualHandler).messageReceived(request, channel, task);
-    // }
-    // };
-    //
-    // }
-    //
-    // @Override
-    // public AsyncSender interceptSender(AsyncSender sender) {
-    //
-    // return new AsyncSender() {
-    //
-    // @Override
-    // public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action,
-    // TransportRequest request, TransportRequestOptions options, TransportResponseHandler<T> handler) {
-    // si.sendRequestDecorate(sender, connection, action, request, options, handler);
-    // }
-    // };
-    // }
-    // });
-    //
-    // return interceptors;
-    // }
-
     @Override
     public Collection<Object> createComponents(
         Client localClient,
@@ -137,8 +99,6 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
         sf = new SecurityFilter(localClient, settings, threadPool, cs);
 
         securityRestHandler = new SecurityRestFilter(threadPool, settings, configPath);
-
-        si = new SecurityInterceptor(settings, threadPool, cs);
 
         return components;
 
