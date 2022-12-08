@@ -38,7 +38,10 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.search.MultiTermQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.index.analysis.IndexAnalyzers;
@@ -367,6 +370,18 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
                 value = ((BytesRef) value).utf8ToString();
             }
             return getTextSearchInfo().getSearchAnalyzer().normalize(name(), value.toString());
+        }
+
+        @Override
+        public Query wildcardQuery(
+            String value,
+            @Nullable MultiTermQuery.RewriteMethod method,
+            boolean caseInsensitve,
+            QueryShardContext context
+        ) {
+            // keyword field types are always normalized, so ignore case sensitivity and force normalize the wildcard
+            // query text
+            return super.wildcardQuery(value, method, caseInsensitve, true, context);
         }
     }
 

@@ -152,8 +152,34 @@ public abstract class StringFieldType extends TermBasedFieldType {
         return sb.toBytesRef().utf8ToString();
     }
 
+    /** optionally normalize the wildcard pattern based on the value of {@code caseInsensitive} */
     @Override
     public Query wildcardQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, QueryShardContext context) {
+        return wildcardQuery(value, method, caseInsensitive, false, context);
+    }
+
+    /** always normalizes the wildcard pattern to lowercase */
+    @Override
+    public Query normalizedWildcardQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+        return wildcardQuery(value, method, false, true, context);
+    }
+
+    /**
+     * return a wildcard query
+     *
+     * @param value the pattern
+     * @param method rewrite method
+     * @param caseInsensitive should ignore case; note, only used if there is no analyzer, else we use the analyzer rules
+     * @param normalizeIfAnalyzed force normalize casing if an analyzer is used
+     * @param context the query shard context
+     */
+    public Query wildcardQuery(
+        String value,
+        MultiTermQuery.RewriteMethod method,
+        boolean caseInsensitive,
+        boolean normalizeIfAnalyzed,
+        QueryShardContext context
+    ) {
         failIfNotIndexed();
         if (context.allowExpensiveQueries() == false) {
             throw new OpenSearchException(
@@ -162,7 +188,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
         }
 
         Term term;
-        if (getTextSearchInfo().getSearchAnalyzer() != null) {
+        if (getTextSearchInfo().getSearchAnalyzer() != null && normalizeIfAnalyzed) {
             value = normalizeWildcardPattern(name(), value, getTextSearchInfo().getSearchAnalyzer());
             term = new Term(name(), value);
         } else {
