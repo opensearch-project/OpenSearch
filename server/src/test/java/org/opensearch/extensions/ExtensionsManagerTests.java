@@ -201,7 +201,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                 new ArrayList<String>(),
                 false
             ),
-            List.of(new ExtensionDependency("uniqueId0", Version.fromString("2.0.0")))
+            Collections.emptyList()
         );
         client = new NoOpNodeClient(this.getTestName());
     }
@@ -226,10 +226,6 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         Version expectedVersion = Version.fromString("2.0.0");
         ExtensionDependency expectedDependency = new ExtensionDependency(expectedUniqueId, expectedVersion);
 
-        String expectedUniqueId = "uniqueid0";
-        Version expectedVersion = Version.fromString("2.0.0");
-        List<ExtensionDependency> dependency = List.of(new ExtensionDependency(expectedUniqueId, expectedVersion));
-
         expectedExtensionsList.add(
             new DiscoveryExtensionNode(
                 "firstExtension",
@@ -250,7 +246,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                     new ArrayList<String>(),
                     false
                 ),
-                List.of(new ExtensionDependency("uniqueId0", Version.fromString("2.0.0")))
+                Collections.emptyList()
             )
         );
 
@@ -379,26 +375,6 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                 discoveryExtension = new DiscoveryExtensionNode(in);
 
                 assertEquals(expectedDependency, discoveryExtension.getDependency());
-            }
-        }
-    }
-
-    public void testExtensionDependency() throws Exception {
-        String expectedUniqueId = "Test uniqueId";
-        Version expectedVersion = Version.fromString("3.0.0");
-
-        ExtensionDependency dependency = new ExtensionDependency(expectedUniqueId, expectedVersion);
-
-        assertEquals(expectedUniqueId, dependency.getUniqueId());
-        assertEquals(expectedVersion, dependency.getVersion());
-
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            dependency.writeTo(out);
-            out.flush();
-            try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
-                dependency = new ExtensionDependency(in);
-                assertEquals(expectedUniqueId, dependency.getUniqueId());
-                assertEquals(expectedVersion, dependency.getVersion());
             }
         }
     }
