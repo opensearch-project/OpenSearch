@@ -226,6 +226,10 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         Version expectedVersion = Version.fromString("2.0.0");
         ExtensionDependency expectedDependency = new ExtensionDependency(expectedUniqueId, expectedVersion);
 
+        String expectedUniqueId = "uniqueid0";
+        Version expectedVersion = Version.fromString("2.0.0");
+        List<ExtensionDependency> dependency = List.of(new ExtensionDependency(expectedUniqueId, expectedVersion));
+
         expectedExtensionsList.add(
             new DiscoveryExtensionNode(
                 "firstExtension",

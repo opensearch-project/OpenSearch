@@ -28,7 +28,11 @@ import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.util.PageCacheRecycler;
+<<<<<<< HEAD
 import org.opensearch.extensions.DiscoveryExtensionNode;
+=======
+import org.opensearch.extensions.DiscoveryExtension;
+>>>>>>> 3818817ebdc (add test for DiscoveryExtension dependencies field)
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.plugins.PluginInfo;
 import org.opensearch.rest.RestHandler.Route;
