@@ -152,11 +152,13 @@ public abstract class StringFieldType extends TermBasedFieldType {
         return sb.toBytesRef().utf8ToString();
     }
 
+    /** optionally normalize the wildcard pattern based on the value of {@code caseInsensitive} */
     @Override
     public Query wildcardQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, QueryShardContext context) {
         return wildcardQuery(value, method, caseInsensitive, false, context);
     }
 
+    /** always normalizes the wildcard pattern to lowercase */
     @Override
     public Query normalizedWildcardQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
         return wildcardQuery(value, method, false, true, context);

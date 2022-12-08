@@ -290,6 +290,7 @@ public abstract class MappedFieldType {
         return wildcardQuery(value, method, false, context);
     }
 
+    /** optionally normalize the wildcard pattern based on the value of {@code caseInsensitive} */
     public Query wildcardQuery(
         String value,
         @Nullable MultiTermQuery.RewriteMethod method,
@@ -302,6 +303,7 @@ public abstract class MappedFieldType {
         );
     }
 
+    /** always normalizes the wildcard pattern to lowercase */
     public Query normalizedWildcardQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, QueryShardContext context) {
         throw new QueryShardException(
             context,
