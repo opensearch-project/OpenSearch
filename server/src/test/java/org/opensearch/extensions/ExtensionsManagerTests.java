@@ -201,7 +201,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                 new ArrayList<String>(),
                 false
             ),
-            Collections.emptyList()
+            List.of(new ExtensionDependency("uniqueId0", Version.fromString("2.0.0")))
         );
         client = new NoOpNodeClient(this.getTestName());
     }
@@ -250,7 +250,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                     new ArrayList<String>(),
                     false
                 ),
-                Collections.emptyList()
+                List.of(new ExtensionDependency("uniqueId0", Version.fromString("2.0.0")))
             )
         );
 
