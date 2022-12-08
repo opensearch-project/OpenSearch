@@ -40,6 +40,7 @@ import org.apache.lucene.util.CollectionUtil;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.regex.Regex;
+import org.opensearch.common.util.FeatureFlags;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -121,8 +122,13 @@ public abstract class AbstractScopedSettings {
                 keySettings.putIfAbsent(setting.getKey(), setting);
             }
         }
-        this.complexMatchers = Collections.unmodifiableMap(complexMatchers);
-        this.keySettings = Collections.unmodifiableMap(keySettings);
+        if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
+            this.complexMatchers = complexMatchers;
+            this.keySettings = keySettings;
+        } else {
+            this.complexMatchers = Collections.unmodifiableMap(complexMatchers);
+            this.keySettings = Collections.unmodifiableMap(keySettings);
+        }
     }
 
     protected void validateSettingKey(Setting<?> setting) {
@@ -142,6 +148,15 @@ public abstract class AbstractScopedSettings {
         keySettings = other.keySettings;
         settingUpgraders = Collections.unmodifiableMap(new HashMap<>(other.settingUpgraders));
         settingUpdaters.addAll(other.settingUpdaters);
+    }
+
+    public boolean registerSetting(Setting<?> setting) {
+        validateSettingKey(setting);
+        if (setting.hasComplexMatcher()) {
+            return setting != complexMatchers.putIfAbsent(setting.getKey(), setting);
+        } else {
+            return setting != keySettings.putIfAbsent(setting.getKey(), setting);
+        }
     }
 
     /**
