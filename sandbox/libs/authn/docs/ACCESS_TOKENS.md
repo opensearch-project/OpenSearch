@@ -76,3 +76,4 @@ Trigger: The user has configured an OpenSearch cluster and wants to log back in;
    * Alternative Flow:
        - Step 1a: The user enters the correct credentials and starts the multi-node operation as part of manual REST request to the URI of their OpenSearch instance.
    * Post-conditions: The user successfully operates on the cluster.
+
