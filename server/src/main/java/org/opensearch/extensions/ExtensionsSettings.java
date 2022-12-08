@@ -190,8 +190,7 @@ public class ExtensionsSettings {
             return dependencies;
         }
 
-    }
-
+    }    
     public List<Extension> getExtensions() {
         return extensions;
     }
