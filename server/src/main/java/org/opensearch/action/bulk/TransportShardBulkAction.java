@@ -94,6 +94,8 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
+import org.opensearch.action.support.replication.ReplicationMode;
+
 /**
  * Performs shard-level bulk (index, delete or update) operations
  *
@@ -191,6 +193,14 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     @Override
     protected long primaryOperationSize(BulkShardRequest request) {
         return request.ramBytesUsed();
+    }
+
+    @Override
+    protected ReplicationMode getReplicationMode(IndexShard indexShard) {
+        if (indexShard.isRemoteTranslogEnabled()) {
+            return ReplicationMode.PRIMARY_TERM_VALIDATION;
+        }
+        return super.getReplicationMode(indexShard);
     }
 
     public static void performOnPrimary(
