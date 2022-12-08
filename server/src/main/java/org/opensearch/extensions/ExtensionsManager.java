@@ -30,14 +30,12 @@ import org.opensearch.cluster.LocalNodeResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.io.FileSystemUtils;
-import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
 
 import org.opensearch.discovery.PluginRequest;
 import org.opensearch.discovery.PluginResponse;
-import org.opensearch.env.Environment;
 import org.opensearch.extensions.ExtensionsSettings.Extension;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexService;
