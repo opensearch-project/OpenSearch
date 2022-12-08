@@ -405,7 +405,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                 new MockLogAppender.SeenEventExpectation(
                     "IndicesModuleRequest Failure",
                     "org.opensearch.extensions.ExtensionsManager",
-                    Level.INFO,
+                    Level.ERROR,
                     "IndicesModuleRequest failed"
                 )
             );
