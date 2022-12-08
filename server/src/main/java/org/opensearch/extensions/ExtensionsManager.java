@@ -19,7 +19,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.logging.log4j.LogManager;
@@ -363,7 +362,7 @@ public class ExtensionsManager {
     }
 
     private void initializeExtension(DiscoveryExtensionNode extension) {
-        final CountDownLatch inProgressLatch = new CountDownLatch(1);
+        final CompletableFuture<InitializeExtensionsResponse> inProgressFuture = new CompletableFuture<>();
         final TransportResponseHandler<InitializeExtensionsResponse> extensionResponseHandler = new TransportResponseHandler<
             InitializeExtensionsResponse>() {
 
@@ -381,13 +380,13 @@ public class ExtensionsManager {
                         break;
                     }
                 }
-                inProgressLatch.countDown();
+                inProgressFuture.complete(response);
             }
 
             @Override
             public void handleException(TransportException exp) {
                 logger.debug(new ParameterizedMessage("Extension initialization failed"), exp);
-                inProgressLatch.countDown();
+                inProgressFuture.completeExceptionally(exp);
             }
 
             @Override
@@ -404,7 +403,7 @@ public class ExtensionsManager {
                 new InitializeExtensionsRequest(transportService.getLocalNode(), extension),
                 extensionResponseHandler
             );
-            inProgressLatch.await(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS);
+            inProgressFuture.get(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS);
         } catch (Exception e) {
             try {
                 throw e;
