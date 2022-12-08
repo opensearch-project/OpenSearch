@@ -281,7 +281,7 @@ public abstract class MappedFieldType {
     ) {
         throw new QueryShardException(
             context,
-            "Can only use prefix queries on keyword, text and wildcard fields - not on [" + name + "] which is of type [" + typeName() + "]"
+            "Can only use prefix queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]"
         );
     }
 
@@ -290,6 +290,7 @@ public abstract class MappedFieldType {
         return wildcardQuery(value, method, false, context);
     }
 
+    /** optionally normalize the wildcard pattern based on the value of {@code caseInsensitive} */
     public Query wildcardQuery(
         String value,
         @Nullable MultiTermQuery.RewriteMethod method,
@@ -298,11 +299,15 @@ public abstract class MappedFieldType {
     ) {
         throw new QueryShardException(
             context,
-            "Can only use wildcard queries on keyword, text and wildcard fields - not on ["
-                + name
-                + "] which is of type ["
-                + typeName()
-                + "]"
+            "Can only use wildcard queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]"
+        );
+    }
+
+    /** always normalizes the wildcard pattern to lowercase */
+    public Query normalizedWildcardQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+        throw new QueryShardException(
+            context,
+            "Can only use wildcard queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]"
         );
     }
 
