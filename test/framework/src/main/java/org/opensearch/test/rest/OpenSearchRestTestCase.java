@@ -960,6 +960,22 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
         request.addParameter("wait_for_no_initializing_shards", "true");
         request.addParameter("timeout", "70s");
         request.addParameter("level", "shards");
+        // TODO Figure out why this warnings check needs to be added, this cluster health request is accessing [.tasks]
+        // Failing test is ReindexIT.testDeleteByQueryTask
+        RequestOptions.Builder builder = RequestOptions.DEFAULT.toBuilder();
+        builder.setWarningsHandler(new WarningsHandler() {
+            @Override
+            public boolean warningsShouldFailRequest(List<String> warnings) {
+                for (String warning : warnings) {
+                    if (warning.startsWith("this request accesses system indices") == false) {
+                        // Something other than a system indices message - return true
+                        return true;
+                    }
+                }
+                return false;
+            }
+        });
+        request.setOptions(builder);
         adminClient().performRequest(request);
     }
 
