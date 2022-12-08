@@ -400,9 +400,9 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
     /**
      * Sets the fuzziness used when evaluated to a fuzzy query type. Defaults to "AUTO".
      */
-    public MultiMatchQueryBuilder fuzziness(Object fuzziness) {
+    public MultiMatchQueryBuilder fuzziness(Fuzziness fuzziness) {
         if (fuzziness != null) {
-            this.fuzziness = Fuzziness.build(fuzziness);
+            this.fuzziness = fuzziness;
         }
         return this;
     }

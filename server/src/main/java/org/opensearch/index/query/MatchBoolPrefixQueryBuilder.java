@@ -176,8 +176,10 @@ public class MatchBoolPrefixQueryBuilder extends AbstractQueryBuilder<MatchBoolP
     }
 
     /** Sets the fuzziness used when evaluated to a fuzzy query type. Defaults to "AUTO". */
-    public MatchBoolPrefixQueryBuilder fuzziness(Object fuzziness) {
-        this.fuzziness = Fuzziness.build(fuzziness);
+    public MatchBoolPrefixQueryBuilder fuzziness(Fuzziness fuzziness) {
+        if (fuzziness != null) {
+            this.fuzziness = fuzziness;
+        }
         return this;
     }
 
@@ -348,19 +350,17 @@ public class MatchBoolPrefixQueryBuilder extends AbstractQueryBuilder<MatchBoolP
             }
         }
 
-        MatchBoolPrefixQueryBuilder queryBuilder = new MatchBoolPrefixQueryBuilder(fieldName, value);
-        queryBuilder.analyzer(analyzer);
-        queryBuilder.operator(operator);
-        queryBuilder.minimumShouldMatch(minimumShouldMatch);
-        queryBuilder.boost(boost);
-        queryBuilder.queryName(queryName);
-        if (fuzziness != null) {
-            queryBuilder.fuzziness(fuzziness);
-        }
-        queryBuilder.prefixLength(prefixLength);
-        queryBuilder.maxExpansions(maxExpansion);
-        queryBuilder.fuzzyTranspositions(fuzzyTranspositions);
-        queryBuilder.fuzzyRewrite(fuzzyRewrite);
+        MatchBoolPrefixQueryBuilder queryBuilder = new MatchBoolPrefixQueryBuilder(fieldName, value)
+            .analyzer(analyzer)
+            .operator(operator)
+            .minimumShouldMatch(minimumShouldMatch)
+            .boost(boost)
+            .queryName(queryName)
+            .fuzziness(fuzziness)
+            .prefixLength(prefixLength)
+            .maxExpansions(maxExpansion)
+            .fuzzyTranspositions(fuzzyTranspositions)
+            .fuzzyRewrite(fuzzyRewrite);
         return queryBuilder;
     }
 
