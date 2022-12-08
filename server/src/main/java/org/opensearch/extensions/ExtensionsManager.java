@@ -234,7 +234,7 @@ public class ExtensionsManager {
 
             @Override
             public void handleException(TransportException exp) {
-                logger.debug(new ParameterizedMessage("Plugin request failed"), exp);
+                logger.error(new ParameterizedMessage("Plugin request failed"), exp);
             }
 
             @Override
@@ -354,7 +354,7 @@ public class ExtensionsManager {
 
             @Override
             public void handleException(TransportException exp) {
-                logger.info(new ParameterizedMessage("IndicesModuleRequest failed"), exp);
+                logger.error(new ParameterizedMessage("IndicesModuleRequest failed"), exp);
                 inProgressFuture.completeExceptionally(exp);
             }
 
