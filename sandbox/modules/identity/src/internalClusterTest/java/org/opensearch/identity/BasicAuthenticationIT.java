@@ -8,9 +8,12 @@
 
 package org.opensearch.identity;
 
+import org.opensearch.action.admin.cluster.node.info.NodeInfo;
+import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.client.Request;
 import org.opensearch.client.RequestOptions;
 import org.opensearch.client.Response;
+import org.opensearch.client.RestClient;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.plugins.NetworkPlugin;
@@ -36,6 +39,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
+
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoTimeout;
 
 @ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class BasicAuthenticationIT extends HttpSmokeTestCaseWithIdentity {
@@ -92,18 +97,41 @@ public class BasicAuthenticationIT extends HttpSmokeTestCaseWithIdentity {
     }
 
     public void testBasicAuth() throws Exception {
-        final List<String> nodes = internalCluster().startNodes(2);
-        ensureStableCluster(2);
+        final String clusterManagerNode = internalCluster().startClusterManagerOnlyNode();
+
+        ClusterStateResponse clusterStateResponse = client(clusterManagerNode).admin()
+            .cluster()
+            .prepareState()
+            .setClusterManagerNodeTimeout("1s")
+            .clear()
+            .setNodes(true)
+            .get();
+        assertNotNull(clusterStateResponse.getState().nodes().getClusterManagerNodeId());
+
+        // start another node
+        final String dataNode = internalCluster().startDataOnlyNode();
+        clusterStateResponse = client(dataNode).admin()
+            .cluster()
+            .prepareState()
+            .setClusterManagerNodeTimeout("1s")
+            .clear()
+            .setNodes(true)
+            .setLocal(true)
+            .get();
+        assertNotNull(clusterStateResponse.getState().nodes().getClusterManagerNodeId());
+        // wait for the cluster to form
+        assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(2)).get());
+        List<NodeInfo> nodeInfos = client().admin().cluster().prepareNodesInfo().get().getNodes();
+        assertEquals(2, nodeInfos.size());
 
         List<TransportService> transportServices = new ArrayList<TransportService>();
         Map<String, TransportMessageListener> listenerMap = new HashMap<>();
-        for (String nodeName : nodes) {
-            interceptedTokens.put(internalCluster().clusterService().localNode().getId(), null);
-            TransportService service = internalCluster().getInstance(TransportService.class, nodeName);
-            transportServices.add(service);
-        }
 
-        String expectedActionName = "cluster:monitor/health";
+        TransportService clusterManagerService = internalCluster().getInstance(TransportService.class, clusterManagerNode);
+        transportServices.add(clusterManagerService);
+
+        TransportService dataNodeService = internalCluster().getInstance(TransportService.class, dataNode);
+        transportServices.add(dataNodeService);
 
         for (TransportService service : transportServices) {
             TransportMessageListener listener = new TransportMessageListener() {
@@ -119,8 +147,8 @@ public class BasicAuthenticationIT extends HttpSmokeTestCaseWithIdentity {
                             );
                         }
                     }
-                    // String prefix = "(nodeName=" + service.getLocalNode().getId() + ", requestId=" + requestId + ", action=" + action + "
-                    // onRequestReceived)";
+                    // String prefix = "(nodeName=" + service.getLocalNode().getId() + ", requestId=" + requestId +
+                    // ", action=" + action + ", nodeRoles=" + service.getLocalNode().getRoles() + " onRequestReceived)";
                     // System.out.println(prefix + " Headers: " + threadPool.getThreadContext().getHeaders());
                 }
             };
@@ -128,17 +156,18 @@ public class BasicAuthenticationIT extends HttpSmokeTestCaseWithIdentity {
             service.addMessageListener(listener);
         }
 
-        Thread.sleep(2000);
-
         Request request = new Request("GET", "/_cluster/health");
         RequestOptions options = RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Basic YWRtaW46YWRtaW4=").build(); // admin:admin
         request.setOptions(options);
-        Response response = getRestClient().performRequest(request);
+        List<NodeInfo> dataNodeInfos = nodeInfos.stream().filter(ni -> ni.getNode().isDataNode()).collect(Collectors.toList());
+        RestClient restClient = createRestClient(dataNodeInfos, null, "http");
+        Response response = restClient.performRequest(request);
 
         String content = new String(response.getEntity().getContent().readAllBytes(), StandardCharsets.UTF_8);
 
         // System.out.println("interceptedTokens: " + interceptedTokens);
 
+        assertTrue(interceptedTokens.keySet().size() == 2);
         assertFalse(interceptedTokens.values().stream().anyMatch(s -> Objects.isNull(s)));
 
         List<String> tokens = interceptedTokens.values().stream().collect(Collectors.toList());
@@ -153,6 +182,5 @@ public class BasicAuthenticationIT extends HttpSmokeTestCaseWithIdentity {
             service.removeMessageListener(listenerMap.get(service.getLocalNode().getId()));
         }
         interceptedTokens = null;
-        ensureStableCluster(2);
     }
 }
