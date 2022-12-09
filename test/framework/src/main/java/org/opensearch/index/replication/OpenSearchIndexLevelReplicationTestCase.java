@@ -52,6 +52,7 @@ import org.opensearch.action.resync.TransportResyncReplicationAction;
 import org.opensearch.action.support.ActionTestUtils;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.WriteRequest;
+import org.opensearch.action.support.replication.FanoutReplicationProxy;
 import org.opensearch.action.support.replication.PendingReplicationActions;
 import org.opensearch.action.support.replication.ReplicatedWriteRequest;
 import org.opensearch.action.support.replication.ReplicationOperation;
@@ -727,7 +728,8 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
                     opType,
                     primaryTerm,
                     TimeValue.timeValueMillis(20),
-                    TimeValue.timeValueSeconds(60)
+                    TimeValue.timeValueSeconds(60),
+                    new FanoutReplicationProxy<>()
                 ).execute();
             } catch (Exception e) {
                 listener.onFailure(e);
