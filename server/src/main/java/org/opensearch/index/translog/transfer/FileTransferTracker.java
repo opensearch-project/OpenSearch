@@ -18,6 +18,9 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
+/**
+ * FileTransferTracker keeps track of translog files uploaded to the remote translog
+ */
 public class FileTransferTracker implements FileTransferListener {
 
     private final Map<String, TransferState> fileTransferTracker;
@@ -66,6 +69,9 @@ public class FileTransferTracker implements FileTransferListener {
         return successFileTransferTracker;
     }
 
+    /**
+     * Represents the state of the upload operation
+     */
     public enum TransferState {
         SUCCESS,
         FAILED;

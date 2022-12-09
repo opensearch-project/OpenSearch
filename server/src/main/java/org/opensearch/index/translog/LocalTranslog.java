@@ -19,6 +19,10 @@ import java.util.Collections;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 
+/**
+ * A {@link Translog} implementation that creates translog files in local filesystem.
+ * @opensearch.internal
+ */
 public class LocalTranslog extends Translog {
 
     /**
