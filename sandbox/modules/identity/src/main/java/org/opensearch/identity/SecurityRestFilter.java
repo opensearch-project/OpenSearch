@@ -11,6 +11,7 @@ package org.opensearch.identity;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.shiro.authc.AuthenticationException;
+import org.opensearch.OpenSearchException;
 import org.opensearch.authn.Subject;
 import org.opensearch.authn.jwt.JwtVendor;
 import org.opensearch.authn.tokens.AuthenticationToken;
@@ -68,7 +69,9 @@ public class SecurityRestFilter {
     // True is authenticated, false if not - this is opposite of the Security plugin
     private boolean checkAndAuthenticateRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         if (!authenticate(request, channel)) {
-            channel.sendResponse(new BytesRestResponse(RestStatus.UNAUTHORIZED, "Authentication failed"));
+            System.out.println("Authentication unsuccessful");
+            final OpenSearchException exc = new OpenSearchException("Authentication failed");
+            channel.sendResponse(new BytesRestResponse(channel, RestStatus.UNAUTHORIZED, exc));
             return false;
         }
 

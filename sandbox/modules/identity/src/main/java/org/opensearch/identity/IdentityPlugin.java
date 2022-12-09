@@ -11,6 +11,8 @@ package org.opensearch.identity;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.support.ActionFilter;
+import org.opensearch.authn.AuthenticationManager;
+import org.opensearch.authn.internal.InternalAuthenticationManager;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
@@ -90,6 +92,10 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
 
+        // TODO: revisit this
+        final AuthenticationManager authManager = new InternalAuthenticationManager();
+        Identity.setAuthManager(authManager);
+
         this.threadPool = threadPool;
         this.cs = clusterService;
         this.localClient = localClient;
@@ -101,6 +107,5 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
         securityRestHandler = new SecurityRestFilter(threadPool, settings, configPath);
 
         return components;
-
     }
 }
