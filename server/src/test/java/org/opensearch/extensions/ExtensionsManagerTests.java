@@ -354,7 +354,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
                 discoveryExtension = new DiscoveryExtensionNode(in);
 
-                assertEquals(expectedDependency, discoveryExtension.getDependencies());
+                assertEquals(List.of(expectedDependency), discoveryExtension.getDependencies());
             }
         }
     }
