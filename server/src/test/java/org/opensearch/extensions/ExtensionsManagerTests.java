@@ -318,7 +318,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         assertTrue(extensionsManager.getExtensionIdMap().values().containsAll(expectedExtensionsList));
         assertTrue(expectedExtensionsList.containsAll(emptyList()));
     }
-    
+
     public void testDiscoveryExtension() throws Exception {
         String expectedId = "test id";
         Version expectedVersion = Version.fromString("2.0.0");
