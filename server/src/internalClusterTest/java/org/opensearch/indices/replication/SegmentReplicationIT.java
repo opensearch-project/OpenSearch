@@ -204,12 +204,12 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
      */
     public void testAddNewReplicaFailure() throws Exception {
         logger.info("--> starting [Primary Node] ...");
-        final String primary = internalCluster().startNode();
+        final String primaryNode = internalCluster().startNode();
 
         logger.info("--> creating test index ...");
         prepareCreate(
             INDEX_NAME,
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
         ).get();
 
         logger.info("--> index 10 docs");
@@ -217,29 +217,36 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
             client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
         }
         logger.info("--> flush so we have some segment files on disk");
-        client().admin().indices().prepareFlush().execute().actionGet();
+        flush(INDEX_NAME);
         logger.info("--> index more docs so we have something in the translog");
         for (int i = 10; i < 20; i++) {
             client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
         }
-
+        refresh(INDEX_NAME);
         logger.info("--> verifying count");
-        client().admin().indices().prepareRefresh().execute().actionGet();
         assertThat(client().prepareSearch(INDEX_NAME).setSize(0).execute().actionGet().getHits().getTotalHits().value, equalTo(20L));
 
-        logger.info("--> start replica node");
-        final String replica = internalCluster().startNode();
+        logger.info("--> start empty node to add replica shard");
+        final String replicaNode = internalCluster().startNode();
 
         // Mock transport service to add behaviour of throwing corruption exception during segment replication process.
-        MockTransportService mockTransportService = ((MockTransportService) internalCluster().getInstance(TransportService.class, primary));
+        MockTransportService mockTransportService = ((MockTransportService) internalCluster().getInstance(TransportService.class, primaryNode));
         mockTransportService.addSendBehavior(
-            internalCluster().getInstance(TransportService.class, replica),
+            internalCluster().getInstance(TransportService.class, replicaNode),
             (connection, requestId, action, request, options) -> {
                 if (action.equals(SegmentReplicationTargetService.Actions.FILE_CHUNK)) {
                     throw new OpenSearchCorruptionException("expected");
                 }
                 connection.sendRequest(requestId, action, request, options);
             }
+        );
+        ensureGreen(INDEX_NAME);
+        // Add Replica shard to the new empty replica node
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings(INDEX_NAME)
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
         );
 
         // Verify that cluster state is not green and replica shard failed during a round of segment replication is not added to the cluster
@@ -252,10 +259,10 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
             .setTimeout(TimeValue.timeValueSeconds(2))
             .execute()
             .actionGet();
-        assertThat(clusterHealthResponse.isTimedOut(), equalTo(true));
+        assertTrue(clusterHealthResponse.isTimedOut());
         ensureYellow(INDEX_NAME);
-        IndicesService indicesService = internalCluster().getInstance(IndicesService.class, replica);
-        assertEquals(false, indicesService.hasIndex(resolveIndex(INDEX_NAME)));
+        IndicesService indicesService = internalCluster().getInstance(IndicesService.class, replicaNode);
+        assertFalse(indicesService.hasIndex(resolveIndex(INDEX_NAME)));
     }
 
     public void testReplicationAfterPrimaryRefreshAndFlush() throws Exception {
