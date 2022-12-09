@@ -787,7 +787,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             // For Segment Replication enabled indices, we want replica shards to start a replication event to fetch latest segments before it
             // is marked as Started.
             if (indexShard != null
-                && indexShard.indexSettings().isSegRepEnabled()
                 && shardRouting.primary() == false
                 && shardRouting.state() == ShardRoutingState.INITIALIZING
                 && indexShard.state() == IndexShardState.POST_RECOVERY) {
