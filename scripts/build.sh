@@ -139,7 +139,7 @@ esac
 
 echo "Building OpenSearch for $PLATFORM-$DISTRIBUTION-$ARCHITECTURE"
 
-./gradlew :distribution:$TYPE:$TARGET:assemble :distribution:$TYPE:no-jdk-$TARGET:assemble -Dbuild.snapshot=$SNAPSHOT -Dbuild.version_qualifier=$QUALIFIER
+./gradlew :distribution:$TYPE:$TARGET:assemble -Dbuild.snapshot=$SNAPSHOT -Dbuild.version_qualifier=$QUALIFIER
 
 # Copy artifact to dist folder in bundle build output
 [[ "$SNAPSHOT" == "true" ]] && IDENTIFIER="-SNAPSHOT"
