@@ -21,31 +21,35 @@ import java.util.Objects;
  * @opensearch.internal
  */
 public class IndicesModuleResponse extends TransportResponse {
-    private boolean addIndexEventListener;
+    private boolean supportsIndexEventListener;
     private boolean addIndexOperationListener;
     private boolean addSearchOperationListener;
 
-    public IndicesModuleResponse(boolean addIndexEventListener, boolean addIndexOperationListener, boolean addSearchOperationListener) {
-        this.addIndexEventListener = addIndexEventListener;
+    public IndicesModuleResponse(
+        boolean supportsIndexEventListener,
+        boolean addIndexOperationListener,
+        boolean addSearchOperationListener
+    ) {
+        this.supportsIndexEventListener = supportsIndexEventListener;
         this.addIndexOperationListener = addIndexOperationListener;
         this.addSearchOperationListener = addSearchOperationListener;
     }
 
     public IndicesModuleResponse(StreamInput in) throws IOException {
-        this.addIndexEventListener = in.readBoolean();
+        this.supportsIndexEventListener = in.readBoolean();
         this.addIndexOperationListener = in.readBoolean();
         this.addSearchOperationListener = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeBoolean(addIndexEventListener);
+        out.writeBoolean(supportsIndexEventListener);
         out.writeBoolean(addIndexOperationListener);
         out.writeBoolean(addSearchOperationListener);
     }
 
     public boolean getIndexEventListener() {
-        return this.addIndexEventListener;
+        return this.supportsIndexEventListener;
     }
 
     public boolean getIndexOperationListener() {
@@ -59,8 +63,8 @@ public class IndicesModuleResponse extends TransportResponse {
     @Override
     public String toString() {
         return "IndicesModuleResponse{"
-            + "addIndexEventListener"
-            + addIndexEventListener
+            + "supportsIndexEventListener"
+            + supportsIndexEventListener
             + " addIndexOperationListener"
             + addIndexOperationListener
             + " addSearchOperationListener"
@@ -73,13 +77,13 @@ public class IndicesModuleResponse extends TransportResponse {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         IndicesModuleResponse that = (IndicesModuleResponse) o;
-        return Objects.equals(addIndexEventListener, that.addIndexEventListener)
+        return Objects.equals(supportsIndexEventListener, that.supportsIndexEventListener)
             && Objects.equals(addIndexOperationListener, that.addIndexOperationListener)
             && Objects.equals(addSearchOperationListener, that.addSearchOperationListener);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(addIndexEventListener, addIndexOperationListener, addSearchOperationListener);
+        return Objects.hash(supportsIndexEventListener, addIndexOperationListener, addSearchOperationListener);
     }
 }

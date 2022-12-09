@@ -18,14 +18,13 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.Version;
-import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterSettingsResponse;
@@ -53,7 +52,6 @@ import org.opensearch.index.IndicesModuleRequest;
 import org.opensearch.index.IndicesModuleResponse;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
-import org.opensearch.node.ReportingService;
 import org.opensearch.plugins.PluginInfo;
 import org.opensearch.rest.RestController;
 import org.opensearch.threadpool.ThreadPool;
@@ -71,7 +69,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
  *
  * @opensearch.internal
  */
-public class ExtensionsOrchestrator implements ReportingService<PluginsAndModules> {
+public class ExtensionsManager {
     public static final String REQUEST_EXTENSION_ACTION_NAME = "internal:discovery/extensions";
     public static final String INDICES_EXTENSION_POINT_ACTION_NAME = "indices:internal/extensions";
     public static final String INDICES_EXTENSION_NAME_ACTION_NAME = "indices:internal/name";
@@ -91,7 +89,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     public static final String TRANSPORT_ACTION_REQUEST_FROM_EXTENSION = "internal:extensions/request-transportaction-from-extension";
     public static final int EXTENSION_REQUEST_WAIT_TIMEOUT = 10;
 
-    private static final Logger logger = LogManager.getLogger(ExtensionsOrchestrator.class);
+    private static final Logger logger = LogManager.getLogger(ExtensionsManager.class);
 
     /**
      * Enum for Extension Requests
@@ -120,35 +118,35 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     }
 
     private final Path extensionsPath;
-    ExtensionTransportActionsHandler extensionTransportActionsHandler;
+    private ExtensionTransportActionsHandler extensionTransportActionsHandler;
     // A list of initialized extensions, a subset of the values of map below which includes all extensions
-    List<DiscoveryExtension> extensionsInitializedList;
+    private List<DiscoveryExtensionNode> extensions;
     // A map of extension uniqueId to full extension details used for node transport here and in the RestActionsRequestHandler
-    Map<String, DiscoveryExtension> extensionIdMap;
-    RestActionsRequestHandler restActionsRequestHandler;
-    CustomSettingsRequestHandler customSettingsRequestHandler;
-    TransportService transportService;
-    ClusterService clusterService;
-    ExtensionNamedWriteableRegistry namedWriteableRegistry;
-    ExtensionActionListener listener;
-    ExtensionActionListenerHandler listenerHandler;
-    Settings environmentSettings;
-    AddSettingsUpdateConsumerRequestHandler addSettingsUpdateConsumerRequestHandler;
-    NodeClient client;
+    private Map<String, DiscoveryExtensionNode> extensionIdMap;
+    private RestActionsRequestHandler restActionsRequestHandler;
+    private CustomSettingsRequestHandler customSettingsRequestHandler;
+    private TransportService transportService;
+    private ClusterService clusterService;
+    private ExtensionNamedWriteableRegistry namedWriteableRegistry;
+    private ExtensionActionListener listener;
+    private ExtensionActionListenerHandler listenerHandler;
+    private Settings environmentSettings;
+    private AddSettingsUpdateConsumerRequestHandler addSettingsUpdateConsumerRequestHandler;
+    private NodeClient client;
 
     /**
-     * Instantiate a new ExtensionsOrchestrator object to handle requests and responses from extensions. This is called during Node bootstrap.
+     * Instantiate a new ExtensionsManager object to handle requests and responses from extensions. This is called during Node bootstrap.
      *
      * @param settings  Settings from the node the orchestrator is running on.
      * @param extensionsPath  Path to a directory containing extension configuration file.
      * @throws IOException  If the extensions discovery file is not properly retrieved.
      */
-    public ExtensionsOrchestrator(Settings settings, Path extensionsPath) throws IOException {
-        logger.info("ExtensionsOrchestrator initialized");
+    public ExtensionsManager(Settings settings, Path extensionsPath) throws IOException {
+        logger.info("ExtensionsManager initialized");
         this.extensionsPath = extensionsPath;
         this.listener = new ExtensionActionListener();
-        this.extensionsInitializedList = new ArrayList<DiscoveryExtension>();
-        this.extensionIdMap = new HashMap<String, DiscoveryExtension>();
+        this.extensions = new ArrayList<DiscoveryExtensionNode>();
+        this.extensionIdMap = new HashMap<String, DiscoveryExtensionNode>();
         // will be initialized in initializeServicesAndRestHandler which is called after the Node is initialized
         this.transportService = null;
         this.clusterService = null;
@@ -159,7 +157,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         /*
          * Now Discover extensions
          */
-        extensionsDiscovery();
+        discover();
 
     }
 
@@ -288,15 +286,10 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         );
     }
 
-    @Override
-    public PluginsAndModules info() {
-        return null;
-    }
-
     /*
      * Load and populate all extensions
      */
-    private void extensionsDiscovery() throws IOException {
+    private void discover() throws IOException {
         logger.info("Extensions Config Directory :" + extensionsPath.toString());
         if (!FileSystemUtils.isAccessibleDirectory(extensionsPath, logger)) {
             return;
@@ -310,37 +303,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
                 throw new IOException("Could not read from extensions.yml", e);
             }
             for (Extension extension : extensions) {
-                if (extensionIdMap.containsKey(extension.getUniqueId())) {
-                    logger.info("Duplicate uniqueId " + extension.getUniqueId() + ". Did not load extension: " + extension);
-                } else {
-                    try {
-                        DiscoveryExtension discoveryExtension = new DiscoveryExtension(
-                            extension.getName(),
-                            extension.getUniqueId(),
-                            // placeholder for ephemeral id, will change with POC discovery
-                            extension.getUniqueId(),
-                            extension.getHostName(),
-                            extension.getHostAddress(),
-                            new TransportAddress(InetAddress.getByName(extension.getHostAddress()), Integer.parseInt(extension.getPort())),
-                            new HashMap<String, String>(),
-                            Version.fromString(extension.getOpensearchVersion()),
-                            new PluginInfo(
-                                extension.getName(),
-                                extension.getDescription(),
-                                extension.getVersion(),
-                                Version.fromString(extension.getOpensearchVersion()),
-                                extension.getJavaVersion(),
-                                extension.getClassName(),
-                                new ArrayList<String>(),
-                                Boolean.parseBoolean(extension.hasNativeController())
-                            )
-                        );
-                        extensionIdMap.put(extension.getUniqueId(), discoveryExtension);
-                        logger.info("Loaded extension with uniqueId " + extension.getUniqueId() + ": " + extension);
-                    } catch (IllegalArgumentException e) {
-                        logger.error(e.toString());
-                    }
-                }
+                loadExtension(extension);
             }
             if (!extensionIdMap.isEmpty()) {
                 logger.info("Loaded all extensions");
@@ -351,17 +314,55 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
     }
 
     /**
-     * Iterate through all extensions and initialize them.  Initialized extensions will be added to the {@link #extensionsInitializedList}, and the {@link #namedWriteableRegistry} will be initialized.
+     * Loads a single extension
+     * @param extension The extension to be loaded
      */
-    public void extensionsInitialize() {
-        for (DiscoveryExtension extension : extensionIdMap.values()) {
-            extensionInitialize(extension);
+    private void loadExtension(Extension extension) throws IOException {
+        if (extensionIdMap.containsKey(extension.getUniqueId())) {
+            logger.info("Duplicate uniqueId " + extension.getUniqueId() + ". Did not load extension: " + extension);
+        } else {
+            try {
+                DiscoveryExtensionNode discoveryExtension = new DiscoveryExtensionNode(
+                    extension.getName(),
+                    extension.getUniqueId(),
+                    // placeholder for ephemeral id, will change with POC discovery
+                    extension.getUniqueId(),
+                    extension.getHostName(),
+                    extension.getHostAddress(),
+                    new TransportAddress(InetAddress.getByName(extension.getHostAddress()), Integer.parseInt(extension.getPort())),
+                    new HashMap<String, String>(),
+                    Version.fromString(extension.getOpensearchVersion()),
+                    new PluginInfo(
+                        extension.getName(),
+                        extension.getDescription(),
+                        extension.getVersion(),
+                        Version.fromString(extension.getOpensearchVersion()),
+                        extension.getJavaVersion(),
+                        extension.getClassName(),
+                        new ArrayList<String>(),
+                        Boolean.parseBoolean(extension.hasNativeController())
+                    )
+                );
+                extensionIdMap.put(extension.getUniqueId(), discoveryExtension);
+                logger.info("Loaded extension with uniqueId " + extension.getUniqueId() + ": " + extension);
+            } catch (IllegalArgumentException e) {
+                throw e;
+            }
         }
-        this.namedWriteableRegistry = new ExtensionNamedWriteableRegistry(extensionsInitializedList, transportService);
     }
 
-    private void extensionInitialize(DiscoveryExtension extension) {
-        final CountDownLatch inProgressLatch = new CountDownLatch(1);
+    /**
+     * Iterate through all extensions and initialize them.  Initialized extensions will be added to the {@link #extensions}, and the {@link #namedWriteableRegistry} will be initialized.
+     */
+    public void initialize() {
+        for (DiscoveryExtensionNode extension : extensionIdMap.values()) {
+            initializeExtension(extension);
+        }
+        this.namedWriteableRegistry = new ExtensionNamedWriteableRegistry(extensions, transportService);
+    }
+
+    private void initializeExtension(DiscoveryExtensionNode extension) {
+        final CompletableFuture<InitializeExtensionsResponse> inProgressFuture = new CompletableFuture<>();
         final TransportResponseHandler<InitializeExtensionsResponse> extensionResponseHandler = new TransportResponseHandler<
             InitializeExtensionsResponse>() {
 
@@ -372,20 +373,20 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
 
             @Override
             public void handleResponse(InitializeExtensionsResponse response) {
-                for (DiscoveryExtension extension : extensionIdMap.values()) {
+                for (DiscoveryExtensionNode extension : extensionIdMap.values()) {
                     if (extension.getName().equals(response.getName())) {
-                        extensionsInitializedList.add(extension);
+                        extensions.add(extension);
                         logger.info("Initialized extension: " + extension.getName());
                         break;
                     }
                 }
-                inProgressLatch.countDown();
+                inProgressFuture.complete(response);
             }
 
             @Override
             public void handleException(TransportException exp) {
                 logger.debug(new ParameterizedMessage("Extension initialization failed"), exp);
-                inProgressLatch.countDown();
+                inProgressFuture.completeExceptionally(exp);
             }
 
             @Override
@@ -395,16 +396,20 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         };
         try {
             logger.info("Sending extension request type: " + REQUEST_EXTENSION_ACTION_NAME);
-            transportService.connectToNode(extension, true);
+            transportService.connectToExtensionNode(extension);
             transportService.sendRequest(
                 extension,
                 REQUEST_EXTENSION_ACTION_NAME,
                 new InitializeExtensionsRequest(transportService.getLocalNode(), extension),
                 extensionResponseHandler
             );
-            inProgressLatch.await(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS);
+            inProgressFuture.get(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS);
         } catch (Exception e) {
-            logger.error(e.toString());
+            try {
+                throw e;
+            } catch (Exception e1) {
+                logger.error(e.toString());
+            }
         }
     }
 
@@ -436,15 +441,15 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
 
     private void onIndexModule(IndexModule indexModule, DiscoveryNode extensionNode) throws UnknownHostException {
         logger.info("onIndexModule index:" + indexModule.getIndex());
-        final CountDownLatch inProgressLatch = new CountDownLatch(1);
-        final CountDownLatch inProgressIndexNameLatch = new CountDownLatch(1);
+        final CompletableFuture<IndicesModuleResponse> inProgressFuture = new CompletableFuture<>();
+        final CompletableFuture<ExtensionBooleanResponse> inProgressIndexNameFuture = new CompletableFuture<>();
 
         final TransportResponseHandler<ExtensionBooleanResponse> indicesModuleNameResponseHandler = new TransportResponseHandler<
             ExtensionBooleanResponse>() {
             @Override
             public void handleResponse(ExtensionBooleanResponse response) {
                 logger.info("ACK Response" + response);
-                inProgressIndexNameLatch.countDown();
+                inProgressIndexNameFuture.complete(response);
             }
 
             @Override
@@ -496,7 +501,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
                                 /*
                                  * Making async synchronous for now.
                                  */
-                                inProgressIndexNameLatch.await(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS);
+                                inProgressIndexNameFuture.get(100, TimeUnit.SECONDS);
                                 logger.info("Received ack response from Extension");
                             } catch (Exception e) {
                                 logger.error(e.toString());
@@ -504,13 +509,13 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
                         }
                     });
                 }
-                inProgressLatch.countDown();
+                inProgressFuture.complete(response);
             }
 
             @Override
             public void handleException(TransportException exp) {
                 logger.error(new ParameterizedMessage("IndicesModuleRequest failed"), exp);
-                inProgressLatch.countDown();
+                inProgressFuture.completeExceptionally(exp);
             }
 
             @Override
@@ -530,7 +535,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             /*
              * Making asynchronous for now.
              */
-            inProgressLatch.await(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS);
+            inProgressFuture.get(100, TimeUnit.SECONDS);
             logger.info("Received response from Extension");
         } catch (Exception e) {
             logger.error(e.toString());
@@ -542,6 +547,142 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
         InputStream input = Files.newInputStream(filePath);
         ExtensionsSettings extensionSettings = objectMapper.readValue(input, ExtensionsSettings.class);
         return extensionSettings;
+    }
+
+    public static String getRequestExtensionActionName() {
+        return REQUEST_EXTENSION_ACTION_NAME;
+    }
+
+    public static String getIndicesExtensionPointActionName() {
+        return INDICES_EXTENSION_POINT_ACTION_NAME;
+    }
+
+    public static String getIndicesExtensionNameActionName() {
+        return INDICES_EXTENSION_NAME_ACTION_NAME;
+    }
+
+    public static String getRequestExtensionClusterState() {
+        return REQUEST_EXTENSION_CLUSTER_STATE;
+    }
+
+    public static String getRequestExtensionClusterSettings() {
+        return REQUEST_EXTENSION_CLUSTER_SETTINGS;
+    }
+
+    public static String getRequestExtensionEnvironmentSettings() {
+        return REQUEST_EXTENSION_ENVIRONMENT_SETTINGS;
+    }
+
+    public static String getRequestExtensionAddSettingsUpdateConsumer() {
+        return REQUEST_EXTENSION_ADD_SETTINGS_UPDATE_CONSUMER;
+    }
+
+    public static String getRequestExtensionUpdateSettings() {
+        return REQUEST_EXTENSION_UPDATE_SETTINGS;
+    }
+
+    public static String getRequestExtensionRegisterCustomSettings() {
+        return REQUEST_EXTENSION_REGISTER_CUSTOM_SETTINGS;
+    }
+
+    public static String getRequestExtensionRegisterRestActions() {
+        return REQUEST_EXTENSION_REGISTER_REST_ACTIONS;
+    }
+
+    public static String getRequestExtensionRegisterTransportActions() {
+        return REQUEST_EXTENSION_REGISTER_TRANSPORT_ACTIONS;
+    }
+
+    public static String getRequestOpensearchNamedWriteableRegistry() {
+        return REQUEST_OPENSEARCH_NAMED_WRITEABLE_REGISTRY;
+    }
+
+    public static String getRequestOpensearchParseNamedWriteable() {
+        return REQUEST_OPENSEARCH_PARSE_NAMED_WRITEABLE;
+    }
+
+    public static String getRequestExtensionActionListenerOnFailure() {
+        return REQUEST_EXTENSION_ACTION_LISTENER_ON_FAILURE;
+    }
+
+    public static String getRequestRestExecuteOnExtensionAction() {
+        return REQUEST_REST_EXECUTE_ON_EXTENSION_ACTION;
+    }
+
+    public static String getRequestExtensionHandleTransportAction() {
+        return REQUEST_EXTENSION_HANDLE_TRANSPORT_ACTION;
+    }
+
+    public static String getTransportActionRequestFromExtension() {
+        return TRANSPORT_ACTION_REQUEST_FROM_EXTENSION;
+    }
+
+    public static int getExtensionRequestWaitTimeout() {
+        return EXTENSION_REQUEST_WAIT_TIMEOUT;
+    }
+
+    public static Logger getLogger() {
+        return logger;
+    }
+
+    public Path getExtensionsPath() {
+        return extensionsPath;
+    }
+
+    public ExtensionTransportActionsHandler getExtensionTransportActionsHandler() {
+        return extensionTransportActionsHandler;
+    }
+
+    public List<DiscoveryExtensionNode> getExtensions() {
+        return extensions;
+    }
+
+    public Map<String, DiscoveryExtensionNode> getExtensionIdMap() {
+        return extensionIdMap;
+    }
+
+    public RestActionsRequestHandler getRestActionsRequestHandler() {
+        return restActionsRequestHandler;
+    }
+
+    public CustomSettingsRequestHandler getCustomSettingsRequestHandler() {
+        return customSettingsRequestHandler;
+    }
+
+    public TransportService getTransportService() {
+        return transportService;
+    }
+
+    public ClusterService getClusterService() {
+        return clusterService;
+    }
+
+    public ExtensionNamedWriteableRegistry getNamedWriteableRegistry() {
+        return namedWriteableRegistry;
+    }
+
+    public ExtensionActionListener getListener() {
+        return listener;
+    }
+
+    public ExtensionActionListenerHandler getListenerHandler() {
+        return listenerHandler;
+    }
+
+    public Settings getEnvironmentSettings() {
+        return environmentSettings;
+    }
+
+    public AddSettingsUpdateConsumerRequestHandler getAddSettingsUpdateConsumerRequestHandler() {
+        return addSettingsUpdateConsumerRequestHandler;
+    }
+
+    public NodeClient getClient() {
+        return client;
+    }
+
+    public void setNamedWriteableRegistry(ExtensionNamedWriteableRegistry namedWriteableRegistry) {
+        this.namedWriteableRegistry = namedWriteableRegistry;
     }
 
 }

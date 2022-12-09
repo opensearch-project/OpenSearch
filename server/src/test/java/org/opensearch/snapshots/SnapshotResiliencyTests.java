@@ -191,7 +191,7 @@ import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpoin
 import org.opensearch.ingest.IngestService;
 import org.opensearch.monitor.StatusInfo;
 import org.opensearch.node.ResponseCollectorService;
-import org.opensearch.extensions.ExtensionsOrchestrator;
+import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
@@ -1799,7 +1799,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                 indicesService = new IndicesService(
                     settings,
                     mock(PluginsService.class),
-                    mock(ExtensionsOrchestrator.class),
+                    mock(ExtensionsManager.class),
                     nodeEnv,
                     namedXContentRegistry,
                     new AnalysisRegistry(

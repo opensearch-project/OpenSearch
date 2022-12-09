@@ -14,7 +14,7 @@ import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.extensions.ExtensionsOrchestrator;
+import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.node.Node;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
@@ -28,7 +28,7 @@ public class ExtensionTransportAction extends HandledTransportAction<ExtensionAc
 
     private final String nodeName;
     private final ClusterService clusterService;
-    private final ExtensionsOrchestrator extensionsOrchestrator;
+    private final ExtensionsManager extensionsManager;
 
     @Inject
     public ExtensionTransportAction(
@@ -36,18 +36,18 @@ public class ExtensionTransportAction extends HandledTransportAction<ExtensionAc
         TransportService transportService,
         ActionFilters actionFilters,
         ClusterService clusterService,
-        ExtensionsOrchestrator extensionsOrchestrator
+        ExtensionsManager extensionsManager
     ) {
         super(ExtensionProxyAction.NAME, transportService, actionFilters, ExtensionActionRequest::new);
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.clusterService = clusterService;
-        this.extensionsOrchestrator = extensionsOrchestrator;
+        this.extensionsManager = extensionsManager;
     }
 
     @Override
     protected void doExecute(Task task, ExtensionActionRequest request, ActionListener<ExtensionActionResponse> listener) {
         try {
-            listener.onResponse(extensionsOrchestrator.handleTransportRequest(request));
+            listener.onResponse(extensionsManager.handleTransportRequest(request));
         } catch (Exception e) {
             listener.onFailure(e);
         }

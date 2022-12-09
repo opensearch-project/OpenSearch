@@ -19,7 +19,7 @@ import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.util.PageCacheRecycler;
-import org.opensearch.extensions.DiscoveryExtension;
+import org.opensearch.extensions.DiscoveryExtensionNode;
 import org.opensearch.extensions.ExtensionBooleanResponse;
 import org.opensearch.extensions.RegisterTransportActionsRequest;
 import org.opensearch.extensions.rest.RestSendToExtensionActionTests;
@@ -48,7 +48,7 @@ import static java.util.Collections.emptySet;
 public class ExtensionTransportActionsHandlerTests extends OpenSearchTestCase {
     private TransportService transportService;
     private MockNioTransport transport;
-    private DiscoveryExtension discoveryExtension;
+    private DiscoveryExtensionNode discoveryExtension;
     private ExtensionTransportActionsHandler extensionTransportActionsHandler;
     private NodeClient client;
     private final ThreadPool threadPool = new TestThreadPool(RestSendToExtensionActionTests.class.getSimpleName());
@@ -81,7 +81,7 @@ public class ExtensionTransportActionsHandlerTests extends OpenSearchTestCase {
             null,
             Collections.emptySet()
         );
-        discoveryExtension = new DiscoveryExtension(
+        discoveryExtension = new DiscoveryExtensionNode(
             "firstExtension",
             "uniqueid1",
             "uniqueid1",

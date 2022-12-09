@@ -14,8 +14,8 @@ import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.extensions.DiscoveryExtension;
-import org.opensearch.extensions.ExtensionsOrchestrator;
+import org.opensearch.extensions.DiscoveryExtensionNode;
+import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.identity.ExtensionTokenProcessor;
 import org.opensearch.identity.PrincipalIdentifierToken;
 import org.opensearch.rest.BaseRestHandler;
@@ -57,7 +57,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
 
     private final List<Route> routes;
     private final String pathPrefix;
-    private final DiscoveryExtension discoveryExtension;
+    private final DiscoveryExtensionNode discoveryExtension;
     private final TransportService transportService;
 
     /**
@@ -69,7 +69,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
      */
     public RestSendToExtensionAction(
         RegisterRestActionsRequest restActionsRequest,
-        DiscoveryExtension discoveryExtension,
+        DiscoveryExtensionNode discoveryExtension,
         TransportService transportService
     ) {
         this.pathPrefix = "/_extensions/_" + restActionsRequest.getUniqueId();
@@ -168,14 +168,14 @@ public class RestSendToExtensionAction extends BaseRestHandler {
 
             transportService.sendRequest(
                 discoveryExtension,
-                ExtensionsOrchestrator.REQUEST_REST_EXECUTE_ON_EXTENSION_ACTION,
+                ExtensionsManager.REQUEST_REST_EXECUTE_ON_EXTENSION_ACTION,
                 // HERE BE DRAGONS - DO NOT INCLUDE HEADERS
                 // SEE https://github.com/opensearch-project/OpenSearch/issues/4429
                 new ExtensionRestRequest(method, path, params, contentType, content, requestIssuerIdentity),
                 restExecuteOnExtensionResponseHandler
             );
             try {
-                inProgressLatch.await(ExtensionsOrchestrator.EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS);
+                inProgressLatch.await(ExtensionsManager.EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS);
             } catch (InterruptedException e) {
                 return channel -> channel.sendResponse(
                     new BytesRestResponse(RestStatus.REQUEST_TIMEOUT, "No response from extension to request.")

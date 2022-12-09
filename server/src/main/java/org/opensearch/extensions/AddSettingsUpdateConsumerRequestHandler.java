@@ -60,7 +60,7 @@ public class AddSettingsUpdateConsumerRequestHandler {
 
         boolean status = true;
         List<WriteableSetting> extensionComponentSettings = addSettingsUpdateConsumerRequest.getComponentSettings();
-        DiscoveryExtension extensionNode = addSettingsUpdateConsumerRequest.getExtensionNode();
+        DiscoveryExtensionNode extensionNode = addSettingsUpdateConsumerRequest.getExtensionNode();
 
         try {
             for (WriteableSetting extensionComponentSetting : extensionComponentSettings) {

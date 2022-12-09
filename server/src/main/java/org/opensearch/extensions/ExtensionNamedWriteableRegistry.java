@@ -18,7 +18,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.NamedWriteable;
-import org.opensearch.extensions.ExtensionsOrchestrator.OpenSearchRequestType;
+import org.opensearch.extensions.ExtensionsManager.OpenSearchRequestType;
 import org.opensearch.transport.TransportService;
 
 /**
@@ -31,16 +31,16 @@ public class ExtensionNamedWriteableRegistry {
     private static final Logger logger = LogManager.getLogger(ExtensionNamedWriteableRegistry.class);
 
     private Map<DiscoveryNode, Map<Class<? extends NamedWriteable>, Map<String, ExtensionReader>>> extensionNamedWriteableRegistry;
-    private List<DiscoveryExtension> extensionsInitializedList;
+    private List<DiscoveryExtensionNode> extensionsInitializedList;
     private TransportService transportService;
 
     /**
      * Initializes a new ExtensionNamedWriteableRegistry
      *
-     * @param extensionsInitializedList List of DiscoveryExtensions to send requests to
+     * @param extensionsInitializedList List of DiscoveryExtensionNodes to send requests to
      * @param transportService Service that facilitates transport requests
      */
-    public ExtensionNamedWriteableRegistry(List<DiscoveryExtension> extensionsInitializedList, TransportService transportService) {
+    public ExtensionNamedWriteableRegistry(List<DiscoveryExtensionNode> extensionsInitializedList, TransportService transportService) {
         this.extensionsInitializedList = extensionsInitializedList;
         this.extensionNamedWriteableRegistry = new HashMap<>();
         this.transportService = transportService;
@@ -82,13 +82,13 @@ public class ExtensionNamedWriteableRegistry {
         NamedWriteableRegistryResponseHandler namedWriteableRegistryResponseHandler = new NamedWriteableRegistryResponseHandler(
             extensionNode,
             transportService,
-            ExtensionsOrchestrator.REQUEST_OPENSEARCH_PARSE_NAMED_WRITEABLE
+            ExtensionsManager.REQUEST_OPENSEARCH_PARSE_NAMED_WRITEABLE
         );
         try {
-            logger.info("Sending extension request type: " + ExtensionsOrchestrator.REQUEST_OPENSEARCH_NAMED_WRITEABLE_REGISTRY);
+            logger.info("Sending extension request type: " + ExtensionsManager.REQUEST_OPENSEARCH_NAMED_WRITEABLE_REGISTRY);
             transportService.sendRequest(
                 extensionNode,
-                ExtensionsOrchestrator.REQUEST_OPENSEARCH_NAMED_WRITEABLE_REGISTRY,
+                ExtensionsManager.REQUEST_OPENSEARCH_NAMED_WRITEABLE_REGISTRY,
                 new OpenSearchRequest(OpenSearchRequestType.REQUEST_OPENSEARCH_NAMED_WRITEABLE_REGISTRY),
                 namedWriteableRegistryResponseHandler
             );

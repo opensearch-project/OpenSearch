@@ -11,7 +11,7 @@ package org.opensearch.discovery;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.extensions.DiscoveryExtension;
+import org.opensearch.extensions.DiscoveryExtensionNode;
 import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;
@@ -24,9 +24,9 @@ import java.util.Objects;
  */
 public class InitializeExtensionsRequest extends TransportRequest {
     private final DiscoveryNode sourceNode;
-    private final DiscoveryExtension extension;
+    private final DiscoveryExtensionNode extension;
 
-    public InitializeExtensionsRequest(DiscoveryNode sourceNode, DiscoveryExtension extension) {
+    public InitializeExtensionsRequest(DiscoveryNode sourceNode, DiscoveryExtensionNode extension) {
         this.sourceNode = sourceNode;
         this.extension = extension;
     }
@@ -34,7 +34,7 @@ public class InitializeExtensionsRequest extends TransportRequest {
     public InitializeExtensionsRequest(StreamInput in) throws IOException {
         super(in);
         sourceNode = new DiscoveryNode(in);
-        extension = new DiscoveryExtension(in);
+        extension = new DiscoveryExtensionNode(in);
     }
 
     @Override
@@ -48,7 +48,7 @@ public class InitializeExtensionsRequest extends TransportRequest {
         return sourceNode;
     }
 
-    public DiscoveryExtension getExtension() {
+    public DiscoveryExtensionNode getExtension() {
         return extension;
     }
 

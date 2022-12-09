@@ -25,12 +25,12 @@ import java.util.Objects;
 public class OpenSearchRequest extends TransportRequest {
 
     private static final Logger logger = LogManager.getLogger(OpenSearchRequest.class);
-    private ExtensionsOrchestrator.OpenSearchRequestType requestType;
+    private ExtensionsManager.OpenSearchRequestType requestType;
 
     /**
      * @param requestType String identifying the default extension point to invoke on the extension
      */
-    public OpenSearchRequest(ExtensionsOrchestrator.OpenSearchRequestType requestType) {
+    public OpenSearchRequest(ExtensionsManager.OpenSearchRequestType requestType) {
         this.requestType = requestType;
     }
 
@@ -39,7 +39,7 @@ public class OpenSearchRequest extends TransportRequest {
      */
     public OpenSearchRequest(StreamInput in) throws IOException {
         super(in);
-        this.requestType = in.readEnum(ExtensionsOrchestrator.OpenSearchRequestType.class);
+        this.requestType = in.readEnum(ExtensionsManager.OpenSearchRequestType.class);
     }
 
     @Override
@@ -66,7 +66,7 @@ public class OpenSearchRequest extends TransportRequest {
         return Objects.hash(requestType);
     }
 
-    public ExtensionsOrchestrator.OpenSearchRequestType getRequestType() {
+    public ExtensionsManager.OpenSearchRequestType getRequestType() {
         return this.requestType;
     }
 

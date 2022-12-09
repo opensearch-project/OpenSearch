@@ -25,10 +25,10 @@ import java.util.Objects;
  * @opensearch.internal
  */
 public class AddSettingsUpdateConsumerRequest extends TransportRequest {
-    private final DiscoveryExtension extensionNode;
+    private final DiscoveryExtensionNode extensionNode;
     private final List<WriteableSetting> componentSettings;
 
-    public AddSettingsUpdateConsumerRequest(DiscoveryExtension extensionNode, List<Setting<?>> componentSettings) {
+    public AddSettingsUpdateConsumerRequest(DiscoveryExtensionNode extensionNode, List<Setting<?>> componentSettings) {
         this.extensionNode = extensionNode;
         this.componentSettings = new ArrayList<>(componentSettings.size());
         for (Setting<?> setting : componentSettings) {
@@ -40,7 +40,7 @@ public class AddSettingsUpdateConsumerRequest extends TransportRequest {
         super(in);
 
         // Set extension node to send update settings request to
-        this.extensionNode = new DiscoveryExtension(in);
+        this.extensionNode = new DiscoveryExtensionNode(in);
 
         // Read in component setting list
         int componentSettingsCount = in.readVInt();
@@ -69,7 +69,7 @@ public class AddSettingsUpdateConsumerRequest extends TransportRequest {
         return new ArrayList<>(this.componentSettings);
     }
 
-    public DiscoveryExtension getExtensionNode() {
+    public DiscoveryExtensionNode getExtensionNode() {
         return this.extensionNode;
     }
 

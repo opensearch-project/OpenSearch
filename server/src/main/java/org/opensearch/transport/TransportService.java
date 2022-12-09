@@ -398,8 +398,8 @@ public class TransportService extends AbstractLifecycleComponent
     }
 
     // We are skipping node validation for extensibility as extensionNode and opensearchNode(LocalNode) will have different ephemeral id's
-    public void connectToNode(final DiscoveryNode node, boolean skipValidation) {
-        PlainActionFuture.get(fut -> connectToNode(node, (ConnectionProfile) null, ActionListener.map(fut, x -> null), skipValidation));
+    public void connectToExtensionNode(final DiscoveryNode node) {
+        PlainActionFuture.get(fut -> connectToExtensionNode(node, (ConnectionProfile) null, ActionListener.map(fut, x -> null)));
     }
 
     /**
@@ -412,8 +412,8 @@ public class TransportService extends AbstractLifecycleComponent
         PlainActionFuture.get(fut -> connectToNode(node, connectionProfile, ActionListener.map(fut, x -> null)));
     }
 
-    public void connectToNode(final DiscoveryNode node, ConnectionProfile connectionProfile, boolean skipValidation) {
-        PlainActionFuture.get(fut -> connectToNode(node, connectionProfile, ActionListener.map(fut, x -> null), skipValidation));
+    public void connectToExtensionNode(final DiscoveryNode node, ConnectionProfile connectionProfile) {
+        PlainActionFuture.get(fut -> connectToExtensionNode(node, connectionProfile, ActionListener.map(fut, x -> null)));
     }
 
     /**
@@ -427,8 +427,8 @@ public class TransportService extends AbstractLifecycleComponent
         connectToNode(node, null, listener);
     }
 
-    public void connectToNode(DiscoveryNode node, ActionListener<Void> listener, boolean skipValidation) throws ConnectTransportException {
-        connectToNode(node, null, listener, skipValidation);
+    public void connectToExtensionNode(DiscoveryNode node, ActionListener<Void> listener) throws ConnectTransportException {
+        connectToExtensionNode(node, null, listener);
     }
 
     /**
@@ -447,33 +447,35 @@ public class TransportService extends AbstractLifecycleComponent
         connectionManager.connectToNode(node, connectionProfile, connectionValidator(node), listener);
     }
 
-    public void connectToNode(
-        final DiscoveryNode node,
-        ConnectionProfile connectionProfile,
-        ActionListener<Void> listener,
-        boolean skipValidation
-    ) {
+    public void connectToExtensionNode(final DiscoveryNode node, ConnectionProfile connectionProfile, ActionListener<Void> listener) {
         if (isLocalNode(node)) {
             listener.onResponse(null);
             return;
         }
-        connectionManager.connectToNode(node, connectionProfile, connectionValidator(node, skipValidation), listener);
+        connectionManager.connectToNode(node, connectionProfile, extensionConnectionValidator(node), listener);
     }
 
     public ConnectionManager.ConnectionValidator connectionValidator(DiscoveryNode node) {
-        return connectionValidator(node, false);
-    }
-
-    public ConnectionManager.ConnectionValidator connectionValidator(DiscoveryNode node, boolean skipValidation) {
         return (newConnection, actualProfile, listener) -> {
             // We don't validate cluster names to allow for CCS connections.
             handshake(newConnection, actualProfile.getHandshakeTimeout().millis(), cn -> true, ActionListener.map(listener, resp -> {
                 final DiscoveryNode remote = resp.discoveryNode;
-                if (skipValidation) {
-                    logger.info("Connection validation was skipped");
-                } else if (node.equals(remote) == false) {
+
+                if (node.equals(remote) == false) {
                     throw new ConnectTransportException(node, "handshake failed. unexpected remote node " + remote);
                 }
+
+                return null;
+            }));
+        };
+    }
+
+    public ConnectionManager.ConnectionValidator extensionConnectionValidator(DiscoveryNode node) {
+        return (newConnection, actualProfile, listener) -> {
+            // We don't validate cluster names to allow for CCS connections.
+            handshake(newConnection, actualProfile.getHandshakeTimeout().millis(), cn -> true, ActionListener.map(listener, resp -> {
+                final DiscoveryNode remote = resp.discoveryNode;
+                logger.info("Connection validation was skipped");
                 return null;
             }));
         };
