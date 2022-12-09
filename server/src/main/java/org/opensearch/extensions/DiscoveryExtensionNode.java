@@ -78,7 +78,7 @@ public class DiscoveryExtensionNode extends DiscoveryNode implements Writeable, 
         }
     }
 
-    public List<ExtensionDependency> getDependency() {
+    public List<ExtensionDependency> getDependencies() {
         return dependencies;
     }
 

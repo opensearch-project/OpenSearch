@@ -137,8 +137,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         "     customFolderName: fakeFolder2",
         "     hasNativeController: true",
         "     dependencies:",
-        "   - uniqueId: 'uniqueid0'",
-        "   - version: '2.0.0'"
+        "       - uniqueId: 'uniqueid0'",
+        "       - version: '2.0.0'"
     );
     private DiscoveryExtensionNode extensionNode;
 
@@ -274,7 +274,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             )
         );
         assertEquals(expectedExtensionsList.size(), extensionsManager.getExtensionIdMap().values().size());
-        assertEquals(List.of(expectedDependency), expectedExtensionsList.get(1).getDependency());
+        assertEquals(List.of(expectedDependency), expectedExtensionsList.get(1).getDependencies());
         assertTrue(expectedExtensionsList.containsAll(extensionsManager.getExtensionIdMap().values()));
         assertTrue(extensionsManager.getExtensionIdMap().values().containsAll(expectedExtensionsList));
     }
@@ -346,7 +346,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             List.of(expectedDependency)
         );
 
-        assertEquals(List.of(expectedDependency), discoveryExtension.getDependency());
+        assertEquals(List.of(expectedDependency), discoveryExtension.getDependencies());
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             discoveryExtension.writeTo(out);
@@ -354,7 +354,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
                 discoveryExtension = new DiscoveryExtensionNode(in);
 
-                assertEquals(expectedDependency, discoveryExtension.getDependency());
+                assertEquals(expectedDependency, discoveryExtension.getDependencies());
             }
         }
     }
