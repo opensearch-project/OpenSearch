@@ -85,12 +85,6 @@ public class InternalSubjectTests extends OpenSearchTestCase {
 
         internalSubject.login(AUTH_TOKEN);
         assertTrue(internalSubject.isAuthenticated());
-
-        internalSubject.logout();
-        assertFalse(internalSubject.isAuthenticated());
-
-        // subsequent logout calls for same user does not fail
-        internalSubject.logout();
     }
 
     public void testLoginFailure() {

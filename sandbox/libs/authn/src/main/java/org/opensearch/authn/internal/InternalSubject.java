@@ -8,7 +8,6 @@ package org.opensearch.authn.internal;
 import java.security.Principal;
 import java.util.Objects;
 
-import org.apache.shiro.session.Session;
 import org.opensearch.authn.AuthenticationTokenHandler;
 import org.opensearch.authn.tokens.AuthenticationToken;
 import org.opensearch.authn.Subject;
@@ -78,26 +77,6 @@ public class InternalSubject implements Subject {
         }
         // Login via shiro realm.
         shiroSubject.login(authToken);
-    }
-
-    /**
-     * Logs out this subject
-     *
-     * TODO: test this method
-     */
-    @Override
-    public void logout() {
-        try {
-            if (shiroSubject == null) return;
-            shiroSubject.logout();
-            // Get current session and kill it before proceeding to create a new session
-            // TODO: need to study the impact of this
-            Session session = shiroSubject.getSession(false);
-            if (session == null) return;
-            session.stop();
-        } catch (Exception e) {
-            // Ignore all errors, as we're trying to silently kill the session
-        }
     }
 
     /**

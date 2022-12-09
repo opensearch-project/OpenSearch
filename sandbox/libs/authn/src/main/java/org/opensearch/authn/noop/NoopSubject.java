@@ -53,11 +53,6 @@ public class NoopSubject implements Subject {
     }
 
     @Override
-    public void logout() {
-        // Do nothing as noop subject should not be logged out
-    }
-
-    @Override
     public boolean isAuthenticated() {
         // Noop subject is always authenticated
         return true;
