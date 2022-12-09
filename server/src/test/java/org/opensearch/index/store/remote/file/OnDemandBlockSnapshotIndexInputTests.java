@@ -53,7 +53,6 @@ public class OnDemandBlockSnapshotIndexInputTests extends OpenSearchTestCase {
 
     @Before
     public void init() {
-        assumeFalse("Awaiting Windows fix https://github.com/opensearch-project/OpenSearch/issues/5396", Constants.WINDOWS);
         transferManager = mock(TransferManager.class);
         lockFactory = SimpleFSLockFactory.INSTANCE;
         path = LuceneTestCase.createTempDir("OnDemandBlockSnapshotIndexInputTests");
@@ -69,6 +68,7 @@ public class OnDemandBlockSnapshotIndexInputTests extends OpenSearchTestCase {
     }
 
     public void testVariousBlockSize() throws Exception {
+        assumeFalse("Awaiting Windows fix https://github.com/opensearch-project/OpenSearch/issues/5396", Constants.WINDOWS);
         int fileSize = 29360128;
         int blockSizeShift;
 
