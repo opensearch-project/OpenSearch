@@ -30,6 +30,12 @@ public class ExtensionDependency implements Writeable {
         this.uniqueId = uniqueId;
         this.version = version;
     }
+    /**
+     * Jackson requires a no-arg constructor.
+     * 
+     */
+    @SuppressWarnings("unused")
+    private ExtensionDependency(){}
 
     /**
     * Reads the extension dependency information
