@@ -742,7 +742,7 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
      *
      * @return Returns <code>true</code> iff this call caused an actual sync operation otherwise <code>false</code>
      */
-    abstract boolean ensureSynced(Location location) throws IOException;
+    public abstract boolean ensureSynced(Location location) throws IOException;
 
     /**
      * Ensures that all locations in the given stream have been synced / written to the underlying storage.

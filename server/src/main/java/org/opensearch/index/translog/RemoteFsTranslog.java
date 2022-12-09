@@ -173,7 +173,7 @@ public class RemoteFsTranslog extends Translog {
     }
 
     @Override
-    boolean ensureSynced(Location location) throws IOException {
+    public boolean ensureSynced(Location location) throws IOException {
         Callable<Boolean> execute = () -> false;
         try (ReleasableLock lock = readLock.acquire()) {
             assert location.generation <= current.getGeneration();

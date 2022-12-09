@@ -50,7 +50,6 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.EOFException;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -423,7 +422,7 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
             logger.error("Asserting content of {}", readerGeneration);
             Path translogPath = reader.path();
             try (
-                CheckedInputStream stream = new CheckedInputStream(new FileInputStream(translogPath.toFile()), new CRC32());
+                InputStream stream = new CheckedInputStream(Files.newInputStream(translogPath), new CRC32());
                 InputStream tlogStream = blobStoreTransferService.readFile(path, Translog.getFilename(readerGeneration));
             ) {
                 byte[] content = stream.readAllBytes();
@@ -433,7 +432,7 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
 
             Path checkpointPath = translog.location().resolve(Translog.getCommitCheckpointFileName(readerGeneration));
             try (
-                CheckedInputStream stream = new CheckedInputStream(new FileInputStream(checkpointPath.toFile()), new CRC32());
+                CheckedInputStream stream = new CheckedInputStream(Files.newInputStream(checkpointPath), new CRC32());
                 InputStream ckpStream = blobStoreTransferService.readFile(path, Translog.getCommitCheckpointFileName(readerGeneration))
             ) {
                 byte[] content = stream.readAllBytes();
