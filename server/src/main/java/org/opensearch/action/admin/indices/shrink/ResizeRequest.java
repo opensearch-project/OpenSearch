@@ -32,6 +32,7 @@
 package org.opensearch.action.admin.indices.shrink;
 
 import org.opensearch.LegacyESVersion;
+import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.admin.indices.alias.Alias;
@@ -47,6 +48,7 @@ import org.opensearch.common.xcontent.ObjectParser;
 import org.opensearch.common.xcontent.ToXContentObject;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.unit.ByteSizeValue;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -61,6 +63,8 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements IndicesRequest, ToXContentObject {
 
     public static final ObjectParser<ResizeRequest, Void> PARSER = new ObjectParser<>("resize_request");
+    private static final ParseField MAX_SHARD_SIZE = new ParseField("max_shard_size");
+
     static {
         PARSER.declareField(
             (parser, request, context) -> request.getTargetIndexRequest().settings(parser.map()),
@@ -72,12 +76,19 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
             new ParseField("aliases"),
             ObjectParser.ValueType.OBJECT
         );
+        PARSER.declareField(
+            ResizeRequest::setMaxShardSize,
+            (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_SHARD_SIZE.getPreferredName()),
+            MAX_SHARD_SIZE,
+            ObjectParser.ValueType.STRING
+        );
     }
 
     private CreateIndexRequest targetIndexRequest;
     private String sourceIndex;
     private ResizeType type = ResizeType.SHRINK;
     private Boolean copySettings = true;
+    private ByteSizeValue maxShardSize;
 
     public ResizeRequest(StreamInput in) throws IOException {
         super(in);
@@ -85,6 +96,9 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         sourceIndex = in.readString();
         type = in.readEnum(ResizeType.class);
         copySettings = in.readOptionalBoolean();
+        if (in.getVersion().onOrAfter(Version.V_2_5_0)) {
+            maxShardSize = in.readOptionalWriteable(ByteSizeValue::new);
+        }
     }
 
     ResizeRequest() {}
@@ -109,6 +123,9 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         if (type == ResizeType.SPLIT && IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexRequest.settings()) == false) {
             validationException = addValidationError("index.number_of_shards is required for split operations", validationException);
         }
+        if (maxShardSize != null && maxShardSize.getBytes() <= 0) {
+            validationException = addValidationError("max_shard_size must be greater than 0", validationException);
+        }
         assert copySettings == null || copySettings;
         return validationException;
     }
@@ -127,6 +144,9 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         }
         out.writeEnum(type);
         out.writeOptionalBoolean(copySettings);
+        if (out.getVersion().onOrAfter(Version.V_2_5_0)) {
+            out.writeOptionalWriteable(maxShardSize);
+        }
     }
 
     @Override
@@ -209,6 +229,24 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         return copySettings;
     }
 
+    /**
+     * Sets the maximum size of a primary shard in the new shrunken index.
+     * This parameter can be used to calculate the lowest factor of the source index's shards number
+     * which satisfies the maximum shard size requirement.
+     *
+     * @param maxShardSize the maximum size of a primary shard in the new shrunken index
+     */
+    public void setMaxShardSize(ByteSizeValue maxShardSize) {
+        this.maxShardSize = maxShardSize;
+    }
+
+    /**
+     * Returns the maximum size of a primary shard in the new shrunken index.
+     */
+    public ByteSizeValue getMaxShardSize() {
+        return maxShardSize;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -225,6 +263,9 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
                 }
             }
             builder.endObject();
+            if (maxShardSize != null) {
+                builder.field(MAX_SHARD_SIZE.getPreferredName(), maxShardSize);
+            }
         }
         builder.endObject();
         return builder;
