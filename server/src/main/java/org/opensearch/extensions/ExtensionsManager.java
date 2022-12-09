@@ -313,7 +313,7 @@ public class ExtensionsManager {
         }
     }
 
-    /**
+    /**ß
      * Loads a single extension
      * @param extension The extension to be loaded
      */
