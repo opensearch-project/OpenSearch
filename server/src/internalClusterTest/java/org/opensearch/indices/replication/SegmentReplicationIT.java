@@ -230,7 +230,10 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
         final String replicaNode = internalCluster().startNode();
 
         // Mock transport service to add behaviour of throwing corruption exception during segment replication process.
-        MockTransportService mockTransportService = ((MockTransportService) internalCluster().getInstance(TransportService.class, primaryNode));
+        MockTransportService mockTransportService = ((MockTransportService) internalCluster().getInstance(
+            TransportService.class,
+            primaryNode
+        ));
         mockTransportService.addSendBehavior(
             internalCluster().getInstance(TransportService.class, replicaNode),
             (connection, requestId, action, request, options) -> {

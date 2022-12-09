@@ -782,9 +782,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     public void handleRecoveryDone(ReplicationState state, ShardRouting shardRouting, long primaryTerm) {
         RecoveryState recoveryState = (RecoveryState) state;
         AllocatedIndex<? extends Shard> indexService = indicesService.indexService(shardRouting.shardId().getIndex());
-        if(indexService.getIndexSettings().isSegRepEnabled()){
+        if (indexService.getIndexSettings().isSegRepEnabled()) {
             IndexShard indexShard = (IndexShard) indexService.getShardOrNull(shardRouting.id());
-            // For Segment Replication enabled indices, we want replica shards to start a replication event to fetch latest segments before it
+            // For Segment Replication enabled indices, we want replica shards to start a replication event to fetch latest segments before
+            // it
             // is marked as Started.
             if (indexShard != null
                 && shardRouting.primary() == false
@@ -835,11 +836,20 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     }
                 );
             } else {
-                shardStateAction.shardStarted(shardRouting, primaryTerm, "after " + recoveryState.getRecoverySource(), SHARD_STATE_ACTION_LISTENER);
+                shardStateAction.shardStarted(
+                    shardRouting,
+                    primaryTerm,
+                    "after " + recoveryState.getRecoverySource(),
+                    SHARD_STATE_ACTION_LISTENER
+                );
             }
-        }
-        else{
-            shardStateAction.shardStarted(shardRouting, primaryTerm, "after " + recoveryState.getRecoverySource(), SHARD_STATE_ACTION_LISTENER);
+        } else {
+            shardStateAction.shardStarted(
+                shardRouting,
+                primaryTerm,
+                "after " + recoveryState.getRecoverySource(),
+                SHARD_STATE_ACTION_LISTENER
+            );
         }
     }
 
