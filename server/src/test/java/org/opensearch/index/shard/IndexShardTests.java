@@ -2703,8 +2703,21 @@ public class IndexShardTests extends IndexShardTestCase {
 
         // Delete files in store directory to restore from remote directory
         Directory storeDirectory = target.store().directory();
+
         for (String file : storeDirectory.listAll()) {
             storeDirectory.deleteFile(file);
+            // Windows has buggy File delete logic where AccessDeniedExceptions
+            // are thrown when there is an open file handle on a particular file. FSDirectory attempts to resolve this with hacks by
+            // swallowing the exceptions and moving the file to a pending delete state
+            // to retry in the future while being filtered from listAll invocations.
+            // However, this logic is also buggy and after the first delete attempt we are left in a state where the file is still on disk
+            // and not pending delete.
+            // A second attempt to delete the file will properly move it to pending deletion, and be filtered from listAll.
+            if (Arrays.asList(storeDirectory.listAll()).contains(file) && storeDirectory.getPendingDeletions().contains(file) == false) {
+                logger.info("File {} was not deleted and is not pending delete, attempting delete again...", file);
+                storeDirectory.deleteFile(file);
+                assertTrue(storeDirectory.getPendingDeletions().contains(file));
+            }
         }
 
         assertEquals(0, storeDirectory.listAll().length);
