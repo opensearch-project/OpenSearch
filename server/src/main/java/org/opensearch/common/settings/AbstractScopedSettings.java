@@ -40,7 +40,6 @@ import org.apache.lucene.util.CollectionUtil;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.regex.Regex;
-import org.opensearch.common.util.FeatureFlags;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -122,13 +121,8 @@ public abstract class AbstractScopedSettings {
                 keySettings.putIfAbsent(setting.getKey(), setting);
             }
         }
-        if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
-            this.complexMatchers = complexMatchers;
-            this.keySettings = keySettings;
-        } else {
-            this.complexMatchers = Collections.unmodifiableMap(complexMatchers);
-            this.keySettings = Collections.unmodifiableMap(keySettings);
-        }
+        this.complexMatchers = complexMatchers;
+        this.keySettings = keySettings;
     }
 
     protected void validateSettingKey(Setting<?> setting) {
