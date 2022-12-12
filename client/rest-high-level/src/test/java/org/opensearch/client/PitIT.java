@@ -74,7 +74,7 @@ public class PitIT extends OpenSearchRestHighLevelClientTestCase {
     }
 
     // TODO Figure out why this test is failing with identity module
-    @Ignore
+    @AwaitsFix(bugUrl = "")
     public void testDeleteAllAndListAllPits() throws IOException, InterruptedException {
         CreatePitRequest pitRequest = new CreatePitRequest(new TimeValue(1, TimeUnit.DAYS), true, "index");
         CreatePitResponse pitResponse = execute(pitRequest, highLevelClient()::createPit, highLevelClient()::createPitAsync);
