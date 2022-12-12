@@ -8,7 +8,6 @@
 
 package org.opensearch.authn.noop;
 
-import org.opensearch.authn.noop.NoopSubject;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.authn.Subject;
 
