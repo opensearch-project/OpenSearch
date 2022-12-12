@@ -18,7 +18,7 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 
 /**
- * The extension dependency information
+ * This class handles the dependent extensions information
  *
  * @opensearch.internal
  */
