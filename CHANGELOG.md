@@ -16,6 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Add feature flag for extensions ([#5211](https://github.com/opensearch-project/OpenSearch/pull/5211))
 - Added jackson dependency to server ([#5366] (https://github.com/opensearch-project/OpenSearch/pull/5366))
 - Added experimental extensions to main ([#5347](https://github.com/opensearch-project/OpenSearch/pull/5347))
+- Add minor bug fix for cluster manager throttling settings ([#5524](https://github.com/opensearch-project/OpenSearch/pull/5524))
 
 ### Dependencies
 - Bumps `log4j-core` from 2.18.0 to 2.19.0
