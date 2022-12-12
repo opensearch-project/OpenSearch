@@ -153,6 +153,14 @@ public abstract class AbstractScopedSettings {
         }
     }
 
+    public boolean unregisterSetting(Setting<?> setting) {
+        if (setting.hasComplexMatcher()) {
+            return setting != complexMatchers.remove(setting.getKey());
+        } else {
+            return setting != keySettings.remove(setting.getKey());
+        }
+    }
+
     /**
      * Returns <code>true</code> iff the given key is a valid settings key otherwise <code>false</code>
      */
