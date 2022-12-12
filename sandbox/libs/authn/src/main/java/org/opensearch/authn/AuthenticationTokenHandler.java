@@ -10,6 +10,11 @@ import org.apache.logging.log4j.Logger;
 import org.apache.shiro.authc.AuthenticationToken;
 import org.apache.shiro.authc.UsernamePasswordToken;
 import org.opensearch.authn.tokens.BasicAuthToken;
+import org.opensearch.authn.tokens.BearerAuthToken;
+import org.apache.shiro.authc.BearerToken;
+import org.apache.cxf.rs.security.jose.jwt.JwtToken;
+import org.opensearch.authn.jwt.BadCredentialsException;
+import org.opensearch.authn.jwt.JwtVerifier;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
@@ -28,11 +33,14 @@ public class AuthenticationTokenHandler {
      * @param authenticationToken the token from which to extract
      * @return the extracted shiro auth token to be used to perform login
      */
-    public static AuthenticationToken extractShiroAuthToken(org.opensearch.authn.tokens.AuthenticationToken authenticationToken) {
+    public static AuthenticationToken extractShiroAuthToken(org.opensearch.authn.tokens.AuthenticationToken authenticationToken) throws BadCredentialsException {
         AuthenticationToken authToken = null;
 
         if (authenticationToken instanceof BasicAuthToken) {
             authToken = handleBasicAuth((BasicAuthToken) authenticationToken);
+        }
+        if (authenticationToken instanceof BearerAuthToken) {
+            authToken = handleBearerAuth((BearerAuthToken) authenticationToken);
         }
         // TODO: check for other type of HeaderTokens
         return authToken;
@@ -72,5 +80,19 @@ public class AuthenticationTokenHandler {
         logger.info("Logging in as: " + username);
 
         return new UsernamePasswordToken(username, password);
+    }
+
+    private static AuthenticationToken handleBearerAuth(final BearerAuthToken token) throws BadCredentialsException {
+
+        String encodedJWT = token.getHeaderValue().substring("Bearer".length()).trim();
+
+        // This just verifies the token and returns a decoded one in the process--the decoded version is not used here though
+        try {
+            JwtToken jwtToken = JwtVerifier.getVerifiedJwtToken(encodedJWT);
+        } catch (BadCredentialsException e) {
+            throw (e); // Could not verify the JWT token--throw this error to prevent the return
+        }
+
+        return new BearerToken(encodedJWT);
     }
 }

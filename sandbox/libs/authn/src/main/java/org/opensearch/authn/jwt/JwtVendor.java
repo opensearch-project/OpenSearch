@@ -79,4 +79,68 @@ public class JwtVendor {
 
         return encodedJwt;
     }
+
+    public static String createEarlyJwt(Map<String, String> claims) {
+        JoseJwtProducer jwtProducer = new JoseJwtProducer();
+        jwtProducer.setSignatureProvider(JwsUtils.getSignatureProvider(getDefaultJsonWebKey()));
+        JwtClaims jwtClaims = new JwtClaims();
+        JwtToken jwt = new JwtToken(jwtClaims);
+
+        jwtClaims.setNotBefore(System.currentTimeMillis() / 1000 + 60 * 60 * 24 * 365); // Not valid until a year from creation
+        long expiryTime = System.currentTimeMillis() / 1000 + (60 * 60);
+        jwtClaims.setExpiryTime(expiryTime);
+
+        if (claims.containsKey("sub")) {
+            jwtClaims.setProperty("sub", claims.get("sub"));
+        } else {
+            jwtClaims.setProperty("sub", "example_subject");
+        }
+
+        String encodedJwt = jwtProducer.processJwt(jwt);
+
+        if (logger.isDebugEnabled()) {
+            logger.debug(
+                "Created JWT: "
+                    + encodedJwt
+                    + "\n"
+                    + jsonMapReaderWriter.toJson(jwt.getJwsHeaders())
+                    + "\n"
+                    + JwtUtils.claimsToJson(jwt.getClaims())
+            );
+        }
+
+        return encodedJwt;
+    }
+
+    public static String createExpiredJwt(Map<String, String> claims) {
+        JoseJwtProducer jwtProducer = new JoseJwtProducer();
+        jwtProducer.setSignatureProvider(JwsUtils.getSignatureProvider(getDefaultJsonWebKey()));
+        JwtClaims jwtClaims = new JwtClaims();
+        JwtToken jwt = new JwtToken(jwtClaims);
+
+        long expiryTime = System.currentTimeMillis() / 1000 - 1; // This means the token expired a second before it was made so should never
+        // be valid
+        jwtClaims.setExpiryTime(expiryTime);
+
+        if (claims.containsKey("sub")) {
+            jwtClaims.setProperty("sub", claims.get("sub"));
+        } else {
+            jwtClaims.setProperty("sub", "example_subject");
+        }
+
+        String encodedJwt = jwtProducer.processJwt(jwt);
+
+        if (logger.isDebugEnabled()) {
+            logger.debug(
+                "Created JWT: "
+                    + encodedJwt
+                    + "\n"
+                    + jsonMapReaderWriter.toJson(jwt.getJwsHeaders())
+                    + "\n"
+                    + JwtUtils.claimsToJson(jwt.getClaims())
+            );
+        }
+
+        return encodedJwt;
+    }
 }

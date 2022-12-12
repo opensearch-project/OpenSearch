@@ -382,7 +382,7 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
     /**
      * Get the client used for ordinary api calls while writing a test
      */
-    protected static RestClient client() {
+    public static RestClient client() {
         return client;
     }
 
@@ -900,7 +900,7 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
         return runningTasks;
     }
 
-    protected static void assertOK(Response response) {
+    public static void assertOK(Response response) {
         assertThat(response.getStatusLine().getStatusCode(), anyOf(equalTo(200), equalTo(201)));
     }
 

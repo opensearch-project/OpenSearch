@@ -13,9 +13,11 @@ import org.apache.logging.log4j.Logger;
 import org.apache.shiro.authc.AuthenticationException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.authn.Subject;
+import org.opensearch.authn.jwt.BadCredentialsException;
 import org.opensearch.authn.jwt.JwtVendor;
 import org.opensearch.authn.tokens.AuthenticationToken;
 import org.opensearch.authn.tokens.BasicAuthToken;
+import org.opensearch.authn.tokens.BearerAuthToken;
 import org.opensearch.authn.tokens.HttpHeaderToken;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.settings.Settings;
@@ -122,6 +124,8 @@ public class SecurityRestFilter {
             } catch (final AuthenticationException ae) {
                 log.info("Authentication finally failed: {}", ae.getMessage());
                 return false;
+            } catch (BadCredentialsException e) {
+                throw new RuntimeException(e);
             }
         }
 
@@ -151,6 +155,7 @@ public class SecurityRestFilter {
      */
     static AuthenticationToken tokenType(String authHeader) {
         if (authHeader.contains("Basic")) return new BasicAuthToken(authHeader);
+        if (authHeader.contains("Bearer")) return new BearerAuthToken(authHeader);
         // support other type of header tokens
         return null;
     }
