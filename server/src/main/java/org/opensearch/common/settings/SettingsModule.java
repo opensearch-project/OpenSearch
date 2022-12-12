@@ -195,10 +195,21 @@ public class SettingsModule implements Module {
             if (setting.hasIndexScope()) {
                 onIndexSetting = indexScopedSettings.registerSetting(setting);
             }
-            registerSetting(setting);
-            if (onNodeSetting || onIndexSetting) {
-                logger.info("Registered new Setting: " + setting.getKey() + " successfully ");
-                return true;
+            try {
+                registerSetting(setting);
+                if (onNodeSetting || onIndexSetting) {
+                    logger.info("Registered new Setting: " + setting.getKey() + " successfully ");
+                    return true;
+                }
+            } catch (IllegalArgumentException ex) {
+                if (onNodeSetting) {
+                    clusterSettings.unregisterSetting(setting);
+                }
+
+                if (onIndexSetting) {
+                    indexScopedSettings.unregisterSetting(setting);
+                }
+                throw ex;
             }
         } catch (Exception e) {
             logger.error("Could not register setting " + setting.getKey());
