@@ -131,6 +131,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
  - Modified local node request to return Discovery Node ([#4862](https://github.com/opensearch-project/OpenSearch/pull/4862))
  - Enforce type safety for NamedWriteableRegistryParseRequest ([#4923](https://github.com/opensearch-project/OpenSearch/pull/4923))
  - Renaming to match merge to main branch ([5362](https://github.com/opensearch-project/OpenSearch/pull/5362))
+ - Updated settings registration changes to reflect main ([5532](https://github.com/opensearch-project/OpenSearch/pull/5532))
 
 ## [Unreleased 2.x]
 ### Added
