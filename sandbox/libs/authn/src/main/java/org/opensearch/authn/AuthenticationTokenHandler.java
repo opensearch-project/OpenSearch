@@ -92,7 +92,6 @@ public class AuthenticationTokenHandler {
         } catch (BadCredentialsException e) {
             throw (e); // Could not verify the JWT token--throw this error to prevent the return
         }
-
         return new BearerToken(encodedJWT);
     }
 }

@@ -11,10 +11,10 @@ package org.opensearch.identity;
 import org.apache.cxf.rs.security.jose.jwt.JwtToken;
 import org.apache.shiro.authc.AuthenticationToken;
 import org.hamcrest.MatcherAssert;
-import org.opensearch.authn.HttpHeaderToken;
 import org.opensearch.authn.jwt.BadCredentialsException;
 import org.opensearch.authn.jwt.JwtVendor;
 import org.opensearch.authn.jwt.JwtVerifier;
+import org.opensearch.authn.tokens.BearerAuthToken;
 import org.opensearch.client.Request;
 import org.opensearch.client.RequestOptions;
 import org.opensearch.client.Response;
@@ -33,18 +33,15 @@ public class BearerAuthTests extends OpenSearchTestCase {
 
     public void testExpiredValidJwt() {
         Map<String, String> jwtClaims = new HashMap<>();
+
         jwtClaims.put("sub", "testSubject");
-
         String encodedToken = JwtVendor.createExpiredJwt(jwtClaims);
-
         String headerBody = "Bearer " + encodedToken;
-        HttpHeaderToken HttpToken = new HttpHeaderToken(headerBody); // Create an HttpHeaderToken that just holds the 'Bearer' + JWT
+        BearerAuthToken bearerAuthToken = new BearerAuthToken(headerBody);
 
         try {
-            AuthenticationToken extractedShiroToken = extractShiroAuthToken(HttpToken); // This should verify and then extract the shiro
-            // token for login -- should fail because expired
+            AuthenticationToken extractedShiroToken = extractShiroAuthToken(bearerAuthToken);
         } catch (BadCredentialsException ex) {
-
             assertFalse(ex.getMessage().isEmpty());
             assertEquals("The token has expired", ex.getMessage());
         }
@@ -52,48 +49,43 @@ public class BearerAuthTests extends OpenSearchTestCase {
 
     public void testEarlyValidJwt() {
         Map<String, String> jwtClaims = new HashMap<>();
+
         jwtClaims.put("sub", "testSubject");
-
         String encodedToken = JwtVendor.createEarlyJwt(jwtClaims);
-
         String headerBody = "Bearer " + encodedToken;
-        HttpHeaderToken HttpToken = new HttpHeaderToken(headerBody); // Create an HttpHeaderToken that just holds the 'Bearer' + JWT
+        BearerAuthToken bearerAuthToken = new BearerAuthToken(headerBody);
 
         try {
-            AuthenticationToken extractedShiroToken = extractShiroAuthToken(HttpToken); // This should verify and then extract the shiro
-            // token for login -- should fail because expired
+            AuthenticationToken extractedShiroToken = extractShiroAuthToken(bearerAuthToken);
         } catch (BadCredentialsException ex) {
-
             assertFalse(ex.getMessage().isEmpty());
             assertEquals("The token cannot be accepted yet", ex.getMessage());
         }
     }
 
-    public AuthenticationToken testValidJwt() {
+    public void testValidJwt() {
         Map<String, String> jwtClaims = new HashMap<>();
+
         jwtClaims.put("sub", "testSubject");
-
         String encodedToken = JwtVendor.createJwt(jwtClaims);
-
         String headerBody = "Bearer " + encodedToken;
-        HttpHeaderToken HttpToken = new HttpHeaderToken(headerBody); // Create an HttpHeaderToken that just holds the 'Bearer' + JWT
-        AuthenticationToken extractedShiroToken = null;
+        BearerAuthToken bearerAuthToken = new BearerAuthToken(headerBody);
+
+        AuthenticationToken extractedShiroToken;
         try {
-            extractedShiroToken = extractShiroAuthToken(HttpToken); // This should verify and then extract the shiro token for login
+            extractedShiroToken = extractShiroAuthToken(bearerAuthToken); // This should verify and then extract the shiro token for login
         } catch (BadCredentialsException ex) {
             throw new Error(ex);
         }
         if (extractedShiroToken == null) {
-            throw new Error("The value of the extracted token is null after try/catch.");
+            throw new Error("The value of the extracted token is null.");
         }
-        return extractedShiroToken; // Should not be null
     }
 
     public void testInvalidJwt() {
-        // TODO: Token should fail because of attempt to verify incorrect signature
+        // TODO: Token should fail because of attempt to verify incorrect signature -- need to make it try to decode with "HSA512"
         Map<String, String> jwtClaims = new HashMap<>();
         jwtClaims.put("sub", "testSubject");
-        jwtClaims.put("key", "HSA512");
 
         String encodedToken = JwtVendor.createJwt(jwtClaims);
 
@@ -102,19 +94,17 @@ public class BearerAuthTests extends OpenSearchTestCase {
         } catch (BadCredentialsException e) {
             fail("Unexpected BadCredentialsException thrown");
         }
+        throw new Error("Function should have failed when trying to verify JWT with incorrect signature.");
     }
 
     public void testClusterHealthWithValidBearerAuthenticationHeader() throws IOException {
         Map<String, String> jwtClaims = new HashMap<>();
         jwtClaims.put("sub", "testSubject");
-
         String encodedToken = JwtVendor.createJwt(jwtClaims);
-
         String headerBody = "Bearer " + encodedToken;
 
         Request request = new Request("GET", "/_cluster/health");
-        RequestOptions options = RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", headerBody).build(); // This needs to be a
-        // built JWT
+        RequestOptions options = RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", headerBody).build();
         request.setOptions(options);
         Response response = OpenSearchRestTestCase.client().performRequest(request);
 
@@ -130,16 +120,11 @@ public class BearerAuthTests extends OpenSearchTestCase {
 
         Map<String, String> jwtClaims = new HashMap<>();
         jwtClaims.put("sub", "testSubject");
-
         String encodedToken = JwtVendor.createExpiredJwt(jwtClaims);
-
         String headerBody = "Bearer " + encodedToken;
 
         Request request = new Request("GET", "/_cluster/health");
-        RequestOptions options = RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", headerBody).build(); // Not sure what this
-        // will do but it
-        // definitely should not
-        // pass
+        RequestOptions options = RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", headerBody).build();
 
         request.setOptions(options);
         Response response = OpenSearchRestTestCase.client().performRequest(request);
@@ -151,7 +136,6 @@ public class BearerAuthTests extends OpenSearchTestCase {
         // Standard cluster health response
         MatcherAssert.assertThat(OpenSearchRestTestCase.entityAsMap(response).size(), equalTo(17));
         MatcherAssert.assertThat(OpenSearchRestTestCase.entityAsMap(response).get("status"), equalTo("green"));
-
     }
 
     public void testClusterHealthWithInvalidBearerAuthenticationHeader() throws IOException { // Should have this use the createInvalidJwt
@@ -161,14 +145,9 @@ public class BearerAuthTests extends OpenSearchTestCase {
         jwtClaims.put("sub", "testSubject");
 
         String encodedToken = JwtVendor.createExpiredJwt(jwtClaims);
-
         String headerBody = "Bearer " + encodedToken;
-
         Request request = new Request("GET", "/_cluster/health");
-        RequestOptions options = RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", headerBody).build(); // Not sure what this
-        // will do but it
-        // definitely should not
-        // pass
+        RequestOptions options = RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", headerBody).build();
 
         request.setOptions(options);
         Response response = OpenSearchRestTestCase.client().performRequest(request);
@@ -188,10 +167,7 @@ public class BearerAuthTests extends OpenSearchTestCase {
         String headerBody = "Bearer NotAJWT";
 
         Request request = new Request("GET", "/_cluster/health");
-        RequestOptions options = RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", headerBody).build(); // Not sure what this
-        // will do but it
-        // definitely should not
-        // pass
+        RequestOptions options = RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", headerBody).build();
 
         request.setOptions(options);
         try {
