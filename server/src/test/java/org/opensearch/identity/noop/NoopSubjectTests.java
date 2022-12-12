@@ -5,6 +5,7 @@
 
 package org.opensearch.identity.noop;
 
+import org.opensearch.authn.noop.NoopSubject;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.authn.Subject;
 

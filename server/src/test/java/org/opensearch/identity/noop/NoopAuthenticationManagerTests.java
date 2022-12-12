@@ -5,6 +5,7 @@
 
 package org.opensearch.identity.noop;
 
+import org.opensearch.authn.noop.NoopAuthenticationManager;
 import org.opensearch.test.OpenSearchTestCase;
 
 import static org.hamcrest.MatcherAssert.assertThat;
