@@ -5,7 +5,6 @@
 
 | Maintainer | GitHub ID | Affiliation |
 | --------------- | --------- | ----------- |
-| Abbas Hussain | [abbashus](https://github.com/abbashus) | Amazon |
 | Anas Alkouz | [anasalkouz](https://github.com/anasalkouz) | Amazon |
 | Andrew Ross   | [andrross](https://github.com/andrross)| Amazon |
 | Andriy Redko | [reta](https://github.com/reta) | Aiven |
@@ -22,8 +21,8 @@
 | Rishikesh Pasham | [Rishikesh1159](https://github.com/Rishikesh1159) | Amazon|
 | Ryan Bogan | [ryanbogan](https://github.com/ryanbogan) | Amazon |
 | Sarat Vemulapalli | [saratvemulapalli](https://github.com/saratvemulapalli) | Amazon |
-| Shweta Thareja |[shwetathareja](https://github.com/shwetathareja) | Amazon |
-| Suraj Singh |[dreamer-89](https://github.com/dreamer-89) | Amazon |
+| Shweta Thareja | [shwetathareja](https://github.com/shwetathareja) | Amazon |
+| Suraj Singh | [dreamer-89](https://github.com/dreamer-89) | Amazon |
 | Tianli Feng | [tlfeng](https://github.com/tlfeng) | Amazon |
 | Vacha Shah | [VachaShah](https://github.com/VachaShah) | Amazon |
 | Xue Zhou | [xuezhou25](https://github.com/xuezhou25) | Amazon |
@@ -32,6 +31,7 @@
 
 | Maintainer | GitHub ID | Affiliation |
 | --------------- | --------- | ----------- |
+| Abbas Hussain | [abbashus](https://github.com/abbashus) | Amazon |
 | Megha Sai Kavikondala | [meghasaik](https://github.com/meghasaik) | Amazon |
 
 [This document](https://github.com/opensearch-project/.github/blob/main/MAINTAINERS.md) explains what maintainers do in this repo, and how they should be doing it. If you're interested in contributing, see [CONTRIBUTING](CONTRIBUTING.md).
