@@ -1,4 +1,4 @@
-This copy of Jackson JSON processor streaming parser/generator is licensed under the
+plugins/repository-azure/licenses/jackson-LICENSE.txtThis copy of Jackson JSON processor streaming parser/generator is licensed under the
 Apache (Software) License, version 2.0 ("the License").
 See the License for details about distribution rights, and the
 specific rights regarding derivate works.

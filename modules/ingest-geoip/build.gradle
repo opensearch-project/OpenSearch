@@ -41,8 +41,6 @@ opensearchplugin {
 dependencies {
   api('com.maxmind.geoip2:geoip2:3.0.2')
   // geoip2 dependencies:
-  api("com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}")
-  api("com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}")
   api('com.maxmind.db:maxmind-db:2.1.0')
 
   testImplementation 'org.elasticsearch:geolite2-databases:20191119'

@@ -144,6 +144,10 @@ dependencies {
   // jna
   api "net.java.dev.jna:jna:${versions.jna}"
 
+  // jackson
+  api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
+  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+
   testImplementation(project(":test:framework")) {
     // tests use the locally compiled version of server
     exclude group: 'org.opensearch', module: 'server'
@@ -217,11 +221,12 @@ tasks.named("processResources").configure {
 
 tasks.named("thirdPartyAudit").configure {
     ignoreMissingClasses(
+
             // from log4j
+            'com.conversantmedia.util.concurrent.SpinPolicy',
             'com.fasterxml.jackson.dataformat.xml.JacksonXmlModule',
             'com.fasterxml.jackson.dataformat.xml.XmlMapper',
             'com.fasterxml.jackson.dataformat.xml.util.DefaultXmlPrettyPrinter',
-            'com.conversantmedia.util.concurrent.SpinPolicy',
             'org.fusesource.jansi.Ansi',
             'org.fusesource.jansi.AnsiRenderer$Code',
             'com.lmax.disruptor.EventFactory',
