@@ -26,7 +26,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Set;
-import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
@@ -174,24 +173,17 @@ public class RemoteFsTranslog extends Translog {
 
     @Override
     public boolean ensureSynced(Location location) throws IOException {
-        Callable<Boolean> execute = () -> false;
-        try (ReleasableLock lock = readLock.acquire()) {
+        try (ReleasableLock ignored = writeLock.acquire()) {
             assert location.generation <= current.getGeneration();
             if (location.generation == current.getGeneration()) {
                 ensureOpen();
-                execute = () -> prepareAndUpload(primaryTermSupplier.getAsLong(), location.generation);
+                return prepareAndUpload(primaryTermSupplier.getAsLong(), location.generation);
             }
         } catch (final Exception ex) {
             closeOnTragicEvent(ex);
             throw ex;
         }
-        try {
-            return execute.call();
-        } catch (Exception ex) {
-            closeOnTragicEvent(ex);
-            assert ex instanceof IOException;
-            throw (IOException) ex;
-        }
+        return false;
     }
 
     @Override
