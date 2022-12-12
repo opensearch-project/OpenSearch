@@ -11,7 +11,6 @@ package org.opensearch.identity;
 import org.apache.cxf.rs.security.jose.jwt.JwtToken;
 import org.apache.shiro.authc.AuthenticationToken;
 import org.hamcrest.MatcherAssert;
-import org.opensearch.authn.jwt.BadCredentialsException;
 import org.opensearch.authn.jwt.JwtVendor;
 import org.opensearch.authn.jwt.JwtVerifier;
 import org.opensearch.authn.tokens.BearerAuthToken;
@@ -41,7 +40,7 @@ public class BearerAuthTests extends OpenSearchTestCase {
 
         try {
             AuthenticationToken extractedShiroToken = extractShiroAuthToken(bearerAuthToken);
-        } catch (BadCredentialsException ex) {
+        } catch (RuntimeException ex) {
             assertFalse(ex.getMessage().isEmpty());
             assertEquals("The token has expired", ex.getMessage());
         }
@@ -57,7 +56,7 @@ public class BearerAuthTests extends OpenSearchTestCase {
 
         try {
             AuthenticationToken extractedShiroToken = extractShiroAuthToken(bearerAuthToken);
-        } catch (BadCredentialsException ex) {
+        } catch (RuntimeException ex) {
             assertFalse(ex.getMessage().isEmpty());
             assertEquals("The token cannot be accepted yet", ex.getMessage());
         }
@@ -74,7 +73,7 @@ public class BearerAuthTests extends OpenSearchTestCase {
         AuthenticationToken extractedShiroToken;
         try {
             extractedShiroToken = extractShiroAuthToken(bearerAuthToken); // This should verify and then extract the shiro token for login
-        } catch (BadCredentialsException ex) {
+        } catch (RuntimeException ex) {
             throw new Error(ex);
         }
         if (extractedShiroToken == null) {
@@ -91,8 +90,8 @@ public class BearerAuthTests extends OpenSearchTestCase {
 
         try {
             JwtToken token = JwtVerifier.getVerifiedJwtToken(encodedToken);
-        } catch (BadCredentialsException e) {
-            fail("Unexpected BadCredentialsException thrown");
+        } catch (RuntimeException e) {
+            fail("Unexpected RuntimeException thrown");
         }
         throw new Error("Function should have failed when trying to verify JWT with incorrect signature.");
     }

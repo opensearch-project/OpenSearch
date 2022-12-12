@@ -5,7 +5,6 @@
 
 package org.opensearch.authn;
 
-import org.opensearch.authn.jwt.BadCredentialsException;
 import org.opensearch.authn.tokens.AuthenticationToken;
 
 import java.security.Principal;
@@ -29,5 +28,5 @@ public interface Subject {
      * throws SubjectNotFound
      * throws SubjectDisabled
      */
-    void login(final AuthenticationToken token) throws BadCredentialsException;
+    void login(final AuthenticationToken token) throws RuntimeException;
 }
