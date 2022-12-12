@@ -41,12 +41,15 @@ import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.nio.MockNioTransport;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -221,6 +224,36 @@ public class TransportServiceHandshakeTests extends OpenSearchTestCase {
         );
         assertThat(ex.getMessage(), containsString("unexpected remote node"));
         assertFalse(handleA.transportService.nodeConnected(discoveryNode));
+    }
+
+    public void testNodeConnectWithDifferentNodeIDSkipValidation() throws IllegalAccessException {
+        Settings settings = Settings.builder().put("cluster.name", "test").build();
+        NetworkHandle handleA = startServices("TS_A", settings, Version.CURRENT);
+        NetworkHandle handleB = startServices("TS_B", settings, Version.CURRENT);
+        DiscoveryNode discoveryNode = new DiscoveryNode(
+            randomAlphaOfLength(10),
+            handleB.discoveryNode.getAddress(),
+            emptyMap(),
+            emptySet(),
+            handleB.discoveryNode.getVersion()
+        );
+        try (MockLogAppender mockLogAppender = MockLogAppender.createForLoggers(LogManager.getLogger(TransportService.class))) {
+
+            mockLogAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "Validation Skipped",
+                    "org.opensearch.transport.TransportService",
+                    Level.INFO,
+                    "Connection validation was skipped"
+                )
+            );
+
+            handleA.transportService.connectToExtensionNode(discoveryNode, TestProfiles.LIGHT_PROFILE);
+
+            mockLogAppender.assertAllExpectationsMatched();
+
+            assertTrue(handleA.transportService.nodeConnected(discoveryNode));
+        }
     }
 
     private static class NetworkHandle {
