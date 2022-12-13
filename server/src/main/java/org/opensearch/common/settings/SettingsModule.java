@@ -186,15 +186,31 @@ public class SettingsModule implements Module {
      * @return boolean value is set to true when successfully registered, else returns false
      */
     public boolean registerDynamicSetting(Setting<?> setting) {
+        boolean onNodeSetting = false;
+        boolean onIndexSetting = false;
         try {
-            registerSetting(setting);
             if (setting.hasNodeScope()) {
-                return clusterSettings.registerSetting(setting);
+                onNodeSetting = clusterSettings.registerSetting(setting);
             }
             if (setting.hasIndexScope()) {
-                return indexScopedSettings.registerSetting(setting);
+                onIndexSetting = indexScopedSettings.registerSetting(setting);
             }
-            logger.info("Registered new Setting: " + setting.getKey() + " successfully ");
+            try {
+                registerSetting(setting);
+                if (onNodeSetting || onIndexSetting) {
+                    logger.info("Registered new Setting: " + setting.getKey() + " successfully ");
+                    return true;
+                }
+            } catch (IllegalArgumentException ex) {
+                if (onNodeSetting) {
+                    clusterSettings.unregisterSetting(setting);
+                }
+
+                if (onIndexSetting) {
+                    indexScopedSettings.unregisterSetting(setting);
+                }
+                throw ex;
+            }
         } catch (Exception e) {
             logger.error("Could not register setting " + setting.getKey());
             throw new SettingsException("Could not register setting:" + setting.getKey());
