@@ -11,14 +11,12 @@ package org.opensearch.cluster.decommission;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionStateResponse;
 import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionRequest;
 import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionResponse;
-import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsRequest;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.coordination.CoordinationMetadata;
@@ -39,7 +37,6 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransport;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
 import java.util.Collections;
@@ -48,6 +45,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonMap;
@@ -313,22 +311,35 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
 
     }
 
-    public void testClearClusterDecommissionState() throws InterruptedException {
+    public void testRecommissionAction() throws InterruptedException {
         final CountDownLatch countDownLatch = new CountDownLatch(1);
         DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "zone-2");
         DecommissionAttributeMetadata decommissionAttributeMetadata = new DecommissionAttributeMetadata(
             decommissionAttribute,
             DecommissionStatus.SUCCESSFUL
         );
-        ClusterState state = ClusterState.builder(new ClusterName("test"))
-            .metadata(Metadata.builder().putCustom(DecommissionAttributeMetadata.TYPE, decommissionAttributeMetadata).build())
-            .build();
+        final ClusterState.Builder builder = builder(clusterService.state());
+        setState(
+            clusterService,
+            builder.metadata(
+                Metadata.builder(clusterService.state().metadata())
+                    .decommissionAttributeMetadata(decommissionAttributeMetadata)
+                    .coordinationMetadata(
+                        CoordinationMetadata.builder()
+                            .addVotingConfigExclusion(
+                                new CoordinationMetadata.VotingConfigExclusion(clusterService.state().nodes().get("node6"))
+                            )
+                            .build()
+                    )
+                    .build()
+            )
+        );
+        AtomicReference<ClusterState> clusterStateAtomicReference = new AtomicReference<>();
 
         ActionListener<DeleteDecommissionStateResponse> listener = new ActionListener<>() {
             @Override
             public void onResponse(DeleteDecommissionStateResponse decommissionResponse) {
-                DecommissionAttributeMetadata metadata = clusterService.state().metadata().custom(DecommissionAttributeMetadata.TYPE);
-                assertNull(metadata);
+                clusterStateAtomicReference.set(clusterService.state());
                 countDownLatch.countDown();
             }
 
@@ -338,59 +349,11 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
                 countDownLatch.countDown();
             }
         };
-
-        this.decommissionService.deleteDecommissionState(listener);
-
+        this.decommissionService.startRecommissionAction(listener);
         // Decommission Attribute should be removed.
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
-    }
-
-    public void testDeleteDecommissionAttributeClearVotingExclusion() {
-        TransportService mockTransportService = Mockito.mock(TransportService.class);
-        Mockito.when(mockTransportService.getLocalNode()).thenReturn(Mockito.mock(DiscoveryNode.class));
-        DecommissionService decommissionService = new DecommissionService(
-            Settings.EMPTY,
-            clusterSettings,
-            clusterService,
-            mockTransportService,
-            threadPool,
-            allocationService
-        );
-        decommissionService.startRecommissionAction(Mockito.mock(ActionListener.class));
-
-        ArgumentCaptor<ClearVotingConfigExclusionsRequest> clearVotingConfigExclusionsRequestArgumentCaptor = ArgumentCaptor.forClass(
-            ClearVotingConfigExclusionsRequest.class
-        );
-        Mockito.verify(mockTransportService)
-            .sendRequest(
-                Mockito.any(DiscoveryNode.class),
-                Mockito.anyString(),
-                clearVotingConfigExclusionsRequestArgumentCaptor.capture(),
-                Mockito.any(TransportResponseHandler.class)
-            );
-
-        ClearVotingConfigExclusionsRequest request = clearVotingConfigExclusionsRequestArgumentCaptor.getValue();
-        assertFalse(request.getWaitForRemoval());
-    }
-
-    public void testClusterUpdateTaskForDeletingDecommission() throws InterruptedException {
-        final CountDownLatch countDownLatch = new CountDownLatch(1);
-        ActionListener<DeleteDecommissionStateResponse> listener = new ActionListener<>() {
-            @Override
-            public void onResponse(DeleteDecommissionStateResponse response) {
-                assertTrue(response.isAcknowledged());
-                assertNull(clusterService.state().metadata().decommissionAttributeMetadata());
-                countDownLatch.countDown();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                fail("On Failure shouldn't have been called");
-                countDownLatch.countDown();
-            }
-        };
-        decommissionService.deleteDecommissionState(listener);
-        assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
+        assertNull(clusterStateAtomicReference.get().metadata().decommissionAttributeMetadata());
+        assertEquals(0, clusterStateAtomicReference.get().coordinationMetadata().getVotingConfigExclusions().size());
     }
 
     private void setWeightedRoutingWeights(Map<String, Double> weights) {
