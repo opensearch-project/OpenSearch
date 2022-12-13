@@ -85,7 +85,7 @@ public class ClusterGetWeightedRoutingResponse extends ActionResponse implements
             if (localNodeWeight != null) {
                 builder.field(NODE_WEIGHT, localNodeWeight);
             }
-            builder.field(WeightedRoutingMetadata.VERSION, version);
+            builder.field(WeightedRoutingMetadata.VERSION, String.valueOf(version));
         }
         builder.endObject();
         return builder;
@@ -124,7 +124,7 @@ public class ClusterGetWeightedRoutingResponse extends ActionResponse implements
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ClusterGetWeightedRoutingResponse that = (ClusterGetWeightedRoutingResponse) o;
-        return weightedRouting.equals(that.weightedRouting) && localNodeWeight.equals(that.localNodeWeight);
+        return weightedRouting.equals(that.weightedRouting) && localNodeWeight.equals(that.localNodeWeight) && version == that.version;
     }
 
     @Override
