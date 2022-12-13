@@ -41,9 +41,6 @@ dependencies {
 }
 
 for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
-  if (bwcVersion.before('6.3.0')) {
-    continue;
-  }
   String baseName = "v${bwcVersion}"
   String oldClusterName = "${baseName}-old"
   String newClusterName = "${baseName}-new"
@@ -76,28 +73,20 @@ for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
     systemProperty 'tests.rest.suite', 'step2'
   }
 
-  // Step 3 and Step 4 registered for versions for OpenSearch 
-  // since the ES cluster would not be able to read snapshots from OpenSearch cluster in Step 3.
-  if (bwcVersion.after('7.10.2')) {
-    tasks.register("${baseName}#Step3OldClusterTest", StandaloneRestIntegTestTask) {
+  tasks.register("${baseName}#Step3OldClusterTest", StandaloneRestIntegTestTask) {
     useCluster testClusters."${oldClusterName}"
     dependsOn "${baseName}#Step2NewClusterTest"
     systemProperty 'tests.rest.suite', 'step3'
   }
 
-    tasks.register("${baseName}#Step4NewClusterTest", StandaloneRestIntegTestTask) {
-      useCluster testClusters."${newClusterName}"
-      dependsOn "${baseName}#Step3OldClusterTest"
-      systemProperty 'tests.rest.suite', 'step4'
-    }
+  tasks.register("${baseName}#Step4NewClusterTest", StandaloneRestIntegTestTask) {
+    useCluster testClusters."${newClusterName}"
+    dependsOn "${baseName}#Step3OldClusterTest"
+    systemProperty 'tests.rest.suite', 'step4'
+  }
 
-    tasks.register(bwcTaskName(bwcVersion)) {
-      dependsOn tasks.named("${baseName}#Step4NewClusterTest")
-    }
-  } else {
-    tasks.register(bwcTaskName(bwcVersion)) {
-      dependsOn tasks.named("${baseName}#Step2NewClusterTest")
-    }
+  tasks.register(bwcTaskName(bwcVersion)) {
+    dependsOn tasks.named("${baseName}#Step4NewClusterTest")
   }
 
   tasks.matching { it.name.startsWith(baseName) && it.name.endsWith("ClusterTest") }.configureEach {

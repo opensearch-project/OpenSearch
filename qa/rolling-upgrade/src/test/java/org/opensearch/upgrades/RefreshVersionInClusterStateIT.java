@@ -18,7 +18,7 @@ import java.io.IOException;
 public class RefreshVersionInClusterStateIT extends AbstractRollingTestCase {
 
     /*
-    This test ensures that after the upgrade from ElasticSearch/ OpenSearch all nodes report the version on and after 1.0.0
+     * This test ensures that after the upgrade, all nodes report the current version
      */
     public void testRefresh() throws IOException {
         switch (CLUSTER_TYPE) {

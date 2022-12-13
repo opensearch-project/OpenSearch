@@ -91,7 +91,7 @@ public interface BytesReference extends Comparable<BytesReference>, ToXContentFr
             while ((r = byteRefIterator.next()) != null) {
                 buffers.add(ByteBuffer.wrap(r.bytes, r.offset, r.length));
             }
-            return buffers.toArray(new ByteBuffer[buffers.size()]);
+            return buffers.toArray(new ByteBuffer[0]);
 
         } catch (IOException e) {
             // this is really an error since we don't do IO in our bytesreferences
@@ -122,8 +122,13 @@ public interface BytesReference extends Comparable<BytesReference>, ToXContentFr
      * Returns BytesReference composed of the provided ByteBuffer.
      */
     static BytesReference fromByteBuffer(ByteBuffer buffer) {
-        assert buffer.hasArray();
-        return new BytesArray(buffer.array(), buffer.arrayOffset() + buffer.position(), buffer.remaining());
+        if (buffer.hasArray()) {
+            return new BytesArray(buffer.array(), buffer.arrayOffset() + buffer.position(), buffer.remaining());
+        } else {
+            final byte[] array = new byte[buffer.remaining()];
+            buffer.asReadOnlyBuffer().get(array, 0, buffer.remaining());
+            return new BytesArray(array);
+        }
     }
 
     /**

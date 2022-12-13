@@ -74,7 +74,7 @@ public class DeletePitRequest extends ActionRequest implements ToXContentObject 
         if (pitIds == null) {
             out.writeVInt(0);
         } else {
-            out.writeStringArray(pitIds.toArray(new String[pitIds.size()]));
+            out.writeStringArray(pitIds.toArray(new String[0]));
         }
     }
 

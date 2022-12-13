@@ -31,7 +31,7 @@
 import org.opensearch.gradle.info.BuildParams
 
 apply plugin: 'opensearch.build'
-apply plugin: 'nebula.optional-base'
+apply plugin: 'com.netflix.nebula.optional-base'
 apply plugin: 'opensearch.publish'
 apply plugin: 'opensearch.internal-cluster-test'
 
@@ -135,6 +135,10 @@ dependencies {
   // jna
   api "net.java.dev.jna:jna:${versions.jna}"
 
+  // jackson
+  api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
+  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+
   testImplementation(project(":test:framework")) {
     // tests use the locally compiled version of server
     exclude group: 'org.opensearch', module: 'server'
@@ -153,22 +157,6 @@ tasks.withType(JavaCompile).configureEach {
 tasks.named("internalClusterTest").configure {
   // TODO: these run faster with C2 only because they run for so, so long
   jvmArgs -= '-XX:TieredStopAtLevel=1'
-}
-
-// Until this project is always being formatted with spotless, we need to
-// guard against `spotless()` not existing.
-try {
-  spotless {
-    java {
-      // Contains large data tables that do not format well.
-      targetExclude 'src/main/java/org/opensearch/search/aggregations/metrics/HyperLogLogPlusPlus.java'
-    }
-  }
-}
-catch (Exception e) {
-  if (e.getMessage().contains("Could not find method spotless") == false) {
-    throw e;
-  }
 }
 
 tasks.named("forbiddenPatterns").configure {
@@ -224,31 +212,12 @@ tasks.named("processResources").configure {
 
 tasks.named("thirdPartyAudit").configure {
     ignoreMissingClasses(
-            // from com.fasterxml.jackson.dataformat.yaml.YAMLMapper (jackson-dataformat-yaml)
-            'com.fasterxml.jackson.databind.ObjectMapper',
 
             // from log4j
             'com.conversantmedia.util.concurrent.SpinPolicy',
-            'com.fasterxml.jackson.annotation.JsonInclude$Include',
-            'com.fasterxml.jackson.databind.DeserializationContext',
-            'com.fasterxml.jackson.databind.DeserializationFeature',
-            'com.fasterxml.jackson.databind.JsonMappingException',
-            'com.fasterxml.jackson.databind.JsonNode',
-            'com.fasterxml.jackson.databind.Module$SetupContext',
-            'com.fasterxml.jackson.databind.ObjectReader',
-            'com.fasterxml.jackson.databind.ObjectWriter',
-            'com.fasterxml.jackson.databind.SerializerProvider',
-            'com.fasterxml.jackson.databind.deser.std.StdDeserializer',
-            'com.fasterxml.jackson.databind.deser.std.StdScalarDeserializer',
-            'com.fasterxml.jackson.databind.module.SimpleModule',
-            'com.fasterxml.jackson.databind.ser.impl.SimpleBeanPropertyFilter',
-            'com.fasterxml.jackson.databind.ser.impl.SimpleFilterProvider',
-            'com.fasterxml.jackson.databind.ser.std.StdScalarSerializer',
-            'com.fasterxml.jackson.databind.ser.std.StdSerializer',
             'com.fasterxml.jackson.dataformat.xml.JacksonXmlModule',
             'com.fasterxml.jackson.dataformat.xml.XmlMapper',
             'com.fasterxml.jackson.dataformat.xml.util.DefaultXmlPrettyPrinter',
-            'com.fasterxml.jackson.databind.node.ObjectNode',
             'org.fusesource.jansi.Ansi',
             'org.fusesource.jansi.AnsiRenderer$Code',
             'com.lmax.disruptor.EventFactory',
@@ -308,9 +277,6 @@ tasks.named("thirdPartyAudit").configure {
             'org.noggit.JSONParser',
 
             // from lucene-spatial
-            'com.fasterxml.jackson.databind.JsonSerializer',
-            'com.fasterxml.jackson.databind.JsonDeserializer',
-            'com.fasterxml.jackson.databind.node.ArrayNode',
             'com.google.common.geometry.S2Cell',
             'com.google.common.geometry.S2CellId',
             'com.google.common.geometry.S2Projections',

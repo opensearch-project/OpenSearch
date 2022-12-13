@@ -258,6 +258,19 @@ public abstract class TransportReplicationAction<
         return new ReplicasProxy();
     }
 
+    /**
+     * This method is used for defining the {@link ReplicationMode} override per {@link TransportReplicationAction}.
+     *
+     * @param indexShard index shard used to determining the policy.
+     * @return the overridden replication mode.
+     */
+    protected ReplicationMode getReplicationMode(IndexShard indexShard) {
+        if (indexShard.isRemoteTranslogEnabled()) {
+            return ReplicationMode.NO_REPLICATION;
+        }
+        return ReplicationMode.FULL_REPLICATION;
+    }
+
     protected abstract Response newResponseInstance(StreamInput in) throws IOException;
 
     /**
@@ -533,7 +546,11 @@ public abstract class TransportReplicationAction<
                         actionName,
                         primaryRequest.getPrimaryTerm(),
                         initialRetryBackoffBound,
-                        retryTimeout
+                        retryTimeout,
+                        ReplicationProxyFactory.create(
+                            primaryShardReference.indexShard,
+                            getReplicationMode(primaryShardReference.indexShard)
+                        )
                     ).execute();
                 }
             } catch (Exception e) {

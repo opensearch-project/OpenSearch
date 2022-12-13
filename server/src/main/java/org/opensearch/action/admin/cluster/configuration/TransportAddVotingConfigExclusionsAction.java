@@ -44,10 +44,8 @@ import org.opensearch.cluster.ClusterStateObserver.Listener;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
-import org.opensearch.cluster.coordination.CoordinationMetadata;
 import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
-import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.inject.Inject;
@@ -65,6 +63,9 @@ import java.io.IOException;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+
+import static org.opensearch.action.admin.cluster.configuration.VotingConfigExclusionsHelper.resolveVotingConfigExclusionsAndCheckMaximum;
+import static org.opensearch.action.admin.cluster.configuration.VotingConfigExclusionsHelper.addExclusionAndGetState;
 
 /**
  * Transport endpoint action for adding exclusions to voting config
@@ -144,13 +145,7 @@ public class TransportAddVotingConfigExclusionsAction extends TransportClusterMa
                 assert resolvedExclusions == null : resolvedExclusions;
                 final int finalMaxVotingConfigExclusions = TransportAddVotingConfigExclusionsAction.this.maxVotingConfigExclusions;
                 resolvedExclusions = resolveVotingConfigExclusionsAndCheckMaximum(request, currentState, finalMaxVotingConfigExclusions);
-
-                final CoordinationMetadata.Builder builder = CoordinationMetadata.builder(currentState.coordinationMetadata());
-                resolvedExclusions.forEach(builder::addVotingConfigExclusion);
-                final Metadata newMetadata = Metadata.builder(currentState.metadata()).coordinationMetadata(builder.build()).build();
-                final ClusterState newState = ClusterState.builder(currentState).metadata(newMetadata).build();
-                assert newState.getVotingConfigExclusions().size() <= finalMaxVotingConfigExclusions;
-                return newState;
+                return addExclusionAndGetState(currentState, resolvedExclusions, finalMaxVotingConfigExclusions);
             }
 
             @Override
@@ -211,18 +206,6 @@ public class TransportAddVotingConfigExclusionsAction extends TransportClusterMa
                 }
             }
         });
-    }
-
-    private static Set<VotingConfigExclusion> resolveVotingConfigExclusionsAndCheckMaximum(
-        AddVotingConfigExclusionsRequest request,
-        ClusterState state,
-        int maxVotingConfigExclusions
-    ) {
-        return request.resolveVotingConfigExclusionsAndCheckMaximum(
-            state,
-            maxVotingConfigExclusions,
-            MAXIMUM_VOTING_CONFIG_EXCLUSIONS_SETTING.getKey()
-        );
     }
 
     @Override

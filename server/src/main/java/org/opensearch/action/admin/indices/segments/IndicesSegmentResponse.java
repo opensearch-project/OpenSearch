@@ -97,7 +97,7 @@ public class IndicesSegmentResponse extends BroadcastResponse {
                     shards.add(shard);
                 }
             }
-            indicesSegments.put(indexName, new IndexSegments(indexName, shards.toArray(new ShardSegments[shards.size()])));
+            indicesSegments.put(indexName, new IndexSegments(indexName, shards.toArray(new ShardSegments[0])));
         }
         this.indicesSegments = indicesSegments;
         return indicesSegments;
