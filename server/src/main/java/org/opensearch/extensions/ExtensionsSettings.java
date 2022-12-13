@@ -191,7 +191,6 @@ public class ExtensionsSettings {
         }
     }
 
-    }    
     public List<Extension> getExtensions() {
         return extensions;
     }
