@@ -189,9 +189,16 @@ public abstract class RecoverySourceHandler {
     }
 
     protected void preventRefreshOnReplicas() {
-        // Block refresh on replicas
+        // Disable this shard from performing segment replication on replicas
         if (shard.indexSettings().isSegRepEnabled() && request.isPrimaryRelocation() == true) {
             shard.setBlockInternalCheckPointRefresh(true);
+        }
+    }
+
+    protected void resumeSegmentReplicationRefresh() {
+        // Enable this shard from performing segment replication on replicas
+        if (shard.indexSettings().isSegRepEnabled() && request.isPrimaryRelocation() == true) {
+            shard.setBlockInternalCheckPointRefresh(false);
         }
     }
 
@@ -815,7 +822,21 @@ public abstract class RecoverySourceHandler {
         final long globalCheckpoint = shard.getLastKnownGlobalCheckpoint(); // this global checkpoint is persisted in finalizeRecovery
         final StepListener<Void> finalizeListener = new StepListener<>();
         cancellableThreads.checkForCancel();
-        recoveryTarget.finalizeRecovery(globalCheckpoint, trimAboveSeqNo, finalizeListener);
+        final StepListener<Void> segRepSyncListener = new StepListener<>();
+        // Force a round of segment replication before finalizing the recovery
+        if (shard.indexSettings().isSegRepEnabled() && request.isPrimaryRelocation() == true) {
+            recoveryTarget.forceSegmentFileSync(segRepSyncListener);
+        } else {
+            segRepSyncListener.onResponse(null);
+        }
+        segRepSyncListener.whenComplete(
+            r -> { recoveryTarget.finalizeRecovery(globalCheckpoint, trimAboveSeqNo, finalizeListener); },
+            e -> {
+                this.resumeSegmentReplicationRefresh();
+                listener.onFailure(e);
+            }
+        );
+
         finalizeListener.whenComplete(r -> {
             RunUnderPrimaryPermit.run(
                 () -> shard.updateGlobalCheckpointForShard(request.targetAllocationId(), globalCheckpoint),

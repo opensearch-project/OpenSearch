@@ -41,6 +41,7 @@ import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.indices.replication.SegmentReplicationTargetService;
 
 import java.util.List;
 import java.util.concurrent.Executor;
@@ -52,13 +53,32 @@ public class AsyncRecoveryTarget implements RecoveryTargetHandler {
     private final RecoveryTargetHandler target;
     private final Executor executor;
 
-    public AsyncRecoveryTarget(RecoveryTargetHandler target, Executor executor) {ethis.executor = executor;
+    private final SegmentReplicationTargetService segmentReplicationTargetService;
+
+    public AsyncRecoveryTarget(RecoveryTargetHandler target, Executor executor) {
+        this.executor = executor;
         this.target = target;
+        this.segmentReplicationTargetService = SegmentReplicationTargetService.NO_OP;
+    }
+
+    public AsyncRecoveryTarget(
+        RecoveryTargetHandler target,
+        Executor executor,
+        SegmentReplicationTargetService segmentReplicationTargetService
+    ) {
+        this.executor = executor;
+        this.target = target;
+        this.segmentReplicationTargetService = segmentReplicationTargetService;
     }
 
     @Override
     public void prepareForTranslogOperations(int totalTranslogOps, ActionListener<Void> listener) {
         executor.execute(() -> target.prepareForTranslogOperations(totalTranslogOps, listener));
+    }
+
+    @Override
+    public void forceSegmentFileSync(ActionListener<Void> listener) {
+        executor.execute(() -> target.forceSegmentFileSync(listener));
     }
 
     @Override

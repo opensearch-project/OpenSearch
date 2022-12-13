@@ -38,6 +38,7 @@ import org.opensearch.index.replication.OpenSearchIndexLevelReplicationTestCase;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.store.Store;
+import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.indices.replication.common.ReplicationCollection;
 import org.opensearch.indices.replication.common.ReplicationFailedException;
 import org.opensearch.indices.replication.common.ReplicationListener;
@@ -175,7 +176,7 @@ public class ReplicationCollectionTests extends OpenSearchIndexLevelReplicationT
                 shards.recoverReplica(shard, (s, n) -> {
                     assertSame(s, newRecoveryRef.get().indexShard());
                     return newRecoveryRef.get();
-                }, false);
+                }, false, SegmentReplicationTargetService.NO_OP);
             }
             shards.assertAllEqual(numDocs);
             assertNull("recovery is done", collection.get(recoveryId));

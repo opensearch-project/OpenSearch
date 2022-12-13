@@ -88,6 +88,7 @@ import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.shard.IndexShardRelocatedException;
 import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.store.Store;
@@ -121,7 +122,6 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -654,7 +654,7 @@ public class LocalStorePeerRecoverySourceHandlerTests extends OpenSearchTestCase
         IOUtils.close(store);
     }
 
-    public void testThrowExceptionOnPrimaryRelocatedBeforePhase1Started() throws IOException, ExecutionException, InterruptedException {
+    public void testThrowExceptionOnPrimaryRelocatedBeforePhase1Started() throws IOException {
         final RecoverySettings recoverySettings = new RecoverySettings(Settings.EMPTY, service);
         final StartRecoveryRequest request = getStartRecoveryRequest();
         final IndexShard shard = mock(IndexShard.class);
@@ -737,11 +737,10 @@ public class LocalStorePeerRecoverySourceHandlerTests extends OpenSearchTestCase
 
         };
         PlainActionFuture<RecoveryResponse> future = new PlainActionFuture<>();
-        // expectThrows(IndexShardRelocatedException.class, () -> {
-        handler.recoverToTarget(future);
-        // future.actionGet();
-        // });
-        future.get();
+        expectThrows(IndexShardRelocatedException.class, () -> {
+            handler.recoverToTarget(future);
+            future.actionGet();
+        });
         assertFalse(phase1Called.get());
         assertFalse(prepareTargetForTranslogCalled.get());
         assertFalse(phase2Called.get());
@@ -1116,6 +1115,9 @@ public class LocalStorePeerRecoverySourceHandlerTests extends OpenSearchTestCase
 
         @Override
         public void finalizeRecovery(long globalCheckpoint, long trimAboveSeqNo, ActionListener<Void> listener) {}
+
+        @Override
+        public void forceSegmentFileSync(ActionListener<Void> listener) {}
 
         @Override
         public void handoffPrimaryContext(ReplicationTracker.PrimaryContext primaryContext) {}

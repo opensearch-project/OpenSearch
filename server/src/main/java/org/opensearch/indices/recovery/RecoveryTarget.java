@@ -32,13 +32,13 @@
 
 package org.opensearch.indices.recovery;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.opensearch.Assertions;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionListener;
-import org.opensearch.action.StepListener;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.UUIDs;
@@ -57,6 +57,9 @@ import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.indices.replication.SegmentReplicationState;
+import org.opensearch.indices.replication.SegmentReplicationTargetService;
+import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.ReplicationCollection;
 import org.opensearch.indices.replication.common.ReplicationFailedException;
 import org.opensearch.indices.replication.common.ReplicationListener;
@@ -68,6 +71,7 @@ import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeoutException;
 
 import static org.opensearch.index.translog.Translog.TRANSLOG_UUID_KEY;
 
@@ -87,8 +91,32 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
     // latch that can be used to blockingly wait for RecoveryTarget to be closed
     private final CountDownLatch closedLatch = new CountDownLatch(1);
 
+    private final SegmentReplicationTargetService segmentReplicationTargetService;
+
     /**
      * Creates a new recovery target object that represents a recovery to the provided shard.
+     *
+     * @param indexShard                        local shard where we want to recover to
+     * @param sourceNode                        source node of the recovery where we recover from
+     * @param listener                          called when recovery is completed/failed
+     * @param segmentReplicationTargetService   used to force a segment replication round
+     */
+    public RecoveryTarget(
+        IndexShard indexShard,
+        DiscoveryNode sourceNode,
+        ReplicationListener listener,
+        SegmentReplicationTargetService segmentReplicationTargetService
+    ) {
+        super("recovery_status", indexShard, indexShard.recoveryState().getIndex(), listener);
+        this.sourceNode = sourceNode;
+        indexShard.recoveryStats().incCurrentAsTarget();
+        final String tempFilePrefix = getPrefix() + UUIDs.randomBase64UUID() + ".";
+        this.multiFileWriter = new MultiFileWriter(indexShard.store(), stateIndex, tempFilePrefix, logger, this::ensureRefCount);
+        this.segmentReplicationTargetService = segmentReplicationTargetService;
+    }
+
+    /**
+     * Creates a new recovery target object that represents a recovery to the provided shard. Used for tests.
      *
      * @param indexShard                        local shard where we want to recover to
      * @param sourceNode                        source node of the recovery where we recover from
@@ -100,6 +128,7 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
         indexShard.recoveryStats().incCurrentAsTarget();
         final String tempFilePrefix = getPrefix() + UUIDs.randomBase64UUID() + ".";
         this.multiFileWriter = new MultiFileWriter(indexShard.store(), stateIndex, tempFilePrefix, logger, this::ensureRefCount);
+        this.segmentReplicationTargetService = SegmentReplicationTargetService.NO_OP;
     }
 
     /**
@@ -108,7 +137,7 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
      * @return a copy of this recovery target
      */
     public RecoveryTarget retryCopy() {
-        return new RecoveryTarget(indexShard, sourceNode, listener);
+        return new RecoveryTarget(indexShard, sourceNode, listener, segmentReplicationTargetService);
     }
 
     public IndexShard indexShard() {
@@ -219,16 +248,51 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
     }
 
     @Override
+    public void forceSegmentFileSync(ActionListener<Void> listener) {
+        segmentReplicationTargetService.startReplication(
+            ReplicationCheckpoint.empty(shardId()),
+            indexShard,
+            new SegmentReplicationTargetService.SegmentReplicationListener() {
+                @Override
+                public void onReplicationDone(SegmentReplicationState state) {
+                    logger.trace(
+                        () -> new ParameterizedMessage(
+                            "[shardId {}] [replication id {}] Replication complete, timing data: {}",
+                            indexShard.shardId().getId(),
+                            state.getReplicationId(),
+                            state.getTimingData()
+                        )
+                    );
+                    try {
+                        indexShard.resetEngine();
+                        listener.onResponse(null);
+                    } catch (InterruptedException | TimeoutException | IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+
+                @Override
+                public void onReplicationFailure(SegmentReplicationState state, ReplicationFailedException e, boolean sendShardFailure) {
+                    logger.trace(
+                        () -> new ParameterizedMessage(
+                            "[shardId {}] [replication id {}] Replication failed, timing data: {}",
+                            indexShard.shardId().getId(),
+                            state.getReplicationId(),
+                            state.getTimingData()
+                        )
+                    );
+                    if (sendShardFailure == true) {
+                        indexShard.failShard("replication failure", e);
+                    }
+                    listener.onFailure(e);
+                }
+            }
+        );
+    }
+
+    @Override
     public void finalizeRecovery(final long globalCheckpoint, final long trimAboveSeqNo, ActionListener<Void> listener) {
-        final StepListener<Void> segrepListener = new StepListener<>();
-        // Force segment refresh on primary relocation which is recovered as replica initially & reset engine
-        if (this.indexShard.indexSettings().isSegRepEnabled() && this.state().getPrimary() == true) {
-            logger.info("--> Force segment replication event on new primary and switch to ReadWrite (Internal) engine");
-            this.indexShard.performSegmentReplicationRefresh(segrepListener);
-        } else {
-            segrepListener.onResponse(null);
-        }
-        segrepListener.whenComplete(r -> {
+        ActionListener.completeWith(listener, () -> {
             indexShard.updateGlobalCheckpointOnReplica(globalCheckpoint, "finalizing recovery");
             // Persist the global checkpoint.
             indexShard.sync();
@@ -248,8 +312,8 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
                 indexShard.flush(new FlushRequest().force(true).waitIfOngoing(true));
             }
             indexShard.finalizeRecovery();
-            listener.onResponse(null);
-        }, listener::onFailure);
+            return null;
+        });
     }
 
     private boolean hasUncommittedOperations() throws IOException {

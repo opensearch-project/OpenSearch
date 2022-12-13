@@ -1895,7 +1895,13 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     indicesService,
                     clusterService,
                     threadPool,
-                    new PeerRecoveryTargetService(threadPool, transportService, recoverySettings, clusterService),
+                    new PeerRecoveryTargetService(
+                        threadPool,
+                        transportService,
+                        recoverySettings,
+                        clusterService,
+                        SegmentReplicationTargetService.NO_OP
+                    ),
                     new SegmentReplicationTargetService(
                         threadPool,
                         recoverySettings,

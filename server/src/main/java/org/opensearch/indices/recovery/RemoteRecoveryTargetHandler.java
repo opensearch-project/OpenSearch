@@ -186,6 +186,23 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
         retryableTransportClient.executeRetryableAction(action, request, translogOpsRequestOptions, responseListener, reader);
     }
 
+    /**
+     * Used with Segment replication only
+     *
+     * This function is used to force a sync target primary node with source (old primary). This is to avoid segment files
+     * conflict with replicas when target is promoted as primary.
+     * @param listener segment replication event listener
+     */
+    @Override
+    public void forceSegmentFileSync(ActionListener<Void> listener) {
+        final String action = PeerRecoveryTargetService.Actions.FORCE_SYNC;
+        final long requestSeqNo = requestSeqNoGenerator.getAndIncrement();
+        final ForceSyncRequest request = new ForceSyncRequest(requestSeqNo, recoveryId, shardId);
+        final Writeable.Reader<TransportResponse.Empty> reader = in -> TransportResponse.Empty.INSTANCE;
+        final ActionListener<TransportResponse.Empty> responseListener = ActionListener.map(listener, r -> null);
+        retryableTransportClient.executeRetryableAction(action, request, responseListener, reader);
+    }
+
     @Override
     public void receiveFileInfo(
         List<String> phase1FileNames,

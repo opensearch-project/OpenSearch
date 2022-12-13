@@ -998,6 +998,19 @@ public class Node implements Closeable {
             resourcesToClose.add(persistentTasksClusterService);
             final PersistentTasksService persistentTasksService = new PersistentTasksService(clusterService, threadPool, client);
 
+            final SegmentReplicationTargetService segmentReplicationTargetService = FeatureFlags.isEnabled(REPLICATION_TYPE)
+                ? new SegmentReplicationTargetService(
+                    threadPool,
+                    recoverySettings,
+                    transportService,
+                    new SegmentReplicationSourceFactory(transportService, recoverySettings, clusterService)
+                )
+                : SegmentReplicationTargetService.NO_OP;
+
+            final SegmentReplicationSourceService segmentReplicationSourceService = FeatureFlags.isEnabled(REPLICATION_TYPE)
+                ? new SegmentReplicationSourceService(indicesService, transportService, recoverySettings)
+                : SegmentReplicationSourceService.NO_OP;
+
             modules.add(b -> {
                 b.bind(Node.class).toInstance(this);
                 b.bind(NodeService.class).toInstance(nodeService);
@@ -1050,23 +1063,17 @@ public class Node implements Closeable {
                     b.bind(PeerRecoverySourceService.class)
                         .toInstance(new PeerRecoverySourceService(transportService, indicesService, recoverySettings));
                     b.bind(PeerRecoveryTargetService.class)
-                        .toInstance(new PeerRecoveryTargetService(threadPool, transportService, recoverySettings, clusterService));
-                    if (FeatureFlags.isEnabled(REPLICATION_TYPE)) {
-                        b.bind(SegmentReplicationTargetService.class)
-                            .toInstance(
-                                new SegmentReplicationTargetService(
-                                    threadPool,
-                                    recoverySettings,
-                                    transportService,
-                                    new SegmentReplicationSourceFactory(transportService, recoverySettings, clusterService)
-                                )
-                            );
-                        b.bind(SegmentReplicationSourceService.class)
-                            .toInstance(new SegmentReplicationSourceService(indicesService, transportService, recoverySettings));
-                    } else {
-                        b.bind(SegmentReplicationTargetService.class).toInstance(SegmentReplicationTargetService.NO_OP);
-                        b.bind(SegmentReplicationSourceService.class).toInstance(SegmentReplicationSourceService.NO_OP);
-                    }
+                        .toInstance(
+                            new PeerRecoveryTargetService(
+                                threadPool,
+                                transportService,
+                                recoverySettings,
+                                clusterService,
+                                segmentReplicationTargetService
+                            )
+                        );
+                    b.bind(SegmentReplicationTargetService.class).toInstance(segmentReplicationTargetService);
+                    b.bind(SegmentReplicationSourceService.class).toInstance(segmentReplicationSourceService);
                 }
                 b.bind(HttpServerTransport.class).toInstance(httpServerTransport);
                 pluginComponents.stream().forEach(p -> b.bind((Class) p.getClass()).toInstance(p));

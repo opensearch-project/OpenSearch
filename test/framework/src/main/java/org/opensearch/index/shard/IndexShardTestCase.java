@@ -108,6 +108,7 @@ import org.opensearch.indices.recovery.RecoverySourceHandler;
 import org.opensearch.indices.recovery.RecoverySourceHandlerFactory;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
+import org.opensearch.indices.recovery.RecoveryTargetHandler;
 import org.opensearch.indices.recovery.StartRecoveryRequest;
 import org.opensearch.indices.replication.CheckpointInfoResponse;
 import org.opensearch.indices.replication.GetSegmentFilesResponse;
@@ -169,6 +170,8 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
     };
 
     private static final AtomicBoolean failOnShardFailures = new AtomicBoolean(true);
+
+    private RecoveryTarget recoveryTarget;
 
     private static final Consumer<IndexShard.ShardFailure> DEFAULT_SHARD_FAILURE_HANDLER = failure -> {
         if (failOnShardFailures.get()) {
@@ -318,17 +321,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             .settings(indexSettings)
             .primaryTerm(0, primaryTerm)
             .putMapping("{ \"properties\": {} }");
-        return newShard(
-            shardRouting,
-            metadata.build(),
-            null,
-            engineFactory,
-            () -> {},
-            RetentionLeaseSyncer.EMPTY,
-            null,
-            SegmentReplicationTargetService.NO_OP,
-            listeners
-        );
+        return newShard(shardRouting, metadata.build(), null, engineFactory, () -> {}, RetentionLeaseSyncer.EMPTY, null, listeners);
     }
 
     /**
@@ -365,11 +358,11 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         IndexMetadata indexMetadata,
         @Nullable CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper
     ) throws IOException {
-        return newShard(shardId, primary, nodeId, indexMetadata, readerWrapper, () -> {}, SegmentReplicationTargetService.NO_OP);
+        return newShard(shardId, primary, nodeId, indexMetadata, readerWrapper, () -> {});
     }
 
     /**
-     * creates a new initializing shard. The shard will be put in its proper path under the
+     * creates a new initializing shard. The shard will will be put in its proper path under the
      * supplied node id.
      *
      * @param shardId the shard id to use
@@ -382,8 +375,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         String nodeId,
         IndexMetadata indexMetadata,
         @Nullable CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper,
-        Runnable globalCheckpointSyncer,
-        SegmentReplicationTargetService segmentReplicationTargetService
+        Runnable globalCheckpointSyncer
     ) throws IOException {
         ShardRouting shardRouting = TestShardRouting.newShardRouting(
             shardId,
@@ -399,13 +391,12 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             new InternalEngineFactory(),
             globalCheckpointSyncer,
             RetentionLeaseSyncer.EMPTY,
-            null,
-            segmentReplicationTargetService
+            null
         );
     }
 
     /**
-     * creates a new initializing shard. The shard will be put in its proper path under the
+     * creates a new initializing shard. The shard will will be put in its proper path under the
      * current node id the shard is assigned to.
      *
      * @param routing       shard routing to use
@@ -417,20 +408,9 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         IndexMetadata indexMetadata,
         @Nullable CheckedFunction<DirectoryReader, DirectoryReader, IOException> indexReaderWrapper,
         EngineFactory engineFactory,
-        SegmentReplicationTargetService segmentReplicationTargetService,
         IndexingOperationListener... listeners
     ) throws IOException {
-        return newShard(
-            routing,
-            indexMetadata,
-            indexReaderWrapper,
-            engineFactory,
-            () -> {},
-            RetentionLeaseSyncer.EMPTY,
-            null,
-            segmentReplicationTargetService,
-            listeners
-        );
+        return newShard(routing, indexMetadata, indexReaderWrapper, engineFactory, () -> {}, RetentionLeaseSyncer.EMPTY, null, listeners);
     }
 
     /**
@@ -450,7 +430,6 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         Runnable globalCheckpointSyncer,
         RetentionLeaseSyncer retentionLeaseSyncer,
         Store remoteStore,
-        SegmentReplicationTargetService segmentReplicationTargetService,
         IndexingOperationListener... listeners
     ) throws IOException {
         // add node id as name to settings for proper logging
@@ -469,7 +448,6 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             retentionLeaseSyncer,
             EMPTY_EVENT_LISTENER,
             remoteStore,
-            segmentReplicationTargetService,
             listeners
         );
     }
@@ -498,50 +476,6 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         RetentionLeaseSyncer retentionLeaseSyncer,
         IndexEventListener indexEventListener,
         Store remoteStore,
-        IndexingOperationListener... listeners
-    ) throws IOException {
-        return this.newShard(
-            routing,
-            shardPath,
-            indexMetadata,
-            storeProvider,
-            indexReaderWrapper,
-            engineFactory,
-            engineConfigFactory,
-            globalCheckpointSyncer,
-            retentionLeaseSyncer,
-            indexEventListener,
-            remoteStore,
-            SegmentReplicationTargetService.NO_OP,
-            listeners
-        );
-    }
-
-    /**
-     * creates a new initializing shard. The shard will will be put in its proper path under the
-     * current node id the shard is assigned to.
-     * @param routing                       shard routing to use
-     * @param shardPath                     path to use for shard data
-     * @param indexMetadata                 indexMetadata for the shard, including any mapping
-     * @param storeProvider                 an optional custom store provider to use. If null a default file based store will be created
-     * @param indexReaderWrapper            an optional wrapper to be used during search
-     * @param globalCheckpointSyncer        callback for syncing global checkpoints
-     * @param indexEventListener            index event listener
-     * @param listeners                     an optional set of listeners to add to the shard
-     */
-    protected IndexShard newShard(
-        ShardRouting routing,
-        ShardPath shardPath,
-        IndexMetadata indexMetadata,
-        @Nullable CheckedFunction<IndexSettings, Store, IOException> storeProvider,
-        @Nullable CheckedFunction<DirectoryReader, DirectoryReader, IOException> indexReaderWrapper,
-        @Nullable EngineFactory engineFactory,
-        @Nullable EngineConfigFactory engineConfigFactory,
-        Runnable globalCheckpointSyncer,
-        RetentionLeaseSyncer retentionLeaseSyncer,
-        IndexEventListener indexEventListener,
-        Store remoteStore,
-        SegmentReplicationTargetService segmentReplicationTargetService,
         IndexingOperationListener... listeners
     ) throws IOException {
         return newShard(
@@ -557,7 +491,6 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             indexEventListener,
             SegmentReplicationCheckpointPublisher.EMPTY,
             remoteStore,
-            segmentReplicationTargetService,
             listeners
         );
     }
@@ -587,7 +520,6 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         IndexEventListener indexEventListener,
         SegmentReplicationCheckpointPublisher checkpointPublisher,
         @Nullable Store remoteStore,
-        SegmentReplicationTargetService segmentReplicationTargetService,
         IndexingOperationListener... listeners
     ) throws IOException {
         final Settings nodeSettings = Settings.builder().put("node.name", routing.currentNodeId()).build();
@@ -641,8 +573,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 breakerService,
                 new InternalTranslogFactory(),
                 checkpointPublisher,
-                remoteStore,
-                segmentReplicationTargetService
+                remoteStore
             );
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             success = true;
@@ -738,7 +669,6 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             current.getRetentionLeaseSyncer(),
             EMPTY_EVENT_LISTENER,
             remoteStore,
-            SegmentReplicationTargetService.NO_OP,
             listeners
         );
     }
@@ -878,9 +808,30 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         );
     }
 
+    protected void recoverReplica(
+        IndexShard replica,
+        IndexShard primary,
+        boolean startReplica,
+        SegmentReplicationTargetService segmentReplicationTargetService
+    ) throws IOException {
+        recoverReplica(
+            replica,
+            primary,
+            (r, sourceNode) -> new RecoveryTarget(r, sourceNode, recoveryListener, segmentReplicationTargetService),
+            true,
+            startReplica
+        );
+    }
+
     /** recovers a replica from the given primary **/
     protected void recoverReplica(IndexShard replica, IndexShard primary, boolean startReplica) throws IOException {
-        recoverReplica(replica, primary, (r, sourceNode) -> new RecoveryTarget(r, sourceNode, recoveryListener), true, startReplica);
+        recoverReplica(
+            replica,
+            primary,
+            (r, sourceNode) -> new RecoveryTarget(r, sourceNode, recoveryListener, SegmentReplicationTargetService.NO_OP),
+            true,
+            startReplica
+        );
     }
 
     /** recovers a replica from the given primary **/
@@ -904,6 +855,29 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         }
     }
 
+    private RecoveryTargetHandler getRecoveryTarget(RecoveryTarget recoveryTarget) {
+        return new AsyncRecoveryTarget(recoveryTarget, threadPool.generic());
+    }
+
+    protected final void recoverUnstartedReplica(
+        final IndexShard replica,
+        final IndexShard primary,
+        final BiFunction<IndexShard, DiscoveryNode, RecoveryTarget> targetSupplier,
+        final boolean markAsRecovering,
+        final Set<String> inSyncIds,
+        final IndexShardRoutingTable routingTable
+    ) throws IOException {
+        this.recoverUnstartedReplica(
+            replica,
+            primary,
+            targetSupplier,
+            markAsRecovering,
+            inSyncIds,
+            routingTable,
+            SegmentReplicationTargetService.NO_OP
+        );
+    }
+
     /**
      * Recovers a replica from the give primary, allow the user to supply a custom recovery target. A typical usage of a custom recovery
      * target is to assert things in the various stages of recovery.
@@ -921,7 +895,8 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         final BiFunction<IndexShard, DiscoveryNode, RecoveryTarget> targetSupplier,
         final boolean markAsRecovering,
         final Set<String> inSyncIds,
-        final IndexShardRoutingTable routingTable
+        final IndexShardRoutingTable routingTable,
+        final SegmentReplicationTargetService segmentReplicationTargetService
     ) throws IOException {
         final DiscoveryNode pNode = getFakeDiscoNode(primary.routingEntry().currentNodeId());
         final DiscoveryNode rNode = getFakeDiscoNode(replica.routingEntry().currentNodeId());
@@ -955,7 +930,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         recoverySettings.setChunkSize(new ByteSizeValue(fileChunkSizeInBytes));
         final RecoverySourceHandler recovery = RecoverySourceHandlerFactory.create(
             primary,
-            new AsyncRecoveryTarget(recoveryTarget, threadPool.generic()),
+            new AsyncRecoveryTarget(recoveryTarget, threadPool.generic(), segmentReplicationTargetService),
             request,
             recoverySettings
         );

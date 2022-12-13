@@ -32,8 +32,6 @@
 
 package org.opensearch.cluster.routing;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.Nullable;
@@ -96,8 +94,6 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
      * If we can come up with a better variable name, it would be nice...
      */
     final List<ShardRouting> allInitializingShards;
-
-    private static final Logger logger = LogManager.getLogger(IndexShardRoutingTable.class);
 
     IndexShardRoutingTable(ShardId shardId, List<ShardRouting> shards) {
         this.shardId = shardId;
@@ -868,7 +864,6 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
 
         public IndexShardRoutingTable build() {
             // don't allow more than one shard copy with same id to be allocated to same node
-            logger.info("--> shards {}", shards);
             assert distinctNodes(shards) : "more than one shard with same id assigned to same node (shards: " + shards + ")";
             return new IndexShardRoutingTable(shardId, Collections.unmodifiableList(new ArrayList<>(shards)));
         }

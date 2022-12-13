@@ -10,14 +10,11 @@ package org.opensearch.indices.replication;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.opensearch.OpenSearchCorruptionException;
-import org.opensearch.action.ActionFuture;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.opensearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.opensearch.action.admin.indices.segments.IndexShardSegments;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.opensearch.action.admin.indices.segments.ShardSegments;
-import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.support.WriteRequest;
 import org.opensearch.action.update.UpdateResponse;
 import org.opensearch.client.Requests;
@@ -26,9 +23,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
-import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.allocation.command.CancelAllocationCommand;
-import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
@@ -50,7 +45,6 @@ import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Arrays;
 import java.util.List;
@@ -71,9 +65,9 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchHits
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class SegmentReplicationIT extends OpenSearchIntegTestCase {
 
-    private static final String INDEX_NAME = "test-idx-1";
-    private static final int SHARD_COUNT = 1;
-    private static final int REPLICA_COUNT = 1;
+    protected static final String INDEX_NAME = "test-idx-1";
+    protected static final int SHARD_COUNT = 1;
+    protected static final int REPLICA_COUNT = 1;
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -96,8 +90,6 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
         return false;
     }
 
-    private final TimeValue ACCEPTABLE_RELOCATION_TIME = new TimeValue(5, TimeUnit.MINUTES);
-
     public void ingestDocs(int docCount) throws Exception {
         try (
             BackgroundIndexer indexer = new BackgroundIndexer(
@@ -115,166 +107,6 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
             refresh(INDEX_NAME);
             waitForReplicaUpdate();
         }
-    }
-
-    /**
-     * This test relocates a primary shard to a newly added node in the cluster. Before relocation and after relocation
-     * we index documents. We don't perform any flush before relocation is done.
-     */
-    public void testSimplePrimaryRelocationWithoutFlushBeforeRelocation() throws Exception {
-        logger.info("--> starting [primary] ...");
-        final String old_primary = internalCluster().startNode();
-
-        logger.info("--> creating test index ...");
-        prepareCreate(
-            INDEX_NAME,
-            Settings.builder()
-                .put("index.number_of_shards", 1)
-                .put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), false)
-                .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-                .put("index.number_of_replicas", 1)
-        ).get();
-
-        final String replica = internalCluster().startNode();
-
-        ensureGreen(INDEX_NAME);
-        final int initialDocCount = scaledRandomIntBetween(0, 200);
-        ingestDocs(initialDocCount);
-
-        logger.info("--> verifying count {}", initialDocCount);
-        assertHitCount(client(old_primary).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), initialDocCount);
-        assertHitCount(client(replica).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), initialDocCount);
-
-        logger.info("--> start another node");
-        final String new_primary = internalCluster().startNode();
-        ClusterHealthResponse clusterHealthResponse = client().admin()
-            .cluster()
-            .prepareHealth()
-            .setWaitForEvents(Priority.LANGUID)
-            .setWaitForNodes("3")
-            .execute()
-            .actionGet();
-        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
-
-        ClusterState state = client().admin().cluster().prepareState().execute().actionGet().getState();
-        logger.info("--> cluster state before relocation {}", state);
-
-        logger.info("--> relocate the shard");
-
-        client().admin()
-            .cluster()
-            .prepareReroute()
-            .add(new MoveAllocationCommand(INDEX_NAME, 0, old_primary, new_primary))
-            .execute()
-            .actionGet();
-        clusterHealthResponse = client().admin()
-            .cluster()
-            .prepareHealth()
-            .setWaitForEvents(Priority.LANGUID)
-            .setWaitForNoRelocatingShards(true)
-            .setTimeout(ACCEPTABLE_RELOCATION_TIME)
-            .execute()
-            .actionGet();
-        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
-
-        logger.info("--> get the state, verify shard 1 primary moved from node1 to node2");
-        state = client().admin().cluster().prepareState().execute().actionGet().getState();
-        // assertThat(state.getRoutingNodes().unassigned().size(), equalTo(1));
-        assertThat(
-            state.getRoutingNodes().node(state.nodes().resolveNode(new_primary).getId()).iterator().next().state(),
-            equalTo(ShardRoutingState.STARTED)
-        );
-
-        final int finalDocCount = 1;
-        client().prepareIndex(INDEX_NAME).setId("201").setSource("bar", "baz").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
-        refresh(INDEX_NAME);
-        waitForReplicaUpdate();
-
-        logger.info("--> verifying count again {} + {}", initialDocCount, finalDocCount);
-        client().admin().indices().prepareRefresh().execute().actionGet();
-        assertHitCount(
-            client(new_primary).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(),
-            initialDocCount + finalDocCount
-        );
-        assertHitCount(
-            client(replica).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(),
-            initialDocCount + finalDocCount
-        );
-
-    }
-
-    public void testRelocateWhileContinuouslyIndexingAndWaitingForRefresh() throws Exception {
-        logger.info("--> starting [primary] ...");
-        final String primary = internalCluster().startNode();
-
-        logger.info("--> creating test index ...");
-        prepareCreate(
-            INDEX_NAME,
-            Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).put("index.refresh_interval", -1)
-        ).get();
-
-        logger.info("--> index 10 docs");
-        for (int i = 0; i < 10; i++) {
-            client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
-        }
-        logger.info("--> flush so we have an actual index");
-        client().admin().indices().prepareFlush().execute().actionGet();
-        logger.info("--> index more docs so we have something in the translog");
-        final List<ActionFuture<IndexResponse>> pendingIndexResponses = new ArrayList<>();
-        for (int i = 10; i < 20; i++) {
-            pendingIndexResponses.add(
-                client().prepareIndex(INDEX_NAME)
-                    .setId(Integer.toString(i))
-                    .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL)
-                    .setSource("field", "value" + i)
-                    .execute()
-            );
-        }
-
-        logger.info("--> start another node");
-        final String replica = internalCluster().startNode();
-        ClusterHealthResponse clusterHealthResponse = client().admin()
-            .cluster()
-            .prepareHealth()
-            .setWaitForEvents(Priority.LANGUID)
-            .setWaitForNodes("2")
-            .execute()
-            .actionGet();
-        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
-
-        logger.info("--> relocate the shard from primary to replica");
-        ActionFuture<ClusterRerouteResponse> relocationListener = client().admin()
-            .cluster()
-            .prepareReroute()
-            .add(new MoveAllocationCommand(INDEX_NAME, 0, primary, replica))
-            .execute();
-        logger.info("--> index 100 docs while relocating");
-        for (int i = 20; i < 120; i++) {
-            pendingIndexResponses.add(
-                client().prepareIndex(INDEX_NAME)
-                    .setId(Integer.toString(i))
-                    .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL)
-                    .setSource("field", "value" + i)
-                    .execute()
-            );
-        }
-        relocationListener.actionGet();
-        clusterHealthResponse = client().admin()
-            .cluster()
-            .prepareHealth()
-            .setWaitForEvents(Priority.LANGUID)
-            .setWaitForNoRelocatingShards(true)
-            .setTimeout(ACCEPTABLE_RELOCATION_TIME)
-            .execute()
-            .actionGet();
-        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
-
-        logger.info("--> verifying count");
-        assertBusy(() -> {
-            client().admin().indices().prepareRefresh().execute().actionGet();
-            assertTrue(pendingIndexResponses.stream().allMatch(ActionFuture::isDone));
-        }, 1, TimeUnit.MINUTES);
-        assertHitCount(client().prepareSearch(INDEX_NAME).setSize(0).get(), 120);
     }
 
     public void testPrimaryStopped_ReplicaPromoted() throws Exception {
@@ -947,7 +779,7 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
                 // if we don't have any segments yet, proceed.
                 final ShardSegments primaryShardSegments = primaryShardSegmentsList.stream().findFirst().get();
                 logger.debug("Primary Segments: {}", primaryShardSegments.getSegments());
-                if (primaryShardSegments.getSegments().isEmpty() == false) {
+                if (primaryShardSegments.getSegments().isEmpty() == false && replicaShardSegments != null) {
                     final Map<String, Segment> latestPrimarySegments = getLatestSegments(primaryShardSegments);
                     final Long latestPrimaryGen = latestPrimarySegments.values().stream().findFirst().map(Segment::getGeneration).get();
                     for (ShardSegments shardSegments : replicaShardSegments) {
@@ -962,7 +794,7 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
         });
     }
 
-    private IndexShard getIndexShard(String node) {
+    protected IndexShard getIndexShard(String node) {
         final Index index = resolveIndex(INDEX_NAME);
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
         IndexService indexService = indicesService.indexServiceSafe(index);
