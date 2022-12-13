@@ -48,4 +48,5 @@ public class FeatureFlagTests extends OpenSearchTestCase {
         assertNotNull(System.getProperty(remoteStoreFlag));
         assertTrue(FeatureFlags.isEnabled(remoteStoreFlag));
     }
+
 }
