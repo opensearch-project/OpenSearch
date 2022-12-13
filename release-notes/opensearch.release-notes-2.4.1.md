@@ -20,3 +20,4 @@
 * Update Apache Lucene to 9.4.2 ([#5354](https://github.com/opensearch-project/opensearch/pull/5354)) ([#5361](https://github.com/opensearch-project/opensearch/pull/5361))
 * Update Jackson to 2.14.1 ([#5346](https://github.com/opensearch-project/opensearch/pull/5346)) ([#5358](https://github.com/opensearch-project/opensearch/pull/5358))
 * Bump nebula-publishing-plugin from v4.4.0 to v4.6.0. ([#5127](https://github.com/opensearch-project/opensearch/pull/5127)) ([#5131](https://github.com/opensearch-project/opensearch/pull/5131))
+* Bump commons-compress from 1.21 to 1.22 ([#5520]https://github.com/opensearch-project/OpenSearch/pull/5520)
