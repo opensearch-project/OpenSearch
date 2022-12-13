@@ -1,38 +1,22 @@
 package org.opensearch.benchmark.fs.jmh_generated;
 
-import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.Collection;
-import java.util.ArrayList;
 import java.util.concurrent.TimeUnit;
-import org.openjdk.jmh.annotations.CompilerControl;
 import org.openjdk.jmh.runner.InfraControl;
 import org.openjdk.jmh.infra.ThreadParams;
 import org.openjdk.jmh.results.BenchmarkTaskResult;
-import org.openjdk.jmh.results.Result;
 import org.openjdk.jmh.results.ThroughputResult;
 import org.openjdk.jmh.results.AverageTimeResult;
 import org.openjdk.jmh.results.SampleTimeResult;
 import org.openjdk.jmh.results.SingleShotResult;
 import org.openjdk.jmh.util.SampleBuffer;
-import org.openjdk.jmh.annotations.Mode;
-import org.openjdk.jmh.annotations.Fork;
-import org.openjdk.jmh.annotations.Measurement;
-import org.openjdk.jmh.annotations.Threads;
-import org.openjdk.jmh.annotations.Warmup;
-import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.results.RawResults;
 import org.openjdk.jmh.results.ResultRole;
-import java.lang.reflect.Field;
 import org.openjdk.jmh.infra.BenchmarkParams;
 import org.openjdk.jmh.infra.IterationParams;
 import org.openjdk.jmh.infra.Blackhole;
 import org.openjdk.jmh.infra.Control;
-import org.openjdk.jmh.results.ScalarResult;
-import org.openjdk.jmh.results.AggregationPolicy;
 import org.openjdk.jmh.runner.FailureAssistException;
 
-import org.opensearch.benchmark.fs.jmh_generated.AvailableIndexFoldersBenchmark_jmhType;
 public final class AvailableIndexFoldersBenchmark_availableIndexFolderOptimized_jmhTest {
 
     byte p000, p001, p002, p003, p004, p005, p006, p007, p008, p009, p010, p011, p012, p013, p014, p015;
@@ -61,17 +45,18 @@ public final class AvailableIndexFoldersBenchmark_availableIndexFolderOptimized_
     public BenchmarkTaskResult availableIndexFolderOptimized_Throughput(InfraControl control, ThreadParams threadParams) throws Throwable {
         this.benchmarkParams = control.benchmarkParams;
         this.iterationParams = control.iterationParams;
-        this.threadParams    = threadParams;
-        this.notifyControl   = control.notifyControl;
+        this.threadParams = threadParams;
+        this.notifyControl = control.notifyControl;
         if (this.blackhole == null) {
             this.blackhole = new Blackhole("Today's password is swordfish. I understand instantiating Blackholes directly is dangerous.");
         }
         if (threadParams.getSubgroupIndex() == 0) {
             RawResults res = new RawResults();
-            AvailableIndexFoldersBenchmark_jmhType l_availableindexfoldersbenchmark0_G = _jmh_tryInit_f_availableindexfoldersbenchmark0_G(control);
+            AvailableIndexFoldersBenchmark_jmhType l_availableindexfoldersbenchmark0_G = _jmh_tryInit_f_availableindexfoldersbenchmark0_G(
+                control
+            );
 
             control.preSetup();
-
 
             control.announceWarmupReady();
             while (control.warmupShouldWait) {
@@ -80,7 +65,17 @@ public final class AvailableIndexFoldersBenchmark_availableIndexFolderOptimized_
             }
 
             notifyControl.startMeasurement = true;
-            availableIndexFolderOptimized_thrpt_jmhStub(control, res, benchmarkParams, iterationParams, threadParams, blackhole, notifyControl, startRndMask, l_availableindexfoldersbenchmark0_G);
+            availableIndexFolderOptimized_thrpt_jmhStub(
+                control,
+                res,
+                benchmarkParams,
+                iterationParams,
+                threadParams,
+                blackhole,
+                notifyControl,
+                startRndMask,
+                l_availableindexfoldersbenchmark0_G
+            );
             notifyControl.stopMeasurement = true;
             control.announceWarmdownReady();
             try {
@@ -115,7 +110,7 @@ public final class AvailableIndexFoldersBenchmark_availableIndexFolderOptimized_
                         if (Thread.interrupted()) throw new InterruptedException();
                     }
                 }
-                synchronized(this.getClass()) {
+                synchronized (this.getClass()) {
                     f_availableindexfoldersbenchmark0_G = null;
                 }
             }
@@ -126,42 +121,59 @@ public final class AvailableIndexFoldersBenchmark_availableIndexFolderOptimized_
             res.allOps /= batchSize;
             res.measuredOps *= opsPerInv;
             res.measuredOps /= batchSize;
-            BenchmarkTaskResult results = new BenchmarkTaskResult((long)res.allOps, (long)res.measuredOps);
-            results.add(new ThroughputResult(ResultRole.PRIMARY, "availableIndexFolderOptimized", res.measuredOps, res.getTime(), benchmarkParams.getTimeUnit()));
+            BenchmarkTaskResult results = new BenchmarkTaskResult((long) res.allOps, (long) res.measuredOps);
+            results.add(
+                new ThroughputResult(
+                    ResultRole.PRIMARY,
+                    "availableIndexFolderOptimized",
+                    res.measuredOps,
+                    res.getTime(),
+                    benchmarkParams.getTimeUnit()
+                )
+            );
             this.blackhole.evaporate("Yes, I am Stephen Hawking, and know a thing or two about black holes.");
             return results;
-        } else
-            throw new IllegalStateException("Harness failed to distribute threads among groups properly");
+        } else throw new IllegalStateException("Harness failed to distribute threads among groups properly");
     }
 
-    public static void availableIndexFolderOptimized_thrpt_jmhStub(InfraControl control, RawResults result, BenchmarkParams benchmarkParams, IterationParams iterationParams, ThreadParams threadParams, Blackhole blackhole, Control notifyControl, int startRndMask, AvailableIndexFoldersBenchmark_jmhType l_availableindexfoldersbenchmark0_G) throws Throwable {
+    public static void availableIndexFolderOptimized_thrpt_jmhStub(
+        InfraControl control,
+        RawResults result,
+        BenchmarkParams benchmarkParams,
+        IterationParams iterationParams,
+        ThreadParams threadParams,
+        Blackhole blackhole,
+        Control notifyControl,
+        int startRndMask,
+        AvailableIndexFoldersBenchmark_jmhType l_availableindexfoldersbenchmark0_G
+    ) throws Throwable {
         long operations = 0;
         long realTime = 0;
         result.startTime = System.nanoTime();
         do {
             blackhole.consume(l_availableindexfoldersbenchmark0_G.availableIndexFolderOptimized());
             operations++;
-        } while(!control.isDone);
+        } while (!control.isDone);
         result.stopTime = System.nanoTime();
         result.realTime = realTime;
         result.measuredOps = operations;
     }
-
 
     public BenchmarkTaskResult availableIndexFolderOptimized_AverageTime(InfraControl control, ThreadParams threadParams) throws Throwable {
         this.benchmarkParams = control.benchmarkParams;
         this.iterationParams = control.iterationParams;
-        this.threadParams    = threadParams;
-        this.notifyControl   = control.notifyControl;
+        this.threadParams = threadParams;
+        this.notifyControl = control.notifyControl;
         if (this.blackhole == null) {
             this.blackhole = new Blackhole("Today's password is swordfish. I understand instantiating Blackholes directly is dangerous.");
         }
         if (threadParams.getSubgroupIndex() == 0) {
             RawResults res = new RawResults();
-            AvailableIndexFoldersBenchmark_jmhType l_availableindexfoldersbenchmark0_G = _jmh_tryInit_f_availableindexfoldersbenchmark0_G(control);
+            AvailableIndexFoldersBenchmark_jmhType l_availableindexfoldersbenchmark0_G = _jmh_tryInit_f_availableindexfoldersbenchmark0_G(
+                control
+            );
 
             control.preSetup();
-
 
             control.announceWarmupReady();
             while (control.warmupShouldWait) {
@@ -170,7 +182,17 @@ public final class AvailableIndexFoldersBenchmark_availableIndexFolderOptimized_
             }
 
             notifyControl.startMeasurement = true;
-            availableIndexFolderOptimized_avgt_jmhStub(control, res, benchmarkParams, iterationParams, threadParams, blackhole, notifyControl, startRndMask, l_availableindexfoldersbenchmark0_G);
+            availableIndexFolderOptimized_avgt_jmhStub(
+                control,
+                res,
+                benchmarkParams,
+                iterationParams,
+                threadParams,
+                blackhole,
+                notifyControl,
+                startRndMask,
+                l_availableindexfoldersbenchmark0_G
+            );
             notifyControl.stopMeasurement = true;
             control.announceWarmdownReady();
             try {
@@ -205,7 +227,7 @@ public final class AvailableIndexFoldersBenchmark_availableIndexFolderOptimized_
                         if (Thread.interrupted()) throw new InterruptedException();
                     }
                 }
-                synchronized(this.getClass()) {
+                synchronized (this.getClass()) {
                     f_availableindexfoldersbenchmark0_G = null;
                 }
             }
@@ -216,42 +238,59 @@ public final class AvailableIndexFoldersBenchmark_availableIndexFolderOptimized_
             res.allOps /= batchSize;
             res.measuredOps *= opsPerInv;
             res.measuredOps /= batchSize;
-            BenchmarkTaskResult results = new BenchmarkTaskResult((long)res.allOps, (long)res.measuredOps);
-            results.add(new AverageTimeResult(ResultRole.PRIMARY, "availableIndexFolderOptimized", res.measuredOps, res.getTime(), benchmarkParams.getTimeUnit()));
+            BenchmarkTaskResult results = new BenchmarkTaskResult((long) res.allOps, (long) res.measuredOps);
+            results.add(
+                new AverageTimeResult(
+                    ResultRole.PRIMARY,
+                    "availableIndexFolderOptimized",
+                    res.measuredOps,
+                    res.getTime(),
+                    benchmarkParams.getTimeUnit()
+                )
+            );
             this.blackhole.evaporate("Yes, I am Stephen Hawking, and know a thing or two about black holes.");
             return results;
-        } else
-            throw new IllegalStateException("Harness failed to distribute threads among groups properly");
+        } else throw new IllegalStateException("Harness failed to distribute threads among groups properly");
     }
 
-    public static void availableIndexFolderOptimized_avgt_jmhStub(InfraControl control, RawResults result, BenchmarkParams benchmarkParams, IterationParams iterationParams, ThreadParams threadParams, Blackhole blackhole, Control notifyControl, int startRndMask, AvailableIndexFoldersBenchmark_jmhType l_availableindexfoldersbenchmark0_G) throws Throwable {
+    public static void availableIndexFolderOptimized_avgt_jmhStub(
+        InfraControl control,
+        RawResults result,
+        BenchmarkParams benchmarkParams,
+        IterationParams iterationParams,
+        ThreadParams threadParams,
+        Blackhole blackhole,
+        Control notifyControl,
+        int startRndMask,
+        AvailableIndexFoldersBenchmark_jmhType l_availableindexfoldersbenchmark0_G
+    ) throws Throwable {
         long operations = 0;
         long realTime = 0;
         result.startTime = System.nanoTime();
         do {
             blackhole.consume(l_availableindexfoldersbenchmark0_G.availableIndexFolderOptimized());
             operations++;
-        } while(!control.isDone);
+        } while (!control.isDone);
         result.stopTime = System.nanoTime();
         result.realTime = realTime;
         result.measuredOps = operations;
     }
 
-
     public BenchmarkTaskResult availableIndexFolderOptimized_SampleTime(InfraControl control, ThreadParams threadParams) throws Throwable {
         this.benchmarkParams = control.benchmarkParams;
         this.iterationParams = control.iterationParams;
-        this.threadParams    = threadParams;
-        this.notifyControl   = control.notifyControl;
+        this.threadParams = threadParams;
+        this.notifyControl = control.notifyControl;
         if (this.blackhole == null) {
             this.blackhole = new Blackhole("Today's password is swordfish. I understand instantiating Blackholes directly is dangerous.");
         }
         if (threadParams.getSubgroupIndex() == 0) {
             RawResults res = new RawResults();
-            AvailableIndexFoldersBenchmark_jmhType l_availableindexfoldersbenchmark0_G = _jmh_tryInit_f_availableindexfoldersbenchmark0_G(control);
+            AvailableIndexFoldersBenchmark_jmhType l_availableindexfoldersbenchmark0_G = _jmh_tryInit_f_availableindexfoldersbenchmark0_G(
+                control
+            );
 
             control.preSetup();
-
 
             control.announceWarmupReady();
             while (control.warmupShouldWait) {
@@ -264,7 +303,21 @@ public final class AvailableIndexFoldersBenchmark_availableIndexFolderOptimized_
             int batchSize = iterationParams.getBatchSize();
             int opsPerInv = benchmarkParams.getOpsPerInvocation();
             SampleBuffer buffer = new SampleBuffer();
-            availableIndexFolderOptimized_sample_jmhStub(control, res, benchmarkParams, iterationParams, threadParams, blackhole, notifyControl, startRndMask, buffer, targetSamples, opsPerInv, batchSize, l_availableindexfoldersbenchmark0_G);
+            availableIndexFolderOptimized_sample_jmhStub(
+                control,
+                res,
+                benchmarkParams,
+                iterationParams,
+                threadParams,
+                blackhole,
+                notifyControl,
+                startRndMask,
+                buffer,
+                targetSamples,
+                opsPerInv,
+                batchSize,
+                l_availableindexfoldersbenchmark0_G
+            );
             notifyControl.stopMeasurement = true;
             control.announceWarmdownReady();
             try {
@@ -299,7 +352,7 @@ public final class AvailableIndexFoldersBenchmark_availableIndexFolderOptimized_
                         if (Thread.interrupted()) throw new InterruptedException();
                     }
                 }
-                synchronized(this.getClass()) {
+                synchronized (this.getClass()) {
                     f_availableindexfoldersbenchmark0_G = null;
                 }
             }
@@ -307,18 +360,31 @@ public final class AvailableIndexFoldersBenchmark_availableIndexFolderOptimized_
             res.allOps *= opsPerInv;
             res.allOps /= batchSize;
             res.measuredOps *= opsPerInv;
-            BenchmarkTaskResult results = new BenchmarkTaskResult((long)res.allOps, (long)res.measuredOps);
+            BenchmarkTaskResult results = new BenchmarkTaskResult((long) res.allOps, (long) res.measuredOps);
             results.add(new SampleTimeResult(ResultRole.PRIMARY, "availableIndexFolderOptimized", buffer, benchmarkParams.getTimeUnit()));
             this.blackhole.evaporate("Yes, I am Stephen Hawking, and know a thing or two about black holes.");
             return results;
-        } else
-            throw new IllegalStateException("Harness failed to distribute threads among groups properly");
+        } else throw new IllegalStateException("Harness failed to distribute threads among groups properly");
     }
 
-    public static void availableIndexFolderOptimized_sample_jmhStub(InfraControl control, RawResults result, BenchmarkParams benchmarkParams, IterationParams iterationParams, ThreadParams threadParams, Blackhole blackhole, Control notifyControl, int startRndMask, SampleBuffer buffer, int targetSamples, long opsPerInv, int batchSize, AvailableIndexFoldersBenchmark_jmhType l_availableindexfoldersbenchmark0_G) throws Throwable {
+    public static void availableIndexFolderOptimized_sample_jmhStub(
+        InfraControl control,
+        RawResults result,
+        BenchmarkParams benchmarkParams,
+        IterationParams iterationParams,
+        ThreadParams threadParams,
+        Blackhole blackhole,
+        Control notifyControl,
+        int startRndMask,
+        SampleBuffer buffer,
+        int targetSamples,
+        long opsPerInv,
+        int batchSize,
+        AvailableIndexFoldersBenchmark_jmhType l_availableindexfoldersbenchmark0_G
+    ) throws Throwable {
         long realTime = 0;
         long operations = 0;
-        int rnd = (int)System.nanoTime();
+        int rnd = (int) System.nanoTime();
         int rndMask = startRndMask;
         long time = 0;
         int currentStride = 0;
@@ -341,31 +407,43 @@ public final class AvailableIndexFoldersBenchmark_availableIndexFolderOptimized_
                 }
             }
             operations++;
-        } while(!control.isDone);
+        } while (!control.isDone);
         startRndMask = Math.max(startRndMask, rndMask);
         result.realTime = realTime;
         result.measuredOps = operations;
     }
 
-
-    public BenchmarkTaskResult availableIndexFolderOptimized_SingleShotTime(InfraControl control, ThreadParams threadParams) throws Throwable {
+    public BenchmarkTaskResult availableIndexFolderOptimized_SingleShotTime(InfraControl control, ThreadParams threadParams)
+        throws Throwable {
         this.benchmarkParams = control.benchmarkParams;
         this.iterationParams = control.iterationParams;
-        this.threadParams    = threadParams;
-        this.notifyControl   = control.notifyControl;
+        this.threadParams = threadParams;
+        this.notifyControl = control.notifyControl;
         if (this.blackhole == null) {
             this.blackhole = new Blackhole("Today's password is swordfish. I understand instantiating Blackholes directly is dangerous.");
         }
         if (threadParams.getSubgroupIndex() == 0) {
-            AvailableIndexFoldersBenchmark_jmhType l_availableindexfoldersbenchmark0_G = _jmh_tryInit_f_availableindexfoldersbenchmark0_G(control);
+            AvailableIndexFoldersBenchmark_jmhType l_availableindexfoldersbenchmark0_G = _jmh_tryInit_f_availableindexfoldersbenchmark0_G(
+                control
+            );
 
             control.preSetup();
-
 
             notifyControl.startMeasurement = true;
             RawResults res = new RawResults();
             int batchSize = iterationParams.getBatchSize();
-            availableIndexFolderOptimized_ss_jmhStub(control, res, benchmarkParams, iterationParams, threadParams, blackhole, notifyControl, startRndMask, batchSize, l_availableindexfoldersbenchmark0_G);
+            availableIndexFolderOptimized_ss_jmhStub(
+                control,
+                res,
+                benchmarkParams,
+                iterationParams,
+                threadParams,
+                blackhole,
+                notifyControl,
+                startRndMask,
+                batchSize,
+                l_availableindexfoldersbenchmark0_G
+            );
             control.preTearDown();
 
             if (control.isLastIteration()) {
@@ -390,21 +468,39 @@ public final class AvailableIndexFoldersBenchmark_availableIndexFolderOptimized_
                         if (Thread.interrupted()) throw new InterruptedException();
                     }
                 }
-                synchronized(this.getClass()) {
+                synchronized (this.getClass()) {
                     f_availableindexfoldersbenchmark0_G = null;
                 }
             }
             int opsPerInv = control.benchmarkParams.getOpsPerInvocation();
             long totalOps = opsPerInv;
             BenchmarkTaskResult results = new BenchmarkTaskResult(totalOps, totalOps);
-            results.add(new SingleShotResult(ResultRole.PRIMARY, "availableIndexFolderOptimized", res.getTime(), totalOps, benchmarkParams.getTimeUnit()));
+            results.add(
+                new SingleShotResult(
+                    ResultRole.PRIMARY,
+                    "availableIndexFolderOptimized",
+                    res.getTime(),
+                    totalOps,
+                    benchmarkParams.getTimeUnit()
+                )
+            );
             this.blackhole.evaporate("Yes, I am Stephen Hawking, and know a thing or two about black holes.");
             return results;
-        } else
-            throw new IllegalStateException("Harness failed to distribute threads among groups properly");
+        } else throw new IllegalStateException("Harness failed to distribute threads among groups properly");
     }
 
-    public static void availableIndexFolderOptimized_ss_jmhStub(InfraControl control, RawResults result, BenchmarkParams benchmarkParams, IterationParams iterationParams, ThreadParams threadParams, Blackhole blackhole, Control notifyControl, int startRndMask, int batchSize, AvailableIndexFoldersBenchmark_jmhType l_availableindexfoldersbenchmark0_G) throws Throwable {
+    public static void availableIndexFolderOptimized_ss_jmhStub(
+        InfraControl control,
+        RawResults result,
+        BenchmarkParams benchmarkParams,
+        IterationParams iterationParams,
+        ThreadParams threadParams,
+        Blackhole blackhole,
+        Control notifyControl,
+        int startRndMask,
+        int batchSize,
+        AvailableIndexFoldersBenchmark_jmhType l_availableindexfoldersbenchmark0_G
+    ) throws Throwable {
         long realTime = 0;
         result.startTime = System.nanoTime();
         for (int b = 0; b < batchSize; b++) {
@@ -415,25 +511,24 @@ public final class AvailableIndexFoldersBenchmark_availableIndexFolderOptimized_
         result.realTime = realTime;
     }
 
-    
     static volatile AvailableIndexFoldersBenchmark_jmhType f_availableindexfoldersbenchmark0_G;
-    
+
     AvailableIndexFoldersBenchmark_jmhType _jmh_tryInit_f_availableindexfoldersbenchmark0_G(InfraControl control) throws Throwable {
         AvailableIndexFoldersBenchmark_jmhType val = f_availableindexfoldersbenchmark0_G;
         if (val != null) {
             return val;
         }
-        synchronized(this.getClass()) {
+        synchronized (this.getClass()) {
             try {
-            if (control.isFailing) throw new FailureAssistException();
-            val = f_availableindexfoldersbenchmark0_G;
-            if (val != null) {
-                return val;
-            }
-            val = new AvailableIndexFoldersBenchmark_jmhType();
-            val.setup();
-            val.readyTrial = true;
-            f_availableindexfoldersbenchmark0_G = val;
+                if (control.isFailing) throw new FailureAssistException();
+                val = f_availableindexfoldersbenchmark0_G;
+                if (val != null) {
+                    return val;
+                }
+                val = new AvailableIndexFoldersBenchmark_jmhType();
+                val.setup();
+                val.readyTrial = true;
+                f_availableindexfoldersbenchmark0_G = val;
             } catch (Throwable t) {
                 control.isFailing = true;
                 throw t;
@@ -442,6 +537,4 @@ public final class AvailableIndexFoldersBenchmark_availableIndexFolderOptimized_
         return val;
     }
 
-
 }
-

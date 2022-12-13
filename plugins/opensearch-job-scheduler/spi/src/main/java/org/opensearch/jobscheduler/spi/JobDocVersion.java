@@ -50,10 +50,10 @@ public class JobDocVersion implements Comparable<JobDocVersion> {
         if (this.seqNo > v.seqNo) {
             return 1;
         }
-        if(this.primaryTerm < v.primaryTerm) {
+        if (this.primaryTerm < v.primaryTerm) {
             return -1;
         }
-        if(this.primaryTerm > v.primaryTerm) {
+        if (this.primaryTerm > v.primaryTerm) {
             return 1;
         }
         return 0;
@@ -61,7 +61,12 @@ public class JobDocVersion implements Comparable<JobDocVersion> {
 
     @Override
     public String toString() {
-        return String.format(Locale.getDefault(), "{_version: %s, _primary_term: %s, _seq_no: %s}", this.version,
-                this.primaryTerm, this.seqNo);
+        return String.format(
+            Locale.getDefault(),
+            "{_version: %s, _primary_term: %s, _seq_no: %s}",
+            this.version,
+            this.primaryTerm,
+            this.seqNo
+        );
     }
 }

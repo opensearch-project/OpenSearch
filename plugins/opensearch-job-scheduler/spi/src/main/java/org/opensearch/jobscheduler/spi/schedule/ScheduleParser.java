@@ -21,7 +21,7 @@ public class ScheduleParser {
     public static Schedule parse(XContentParser parser) throws IOException {
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
 
-        while(!XContentParser.Token.END_OBJECT.equals(parser.nextToken())) {
+        while (!XContentParser.Token.END_OBJECT.equals(parser.nextToken())) {
             String fieldName = parser.currentName();
             parser.nextToken();
             switch (fieldName) {
@@ -33,19 +33,20 @@ public class ScheduleParser {
                         String cronField = parser.currentName();
                         parser.nextToken();
                         switch (cronField) {
-                            case CronSchedule.EXPRESSION_FIELD: expression = parser.text();
+                            case CronSchedule.EXPRESSION_FIELD:
+                                expression = parser.text();
                                 break;
-                            case CronSchedule.TIMEZONE_FIELD: timezone = ZoneId.of(parser.text());
+                            case CronSchedule.TIMEZONE_FIELD:
+                                timezone = ZoneId.of(parser.text());
                                 break;
-                            case Schedule.DELAY_FIELD: cronDelay = parser.longValue();
+                            case Schedule.DELAY_FIELD:
+                                cronDelay = parser.longValue();
                                 break;
                             default:
-                                throw new IllegalArgumentException(
-                                        String.format(Locale.ROOT, "Unknown cron field %s", cronField));
+                                throw new IllegalArgumentException(String.format(Locale.ROOT, "Unknown cron field %s", cronField));
                         }
                     }
-                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.currentToken(),
-                            parser);
+                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.currentToken(), parser);
                     parser.nextToken();
                     return cronDelay == null ? new CronSchedule(expression, timezone) : new CronSchedule(expression, timezone, cronDelay);
                 case IntervalSchedule.INTERVAL_FIELD:
@@ -70,17 +71,16 @@ public class ScheduleParser {
                                 intervalDelay = parser.longValue();
                                 break;
                             default:
-                                throw new IllegalArgumentException(
-                                        String.format(Locale.ROOT, "Unknown interval field %s", intervalField));
+                                throw new IllegalArgumentException(String.format(Locale.ROOT, "Unknown interval field %s", intervalField));
                         }
                     }
-                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.currentToken(),
-                            parser);
+                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.currentToken(), parser);
                     parser.nextToken();
-                    return intervalDelay == null ? new IntervalSchedule(startTime, period, unit) : new IntervalSchedule(startTime, period, unit, intervalDelay);
+                    return intervalDelay == null
+                        ? new IntervalSchedule(startTime, period, unit)
+                        : new IntervalSchedule(startTime, period, unit, intervalDelay);
                 default:
-                    throw new IllegalArgumentException(
-                            String.format(Locale.ROOT, "Unknown schedule type %s", fieldName));
+                    throw new IllegalArgumentException(String.format(Locale.ROOT, "Unknown schedule type %s", fieldName));
             }
         }
         throw new IllegalArgumentException("Invalid schedule document object.");

@@ -1,4 +1,5 @@
 package org.opensearch.benchmark.time.jmh_generated;
+
 public class DateFormatterBenchmark_jmhType_B3 extends DateFormatterBenchmark_jmhType_B2 {
     byte p000, p001, p002, p003, p004, p005, p006, p007, p008, p009, p010, p011, p012, p013, p014, p015;
     byte p016, p017, p018, p019, p020, p021, p022, p023, p024, p025, p026, p027, p028, p029, p030, p031;
@@ -17,4 +18,3 @@ public class DateFormatterBenchmark_jmhType_B3 extends DateFormatterBenchmark_jm
     byte p224, p225, p226, p227, p228, p229, p230, p231, p232, p233, p234, p235, p236, p237, p238, p239;
     byte p240, p241, p242, p243, p244, p245, p246, p247, p248, p249, p250, p251, p252, p253, p254, p255;
 }
-
