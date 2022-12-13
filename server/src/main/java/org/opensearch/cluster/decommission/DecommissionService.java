@@ -161,7 +161,7 @@ public class DecommissionService {
                 newState = addVotingConfigExclusionsForNodesToBeDecommissioned(
                     newState,
                     nodeIdsToBeExcluded,
-                    TimeValue.timeValueSeconds(60), // TODO - update it with request timeout
+                    TimeValue.timeValueSeconds(120), // TODO - update it with request timeout
                     maxVotingConfigExclusions
                 );
                 logger.debug(
@@ -201,7 +201,7 @@ public class DecommissionService {
 
                 final ClusterStateObserver observer = new ClusterStateObserver(
                     clusterService,
-                    TimeValue.timeValueSeconds(60), // TODO - update it with request timeout
+                    TimeValue.timeValueSeconds(120), // TODO - update it with request timeout
                     logger,
                     threadPool.getThreadContext()
                 );
