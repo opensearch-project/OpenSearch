@@ -20,7 +20,6 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.ClusterStateObserver.Listener;
 import org.opensearch.cluster.ClusterStateUpdateTask;
-import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.coordination.CoordinationMetadata;
 import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -246,7 +245,9 @@ public class DecommissionService {
                         } else {
                             // since the local node is no longer cluster manager which could've happened due to leader abdication,
                             // hence retrying the decommission action until it times out
-                            logger.info("local node is not eligible to process the request, retrying the transport action until it times out");
+                            logger.info(
+                                "local node is not eligible to process the request, retrying the transport action until it times out"
+                            );
                             decommissionController.retryDecommissionAction(
                                 decommissionRequest,
                                 startTime,

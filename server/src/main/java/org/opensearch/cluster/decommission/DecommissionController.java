@@ -91,9 +91,14 @@ public class DecommissionController {
         long startTime,
         ActionListener<DecommissionResponse> listener
     ) {
-        final long remainingTimeoutMS = decommissionRequest.clusterManagerNodeTimeout().millis() - (threadPool.relativeTimeInMillis() - startTime);
+        final long remainingTimeoutMS = decommissionRequest.clusterManagerNodeTimeout().millis() - (threadPool.relativeTimeInMillis()
+            - startTime);
         if (remainingTimeoutMS <= 0) {
-            String errorMsg = "cluster manager node timed out before retrying [" + DecommissionAction.NAME + "] for attribute [" + decommissionRequest.getDecommissionAttribute() + "] after cluster manager change";
+            String errorMsg = "cluster manager node timed out before retrying ["
+                + DecommissionAction.NAME
+                + "] for attribute ["
+                + decommissionRequest.getDecommissionAttribute()
+                + "] after cluster manager change";
             logger.debug(errorMsg);
             listener.onFailure(new OpenSearchTimeoutException(errorMsg));
             return;
@@ -127,6 +132,7 @@ public class DecommissionController {
             }
         );
     }
+
     /**
      * This method triggers batch of tasks for nodes to be decommissioned using executor {@link NodeRemovalClusterStateTaskExecutor}
      * Once the tasks are submitted, it waits for an expected cluster state to guarantee

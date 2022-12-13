@@ -148,12 +148,17 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
 
     @Override
     public String toString() {
-        return "DecommissionRequest{" +
-            "decommissionAttribute=" + decommissionAttribute +
-            ", retryOnClusterManagerChange=" + retryOnClusterManagerChange +
-            ", delayTimeout=" + delayTimeout +
-            ", noDelay=" + noDelay +
-            ", clusterManagerNodeTimeout=" + clusterManagerNodeTimeout +
-            '}';
+        return "DecommissionRequest{"
+            + "decommissionAttribute="
+            + decommissionAttribute
+            + ", retryOnClusterManagerChange="
+            + retryOnClusterManagerChange
+            + ", delayTimeout="
+            + delayTimeout
+            + ", noDelay="
+            + noDelay
+            + ", clusterManagerNodeTimeout="
+            + clusterManagerNodeTimeout
+            + '}';
     }
 }
