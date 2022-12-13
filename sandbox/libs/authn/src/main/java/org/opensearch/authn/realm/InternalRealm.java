@@ -44,7 +44,7 @@ public class InternalRealm extends AuthenticatingRealm {
 
     public static final InternalRealm INSTANCE = new InternalRealm.Builder(DEFAULT_REALM_NAME, DEFAULT_INTERNAL_USERS_FILE).build();
 
-    private final String realmName;
+    private String realmName;
 
     private ConcurrentMap<String, User> internalUsers;
 
@@ -52,6 +52,10 @@ public class InternalRealm extends AuthenticatingRealm {
         super(new BCryptPasswordMatcher());
         this.realmName = realmName;
         this.internalUsers = internalUsers;
+    }
+
+    public InternalRealm() {
+        super(new BCryptPasswordMatcher());
     }
 
     public static final class Builder {
@@ -159,6 +163,14 @@ public class InternalRealm extends AuthenticatingRealm {
         user.setAttributes(attributes);
 
         createUser(user);
+    }
+
+    public void setRealmName(String realmName) {
+        this.realmName = realmName;
+    }
+
+    public void setInternalUsersYaml(String internalUsersYaml) {
+        initializeUsersStore(internalUsersYaml);
     }
 
     /**
