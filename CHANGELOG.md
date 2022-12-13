@@ -15,8 +15,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Allow mmap to use new JDK-19 preview APIs in Apache Lucene 9.4+ ([#5151](https://github.com/opensearch-project/OpenSearch/pull/5151))
 - Add feature flag for extensions ([#5211](https://github.com/opensearch-project/OpenSearch/pull/5211))
 - Added jackson dependency to server ([#5366] (https://github.com/opensearch-project/OpenSearch/pull/5366))
-- Added experimental extensions to main ([#5347](https://github.com/opensearch-project/OpenSearch/pull/5347))
-- Expanded experimental extensions ([#5518](https://github.com/opensearch-project/OpenSearch/pull/5518))
+- Adding support to register settings dynamically ([#5495](https://github.com/opensearch-project/OpenSearch/pull/5495))
+- Added experimental support for extensions ([#5347](https://github.com/opensearch-project/OpenSearch/pull/5347)), ([#5518](https://github.com/opensearch-project/OpenSearch/pull/5518))
 
 ### Dependencies
 - Bumps `log4j-core` from 2.18.0 to 2.19.0
@@ -60,6 +60,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Support remote translog transfer for request level durability([#4480](https://github.com/opensearch-project/OpenSearch/pull/4480))
 - Changed http code on create index API with bad input raising NotXContentException from 500 to 400 ([#4773](https://github.com/opensearch-project/OpenSearch/pull/4773))
 - Change http code for DecommissioningFailedException from 500 to 400 ([#5283](https://github.com/opensearch-project/OpenSearch/pull/5283))
+- Pre conditions check before updating weighted routing metadata ([#4955](https://github.com/opensearch-project/OpenSearch/pull/4955))
 
 ### Deprecated
 
