@@ -32,6 +32,7 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
     public static final TimeValue DEFAULT_NODE_DRAINING_TIMEOUT = TimeValue.timeValueSeconds(120);
 
     private DecommissionAttribute decommissionAttribute;
+    private boolean retryOnClusterManagerChange;
 
     private TimeValue delayTimeout = DEFAULT_NODE_DRAINING_TIMEOUT;
 
@@ -44,11 +45,17 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
         this.decommissionAttribute = decommissionAttribute;
     }
 
+    public DecommissionRequest(DecommissionAttribute decommissionAttribute, boolean retryOnClusterManagerChange) {
+        this.decommissionAttribute = decommissionAttribute;
+        this.retryOnClusterManagerChange = retryOnClusterManagerChange;
+    }
+
     public DecommissionRequest(StreamInput in) throws IOException {
         super(in);
         decommissionAttribute = new DecommissionAttribute(in);
         this.delayTimeout = in.readTimeValue();
         this.noDelay = in.readBoolean();
+        this.retryOnClusterManagerChange = in.readBoolean();
     }
 
     @Override
@@ -57,6 +64,7 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
         decommissionAttribute.writeTo(out);
         out.writeTimeValue(delayTimeout);
         out.writeBoolean(noDelay);
+        out.writeBoolean(retryOnClusterManagerChange);
     }
 
     /**
@@ -96,6 +104,24 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
         return noDelay;
     }
 
+    /**
+     * Sets retryOnClusterManagerChange for decommission request
+     *
+     * @param retryOnClusterManagerChange boolean for request to retry decommission action on cluster manager change
+     * @return this request
+     */
+    public DecommissionRequest setRetryOnClusterManagerChange(boolean retryOnClusterManagerChange) {
+        this.retryOnClusterManagerChange = retryOnClusterManagerChange;
+        return this;
+    }
+
+    /**
+     * @return Returns whether decommission is retry eligible on cluster manager change
+     */
+    public boolean retryOnClusterManagerChange() {
+        return this.retryOnClusterManagerChange;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
@@ -122,6 +148,12 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
 
     @Override
     public String toString() {
-        return "DecommissionRequest{" + "decommissionAttribute=" + decommissionAttribute + '}';
+        return "DecommissionRequest{" +
+            "decommissionAttribute=" + decommissionAttribute +
+            ", retryOnClusterManagerChange=" + retryOnClusterManagerChange +
+            ", delayTimeout=" + delayTimeout +
+            ", noDelay=" + noDelay +
+            ", clusterManagerNodeTimeout=" + clusterManagerNodeTimeout +
+            '}';
     }
 }

@@ -58,6 +58,7 @@ public class RestDecommissionAction extends BaseRestHandler {
             TimeValue delayTimeout = request.paramAsTime("delay_timeout", DecommissionRequest.DEFAULT_NODE_DRAINING_TIMEOUT);
             decommissionRequest.setDelayTimeout(delayTimeout);
         }
-        return decommissionRequest.setDecommissionAttribute(new DecommissionAttribute(attributeName, attributeValue));
+        return decommissionRequest.setDecommissionAttribute(new DecommissionAttribute(attributeName, attributeValue))
+            .setRetryOnClusterManagerChange(false);
     }
 }

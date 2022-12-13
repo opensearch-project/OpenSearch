@@ -12,6 +12,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.action.ActionListener;
+import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionAction;
+import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionRequest;
+import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionResponse;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsAction;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
@@ -74,6 +77,56 @@ public class DecommissionController {
         this.threadPool = threadPool;
     }
 
+    /**
+     * This method sends a transport call to retry decommission action, given that -
+     * 1. cluster_manager_node_timeout is not timed out
+     * 2. And executed when there was a cluster manager change
+     *
+     * @param decommissionRequest decommission request object
+     * @param startTime start time of previous request
+     * @param listener callback for the retry action
+     */
+    public void retryDecommissionAction(
+        DecommissionRequest decommissionRequest,
+        long startTime,
+        ActionListener<DecommissionResponse> listener
+    ) {
+        final long remainingTimeoutMS = decommissionRequest.clusterManagerNodeTimeout().millis() - (threadPool.relativeTimeInMillis() - startTime);
+        if (remainingTimeoutMS <= 0) {
+            String errorMsg = "cluster manager node timed out before retrying [" + DecommissionAction.NAME + "] for attribute [" + decommissionRequest.getDecommissionAttribute() + "] after cluster manager change";
+            logger.debug(errorMsg);
+            listener.onFailure(new OpenSearchTimeoutException(errorMsg));
+            return;
+        }
+        decommissionRequest.setRetryOnClusterManagerChange(true);
+        decommissionRequest.clusterManagerNodeTimeout(TimeValue.timeValueMillis(remainingTimeoutMS));
+        transportService.sendRequest(
+            transportService.getLocalNode(),
+            DecommissionAction.NAME,
+            decommissionRequest,
+            new TransportResponseHandler<DecommissionResponse>() {
+                @Override
+                public void handleResponse(DecommissionResponse response) {
+                    listener.onResponse(response);
+                }
+
+                @Override
+                public void handleException(TransportException exp) {
+                    listener.onFailure(exp);
+                }
+
+                @Override
+                public String executor() {
+                    return ThreadPool.Names.SAME;
+                }
+
+                @Override
+                public DecommissionResponse read(StreamInput in) throws IOException {
+                    return new DecommissionResponse(in);
+                }
+            }
+        );
+    }
     /**
      * This method triggers batch of tasks for nodes to be decommissioned using executor {@link NodeRemovalClusterStateTaskExecutor}
      * Once the tasks are submitted, it waits for an expected cluster state to guarantee
