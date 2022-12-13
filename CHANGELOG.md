@@ -15,6 +15,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Allow mmap to use new JDK-19 preview APIs in Apache Lucene 9.4+ ([#5151](https://github.com/opensearch-project/OpenSearch/pull/5151))
 - Add feature flag for extensions ([#5211](https://github.com/opensearch-project/OpenSearch/pull/5211))
 - Added jackson dependency to server ([#5366] (https://github.com/opensearch-project/OpenSearch/pull/5366))
+- Added experimental extensions to main ([#5347](https://github.com/opensearch-project/OpenSearch/pull/5347))
+- Adding support to register settings dynamically ([#5495](https://github.com/opensearch-project/OpenSearch/pull/5495))
 - Add support for ppc64le architecture ([#5408](https://github.com/opensearch-project/OpenSearch/pull/5457))
 
 ### Dependencies
