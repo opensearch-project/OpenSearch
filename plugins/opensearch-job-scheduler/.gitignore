@@ -1,0 +1,14 @@
+.idea/*
+!.idea/copyright
+*.iml
+.gradle
+out
+local-test
+build
+.local-*
+.DS_Store
+.project
+.settings
+bin/
+.classpath
+.vscode
