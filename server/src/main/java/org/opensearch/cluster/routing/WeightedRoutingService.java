@@ -11,6 +11,7 @@ package org.opensearch.cluster.routing;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.ResourceNotFoundException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.delete.ClusterDeleteWeightedRoutingRequest;
 import org.opensearch.action.ActionRequestValidationException;
@@ -132,11 +133,25 @@ public class WeightedRoutingService {
         final ClusterDeleteWeightedRoutingRequest request,
         final ActionListener<ClusterDeleteWeightedRoutingResponse> listener
     ) {
+        final String awarenessAttribute = request.getAwarenessAttribute();
         clusterService.submitStateUpdateTask("delete_weighted_routing", new ClusterStateUpdateTask(Priority.URGENT) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 logger.info("Deleting weighted routing metadata from the cluster state");
-                Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
+
+                Metadata metadata = currentState.metadata();
+                Metadata.Builder mdBuilder = Metadata.builder(metadata);
+                WeightedRoutingMetadata weightedRoutingMetadata = metadata.custom(WeightedRoutingMetadata.TYPE);
+                if (weightedRoutingMetadata != null
+                    && !weightedRoutingMetadata.getWeightedRouting().attributeName().equals(awarenessAttribute)) {
+                    throw new ResourceNotFoundException(
+                        String.format(
+                            Locale.ROOT,
+                            "weighted routing metadata does not have weights set for awareness attribute %s",
+                            awarenessAttribute
+                        )
+                    );
+                }
                 mdBuilder.removeCustom(WeightedRoutingMetadata.TYPE);
                 return ClusterState.builder(currentState).metadata(mdBuilder).build();
             }
