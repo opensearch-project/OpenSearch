@@ -72,6 +72,7 @@ public class BulkProcessorRetryIT extends OpenSearchIntegTestCase {
             .build();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/1715")
     public void testBulkRejectionLoadWithoutBackoff() throws Throwable {
         boolean rejectedExecutionExpected = true;
         executeBulkRejectionLoad(BackoffPolicy.noBackoff(), rejectedExecutionExpected);
