@@ -1,149 +1,35 @@
-/*
  * Copyright OpenSearch Contributors
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import com.github.jengelman.gradle.plugins.shadow.ShadowBasePlugin
-import org.opensearch.gradle.test.RestIntegTestTask
+apply plugin: 'opensearch.build'
+apply plugin: 'opensearch.publish'
 
-plugins {
-    id 'com.github.johnrengelman.shadow'
-    id 'jacoco'
-    id 'maven-publish'
-    id 'signing'
-}
+group = 'org.opensearch.plugin'
+archivesBaseName = 'opensearch-job-scheduler-spi'
 
-apply plugin: 'opensearch.java'
-apply plugin: 'opensearch.testclusters'
-apply plugin: 'opensearch.java-rest-test'
-
-repositories {
-    mavenLocal()
-    mavenCentral()
-    maven { url "https://aws.oss.sonatype.org/content/repositories/snapshots" }
-}
-
-ext {
-    projectSubstitutions = [:]
-    licenseFile = rootProject.file('LICENSE.txt')
-    noticeFile = rootProject.file('NOTICE')
-}
-
-jacoco {
-    toolVersion = '0.8.7'
-    reportsDirectory = file("$buildDir/JacocoReport")
-}
-
-jacocoTestReport {
-    reports {
-        xml.required = false
-        csv.required = false
-        html.destination file("${buildDir}/jacoco/")
-    }
-}
-check.dependsOn jacocoTestReport
-
-def slf4j_version_of_cronutils = "1.7.30"
+def slf4j_version_of_cronutils = "1.7.36"
 dependencies {
-    compileOnly "org.opensearch:opensearch:${opensearch_version}"
+    api project(":server")
     // slf4j is the runtime dependency of cron-utils
     // if cron-utils version gets bumped, pls check the slf4j version cron-utils depending on
     //  and bump if needed
     implementation "com.cronutils:cron-utils:9.2.0"
     runtimeOnly "org.slf4j:slf4j-api:${slf4j_version_of_cronutils}"
-
-    testImplementation "org.opensearch.test:framework:${opensearch_version}"
-    testImplementation "org.apache.logging.log4j:log4j-core:${versions.log4j}"
+    testImplementation project(":test:framework")
 }
 
-configurations.all {
-    if (it.state != Configuration.State.UNRESOLVED) return
-    resolutionStrategy {
-        force "org.slf4j:slf4j-api:${slf4j_version_of_cronutils}"
-    }
+tasks.register("integTest", Test) {
+  include "**/*IT.class"
 }
 
-shadowJar {
-    relocate 'com.cronutils', 'org.opensearch.jobscheduler.repackage.com.cronutils'
-    relocate 'org.slf4j', 'org.opensearch.jobscheduler.repackage.org.slf4j' // dependency of cron-utils
-    classifier = null
-}
-
-test {
-    doFirst {
-        // reverse operation of https://github.com/elastic/elasticsearch/blob/7.6/buildSrc/src/main/groovy/org/elasticsearch/gradle/BuildPlugin.groovy#L736-L743
-        // to fix the classpath for unit tests
-        test.classpath -= project.files(project.tasks.named('shadowJar'))
-        test.classpath -= project.configurations.getByName(ShadowBasePlugin.CONFIGURATION_NAME)
-        test.classpath += project.extensions.getByType(SourceSetContainer).getByName(SourceSet.MAIN_SOURCE_SET_NAME).runtimeClasspath
-    }
-    // add "-Dtests.security.manager=false" to VM options if you want to run integ tests in IntelliJ
-    systemProperty 'tests.security.manager', 'false'
-}
-
-task integTest(type: RestIntegTestTask) {
-    description 'Run integ test with opensearch test framework'
-    group 'verification'
-    systemProperty 'tests.security.manager', 'false'
-    dependsOn test
-}
-check.dependsOn integTest
-
-testClusters.javaRestTest {
-    testDistribution = 'INTEG_TEST'
-}
-
-task sourcesJar(type: Jar) {
-    archiveClassifier.set 'sources'
-    from sourceSets.main.allJava
-}
-
-task javadocJar(type: Jar) {
-    archiveClassifier.set 'javadoc'
-    from javadoc.destinationDir
-    dependsOn javadoc
-}
-
-publishing {
-    repositories {
-        maven {
-            name = 'staging'
-            url = "${rootProject.buildDir}/local-staging-repo"
-        }
-    }
-    publications {
-        shadow(MavenPublication) { publication ->
-            project.shadow.component(publication)
-            artifact sourcesJar
-            artifact javadocJar
-
-            pom {
-              name = "OpenSearch Job Scheduler SPI"
-              packaging = "jar"
-              url = "https://github.com/opensearch-project/job-scheduler"
-              description = "OpenSearch Job Scheduler"
-              scm {
-                connection = "scm:git@github.com:opensearch-project/job-scheduler.git"
-                developerConnection = "scm:git@github.com:opensearch-project/job-scheduler.git"
-                url = "git@github.com:opensearch-project/job-scheduler.git"
-              }
-              licenses {
-                license {
-                  name = "The Apache License, Version 2.0"
-                  url = "http://www.apache.org/licenses/LICENSE-2.0.txt"
-                }
-              }
-              developers {
-                developer {
-                  name = "OpenSearch"
-                  url = "https://github.com/opensearch-project/job-scheduler"
-                }
-              }
-            }
-        }
-    }
-
-    // TODO - enabled debug logging for the time being, remove this eventually
-    gradle.startParameter.setShowStacktrace(ShowStacktrace.ALWAYS)
-    gradle.startParameter.setLogLevel(LogLevel.DEBUG)
+thirdPartyAudit {
+  ignoreMissingClasses(
+    'javax.validation.ConstraintValidator',
+    'javax.validation.ConstraintValidatorContext',
+    'javax.validation.ConstraintValidatorContext$ConstraintViolationBuilder',
+    'org.slf4j.impl.StaticLoggerBinder',
+    'org.slf4j.impl.StaticMDCBinder',
+    'org.slf4j.impl.StaticMarkerBinder'
+  )
 }

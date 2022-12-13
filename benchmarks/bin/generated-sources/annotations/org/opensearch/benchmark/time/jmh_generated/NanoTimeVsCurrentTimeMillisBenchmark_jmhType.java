@@ -1,0 +1,4 @@
+package org.opensearch.benchmark.time.jmh_generated;
+public class NanoTimeVsCurrentTimeMillisBenchmark_jmhType extends NanoTimeVsCurrentTimeMillisBenchmark_jmhType_B3 {
+}
+
