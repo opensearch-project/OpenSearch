@@ -135,7 +135,10 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         "     javaVersion: '17'",
         "     className: fakeClass2",
         "     customFolderName: fakeFolder2",
-        "     hasNativeController: true"
+        "     hasNativeController: true",
+        "     dependencies:",
+        "       - uniqueId: 'uniqueid0'",
+        "       - version: '2.0.0'"
     );
     private DiscoveryExtensionNode extensionNode;
 
@@ -197,7 +200,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                 "fakeClass1",
                 new ArrayList<String>(),
                 false
-            )
+            ),
+            Collections.emptyList()
         );
         client = new NoOpNodeClient(this.getTestName());
     }
@@ -218,6 +222,10 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
 
         List<DiscoveryExtensionNode> expectedExtensionsList = new ArrayList<DiscoveryExtensionNode>();
 
+        String expectedUniqueId = "uniqueid0";
+        Version expectedVersion = Version.fromString("2.0.0");
+        ExtensionDependency expectedDependency = new ExtensionDependency(expectedUniqueId, expectedVersion);
+
         expectedExtensionsList.add(
             new DiscoveryExtensionNode(
                 "firstExtension",
@@ -237,7 +245,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                     "fakeClass1",
                     new ArrayList<String>(),
                     false
-                )
+                ),
+                Collections.emptyList()
             )
         );
 
@@ -260,10 +269,12 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                     "fakeClass2",
                     new ArrayList<String>(),
                     true
-                )
+                ),
+                List.of(expectedDependency)
             )
         );
         assertEquals(expectedExtensionsList.size(), extensionsManager.getExtensionIdMap().values().size());
+        assertEquals(List.of(expectedDependency), expectedExtensionsList.get(1).getDependencies());
         assertTrue(expectedExtensionsList.containsAll(extensionsManager.getExtensionIdMap().values()));
         assertTrue(extensionsManager.getExtensionIdMap().values().containsAll(expectedExtensionsList));
     }
@@ -298,12 +309,74 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                     "fakeClass1",
                     new ArrayList<String>(),
                     false
-                )
+                ),
+                Collections.emptyList()
             )
         );
         assertEquals(expectedExtensionsList.size(), extensionsManager.getExtensionIdMap().values().size());
         assertTrue(expectedExtensionsList.containsAll(extensionsManager.getExtensionIdMap().values()));
         assertTrue(extensionsManager.getExtensionIdMap().values().containsAll(expectedExtensionsList));
+        assertTrue(expectedExtensionsList.containsAll(emptyList()));
+    }
+
+    public void testDiscoveryExtension() throws Exception {
+        String expectedId = "test id";
+        Version expectedVersion = Version.fromString("2.0.0");
+        ExtensionDependency expectedDependency = new ExtensionDependency(expectedId, expectedVersion);
+
+        DiscoveryExtensionNode discoveryExtension = new DiscoveryExtensionNode(
+            "firstExtension",
+            "uniqueid1",
+            "uniqueid1",
+            "myIndependentPluginHost1",
+            "127.0.0.0",
+            new TransportAddress(InetAddress.getByName("127.0.0.0"), 9300),
+            new HashMap<String, String>(),
+            Version.fromString("3.0.0"),
+            new PluginInfo(
+                "firstExtension",
+                "Fake description 1",
+                "0.0.7",
+                Version.fromString("3.0.0"),
+                "14",
+                "fakeClass1",
+                new ArrayList<String>(),
+                false
+            ),
+            List.of(expectedDependency)
+        );
+
+        assertEquals(List.of(expectedDependency), discoveryExtension.getDependencies());
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            discoveryExtension.writeTo(out);
+            out.flush();
+            try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
+                discoveryExtension = new DiscoveryExtensionNode(in);
+
+                assertEquals(List.of(expectedDependency), discoveryExtension.getDependencies());
+            }
+        }
+    }
+
+    public void testExtensionDependency() throws Exception {
+        String expectedUniqueId = "Test uniqueId";
+        Version expectedVersion = Version.fromString("3.0.0");
+
+        ExtensionDependency dependency = new ExtensionDependency(expectedUniqueId, expectedVersion);
+
+        assertEquals(expectedUniqueId, dependency.getUniqueId());
+        assertEquals(expectedVersion, dependency.getVersion());
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            dependency.writeTo(out);
+            out.flush();
+            try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
+                dependency = new ExtensionDependency(in);
+                assertEquals(expectedUniqueId, dependency.getUniqueId());
+                assertEquals(expectedVersion, dependency.getVersion());
+            }
+        }
     }
 
     public void testNonAccessibleDirectory() throws Exception {

@@ -341,7 +341,8 @@ public class ExtensionsManager {
                         extension.getClassName(),
                         new ArrayList<String>(),
                         Boolean.parseBoolean(extension.hasNativeController())
-                    )
+                    ),
+                    extension.getDependencies()
                 );
                 extensionIdMap.put(extension.getUniqueId(), discoveryExtension);
                 logger.info("Loaded extension with uniqueId " + extension.getUniqueId() + ": " + extension);

@@ -9,6 +9,7 @@
 package org.opensearch.extensions;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -43,6 +44,7 @@ public class ExtensionsSettings {
         private String className;
         private String customFolderName;
         private String hasNativeController;
+        private List<ExtensionDependency> dependencies = Collections.emptyList();
 
         public Extension() {
             name = "";
@@ -184,6 +186,9 @@ public class ExtensionsSettings {
             this.hasNativeController = hasNativeController;
         }
 
+        public List<ExtensionDependency> getDependencies() {
+            return dependencies;
+        }
     }
 
     public List<Extension> getExtensions() {
