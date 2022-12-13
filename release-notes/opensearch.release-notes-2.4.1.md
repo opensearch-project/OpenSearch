@@ -1,4 +1,4 @@
-## 2022-12-07 Version 2.4.1 Release Notes
+## 2022-12-13 Version 2.4.1 Release Notes
 
 ### Bug Fixes
 * Fix 1.x compatibility bug with stored Tasks ([#5412](https://github.com/opensearch-project/opensearch/pull/5412)) ([#5440](https://github.com/opensearch-project/opensearch/pull/5440))
