@@ -8,6 +8,7 @@ package org.opensearch.authn.internal;
 import java.security.Principal;
 import java.util.Objects;
 
+import org.apache.shiro.SecurityUtils;
 import org.opensearch.authn.AuthenticationTokenHandler;
 import org.opensearch.authn.tokens.AuthenticationToken;
 import org.opensearch.authn.Subject;
@@ -65,6 +66,7 @@ public class InternalSubject implements Subject {
     public void login(AuthenticationToken authenticationToken) {
         org.apache.shiro.authc.AuthenticationToken authToken = AuthenticationTokenHandler.extractShiroAuthToken(authenticationToken);
         // Login via shiro realm.
-        shiroSubject.login(authToken);
+        SecurityUtils.getSecurityManager().authenticate(authToken);
+        // shiroSubject.login(authToken);
     }
 }
