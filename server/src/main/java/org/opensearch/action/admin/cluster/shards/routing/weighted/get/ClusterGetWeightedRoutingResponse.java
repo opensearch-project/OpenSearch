@@ -97,7 +97,7 @@ public class ClusterGetWeightedRoutingResponse extends ActionResponse implements
         String attrKey = null, attrValue = null;
         String localNodeWeight = null;
         Map<String, Double> weights = new HashMap<>();
-        long version = -1;
+        long version = WeightedRoutingMetadata.INITIAL_VERSION;
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {

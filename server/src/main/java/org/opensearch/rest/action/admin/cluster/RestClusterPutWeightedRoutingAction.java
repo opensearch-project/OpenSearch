@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingRequest;
 import org.opensearch.client.Requests;
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
@@ -51,7 +52,7 @@ public class RestClusterPutWeightedRoutingAction extends BaseRestHandler {
 
     public static ClusterPutWeightedRoutingRequest createRequest(RestRequest request) throws IOException {
         ClusterPutWeightedRoutingRequest putWeightedRoutingRequest = Requests.putWeightedRoutingRequest(request.param("attribute"));
-        putWeightedRoutingRequest.version(request.paramAsLong("_version", -1));
+        putWeightedRoutingRequest.version(request.paramAsLong("if_version", WeightedRoutingMetadata.INITIAL_VERSION));
         request.applyContentParser(p -> putWeightedRoutingRequest.source(p.mapStrings()));
         return putWeightedRoutingRequest;
     }

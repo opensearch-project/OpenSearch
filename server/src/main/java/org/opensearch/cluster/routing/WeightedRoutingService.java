@@ -75,19 +75,15 @@ public class WeightedRoutingService {
             public ClusterState execute(ClusterState currentState) throws Exception {
                 // verify currently no decommission action is ongoing
                 ensureNoOngoingDecommissionAction(currentState);
-                Metadata metadata;
-                Metadata.Builder mdBuilder;
+                Metadata metadata = currentState.metadata();
+                ;
+                Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
 
-                metadata = currentState.metadata();
-                mdBuilder = Metadata.builder(currentState.metadata());
                 WeightedRoutingMetadata weightedRoutingMetadata = metadata.custom(WeightedRoutingMetadata.TYPE);
 
                 if (weightedRoutingMetadata == null) {
                     logger.info("put weighted routing weights in metadata [{}]", newWeightedRouting);
-                    weightedRoutingMetadata = new WeightedRoutingMetadata(
-                        newWeightedRouting,
-                        WeightedRoutingMetadata.INITIAL_VERSION
-                    );
+                    weightedRoutingMetadata = new WeightedRoutingMetadata(newWeightedRouting, WeightedRoutingMetadata.INITIAL_VERSION);
                 } else if (weightedRoutingMetadata.getVersion() != requestVersion) {
                     throw new WeightedRoutingVersionMismatchException(
                         String.format(
@@ -102,15 +98,9 @@ public class WeightedRoutingService {
                 } else {
                     if (!checkIfSameWeightsInMetadata(request.getWeightedRouting(), weightedRoutingMetadata.getWeightedRouting())) {
                         logger.info("updated weighted routing weights [{}] in metadata", newWeightedRouting);
-                        weightedRoutingMetadata = new WeightedRoutingMetadata(
-                            newWeightedRouting,
-                            weightedRoutingMetadata.getVersion() + 1
-                        );
+                        weightedRoutingMetadata = new WeightedRoutingMetadata(newWeightedRouting, weightedRoutingMetadata.getVersion() + 1);
                     } else {
-                        logger.info(
-                            "weights are same, not updating weighted routing weights [{}] in metadata",
-                            newWeightedRouting
-                        );
+                        logger.info("weights are same, not updating weighted routing weights [{}] in metadata", newWeightedRouting);
                         return currentState;
                     }
                 }

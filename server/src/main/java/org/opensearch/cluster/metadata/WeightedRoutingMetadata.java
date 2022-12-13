@@ -37,7 +37,7 @@ public class WeightedRoutingMetadata extends AbstractNamedDiffable<Metadata.Cust
     public static final String TYPE = "weighted_shard_routing";
     public static final String AWARENESS = "awareness";
     public static final String VERSION = "_version";
-    public static final long INITIAL_VERSION = 0;
+    public static final long INITIAL_VERSION = -1;
 
     public long getVersion() {
         return version;
@@ -103,7 +103,7 @@ public class WeightedRoutingMetadata extends AbstractNamedDiffable<Metadata.Cust
         XContentParser.Token token;
         String awarenessField = null;
         String versionAttr = null;
-        long version = 0;
+        long version = INITIAL_VERSION;
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
