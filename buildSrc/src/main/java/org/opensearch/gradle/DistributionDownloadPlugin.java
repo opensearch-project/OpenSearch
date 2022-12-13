@@ -189,6 +189,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             case "bundle":
                 addIvyRepo(project, DOWNLOAD_REPO_NAME, "https://ci.opensearch.org", FAKE_IVY_GROUP, BUNDLE_PATTERN_LAYOUT);
                 addIvyRepo(project, SNAPSHOT_REPO_NAME, "https://ci.opensearch.org", FAKE_SNAPSHOT_IVY_GROUP, BUNDLE_PATTERN_LAYOUT);
+                break;
             case "min":
                 addIvyRepo(
                     project,
@@ -205,6 +206,9 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
                     FAKE_SNAPSHOT_IVY_GROUP,
                     SNAPSHOT_PATTERN_LAYOUT
                 );
+                break;
+            default:
+                throw new IllegalArgumentException("Unsupported property argument: " + distributionDownloadType);
         }
     }
 
