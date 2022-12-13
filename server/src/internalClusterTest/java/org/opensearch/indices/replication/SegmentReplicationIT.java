@@ -10,6 +10,8 @@ package org.opensearch.indices.replication;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.junit.BeforeClass;
+import org.opensearch.OpenSearchCorruptionException;
+import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.indices.segments.IndexShardSegments;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentsRequest;
@@ -24,7 +26,9 @@ import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.command.CancelAllocationCommand;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexModule;
@@ -53,6 +57,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.opensearch.index.query.QueryBuilders.matchQuery;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -192,6 +197,75 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
 
         assertDocCounts(initialDocCount, replica, primary);
         assertSegmentStats(REPLICA_COUNT);
+    }
+
+    /**
+     * This test verfies that replica shard is not added to the cluster when doing a round of segment replication fails during peer recovery.
+     */
+    public void testAddNewReplicaFailure() throws Exception {
+        logger.info("--> starting [Primary Node] ...");
+        final String primaryNode = internalCluster().startNode();
+
+        logger.info("--> creating test index ...");
+        prepareCreate(
+            INDEX_NAME,
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+        ).get();
+
+        logger.info("--> index 10 docs");
+        for (int i = 0; i < 10; i++) {
+            client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
+        }
+        logger.info("--> flush so we have some segment files on disk");
+        flush(INDEX_NAME);
+        logger.info("--> index more docs so we have something in the translog");
+        for (int i = 10; i < 20; i++) {
+            client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
+        }
+        refresh(INDEX_NAME);
+        logger.info("--> verifying count");
+        assertThat(client().prepareSearch(INDEX_NAME).setSize(0).execute().actionGet().getHits().getTotalHits().value, equalTo(20L));
+
+        logger.info("--> start empty node to add replica shard");
+        final String replicaNode = internalCluster().startNode();
+
+        // Mock transport service to add behaviour of throwing corruption exception during segment replication process.
+        MockTransportService mockTransportService = ((MockTransportService) internalCluster().getInstance(
+            TransportService.class,
+            primaryNode
+        ));
+        mockTransportService.addSendBehavior(
+            internalCluster().getInstance(TransportService.class, replicaNode),
+            (connection, requestId, action, request, options) -> {
+                if (action.equals(SegmentReplicationTargetService.Actions.FILE_CHUNK)) {
+                    throw new OpenSearchCorruptionException("expected");
+                }
+                connection.sendRequest(requestId, action, request, options);
+            }
+        );
+        ensureGreen(INDEX_NAME);
+        // Add Replica shard to the new empty replica node
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings(INDEX_NAME)
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
+        );
+
+        // Verify that cluster state is not green and replica shard failed during a round of segment replication is not added to the cluster
+        ClusterHealthResponse clusterHealthResponse = client().admin()
+            .cluster()
+            .prepareHealth()
+            .setWaitForEvents(Priority.LANGUID)
+            .setWaitForNodes("2")
+            .setWaitForGreenStatus()
+            .setTimeout(TimeValue.timeValueSeconds(2))
+            .execute()
+            .actionGet();
+        assertTrue(clusterHealthResponse.isTimedOut());
+        ensureYellow(INDEX_NAME);
+        IndicesService indicesService = internalCluster().getInstance(IndicesService.class, replicaNode);
+        assertFalse(indicesService.hasIndex(resolveIndex(INDEX_NAME)));
     }
 
     public void testReplicationAfterPrimaryRefreshAndFlush() throws Exception {
@@ -452,18 +526,14 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
         final String replicaNode = internalCluster().startNode();
         ensureGreen(INDEX_NAME);
 
-        client().prepareIndex(INDEX_NAME).setId("3").setSource("foo", "bar").get();
+        assertHitCount(client(primaryNode).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), 2);
+        assertHitCount(client(replicaNode).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), 2);
 
+        client().prepareIndex(INDEX_NAME).setId("3").setSource("foo", "bar").get();
+        refresh(INDEX_NAME);
         waitForReplicaUpdate();
         assertHitCount(client(primaryNode).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), 3);
         assertHitCount(client(replicaNode).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), 3);
-
-        IndexShard primaryShard = getIndexShard(primaryNode);
-        IndexShard replicaShard = getIndexShard(replicaNode);
-        assertEquals(
-            primaryShard.translogStats().estimatedNumberOfOperations(),
-            replicaShard.translogStats().estimatedNumberOfOperations()
-        );
         assertSegmentStats(REPLICA_COUNT);
     }
 
