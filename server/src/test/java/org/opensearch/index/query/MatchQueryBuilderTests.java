@@ -326,6 +326,11 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         query.toQuery(context); // no exception
     }
 
+    public void testDefaultFuzziness() {
+        MatchQueryBuilder matchQueryBuilder = new MatchQueryBuilder("text", TEXT_FIELD_NAME).fuzziness(null);
+        assertNull(matchQueryBuilder.fuzziness());
+    }
+
     public void testExactOnUnsupportedField() throws Exception {
         MatchQueryBuilder query = new MatchQueryBuilder(GEO_POINT_FIELD_NAME, "2,3");
         QueryShardContext context = createShardContext();
