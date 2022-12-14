@@ -76,7 +76,7 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
     }
 
     private static boolean isEnabled(final Settings settings) {
-        return settings.getAsBoolean(ConfigConstants.IDENTITY_ENABLED, true);
+        return settings.getAsBoolean(ConfigConstants.IDENTITY_ENABLED, false);
     }
 
     @Override
