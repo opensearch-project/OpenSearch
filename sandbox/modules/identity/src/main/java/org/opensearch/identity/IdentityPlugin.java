@@ -90,7 +90,7 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
     @Override
     public List<ActionFilter> getActionFilters() {
         List<ActionFilter> filters = new ArrayList<>(1);
-        if(disabled) {
+        if (disabled) {
             return filters;
         }
         filters.add(Objects.requireNonNull(sf));
