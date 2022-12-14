@@ -10,5 +10,5 @@ package org.opensearch.identity;
 
 public class ConfigConstants {
 
-    public static final String IDENTITY_DISABLED = "identity.disabled";
+    public static final String IDENTITY_ENABLED = "identity.enabled";
 }

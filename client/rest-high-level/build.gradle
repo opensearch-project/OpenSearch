@@ -92,9 +92,7 @@ check.dependsOn(asyncIntegTest)
 testClusters.all {
   testDistribution = 'ARCHIVE'
   systemProperty 'opensearch.scripting.update.ctx_in_params', 'false'
-
   setting 'reindex.remote.allowlist', '[ "[::1]:*", "127.0.0.1:*" ]'
-  setting 'identity.disabled', 'true'
 
   extraConfigFile 'roles.yml', file('roles.yml')
   user username: System.getProperty('tests.rest.cluster.username', 'test_user'),

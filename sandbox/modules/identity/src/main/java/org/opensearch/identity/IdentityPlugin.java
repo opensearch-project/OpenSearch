@@ -45,7 +45,7 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
 
     private volatile SecurityRestFilter securityRestHandler;
 
-    private final boolean disabled;
+    private final boolean enabled;
     private volatile Settings settings;
 
     private volatile Path configPath;
@@ -57,9 +57,9 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
 
     @SuppressWarnings("removal")
     public IdentityPlugin(final Settings settings, final Path configPath) {
-        disabled = isDisabled(settings);
+        enabled = isEnabled(settings);
 
-        if (disabled) {
+        if (!enabled) {
             log.warn("Identity module is disabled.");
             return;
         }
@@ -75,13 +75,13 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
         this.settings = settings;
     }
 
-    private static boolean isDisabled(final Settings settings) {
-        return settings.getAsBoolean(ConfigConstants.IDENTITY_DISABLED, false);
+    private static boolean isEnabled(final Settings settings) {
+        return settings.getAsBoolean(ConfigConstants.IDENTITY_ENABLED, true);
     }
 
     @Override
     public UnaryOperator<RestHandler> getRestHandlerWrapper(final ThreadContext threadContext) {
-        if (disabled) {
+        if (!enabled) {
             return (rh) -> rh;
         }
         return (rh) -> securityRestHandler.wrap(rh);
@@ -90,7 +90,7 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
     @Override
     public List<ActionFilter> getActionFilters() {
         List<ActionFilter> filters = new ArrayList<>(1);
-        if (disabled) {
+        if (!enabled) {
             return filters;
         }
         filters.add(Objects.requireNonNull(sf));
@@ -101,7 +101,7 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
     public List<Setting<?>> getSettings() {
         List<Setting<?>> settings = new ArrayList<Setting<?>>();
         settings.addAll(super.getSettings());
-        settings.add(Setting.boolSetting(ConfigConstants.IDENTITY_DISABLED, false, Setting.Property.NodeScope, Setting.Property.Filtered));
+        settings.add(Setting.boolSetting(ConfigConstants.IDENTITY_ENABLED, false, Setting.Property.NodeScope, Setting.Property.Filtered));
 
         return settings;
     }
