@@ -91,8 +91,7 @@ public class DecommissionController {
         long startTime,
         ActionListener<DecommissionResponse> listener
     ) {
-        final long remainingTimeoutMS = decommissionRequest.clusterManagerNodeTimeout().millis() - (threadPool.relativeTimeInMillis()
-            - startTime);
+        final long remainingTimeoutMS = decommissionRequest.timeout().millis() - (threadPool.relativeTimeInMillis() - startTime);
         if (remainingTimeoutMS <= 0) {
             String errorMsg = "cluster manager node timed out before retrying ["
                 + DecommissionAction.NAME
@@ -104,7 +103,7 @@ public class DecommissionController {
             return;
         }
         decommissionRequest.setRetryOnClusterManagerChange(true);
-        decommissionRequest.clusterManagerNodeTimeout(TimeValue.timeValueMillis(remainingTimeoutMS));
+        decommissionRequest.setTimeout(TimeValue.timeValueMillis(remainingTimeoutMS));
         transportService.sendRequest(
             transportService.getLocalNode(),
             DecommissionAction.NAME,

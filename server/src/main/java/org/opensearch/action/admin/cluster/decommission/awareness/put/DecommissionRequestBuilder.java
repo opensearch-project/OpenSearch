@@ -57,4 +57,15 @@ public class DecommissionRequestBuilder extends ClusterManagerNodeOperationReque
         request.setRetryOnClusterManagerChange(retryOnClusterManagerChange);
         return this;
     }
+
+    /**
+     * Sets the timeout for the decommission request
+     *
+     * @param timeout time out for the request
+     * @return current object
+     */
+    public DecommissionRequestBuilder setTimeout(TimeValue timeout) {
+        request.setTimeout(timeout);
+        return this;
+    }
 }

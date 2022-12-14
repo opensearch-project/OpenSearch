@@ -29,11 +29,12 @@ import static org.opensearch.action.ValidateActions.addValidationError;
  */
 public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionRequest> {
 
+    public static final TimeValue TIMEOUT = TimeValue.timeValueMinutes(2L);
     public static final TimeValue DEFAULT_NODE_DRAINING_TIMEOUT = TimeValue.timeValueSeconds(120);
 
     private DecommissionAttribute decommissionAttribute;
     private boolean retryOnClusterManagerChange;
-
+    private TimeValue timeout;
     private TimeValue delayTimeout = DEFAULT_NODE_DRAINING_TIMEOUT;
 
     // holder for no_delay param. To avoid draining time timeout.
@@ -42,12 +43,17 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
     public DecommissionRequest() {}
 
     public DecommissionRequest(DecommissionAttribute decommissionAttribute) {
-        this.decommissionAttribute = decommissionAttribute;
+        this(decommissionAttribute, false, TIMEOUT);
     }
 
-    public DecommissionRequest(DecommissionAttribute decommissionAttribute, boolean retryOnClusterManagerChange) {
+    public DecommissionRequest(DecommissionAttribute decommissionAttribute, boolean retryOnClusterManagerChange, TimeValue timeout) {
         this.decommissionAttribute = decommissionAttribute;
         this.retryOnClusterManagerChange = retryOnClusterManagerChange;
+        this.timeout = timeout;
+    }
+
+    public DecommissionRequest(DecommissionAttribute decommissionAttribute, TimeValue timeout) {
+        this(decommissionAttribute, false, timeout);
     }
 
     public DecommissionRequest(StreamInput in) throws IOException {
@@ -56,6 +62,8 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
         this.delayTimeout = in.readTimeValue();
         this.noDelay = in.readBoolean();
         this.retryOnClusterManagerChange = in.readBoolean();
+        this.timeout = in.readTimeValue();
+
     }
 
     @Override
@@ -65,6 +73,7 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
         out.writeTimeValue(delayTimeout);
         out.writeBoolean(noDelay);
         out.writeBoolean(retryOnClusterManagerChange);
+        out.writeTimeValue(timeout);
     }
 
     /**
@@ -122,6 +131,24 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
         return this.retryOnClusterManagerChange;
     }
 
+    /**
+     * Sets the timeout for the request
+     *
+     * @param timeout retry time out for the request
+     * @return this request
+     */
+    public DecommissionRequest setTimeout(TimeValue timeout) {
+        this.timeout = timeout;
+        return this;
+    }
+
+    /**
+     * @return timeout
+     */
+    public TimeValue timeout() {
+        return this.timeout;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
@@ -153,12 +180,12 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
             + decommissionAttribute
             + ", retryOnClusterManagerChange="
             + retryOnClusterManagerChange
+            + ", timeout="
+            + timeout
             + ", delayTimeout="
             + delayTimeout
             + ", noDelay="
             + noDelay
-            + ", clusterManagerNodeTimeout="
-            + clusterManagerNodeTimeout
             + '}';
     }
 }

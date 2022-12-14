@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static java.util.Collections.singletonList;
+import static org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionRequest.TIMEOUT;
 import static org.opensearch.rest.RestRequest.Method.PUT;
 
 /**
@@ -59,6 +60,7 @@ public class RestDecommissionAction extends BaseRestHandler {
             decommissionRequest.setDelayTimeout(delayTimeout);
         }
         return decommissionRequest.setDecommissionAttribute(new DecommissionAttribute(attributeName, attributeValue))
-            .setRetryOnClusterManagerChange(false);
+            .setRetryOnClusterManagerChange(false)
+            .setTimeout(TimeValue.parseTimeValue(request.param("timeout"), TIMEOUT, getClass().getSimpleName() + ".timeout"));
     }
 }
