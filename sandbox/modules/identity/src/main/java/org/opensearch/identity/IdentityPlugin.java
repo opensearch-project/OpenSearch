@@ -17,6 +17,7 @@ import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
@@ -43,6 +44,8 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
     private volatile Logger log = LogManager.getLogger(this.getClass());
 
     private volatile SecurityRestFilter securityRestHandler;
+
+    private final boolean disabled;
     private volatile Settings settings;
 
     private volatile Path configPath;
@@ -54,6 +57,13 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
 
     @SuppressWarnings("removal")
     public IdentityPlugin(final Settings settings, final Path configPath) {
+        disabled = isDisabled(settings);
+
+        if (disabled) {
+            log.warn("Identity module is disabled.");
+            return;
+        }
+
         this.configPath = configPath;
 
         if (this.configPath != null) {
@@ -65,16 +75,35 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
         this.settings = settings;
     }
 
+    private static boolean isDisabled(final Settings settings) {
+        return settings.getAsBoolean(ConfigConstants.IDENTITY_DISABLED, false);
+    }
+
     @Override
     public UnaryOperator<RestHandler> getRestHandlerWrapper(final ThreadContext threadContext) {
+        if (disabled) {
+            return (rh) -> rh;
+        }
         return (rh) -> securityRestHandler.wrap(rh);
     }
 
     @Override
     public List<ActionFilter> getActionFilters() {
         List<ActionFilter> filters = new ArrayList<>(1);
+        if(disabled) {
+            return filters;
+        }
         filters.add(Objects.requireNonNull(sf));
         return filters;
+    }
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        List<Setting<?>> settings = new ArrayList<Setting<?>>();
+        settings.addAll(super.getSettings());
+        settings.add(Setting.boolSetting(ConfigConstants.IDENTITY_DISABLED, false, Setting.Property.NodeScope, Setting.Property.Filtered));
+
+        return settings;
     }
 
     @Override
@@ -91,7 +120,6 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
-
         // TODO: revisit this
         final AuthenticationManager authManager = new InternalAuthenticationManager();
         Identity.setAuthManager(authManager);

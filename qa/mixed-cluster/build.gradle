@@ -63,6 +63,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
       versions = [bwcVersion.toString(), project.version]
       numberOfNodes = 4
 
+      setting 'identity.disabled', 'true'
       setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
     }
   }
