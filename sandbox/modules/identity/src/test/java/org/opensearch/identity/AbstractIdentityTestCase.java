@@ -45,6 +45,7 @@ public abstract class AbstractIdentityTestCase extends OpenSearchIntegTestCase {
             .put(HttpTransportSettings.SETTING_CORS_ENABLED.getKey(), true)
             .put(HttpTransportSettings.SETTING_CORS_ALLOW_ORIGIN.getKey(), CorsHandler.ANY_ORIGIN)
             .put(HttpTransportSettings.SETTING_CORS_ALLOW_CREDENTIALS.getKey(), true)
+            .put(ConfigConstants.IDENTITY_ENABLED, true)
             .build();
     }
 }
