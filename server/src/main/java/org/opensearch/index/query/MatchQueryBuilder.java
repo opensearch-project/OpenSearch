@@ -208,9 +208,16 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         return this.analyzer;
     }
 
+    @Deprecated
     /** Sets the fuzziness used when evaluated to a fuzzy query type. Defaults to "AUTO". */
     public MatchQueryBuilder fuzziness(Object fuzziness) {
         this.fuzziness = Fuzziness.build(fuzziness);
+        return this;
+    }
+
+    /** Sets the fuzziness used when evaluated to a fuzzy query type. Defaults to "AUTO". */
+    public MatchQueryBuilder fuzziness(Fuzziness fuzziness) {
+        this.fuzziness = fuzziness;
         return this;
     }
 
@@ -565,9 +572,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         matchQuery.operator(operator);
         matchQuery.analyzer(analyzer);
         matchQuery.minimumShouldMatch(minimumShouldMatch);
-        if (fuzziness != null) {
-            matchQuery.fuzziness(fuzziness);
-        }
+        matchQuery.fuzziness(fuzziness);
         matchQuery.fuzzyRewrite(fuzzyRewrite);
         matchQuery.prefixLength(prefixLength);
         matchQuery.fuzzyTranspositions(fuzzyTranspositions);
