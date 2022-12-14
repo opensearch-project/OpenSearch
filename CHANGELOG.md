@@ -134,6 +134,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
  - Renaming to match merge to main branch ([5362](https://github.com/opensearch-project/OpenSearch/pull/5362))
  - Updated settings registration changes to reflect main ([5532](https://github.com/opensearch-project/OpenSearch/pull/5532))
  - Added dependency information to Extensions ([#5438](https://github.com/opensearch-project/OpenSearch/pull/5438))
+ - Renaming tests to be consistent with main branch ([#5571](https://github.com/opensearch-project/OpenSearch/pull/5571))
 
 ## [Unreleased 2.x]
 ### Added
