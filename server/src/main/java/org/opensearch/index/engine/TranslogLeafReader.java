@@ -45,6 +45,8 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
+import org.apache.lucene.index.StoredFields;
+import org.apache.lucene.index.TermVectors;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
@@ -202,6 +204,11 @@ public final class TranslogLeafReader extends LeafReader {
     }
 
     @Override
+    public TermVectors termVectors() throws IOException {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public int numDocs() {
         return 1;
     }
@@ -233,6 +240,11 @@ public final class TranslogLeafReader extends LeafReader {
     }
 
     @Override
+    public StoredFields storedFields() throws IOException {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     protected void doClose() {
 
     }
@@ -249,6 +261,11 @@ public final class TranslogLeafReader extends LeafReader {
 
     @Override
     public TopDocs searchNearestVectors(String field, float[] target, int k, Bits acceptDocs, int visitedLimit) throws IOException {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public TopDocs searchNearestVectors(String field, BytesRef target, int k, Bits acceptDocs, int visitedLimit) throws IOException {
         throw new UnsupportedOperationException();
     }
 }
