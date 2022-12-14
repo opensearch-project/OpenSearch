@@ -68,6 +68,8 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
+import org.apache.lucene.index.StoredFields;
+import org.apache.lucene.index.TermVectors;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.VectorValues;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -1093,6 +1095,11 @@ public class Lucene {
                 return null;
             }
 
+            @Override
+            public TermVectors termVectors() throws IOException {
+                return null;
+            }
+
             public int numDocs() {
                 return 0;
             }
@@ -1102,6 +1109,11 @@ public class Lucene {
             }
 
             public void document(int docID, StoredFieldVisitor visitor) {}
+
+            @Override
+            public StoredFields storedFields() throws IOException {
+                return null;
+            }
 
             protected void doClose() {}
 
@@ -1124,6 +1136,11 @@ public class Lucene {
 
             @Override
             public TopDocs searchNearestVectors(String field, float[] target, int k, Bits acceptDocs, int visitedLimit) throws IOException {
+                return null;
+            }
+
+            @Override
+            public TopDocs searchNearestVectors(String field, BytesRef target, int k, Bits acceptDocs, int visitedLimit) throws IOException {
                 return null;
             }
         };
