@@ -404,6 +404,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         return slop;
     }
 
+    @Deprecated
     /**
      * Sets the fuzziness used when evaluated to a fuzzy query type. Defaults to "AUTO".
      */
@@ -411,6 +412,14 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         if (fuzziness != null) {
             this.fuzziness = Fuzziness.build(fuzziness);
         }
+        return this;
+    }
+
+    /**
+     * Sets the fuzziness used when evaluated to a fuzzy query type. Defaults to "AUTO".
+     */
+    public MultiMatchQueryBuilder fuzziness(Fuzziness fuzziness) {
+        this.fuzziness = fuzziness;
         return this;
     }
 
