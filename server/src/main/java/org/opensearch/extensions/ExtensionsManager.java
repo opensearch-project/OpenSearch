@@ -65,7 +65,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 
 /**
- * The main class for orchestrating Extension communication with the OpenSearch Node.
+ * The main class for managing Extension communication with the OpenSearch Node.
  *
  * @opensearch.internal
  */
@@ -445,7 +445,7 @@ public class ExtensionsManager {
         final CompletableFuture<IndicesModuleResponse> inProgressFuture = new CompletableFuture<>();
         final CompletableFuture<ExtensionBooleanResponse> inProgressIndexNameFuture = new CompletableFuture<>();
 
-        final TransportResponseHandler<ExtensionBooleanResponse> indicesModuleNameResponseHandler = new TransportResponseHandler<
+        final TransportResponseHandler<ExtensionBooleanResponse> extensionBooleanResponseHandler = new TransportResponseHandler<
             ExtensionBooleanResponse>() {
             @Override
             public void handleResponse(ExtensionBooleanResponse response) {
@@ -497,7 +497,7 @@ public class ExtensionsManager {
                                     extensionNode,
                                     INDICES_EXTENSION_NAME_ACTION_NAME,
                                     new IndicesModuleRequest(indexModule),
-                                    indicesModuleNameResponseHandler
+                                    extensionBooleanResponseHandler
                                 );
                                 /*
                                  * Making async synchronous for now.

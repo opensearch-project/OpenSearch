@@ -215,18 +215,18 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
     }
 
-    public void testExtensionsDiscovery() throws Exception {
+    public void testDiscover() throws Exception {
         Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
 
         ExtensionsManager extensionsManager = new ExtensionsManager(settings, extensionDir);
 
-        List<DiscoveryExtensionNode> expectedExtensionsList = new ArrayList<DiscoveryExtensionNode>();
+        List<DiscoveryExtensionNode> expectedUninitializedExtensions = new ArrayList<DiscoveryExtensionNode>();
 
         String expectedUniqueId = "uniqueid0";
         Version expectedVersion = Version.fromString("2.0.0");
         ExtensionDependency expectedDependency = new ExtensionDependency(expectedUniqueId, expectedVersion);
 
-        expectedExtensionsList.add(
+        expectedUninitializedExtensions.add(
             new DiscoveryExtensionNode(
                 "firstExtension",
                 "uniqueid1",
@@ -250,7 +250,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             )
         );
 
-        expectedExtensionsList.add(
+        expectedUninitializedExtensions.add(
             new DiscoveryExtensionNode(
                 "secondExtension",
                 "uniqueid2",
@@ -273,10 +273,10 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                 List.of(expectedDependency)
             )
         );
-        assertEquals(expectedExtensionsList.size(), extensionsManager.getExtensionIdMap().values().size());
-        assertEquals(List.of(expectedDependency), expectedExtensionsList.get(1).getDependencies());
-        assertTrue(expectedExtensionsList.containsAll(extensionsManager.getExtensionIdMap().values()));
-        assertTrue(extensionsManager.getExtensionIdMap().values().containsAll(expectedExtensionsList));
+        assertEquals(expectedUninitializedExtensions.size(), extensionsManager.getExtensionIdMap().values().size());
+        assertEquals(List.of(expectedDependency), expectedUninitializedExtensions.get(1).getDependencies());
+        assertTrue(expectedUninitializedExtensions.containsAll(extensionsManager.getExtensionIdMap().values()));
+        assertTrue(extensionsManager.getExtensionIdMap().values().containsAll(expectedUninitializedExtensions));
     }
 
     public void testNonUniqueExtensionsDiscovery() throws Exception {
@@ -288,9 +288,9 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
 
         ExtensionsManager extensionsManager = new ExtensionsManager(settings, emptyExtensionDir);
 
-        List<DiscoveryExtensionNode> expectedExtensionsList = new ArrayList<DiscoveryExtensionNode>();
+        List<DiscoveryExtensionNode> expectedUninitializedExtensions = new ArrayList<DiscoveryExtensionNode>();
 
-        expectedExtensionsList.add(
+        expectedUninitializedExtensions.add(
             new DiscoveryExtensionNode(
                 "firstExtension",
                 "uniqueid1",
@@ -313,10 +313,10 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                 Collections.emptyList()
             )
         );
-        assertEquals(expectedExtensionsList.size(), extensionsManager.getExtensionIdMap().values().size());
-        assertTrue(expectedExtensionsList.containsAll(extensionsManager.getExtensionIdMap().values()));
-        assertTrue(extensionsManager.getExtensionIdMap().values().containsAll(expectedExtensionsList));
-        assertTrue(expectedExtensionsList.containsAll(emptyList()));
+        assertEquals(expectedUninitializedExtensions.size(), extensionsManager.getExtensionIdMap().values().size());
+        assertTrue(expectedUninitializedExtensions.containsAll(extensionsManager.getExtensionIdMap().values()));
+        assertTrue(extensionsManager.getExtensionIdMap().values().containsAll(expectedUninitializedExtensions));
+        assertTrue(expectedUninitializedExtensions.containsAll(emptyList()));
     }
 
     public void testDiscoveryExtension() throws Exception {
@@ -418,7 +418,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         expectThrows(IOException.class, () -> new ExtensionsManager(settings, emptyExtensionDir));
     }
 
-    public void testExtensionsInitialize() throws Exception {
+    public void testInitialize() throws Exception {
         Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
         ExtensionsManager extensionsManager = new ExtensionsManager(settings, extensionDir);
         initialize(extensionsManager);
