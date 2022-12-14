@@ -7,7 +7,6 @@
  */
 
 apply plugin: 'opensearch.internal-cluster-test'
-apply plugin: 'opensearch.testclusters'
 
 opensearchplugin {
   description 'Plugin for identity features in OpenSearch.'

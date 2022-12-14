@@ -8,7 +8,6 @@
 
 configure(subprojects.findAll { it.parent.path == project.path }) {
   group = 'org.opensearch.sandbox.plugin' // for modules which publish client jars
-  apply plugin: 'opensearch.testclusters'
   apply plugin: 'opensearch.opensearchplugin'
 
   opensearchplugin {
