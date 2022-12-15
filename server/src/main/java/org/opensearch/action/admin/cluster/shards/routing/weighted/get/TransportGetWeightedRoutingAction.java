@@ -89,9 +89,23 @@ public class TransportGetWeightedRoutingAction extends TransportClusterManagerNo
             weightedRoutingService.verifyAwarenessAttribute(request.getAwarenessAttribute());
             WeightedRoutingMetadata weightedRoutingMetadata = state.metadata().custom(WeightedRoutingMetadata.TYPE);
             ClusterGetWeightedRoutingResponse clusterGetWeightedRoutingResponse = new ClusterGetWeightedRoutingResponse();
+            String weight = null;
             if (weightedRoutingMetadata != null && weightedRoutingMetadata.getWeightedRouting() != null) {
                 WeightedRouting weightedRouting = weightedRoutingMetadata.getWeightedRouting();
+<<<<<<< HEAD
                 clusterGetWeightedRoutingResponse = new ClusterGetWeightedRoutingResponse(weightedRouting, state.nodes().getClusterManagerNodeId() != null);
+=======
+                if (request.local()) {
+                    DiscoveryNode localNode = state.getNodes().getLocalNode();
+                    if (localNode.getAttributes().get(request.getAwarenessAttribute()) != null) {
+                        String attrVal = localNode.getAttributes().get(request.getAwarenessAttribute());
+                        if (weightedRouting.weights().containsKey(attrVal)) {
+                            weight = weightedRouting.weights().get(attrVal).toString();
+                        }
+                    }
+                }
+                clusterGetWeightedRoutingResponse = new ClusterGetWeightedRoutingResponse(weight, weightedRouting);
+>>>>>>> parent of ea274c6105b... Add support for discovered master and remove local weights
             }
             listener.onResponse(clusterGetWeightedRoutingResponse);
         } catch (Exception ex) {
