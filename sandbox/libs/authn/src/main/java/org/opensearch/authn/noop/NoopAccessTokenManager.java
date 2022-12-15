@@ -1,8 +1,11 @@
 /*
- * Copyright OpenSearch Contributors
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
  */
-package org.opensearch.identity.noop;
+package org.opensearch.authn.noop;
 
 import org.opensearch.authn.tokens.AccessToken;
 import org.opensearch.authn.AccessTokenManager;

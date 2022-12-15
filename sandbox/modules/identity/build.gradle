@@ -1,0 +1,41 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+apply plugin: 'opensearch.internal-cluster-test'
+
+opensearchplugin {
+  description 'Plugin for identity features in OpenSearch.'
+  classname 'org.opensearch.identity.IdentityPlugin'
+  name project.name
+  licenseFile rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
+  noticeFile rootProject.file('NOTICE.txt')
+}
+
+dependencies {
+  api project(':libs:opensearch-core')
+  api project(':sandbox:libs:opensearch-authn')
+
+  testImplementation project(path: ':modules:transport-netty4') // for http
+  testImplementation project(path: ':plugins:transport-nio') // for http
+}
+
+//task integTest(type: RestIntegTestTask) {
+//  systemProperty 'opensearch.set.netty.runtime.available.processors', 'false'
+//}
+// TODO move the integ tests into qa module after this is moved out of sandbox?
+/*
+ * We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
+ * other if we allow them to set the number of available processors as it's set-once in Netty.
+ */
+test {
+  systemProperty 'opensearch.set.netty.runtime.available.processors', 'false'
+}
+
+internalClusterTest {
+  systemProperty 'opensearch.set.netty.runtime.available.processors', 'false'
+}

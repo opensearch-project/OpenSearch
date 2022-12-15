@@ -200,4 +200,6 @@ grant {
   permission java.io.FilePermission "/sys/fs/cgroup/memory", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/memory/-", "read";
 
+  // needed by cxf-rt-rs-security-jose
+  permission java.lang.RuntimePermission "setContextClassLoader";
 };

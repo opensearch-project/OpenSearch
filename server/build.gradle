@@ -92,15 +92,6 @@ dependencies {
   api project(':libs:opensearch-x-content')
   api project(":libs:opensearch-geo")
 
-  Properties sysProps = System.getProperties();
-  // setting this property to false will exclude the sandbox modules from the distribution
-  final String enableSandbox = sysProps.getProperty("sandbox.enabled", "true");
-  if(sysProps != null && enableSandbox == "true") {
-    if (enableSandbox == "true") {
-      api project(':sandbox:libs:opensearch-authn')
-    }
-  }
-
   compileOnly project(':libs:opensearch-plugin-classloader')
   testRuntimeOnly project(':libs:opensearch-plugin-classloader')
 

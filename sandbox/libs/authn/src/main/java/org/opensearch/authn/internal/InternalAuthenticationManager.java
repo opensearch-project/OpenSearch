@@ -5,12 +5,12 @@
 
 package org.opensearch.authn.internal;
 
+import org.apache.shiro.config.IniSecurityManagerFactory;
+import org.apache.shiro.util.Factory;
 import org.opensearch.authn.AccessTokenManager;
 import org.opensearch.authn.AuthenticationManager;
-import org.opensearch.authn.realm.InternalRealm;
 import org.opensearch.authn.Subject;
 import org.apache.shiro.SecurityUtils;
-import org.apache.shiro.mgt.DefaultSecurityManager;
 import org.apache.shiro.mgt.SecurityManager;
 
 /**
@@ -32,7 +32,11 @@ public class InternalAuthenticationManager implements AuthenticationManager {
      * and this instantiation uses the default security manager
      */
     public InternalAuthenticationManager() {
-        final SecurityManager securityManager = new DefaultSecurityManager(InternalRealm.INSTANCE);
+        // final SecurityManager securityManager = new DefaultSecurityManager(InternalRealm.INSTANCE);
+        // SecurityUtils.setSecurityManager(securityManager);
+
+        Factory<SecurityManager> factory = new IniSecurityManagerFactory("classpath:shiro.ini");
+        SecurityManager securityManager = factory.getInstance();
         SecurityUtils.setSecurityManager(securityManager);
     }
 
