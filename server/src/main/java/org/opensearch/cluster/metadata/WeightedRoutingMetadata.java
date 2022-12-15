@@ -23,8 +23,11 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -36,26 +39,43 @@ public class WeightedRoutingMetadata extends AbstractNamedDiffable<Metadata.Cust
     private static final Logger logger = LogManager.getLogger(WeightedRoutingMetadata.class);
     public static final String TYPE = "weighted_shard_routing";
     public static final String AWARENESS = "awareness";
-    private WeightedRouting weightedRouting;
+    // private WeightedRouting weightedRouting;
 
-    public WeightedRouting getWeightedRouting() {
+    public List<WeightedRouting> getWeightedRoutings() {
+        return weightedRoutings;
+    }
+
+    private List<WeightedRouting> weightedRoutings;
+
+    public WeightedRouting getWeightedRouting(String awarenessAttribute) {
+        WeightedRouting weightedRouting = null;
+        for (WeightedRouting wRouting : this.weightedRoutings) {
+            if (wRouting.attributeName().equals(awarenessAttribute)) {
+                weightedRouting = wRouting;
+            }
+        }
         return weightedRouting;
     }
 
-    public WeightedRoutingMetadata setWeightedRouting(WeightedRouting weightedRouting) {
-        this.weightedRouting = weightedRouting;
-        return this;
+    // public WeightedRoutingMetadata setWeightedRouting(WeightedRouting weightedRouting) {
+    // this.weightedRouting = weightedRouting;
+    // return this;
+    // }
+
+    public WeightedRoutingMetadata(List<WeightedRouting> weightedRoutings) {
+        this.weightedRoutings = weightedRoutings;
+
     }
 
     public WeightedRoutingMetadata(StreamInput in) throws IOException {
         if (in.available() != 0) {
-            this.weightedRouting = new WeightedRouting(in);
+            this.weightedRoutings = in.readList(WeightedRouting::new);
         }
     }
 
-    public WeightedRoutingMetadata(WeightedRouting weightedRouting) {
-        this.weightedRouting = weightedRouting;
-    }
+    // public WeightedRoutingMetadata(WeightedRouting weightedRouting) {
+    // this.weightedRouting = weightedRouting;
+    // }
 
     @Override
     public EnumSet<Metadata.XContentContext> context() {
@@ -74,8 +94,8 @@ public class WeightedRoutingMetadata extends AbstractNamedDiffable<Metadata.Cust
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (weightedRouting != null) {
-            weightedRouting.writeTo(out);
+        if (weightedRoutings != null) {
+            out.writeList(weightedRoutings);
         }
     }
 
@@ -91,6 +111,7 @@ public class WeightedRoutingMetadata extends AbstractNamedDiffable<Metadata.Cust
         WeightedRouting weightedRouting = null;
         XContentParser.Token token;
         String awarenessField = null;
+        List<WeightedRouting> weightedRoutings = new ArrayList<>();
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -122,11 +143,13 @@ public class WeightedRoutingMetadata extends AbstractNamedDiffable<Metadata.Cust
                             );
                         }
                     }
+                    weightedRouting = new WeightedRouting(attributeName, weights);
+                    weightedRoutings.add(weightedRouting);
+                    weights = new HashMap<>();
                 }
             }
         }
-        weightedRouting = new WeightedRouting(attributeName, weights);
-        return new WeightedRoutingMetadata(weightedRouting);
+        return new WeightedRoutingMetadata(weightedRoutings);
     }
 
     @Override
@@ -134,27 +157,29 @@ public class WeightedRoutingMetadata extends AbstractNamedDiffable<Metadata.Cust
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         WeightedRoutingMetadata that = (WeightedRoutingMetadata) o;
-        return weightedRouting.equals(that.weightedRouting);
+        return new HashSet<>(weightedRoutings).equals(new HashSet<>(that.weightedRoutings));
     }
 
     @Override
     public int hashCode() {
-        return weightedRouting.hashCode();
+        return new HashSet<>(weightedRoutings).hashCode();
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        toXContent(weightedRouting, builder);
+        builder.startObject(AWARENESS);
+        for (WeightedRouting weightedRouting : weightedRoutings) {
+            toXContent(weightedRouting, builder);
+        }
+        builder.endObject();
         return builder;
     }
 
     public static void toXContent(WeightedRouting weightedRouting, XContentBuilder builder) throws IOException {
-        builder.startObject(AWARENESS);
         builder.startObject(weightedRouting.attributeName());
         for (Map.Entry<String, Double> entry : weightedRouting.weights().entrySet()) {
             builder.field(entry.getKey(), entry.getValue());
         }
-        builder.endObject();
         builder.endObject();
     }
 

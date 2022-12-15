@@ -24,7 +24,7 @@ import static org.opensearch.action.ValidateActions.addValidationError;
  */
 public class ClusterGetWeightedRoutingRequest extends ClusterManagerNodeReadRequest<ClusterGetWeightedRoutingRequest> {
 
-    String awarenessAttribute;
+    private String awarenessAttribute;
 
     public String getAwarenessAttribute() {
         return awarenessAttribute;

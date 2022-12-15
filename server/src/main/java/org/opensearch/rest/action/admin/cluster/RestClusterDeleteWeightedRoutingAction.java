@@ -35,7 +35,7 @@ public class RestClusterDeleteWeightedRoutingAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(DELETE, "/_cluster/routing/awareness/weights"));
+        return singletonList(new Route(DELETE, "/_cluster/routing/awareness/{attribute}/weights"));
     }
 
     @Override
@@ -45,7 +45,9 @@ public class RestClusterDeleteWeightedRoutingAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        ClusterDeleteWeightedRoutingRequest clusterDeleteWeightedRoutingRequest = Requests.deleteWeightedRoutingRequest();
+        ClusterDeleteWeightedRoutingRequest clusterDeleteWeightedRoutingRequest = Requests.deleteWeightedRoutingRequest(
+            request.param("attribute")
+        );
         return channel -> client.admin()
             .cluster()
             .deleteWeightedRouting(clusterDeleteWeightedRoutingRequest, new RestToXContentListener<>(channel));

@@ -326,7 +326,7 @@ public class OperationRouting {
     ) {
         if (weightedRoutingMetadata != null) {
             return indexShard.activeInitializingShardsWeightedIt(
-                weightedRoutingMetadata.getWeightedRouting(),
+                weightedRoutingMetadata.getWeightedRouting("zone"),
                 nodes,
                 getWeightedRoutingDefaultWeight()
             );

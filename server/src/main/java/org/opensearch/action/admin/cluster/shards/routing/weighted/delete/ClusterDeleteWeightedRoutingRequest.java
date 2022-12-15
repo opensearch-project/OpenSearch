@@ -15,26 +15,48 @@ import org.opensearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
+import static org.opensearch.action.ValidateActions.addValidationError;
+
 /**
  * Request to delete weights for weighted round-robin shard routing policy.
  *
  * @opensearch.internal
  */
 public class ClusterDeleteWeightedRoutingRequest extends ClusterManagerNodeRequest<ClusterDeleteWeightedRoutingRequest> {
+    String awarenessAttribute;
+
+    public String getAwarenessAttribute() {
+        return awarenessAttribute;
+    }
+
+    public void setAwarenessAttribute(String awarenessAttribute) {
+        this.awarenessAttribute = awarenessAttribute;
+    }
+
+    public ClusterDeleteWeightedRoutingRequest(String awarenessAttribute) {
+        this.awarenessAttribute = awarenessAttribute;
+    }
+
     public ClusterDeleteWeightedRoutingRequest() {}
 
     public ClusterDeleteWeightedRoutingRequest(StreamInput in) throws IOException {
         super(in);
+        awarenessAttribute = in.readString();
     }
 
     @Override
     public ActionRequestValidationException validate() {
-        return null;
+        ActionRequestValidationException validationException = null;
+        if (awarenessAttribute == null || awarenessAttribute.isEmpty()) {
+            validationException = addValidationError("Awareness attribute is missing", validationException);
+        }
+        return validationException;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        out.writeString(awarenessAttribute);
     }
 
     @Override
