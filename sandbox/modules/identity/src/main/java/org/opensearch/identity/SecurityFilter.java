@@ -77,7 +77,7 @@ public class SecurityFilter implements ActionFilter {
                     + ", action="
                     + action
                     + " apply0)";
-                log.info(prefix + " Access token provided " + encodedJwt);
+                log.debug(prefix + " Access token provided " + encodedJwt);
             } else {
                 // TODO Figure out where internal actions are invoked and create token on invocation
                 // No token provided, may be an internal request

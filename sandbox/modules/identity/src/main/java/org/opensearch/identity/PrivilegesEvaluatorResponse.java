@@ -8,53 +8,17 @@
 
 package org.opensearch.identity;
 
-import org.opensearch.action.admin.indices.create.CreateIndexRequestBuilder;
-
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
-
+/**
+ * Response for privilege evaluation that determines if a request to perform an action is permitted
+ *
+ * @opensearch.experimental
+ */
 public class PrivilegesEvaluatorResponse {
     boolean allowed = false;
-    Set<String> missingPrivileges = new HashSet<String>();
-    Set<String> missingSecurityRoles = new HashSet<>();
-    Set<String> resolvedSecurityRoles = new HashSet<>();
-    Map<String, Set<String>> allowedFlsFields;
-    Map<String, Set<String>> maskedFields;
-    Map<String, Set<String>> queries;
     PrivilegesEvaluatorResponseState state = PrivilegesEvaluatorResponseState.PENDING;
-    CreateIndexRequestBuilder createIndexRequestBuilder;
 
     public boolean isAllowed() {
         return allowed;
-    }
-
-    public Set<String> getMissingPrivileges() {
-        return new HashSet<String>(missingPrivileges);
-    }
-
-    public Set<String> getMissingSecurityRoles() {
-        return new HashSet<>(missingSecurityRoles);
-    }
-
-    public Set<String> getResolvedSecurityRoles() {
-        return new HashSet<>(resolvedSecurityRoles);
-    }
-
-    public Map<String, Set<String>> getAllowedFlsFields() {
-        return allowedFlsFields;
-    }
-
-    public Map<String, Set<String>> getMaskedFields() {
-        return maskedFields;
-    }
-
-    public Map<String, Set<String>> getQueries() {
-        return queries;
-    }
-
-    public CreateIndexRequestBuilder getCreateIndexRequestBuilder() {
-        return createIndexRequestBuilder;
     }
 
     public PrivilegesEvaluatorResponse markComplete() {
@@ -77,17 +41,7 @@ public class PrivilegesEvaluatorResponse {
 
     @Override
     public String toString() {
-        return "PrivEvalResponse [allowed="
-            + allowed
-            + ", missingPrivileges="
-            + missingPrivileges
-            + ", allowedFlsFields="
-            + allowedFlsFields
-            + ", maskedFields="
-            + maskedFields
-            + ", queries="
-            + queries
-            + "]";
+        return "PrivEvalResponse [allowed=" + allowed + "]";
     }
 
     public static enum PrivilegesEvaluatorResponseState {

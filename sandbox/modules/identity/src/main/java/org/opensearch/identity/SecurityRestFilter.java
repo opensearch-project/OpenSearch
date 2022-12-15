@@ -88,7 +88,7 @@ public class SecurityRestFilter {
                 + ", jwtClaims="
                 + jwtClaims
                 + " checkAndAuthenticateRequest)";
-            log.info(prefix + " Created internal access token " + encodedJwt);
+            log.debug(prefix + " Created internal access token " + encodedJwt);
             threadContext.putHeader(ThreadContextConstants.OPENSEARCH_AUTHENTICATION_TOKEN_HEADER, encodedJwt);
         }
         return true;

@@ -32,9 +32,6 @@ public class InternalAuthenticationManager implements AuthenticationManager {
      * and this instantiation uses the default security manager
      */
     public InternalAuthenticationManager() {
-        // final SecurityManager securityManager = new DefaultSecurityManager(InternalRealm.INSTANCE);
-        // SecurityUtils.setSecurityManager(securityManager);
-
         Factory<SecurityManager> factory = new IniSecurityManagerFactory("classpath:shiro.ini");
         SecurityManager securityManager = factory.getInstance();
         SecurityUtils.setSecurityManager(securityManager);

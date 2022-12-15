@@ -21,6 +21,12 @@ import org.junit.BeforeClass;
 import java.util.Arrays;
 import java.util.Collection;
 
+/**
+ * Abstract Rest Test Case for IdentityPlugin that installs and enables IdentityPlugin and removes mock
+ * http transport to enable REST requests against a test cluster
+ *
+ * @opensearch.experimental
+ */
 // TODO not sure why ThreadLeakScope.NONE is required
 @ThreadLeakScope(ThreadLeakScope.Scope.NONE)
 public abstract class HttpSmokeTestCaseWithIdentity extends OpenSearchIntegTestCase {

@@ -16,6 +16,8 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.nio.charset.StandardCharsets;
 
+import static org.hamcrest.Matchers.containsString;
+
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 1)
 public class BasicAuthTests extends AbstractIdentityTestCase {
     public void testBasicAuthSuccess() throws Exception {
@@ -28,7 +30,7 @@ public class BasicAuthTests extends AbstractIdentityTestCase {
         String content = new String(response.getEntity().getContent().readAllBytes(), StandardCharsets.UTF_8);
 
         assertEquals(RestStatus.OK.getStatus(), response.getStatusLine().getStatusCode());
-        assertTrue(content.contains("\"status\":\"green\""));
+        assertThat(content, containsString("green"));
     }
 
     public void testBasicAuthUnauthorized() throws Exception {
