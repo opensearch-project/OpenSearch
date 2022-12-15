@@ -87,6 +87,7 @@ public class ExtensionsManager {
     public static final String REQUEST_REST_EXECUTE_ON_EXTENSION_ACTION = "internal:extensions/restexecuteonextensiontaction";
     public static final String REQUEST_EXTENSION_HANDLE_TRANSPORT_ACTION = "internal:extensions/handle-transportaction";
     public static final String TRANSPORT_ACTION_REQUEST_FROM_EXTENSION = "internal:extensions/request-transportaction-from-extension";
+    public static final String JOB_DETAILS_REQUEST_FROM_EXTENSION = "internal:extensions/job-details-from-extension";
     public static final int EXTENSION_REQUEST_WAIT_TIMEOUT = 10;
 
     private static final Logger logger = LogManager.getLogger(ExtensionsManager.class);
@@ -105,7 +106,8 @@ public class ExtensionsManager {
         REQUEST_EXTENSION_ENVIRONMENT_SETTINGS,
         CREATE_COMPONENT,
         ON_INDEX_MODULE,
-        GET_SETTINGS
+        GET_SETTINGS,
+        JOB_DETAILS_REQUEST_FROM_EXTENSION
     };
 
     /**
@@ -133,6 +135,8 @@ public class ExtensionsManager {
     private Settings environmentSettings;
     private AddSettingsUpdateConsumerRequestHandler addSettingsUpdateConsumerRequestHandler;
     private NodeClient client;
+    private Map<String, JobDetails> jobDetailsMap;
+    private JobDetailsResponseHandler jobDetailsResponseHandler;
 
     /**
      * Instantiate a new ExtensionsManager object to handle requests and responses from extensions. This is called during Node bootstrap.
@@ -153,6 +157,7 @@ public class ExtensionsManager {
         this.namedWriteableRegistry = null;
         this.client = null;
         this.extensionTransportActionsHandler = null;
+        this.jobDetailsMap = new HashMap<>();
 
         /*
          * Now Discover extensions
@@ -358,6 +363,7 @@ public class ExtensionsManager {
     public void initialize() {
         for (DiscoveryExtensionNode extension : extensionIdMap.values()) {
             initializeExtension(extension);
+            fetchJobDetails(extension);
         }
         this.namedWriteableRegistry = new ExtensionNamedWriteableRegistry(extensions, transportService);
     }
@@ -405,6 +411,28 @@ public class ExtensionsManager {
                 extensionResponseHandler
             );
             inProgressFuture.get(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            try {
+                throw e;
+            } catch (Exception e1) {
+                logger.error(e.toString());
+            }
+        }
+    }
+
+    private void fetchJobDetails(DiscoveryExtensionNode extension) {
+        try {
+            logger.info("Sending extension request type: " + JOB_DETAILS_REQUEST_FROM_EXTENSION);
+            transportService.connectToExtensionNode(extension);
+            this.jobDetailsResponseHandler = new JobDetailsResponseHandler(jobDetailsMap, extension.getId());
+            transportService.sendRequest(
+                extension,
+                JOB_DETAILS_REQUEST_FROM_EXTENSION,
+                new ExtensionRequest(RequestType.JOB_DETAILS_REQUEST_FROM_EXTENSION),
+                jobDetailsResponseHandler
+            );
+
+            jobDetailsResponseHandler.inProgressFuture.join();
         } catch (Exception e) {
             try {
                 throw e;
@@ -622,6 +650,10 @@ public class ExtensionsManager {
         return EXTENSION_REQUEST_WAIT_TIMEOUT;
     }
 
+    public static String getJobDetailsRequestFromExtension() {
+        return JOB_DETAILS_REQUEST_FROM_EXTENSION;
+    }
+
     public static Logger getLogger() {
         return logger;
     }
@@ -668,6 +700,10 @@ public class ExtensionsManager {
 
     public ExtensionActionListenerHandler getListenerHandler() {
         return listenerHandler;
+    }
+
+    public JobDetailsResponseHandler getJobDetailsHandler() {
+        return jobDetailsResponseHandler;
     }
 
     public Settings getEnvironmentSettings() {

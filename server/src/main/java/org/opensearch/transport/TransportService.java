@@ -59,6 +59,7 @@ import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.extensions.JobDetailsResponse;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.node.ReportingService;
 import org.opensearch.tasks.Task;
@@ -776,6 +777,9 @@ public class TransportService extends AbstractLifecycleComponent
                     @Override
                     public void handleResponse(T response) {
                         unregisterChildNode.close();
+                        if (response instanceof JobDetailsResponse) {
+                            System.out.println("response from transportService  " + response);
+                        }
                         handler.handleResponse(response);
                     }
 
