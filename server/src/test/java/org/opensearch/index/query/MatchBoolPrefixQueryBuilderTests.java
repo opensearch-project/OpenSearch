@@ -179,6 +179,11 @@ public class MatchBoolPrefixQueryBuilderTests extends AbstractQueryTestCase<Matc
         }
     }
 
+    public void testDefaultFuzziness() {
+        MatchBoolPrefixQueryBuilder matchBoolPrefixQueryBuilder = new MatchBoolPrefixQueryBuilder(TEXT_FIELD_NAME, "text").fuzziness(null);
+        assertNull(matchBoolPrefixQueryBuilder.fuzziness());
+    }
+
     public void testFromSimpleJson() throws IOException {
         final String simple = "{" + "\"match_bool_prefix\": {" + "\"fieldName\": \"fieldValue\"" + "}" + "}";
         final String expected = "{"
