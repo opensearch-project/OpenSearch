@@ -72,8 +72,6 @@ public class PitIT extends OpenSearchRestHighLevelClientTestCase {
         assertTrue(deletePitResponse.getDeletePitResults().get(0).getPitId().equals(createPitResponse.getId()));
     }
 
-    // TODO Figure out why this test is failing with identity module
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/1715")
     public void testDeleteAllAndListAllPits() throws IOException, InterruptedException {
         CreatePitRequest pitRequest = new CreatePitRequest(new TimeValue(1, TimeUnit.DAYS), true, "index");
         CreatePitResponse pitResponse = execute(pitRequest, highLevelClient()::createPit, highLevelClient()::createPitAsync);
