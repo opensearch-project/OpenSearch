@@ -78,9 +78,6 @@ public class BasicAuthenticationIT extends HttpSmokeTestCaseWithIdentity {
                                     );
                                 }
                             }
-                            // String prefix = "(nodeName=" + request.getParentTask().getNodeId() + ", requestId=" +
-                            // request.getParentTask().getId() + ", action=" + action + " interceptSender)";
-                            // System.out.println(prefix + " Headers: " + threadContext.getHeaders());
                             sender.sendRequest(connection, action, request, options, handler);
                         }
                     };
@@ -147,9 +144,6 @@ public class BasicAuthenticationIT extends HttpSmokeTestCaseWithIdentity {
                             );
                         }
                     }
-                    // String prefix = "(nodeName=" + service.getLocalNode().getId() + ", requestId=" + requestId +
-                    // ", action=" + action + ", nodeRoles=" + service.getLocalNode().getRoles() + " onRequestReceived)";
-                    // System.out.println(prefix + " Headers: " + threadPool.getThreadContext().getHeaders());
                 }
             };
             listenerMap.put(service.getLocalNode().getId(), listener);
@@ -164,8 +158,6 @@ public class BasicAuthenticationIT extends HttpSmokeTestCaseWithIdentity {
         Response response = restClient.performRequest(request);
 
         String content = new String(response.getEntity().getContent().readAllBytes(), StandardCharsets.UTF_8);
-
-        // System.out.println("interceptedTokens: " + interceptedTokens);
 
         assertTrue(interceptedTokens.keySet().size() == 2);
         assertFalse(interceptedTokens.values().stream().anyMatch(s -> Objects.isNull(s)));
