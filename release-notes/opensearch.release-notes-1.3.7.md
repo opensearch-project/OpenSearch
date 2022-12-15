@@ -1,4 +1,4 @@
-## 2022-11-30 Version 1.3.7 Release Notes
+## 2022-12-13 Version 1.3.7 Release Notes
 
 ### Upgrades
 * Upgrade netty to 4.1.84.Final ([#4919](https://github.com/opensearch-project/OpenSearch/pull/4919))
