@@ -1,0 +1,21 @@
+plugins {
+  id 'java-gradle-plugin'
+  id 'opensearch.pluginzip'
+}
+
+group="org.custom.group"
+version='2.0.0.0'
+
+// A bundlePlugin task mockup
+tasks.register('bundlePlugin', Zip.class) {
+  archiveFileName = "sample-plugin-${version}.zip"
+  destinationDirectory = layout.buildDirectory.dir('distributions')
+  from layout.projectDirectory.file('sample-plugin-source.txt')
+}
+
+publishing {
+  publications {
+    pluginZip(MavenPublication) {
+    }
+  }
+}

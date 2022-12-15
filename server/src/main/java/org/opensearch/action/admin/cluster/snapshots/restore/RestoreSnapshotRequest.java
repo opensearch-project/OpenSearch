@@ -33,6 +33,7 @@
 package org.opensearch.action.admin.cluster.snapshots.restore;
 
 import org.opensearch.LegacyESVersion;
+import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
@@ -42,6 +43,7 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.ToXContentObject;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
@@ -68,6 +70,38 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
 
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(RestoreSnapshotRequest.class);
 
+    /**
+     * Enumeration of possible storage types
+     */
+    public enum StorageType {
+        LOCAL("local"),
+        REMOTE_SNAPSHOT("remote_snapshot");
+
+        private final String text;
+
+        StorageType(String text) {
+            this.text = text;
+        }
+
+        @Override
+        public String toString() {
+            return text;
+        }
+
+        private void toXContent(XContentBuilder builder) throws IOException {
+            builder.field("storage_type", text);
+        }
+
+        private static StorageType fromString(String string) {
+            for (StorageType type : values()) {
+                if (type.text.equals(string)) {
+                    return type;
+                }
+            }
+            throw new IllegalArgumentException("Invalid storage_type: " + string);
+        }
+    }
+
     private String snapshot;
     private String repository;
     private String[] indices = Strings.EMPTY_ARRAY;
@@ -80,6 +114,7 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
     private boolean includeAliases = true;
     private Settings indexSettings = EMPTY_SETTINGS;
     private String[] ignoreIndexSettings = Strings.EMPTY_ARRAY;
+    private StorageType storageType = StorageType.LOCAL;
 
     @Nullable // if any snapshot UUID will do
     private String snapshotUuid;
@@ -117,6 +152,9 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
         if (in.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
             snapshotUuid = in.readOptionalString();
         }
+        if (FeatureFlags.isEnabled(FeatureFlags.SEARCHABLE_SNAPSHOT) && in.getVersion().onOrAfter(Version.V_2_4_0)) {
+            storageType = in.readEnum(StorageType.class);
+        }
     }
 
     @Override
@@ -143,6 +181,9 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
             throw new IllegalStateException(
                 "restricting the snapshot UUID is forbidden in a cluster with version [" + out.getVersion() + "] nodes"
             );
+        }
+        if (FeatureFlags.isEnabled(FeatureFlags.SEARCHABLE_SNAPSHOT) && out.getVersion().onOrAfter(Version.V_2_4_0)) {
+            out.writeEnum(storageType);
         }
     }
 
@@ -481,6 +522,22 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
     }
 
     /**
+     * Sets the storage type for this request.
+     */
+    RestoreSnapshotRequest storageType(StorageType storageType) {
+        this.storageType = storageType;
+        return this;
+    }
+
+    /**
+     * Gets the storage type for this request. {@link StorageType#LOCAL} is the
+     * implicit default if not overridden.
+     */
+    public StorageType storageType() {
+        return storageType;
+    }
+
+    /**
      * Parses restore definition
      *
      * @param source restore definition
@@ -537,6 +594,18 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
                 } else {
                     throw new IllegalArgumentException("malformed ignore_index_settings section, should be an array of strings");
                 }
+            } else if (name.equals("storage_type")) {
+                if (FeatureFlags.isEnabled(FeatureFlags.SEARCHABLE_SNAPSHOT)) {
+                    if (entry.getValue() instanceof String) {
+                        storageType(StorageType.fromString((String) entry.getValue()));
+                    } else {
+                        throw new IllegalArgumentException("malformed storage_type");
+                    }
+                } else {
+                    throw new IllegalArgumentException(
+                        "Unsupported parameter " + name + ". Feature flag is not enabled for this experimental feature"
+                    );
+                }
             } else {
                 if (IndicesOptions.isIndicesOptions(name) == false) {
                     throw new IllegalArgumentException("Unknown parameter " + name);
@@ -579,6 +648,9 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
             builder.value(ignoreIndexSetting);
         }
         builder.endArray();
+        if (FeatureFlags.isEnabled(FeatureFlags.SEARCHABLE_SNAPSHOT) && storageType != null) {
+            storageType.toXContent(builder);
+        }
         builder.endObject();
         return builder;
     }
@@ -605,7 +677,8 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
             && Objects.equals(renameReplacement, that.renameReplacement)
             && Objects.equals(indexSettings, that.indexSettings)
             && Arrays.equals(ignoreIndexSettings, that.ignoreIndexSettings)
-            && Objects.equals(snapshotUuid, that.snapshotUuid);
+            && Objects.equals(snapshotUuid, that.snapshotUuid)
+            && Objects.equals(storageType, that.storageType);
     }
 
     @Override
@@ -621,7 +694,8 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
             partial,
             includeAliases,
             indexSettings,
-            snapshotUuid
+            snapshotUuid,
+            storageType
         );
         result = 31 * result + Arrays.hashCode(indices);
         result = 31 * result + Arrays.hashCode(ignoreIndexSettings);

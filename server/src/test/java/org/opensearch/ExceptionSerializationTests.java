@@ -49,11 +49,15 @@ import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.coordination.CoordinationStateRejectedException;
 import org.opensearch.cluster.coordination.NoClusterManagerBlockService;
+import org.opensearch.cluster.decommission.DecommissioningFailedException;
+import org.opensearch.cluster.decommission.NodeDecommissionedException;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.IllegalShardRoutingStateException;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.TestShardRouting;
+import org.opensearch.cluster.routing.UnsupportedWeightedRoutingStateException;
+import org.opensearch.cluster.service.ClusterManagerThrottlingException;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
@@ -103,6 +107,7 @@ import org.opensearch.snapshots.Snapshot;
 import org.opensearch.snapshots.SnapshotException;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotInProgressException;
+import org.opensearch.snapshots.SnapshotInUseDeletionException;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.transport.ActionNotFoundTransportException;
@@ -860,6 +865,11 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
         ids.put(160, NoSeedNodeLeftException.class);
         ids.put(161, ReplicationFailedException.class);
         ids.put(162, PrimaryShardClosedException.class);
+        ids.put(163, DecommissioningFailedException.class);
+        ids.put(164, NodeDecommissionedException.class);
+        ids.put(165, ClusterManagerThrottlingException.class);
+        ids.put(166, SnapshotInUseDeletionException.class);
+        ids.put(167, UnsupportedWeightedRoutingStateException.class);
 
         Map<Class<? extends OpenSearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends OpenSearchException>> entry : ids.entrySet()) {

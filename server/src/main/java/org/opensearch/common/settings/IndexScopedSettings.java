@@ -150,6 +150,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.INDEX_CHECK_ON_STARTUP,
                 IndexSettings.MAX_REFRESH_LISTENERS_PER_SHARD,
                 IndexSettings.MAX_SLICES_PER_SCROLL,
+                IndexSettings.MAX_SLICES_PER_PIT,
                 IndexSettings.MAX_REGEX_LENGTH_SETTING,
                 ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING,
                 IndexSettings.INDEX_GC_DELETES_SETTING,
@@ -220,9 +221,20 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
      */
     public static final Map<String, List<Setting>> FEATURE_FLAGGED_INDEX_SETTINGS = Map.of(
         FeatureFlags.REPLICATION_TYPE,
-        Collections.singletonList(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING),
+        List.of(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING),
         FeatureFlags.REMOTE_STORE,
-        Arrays.asList(IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING, IndexMetadata.INDEX_REMOTE_STORE_REPOSITORY_SETTING)
+        List.of(
+            IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING,
+            IndexMetadata.INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING,
+            IndexMetadata.INDEX_REMOTE_STORE_REPOSITORY_SETTING
+        ),
+        FeatureFlags.SEARCHABLE_SNAPSHOT,
+        List.of(
+            IndexSettings.SEARCHABLE_SNAPSHOT_REPOSITORY,
+            IndexSettings.SEARCHABLE_SNAPSHOT_INDEX_ID,
+            IndexSettings.SEARCHABLE_SNAPSHOT_ID_NAME,
+            IndexSettings.SEARCHABLE_SNAPSHOT_ID_UUID
+        )
     );
 
     public static final IndexScopedSettings DEFAULT_SCOPED_SETTINGS = new IndexScopedSettings(Settings.EMPTY, BUILT_IN_INDEX_SETTINGS);

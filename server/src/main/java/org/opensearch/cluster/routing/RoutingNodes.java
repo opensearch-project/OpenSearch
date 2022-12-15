@@ -702,6 +702,23 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             + " was matched but wasn't removed";
     }
 
+    public void swapPrimaryWithReplica(
+        Logger logger,
+        ShardRouting primaryShard,
+        ShardRouting replicaShard,
+        RoutingChangesObserver changes
+    ) {
+        assert primaryShard.primary() : "Invalid primary shard provided";
+        assert !replicaShard.primary() : "Invalid Replica shard provided";
+
+        ShardRouting newPrimary = primaryShard.moveActivePrimaryToReplica();
+        ShardRouting newReplica = replicaShard.moveActiveReplicaToPrimary();
+        updateAssigned(primaryShard, newPrimary);
+        updateAssigned(replicaShard, newReplica);
+        logger.info("Swap relocation performed for shard [{}]", newPrimary.shortSummary());
+        changes.replicaPromoted(newPrimary);
+    }
+
     private void unassignPrimaryAndPromoteActiveReplicaIfExists(
         ShardRouting failedShard,
         UnassignedInfo unassignedInfo,
@@ -1125,6 +1142,18 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             ShardRouting[] mutableShardRoutings = unassigned.toArray(new ShardRouting[unassigned.size()]);
             unassigned.clear();
             primaries = 0;
+            return mutableShardRoutings;
+        }
+
+        /**
+         * Drains all ignored shards and returns it.
+         * This method will not drain unassigned shards.
+         */
+        public ShardRouting[] drainIgnored() {
+            nodes.ensureMutable();
+            ShardRouting[] mutableShardRoutings = ignored.toArray(new ShardRouting[ignored.size()]);
+            ignored.clear();
+            ignoredPrimaries = 0;
             return mutableShardRoutings;
         }
     }

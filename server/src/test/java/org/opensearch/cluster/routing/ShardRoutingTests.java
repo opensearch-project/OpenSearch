@@ -301,6 +301,18 @@ public class ShardRoutingTests extends OpenSearchTestCase {
         }
     }
 
+    public void testSwapPrimaryWithReplica() {
+        final ShardRouting unassignedShard0 = TestShardRouting.newShardRouting("test", 0, null, false, ShardRoutingState.UNASSIGNED);
+        assertThrows(AssertionError.class, unassignedShard0::moveActivePrimaryToReplica);
+
+        final ShardRouting activeShard0 = TestShardRouting.newShardRouting("test", 0, "node-1", false, ShardRoutingState.STARTED);
+        assertThrows(IllegalShardRoutingStateException.class, activeShard0::moveActivePrimaryToReplica);
+
+        final ShardRouting activeShard1 = TestShardRouting.newShardRouting("test", 0, "node-1", true, ShardRoutingState.STARTED);
+        final ShardRouting activeReplicaShard1 = activeShard1.moveActivePrimaryToReplica();
+        assertFalse(activeReplicaShard1.primary());
+    }
+
     public void testExpectedSize() throws IOException {
         final int iters = randomIntBetween(10, 100);
         for (int i = 0; i < iters; i++) {

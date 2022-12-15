@@ -48,7 +48,7 @@ opensearchplugin {
 }
 
 versions << [
-  'hadoop3': '3.3.3'
+  'hadoop3': '3.3.4'
 ]
 
 testFixtures.useFixture ":test:fixtures:krb5kdc-fixture", "hdfs"
@@ -66,10 +66,9 @@ dependencies {
   api 'org.apache.htrace:htrace-core4:4.2.0-incubating'
   api "org.apache.logging.log4j:log4j-core:${versions.log4j}"
   api 'org.apache.avro:avro:1.10.2'
-  api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
-  api 'com.google.code.gson:gson:2.9.0'
+  api 'com.google.code.gson:gson:2.10'
   runtimeOnly 'com.google.guava:guava:31.1-jre'
-  api 'com.google.protobuf:protobuf-java:3.21.2'
+  api 'com.google.protobuf:protobuf-java:3.21.9'
   api "commons-logging:commons-logging:${versions.commonslogging}"
   api 'commons-cli:commons-cli:1.2'
   api "commons-codec:commons-codec:${versions.commonscodec}"
@@ -83,9 +82,8 @@ dependencies {
   api "org.slf4j:slf4j-api:${versions.slf4j}"
   api "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
   api 'net.minidev:json-smart:2.4.7'
-  api 'org.apache.zookeeper:zookeeper:3.7.0'
   api "io.netty:netty-all:${versions.netty}"
-  implementation 'com.fasterxml.woodstox:woodstox-core:6.2.8'
+  implementation "com.fasterxml.woodstox:woodstox-core:${versions.woodstox}"
   implementation 'org.codehaus.woodstox:stax2-api:4.2.1'
 
   hdfsFixture project(':test:fixtures:hdfs-fixture')

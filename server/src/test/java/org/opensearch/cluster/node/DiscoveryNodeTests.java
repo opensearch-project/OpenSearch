@@ -39,6 +39,7 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.test.NodeRoles;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.net.InetAddress;
@@ -176,11 +177,11 @@ public class DiscoveryNodeTests extends OpenSearchTestCase {
     }
 
     // Added in 2.0 temporarily, validate the MASTER_ROLE is in the list of known roles.
-    // MASTER_ROLE was removed from BUILT_IN_ROLES and is imported by setAdditionalRoles(),
+    // MASTER_ROLE was removed from BUILT_IN_ROLES and is imported by setDeprecatedMasterRole(),
     // as a workaround for making the new CLUSTER_MANAGER_ROLE has got the same abbreviation 'm'.
     // The test validate this behavior.
-    public void testSetAdditionalRolesCanAddDeprecatedMasterRole() {
-        DiscoveryNode.setAdditionalRoles(Collections.emptySet());
+    public void testSetDeprecatedMasterRoleCanAddMasterRole() {
+        DiscoveryNode.setDeprecatedMasterRole();
         assertTrue(DiscoveryNode.getPossibleRoleNames().contains(DiscoveryNodeRole.MASTER_ROLE.roleName()));
     }
 
@@ -203,5 +204,11 @@ public class DiscoveryNodeTests extends OpenSearchTestCase {
         DiscoveryNodeRole dynamicNodeRole = DiscoveryNode.getRoleFromRoleName(dynamicRoleName);
         assertEquals(dynamicRoleName.toLowerCase(Locale.ROOT), dynamicNodeRole.roleName());
         assertEquals(dynamicRoleName.toLowerCase(Locale.ROOT), dynamicNodeRole.roleNameAbbreviation());
+    }
+
+    public void testDiscoveryNodeIsSearchNode() {
+        final Settings settingWithSearchRole = NodeRoles.onlyRole(DiscoveryNodeRole.SEARCH_ROLE);
+        final DiscoveryNode node = DiscoveryNode.createLocal(settingWithSearchRole, buildNewFakeTransportAddress(), "node");
+        assertThat(node.isSearchNode(), equalTo(true));
     }
 }

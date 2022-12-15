@@ -60,6 +60,16 @@ If you would like to contribute to the documentation, please do so in the [docum
 
 As with other types of contributions, the first step is to [**open an issue on GitHub**](https://github.com/opensearch-project/OpenSearch/issues/new/choose). Opening an issue before you make changes makes sure that someone else isn't already working on that particular problem. It also lets us all work together to find the right approach before you spend a bunch of time on a PR. So again, when in doubt, open an issue.
 
+Additionally, here are a few guidelines to help you decide whether a particular feature should be included in OpenSearch.
+
+**Is your feature important to most users of OpenSearch?**
+
+If you believe that a feature is going to fulfill a need for most users of OpenSearch, then it belongs in OpenSearch. However, we don't want every feature built into the core server. If the feature requires additional permissions or brings in extra dependencies it should instead be included as a module in core.
+
+**Is your feature a common dependency across multiple plugins?**
+
+Does this feature contain functionality that cuts across multiple plugins? If so, this most likely belongs in OpenSearch as a core module or plugin.
+
 Once you've opened an issue, check out our [Developer Guide](./DEVELOPER_GUIDE.md) for instructions on how to get started.
 
 ## Developer Certificate of Origin
@@ -109,20 +119,39 @@ You may type this line on your own when writing your commit messages. However, i
 
 ## Changelog
 
-OpenSearch maintains version specific changelog by enforcing a change to the ongoing [CHANGELOG](CHANGELOG.md) file adhering to the [Keep A Changelog](https://keepachangelog.com/en/1.0.0/) format.
+OpenSearch maintains version specific changelog by enforcing a change to the ongoing [CHANGELOG](CHANGELOG.md) file adhering to the [Keep A Changelog](https://keepachangelog.com/en/1.0.0/) format. The purpose of the changelog is for the contributors and maintainers to incrementally build the release notes throughout the development process to avoid a painful and error-prone process of attempting to compile the release notes at release time. On each release the "unreleased" entries of the changelog are moved to the appropriate release notes document in the `./release-notes` folder. Also, incrementally building the changelog provides a concise, human-readable list of significant features that have been added to the unreleased version under development.
 
-Briefly, the changes are curated by version, with the changes to the main branch added chronologically to `Unreleased` version. Further, each version has corresponding sections which list out the category of the change - `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`.
+### Which changes require a CHANGELOG entry?
+Changelogs are intended for operators/administrators, developers integrating with libraries and APIs, and end-users interacting with OpenSearch Dashboards and/or the REST API (collectively referred to as "user"). In short, any change that a user of OpenSearch might want to be aware of should be included in the changelog. The changelog is _not_ intended to replace the git commit log that developers of OpenSearch itself rely upon. The following are some examples of changes that should be in the changelog:
 
+- A newly added feature
+- A fix for a user-facing bug
+- Dependency updates
+- Fixes for security issues
+
+The following are some examples where a changelog entry is not necessary:
+
+- Adding, modifying, or fixing tests
+- An incremental PR for a larger feature (such features should include _one_ changelog entry for the feature)
+- Documentation changes or code refactoring
+- Build-related changes
+
+Any PR that does not include a changelog entry will result in a failure of the validation workflow in GitHub. If the contributor and maintainers agree that no changelog entry is required, then the `skip-changelog` label can be applied to the PR which will result in the workflow passing.
 
 ### How to add my changes to [CHANGELOG](CHANGELOG.md)?
 
-As a contributor, you must ensure that every pull request has the changes listed out within the corresponding version and appropriate section of [CHANGELOG](CHANGELOG.md) file.
-
-Adding in the change is two step process -
+Adding in the change is two step process:
 1. Add your changes to the corresponding section within the CHANGELOG file with dummy pull request information, publish the PR
-
 2. Update the entry for your change in [`CHANGELOG.md`](CHANGELOG.md) and make sure that you reference the pull request there.
 
+### Where should I put my CHANGELOG entry?
+Please review the [branching strategy](https://github.com/opensearch-project/.github/blob/main/RELEASING.md#opensearch-branching) document. The changelog on the `main` branch will contain sections for the _next major_ and _next minor_ releases. Your entry should go into the section it is intended to be released in. In practice, most changes to `main` will be backported to the next minor release so most entries will likely be in that section.
+
+The following examples assume the _next major_ release on main is 3.0, then _next minor_ release is 2.5, and the _current_ release is 2.4.
+
+- **Add a new feature to release in next minor:** Add a changelog entry to `[Unreleased 2.x]` on main, then backport to 2.x (including the changelog entry).
+- **Introduce a breaking API change to release in next major:** Add a changelog entry to `[Unreleased 3.0]` on main, do not backport.
+- **Upgrade a dependency to fix a CVE:** Add a changelog entry to `[Unreleased 2.x]` on main, then backport to 2.x (including the changelog entry), then backport to 2.4 and ensure the changelog entry is added to `[Unreleased 2.4.1]`.
 
 ## Review Process
 

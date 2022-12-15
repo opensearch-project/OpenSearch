@@ -239,6 +239,13 @@ public class Node {
             return roles.contains("ingest");
         }
 
+        /**
+         * Returns whether the node is dedicated to provide search capability.
+         */
+        public boolean isSearch() {
+            return roles.contains("search");
+        }
+
         @Override
         public String toString() {
             return String.join(",", roles);

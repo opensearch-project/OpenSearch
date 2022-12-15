@@ -54,7 +54,7 @@ import java.util.List;
  *
  * @opensearch.internal
  */
-public final class ShardRouting implements Writeable, ToXContentObject {
+public class ShardRouting implements Writeable, ToXContentObject {
 
     /**
      * Used if shard size is not available
@@ -78,7 +78,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
      * A constructor to internally create shard routing instances, note, the internal flag should only be set to true
      * by either this class or tests. Visible for testing.
      */
-    ShardRouting(
+    protected ShardRouting(
         ShardId shardId,
         String currentNodeId,
         String relocatingNodeId,
@@ -531,6 +531,29 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             null,
             allocationId,
             UNAVAILABLE_EXPECTED_SHARD_SIZE
+        );
+    }
+
+    /**
+     * Make the active primary shard as replica
+     *
+     * @throws IllegalShardRoutingStateException if shard is already a replica
+     */
+    public ShardRouting moveActivePrimaryToReplica() {
+        assert active() : "expected an active shard " + this;
+        if (!primary) {
+            throw new IllegalShardRoutingStateException(this, "Not a primary shard, can't move to replica");
+        }
+        return new ShardRouting(
+            shardId,
+            currentNodeId,
+            relocatingNodeId,
+            false,
+            state,
+            recoverySource,
+            unassignedInfo,
+            allocationId,
+            expectedShardSize
         );
     }
 

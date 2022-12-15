@@ -162,8 +162,8 @@ import org.opensearch.indices.recovery.RecoveryFailedException;
 import org.opensearch.indices.recovery.RecoveryListener;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
-import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
+import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.rest.RestStatus;
@@ -202,6 +202,7 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static org.opensearch.index.seqno.RetentionLeaseActions.RETAIN_ALL;
+import static org.opensearch.index.seqno.SequenceNumbers.MAX_SEQ_NO;
 import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 /**
@@ -678,7 +679,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             this.shardRouting = newRouting;
 
             assert this.shardRouting.primary() == false || this.shardRouting.started() == false || // note that we use started and not
-                                                                                                   // active to avoid relocating shards
+            // active to avoid relocating shards
                 this.indexShardOperationPermits.isBlocked() || // if permits are blocked, we are still transitioning
                 this.replicationTracker.isPrimaryMode() : "a started primary with non-pending operation term must be in primary mode "
                     + this.shardRouting;
@@ -1432,6 +1433,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             logger.warn("Ignoring new replication checkpoint - shard is in primaryMode and cannot receive any checkpoints.");
             return false;
         }
+        if (this.routingEntry().primary()) {
+            logger.warn("Ignoring new replication checkpoint - primary shard cannot receive any checkpoints.");
+            return false;
+        }
         ReplicationCheckpoint localCheckpoint = getLatestReplicationCheckpoint();
         if (localCheckpoint.isAheadOf(requestCheckpoint)) {
             logger.trace(
@@ -1695,13 +1700,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @return a sequence number that an operation-based peer recovery can start with.
      * This is the first operation after the local checkpoint of the safe commit if exists.
      */
-    public long recoverLocallyUpToGlobalCheckpoint() {
-        assert Thread.holdsLock(mutex) == false : "recover locally under mutex";
-        if (state != IndexShardState.RECOVERING) {
-            throw new IndexShardNotRecoveringException(shardId, state);
-        }
-        recoveryState.validateCurrentStage(RecoveryState.Stage.INDEX);
-        assert routingEntry().recoverySource().getType() == RecoverySource.Type.PEER : "not a peer recovery [" + routingEntry() + "]";
+    private long recoverLocallyUpToGlobalCheckpoint() {
+        validateLocalRecoveryState();
         final Optional<SequenceNumbers.CommitInfo> safeCommit;
         final long globalCheckpoint;
         try {
@@ -1781,6 +1781,54 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             );
             return UNASSIGNED_SEQ_NO;
         }
+    }
+
+    public long recoverLocallyAndFetchStartSeqNo(boolean localTranslog) {
+        if (localTranslog) {
+            return recoverLocallyUpToGlobalCheckpoint();
+        } else {
+            return recoverLocallyUptoLastCommit();
+        }
+    }
+
+    /**
+     * The method figures out the sequence number basis the last commit.
+     *
+     * @return the starting sequence number from which the recovery should start.
+     */
+    private long recoverLocallyUptoLastCommit() {
+        assert isRemoteTranslogEnabled() : "Remote translog store is not enabled";
+        long seqNo;
+        validateLocalRecoveryState();
+
+        try {
+            seqNo = Long.parseLong(store.readLastCommittedSegmentsInfo().getUserData().get(MAX_SEQ_NO));
+        } catch (org.apache.lucene.index.IndexNotFoundException e) {
+            logger.error("skip local recovery as no index commit found", e);
+            return UNASSIGNED_SEQ_NO;
+        } catch (Exception e) {
+            logger.error("skip local recovery as failed to find the safe commit", e);
+            return UNASSIGNED_SEQ_NO;
+        }
+
+        try {
+            maybeCheckIndex();
+            recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
+            recoveryState.getTranslog().totalLocal(0);
+        } catch (Exception e) {
+            logger.error("check index failed during fetch seqNo", e);
+            return UNASSIGNED_SEQ_NO;
+        }
+        return seqNo;
+    }
+
+    private void validateLocalRecoveryState() {
+        assert Thread.holdsLock(mutex) == false : "recover locally under mutex";
+        if (state != IndexShardState.RECOVERING) {
+            throw new IndexShardNotRecoveringException(shardId, state);
+        }
+        recoveryState.validateCurrentStage(RecoveryState.Stage.INDEX);
+        assert routingEntry().recoverySource().getType() == RecoverySource.Type.PEER : "not a peer recovery [" + routingEntry() + "]";
     }
 
     public void trimOperationOfPreviousPrimaryTerms(long aboveSeqNo) {
@@ -1934,7 +1982,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 translogRecoveryStats::incrementRecoveredOperations
             );
         };
-        loadGlobalCheckpointToReplicationTracker();
+
+        // Do not load the global checkpoint if this is a remote snapshot index
+        if (IndexModule.Type.REMOTE_SNAPSHOT.match(indexSettings) == false) {
+            loadGlobalCheckpointToReplicationTracker();
+        }
+
         innerOpenEngineAndTranslog(replicationTracker);
         getEngine().recoverFromTranslog(translogRecoveryRunner, Long.MAX_VALUE);
     }
@@ -1988,7 +2041,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private boolean assertSequenceNumbersInCommit() throws IOException {
         final Map<String, String> userData = SegmentInfos.readLatestCommit(store.directory()).getUserData();
         assert userData.containsKey(SequenceNumbers.LOCAL_CHECKPOINT_KEY) : "commit point doesn't contains a local checkpoint";
-        assert userData.containsKey(SequenceNumbers.MAX_SEQ_NO) : "commit point doesn't contains a maximum sequence number";
+        assert userData.containsKey(MAX_SEQ_NO) : "commit point doesn't contains a maximum sequence number";
         assert userData.containsKey(Engine.HISTORY_UUID_KEY) : "commit point doesn't contains a history uuid";
         assert userData.get(Engine.HISTORY_UUID_KEY).equals(getHistoryUUID()) : "commit point history uuid ["
             + userData.get(Engine.HISTORY_UUID_KEY)
@@ -3046,13 +3099,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 }
                 break;
             case SNAPSHOT:
-                final String repo = ((SnapshotRecoverySource) recoveryState.getRecoverySource()).snapshot().getRepository();
-                executeRecovery(
-                    "from snapshot",
-                    recoveryState,
-                    recoveryListener,
-                    l -> restoreFromRepository(repositoriesService.repository(repo), l)
-                );
+                final SnapshotRecoverySource recoverySource = (SnapshotRecoverySource) recoveryState.getRecoverySource();
+                if (recoverySource.isSearchableSnapshot()) {
+                    executeRecovery("from snapshot (remote)", recoveryState, recoveryListener, this::recoverFromStore);
+                } else {
+                    final String repo = recoverySource.snapshot().getRepository();
+                    executeRecovery(
+                        "from snapshot",
+                        recoveryState,
+                        recoveryListener,
+                        l -> restoreFromRepository(repositoriesService.repository(repo), l)
+                    );
+                }
                 break;
             case LOCAL_SHARDS:
                 final IndexMetadata indexMetadata = indexSettings().getIndexMetadata();
@@ -3213,10 +3271,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 writeReason = "routing changed from " + currentRouting + " to " + newRouting;
             }
             logger.trace("{} writing shard state, reason [{}]", shardId, writeReason);
+
+            final ShardStateMetadata.IndexDataLocation indexDataLocation = IndexSettings.SEARCHABLE_SNAPSHOT_REPOSITORY.exists(
+                indexSettings.getSettings()
+            ) ? ShardStateMetadata.IndexDataLocation.REMOTE : ShardStateMetadata.IndexDataLocation.LOCAL;
             final ShardStateMetadata newShardStateMetadata = new ShardStateMetadata(
                 newRouting.primary(),
                 indexSettings.getUUID(),
-                newRouting.allocationId()
+                newRouting.allocationId(),
+                indexDataLocation
             );
             ShardStateMetadata.FORMAT.writeAndCleanup(newShardStateMetadata, shardPath.getShardStatePath());
         } else {
@@ -3276,6 +3339,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private boolean isRemoteStoreEnabled() {
         return (remoteStore != null && shardRouting.primary());
+    }
+
+    public boolean isRemoteTranslogEnabled() {
+        return indexSettings() != null && indexSettings().isRemoteTranslogStoreEnabled();
     }
 
     /**

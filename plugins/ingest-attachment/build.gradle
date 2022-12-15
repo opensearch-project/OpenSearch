@@ -38,10 +38,10 @@ opensearchplugin {
 }
 
 versions << [
-  'tika'  : '2.4.0',
-  'pdfbox': '2.0.25',
-  'poi'   : '5.2.2',
-  'mime4j': '0.8.3'
+  'tika'  : '2.6.0',
+  'pdfbox': '2.0.27',
+  'poi'   : '5.2.3',
+  'mime4j': '0.8.8'
 ]
 
 dependencies {
@@ -69,7 +69,7 @@ dependencies {
   // Adobe PDF
   api "org.apache.pdfbox:pdfbox:${versions.pdfbox}"
   api "org.apache.pdfbox:fontbox:${versions.pdfbox}"
-  api "org.apache.pdfbox:jempbox:1.8.16"
+  api "org.apache.pdfbox:jempbox:1.8.17"
   api "commons-logging:commons-logging:${versions.commonslogging}"
   api "org.bouncycastle:bcmail-jdk15on:${versions.bouncycastle}"
   api "org.bouncycastle:bcprov-jdk15on:${versions.bouncycastle}"
@@ -79,12 +79,12 @@ dependencies {
   api "org.apache.poi:poi:${versions.poi}"
   api "org.apache.poi:poi-ooxml-lite:${versions.poi}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
-  api 'org.apache.xmlbeans:xmlbeans:5.0.2'
-  api 'org.apache.commons:commons-collections4:4.1'
+  api 'org.apache.xmlbeans:xmlbeans:5.1.1'
+  api 'org.apache.commons:commons-collections4:4.4'
   // MS Office
   api "org.apache.poi:poi-scratchpad:${versions.poi}"
   // Apple iWork
-  api 'org.apache.commons:commons-compress:1.21'
+  api 'org.apache.commons:commons-compress:1.22'
   // Outlook documents
   api "org.apache.james:apache-mime4j-core:${versions.mime4j}"
   api "org.apache.james:apache-mime4j-dom:${versions.mime4j}"

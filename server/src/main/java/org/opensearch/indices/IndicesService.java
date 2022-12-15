@@ -84,6 +84,7 @@ import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.common.util.concurrent.OpenSearchThreadPoolExecutor;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.iterable.Iterables;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
@@ -111,6 +112,7 @@ import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.engine.NoOpEngine;
+import org.opensearch.index.engine.ReadOnlyEngine;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
 import org.opensearch.index.flush.FlushStats;
 import org.opensearch.index.get.GetStats;
@@ -132,6 +134,7 @@ import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.shard.IndexingOperationListener;
 import org.opensearch.index.shard.IndexingStats;
 import org.opensearch.index.shard.ShardId;
+import org.opensearch.index.translog.TranslogStats;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
@@ -142,6 +145,7 @@ import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.node.Node;
 import org.opensearch.plugins.IndexStorePlugin;
+import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
@@ -227,6 +231,7 @@ public class IndicesService extends AbstractLifecycleComponent
      */
     private final Settings settings;
     private final PluginsService pluginsService;
+    private final ExtensionsManager extensionsManager;
     private final NodeEnvironment nodeEnv;
     private final NamedXContentRegistry xContentRegistry;
     private final TimeValue shardsClosedTimeout;
@@ -299,6 +304,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.settings = settings;
         this.threadPool = threadPool;
         this.pluginsService = pluginsService;
+        this.extensionsManager = null;
         this.nodeEnv = nodeEnv;
         this.xContentRegistry = xContentRegistry;
         this.valuesSourceRegistry = valuesSourceRegistry;
@@ -338,12 +344,118 @@ public class IndicesService extends AbstractLifecycleComponent
         this.metaStateService = metaStateService;
         this.engineFactoryProviders = engineFactoryProviders;
 
-        // do not allow any plugin-provided index store type to conflict with a built-in type
-        for (final String indexStoreType : directoryFactories.keySet()) {
-            if (IndexModule.isBuiltinType(indexStoreType)) {
-                throw new IllegalStateException("registered index store type [" + indexStoreType + "] conflicts with a built-in type");
+        this.directoryFactories = directoryFactories;
+        this.recoveryStateFactories = recoveryStateFactories;
+        // doClose() is called when shutting down a node, yet there might still be ongoing requests
+        // that we need to wait for before closing some resources such as the caches. In order to
+        // avoid closing these resources while ongoing requests are still being processed, we use a
+        // ref count which will only close them when both this service and all index services are
+        // actually closed
+        indicesRefCount = new AbstractRefCounted("indices") {
+            @Override
+            protected void closeInternal() {
+                try {
+                    IOUtils.close(
+                        analysisRegistry,
+                        indexingMemoryController,
+                        indicesFieldDataCache,
+                        cacheCleaner,
+                        indicesRequestCache,
+                        indicesQueryCache
+                    );
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                } finally {
+                    closeLatch.countDown();
+                }
             }
-        }
+        };
+
+        final String nodeName = Objects.requireNonNull(Node.NODE_NAME_SETTING.get(settings));
+        nodeWriteDanglingIndicesInfo = WRITE_DANGLING_INDICES_INFO_SETTING.get(settings);
+        danglingIndicesThreadPoolExecutor = nodeWriteDanglingIndicesInfo
+            ? OpenSearchExecutors.newScaling(
+                nodeName + "/" + DANGLING_INDICES_UPDATE_THREAD_NAME,
+                1,
+                1,
+                0,
+                TimeUnit.MILLISECONDS,
+                daemonThreadFactory(nodeName, DANGLING_INDICES_UPDATE_THREAD_NAME),
+                threadPool.getThreadContext()
+            )
+            : null;
+
+        this.allowExpensiveQueries = ALLOW_EXPENSIVE_QUERIES.get(clusterService.getSettings());
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(ALLOW_EXPENSIVE_QUERIES, this::setAllowExpensiveQueries);
+        this.remoteDirectoryFactory = remoteDirectoryFactory;
+    }
+
+    public IndicesService(
+        Settings settings,
+        PluginsService pluginsService,
+        ExtensionsManager extensionsManager,
+        NodeEnvironment nodeEnv,
+        NamedXContentRegistry xContentRegistry,
+        AnalysisRegistry analysisRegistry,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        MapperRegistry mapperRegistry,
+        NamedWriteableRegistry namedWriteableRegistry,
+        ThreadPool threadPool,
+        IndexScopedSettings indexScopedSettings,
+        CircuitBreakerService circuitBreakerService,
+        BigArrays bigArrays,
+        ScriptService scriptService,
+        ClusterService clusterService,
+        Client client,
+        MetaStateService metaStateService,
+        Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders,
+        Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories,
+        ValuesSourceRegistry valuesSourceRegistry,
+        Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
+        IndexStorePlugin.RemoteDirectoryFactory remoteDirectoryFactory
+    ) {
+        this.settings = settings;
+        this.threadPool = threadPool;
+        this.pluginsService = pluginsService;
+        this.extensionsManager = extensionsManager;
+        this.nodeEnv = nodeEnv;
+        this.xContentRegistry = xContentRegistry;
+        this.valuesSourceRegistry = valuesSourceRegistry;
+        this.shardsClosedTimeout = settings.getAsTime(INDICES_SHARDS_CLOSED_TIMEOUT, new TimeValue(1, TimeUnit.DAYS));
+        this.analysisRegistry = analysisRegistry;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
+        this.indicesRequestCache = new IndicesRequestCache(settings);
+        this.indicesQueryCache = new IndicesQueryCache(settings);
+        this.mapperRegistry = mapperRegistry;
+        this.namedWriteableRegistry = namedWriteableRegistry;
+        indexingMemoryController = new IndexingMemoryController(
+            settings,
+            threadPool,
+            // ensure we pull an iter with new shards - flatten makes a copy
+            () -> Iterables.flatten(this).iterator()
+        );
+        this.indexScopedSettings = indexScopedSettings;
+        this.circuitBreakerService = circuitBreakerService;
+        this.bigArrays = bigArrays;
+        this.scriptService = scriptService;
+        this.clusterService = clusterService;
+        this.client = client;
+        this.idFieldDataEnabled = INDICES_ID_FIELD_DATA_ENABLED_SETTING.get(clusterService.getSettings());
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(INDICES_ID_FIELD_DATA_ENABLED_SETTING, this::setIdFieldDataEnabled);
+        this.indicesFieldDataCache = new IndicesFieldDataCache(settings, new IndexFieldDataCache.Listener() {
+            @Override
+            public void onRemoval(ShardId shardId, String fieldName, boolean wasEvicted, long sizeInBytes) {
+                assert sizeInBytes >= 0 : "When reducing circuit breaker, it should be adjusted with a number higher or "
+                    + "equal to 0 and not ["
+                    + sizeInBytes
+                    + "]";
+                circuitBreakerService.getBreaker(CircuitBreaker.FIELDDATA).addWithoutBreaking(-sizeInBytes);
+            }
+        });
+        this.cleanInterval = INDICES_CACHE_CLEAN_INTERVAL_SETTING.get(settings);
+        this.cacheCleaner = new CacheCleaner(indicesFieldDataCache, indicesRequestCache, logger, threadPool, this.cleanInterval);
+        this.metaStateService = metaStateService;
+        this.engineFactoryProviders = engineFactoryProviders;
 
         this.directoryFactories = directoryFactories;
         this.recoveryStateFactories = recoveryStateFactories;
@@ -729,6 +841,9 @@ public class IndicesService extends AbstractLifecycleComponent
             indexModule.addIndexOperationListener(operationListener);
         }
         pluginsService.onIndexModule(indexModule);
+        if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
+            extensionsManager.onIndexModule(indexModule);
+        }
         for (IndexEventListener listener : builtInListeners) {
             indexModule.addIndexEventListener(listener);
         }
@@ -771,6 +886,9 @@ public class IndicesService extends AbstractLifecycleComponent
         if (engineFactories.isEmpty()) {
             if (idxSettings.isSegRepEnabled()) {
                 return new NRTReplicationEngineFactory();
+            }
+            if (IndexModule.Type.REMOTE_SNAPSHOT.match(idxSettings)) {
+                return config -> new ReadOnlyEngine(config, new SeqNoStats(0, 0, 0), new TranslogStats(), true, Function.identity(), false);
             }
             return new InternalEngineFactory();
         } else if (engineFactories.size() == 1) {

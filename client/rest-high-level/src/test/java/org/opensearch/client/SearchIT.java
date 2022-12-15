@@ -43,6 +43,10 @@ import org.opensearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.opensearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.opensearch.action.search.ClearScrollRequest;
 import org.opensearch.action.search.ClearScrollResponse;
+import org.opensearch.action.search.CreatePitRequest;
+import org.opensearch.action.search.CreatePitResponse;
+import org.opensearch.action.search.DeletePitRequest;
+import org.opensearch.action.search.DeletePitResponse;
 import org.opensearch.action.search.MultiSearchRequest;
 import org.opensearch.action.search.MultiSearchResponse;
 import org.opensearch.action.search.SearchRequest;
@@ -89,6 +93,7 @@ import org.opensearch.search.aggregations.metrics.WeightedAvg;
 import org.opensearch.search.aggregations.metrics.WeightedAvgAggregationBuilder;
 import org.opensearch.search.aggregations.support.MultiValuesSourceFieldConfig;
 import org.opensearch.search.aggregations.support.ValueType;
+import org.opensearch.search.builder.PointInTimeBuilder;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
 import org.opensearch.search.fetch.subphase.highlight.HighlightBuilder;
@@ -100,11 +105,13 @@ import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContentEquivalent;
@@ -759,6 +766,46 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
             assertThat(exception.getRootCause(), instanceOf(OpenSearchException.class));
             OpenSearchException rootCause = (OpenSearchException) exception.getRootCause();
             assertThat(rootCause.getMessage(), containsString("No search context found for"));
+        }
+    }
+
+    public void testSearchWithPit() throws Exception {
+        for (int i = 0; i < 100; i++) {
+            XContentBuilder builder = jsonBuilder().startObject().field("field", i).endObject();
+            Request doc = new Request(HttpPut.METHOD_NAME, "/test/_doc/" + Integer.toString(i));
+            doc.setJsonEntity(Strings.toString(builder));
+            client().performRequest(doc);
+        }
+        client().performRequest(new Request(HttpPost.METHOD_NAME, "/test/_refresh"));
+
+        CreatePitRequest pitRequest = new CreatePitRequest(new TimeValue(1, TimeUnit.DAYS), true, "test");
+        CreatePitResponse pitResponse = execute(pitRequest, highLevelClient()::createPit, highLevelClient()::createPitAsync);
+
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(35)
+            .sort("field", SortOrder.ASC)
+            .pointInTimeBuilder(new PointInTimeBuilder(pitResponse.getId()));
+        SearchRequest searchRequest = new SearchRequest().source(searchSourceBuilder);
+        SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+
+        try {
+            long counter = 0;
+            assertSearchHeader(searchResponse);
+            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(100L));
+            assertThat(searchResponse.getHits().getHits().length, equalTo(35));
+            for (SearchHit hit : searchResponse.getHits()) {
+                assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter++));
+            }
+        } finally {
+            List<String> pitIds = new ArrayList<>();
+            pitIds.add(pitResponse.getId());
+            DeletePitRequest deletePitRequest = new DeletePitRequest(pitIds);
+            DeletePitResponse deletePitResponse = execute(
+                deletePitRequest,
+                highLevelClient()::deletePit,
+                highLevelClient()::deletePitAsync
+            );
+            assertTrue(deletePitResponse.getDeletePitResults().get(0).isSuccessful());
+            assertTrue(deletePitResponse.getDeletePitResults().get(0).getPitId().equals(pitResponse.getId()));
         }
     }
 

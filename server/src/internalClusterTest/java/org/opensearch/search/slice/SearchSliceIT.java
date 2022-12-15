@@ -32,9 +32,13 @@
 
 package org.opensearch.search.slice;
 
+import org.opensearch.action.ActionFuture;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest;
 
 import org.opensearch.action.index.IndexRequestBuilder;
+import org.opensearch.action.search.CreatePitAction;
+import org.opensearch.action.search.CreatePitRequest;
+import org.opensearch.action.search.CreatePitResponse;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
@@ -46,6 +50,7 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.search.Scroll;
 import org.opensearch.search.SearchException;
 import org.opensearch.search.SearchHit;
+import org.opensearch.search.builder.PointInTimeBuilder;
 import org.opensearch.search.sort.SortBuilders;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
@@ -86,7 +91,12 @@ public class SearchSliceIT extends OpenSearchIntegTestCase {
             client().admin()
                 .indices()
                 .prepareCreate("test")
-                .setSettings(Settings.builder().put("number_of_shards", numberOfShards).put("index.max_slices_per_scroll", 10000))
+                .setSettings(
+                    Settings.builder()
+                        .put("number_of_shards", numberOfShards)
+                        .put("index.max_slices_per_scroll", 10000)
+                        .put("index.max_slices_per_pit", 10000)
+                )
                 .setMapping(mapping)
         );
         ensureGreen();
@@ -127,6 +137,78 @@ public class SearchSliceIT extends OpenSearchIntegTestCase {
                 .setSize(fetchSize);
             assertSearchSlicesWithScroll(request, field, max, numDocs);
         }
+    }
+
+    public void testSearchSortWithoutPitOrScroll() throws Exception {
+        int numShards = randomIntBetween(1, 7);
+        int numDocs = randomIntBetween(100, 1000);
+        setupIndex(numDocs, numShards);
+        int fetchSize = randomIntBetween(10, 100);
+        SearchRequestBuilder request = client().prepareSearch("test")
+            .setQuery(matchAllQuery())
+            .setSize(fetchSize)
+            .addSort(SortBuilders.fieldSort("_doc"));
+        SliceBuilder sliceBuilder = new SliceBuilder("_id", 0, 4);
+        SearchPhaseExecutionException ex = expectThrows(SearchPhaseExecutionException.class, () -> request.slice(sliceBuilder).get());
+        assertTrue(ex.getMessage().contains("all shards failed"));
+    }
+
+    public void testSearchSortWithPIT() throws Exception {
+        int numShards = randomIntBetween(1, 7);
+        int numDocs = randomIntBetween(100, 1000);
+        setupIndex(numDocs, numShards);
+        int max = randomIntBetween(2, numShards * 3);
+        CreatePitRequest pitRequest = new CreatePitRequest(TimeValue.timeValueDays(1), true);
+        pitRequest.setIndices(new String[] { "test" });
+        ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, pitRequest);
+        CreatePitResponse pitResponse = execute.get();
+        for (String field : new String[] { "_id", "random_int", "static_int" }) {
+            int fetchSize = randomIntBetween(10, 100);
+
+            // test _doc sort
+            SearchRequestBuilder request = client().prepareSearch("test")
+                .setQuery(matchAllQuery())
+                .setPointInTime(new PointInTimeBuilder(pitResponse.getId()))
+                .setSize(fetchSize)
+                .addSort(SortBuilders.fieldSort("_doc"));
+            assertSearchSlicesWithPIT(request, field, max, numDocs);
+
+            // test numeric sort
+            request = client().prepareSearch("test")
+                .setQuery(matchAllQuery())
+                .setPointInTime(new PointInTimeBuilder(pitResponse.getId()))
+                .setSize(fetchSize)
+                .addSort(SortBuilders.fieldSort("random_int"));
+            assertSearchSlicesWithPIT(request, field, max, numDocs);
+        }
+        client().admin().indices().prepareDelete("test").get();
+    }
+
+    private void assertSearchSlicesWithPIT(SearchRequestBuilder request, String field, int numSlice, int numDocs) {
+        int totalResults = 0;
+        List<String> keys = new ArrayList<>();
+        for (int id = 0; id < numSlice; id++) {
+            SliceBuilder sliceBuilder = new SliceBuilder(field, id, numSlice);
+            SearchResponse searchResponse = request.slice(sliceBuilder).setFrom(0).get();
+            totalResults += searchResponse.getHits().getHits().length;
+            int expectedSliceResults = (int) searchResponse.getHits().getTotalHits().value;
+            int numSliceResults = searchResponse.getHits().getHits().length;
+            for (SearchHit hit : searchResponse.getHits().getHits()) {
+                assertTrue(keys.add(hit.getId()));
+            }
+            while (searchResponse.getHits().getHits().length > 0) {
+                searchResponse = request.setFrom(numSliceResults).slice(sliceBuilder).get();
+                totalResults += searchResponse.getHits().getHits().length;
+                numSliceResults += searchResponse.getHits().getHits().length;
+                for (SearchHit hit : searchResponse.getHits().getHits()) {
+                    assertTrue(keys.add(hit.getId()));
+                }
+            }
+            assertThat(numSliceResults, equalTo(expectedSliceResults));
+        }
+        assertThat(totalResults, equalTo(numDocs));
+        assertThat(keys.size(), equalTo(numDocs));
+        assertThat(new HashSet(keys).size(), equalTo(numDocs));
     }
 
     public void testWithPreferenceAndRoutings() throws Exception {
@@ -217,7 +299,7 @@ public class SearchSliceIT extends OpenSearchIntegTestCase {
         );
         Throwable rootCause = findRootCause(exc);
         assertThat(rootCause.getClass(), equalTo(SearchException.class));
-        assertThat(rootCause.getMessage(), equalTo("`slice` cannot be used outside of a scroll context"));
+        assertThat(rootCause.getMessage(), equalTo("`slice` cannot be used outside of a scroll context or PIT context"));
     }
 
     private void assertSearchSlicesWithScroll(SearchRequestBuilder request, String field, int numSlice, int numDocs) {

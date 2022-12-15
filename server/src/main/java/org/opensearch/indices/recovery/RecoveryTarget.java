@@ -45,6 +45,7 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.util.CancellableThreads;
+import org.opensearch.index.IndexModule;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.mapper.MapperException;
 import org.opensearch.index.seqno.ReplicationTracker;
@@ -402,10 +403,12 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
             try {
                 store.cleanupAndVerify("recovery CleanFilesRequestHandler", sourceMetadata);
 
-                // If Segment Replication is enabled, we need to reuse the primary's translog UUID already stored in the index.
-                // With Segrep, replicas should never create their own commit points. This ensures the index and xlog share the same
-                // UUID without the extra step to associate the index with a new xlog.
-                if (indexShard.indexSettings().isSegRepEnabled()) {
+                // Replicas for segment replication or remote snapshot indices do not create
+                // their own commit points and therefore do not modify the commit user data
+                // in their store. In these cases, reuse the primary's translog UUID.
+                final boolean reuseTranslogUUID = indexShard.indexSettings().isSegRepEnabled()
+                    || IndexModule.Type.REMOTE_SNAPSHOT.match(indexShard.indexSettings());
+                if (reuseTranslogUUID) {
                     final String translogUUID = store.getMetadata().getCommitUserData().get(TRANSLOG_UUID_KEY);
                     Translog.createEmptyTranslog(
                         indexShard.shardPath().resolveTranslog(),

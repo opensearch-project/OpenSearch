@@ -217,6 +217,7 @@ public class DiskThresholdDeciderIT extends OpenSearchIntegTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 6)
                 .put(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), "0ms")
+                .put(IndexSettings.INDEX_MERGE_ON_FLUSH_ENABLED.getKey(), false)
                 .build()
         );
         final long minShardSize = createReasonableSizedShards(indexName);

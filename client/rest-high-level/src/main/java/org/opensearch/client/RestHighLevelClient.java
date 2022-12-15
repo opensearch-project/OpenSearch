@@ -59,6 +59,11 @@ import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.search.ClearScrollRequest;
 import org.opensearch.action.search.ClearScrollResponse;
+import org.opensearch.action.search.CreatePitRequest;
+import org.opensearch.action.search.CreatePitResponse;
+import org.opensearch.action.search.DeletePitRequest;
+import org.opensearch.action.search.DeletePitResponse;
+import org.opensearch.action.search.GetAllPitNodesResponse;
 import org.opensearch.action.search.MultiSearchRequest;
 import org.opensearch.action.search.MultiSearchResponse;
 import org.opensearch.action.search.SearchRequest;
@@ -1245,6 +1250,154 @@ public class RestHighLevelClient implements Closeable {
             RequestConverters::searchScroll,
             options,
             SearchResponse::fromXContent,
+            listener,
+            emptySet()
+        );
+    }
+
+    /**
+     * Create PIT context using create PIT API
+     *
+     * @param createPitRequest the request
+     * @param options          the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     */
+    public final CreatePitResponse createPit(CreatePitRequest createPitRequest, RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(
+            createPitRequest,
+            RequestConverters::createPit,
+            options,
+            CreatePitResponse::fromXContent,
+            emptySet()
+        );
+    }
+
+    /**
+     * Asynchronously Create PIT context using create PIT API
+     *
+     * @param createPitRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @return the response
+     */
+    public final Cancellable createPitAsync(
+        CreatePitRequest createPitRequest,
+        RequestOptions options,
+        ActionListener<CreatePitResponse> listener
+    ) {
+        return performRequestAsyncAndParseEntity(
+            createPitRequest,
+            RequestConverters::createPit,
+            options,
+            CreatePitResponse::fromXContent,
+            listener,
+            emptySet()
+        );
+    }
+
+    /**
+     * Delete point in time searches using delete PIT API
+     *
+     * @param deletePitRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     */
+    public final DeletePitResponse deletePit(DeletePitRequest deletePitRequest, RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(
+            deletePitRequest,
+            RequestConverters::deletePit,
+            options,
+            DeletePitResponse::fromXContent,
+            emptySet()
+        );
+    }
+
+    /**
+     * Asynchronously Delete point in time searches using delete PIT API
+     *
+     * @param deletePitRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @return the response
+     */
+    public final Cancellable deletePitAsync(
+        DeletePitRequest deletePitRequest,
+        RequestOptions options,
+        ActionListener<DeletePitResponse> listener
+    ) {
+        return performRequestAsyncAndParseEntity(
+            deletePitRequest,
+            RequestConverters::deletePit,
+            options,
+            DeletePitResponse::fromXContent,
+            listener,
+            emptySet()
+        );
+    }
+
+    /**
+     * Delete all point in time searches using delete all PITs API
+     *
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     */
+    public final DeletePitResponse deleteAllPits(RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(
+            new MainRequest(),
+            (request) -> RequestConverters.deleteAllPits(),
+            options,
+            DeletePitResponse::fromXContent,
+            emptySet()
+        );
+    }
+
+    /**
+     * Asynchronously Delete all point in time searches using delete all PITs API
+     *
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @return the response
+     */
+    public final Cancellable deleteAllPitsAsync(RequestOptions options, ActionListener<DeletePitResponse> listener) {
+        return performRequestAsyncAndParseEntity(
+            new MainRequest(),
+            (request) -> RequestConverters.deleteAllPits(),
+            options,
+            DeletePitResponse::fromXContent,
+            listener,
+            emptySet()
+        );
+    }
+
+    /**
+     * Get all point in time searches using list all PITs API
+     *
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     */
+    public final GetAllPitNodesResponse getAllPits(RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(
+            new MainRequest(),
+            (request) -> RequestConverters.getAllPits(),
+            options,
+            GetAllPitNodesResponse::fromXContent,
+            emptySet()
+        );
+    }
+
+    /**
+     * Asynchronously get all point in time searches using list all PITs API
+     *
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @return the response
+     */
+    public final Cancellable getAllPitsAsync(RequestOptions options, ActionListener<GetAllPitNodesResponse> listener) {
+        return performRequestAsyncAndParseEntity(
+            new MainRequest(),
+            (request) -> RequestConverters.getAllPits(),
+            options,
+            GetAllPitNodesResponse::fromXContent,
             listener,
             emptySet()
         );

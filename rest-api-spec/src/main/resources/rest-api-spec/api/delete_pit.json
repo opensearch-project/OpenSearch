@@ -1,0 +1,23 @@
+{
+  "delete_pit":{
+    "documentation":{
+      "url":"https://opensearch.org/docs/latest/opensearch/rest-api/point_in_time/",
+      "description":"Deletes one or more point in time searches based on the IDs passed."
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_search/point_in_time",
+          "methods":[
+            "DELETE"
+          ]
+        }
+      ]
+    },
+    "body":{
+      "description":"A comma-separated list of pit IDs to clear",
+      "required":true
+    }
+  }
+}

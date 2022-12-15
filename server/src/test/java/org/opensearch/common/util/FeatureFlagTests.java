@@ -22,6 +22,7 @@ public class FeatureFlagTests extends OpenSearchTestCase {
     public static void enableFeature() {
         AccessController.doPrivileged((PrivilegedAction<String>) () -> System.setProperty(FeatureFlags.REPLICATION_TYPE, "true"));
         AccessController.doPrivileged((PrivilegedAction<String>) () -> System.setProperty(FeatureFlags.REMOTE_STORE, "true"));
+        AccessController.doPrivileged((PrivilegedAction<String>) () -> System.setProperty(FeatureFlags.EXTENSIONS, "true"));
     }
 
     public void testReplicationTypeFeatureFlag() {
@@ -47,4 +48,5 @@ public class FeatureFlagTests extends OpenSearchTestCase {
         assertNotNull(System.getProperty(remoteStoreFlag));
         assertTrue(FeatureFlags.isEnabled(remoteStoreFlag));
     }
+
 }

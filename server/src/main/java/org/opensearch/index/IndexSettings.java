@@ -458,6 +458,17 @@ public final class IndexSettings {
     );
 
     /**
+     * The maximum number of slices allowed in a search request with PIT
+     */
+    public static final Setting<Integer> MAX_SLICES_PER_PIT = Setting.intSetting(
+        "index.max_slices_per_pit",
+        1024,
+        1,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
+    /**
      * The maximum length of regex string allowed in a regexp query.
      */
     public static final Setting<Integer> MAX_REGEX_LENGTH_SETTING = Setting.intSetting(
@@ -540,6 +551,30 @@ public final class IndexSettings {
         Property.Dynamic
     );
 
+    public static final Setting<String> SEARCHABLE_SNAPSHOT_REPOSITORY = Setting.simpleString(
+        "index.searchable_snapshot.repository",
+        Property.IndexScope,
+        Property.InternalIndex
+    );
+
+    public static final Setting<String> SEARCHABLE_SNAPSHOT_ID_UUID = Setting.simpleString(
+        "index.searchable_snapshot.snapshot_id.uuid",
+        Property.IndexScope,
+        Property.InternalIndex
+    );
+
+    public static final Setting<String> SEARCHABLE_SNAPSHOT_ID_NAME = Setting.simpleString(
+        "index.searchable_snapshot.snapshot_id.name",
+        Property.IndexScope,
+        Property.InternalIndex
+    );
+
+    public static final Setting<String> SEARCHABLE_SNAPSHOT_INDEX_ID = Setting.simpleString(
+        "index.searchable_snapshot.index.id",
+        Property.IndexScope,
+        Property.InternalIndex
+    );
+
     private final Index index;
     private final Version version;
     private final Logger logger;
@@ -549,6 +584,7 @@ public final class IndexSettings {
     private final ReplicationType replicationType;
     private final boolean isRemoteStoreEnabled;
     private final String remoteStoreRepository;
+    private final boolean isRemoteTranslogStoreEnabled;
     // volatile fields are updated via #updateIndexMetadata(IndexMetadata) under lock
     private volatile Settings settings;
     private volatile IndexMetadata indexMetadata;
@@ -618,7 +654,10 @@ public final class IndexSettings {
      * The maximum number of slices allowed in a scroll request.
      */
     private volatile int maxSlicesPerScroll;
-
+    /**
+     * The maximum number of slices allowed in a PIT request.
+     */
+    private volatile int maxSlicesPerPit;
     /**
      * The maximum length of regex string allowed in a regexp query.
      */
@@ -707,6 +746,7 @@ public final class IndexSettings {
         replicationType = ReplicationType.parseString(settings.get(IndexMetadata.SETTING_REPLICATION_TYPE));
         isRemoteStoreEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false);
         remoteStoreRepository = settings.get(IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY);
+        isRemoteTranslogStoreEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, false);
         this.searchThrottled = INDEX_SEARCH_THROTTLED.get(settings);
         this.queryStringLenient = QUERY_STRING_LENIENT_SETTING.get(settings);
         this.queryStringAnalyzeWildcard = QUERY_STRING_ANALYZE_WILDCARD.get(nodeSettings);
@@ -737,6 +777,7 @@ public final class IndexSettings {
         maxShingleDiff = scopedSettings.get(MAX_SHINGLE_DIFF_SETTING);
         maxRefreshListeners = scopedSettings.get(MAX_REFRESH_LISTENERS_PER_SHARD);
         maxSlicesPerScroll = scopedSettings.get(MAX_SLICES_PER_SCROLL);
+        maxSlicesPerPit = scopedSettings.get(MAX_SLICES_PER_PIT);
         maxAnalyzedOffset = scopedSettings.get(MAX_ANALYZED_OFFSET_SETTING);
         maxTermsCount = scopedSettings.get(MAX_TERMS_COUNT_SETTING);
         maxRegexLength = scopedSettings.get(MAX_REGEX_LENGTH_SETTING);
@@ -810,6 +851,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(MAX_ANALYZED_OFFSET_SETTING, this::setHighlightMaxAnalyzedOffset);
         scopedSettings.addSettingsUpdateConsumer(MAX_TERMS_COUNT_SETTING, this::setMaxTermsCount);
         scopedSettings.addSettingsUpdateConsumer(MAX_SLICES_PER_SCROLL, this::setMaxSlicesPerScroll);
+        scopedSettings.addSettingsUpdateConsumer(MAX_SLICES_PER_PIT, this::setMaxSlicesPerPit);
         scopedSettings.addSettingsUpdateConsumer(DEFAULT_FIELD_SETTING, this::setDefaultFields);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SEARCH_IDLE_AFTER, this::setSearchIdleAfter);
         scopedSettings.addSettingsUpdateConsumer(MAX_REGEX_LENGTH_SETTING, this::setMaxRegexLength);
@@ -961,6 +1003,13 @@ public final class IndexSettings {
      */
     public String getRemoteStoreRepository() {
         return remoteStoreRepository;
+    }
+
+    /**
+     * Returns if remote translog store is enabled for this index.
+     */
+    public boolean isRemoteTranslogStoreEnabled() {
+        return isRemoteTranslogStoreEnabled;
     }
 
     /**
@@ -1287,6 +1336,17 @@ public final class IndexSettings {
 
     private void setMaxSlicesPerScroll(int value) {
         this.maxSlicesPerScroll = value;
+    }
+
+    /**
+     * The maximum number of slices allowed in a PIT request.
+     */
+    public int getMaxSlicesPerPit() {
+        return maxSlicesPerPit;
+    }
+
+    private void setMaxSlicesPerPit(int value) {
+        this.maxSlicesPerPit = value;
     }
 
     /**

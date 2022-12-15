@@ -133,7 +133,6 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -851,7 +850,9 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         }
         replica.prepareForIndexRecovery();
         final RecoveryTarget recoveryTarget = targetSupplier.apply(replica, pNode);
-        final long startingSeqNo = recoveryTarget.indexShard().recoverLocallyUpToGlobalCheckpoint();
+        IndexShard indexShard = recoveryTarget.indexShard();
+        boolean remoteTranslogEnabled = recoveryTarget.state().getPrimary() == false && indexShard.isRemoteTranslogEnabled();
+        final long startingSeqNo = indexShard.recoverLocallyAndFetchStartSeqNo(!remoteTranslogEnabled);
         final StartRecoveryRequest request = PeerRecoveryTargetService.getStartRecoveryRequest(
             logger,
             rNode,
@@ -1286,8 +1287,9 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 }
             );
             ids.add(target);
-            countDownLatch.await(1, TimeUnit.SECONDS);
         }
+        countDownLatch.await(30, TimeUnit.SECONDS);
+        assertEquals("Replication should complete successfully", 0, countDownLatch.getCount());
         return ids;
     }
 
