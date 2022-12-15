@@ -23,7 +23,7 @@ import static org.opensearch.action.ValidateActions.addValidationError;
  * @opensearch.internal
  */
 public class ClusterDeleteWeightedRoutingRequest extends ClusterManagerNodeRequest<ClusterDeleteWeightedRoutingRequest> {
-    String awarenessAttribute;
+    private String awarenessAttribute;
 
     public String getAwarenessAttribute() {
         return awarenessAttribute;

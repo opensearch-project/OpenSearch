@@ -82,8 +82,6 @@ public class WeightedRoutingService {
         final ClusterPutWeightedRoutingRequest request,
         final ActionListener<ClusterStateUpdateResponse> listener
     ) {
-        // final WeightedRoutingMetadata newWeightedRoutingMetadata =
-        // new WeightedRoutingMetadata(request.getWeightedRouting());
         clusterService.submitStateUpdateTask("update_weighted_routing", new ClusterStateUpdateTask(Priority.URGENT) {
             @Override
             public ClusterState execute(ClusterState currentState) {
@@ -95,31 +93,29 @@ public class WeightedRoutingService {
                 Metadata.Builder mdBuilder = Metadata.builder(metadata);
                 WeightedRoutingMetadata weightedRoutingMetadata = metadata.custom(WeightedRoutingMetadata.TYPE);
                 List<WeightedRouting> weightedRoutings = new ArrayList<>();
-                boolean modified = false;
-                if (weightedRoutingMetadata == null) {
+                WeightedRouting weightedRoutingOld = null;
+
+                if (weightedRoutingMetadata != null
+                    && weightedRoutingMetadata.getWeightedRouting(request.getWeightedRouting().attributeName()) != null) {
+                    weightedRoutings = weightedRoutingMetadata.getWeightedRoutings();
+                    weightedRoutingOld = weightedRoutingMetadata.getWeightedRouting(request.getWeightedRouting().attributeName());
+                    if (!checkIfSameWeightsInMetadata(request.getWeightedRouting(), weightedRoutingOld)) {
+                        logger.info("updated weighted routing weights [{}] in metadata", request.getWeightedRouting());
+                        weightedRoutings.remove(weightedRoutingOld);
+                        weightedRoutings.add(request.getWeightedRouting());
+                    } else {
+                        logger.info(
+                            "weights are same, not updating weighted routing weights [{}] in " + "metadata",
+                            request.getWeightedRouting()
+                        );
+                        return currentState;
+                    }
+                } else {
+                    if (weightedRoutingMetadata != null) {
+                        weightedRoutings = weightedRoutingMetadata.getWeightedRoutings();
+                    }
                     logger.info("put weighted routing weights in metadata [{}]", request.getWeightedRouting());
                     weightedRoutings.add(request.getWeightedRouting());
-                } else {
-                    weightedRoutings = weightedRoutingMetadata.getWeightedRoutings();
-                    for (WeightedRouting weightedRouting : weightedRoutings) {
-                        if (weightedRouting.attributeName().equals(request.getWeightedRouting().attributeName())) {
-                            if (!checkIfSameWeightsInMetadata(request.getWeightedRouting(), weightedRouting)) {
-                                logger.info("updated weighted routing weights [{}] in metadata", request.getWeightedRouting());
-                                weightedRoutings.remove(weightedRouting);
-                                weightedRoutings.add(request.getWeightedRouting());
-                                modified = true;
-                            } else {
-                                logger.info(
-                                    "weights are same, not updating weighted routing weights [{}] in " + "metadata",
-                                    request.getWeightedRouting()
-                                );
-                                return currentState;
-                            }
-                        }
-                    }
-                    if (!modified) {
-                        weightedRoutings.add(request.getWeightedRouting());
-                    }
                 }
                 weightedRoutingMetadata = new WeightedRoutingMetadata(weightedRoutings);
                 mdBuilder.putCustom(WeightedRoutingMetadata.TYPE, weightedRoutingMetadata);
@@ -157,29 +153,21 @@ public class WeightedRoutingService {
                 Metadata metadata = currentState.metadata();
                 Metadata.Builder mdBuilder = Metadata.builder(metadata);
                 WeightedRoutingMetadata weightedRoutingMetadata = metadata.custom(WeightedRoutingMetadata.TYPE);
-                boolean deleted = false;
-                if (weightedRoutingMetadata != null) {
+                if (weightedRoutingMetadata != null && weightedRoutingMetadata.getWeightedRouting(awarenessAttribute) != null) {
                     List<WeightedRouting> weightedRoutings = weightedRoutingMetadata.getWeightedRoutings();
-                    for (WeightedRouting weightedRouting : weightedRoutings) {
-                        if (weightedRouting.attributeName().equals(awarenessAttribute)) {
-                            weightedRoutings.remove(weightedRouting);
-                            deleted = true;
-                        }
+                    WeightedRouting weightedRoutingOld = weightedRoutingMetadata.getWeightedRouting(awarenessAttribute);
+                    if (weightedRoutingOld != null) {
+                        weightedRoutings.remove(weightedRoutingOld);
                     }
-                    if (deleted) {
-                        weightedRoutingMetadata = new WeightedRoutingMetadata(weightedRoutings);
-                    } else {
-                        throw new ResourceNotFoundException(
-                            String.format(
-                                Locale.ROOT,
-                                "weighted routing metadata does not have weights set for awareness attribute %s",
-                                awarenessAttribute
-                            )
-                        );
-
-                    }
+                } else {
+                    throw new ResourceNotFoundException(
+                        String.format(
+                            Locale.ROOT,
+                            "weighted routing metadata does not have weights set for awareness attribute %s",
+                            awarenessAttribute
+                        )
+                    );
                 }
-
                 mdBuilder.putCustom(WeightedRoutingMetadata.TYPE, weightedRoutingMetadata);
                 logger.info(
                     "building cluster state after deleting weighted routing weights for awareness attribute " + "[{}]",

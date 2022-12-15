@@ -31,7 +31,6 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.List;
 
 /**
  * Transport action for getting weights for weighted round-robin search routing policy
@@ -91,32 +90,18 @@ public class TransportGetWeightedRoutingAction extends TransportClusterManagerNo
             WeightedRoutingMetadata weightedRoutingMetadata = state.metadata().custom(WeightedRoutingMetadata.TYPE);
             ClusterGetWeightedRoutingResponse clusterGetWeightedRoutingResponse = new ClusterGetWeightedRoutingResponse();
             String weight = null;
-            String awarenessAttribute = request.getAwarenessAttribute();
-            boolean found = false;
-            WeightedRouting weightedRoutingForRequestedAwareness = null;
-            if (weightedRoutingMetadata != null && weightedRoutingMetadata.getWeightedRoutings().size() > 0) {
-                List<WeightedRouting> weightedRoutings = weightedRoutingMetadata.getWeightedRoutings();
-
-                for (WeightedRouting weightedRouting : weightedRoutings) {
-                    if (weightedRouting.attributeName().equals(awarenessAttribute)) {
-                        found = true;
-                        weightedRoutingForRequestedAwareness = weightedRouting;
-                        break;
-                    }
-                }
-                if (found) {
-                    if (request.local()) {
-                        DiscoveryNode localNode = state.getNodes().getLocalNode();
-                        if (localNode.getAttributes().get(request.getAwarenessAttribute()) != null) {
-                            String attrVal = localNode.getAttributes().get(request.getAwarenessAttribute());
-                            if (weightedRoutingForRequestedAwareness.weights().containsKey(attrVal)) {
-                                weight = weightedRoutingForRequestedAwareness.weights().get(attrVal).toString();
-                            }
+            if (weightedRoutingMetadata != null && weightedRoutingMetadata.getWeightedRouting(request.getAwarenessAttribute()) != null) {
+                WeightedRouting weightedRouting = weightedRoutingMetadata.getWeightedRouting(request.getAwarenessAttribute());
+                if (request.local()) {
+                    DiscoveryNode localNode = state.getNodes().getLocalNode();
+                    if (localNode.getAttributes().get(request.getAwarenessAttribute()) != null) {
+                        String attrVal = localNode.getAttributes().get(request.getAwarenessAttribute());
+                        if (weightedRouting.weights().containsKey(attrVal)) {
+                            weight = weightedRouting.weights().get(attrVal).toString();
                         }
                     }
-                    clusterGetWeightedRoutingResponse = new ClusterGetWeightedRoutingResponse(weight, weightedRoutingForRequestedAwareness);
                 }
-
+                clusterGetWeightedRoutingResponse = new ClusterGetWeightedRoutingResponse(weight, weightedRouting);
             }
             listener.onResponse(clusterGetWeightedRoutingResponse);
         } catch (Exception ex) {

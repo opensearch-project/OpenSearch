@@ -325,6 +325,7 @@ public class OperationRouting {
         @Nullable WeightedRoutingMetadata weightedRoutingMetadata
     ) {
         if (weightedRoutingMetadata != null) {
+            // Weighted round-robin supports zone as awareness attribute currently
             return indexShard.activeInitializingShardsWeightedIt(
                 weightedRoutingMetadata.getWeightedRouting("zone"),
                 nodes,

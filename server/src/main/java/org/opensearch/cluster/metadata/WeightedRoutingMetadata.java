@@ -39,12 +39,6 @@ public class WeightedRoutingMetadata extends AbstractNamedDiffable<Metadata.Cust
     private static final Logger logger = LogManager.getLogger(WeightedRoutingMetadata.class);
     public static final String TYPE = "weighted_shard_routing";
     public static final String AWARENESS = "awareness";
-    // private WeightedRouting weightedRouting;
-
-    public List<WeightedRouting> getWeightedRoutings() {
-        return weightedRoutings;
-    }
-
     private List<WeightedRouting> weightedRoutings;
 
     public WeightedRouting getWeightedRouting(String awarenessAttribute) {
@@ -57,10 +51,9 @@ public class WeightedRoutingMetadata extends AbstractNamedDiffable<Metadata.Cust
         return weightedRouting;
     }
 
-    // public WeightedRoutingMetadata setWeightedRouting(WeightedRouting weightedRouting) {
-    // this.weightedRouting = weightedRouting;
-    // return this;
-    // }
+    public List<WeightedRouting> getWeightedRoutings() {
+        return weightedRoutings;
+    }
 
     public WeightedRoutingMetadata(List<WeightedRouting> weightedRoutings) {
         this.weightedRoutings = weightedRoutings;
@@ -72,10 +65,6 @@ public class WeightedRoutingMetadata extends AbstractNamedDiffable<Metadata.Cust
             this.weightedRoutings = in.readList(WeightedRouting::new);
         }
     }
-
-    // public WeightedRoutingMetadata(WeightedRouting weightedRouting) {
-    // this.weightedRouting = weightedRouting;
-    // }
 
     @Override
     public EnumSet<Metadata.XContentContext> context() {
