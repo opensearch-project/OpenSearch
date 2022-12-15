@@ -157,7 +157,7 @@ public class FetchPhase {
                         // So we do a little hack here and pretend we're going to do merges in order to
                         // get better sequential access.
                         SequentialStoredFieldsLeafReader lf = (SequentialStoredFieldsLeafReader) currentReaderContext.reader();
-                        fieldReader = lf.getSequentialStoredFieldsReader()::visitDocument;
+                        fieldReader = lf.getSequentialStoredFieldsReader()::document;
                     } else {
                         fieldReader = currentReaderContext.reader()::document;
                     }

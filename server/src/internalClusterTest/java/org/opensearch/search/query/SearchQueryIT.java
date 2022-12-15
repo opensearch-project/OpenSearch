@@ -49,6 +49,7 @@ import org.opensearch.common.lucene.search.SpanBooleanQueryRewriteWithMaxClause;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
+import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
@@ -89,12 +90,15 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.regex.Pattern;
 
 import static java.util.Collections.singletonMap;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -759,21 +763,21 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
             client().prepareIndex("test").setId("2").setSource("text", "Unity")
         );
 
-        SearchResponse searchResponse = client().prepareSearch().setQuery(matchQuery("text", "uniy").fuzziness("0")).get();
+        SearchResponse searchResponse = client().prepareSearch().setQuery(matchQuery("text", "uniy").fuzziness(Fuzziness.ZERO)).get();
         assertHitCount(searchResponse, 0L);
 
-        searchResponse = client().prepareSearch().setQuery(matchQuery("text", "uniy").fuzziness("1")).get();
+        searchResponse = client().prepareSearch().setQuery(matchQuery("text", "uniy").fuzziness(Fuzziness.ONE)).get();
         assertHitCount(searchResponse, 2L);
         assertSearchHits(searchResponse, "1", "2");
 
-        searchResponse = client().prepareSearch().setQuery(matchQuery("text", "uniy").fuzziness("AUTO")).get();
+        searchResponse = client().prepareSearch().setQuery(matchQuery("text", "uniy").fuzziness(Fuzziness.AUTO)).get();
         assertHitCount(searchResponse, 2L);
         assertSearchHits(searchResponse, "1", "2");
 
-        searchResponse = client().prepareSearch().setQuery(matchQuery("text", "uniy").fuzziness("AUTO:5,7")).get();
+        searchResponse = client().prepareSearch().setQuery(matchQuery("text", "uniy").fuzziness(Fuzziness.customAuto(5, 7))).get();
         assertHitCount(searchResponse, 0L);
 
-        searchResponse = client().prepareSearch().setQuery(matchQuery("text", "unify").fuzziness("AUTO:5,7")).get();
+        searchResponse = client().prepareSearch().setQuery(matchQuery("text", "unify").fuzziness(Fuzziness.customAuto(5, 7))).get();
         assertHitCount(searchResponse, 1L);
         assertSearchHits(searchResponse, "2");
     }
@@ -2089,14 +2093,38 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
         refresh();
 
         {
+            // test default case insensitivity: false
             WildcardQueryBuilder wildCardQuery = wildcardQuery("field1", "Bb*");
             SearchResponse searchResponse = client().prepareSearch().setQuery(wildCardQuery).get();
+            assertHitCount(searchResponse, 0L);
+
+            // test case insensitivity set to true
+            wildCardQuery = wildcardQuery("field1", "Bb*").caseInsensitive(true);
+            searchResponse = client().prepareSearch().setQuery(wildCardQuery).get();
             assertHitCount(searchResponse, 1L);
 
             wildCardQuery = wildcardQuery("field1", "bb*");
             searchResponse = client().prepareSearch().setQuery(wildCardQuery).get();
             assertHitCount(searchResponse, 1L);
         }
+    }
+
+    /** tests wildcard case sensitivity */
+    public void testWildcardCaseSensitivity() {
+        assertAcked(prepareCreate("test").setMapping("field", "type=text"));
+        client().prepareIndex("test").setId("1").setSource("field", "lowercase text").get();
+        refresh();
+
+        // test case sensitive
+        SearchResponse response = client().prepareSearch("test").setQuery(wildcardQuery("field", "Text").caseInsensitive(false)).get();
+        assertNoFailures(response);
+        assertHitCount(response, 0);
+
+        // test case insensitive
+        response = client().prepareSearch("test").setQuery(wildcardQuery("field", "Text").caseInsensitive(true)).get();
+        assertNoFailures(response);
+        assertHitCount(response, 1);
+        assertHits(response.getHits(), "1");
     }
 
     /**
@@ -2174,5 +2202,17 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
         BoolQueryBuilder query = boolQuery().filter(spanMultiTermQueryBuilder(fuzzyQuery("field", "foobarbiz").rewrite("constant_score")));
         SearchResponse response = client().prepareSearch("test").setQuery(query).get();
         assertHitCount(response, 1);
+    }
+
+    /**
+     * asserts the search response hits include the expected ids
+     */
+    private void assertHits(SearchHits hits, String... ids) {
+        assertThat(hits.getTotalHits().value, equalTo((long) ids.length));
+        Set<String> hitIds = new HashSet<>();
+        for (SearchHit hit : hits.getHits()) {
+            hitIds.add(hit.getId());
+        }
+        assertThat(hitIds, containsInAnyOrder(ids));
     }
 }

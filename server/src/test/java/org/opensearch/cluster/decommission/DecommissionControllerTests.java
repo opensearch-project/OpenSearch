@@ -53,7 +53,6 @@ import java.util.stream.StreamSupport;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -128,47 +127,6 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
     public void shutdownThreadPoolAndClusterService() {
         clusterService.stop();
         threadPool.shutdown();
-    }
-
-    public void testAddNodesToVotingConfigExclusion() throws InterruptedException {
-        final CountDownLatch countDownLatch = new CountDownLatch(2);
-
-        ClusterStateObserver clusterStateObserver = new ClusterStateObserver(clusterService, null, logger, threadPool.getThreadContext());
-        clusterStateObserver.waitForNextChange(new AdjustConfigurationForExclusions(countDownLatch));
-        Set<String> nodesToRemoveFromVotingConfig = Collections.singleton(randomFrom("node1", "node6", "node11"));
-        decommissionController.excludeDecommissionedNodesFromVotingConfig(nodesToRemoveFromVotingConfig, new ActionListener<Void>() {
-            @Override
-            public void onResponse(Void unused) {
-                countDownLatch.countDown();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                fail("unexpected failure occurred while removing node from voting config " + e);
-            }
-        });
-        assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
-        clusterService.getClusterApplierService().state().getVotingConfigExclusions().forEach(vce -> {
-            assertTrue(nodesToRemoveFromVotingConfig.contains(vce.getNodeId()));
-            assertEquals(nodesToRemoveFromVotingConfig.size(), 1);
-        });
-    }
-
-    public void testClearVotingConfigExclusions() throws InterruptedException {
-        final CountDownLatch countDownLatch = new CountDownLatch(1);
-        decommissionController.clearVotingConfigExclusion(new ActionListener<Void>() {
-            @Override
-            public void onResponse(Void unused) {
-                countDownLatch.countDown();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                fail("unexpected failure occurred while clearing voting config exclusion" + e);
-            }
-        }, false);
-        assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
-        assertThat(clusterService.getClusterApplierService().state().getVotingConfigExclusions(), empty());
     }
 
     public void testNodesRemovedForDecommissionRequestSuccessfulResponse() throws InterruptedException {
