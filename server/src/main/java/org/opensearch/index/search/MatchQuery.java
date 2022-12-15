@@ -667,9 +667,9 @@ public class MatchQuery {
             } else {
                 // We don't apply prefix on synonyms
                 final TermAndBoost[] termAndBoosts = current.stream()
-                    .map(t -> new TermAndBoost(t, BoostAttribute.DEFAULT_BOOST))
+                    .map(t -> new TermAndBoost(t.bytes(), BoostAttribute.DEFAULT_BOOST))
                     .toArray(TermAndBoost[]::new);
-                q.add(newSynonymQuery(termAndBoosts), operator);
+                q.add(newSynonymQuery(field, termAndBoosts), operator);
             }
         }
 
@@ -782,9 +782,9 @@ public class MatchQuery {
                     } else {
                         // We don't apply prefix on synonyms
                         final TermAndBoost[] termAndBoosts = Arrays.stream(terms)
-                            .map(t -> new TermAndBoost(t, BoostAttribute.DEFAULT_BOOST))
+                            .map(t -> new TermAndBoost(t.bytes(), BoostAttribute.DEFAULT_BOOST))
                             .toArray(TermAndBoost[]::new);
-                        queryPos = newSynonymQuery(termAndBoosts);
+                        queryPos = newSynonymQuery(field, termAndBoosts);
                     }
                 }
                 if (queryPos != null) {

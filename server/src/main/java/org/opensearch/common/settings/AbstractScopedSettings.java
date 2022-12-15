@@ -121,8 +121,8 @@ public abstract class AbstractScopedSettings {
                 keySettings.putIfAbsent(setting.getKey(), setting);
             }
         }
-        this.complexMatchers = Collections.unmodifiableMap(complexMatchers);
-        this.keySettings = Collections.unmodifiableMap(keySettings);
+        this.complexMatchers = complexMatchers;
+        this.keySettings = keySettings;
     }
 
     protected void validateSettingKey(Setting<?> setting) {
@@ -142,6 +142,23 @@ public abstract class AbstractScopedSettings {
         keySettings = other.keySettings;
         settingUpgraders = Collections.unmodifiableMap(new HashMap<>(other.settingUpgraders));
         settingUpdaters.addAll(other.settingUpdaters);
+    }
+
+    public boolean registerSetting(Setting<?> setting) {
+        validateSettingKey(setting);
+        if (setting.hasComplexMatcher()) {
+            return setting != complexMatchers.putIfAbsent(setting.getKey(), setting);
+        } else {
+            return setting != keySettings.putIfAbsent(setting.getKey(), setting);
+        }
+    }
+
+    public boolean unregisterSetting(Setting<?> setting) {
+        if (setting.hasComplexMatcher()) {
+            return setting != complexMatchers.remove(setting.getKey());
+        } else {
+            return setting != keySettings.remove(setting.getKey());
+        }
     }
 
     /**
