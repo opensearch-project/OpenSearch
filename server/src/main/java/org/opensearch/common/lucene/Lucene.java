@@ -1140,7 +1140,8 @@ public class Lucene {
             }
 
             @Override
-            public TopDocs searchNearestVectors(String field, BytesRef target, int k, Bits acceptDocs, int visitedLimit) throws IOException {
+            public TopDocs searchNearestVectors(String field, BytesRef target, int k, Bits acceptDocs, int visitedLimit)
+                throws IOException {
                 return null;
             }
         };
