@@ -175,6 +175,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
                 restExecuteOnExtensionResponseHandler
             );
             try {
+                // TODO: make asynchronous
                 inProgressFuture.get(ExtensionsManager.EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS);
             } catch (InterruptedException e) {
                 return channel -> channel.sendResponse(

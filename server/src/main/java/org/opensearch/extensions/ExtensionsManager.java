@@ -127,7 +127,6 @@ public class ExtensionsManager {
     private CustomSettingsRequestHandler customSettingsRequestHandler;
     private TransportService transportService;
     private ClusterService clusterService;
-    private ExtensionNamedWriteableRegistry namedWriteableRegistry;
     private ExtensionActionListener listener;
     private ExtensionActionListenerHandler listenerHandler;
     private Settings environmentSettings;
@@ -150,7 +149,6 @@ public class ExtensionsManager {
         // will be initialized in initializeServicesAndRestHandler which is called after the Node is initialized
         this.transportService = null;
         this.clusterService = null;
-        this.namedWriteableRegistry = null;
         this.client = null;
         this.extensionTransportActionsHandler = null;
 
@@ -353,13 +351,12 @@ public class ExtensionsManager {
     }
 
     /**
-     * Iterate through all extensions and initialize them.  Initialized extensions will be added to the {@link #extensions}, and the {@link #namedWriteableRegistry} will be initialized.
+     * Iterate through all extensions and initialize them.  Initialized extensions will be added to the {@link #extensions}.
      */
     public void initialize() {
         for (DiscoveryExtensionNode extension : extensionIdMap.values()) {
             initializeExtension(extension);
         }
-        this.namedWriteableRegistry = new ExtensionNamedWriteableRegistry(extensions, transportService);
     }
 
     private void initializeExtension(DiscoveryExtensionNode extension) {
@@ -499,9 +496,7 @@ public class ExtensionsManager {
                                     new IndicesModuleRequest(indexModule),
                                     extensionBooleanResponseHandler
                                 );
-                                /*
-                                 * Making async synchronous for now.
-                                 */
+                                // TODO: make asynchronous
                                 inProgressIndexNameFuture.get(100, TimeUnit.SECONDS);
                                 logger.info("Received ack response from Extension");
                             } catch (Exception e) {
@@ -533,9 +528,7 @@ public class ExtensionsManager {
                 new IndicesModuleRequest(indexModule),
                 indicesModuleResponseHandler
             );
-            /*
-             * Making asynchronous for now.
-             */
+            // TODO: make asynchronous
             inProgressFuture.get(100, TimeUnit.SECONDS);
             logger.info("Received response from Extension");
         } catch (Exception e) {
@@ -658,10 +651,6 @@ public class ExtensionsManager {
         return clusterService;
     }
 
-    public ExtensionNamedWriteableRegistry getNamedWriteableRegistry() {
-        return namedWriteableRegistry;
-    }
-
     public ExtensionActionListener getListener() {
         return listener;
     }
@@ -680,10 +669,6 @@ public class ExtensionsManager {
 
     public NodeClient getClient() {
         return client;
-    }
-
-    public void setNamedWriteableRegistry(ExtensionNamedWriteableRegistry namedWriteableRegistry) {
-        this.namedWriteableRegistry = namedWriteableRegistry;
     }
 
 }
