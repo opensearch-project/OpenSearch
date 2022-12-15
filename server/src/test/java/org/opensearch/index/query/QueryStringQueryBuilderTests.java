@@ -593,7 +593,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         assertThat(query, equalTo(expectedQuery));
     }
 
-    public void testToQueryWilcardQueryWithSynonyms() throws Exception {
+    public void testToQueryWildcardQueryWithSynonyms() throws Exception {
         for (Operator op : Operator.values()) {
             BooleanClause.Occur defaultOp = op.toBooleanClauseOccur();
             QueryStringQueryParser queryParser = new QueryStringQueryParser(createShardContext(), TEXT_FIELD_NAME);
@@ -803,7 +803,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         assertThat(e.getMessage(), containsString("would require more than 10 effort"));
     }
 
-    public void testToQueryFuzzyQueryAutoFuziness() throws Exception {
+    public void testToQueryFuzzyQueryAutoFuzziness() throws Exception {
         for (int i = 0; i < 3; i++) {
             final int len;
             final int expectedEdits;
@@ -828,7 +828,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             String queryString = new String(bytes);
             for (int j = 0; j < 2; j++) {
                 Query query = queryStringQuery(queryString + (j == 0 ? "~" : "~auto")).defaultField(TEXT_FIELD_NAME)
-                    .fuzziness(Fuzziness.AUTO)
                     .toQuery(createShardContext());
                 assertThat(query, instanceOf(FuzzyQuery.class));
                 FuzzyQuery fuzzyQuery = (FuzzyQuery) query;
@@ -866,6 +865,11 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         );
         query.lenient(true);
         query.toQuery(context); // no exception
+    }
+
+    public void testDefaultFuzziness() {
+        QueryStringQueryBuilder queryStringQueryBuilder = new QueryStringQueryBuilder(TEXT_FIELD_NAME).fuzziness(null);
+        assertNull(queryStringQueryBuilder.fuzziness());
     }
 
     public void testPrefixNumeric() throws Exception {

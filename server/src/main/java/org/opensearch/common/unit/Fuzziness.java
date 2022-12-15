@@ -139,6 +139,16 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
         return new Fuzziness(string);
     }
 
+    /***
+     * Creates a {@link Fuzziness} instance from lowDistance and highDistance.
+     * where the edit distance is 0 for strings shorter than lowDistance,
+     * 1 for strings where its length between lowDistance and highDistance (inclusive),
+     * and 2 for strings longer than highDistance.
+     */
+    public static Fuzziness customAuto(int lowDistance, int highDistance) {
+        return new Fuzziness("AUTO", lowDistance, highDistance);
+    }
+
     private static Fuzziness parseCustomAuto(final String string) {
         assert string.toUpperCase(Locale.ROOT).startsWith(AUTO.asString() + ":");
         String[] fuzzinessLimit = string.substring(AUTO.asString().length() + 1).split(",");
