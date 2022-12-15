@@ -228,7 +228,7 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
         return false;
     }
 
-    private List<Long> getThreadsWorkingOnTask(Task task) {
+    public List<Long> getThreadsWorkingOnTask(Task task) {
         List<Long> activeThreads = new ArrayList<>();
         for (List<ThreadResourceInfo> threadResourceInfos : task.getResourceStats().values()) {
             for (ThreadResourceInfo threadResourceInfo : threadResourceInfos) {

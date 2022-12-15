@@ -26,11 +26,13 @@ public class TaskCancellation implements Comparable<TaskCancellation> {
     private final CancellableTask task;
     private final List<Reason> reasons;
     private final List<Runnable> onCancelCallbacks;
+    private final TaskManager taskManager;
 
-    public TaskCancellation(CancellableTask task, List<Reason> reasons, List<Runnable> onCancelCallbacks) {
+    public TaskCancellation(CancellableTask task, List<Reason> reasons, List<Runnable> onCancelCallbacks, TaskManager taskManager) {
         this.task = task;
         this.reasons = reasons;
         this.onCancelCallbacks = onCancelCallbacks;
+        this.taskManager = taskManager;
     }
 
     public CancellableTask getTask() {
@@ -53,8 +55,9 @@ public class TaskCancellation implements Comparable<TaskCancellation> {
             return;
         }
 
-        task.cancel(getReasonString());
+        taskManager.cancel(task, getReasonString(), () -> onCancelCallbacks.forEach(r -> r.run()));
 
+        //TODO remove redundant logic
         List<Exception> exceptions = new ArrayList<>();
         for (Runnable callback : onCancelCallbacks) {
             try {

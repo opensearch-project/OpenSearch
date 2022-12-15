@@ -29,6 +29,7 @@ import org.opensearch.search.backpressure.trackers.TaskResourceUsageTrackerType;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskCancellation;
+import org.opensearch.tasks.TaskManager;
 import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.tasks.TaskResourceTrackingService.TaskCompletionListener;
 import org.opensearch.threadpool.Scheduler;
@@ -58,6 +59,7 @@ public class SearchBackpressureService extends AbstractLifecycleComponent
     private volatile Scheduler.Cancellable scheduledFuture;
 
     private final SearchBackpressureSettings settings;
+    private final TaskManager taskManager;
     private final TaskResourceTrackingService taskResourceTrackingService;
     private final ThreadPool threadPool;
     private final LongSupplier timeNanosSupplier;
@@ -75,12 +77,14 @@ public class SearchBackpressureService extends AbstractLifecycleComponent
     public SearchBackpressureService(
         SearchBackpressureSettings settings,
         TaskResourceTrackingService taskResourceTrackingService,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        TaskManager taskManager
     ) {
         this(
             settings,
             taskResourceTrackingService,
             threadPool,
+            taskManager,
             System::nanoTime,
             List.of(
                 new NodeDuressTracker(
@@ -98,6 +102,7 @@ public class SearchBackpressureService extends AbstractLifecycleComponent
         SearchBackpressureSettings settings,
         TaskResourceTrackingService taskResourceTrackingService,
         ThreadPool threadPool,
+        TaskManager taskManager,
         LongSupplier timeNanosSupplier,
         List<NodeDuressTracker> nodeDuressTrackers,
         List<TaskResourceUsageTracker> taskResourceUsageTrackers
@@ -107,6 +112,7 @@ public class SearchBackpressureService extends AbstractLifecycleComponent
         this.taskResourceTrackingService = taskResourceTrackingService;
         this.taskResourceTrackingService.addTaskCompletionListener(this);
         this.threadPool = threadPool;
+        this.taskManager = taskManager;
         this.timeNanosSupplier = timeNanosSupplier;
         this.nodeDuressTrackers = nodeDuressTrackers;
         this.taskResourceUsageTrackers = taskResourceUsageTrackers;
@@ -231,7 +237,7 @@ public class SearchBackpressureService extends AbstractLifecycleComponent
             callbacks.add(state::incrementCancellationCount);
         }
 
-        return new TaskCancellation(task, reasons, callbacks);
+        return new TaskCancellation(task, reasons, callbacks, taskManager);
     }
 
     /**

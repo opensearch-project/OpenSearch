@@ -228,7 +228,7 @@ public class TaskManager implements ClusterStateApplier {
 
     private void registerCancellableTask(Task task) {
         CancellableTask cancellableTask = (CancellableTask) task;
-        CancellableTaskHolder holder = new CancellableTaskHolder(cancellableTask);
+        CancellableTaskHolder holder = new CancellableTaskHolder(cancellableTask, taskResourceTrackingService.get());
         CancellableTaskHolder oldHolder = cancellableTasks.put(task.getId(), holder);
         assert oldHolder == null;
         // Check if this task was banned before we start it. The empty check is used to avoid
@@ -549,9 +549,11 @@ public class TaskManager implements ClusterStateApplier {
         private ObjectIntMap<DiscoveryNode> childTasksPerNode = null;
         private boolean banChildren = false;
         private List<Runnable> childTaskCompletedListeners = null;
+        private TaskResourceTrackingService taskResourceTrackingService = null;
 
-        CancellableTaskHolder(CancellableTask task) {
+        CancellableTaskHolder(CancellableTask task, TaskResourceTrackingService taskResourceTrackingService) {
             this.task = task;
+            this.taskResourceTrackingService = taskResourceTrackingService;
         }
 
         void cancel(String reason, Runnable listener) {
@@ -571,6 +573,14 @@ public class TaskManager implements ClusterStateApplier {
                 }
             }
             try {
+                if(task.supportsResourceTracking()) {
+                    List<Long> threadsWorkingOnTask = taskResourceTrackingService.getThreadsWorkingOnTask(task);
+                    for (Thread t : Thread.getAllStackTraces().keySet()) {
+                        if (threadsWorkingOnTask.contains(t.getId())) {
+                            t.interrupt();
+                        }
+                    }
+                }
                 task.cancel(reason);
             } finally {
                 if (toRun != null) {
