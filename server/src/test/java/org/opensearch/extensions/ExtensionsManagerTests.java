@@ -19,9 +19,7 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.mock;
 import static org.opensearch.test.ClusterServiceUtils.createClusterService;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -32,7 +30,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -51,10 +48,8 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.io.PathUtils;
-import org.opensearch.common.io.stream.InputStreamStreamInput;
 import org.opensearch.common.io.stream.NamedWriteable;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.common.io.stream.NamedWriteableRegistryResponse;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.network.NetworkService;
@@ -480,130 +475,6 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         @Override
         public int hashCode() {
             return Objects.hash(message);
-        }
-    }
-
-    public void testGetNamedWriteables() throws Exception {
-        Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
-        ExtensionsManager extensionsManager = new ExtensionsManager(settings, extensionDir);
-        transportService.start();
-        transportService.acceptIncomingRequests();
-        extensionsManager.initializeServicesAndRestHandler(restController, transportService, clusterService);
-
-        try (
-            MockLogAppender mockLogAppender = MockLogAppender.createForLoggers(
-                LogManager.getLogger(NamedWriteableRegistryResponseHandler.class)
-            )
-        ) {
-
-            mockLogAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
-                    "OpenSearchRequest Failure",
-                    "org.opensearch.extensions.NamedWriteableRegistryResponseHandler",
-                    Level.ERROR,
-                    "OpenSearchRequest failed"
-                )
-            );
-
-            List<DiscoveryExtensionNode> extensionsList = new ArrayList<>(extensionsManager.getExtensionIdMap().values());
-            extensionsManager.namedWriteableRegistry = new ExtensionNamedWriteableRegistry(extensionsList, transportService);
-            extensionsManager.namedWriteableRegistry.getNamedWriteables();
-            mockLogAppender.assertAllExpectationsMatched();
-        }
-    }
-
-    public void testNamedWriteableRegistryResponseHandler() throws Exception {
-        Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
-        ExtensionsManager extensionsManager = new ExtensionsManager(settings, extensionDir);
-        transportService.start();
-        transportService.acceptIncomingRequests();
-        extensionsManager.initializeServicesAndRestHandler(restController, transportService, clusterService);
-
-        List<DiscoveryExtensionNode> extensionsList = new ArrayList<>(extensionsManager.getExtensionIdMap().values());
-        DiscoveryNode extensionNode = extensionsList.get(0);
-        String requestType = ExtensionsManager.REQUEST_OPENSEARCH_NAMED_WRITEABLE_REGISTRY;
-
-        // Create response to pass to response handler
-        Map<String, Class> responseRegistry = new HashMap<>();
-        responseRegistry.put(Example.NAME, Example.class);
-        NamedWriteableRegistryResponse response = new NamedWriteableRegistryResponse(responseRegistry);
-
-        NamedWriteableRegistryResponseHandler responseHandler = new NamedWriteableRegistryResponseHandler(
-            extensionNode,
-            transportService,
-            requestType
-        );
-        responseHandler.handleResponse(response);
-
-        // Ensure that response entries have been processed correctly into their respective maps
-        Map<DiscoveryNode, Map<Class, Map<String, ExtensionReader>>> extensionsRegistry = responseHandler.getExtensionRegistry();
-        assertEquals(extensionsRegistry.size(), 1);
-
-        Map<Class, Map<String, ExtensionReader>> categoryMap = extensionsRegistry.get(extensionNode);
-        assertEquals(categoryMap.size(), 1);
-
-        Map<String, ExtensionReader> readerMap = categoryMap.get(Example.class);
-        assertEquals(readerMap.size(), 1);
-
-        ExtensionReader callback = readerMap.get(Example.NAME);
-        assertNotNull(callback);
-    }
-
-    public void testGetExtensionReader() throws IOException {
-        Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
-        ExtensionsManager extensionsManager = new ExtensionsManager(settings, extensionDir);
-
-        extensionsManager.namedWriteableRegistry = spy(
-            new ExtensionNamedWriteableRegistry(extensionsManager.getExtensions(), transportService)
-        );
-
-        Exception e = expectThrows(
-            Exception.class,
-            () -> extensionsManager.namedWriteableRegistry.getExtensionReader(Example.class, Example.NAME)
-        );
-        assertEquals(e.getMessage(), "Unknown NamedWriteable [" + Example.class.getName() + "][" + Example.NAME + "]");
-        verify(extensionsManager.namedWriteableRegistry, times(1)).getExtensionReader(any(), any());
-    }
-
-    public void testParseNamedWriteables() throws Exception {
-        Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
-        ExtensionsManager extensionsManager = new ExtensionsManager(settings, extensionDir);
-        transportService.start();
-        transportService.acceptIncomingRequests();
-        extensionsManager.initializeServicesAndRestHandler(restController, transportService, clusterService);
-
-        String requestType = ExtensionsManager.REQUEST_OPENSEARCH_PARSE_NAMED_WRITEABLE;
-        List<DiscoveryExtensionNode> extensionsList = new ArrayList<>(extensionsManager.getExtensionIdMap().values());
-        DiscoveryNode extensionNode = extensionsList.get(0);
-        Class categoryClass = Example.class;
-
-        // convert context into an input stream then stream input for mock
-        byte[] context = new byte[0];
-        InputStream inputStream = new ByteArrayInputStream(context);
-        StreamInput in = new InputStreamStreamInput(inputStream);
-
-        try (
-            MockLogAppender mockLogAppender = MockLogAppender.createForLoggers(
-                LogManager.getLogger(NamedWriteableRegistryParseResponseHandler.class)
-            )
-        ) {
-
-            mockLogAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
-                    "NamedWriteableRegistryParseRequest Failure",
-                    "org.opensearch.extensions.NamedWriteableRegistryParseResponseHandler",
-                    Level.ERROR,
-                    "NamedWriteableRegistryParseRequest failed"
-                )
-            );
-
-            NamedWriteableRegistryResponseHandler responseHandler = new NamedWriteableRegistryResponseHandler(
-                extensionNode,
-                transportService,
-                requestType
-            );
-            responseHandler.parseNamedWriteable(extensionNode, categoryClass, in);
-            mockLogAppender.assertAllExpectationsMatched();
         }
     }
 

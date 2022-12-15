@@ -160,6 +160,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
                 restExecuteOnExtensionResponseHandler
             );
             try {
+                // TODO: make asynchronous
                 inProgressFuture.get(5, TimeUnit.SECONDS);
             } catch (InterruptedException e) {
                 return channel -> channel.sendResponse(

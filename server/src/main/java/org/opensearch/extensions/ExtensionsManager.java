@@ -108,7 +108,6 @@ public class ExtensionsManager {
     private RestActionsRequestHandler restActionsRequestHandler;
     private TransportService transportService;
     private ClusterService clusterService;
-    ExtensionNamedWriteableRegistry namedWriteableRegistry;
 
     public ExtensionsManager() {
         this.extensionsPath = Path.of("");
@@ -128,7 +127,6 @@ public class ExtensionsManager {
         this.extensions = new ArrayList<DiscoveryExtensionNode>();
         this.extensionIdMap = new HashMap<String, DiscoveryExtensionNode>();
         this.clusterService = null;
-        this.namedWriteableRegistry = null;
 
         /*
          * Now Discover extensions
@@ -154,10 +152,6 @@ public class ExtensionsManager {
         this.transportService = transportService;
         this.clusterService = clusterService;
         registerRequestHandler();
-    }
-
-    public void setNamedWriteableRegistry() {
-        this.namedWriteableRegistry = new ExtensionNamedWriteableRegistry(extensions, transportService);
     }
 
     private void registerRequestHandler() {
@@ -269,13 +263,12 @@ public class ExtensionsManager {
     }
 
     /**
-     * Iterate through all extensions and initialize them.  Initialized extensions will be added to the {@link #extensions}, and the {@link #namedWriteableRegistry} will be initialized.
+     * Iterate through all extensions and initialize them.  Initialized extensions will be added to the {@link #extensions}.
      */
     public void initialize() {
         for (DiscoveryExtensionNode extension : extensionIdMap.values()) {
             initializeExtension(extension);
         }
-        this.namedWriteableRegistry = new ExtensionNamedWriteableRegistry(extensions, transportService);
     }
 
     private void initializeExtension(DiscoveryExtensionNode extension) {
@@ -321,6 +314,7 @@ public class ExtensionsManager {
                 new InitializeExtensionRequest(transportService.getLocalNode(), extension),
                 initializeExtensionResponseHandler
             );
+            // TODO: make asynchronous
             inProgressFuture.get(100, TimeUnit.SECONDS);
         } catch (Exception e) {
             try {
@@ -431,9 +425,7 @@ public class ExtensionsManager {
                                     new IndicesModuleRequest(indexModule),
                                     extensionBooleanResponseHandler
                                 );
-                                /*
-                                 * Making asynchronous for now.
-                                 */
+                                // TODO: make asynchronous
                                 inProgressIndexNameFuture.get(100, TimeUnit.SECONDS);
                                 logger.info("Received ack response from Extension");
                             } catch (Exception e) {
@@ -469,9 +461,7 @@ public class ExtensionsManager {
                 new IndicesModuleRequest(indexModule),
                 indicesModuleResponseHandler
             );
-            /*
-             * Making async synchronous for now.
-             */
+            // TODO: make asynchronous
             inProgressFuture.get(100, TimeUnit.SECONDS);
             logger.info("Received response from Extension");
         } catch (Exception e) {
@@ -556,10 +546,6 @@ public class ExtensionsManager {
 
     public RestActionsRequestHandler getRestActionsRequestHandler() {
         return restActionsRequestHandler;
-    }
-
-    public ExtensionNamedWriteableRegistry getNamedWriteableRegistry() {
-        return namedWriteableRegistry;
     }
 
 }
