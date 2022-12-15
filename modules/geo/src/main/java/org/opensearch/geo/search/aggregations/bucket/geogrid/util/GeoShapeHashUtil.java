@@ -36,7 +36,6 @@ public class GeoShapeHashUtil {
         long topRightGeoHash = Geohash.longEncode(boundingRectangle.getMaxX(), boundingRectangle.getMaxY(), precision);
         long bottomRightGeoHash = Geohash.longEncode(boundingRectangle.getMaxX(), boundingRectangle.getMinY(), precision);
 
-        // Now iterate these 4 coordinates.
         long currentValue = topLeftGeoHash;
         long rightMax = topRightGeoHash;
         long tempCurrent = currentValue;
