@@ -29,7 +29,6 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.decommission.DecommissionAttribute;
 import org.opensearch.cluster.decommission.DecommissionAttributeMetadata;
-import org.opensearch.cluster.decommission.DecommissionService;
 import org.opensearch.cluster.decommission.DecommissionStatus;
 import org.opensearch.cluster.decommission.DecommissioningFailedException;
 import org.opensearch.cluster.decommission.NodeDecommissionedException;
@@ -824,24 +823,11 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
         // and hence due to which the leader won't get abdicated and decommission request should eventually fail.
         // And in this case, to ensure decommission request doesn't leave mutating change in the cluster, we ensure
         // that no exclusion is set to the cluster and state for decommission is marked as FAILED
-        Logger clusterLogger = LogManager.getLogger(DecommissionService.class);
-        MockLogAppender mockLogAppender = MockLogAppender.createForLoggers(clusterLogger);
-        mockLogAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "test",
-                DecommissionService.class.getCanonicalName(),
-                Level.ERROR,
-                "failure in removing to-be-decommissioned cluster manager eligible nodes"
-            )
+        OpenSearchTimeoutException ex = expectThrows(
+            OpenSearchTimeoutException.class,
+            () -> client().execute(DecommissionAction.INSTANCE, decommissionRequest).actionGet()
         );
-
-        assertBusy(() -> {
-            OpenSearchTimeoutException ex = expectThrows(
-                OpenSearchTimeoutException.class,
-                () -> client().execute(DecommissionAction.INSTANCE, decommissionRequest).actionGet()
-            );
-            assertTrue(ex.getMessage().contains("timed out waiting for voting config exclusions"));
-        });
+        assertTrue(ex.getMessage().contains("while removing to-be-decommissioned cluster manager eligible nodes"));
 
         ClusterService leaderClusterService = internalCluster().getInstance(
             ClusterService.class,
@@ -877,7 +863,6 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
 
         // if the below condition is passed, then we are sure current decommission status is marked FAILED
         assertTrue(expectedStateLatch.await(30, TimeUnit.SECONDS));
-        mockLogAppender.assertAllExpectationsMatched();
 
         // ensure all nodes are part of cluster
         ensureStableCluster(6, TimeValue.timeValueMinutes(2));
