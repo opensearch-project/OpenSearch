@@ -138,16 +138,11 @@ public class ClusterManagerTaskThrottler implements TaskBatcherListener {
         Set<String> settingKeys = new HashSet<>();
         // Adding keys which are present in new Setting
         settingKeys.addAll(groups.keySet());
-        // Adding already configured keys as well,
-        // we might need to set it to default value if it's value is null in new setting
+        // Adding existing keys that may need to be set to a default value if that is removed in new setting.
         settingKeys.addAll(tasksThreshold.keySet());
         for (String key : settingKeys) {
             Settings setting = groups.get(key);
-            if (setting == null) {
-                updateLimit(key, MIN_THRESHOLD_VALUE);
-            } else {
-                updateLimit(key, setting.getAsInt("value", MIN_THRESHOLD_VALUE));
-            }
+            updateLimit(key, setting == null ? MIN_THRESHOLD_VALUE : setting.getAsInt("value", MIN_THRESHOLD_VALUE));
         }
     }
 
