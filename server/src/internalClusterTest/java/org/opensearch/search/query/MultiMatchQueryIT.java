@@ -37,6 +37,7 @@ import org.opensearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
@@ -1024,7 +1025,7 @@ public class MultiMatchQueryIT extends OpenSearchIntegTestCase {
 
         SearchResponse searchResponse = client().prepareSearch(idx)
             .setExplain(true)
-            .setQuery(multiMatchQuery("foo").field("title", 100).field("body").fuzziness(0))
+            .setQuery(multiMatchQuery("foo").field("title", 100).field("body").fuzziness(Fuzziness.ZERO))
             .get();
         SearchHit[] hits = searchResponse.getHits().getHits();
         assertNotEquals("both documents should be on different shards", hits[0].getShard().getShardId(), hits[1].getShard().getShardId());
