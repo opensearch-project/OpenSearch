@@ -46,8 +46,8 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
         this.timeout = timeout;
     }
 
-    public DecommissionRequest(DecommissionAttribute decommissionAttribute, TimeValue timeout) {
-        this(decommissionAttribute, false, timeout);
+    public DecommissionRequest(DecommissionAttribute decommissionAttribute) {
+        this.decommissionAttribute = decommissionAttribute;
     }
 
     public DecommissionRequest(StreamInput in) throws IOException {
