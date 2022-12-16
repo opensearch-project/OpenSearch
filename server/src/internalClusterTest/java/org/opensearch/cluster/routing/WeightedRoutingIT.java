@@ -352,8 +352,116 @@ public class WeightedRoutingIT extends OpenSearchIntegTestCase {
             .cluster()
             .prepareDeleteWeightedRouting()
             .setAwarenessAttribute("zone")
-            .setAwarenessAttribute("zone")
             .get();
         assertTrue(deleteResponse.isAcknowledged());
     }
+
+    public void testWeightedRoutingAPIs_WeightsSetForTwoAwarenessAttribute() {
+        Settings commonSettings = Settings.builder()
+            .put("cluster.routing.allocation.awareness.attributes", "zone, rack")
+            .put("cluster.routing.allocation.awareness.force.zone.values", "a,b,c")
+            .build();
+
+        logger.info("--> starting 6 nodes on different zones");
+        int nodeCountPerAZ = 2;
+
+        logger.info("--> starting a dedicated cluster manager node");
+        internalCluster().startClusterManagerOnlyNode(Settings.builder().put(commonSettings).build());
+
+        logger.info("--> starting 1 nodes on zones 'a' & 'b' & 'c'");
+        List<String> nodes_in_zone_a = internalCluster().startDataOnlyNodes(
+            nodeCountPerAZ,
+            Settings.builder().put(commonSettings).put("node.attr.zone", "a").build()
+        );
+        List<String> nodes_in_zone_b = internalCluster().startDataOnlyNodes(
+            nodeCountPerAZ,
+            Settings.builder().put(commonSettings).put("node.attr.zone", "b").build()
+        );
+        List<String> nodes_in_zone_c = internalCluster().startDataOnlyNodes(
+            nodeCountPerAZ,
+            Settings.builder().put(commonSettings).put("node.attr.zone", "c").build()
+        );
+
+        logger.info("--> waiting for nodes to form a cluster");
+        ClusterHealthResponse health = client().admin().cluster().prepareHealth().setWaitForNodes("7").execute().actionGet();
+        assertThat(health.isTimedOut(), equalTo(false));
+
+        ensureGreen();
+
+        logger.info("--> setting shard routing weights for weighted round robin");
+        Map<String, Double> weights = Map.of("a", 1.0, "b", 2.0, "c", 3.0);
+        WeightedRouting weightedRoutingForZone = new WeightedRouting("zone", weights);
+
+        ClusterPutWeightedRoutingResponse response = client().admin()
+            .cluster()
+            .prepareWeightedRouting()
+            .setWeightedRouting(weightedRoutingForZone)
+            .get();
+        assertEquals(response.isAcknowledged(), true);
+
+        // put call made on a data node in zone a
+        response = internalCluster().client(randomFrom(nodes_in_zone_a.get(0), nodes_in_zone_a.get(1)))
+            .admin()
+            .cluster()
+            .prepareWeightedRouting()
+            .setWeightedRouting(weightedRoutingForZone)
+            .get();
+        assertEquals(response.isAcknowledged(), true);
+
+        // put call made with different awareness attribute
+
+        weights = Map.of("a", 1.0, "b", 0.0, "c", 3.0);
+        WeightedRouting weightedRoutingForRack = new WeightedRouting("rack", weights);
+        response = internalCluster().client(randomFrom(nodes_in_zone_a.get(0), nodes_in_zone_a.get(1)))
+            .admin()
+            .cluster()
+            .prepareWeightedRouting()
+            .setWeightedRouting(weightedRoutingForRack)
+            .get();
+        assertEquals(response.isAcknowledged(), true);
+
+        // get api call with awareness attribute zone
+        ClusterGetWeightedRoutingResponse weightedRoutingResponse = client().admin()
+            .cluster()
+            .prepareGetWeightedRouting()
+            .setAwarenessAttribute("zone")
+            .get();
+        assertEquals(weightedRoutingForZone, weightedRoutingResponse.weights());
+
+        // get api call with awareness attribute rack
+        weightedRoutingResponse = client().admin().cluster().prepareGetWeightedRouting().setAwarenessAttribute("rack").get();
+        assertEquals(weightedRoutingForRack, weightedRoutingResponse.weights());
+
+        // delete api call with awareness attribute zone
+
+        ClusterDeleteWeightedRoutingResponse deleteResponse = client().admin()
+            .cluster()
+            .prepareDeleteWeightedRouting()
+            .setAwarenessAttribute("zone")
+            .get();
+        assertTrue(deleteResponse.isAcknowledged());
+
+        // delete api call with awareness attribute zone, 404
+        ResourceNotFoundException exception = expectThrows(
+            ResourceNotFoundException.class,
+            () -> client().admin().cluster().prepareDeleteWeightedRouting().setAwarenessAttribute("zone").get()
+        );
+        assertEquals(exception.status(), RestStatus.NOT_FOUND);
+        assertTrue(exception.getMessage().contains("weighted routing metadata does not have weights set for awareness attribute zone"));
+
+        // delete api call with awareness attribute rack
+        deleteResponse = client().admin().cluster().prepareDeleteWeightedRouting().setAwarenessAttribute("rack").get();
+        assertTrue(deleteResponse.isAcknowledged());
+
+        // delete api call with awareness attribute rack, 404
+        exception = expectThrows(
+            ResourceNotFoundException.class,
+            () -> client().admin().cluster().prepareDeleteWeightedRouting().setAwarenessAttribute("rack").get()
+        );
+        assertEquals(exception.status(), RestStatus.NOT_FOUND);
+        assertTrue(
+            exception.getMessage().contains("weighted routing metadata does not have weights set for awareness" + " attribute rack")
+        );
+    }
+
 }
