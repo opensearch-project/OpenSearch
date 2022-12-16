@@ -202,6 +202,10 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         // distributionDownloadType is default min if is not specified; download the distribution from CI if is bundle
         String distributionDownloadType = customDistributionDownloadType != null
             && customDistributionDownloadType.toString().equals("bundle") ? "bundle" : "min";
+        
+        addIvyRepo2(project, DOWNLOAD_REPO_NAME_ES, "https://artifacts-no-kpi.elastic.co", FAKE_IVY_GROUP_ES);
+        addIvyRepo2(project, SNAPSHOT_REPO_NAME_ES, "https://snapshots-no-kpi.elastic.co", FAKE_SNAPSHOT_IVY_GROUP_ES);
+       
         if (customDistributionUrl != null) {
             addIvyRepo(project, DOWNLOAD_REPO_NAME, customDistributionUrl.toString(), FAKE_IVY_GROUP, "");
             addIvyRepo(project, SNAPSHOT_REPO_NAME, customDistributionUrl.toString(), FAKE_SNAPSHOT_IVY_GROUP, "");
@@ -233,8 +237,6 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
                 throw new IllegalArgumentException("Unsupported property argument: " + distributionDownloadType);
         }
 
-        addIvyRepo2(project, DOWNLOAD_REPO_NAME_ES, "https://artifacts-no-kpi.elastic.co", FAKE_IVY_GROUP_ES);
-        addIvyRepo2(project, SNAPSHOT_REPO_NAME_ES, "https://snapshots-no-kpi.elastic.co", FAKE_SNAPSHOT_IVY_GROUP_ES);
     }
 
     /**
