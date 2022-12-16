@@ -21,8 +21,6 @@ import java.io.IOException;
 import static org.opensearch.action.ValidateActions.addValidationError;
 
 /**
- * Register decommission request.
- * <p>
  * Registers a decommission request with decommission attribute and timeout
  *
  * @opensearch.internal
@@ -33,18 +31,14 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
     public static final TimeValue DEFAULT_NODE_DRAINING_TIMEOUT = TimeValue.timeValueSeconds(120);
 
     private DecommissionAttribute decommissionAttribute;
-    private boolean retryOnClusterManagerChange;
-    private TimeValue timeout;
+    private boolean retryOnClusterManagerChange = false;
+    private TimeValue timeout = TIMEOUT;
     private TimeValue delayTimeout = DEFAULT_NODE_DRAINING_TIMEOUT;
 
     // holder for no_delay param. To avoid draining time timeout.
     private boolean noDelay = false;
 
     public DecommissionRequest() {}
-
-    public DecommissionRequest(DecommissionAttribute decommissionAttribute) {
-        this(decommissionAttribute, false, TIMEOUT);
-    }
 
     public DecommissionRequest(DecommissionAttribute decommissionAttribute, boolean retryOnClusterManagerChange, TimeValue timeout) {
         this.decommissionAttribute = decommissionAttribute;
@@ -134,7 +128,7 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
     /**
      * Sets the timeout for the request
      *
-     * @param timeout retry time out for the request
+     * @param timeout time out for the request
      * @return this request
      */
     public DecommissionRequest setTimeout(TimeValue timeout) {
@@ -169,6 +163,9 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
                 + delayTimeout.getSeconds()
                 + "] Seconds";
             validationException = addValidationError(validationMessage, validationException);
+        }
+        if (timeout.getMillis() < 0) {
+            validationException = addValidationError("request timeout is negative", validationException);
         }
         return validationException;
     }
