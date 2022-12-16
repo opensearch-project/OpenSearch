@@ -14,7 +14,7 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.mockito.Mockito.anyString;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -39,7 +39,7 @@ public class SearchBackpressureTestHelpers extends OpenSearchTestCase {
         doAnswer(invocation -> {
             isCancelled.set(true);
             return null;
-        }).when(task).cancel(anyString());
+        }).when(task).cancel((CancellableTask.Reason) any());
         doAnswer(invocation -> isCancelled.get()).when(task).isCancelled();
 
         return task;

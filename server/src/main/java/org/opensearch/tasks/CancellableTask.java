@@ -34,9 +34,10 @@ package org.opensearch.tasks;
 
 import org.opensearch.common.Nullable;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.rest.RestStatus;
 
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.opensearch.search.SearchService.NO_TIMEOUT;
 
@@ -47,8 +48,7 @@ import static org.opensearch.search.SearchService.NO_TIMEOUT;
  */
 public abstract class CancellableTask extends Task {
 
-    private volatile String reason;
-    private final AtomicBoolean cancelled = new AtomicBoolean(false);
+    private final AtomicReference<Reason> reasonReference = new AtomicReference<>();
     private final TimeValue cancelAfterTimeInterval;
 
     public CancellableTask(long id, String type, String action, String description, TaskId parentTaskId, Map<String, String> headers) {
@@ -71,10 +71,14 @@ public abstract class CancellableTask extends Task {
     /**
      * This method is called by the task manager when this task is cancelled.
      */
-    public void cancel(String reason) {
+    public void cancel(String message) {
+        assert message != null;
+        cancel(new Reason(message));
+    }
+
+    public void cancel(Reason reason) {
         assert reason != null;
-        if (cancelled.compareAndSet(false, true)) {
-            this.reason = reason;
+        if (reasonReference.compareAndSet(null, reason)) {
             onCancelled();
         }
     }
@@ -93,7 +97,7 @@ public abstract class CancellableTask extends Task {
     public abstract boolean shouldCancelChildrenOnCancellation();
 
     public boolean isCancelled() {
-        return cancelled.get();
+        return reasonReference.get() != null;
     }
 
     public TimeValue getCancellationTimeout() {
@@ -101,15 +105,49 @@ public abstract class CancellableTask extends Task {
     }
 
     /**
-     * The reason the task was cancelled or null if it hasn't been cancelled.
+     * The {@link Reason} the task was cancelled or null if it hasn't been cancelled.
      */
     @Nullable
-    public final String getReasonCancelled() {
-        return reason;
+    public Reason getReasonCancelled() {
+        return reasonReference.get();
+    }
+
+    /**
+     * The {@link Reason#getMessage()} the task was cancelled or null if it hasn't been cancelled.
+     */
+    @Nullable
+    public String getReasonCancelledMessage() {
+        Reason reason = reasonReference.get();
+        return reason != null ? reason.getMessage() : null;
     }
 
     /**
      * Called after the task is cancelled so that it can take any actions that it has to take.
      */
     protected void onCancelled() {}
+
+    /**
+     * Reason represents the cancellation reason for the {@link CancellableTask}.
+     */
+    public static class Reason {
+        private final String message;
+        private final RestStatus restStatus;
+
+        public Reason(String message) {
+            this(message, RestStatus.INTERNAL_SERVER_ERROR);
+        }
+
+        public Reason(String message, RestStatus restStatus) {
+            this.message = message;
+            this.restStatus = restStatus;
+        }
+
+        public String getMessage() {
+            return message;
+        }
+
+        public RestStatus getRestStatus() {
+            return restStatus;
+        }
+    }
 }

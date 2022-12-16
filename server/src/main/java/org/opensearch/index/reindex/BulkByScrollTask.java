@@ -128,7 +128,7 @@ public class BulkByScrollTask extends CancellableTask {
     }
 
     private BulkByScrollTask.Status emptyStatus() {
-        return new Status(Collections.emptyList(), getReasonCancelled());
+        return new Status(Collections.emptyList(), getReasonCancelledMessage());
     }
 
     /**

@@ -84,7 +84,7 @@ public class LeaderBulkByScrollTaskState {
             throw new IllegalArgumentException("Given number of statuses does not match amount of expected results");
         }
         addResultsToList(statuses);
-        return new BulkByScrollTask.Status(unmodifiableList(statuses), task.getReasonCancelled());
+        return new BulkByScrollTask.Status(unmodifiableList(statuses), task.getReasonCancelledMessage());
     }
 
     /**
@@ -150,7 +150,7 @@ public class LeaderBulkByScrollTaskState {
             }
         }
         if (exception == null) {
-            listener.onResponse(new BulkByScrollResponse(responses, task.getReasonCancelled()));
+            listener.onResponse(new BulkByScrollResponse(responses, task.getReasonCancelledMessage()));
         } else {
             listener.onFailure(exception);
         }

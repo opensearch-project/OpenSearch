@@ -71,6 +71,7 @@ import org.opensearch.search.fetch.subphase.InnerHitsPhase;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.search.lookup.SourceLookup;
+import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.TaskCancelledException;
 
 import java.io.IOException;
@@ -109,7 +110,8 @@ public class FetchPhase {
         }
 
         if (context.isCancelled()) {
-            throw new TaskCancelledException("cancelled task with reason: " + context.getTask().getReasonCancelled());
+            CancellableTask.Reason reason = context.getTask().getReasonCancelled();
+            throw new TaskCancelledException("cancelled task with reason: " + reason.getMessage(), reason.getRestStatus());
         }
 
         if (context.docIdsToLoadSize() == 0) {
@@ -141,7 +143,8 @@ public class FetchPhase {
         boolean hasSequentialDocs = hasSequentialDocs(docs);
         for (int index = 0; index < context.docIdsToLoadSize(); index++) {
             if (context.isCancelled()) {
-                throw new TaskCancelledException("cancelled task with reason: " + context.getTask().getReasonCancelled());
+                CancellableTask.Reason reason = context.getTask().getReasonCancelled();
+                throw new TaskCancelledException("cancelled task with reason: " + reason.getMessage(), reason.getRestStatus());
             }
             int docId = docs[index].docId;
             try {
@@ -184,7 +187,8 @@ public class FetchPhase {
             }
         }
         if (context.isCancelled()) {
-            throw new TaskCancelledException("cancelled task with reason: " + context.getTask().getReasonCancelled());
+            CancellableTask.Reason reason = context.getTask().getReasonCancelled();
+            throw new TaskCancelledException("cancelled task with reason: " + reason.getMessage(), reason.getRestStatus());
         }
 
         TotalHits totalHits = context.queryResult().getTotalHits();

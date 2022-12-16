@@ -9,6 +9,7 @@
 package org.opensearch.tasks;
 
 import org.opensearch.action.search.SearchShardTask;
+import org.opensearch.rest.RestStatus;
 import org.opensearch.search.backpressure.trackers.TaskResourceUsageTracker;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -28,7 +29,7 @@ public class TaskCancellationTests extends OpenSearchTestCase {
 
         List<TaskCancellation.Reason> reasons = new ArrayList<>();
         List<Runnable> callbacks = List.of(mockTracker1::incrementCancellations, mockTracker2::incrementCancellations);
-        TaskCancellation taskCancellation = new TaskCancellation(mockTask, reasons, callbacks);
+        TaskCancellation taskCancellation = new TaskCancellation(mockTask, reasons, callbacks, RestStatus.INTERNAL_SERVER_ERROR);
 
         // Task does not have any reason to be cancelled.
         assertEquals(0, taskCancellation.totalCancellationScore());
@@ -47,7 +48,9 @@ public class TaskCancellationTests extends OpenSearchTestCase {
 
         // Cancel the task and validate the cancellation reason and invocation of callbacks.
         taskCancellation.cancel();
-        assertTrue(mockTask.getReasonCancelled().contains("limits exceeded 1, limits exceeded 2, limits exceeded 3"));
+        CancellableTask.Reason reason = mockTask.getReasonCancelled();
+        assertTrue(reason.getMessage().contains("limits exceeded 1, limits exceeded 2, limits exceeded 3"));
+        assertEquals(RestStatus.INTERNAL_SERVER_ERROR, reason.getRestStatus());
         assertEquals(1, mockTracker1.getCancellations());
         assertEquals(1, mockTracker2.getCancellations());
         assertEquals(0, mockTracker3.getCancellations());

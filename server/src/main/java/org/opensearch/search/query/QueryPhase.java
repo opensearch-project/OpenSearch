@@ -67,6 +67,7 @@ import org.opensearch.search.profile.query.InternalProfileCollector;
 import org.opensearch.search.rescore.RescorePhase;
 import org.opensearch.search.sort.SortAndFormats;
 import org.opensearch.search.suggest.SuggestPhase;
+import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.TaskCancelledException;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -115,7 +116,8 @@ public class QueryPhase {
             cancellation = context.searcher().addQueryCancellation(() -> {
                 SearchShardTask task = context.getTask();
                 if (task != null && task.isCancelled()) {
-                    throw new TaskCancelledException("cancelled task with reason: " + task.getReasonCancelled());
+                    CancellableTask.Reason reason = task.getReasonCancelled();
+                    throw new TaskCancelledException("cancelled task with reason: " + reason.getMessage(), reason.getRestStatus());
                 }
             });
         } else {
@@ -266,7 +268,8 @@ public class QueryPhase {
                 searcher.addQueryCancellation(() -> {
                     SearchShardTask task = searchContext.getTask();
                     if (task != null && task.isCancelled()) {
-                        throw new TaskCancelledException("cancelled task with reason: " + task.getReasonCancelled());
+                        CancellableTask.Reason reason = task.getReasonCancelled();
+                        throw new TaskCancelledException("cancelled task with reason: " + reason.getMessage(), reason.getRestStatus());
                     }
                 });
             }

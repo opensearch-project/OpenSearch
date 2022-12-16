@@ -70,6 +70,7 @@ import org.opensearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.PersistentTaskPlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.TaskCancelledException;
 import org.opensearch.tasks.TaskId;
 import org.opensearch.threadpool.ThreadPool;
@@ -411,12 +412,13 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
                         // Cancellation make cause different ways for the task to finish
                         if (randomBoolean()) {
                             if (randomBoolean()) {
-                                task.markAsFailed(new TaskCancelledException(testTask.getReasonCancelled()));
+                                CancellableTask.Reason reason = testTask.getReasonCancelled();
+                                task.markAsFailed(new TaskCancelledException(reason.getMessage(), reason.getRestStatus()));
                             } else {
                                 task.markAsCompleted();
                             }
                         } else {
-                            task.markAsFailed(new RuntimeException(testTask.getReasonCancelled()));
+                            task.markAsFailed(new RuntimeException(testTask.getReasonCancelledMessage()));
                         }
                         return;
                     } else {

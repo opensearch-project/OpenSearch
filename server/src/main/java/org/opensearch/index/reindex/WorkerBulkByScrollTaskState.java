@@ -118,7 +118,7 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
             searchRetries.get(),
             timeValueNanos(throttledNanos.get()),
             getRequestsPerSecond(),
-            task.getReasonCancelled(),
+            task.getReasonCancelledMessage(),
             throttledUntil()
         );
     }

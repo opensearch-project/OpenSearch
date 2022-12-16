@@ -16,6 +16,7 @@ import org.opensearch.common.component.AbstractLifecycleComponent;
 import org.opensearch.common.util.TokenBucket;
 import org.opensearch.monitor.jvm.JvmStats;
 import org.opensearch.monitor.process.ProcessProbe;
+import org.opensearch.rest.RestStatus;
 import org.opensearch.search.backpressure.settings.SearchBackpressureMode;
 import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
 import org.opensearch.search.backpressure.stats.SearchBackpressureStats;
@@ -231,7 +232,7 @@ public class SearchBackpressureService extends AbstractLifecycleComponent
             callbacks.add(state::incrementCancellationCount);
         }
 
-        return new TaskCancellation(task, reasons, callbacks);
+        return new TaskCancellation(task, reasons, callbacks, RestStatus.TOO_MANY_REQUESTS);
     }
 
     /**

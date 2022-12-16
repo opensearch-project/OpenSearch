@@ -104,6 +104,7 @@ import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.ScrollContext;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.sort.SortAndFormats;
+import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.TaskCancelledException;
 import org.opensearch.test.TestSearchContext;
 import org.opensearch.threadpool.ThreadPool;
@@ -1114,6 +1115,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
                 context.parsedQuery(new ParsedQuery(prefixQuery));
                 SearchShardTask task = mock(SearchShardTask.class);
                 when(task.isCancelled()).thenReturn(true);
+                when(task.getReasonCancelled()).thenReturn(new CancellableTask.Reason(""));
                 context.setTask(task);
                 expectThrows(TaskCancelledException.class, () -> new QueryPhase().preProcess(context));
             }

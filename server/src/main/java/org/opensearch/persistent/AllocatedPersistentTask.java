@@ -157,7 +157,7 @@ public class AllocatedPersistentTask extends CancellableTask {
     }
 
     public void markAsFailed(Exception e) {
-        if (CancelTasksRequest.DEFAULT_REASON.equals(getReasonCancelled())) {
+        if (CancelTasksRequest.DEFAULT_REASON.equals(getReasonCancelledMessage())) {
             completeAndNotifyIfNeeded(null);
         } else {
             completeAndNotifyIfNeeded(e);
