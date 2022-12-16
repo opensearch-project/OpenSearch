@@ -13,4 +13,3 @@ public interface Initializable {
     boolean isInitialized();
 
 }
-

@@ -10,10 +10,7 @@ package org.opensearch.identity.configuration;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.Collections;
-import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.opensearch.authn.User;
@@ -31,7 +28,7 @@ public class DynamicConfigFactory implements Initializable, ConfigurationChangeL
 
     public static final EventBusBuilder EVENT_BUS_BUILDER = EventBus.builder();
 
-    static void resetStatics() { }
+    static void resetStatics() {}
 
     private void loadStaticConfig() throws IOException {}
 
@@ -50,8 +47,14 @@ public class DynamicConfigFactory implements Initializable, ConfigurationChangeL
 
     SecurityDynamicConfiguration<?> config;
 
-    public DynamicConfigFactory(ConfigurationRepository cr, final Settings opensearchSettings,
-                                final Path configPath, Client client, ThreadPool threadPool, ClusterInfoHolder cih) {
+    public DynamicConfigFactory(
+        ConfigurationRepository cr,
+        final Settings opensearchSettings,
+        final Path configPath,
+        Client client,
+        ThreadPool threadPool,
+        ClusterInfoHolder cih
+    ) {
         super();
         this.cr = cr;
         this.opensearchSettings = opensearchSettings;
@@ -66,11 +69,20 @@ public class DynamicConfigFactory implements Initializable, ConfigurationChangeL
 
         SecurityDynamicConfiguration<?> internalusers = cr.getConfiguration(CType.INTERNALUSERS);
 
-
         if (log.isDebugEnabled()) {
-            String logmsg = "current config (because of " + typeToConfig.keySet() + ")\n" +
-                " config: " + config.getImplementingClass() + " with " + config.getCEntries().size() + " entries\n" +
-                " internalusers: " + internalusers.getImplementingClass() + " with " + internalusers.getCEntries().size() + " entries\n";
+            String logmsg = "current config (because of "
+                + typeToConfig.keySet()
+                + ")\n"
+                + " config: "
+                + config.getImplementingClass()
+                + " with "
+                + config.getCEntries().size()
+                + " entries\n"
+                + " internalusers: "
+                + internalusers.getImplementingClass()
+                + " with "
+                + internalusers.getCEntries().size()
+                + " entries\n";
             log.debug(logmsg);
 
         }
@@ -114,14 +126,13 @@ public class DynamicConfigFactory implements Initializable, ConfigurationChangeL
         @Override
         public Map<String, String> getAttributes(String user) {
             User tmp = internalUserSecurityDynamicConfiguration.getCEntry(user);
-            return tmp==null?null:tmp.getAttributes();
+            return tmp == null ? null : tmp.getAttributes();
         }
 
         @Override
         public String getHash(String user) {
             User tmp = internalUserSecurityDynamicConfiguration.getCEntry(user);
-            return tmp==null?null:tmp.getBcryptHash();
+            return tmp == null ? null : tmp.getBcryptHash();
         }
     }
 }
-

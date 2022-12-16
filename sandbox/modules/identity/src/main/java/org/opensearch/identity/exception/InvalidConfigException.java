@@ -36,4 +36,3 @@ public class InvalidConfigException extends Exception {
     }
 
 }
-

@@ -32,4 +32,3 @@ public class ConfigUpdateAlreadyInProgressException extends OpenSearchException 
     }
 
 }
-

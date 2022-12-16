@@ -13,7 +13,6 @@ import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
@@ -32,21 +31,21 @@ public class InternalAuthenticationBackend implements AuthenticationBackend, Aut
     @Override
     public boolean exists(User user) {
 
-        if(user == null || internalUsersModel == null) {
+        if (user == null || internalUsersModel == null) {
             return false;
         }
 
         final boolean exists = internalUsersModel.exists(user.getPrimaryPrincipal().getName());
 
-        if(exists) {
-            //FIX https://github.com/opendistro-for-elasticsearch/security/pull/23
-            //Credits to @turettn
+        if (exists) {
+            // FIX https://github.com/opendistro-for-elasticsearch/security/pull/23
+            // Credits to @turettn
             final Map<String, String> customAttributes = internalUsersModel.getAttributes(user.getPrimaryPrincipal().getName());
             Map<String, String> attributeMap = new HashMap<>();
 
-            if(customAttributes != null) {
-                for(Entry<String, String> attributeEntry: customAttributes.entrySet()) {
-                    attributeMap.put("attr.internal."+attributeEntry.getKey(), attributeEntry.getValue());
+            if (customAttributes != null) {
+                for (Entry<String, String> attributeEntry : customAttributes.entrySet()) {
+                    attributeMap.put("attr.internal." + attributeEntry.getKey(), attributeEntry.getValue());
                 }
             }
 
@@ -71,13 +70,13 @@ public class InternalAuthenticationBackend implements AuthenticationBackend, Aut
             throw new OpenSearchSecurityException("Internal authentication backend not configured. May be OpenSearch is not initialized.");
         }
 
-        if(!internalUsersModel.exists(credentials.getUsername())) {
+        if (!internalUsersModel.exists(credentials.getUsername())) {
             throw new OpenSearchSecurityException(credentials.getUsername() + " not found");
         }
 
         final byte[] password = credentials.getPassword();
 
-        if(password == null || password.length == 0) {
+        if (password == null || password.length == 0) {
             throw new OpenSearchSecurityException("empty passwords not supported");
         }
 
@@ -86,14 +85,14 @@ public class InternalAuthenticationBackend implements AuthenticationBackend, Aut
         char[] array = new char[buf.limit()];
         buf.get(array);
 
-        Arrays.fill(password, (byte)0);
+        Arrays.fill(password, (byte) 0);
 
         try {
             if (OpenBSDBCrypt.checkPassword(internalUsersModel.getHash(credentials.getUsername()), array)) {
                 final Map<String, String> customAttributes = internalUsersModel.getAttributes(credentials.getUsername());
-                if(customAttributes != null) {
-                    for(Entry<String, String> attributeName: customAttributes.entrySet()) {
-                        credentials.addAttribute("attr.internal."+attributeName.getKey(), attributeName.getValue());
+                if (customAttributes != null) {
+                    for (Entry<String, String> attributeName : customAttributes.entrySet()) {
+                        credentials.addAttribute("attr.internal." + attributeName.getKey(), attributeName.getValue());
                     }
                 }
 
@@ -105,7 +104,7 @@ public class InternalAuthenticationBackend implements AuthenticationBackend, Aut
                 throw new OpenSearchSecurityException("password does not match");
             }
         } finally {
-            Arrays.fill(wrap.array(), (byte)0);
+            Arrays.fill(wrap.array(), (byte) 0);
             Arrays.fill(buf.array(), '\0');
             Arrays.fill(array, '\0');
         }
@@ -120,7 +119,9 @@ public class InternalAuthenticationBackend implements AuthenticationBackend, Aut
     public void fillRoles(User user, AuthCredentials credentials) throws OpenSearchSecurityException {
 
         if (internalUsersModel == null) {
-            throw new OpenSearchSecurityException("Internal authentication backend not configured. May be OpenSearch Security is not initialized.");
+            throw new OpenSearchSecurityException(
+                "Internal authentication backend not configured. May be OpenSearch Security is not initialized."
+            );
 
         }
 
@@ -131,6 +132,4 @@ public class InternalAuthenticationBackend implements AuthenticationBackend, Aut
         this.internalUsersModel = ium;
     }
 
-
 }
-

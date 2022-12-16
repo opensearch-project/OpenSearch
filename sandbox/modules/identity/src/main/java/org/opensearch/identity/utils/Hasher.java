@@ -28,23 +28,29 @@ public class Hasher {
         final Options options = new Options();
         final HelpFormatter formatter = new HelpFormatter();
         options.addOption(Option.builder("p").argName("password").hasArg().desc("Cleartext password to hash").build());
-        options.addOption(Option.builder("env").argName("name environment variable").hasArg().desc("name environment variable to read password from").build());
+        options.addOption(
+            Option.builder("env")
+                .argName("name environment variable")
+                .hasArg()
+                .desc("name environment variable to read password from")
+                .build()
+        );
 
         final CommandLineParser parser = new DefaultParser();
         try {
             final CommandLine line = parser.parse(options, args);
 
-            if(line.hasOption("p")) {
+            if (line.hasOption("p")) {
                 System.out.println(hash(line.getOptionValue("p").toCharArray()));
-            } else if(line.hasOption("env")) {
+            } else if (line.hasOption("env")) {
                 final String pwd = System.getenv(line.getOptionValue("env"));
-                if(pwd == null || pwd.isEmpty()) {
-                    throw new Exception("No environment variable '"+line.getOptionValue("env")+"' set");
+                if (pwd == null || pwd.isEmpty()) {
+                    throw new Exception("No environment variable '" + line.getOptionValue("env") + "' set");
                 }
                 System.out.println(hash(pwd.toCharArray()));
             } else {
                 final Console console = System.console();
-                if(console == null) {
+                if (console == null) {
                     throw new Exception("Cannot allocate a console");
                 }
                 final char[] passwd = console.readPassword("[%s]", "Password:");
@@ -61,9 +67,8 @@ public class Hasher {
         final byte[] salt = new byte[16];
         new SecureRandom().nextBytes(salt);
         final String hash = OpenBSDBCrypt.generate((Objects.requireNonNull(clearTextPassword)), salt, 12);
-        Arrays.fill(salt, (byte)0);
+        Arrays.fill(salt, (byte) 0);
         Arrays.fill(clearTextPassword, '\0');
         return hash;
     }
 }
-

@@ -57,4 +57,3 @@ public interface AuthenticationBackend {
     boolean exists(User user);
 
 }
-

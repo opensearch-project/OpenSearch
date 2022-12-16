@@ -10,12 +10,9 @@ package org.opensearch.identity.configuration;
 
 import org.opensearch.authn.User;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 public enum CType {
 
@@ -47,4 +44,3 @@ public enum CType {
         return Collections.unmodifiableMap(map);
     }
 }
-

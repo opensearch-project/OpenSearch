@@ -12,12 +12,12 @@ public class ExceptionUtils {
 
     public static Throwable getRootCause(final Throwable e) {
 
-        if(e == null) {
+        if (e == null) {
             return null;
         }
 
         final Throwable cause = e.getCause();
-        if(cause == null) {
+        if (cause == null) {
             return e;
         }
         return getRootCause(cause);
@@ -25,19 +25,18 @@ public class ExceptionUtils {
 
     public static Throwable findMsg(final Throwable e, String msg) {
 
-        if(e == null) {
+        if (e == null) {
             return null;
         }
 
-        if(e.getMessage() != null && e.getMessage().contains(msg)) {
+        if (e.getMessage() != null && e.getMessage().contains(msg)) {
             return e;
         }
 
         final Throwable cause = e.getCause();
-        if(cause == null) {
+        if (cause == null) {
             return null;
         }
         return findMsg(cause, msg);
     }
 }
-

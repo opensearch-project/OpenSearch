@@ -20,4 +20,3 @@ public interface ConfigurationChangeListener {
      */
     void onChange(Map<CType, SecurityDynamicConfiguration<?>> typeToConfig);
 }
-

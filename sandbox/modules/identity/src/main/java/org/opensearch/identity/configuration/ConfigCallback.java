@@ -13,9 +13,11 @@ import org.opensearch.action.get.MultiGetResponse.Failure;
 public interface ConfigCallback {
 
     void success(SecurityDynamicConfiguration<?> dConf);
+
     void noData(String id);
+
     void singleFailure(Failure failure);
+
     void failure(Throwable t);
 
 }
-

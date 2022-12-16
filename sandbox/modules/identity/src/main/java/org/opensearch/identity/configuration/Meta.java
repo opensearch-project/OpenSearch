@@ -12,7 +12,6 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 
 public class Meta {
 
-
     private String type;
     private int config_version;
 
@@ -26,9 +25,11 @@ public class Meta {
         this.type = type;
         cType = CType.fromString(type);
     }
+
     public int getConfig_version() {
         return config_version;
     }
+
     public void setConfig_version(int config_version) {
         this.config_version = config_version;
     }
@@ -43,6 +44,4 @@ public class Meta {
         return "Meta [type=" + type + ", config_version=" + config_version + ", cType=" + cType + "]";
     }
 
-
 }
-

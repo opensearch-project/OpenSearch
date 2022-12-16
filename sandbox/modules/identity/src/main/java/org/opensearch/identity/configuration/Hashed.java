@@ -11,7 +11,8 @@ package org.opensearch.identity.configuration;
 public interface Hashed {
 
     String getHash();
+
     void setHash(String hash);
+
     void clearHash();
 }
-

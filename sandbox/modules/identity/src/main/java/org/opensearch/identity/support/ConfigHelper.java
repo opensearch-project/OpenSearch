@@ -44,9 +44,23 @@ public class ConfigHelper {
         uploadFile(tc, filepath, index, cType, configVersion, false);
     }
 
-    public static void uploadFile(Client tc, String filepath, String index, CType cType, int configVersion, boolean populateEmptyIfFileMissing) throws Exception {
+    public static void uploadFile(
+        Client tc,
+        String filepath,
+        String index,
+        CType cType,
+        int configVersion,
+        boolean populateEmptyIfFileMissing
+    ) throws Exception {
         final String configType = cType.toLCString();
-        LOGGER.info("Will update '" + configType + "' with " + filepath + " and populate it with empty doc if file missing and populateEmptyIfFileMissing=" + populateEmptyIfFileMissing);
+        LOGGER.info(
+            "Will update '"
+                + configType
+                + "' with "
+                + filepath
+                + " and populate it with empty doc if file missing and populateEmptyIfFileMissing="
+                + populateEmptyIfFileMissing
+        );
 
         if (!populateEmptyIfFileMissing) {
             ConfigHelper.fromYamlFile(filepath, cType, configVersion, 0, 0);
@@ -54,8 +68,7 @@ public class ConfigHelper {
 
         try (Reader reader = createFileOrStringReader(cType, configVersion, filepath, populateEmptyIfFileMissing)) {
 
-            final IndexRequest indexRequest = new IndexRequest(index)
-                .opType("_doc")
+            final IndexRequest indexRequest = new IndexRequest(index).opType("_doc")
                 .id(configType)
                 .opType(OpType.CREATE)
                 .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
@@ -63,8 +76,9 @@ public class ConfigHelper {
             final String res = tc.index(indexRequest).actionGet().getId();
 
             if (!configType.equals(res)) {
-                throw new Exception("   FAIL: Configuration for '" + configType
-                    + "' failed for unknown reasons. Pls. consult logfile of opensearch");
+                throw new Exception(
+                    "   FAIL: Configuration for '" + configType + "' failed for unknown reasons. Pls. consult logfile of opensearch"
+                );
             }
             LOGGER.info("Doc with id '{}' and version {} is updated in {} index.", configType, configVersion, index);
         } catch (VersionConflictEngineException versionConflictEngineException) {
@@ -72,7 +86,8 @@ public class ConfigHelper {
         }
     }
 
-    public static Reader createFileOrStringReader(CType cType, int configVersion, String filepath, boolean populateEmptyIfFileMissing) throws Exception {
+    public static Reader createFileOrStringReader(CType cType, int configVersion, String filepath, boolean populateEmptyIfFileMissing)
+        throws Exception {
         Reader reader;
         if (!populateEmptyIfFileMissing || new File(filepath).exists()) {
             reader = new InputStreamReader(new FileInputStream(filepath), StandardCharsets.UTF_8);
@@ -110,23 +125,47 @@ public class ConfigHelper {
         return retVal;
     }
 
-    public static <T> SecurityDynamicConfiguration<T> fromYamlReader(Reader yamlReader, CType ctype, int version, long seqNo, long primaryTerm) throws IOException {
+    public static <T> SecurityDynamicConfiguration<T> fromYamlReader(
+        Reader yamlReader,
+        CType ctype,
+        int version,
+        long seqNo,
+        long primaryTerm
+    ) throws IOException {
         try {
-            return SecurityDynamicConfiguration.fromNode(DefaultObjectMapper.YAML_MAPPER.readTree(yamlReader), ctype, version, seqNo, primaryTerm);
+            return SecurityDynamicConfiguration.fromNode(
+                DefaultObjectMapper.YAML_MAPPER.readTree(yamlReader),
+                ctype,
+                version,
+                seqNo,
+                primaryTerm
+            );
         } finally {
-            if(yamlReader != null) {
+            if (yamlReader != null) {
                 yamlReader.close();
             }
         }
     }
 
-    public static <T> SecurityDynamicConfiguration<T> fromYamlFile(String filepath, CType ctype, int version, long seqNo, long primaryTerm) throws IOException {
-        return fromYamlReader(new InputStreamReader(new FileInputStream(filepath), StandardCharsets.UTF_8), ctype, version, seqNo, primaryTerm);
+    public static <T> SecurityDynamicConfiguration<T> fromYamlFile(String filepath, CType ctype, int version, long seqNo, long primaryTerm)
+        throws IOException {
+        return fromYamlReader(
+            new InputStreamReader(new FileInputStream(filepath), StandardCharsets.UTF_8),
+            ctype,
+            version,
+            seqNo,
+            primaryTerm
+        );
     }
 
-    public static <T> SecurityDynamicConfiguration<T> fromYamlString(String yamlString, CType ctype, int version, long seqNo, long primaryTerm) throws IOException {
+    public static <T> SecurityDynamicConfiguration<T> fromYamlString(
+        String yamlString,
+        CType ctype,
+        int version,
+        long seqNo,
+        long primaryTerm
+    ) throws IOException {
         return fromYamlReader(new StringReader(yamlString), ctype, version, seqNo, primaryTerm);
     }
 
 }
-

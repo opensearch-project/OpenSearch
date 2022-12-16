@@ -61,7 +61,8 @@ public class ConfigurationLoader {
         log.debug("Index is: {}", securityIndex);
     }
 
-    Map<CType, SecurityDynamicConfiguration<?>> load(final CType[] events, long timeout, TimeUnit timeUnit, boolean acceptInvalid) throws InterruptedException, TimeoutException {
+    Map<CType, SecurityDynamicConfiguration<?>> load(final CType[] events, long timeout, TimeUnit timeUnit, boolean acceptInvalid)
+        throws InterruptedException, TimeoutException {
         final CountDownLatch latch = new CountDownLatch(events.length);
         final Map<CType, SecurityDynamicConfiguration<?>> rs = new HashMap<>(events.length);
         final boolean isDebugEnabled = log.isDebugEnabled();
@@ -69,20 +70,35 @@ public class ConfigurationLoader {
 
             @Override
             public void success(SecurityDynamicConfiguration<?> dConf) {
-                if(latch.getCount() <= 0) {
-                    log.error("Latch already counted down (for {} of {})  (index={})", dConf.getCType().toLCString(), Arrays.toString(events), securityIndex);
+                if (latch.getCount() <= 0) {
+                    log.error(
+                        "Latch already counted down (for {} of {})  (index={})",
+                        dConf.getCType().toLCString(),
+                        Arrays.toString(events),
+                        securityIndex
+                    );
                 }
 
                 rs.put(dConf.getCType(), dConf);
                 latch.countDown();
                 if (isDebugEnabled) {
-                    log.debug("Received config for {} (of {}) with current latch value={}", dConf.getCType().toLCString(), Arrays.toString(events), latch.getCount());
+                    log.debug(
+                        "Received config for {} (of {}) with current latch value={}",
+                        dConf.getCType().toLCString(),
+                        Arrays.toString(events),
+                        latch.getCount()
+                    );
                 }
             }
 
             @Override
             public void singleFailure(Failure failure) {
-                log.error("Failure {} retrieving configuration for {} (index={})", failure==null?null:failure.getMessage(), Arrays.toString(events), securityIndex);
+                log.error(
+                    "Failure {} retrieving configuration for {} (index={})",
+                    failure == null ? null : failure.getMessage(),
+                    Arrays.toString(events),
+                    securityIndex
+                );
             }
 
             @Override
@@ -98,16 +114,26 @@ public class ConfigurationLoader {
             }
         }, acceptInvalid);
 
-        if(!latch.await(timeout, timeUnit)) {
-            //timeout
-            throw new TimeoutException("Timeout after "+timeout+""+timeUnit+" while retrieving configuration for "+Arrays.toString(events)+ "(index="+securityIndex+")");
+        if (!latch.await(timeout, timeUnit)) {
+            // timeout
+            throw new TimeoutException(
+                "Timeout after "
+                    + timeout
+                    + ""
+                    + timeUnit
+                    + " while retrieving configuration for "
+                    + Arrays.toString(events)
+                    + "(index="
+                    + securityIndex
+                    + ")"
+            );
         }
 
         return rs;
     }
 
     void loadAsync(final CType[] events, final ConfigCallback callback, boolean acceptInvalid) {
-        if(events == null || events.length == 0) {
+        if (events == null || events.length == 0) {
             log.warn("No config events requested to load");
             return;
         }
@@ -128,28 +154,28 @@ public class ConfigurationLoader {
                 MultiGetItemResponse[] responses = response.getResponses();
                 for (int i = 0; i < responses.length; i++) {
                     MultiGetItemResponse singleResponse = responses[i];
-                    if(singleResponse != null && !singleResponse.isFailed()) {
+                    if (singleResponse != null && !singleResponse.isFailed()) {
                         GetResponse singleGetResponse = singleResponse.getResponse();
-                        if(singleGetResponse.isExists() && !singleGetResponse.isSourceEmpty()) {
-                            //success
+                        if (singleGetResponse.isExists() && !singleGetResponse.isSourceEmpty()) {
+                            // success
                             try {
                                 final SecurityDynamicConfiguration<?> dConf = toConfig(singleGetResponse, acceptInvalid);
-                                if(dConf != null) {
+                                if (dConf != null) {
                                     callback.success(dConf.deepClone());
                                 } else {
-                                    callback.failure(new Exception("Cannot parse settings for "+singleGetResponse.getId()));
+                                    callback.failure(new Exception("Cannot parse settings for " + singleGetResponse.getId()));
                                 }
                             } catch (Exception e) {
                                 log.error(e.toString());
                                 callback.failure(e);
                             }
                         } else {
-                            //does not exist or empty source
+                            // does not exist or empty source
                             callback.noData(singleGetResponse.getId());
                         }
                     } else {
-                        //failure
-                        callback.singleFailure(singleResponse==null?null:singleResponse.getFailure());
+                        // failure
+                        callback.singleFailure(singleResponse == null ? null : singleResponse.getFailure());
                     }
                 }
             }
@@ -168,8 +194,6 @@ public class ConfigurationLoader {
         final long seqNo = singleGetResponse.getSeqNo();
         final long primaryTerm = singleGetResponse.getPrimaryTerm();
 
-
-
         if (ref == null || ref.length() == 0) {
             log.error("Empty or null byte reference for {}", id);
             return null;
@@ -182,7 +206,7 @@ public class ConfigurationLoader {
             parser.nextToken();
             parser.nextToken();
 
-            if(!id.equals((parser.currentName()))) {
+            if (!id.equals((parser.currentName()))) {
                 log.error("Cannot parse config for type {} because {}!={}", id, id, parser.currentName());
                 return null;
             }
@@ -193,28 +217,32 @@ public class ConfigurationLoader {
             final JsonNode jsonNode = DefaultObjectMapper.readTree(jsonAsString);
             int configVersion = 1;
 
-
-
-            if(jsonNode.get("_meta") != null) {
+            if (jsonNode.get("_meta") != null) {
                 assert jsonNode.get("_meta").get("type").asText().equals(id);
                 configVersion = jsonNode.get("_meta").get("config_version").asInt();
             }
 
-            if(log.isDebugEnabled()) {
-                log.debug("Load "+id+" with version "+configVersion);
+            if (log.isDebugEnabled()) {
+                log.debug("Load " + id + " with version " + configVersion);
             }
 
-            return SecurityDynamicConfiguration.fromJson(jsonAsString, CType.fromString(id), configVersion, seqNo, primaryTerm, acceptInvalid);
+            return SecurityDynamicConfiguration.fromJson(
+                jsonAsString,
+                CType.fromString(id),
+                configVersion,
+                seqNo,
+                primaryTerm,
+                acceptInvalid
+            );
 
         } finally {
-            if(parser != null) {
+            if (parser != null) {
                 try {
                     parser.close();
                 } catch (IOException e) {
-                    //ignore
+                    // ignore
                 }
             }
         }
     }
 }
-

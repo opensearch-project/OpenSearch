@@ -48,5 +48,3 @@ public interface AuthorizationBackend {
     void fillRoles(User user, AuthCredentials credentials) throws OpenSearchSecurityException;
 
 }
-
-

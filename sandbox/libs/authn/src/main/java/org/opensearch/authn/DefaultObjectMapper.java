@@ -39,7 +39,7 @@ public class DefaultObjectMapper {
 
     static {
         objectMapper.setSerializationInclusion(Include.NON_NULL);
-        //objectMapper.enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
+        // objectMapper.enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
         objectMapper.enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION);
         defaulOmittingObjectMapper.setSerializationInclusion(Include.NON_DEFAULT);
         defaulOmittingObjectMapper.enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION);
@@ -57,24 +57,31 @@ public class DefaultObjectMapper {
         if (value == null) {
             return defaultValue;
         } else if (value instanceof Boolean) {
-            return (boolean)value;
+            return (boolean) value;
         } else if (value instanceof String) {
-            String text = ((String)value).trim();
+            String text = ((String) value).trim();
             if ("true".equals(text) || "True".equals(text)) {
                 return true;
             }
             if ("false".equals(text) || "False".equals(text)) {
                 return false;
             }
-            throw InvalidFormatException.from(null,
+            throw InvalidFormatException.from(
+                null,
                 "Cannot deserialize value of type 'boolean' from String \"" + text + "\": only \"true\" or \"false\" recognized)",
-                null, Boolean.class);
+                null,
+                Boolean.class
+            );
         }
-        throw MismatchedInputException.from(null, Boolean.class, "Cannot deserialize instance of 'boolean' out of '" + value + "' (Property: " + key + ")");
+        throw MismatchedInputException.from(
+            null,
+            Boolean.class,
+            "Cannot deserialize instance of 'boolean' out of '" + value + "' (Property: " + key + ")"
+        );
     }
 
     public static <T> T getOrDefault(Map<String, Object> properties, String key, T defaultValue) {
-        T value = (T)properties.get(key);
+        T value = (T) properties.get(key);
         return value != null ? value : defaultValue;
     }
 
@@ -150,7 +157,7 @@ public class DefaultObjectMapper {
             return AccessController.doPrivileged(new PrivilegedExceptionAction<String>() {
                 @Override
                 public String run() throws Exception {
-                    return (omitDefaults?defaulOmittingObjectMapper:objectMapper).writeValueAsString(value);
+                    return (omitDefaults ? defaulOmittingObjectMapper : objectMapper).writeValueAsString(value);
                 }
             });
         } catch (final PrivilegedActionException e) {
@@ -205,8 +212,7 @@ public class DefaultObjectMapper {
     }
 
     public static Set<String> getFields(Class cls) {
-        return objectMapper
-            .getSerializationConfig()
+        return objectMapper.getSerializationConfig()
             .introspect(getTypeFactory().constructType(cls))
             .findProperties()
             .stream()
@@ -214,4 +220,3 @@ public class DefaultObjectMapper {
             .collect(Collectors.toSet());
     }
 }
-

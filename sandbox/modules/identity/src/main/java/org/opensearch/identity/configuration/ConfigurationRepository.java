@@ -10,15 +10,12 @@ package org.opensearch.identity.configuration;
 
 import java.io.File;
 import java.nio.file.Path;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Lock;
@@ -42,7 +39,6 @@ import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.concurrent.ThreadContext.StoredContext;
@@ -66,8 +62,13 @@ public class ConfigurationRepository {
     private final AtomicBoolean installDefaultConfig = new AtomicBoolean();
     private final boolean acceptInvalid;
 
-    private ConfigurationRepository(Settings settings, final Path configPath, ThreadPool threadPool,
-                                    Client client, ClusterService clusterService) {
+    private ConfigurationRepository(
+        Settings settings,
+        final Path configPath,
+        ThreadPool threadPool,
+        Client client,
+        ClusterService clusterService
+    ) {
         this.securityIndex = settings.get(ConfigConstants.IDENTITY_CONFIG_INDEX_NAME, ConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX);
         this.settings = settings;
         this.client = client;
@@ -81,24 +82,31 @@ public class ConfigurationRepository {
             @Override
             public void run() {
                 try {
-                    LOGGER.info("Background init thread started. Install default config?: "+installDefaultConfig.get());
+                    LOGGER.info("Background init thread started. Install default config?: " + installDefaultConfig.get());
 
-
-                    if(installDefaultConfig.get()) {
+                    if (installDefaultConfig.get()) {
 
                         try {
                             String lookupDir = System.getProperty("identity.default_init.dir");
-                            final String cd = lookupDir != null? (lookupDir+"/") : new Environment(settings, configPath).configDir().toAbsolutePath().toString()+"/";
-                            File confFile = new File(cd+"internal_users.yml");
-                            if(confFile.exists()) {
+                            final String cd = lookupDir != null
+                                ? (lookupDir + "/")
+                                : new Environment(settings, configPath).configDir().toAbsolutePath().toString() + "/";
+                            File confFile = new File(cd + "internal_users.yml");
+                            if (confFile.exists()) {
                                 final ThreadContext threadContext = threadPool.getThreadContext();
-                                try(StoredContext ctx = threadContext.stashContext()) {
+                                try (StoredContext ctx = threadContext.stashContext()) {
                                     threadContext.putHeader(ConfigConstants.IDENTITY_CONF_REQUEST_HEADER, "true");
 
                                     createSecurityIndexIfAbsent();
                                     waitForSecurityIndexToBeAtLeastYellow();
 
-                                    ConfigHelper.uploadFile(client, cd+"internal_users.yml", securityIndex, CType.INTERNALUSERS, DEFAULT_CONFIG_VERSION);
+                                    ConfigHelper.uploadFile(
+                                        client,
+                                        cd + "internal_users.yml",
+                                        securityIndex,
+                                        CType.INTERNALUSERS,
+                                        DEFAULT_CONFIG_VERSION
+                                    );
                                 }
                             } else {
                                 LOGGER.error("{} does not exist", confFile.getAbsolutePath());
@@ -108,7 +116,7 @@ public class ConfigurationRepository {
                         }
                     }
 
-                    while(!dynamicConfigFactory.isInitialized()) {
+                    while (!dynamicConfigFactory.isInitialized()) {
                         try {
                             LOGGER.debug("Try to load config ...");
                             reloadConfiguration(Arrays.asList(CType.values()));
@@ -128,7 +136,7 @@ public class ConfigurationRepository {
                     LOGGER.info("Node '{}' initialized", clusterService.localNode().getName());
 
                 } catch (Exception e) {
-                    LOGGER.error("Unexpected exception while initializing node "+e, e);
+                    LOGGER.error("Unexpected exception while initializing node " + e, e);
                 }
             }
         });
@@ -137,17 +145,9 @@ public class ConfigurationRepository {
 
     private boolean createSecurityIndexIfAbsent() {
         try {
-            final Map<String, Object> indexSettings = Map.of(
-                "index.number_of_shards", 1,
-                "index.auto_expand_replicas", "0-all"
-            );
-            final CreateIndexRequest createIndexRequest = new CreateIndexRequest(securityIndex)
-                .settings(indexSettings);
-            final boolean ok = client.admin()
-                .indices()
-                .create(createIndexRequest)
-                .actionGet()
-                .isAcknowledged();
+            final Map<String, Object> indexSettings = Map.of("index.number_of_shards", 1, "index.auto_expand_replicas", "0-all");
+            final CreateIndexRequest createIndexRequest = new CreateIndexRequest(securityIndex).settings(indexSettings);
+            final boolean ok = client.admin().indices().create(createIndexRequest).actionGet().isAcknowledged();
             LOGGER.info("Index {} created?: {}", securityIndex, ok);
             return ok;
         } catch (ResourceAlreadyExistsException resourceAlreadyExistsException) {
@@ -160,19 +160,24 @@ public class ConfigurationRepository {
         LOGGER.info("Node started, try to initialize it. Wait for at least yellow cluster state....");
         ClusterHealthResponse response = null;
         try {
-            response = client.admin().cluster().health(new ClusterHealthRequest(securityIndex)
-                .waitForActiveShards(1)
-                .waitForYellowStatus()).actionGet();
+            response = client.admin()
+                .cluster()
+                .health(new ClusterHealthRequest(securityIndex).waitForActiveShards(1).waitForYellowStatus())
+                .actionGet();
         } catch (Exception e) {
             LOGGER.debug("Caught a {} but we just try again ...", e.toString());
         }
 
-        while(response == null || response.isTimedOut() || response.getStatus() == ClusterHealthStatus.RED) {
-            LOGGER.debug("index '{}' not healthy yet, we try again ... (Reason: {})", securityIndex, response==null?"no response":(response.isTimedOut()?"timeout":"other, maybe red cluster"));
+        while (response == null || response.isTimedOut() || response.getStatus() == ClusterHealthStatus.RED) {
+            LOGGER.debug(
+                "index '{}' not healthy yet, we try again ... (Reason: {})",
+                securityIndex,
+                response == null ? "no response" : (response.isTimedOut() ? "timeout" : "other, maybe red cluster")
+            );
             try {
                 Thread.sleep(500);
             } catch (InterruptedException e) {
-                //ignore
+                // ignore
                 Thread.currentThread().interrupt();
             }
             try {
@@ -189,13 +194,17 @@ public class ConfigurationRepository {
                 LOGGER.info("Will attempt to create index {} and default configs if they are absent", securityIndex);
                 installDefaultConfig.set(true);
                 bgThread.start();
-            } else if (settings.getAsBoolean(ConfigConstants.IDENTITY_BACKGROUND_INIT_IF_SECURITYINDEX_NOT_EXIST, true)){
-                LOGGER.info("Will not attempt to create index {} and default configs if they are absent. Use securityadmin to initialize cluster",
-                    securityIndex);
+            } else if (settings.getAsBoolean(ConfigConstants.IDENTITY_BACKGROUND_INIT_IF_SECURITYINDEX_NOT_EXIST, true)) {
+                LOGGER.info(
+                    "Will not attempt to create index {} and default configs if they are absent. Use securityadmin to initialize cluster",
+                    securityIndex
+                );
                 bgThread.start();
             } else {
-                LOGGER.info("Will not attempt to create index {} and default configs if they are absent. Will not perform background initialization",
-                    securityIndex);
+                LOGGER.info(
+                    "Will not attempt to create index {} and default configs if they are absent. Will not perform background initialization",
+                    securityIndex
+                );
             }
         } catch (Throwable e2) {
             LOGGER.error("Error during node initialization: {}", e2, e2);
@@ -203,8 +212,13 @@ public class ConfigurationRepository {
         }
     }
 
-    public static ConfigurationRepository create(Settings settings, final Path configPath, final ThreadPool threadPool,
-                                                 Client client,  ClusterService clusterService) {
+    public static ConfigurationRepository create(
+        Settings settings,
+        final Path configPath,
+        final ThreadPool threadPool,
+        Client client,
+        ClusterService clusterService
+    ) {
         final ConfigurationRepository repository = new ConfigurationRepository(settings, configPath, threadPool, client, clusterService);
         return repository;
     }
@@ -214,8 +228,8 @@ public class ConfigurationRepository {
     }
 
     public SecurityDynamicConfiguration<?> getConfiguration(CType configurationType) {
-        SecurityDynamicConfiguration<?> conf=  configCache.get(configurationType);
-        if(conf != null) {
+        SecurityDynamicConfiguration<?> conf = configCache.get(configurationType);
+        if (conf != null) {
             return conf.deepClone();
         }
         return SecurityDynamicConfiguration.empty();
@@ -240,7 +254,6 @@ public class ConfigurationRepository {
         }
     }
 
-
     private void reloadConfiguration0(Collection<CType> configTypes, boolean acceptInvalid) {
         final Map<CType, SecurityDynamicConfiguration<?>> loaded = getConfigurationsFromIndex(configTypes, false, acceptInvalid);
         configCache.putAll(loaded);
@@ -257,7 +270,7 @@ public class ConfigurationRepository {
                 LOGGER.debug("Notify {} listener about change configuration with type {}", listener);
                 listener.onChange(typeToConfig);
             } catch (Exception e) {
-                LOGGER.error("{} listener errored: "+e, listener, e);
+                LOGGER.error("{} listener errored: " + e, listener, e);
                 throw ExceptionsHelper.convertToOpenSearchException(e);
             }
         }
@@ -266,28 +279,34 @@ public class ConfigurationRepository {
     /**
      * This retrieves the config directly from the index without caching involved
      */
-    public Map<CType, SecurityDynamicConfiguration<?>> getConfigurationsFromIndex(Collection<CType> configTypes, boolean logComplianceEvent) {
+    public Map<CType, SecurityDynamicConfiguration<?>> getConfigurationsFromIndex(
+        Collection<CType> configTypes,
+        boolean logComplianceEvent
+    ) {
         return getConfigurationsFromIndex(configTypes, logComplianceEvent, this.acceptInvalid);
     }
 
-    public Map<CType, SecurityDynamicConfiguration<?>> getConfigurationsFromIndex(Collection<CType> configTypes, boolean logComplianceEvent, boolean acceptInvalid) {
+    public Map<CType, SecurityDynamicConfiguration<?>> getConfigurationsFromIndex(
+        Collection<CType> configTypes,
+        boolean logComplianceEvent,
+        boolean acceptInvalid
+    ) {
 
         final ThreadContext threadContext = threadPool.getThreadContext();
         final Map<CType, SecurityDynamicConfiguration<?>> retVal = new HashMap<>();
 
-        try(StoredContext ctx = threadContext.stashContext()) {
+        try (StoredContext ctx = threadContext.stashContext()) {
             threadContext.putHeader(ConfigConstants.IDENTITY_CONF_REQUEST_HEADER, "true");
 
             IndexMetadata securityMetadata = clusterService.state().metadata().index(this.securityIndex);
-            MappingMetadata mappingMetadata = securityMetadata==null?null:securityMetadata.mapping();
+            MappingMetadata mappingMetadata = securityMetadata == null ? null : securityMetadata.mapping();
 
             if (securityMetadata != null && mappingMetadata != null) {
                 LOGGER.debug("identity index exists");
                 retVal.putAll(validate(cl.load(configTypes.toArray(new CType[0]), 5, TimeUnit.SECONDS, acceptInvalid), configTypes.size()));
 
-
             } else {
-                //wait (and use new layout)
+                // wait (and use new layout)
                 LOGGER.debug("identity index not exists (yet)");
                 retVal.putAll(validate(cl.load(configTypes.toArray(new CType[0]), 5, TimeUnit.SECONDS, acceptInvalid), configTypes.size()));
             }
@@ -299,9 +318,10 @@ public class ConfigurationRepository {
         return retVal;
     }
 
-    private Map<CType, SecurityDynamicConfiguration<?>> validate(Map<CType, SecurityDynamicConfiguration<?>> conf, int expectedSize) throws InvalidConfigException {
+    private Map<CType, SecurityDynamicConfiguration<?>> validate(Map<CType, SecurityDynamicConfiguration<?>> conf, int expectedSize)
+        throws InvalidConfigException {
 
-        if(conf == null || conf.size() != expectedSize) {
+        if (conf == null || conf.size() != expectedSize) {
             throw new InvalidConfigException("Retrieved only partial configuration");
         }
 
@@ -312,4 +332,3 @@ public class ConfigurationRepository {
         return ConfigurationRepository.DEFAULT_CONFIG_VERSION;
     }
 }
-
