@@ -42,3 +42,29 @@ test {
 internalClusterTest {
   systemProperty 'opensearch.set.netty.runtime.available.processors', 'false'
 }
+
+thirdPartyAudit.ignoreMissingClasses(
+  'android.app.Activity',
+  'android.app.AlertDialog$Builder',
+  'android.app.Dialog',
+  'android.app.DialogFragment',
+  'android.app.Fragment',
+  'android.app.FragmentManager',
+  'android.app.FragmentTransaction',
+  'android.content.Context',
+  'android.content.DialogInterface',
+  'android.content.DialogInterface$OnClickListener',
+  'android.content.res.Resources',
+  'android.os.Build$VERSION',
+  'android.os.Bundle',
+  'android.os.Handler',
+  'android.os.Looper',
+  'android.os.Message',
+  'android.os.SystemClock',
+  'android.support.v4.app.DialogFragment',
+  'android.support.v4.app.Fragment',
+  'android.support.v4.app.FragmentActivity',
+  'android.support.v4.app.FragmentManager',
+  'android.support.v4.app.FragmentTransaction',
+  'android.util.Log',
+)
