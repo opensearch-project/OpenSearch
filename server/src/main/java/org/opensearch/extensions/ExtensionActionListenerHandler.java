@@ -29,15 +29,15 @@ public class ExtensionActionListenerHandler {
      * Handles a {@link ExtensionActionListenerOnFailureRequest}.
      *
      * @param request  The request to handle.
-     * @return A {@link ExtensionBooleanResponse} indicating success or failure.
+     * @return A {@link AcknowledgedResponse} indicating success or failure.
      */
-    public ExtensionBooleanResponse handleExtensionActionListenerOnFailureRequest(ExtensionActionListenerOnFailureRequest request) {
+    public AcknowledgedResponse handleExtensionActionListenerOnFailureRequest(ExtensionActionListenerOnFailureRequest request) {
         try {
             listener.onFailure(new OpenSearchException(request.getFailureException()));
-            return new ExtensionBooleanResponse(true);
+            return new AcknowledgedResponse(true);
         } catch (Exception e) {
             logger.error(e.getMessage());
-            return new ExtensionBooleanResponse(false);
+            return new AcknowledgedResponse(false);
         }
     }
 }

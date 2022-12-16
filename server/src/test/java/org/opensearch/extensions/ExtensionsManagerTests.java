@@ -532,7 +532,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         ExtensionActionListenerOnFailureRequest listenerFailureRequest = new ExtensionActionListenerOnFailureRequest("Test failure");
 
         assertEquals(
-            ExtensionBooleanResponse.class,
+            AcknowledgedResponse.class,
             extensionsManager.getListenerHandler().handleExtensionActionListenerOnFailureRequest(listenerFailureRequest).getClass()
         );
         assertEquals("Test failure", extensionsManager.getListener().getExceptionList().get(0).getMessage());
@@ -665,9 +665,9 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         );
         TransportResponse response = extensionsManager.getAddSettingsUpdateConsumerRequestHandler()
             .handleAddSettingsUpdateConsumerRequest(addSettingsUpdateConsumerRequest);
-        assertEquals(ExtensionBooleanResponse.class, response.getClass());
+        assertEquals(AcknowledgedResponse.class, response.getClass());
         // Should fail as component settings are not registered within cluster settings
-        assertEquals(false, ((ExtensionBooleanResponse) response).getStatus());
+        assertEquals(false, ((AcknowledgedResponse) response).getStatus());
     }
 
     public void testUpdateSettingsRequest() throws Exception {

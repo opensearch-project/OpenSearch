@@ -15,9 +15,9 @@ import org.opensearch.test.OpenSearchTestCase;
 
 public class ExtensionResponseTests extends OpenSearchTestCase {
 
-    public void testExtensionBooleanResponse() throws Exception {
+    public void testAcknowledgedResponse() throws Exception {
         boolean response = true;
-        ExtensionBooleanResponse booleanResponse = new ExtensionBooleanResponse(response);
+        AcknowledgedResponse booleanResponse = new AcknowledgedResponse(response);
 
         assertEquals(response, booleanResponse.getStatus());
 
@@ -25,7 +25,7 @@ public class ExtensionResponseTests extends OpenSearchTestCase {
             booleanResponse.writeTo(out);
             out.flush();
             try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
-                booleanResponse = new ExtensionBooleanResponse(in);
+                booleanResponse = new AcknowledgedResponse(in);
 
                 assertEquals(response, booleanResponse.getStatus());
             }

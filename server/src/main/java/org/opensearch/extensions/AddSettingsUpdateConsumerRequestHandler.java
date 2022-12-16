@@ -52,7 +52,7 @@ public class AddSettingsUpdateConsumerRequestHandler {
      * Handles a {@link AddSettingsUpdateConsumerRequest}.
      *
      * @param addSettingsUpdateConsumerRequest  The request to handle.
-     * @return  A {@link ExtensionBooleanResponse} indicating success.
+     * @return  A {@link AcknowledgedResponse} indicating success.
      * @throws Exception if the request is not handled properly.
      */
     TransportResponse handleAddSettingsUpdateConsumerRequest(AddSettingsUpdateConsumerRequest addSettingsUpdateConsumerRequest)
@@ -86,6 +86,6 @@ public class AddSettingsUpdateConsumerRequestHandler {
             status = false;
         }
 
-        return new ExtensionBooleanResponse(status);
+        return new AcknowledgedResponse(status);
     }
 }

@@ -440,12 +440,12 @@ public class ExtensionsManager {
     private void onIndexModule(IndexModule indexModule, DiscoveryNode extensionNode) throws UnknownHostException {
         logger.info("onIndexModule index:" + indexModule.getIndex());
         final CompletableFuture<IndicesModuleResponse> inProgressFuture = new CompletableFuture<>();
-        final CompletableFuture<ExtensionBooleanResponse> inProgressIndexNameFuture = new CompletableFuture<>();
+        final CompletableFuture<AcknowledgedResponse> inProgressIndexNameFuture = new CompletableFuture<>();
 
-        final TransportResponseHandler<ExtensionBooleanResponse> extensionBooleanResponseHandler = new TransportResponseHandler<
-            ExtensionBooleanResponse>() {
+        final TransportResponseHandler<AcknowledgedResponse> acknowledgedResponseHandler = new TransportResponseHandler<
+            AcknowledgedResponse>() {
             @Override
-            public void handleResponse(ExtensionBooleanResponse response) {
+            public void handleResponse(AcknowledgedResponse response) {
                 logger.info("ACK Response" + response);
                 inProgressIndexNameFuture.complete(response);
             }
@@ -461,8 +461,8 @@ public class ExtensionsManager {
             }
 
             @Override
-            public ExtensionBooleanResponse read(StreamInput in) throws IOException {
-                return new ExtensionBooleanResponse(in);
+            public AcknowledgedResponse read(StreamInput in) throws IOException {
+                return new AcknowledgedResponse(in);
             }
 
         };
@@ -494,7 +494,7 @@ public class ExtensionsManager {
                                     extensionNode,
                                     INDICES_EXTENSION_NAME_ACTION_NAME,
                                     new IndicesModuleRequest(indexModule),
-                                    extensionBooleanResponseHandler
+                                    acknowledgedResponseHandler
                                 );
                                 // TODO: make asynchronous
                                 inProgressIndexNameFuture.get(100, TimeUnit.SECONDS);
