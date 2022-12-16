@@ -30,7 +30,9 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -38,6 +40,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
+import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterSettingsResponse;
 import org.opensearch.cluster.LocalNodeResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -45,7 +48,10 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.io.PathUtils;
+import org.opensearch.common.io.stream.NamedWriteable;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
@@ -54,6 +60,8 @@ import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
+import org.opensearch.extensions.rest.RegisterRestActionsRequest;
+import org.opensearch.extensions.rest.RegisterRestActionsResponse;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AnalysisRegistry;
@@ -61,27 +69,58 @@ import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.plugins.PluginInfo;
+import org.opensearch.rest.RestController;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.ConnectTransportException;
 import org.opensearch.transport.Transport;
+import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.nio.MockNioTransport;
+import org.opensearch.usage.UsageService;
 
 public class ExtensionsManagerTests extends OpenSearchTestCase {
 
     private TransportService transportService;
+    private RestController restController;
     private ClusterService clusterService;
     private MockNioTransport transport;
+    private Path extensionDir;
     private final ThreadPool threadPool = new TestThreadPool(ExtensionsManagerTests.class.getSimpleName());
     private final Settings settings = Settings.builder()
         .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
         .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
         .build();
+    private final List<String> extensionsYmlLines = Arrays.asList(
+        "extensions:",
+        "   - name: firstExtension",
+        "     uniqueId: uniqueid1",
+        "     hostName: 'myIndependentPluginHost1'",
+        "     hostAddress: '127.0.0.0'",
+        "     port: '9300'",
+        "     version: '0.0.7'",
+        "     description: Fake description 1",
+        "     opensearchVersion: '3.0.0'",
+        "     javaVersion: '14'",
+        "     className: fakeClass1",
+        "     customFolderName: fakeFolder1",
+        "     hasNativeController: false",
+        "   - name: secondExtension",
+        "     uniqueId: 'uniqueid2'",
+        "     hostName: 'myIndependentPluginHost2'",
+        "     hostAddress: '127.0.0.1'",
+        "     port: '9301'",
+        "     version: '3.14.16'",
+        "     description: Fake description 2",
+        "     opensearchVersion: '2.0.0'",
+        "     javaVersion: '17'",
+        "     className: fakeClass2",
+        "     customFolderName: fakeFolder2",
+        "     hasNativeController: true"
+    );
 
     @Before
     public void setup() throws Exception {
@@ -112,9 +151,19 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             null,
             Collections.emptySet()
         );
+        restController = new RestController(
+            emptySet(),
+            null,
+            new NodeClient(Settings.EMPTY, threadPool),
+            new NoneCircuitBreakerService(),
+            new UsageService()
+        );
         clusterService = createClusterService(threadPool);
+
+        extensionDir = createTempDir();
     }
 
+    @Override
     @After
     public void tearDown() throws Exception {
         super.tearDown();
@@ -122,36 +171,9 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
     }
 
-    public void testExtensionsDiscovery() throws Exception {
+    public void testDiscover() throws Exception {
         Path extensionDir = createTempDir();
 
-        List<String> extensionsYmlLines = Arrays.asList(
-            "extensions:",
-            "   - name: firstExtension",
-            "     uniqueId: uniqueid1",
-            "     hostName: 'myIndependentPluginHost1'",
-            "     hostAddress: '127.0.0.0'",
-            "     port: '9300'",
-            "     version: '0.0.7'",
-            "     description: Fake description 1",
-            "     opensearchVersion: '3.0.0'",
-            "     javaVersion: '14'",
-            "     className: fakeClass1",
-            "     customFolderName: fakeFolder1",
-            "     hasNativeController: false",
-            "   - name: secondExtension",
-            "     uniqueId: 'uniqueid2'",
-            "     hostName: 'myIndependentPluginHost2'",
-            "     hostAddress: '127.0.0.1'",
-            "     port: '9301'",
-            "     version: '3.14.16'",
-            "     description: Fake description 2",
-            "     opensearchVersion: '2.0.0'",
-            "     javaVersion: '17'",
-            "     className: fakeClass2",
-            "     customFolderName: fakeFolder2",
-            "     hasNativeController: true"
-        );
         Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
 
         ExtensionsManager extensionsManager = new ExtensionsManager(settings, extensionDir);
@@ -203,7 +225,48 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                 )
             )
         );
-        assertEquals(expectedUninitializedExtensions, extensionsManager.getUninitializedExtensions());
+        assertEquals(expectedUninitializedExtensions.size(), extensionsManager.getExtensionIdMap().values().size());
+        assertTrue(expectedUninitializedExtensions.containsAll(extensionsManager.getExtensionIdMap().values()));
+        assertTrue(extensionsManager.getExtensionIdMap().values().containsAll(expectedUninitializedExtensions));
+    }
+
+    public void testNonUniqueExtensionsDiscovery() throws Exception {
+        Path extensionDir = createTempDir();
+
+        List<String> nonUniqueYmlLines = extensionsYmlLines.stream()
+            .map(s -> s.replace("uniqueid2", "uniqueid1"))
+            .collect(Collectors.toList());
+        Files.write(extensionDir.resolve("extensions.yml"), nonUniqueYmlLines, StandardCharsets.UTF_8);
+
+        ExtensionsManager extensionsManager = new ExtensionsManager(settings, extensionDir);
+
+        List<DiscoveryExtensionNode> expectedUninitializedExtensions = new ArrayList<DiscoveryExtensionNode>();
+
+        expectedUninitializedExtensions.add(
+            new DiscoveryExtensionNode(
+                "firstExtension",
+                "uniqueid1",
+                "uniqueid1",
+                "myIndependentPluginHost1",
+                "127.0.0.0",
+                new TransportAddress(InetAddress.getByName("127.0.0.0"), 9300),
+                new HashMap<String, String>(),
+                Version.fromString("3.0.0"),
+                new PluginInfo(
+                    "firstExtension",
+                    "Fake description 1",
+                    "0.0.7",
+                    Version.fromString("3.0.0"),
+                    "14",
+                    "fakeClass1",
+                    new ArrayList<String>(),
+                    false
+                )
+            )
+        );
+        assertEquals(expectedUninitializedExtensions.size(), extensionsManager.getExtensionIdMap().values().size());
+        assertTrue(expectedUninitializedExtensions.containsAll(extensionsManager.getExtensionIdMap().values()));
+        assertTrue(extensionsManager.getExtensionIdMap().values().containsAll(expectedUninitializedExtensions));
     }
 
     public void testNonAccessibleDirectory() throws Exception {
@@ -216,8 +279,6 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
     }
 
     public void testNoExtensionsFile() throws Exception {
-        Path extensionDir = createTempDir();
-
         Settings settings = Settings.builder().build();
 
         try (MockLogAppender mockLogAppender = MockLogAppender.createForLoggers(LogManager.getLogger(ExtensionsManager.class))) {
@@ -240,8 +301,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
     public void testEmptyExtensionsFile() throws Exception {
         Path extensionDir = createTempDir();
 
-        List<String> extensionsYmlLines = Arrays.asList();
-        Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
+        List<String> emptyExtensionsYmlLines = Arrays.asList();
+        Files.write(extensionDir.resolve("extensions.yml"), emptyExtensionsYmlLines, StandardCharsets.UTF_8);
 
         Settings settings = Settings.builder().build();
 
@@ -251,69 +312,114 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
     public void testInitialize() throws Exception {
         Path extensionDir = createTempDir();
 
-        List<String> extensionsYmlLines = Arrays.asList(
-            "extensions:",
-            "   - name: firstExtension",
-            "     uniqueId: uniqueid1",
-            "     hostName: 'myIndependentPluginHost1'",
-            "     hostAddress: '127.0.0.0'",
-            "     port: '9300'",
-            "     version: '0.0.7'",
-            "     description: Fake description 1",
-            "     opensearchVersion: '3.0.0'",
-            "     javaVersion: '14'",
-            "     className: fakeClass1",
-            "     customFolderName: fakeFolder1",
-            "     hasNativeController: false",
-            "   - name: secondExtension",
-            "     uniqueId: 'uniqueid2'",
-            "     hostName: 'myIndependentPluginHost2'",
-            "     hostAddress: '127.0.0.1'",
-            "     port: '9301'",
-            "     version: '3.14.16'",
-            "     description: Fake description 2",
-            "     opensearchVersion: '2.0.0'",
-            "     javaVersion: '17'",
-            "     className: fakeClass2",
-            "     customFolderName: fakeFolder2",
-            "     hasNativeController: true"
-        );
         Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
 
         ExtensionsManager extensionsManager = new ExtensionsManager(settings, extensionDir);
 
         transportService.start();
         transportService.acceptIncomingRequests();
-        extensionsManager.setTransportService(transportService);
+        extensionsManager.initializeServicesAndRestHandler(restController, transportService, clusterService);
 
-        expectThrows(ConnectTransportException.class, () -> extensionsManager.initialize());
+        try (MockLogAppender mockLogAppender = MockLogAppender.createForLoggers(LogManager.getLogger(ExtensionsManager.class))) {
 
+            mockLogAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "Connect Transport Exception 1",
+                    "org.opensearch.extensions.ExtensionsManager",
+                    Level.ERROR,
+                    "ConnectTransportException[[firstExtension][127.0.0.0:9300] connect_timeout[30s]]"
+                )
+            );
+
+            mockLogAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "Connect Transport Exception 2",
+                    "org.opensearch.extensions.ExtensionsManager",
+                    Level.ERROR,
+                    "ConnectTransportException[[secondExtension][127.0.0.1:9301] connect_exception]; nested: ConnectException[Connection refused];"
+                )
+            );
+
+            extensionsManager.initialize();
+
+            // Test needs to be changed to mock the connection between the local node and an extension. Assert statment is commented out for
+            // now.
+            // Link to issue: https://github.com/opensearch-project/OpenSearch/issues/4045
+            // mockLogAppender.assertAllExpectationsMatched();
+        }
     }
 
-    public void testHandleExtensionRequest() throws Exception {
+    public void testHandleRegisterRestActionsRequest() throws Exception {
+
+        Path extensionDir = createTempDir();
+
+        Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
+
+        ExtensionsManager extensionsManager = new ExtensionsManager(settings, extensionDir);
+
+        extensionsManager.initializeServicesAndRestHandler(restController, transportService, clusterService);
+        String uniqueIdStr = "uniqueid1";
+        List<String> actionsList = List.of("GET /foo", "PUT /bar", "POST /baz");
+        RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(uniqueIdStr, actionsList);
+        TransportResponse response = extensionsManager.getRestActionsRequestHandler()
+            .handleRegisterRestActionsRequest(registerActionsRequest);
+        assertEquals(RegisterRestActionsResponse.class, response.getClass());
+        assertTrue(((RegisterRestActionsResponse) response).getResponse().contains(uniqueIdStr));
+        assertTrue(((RegisterRestActionsResponse) response).getResponse().contains(actionsList.toString()));
+    }
+
+    public void testHandleRegisterRestActionsRequestWithInvalidMethod() throws Exception {
 
         Path extensionDir = createTempDir();
 
         ExtensionsManager extensionsManager = new ExtensionsManager(settings, extensionDir);
 
-        extensionsManager.setTransportService(transportService);
-        extensionsManager.setClusterService(clusterService);
+        extensionsManager.initializeServicesAndRestHandler(restController, transportService, clusterService);
+        String uniqueIdStr = "uniqueid1";
+        List<String> actionsList = List.of("FOO /foo", "PUT /bar", "POST /baz");
+        RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(uniqueIdStr, actionsList);
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> extensionsManager.getRestActionsRequestHandler().handleRegisterRestActionsRequest(registerActionsRequest)
+        );
+    }
+
+    public void testHandleRegisterRestActionsRequestWithInvalidUri() throws Exception {
+
+        Path extensionDir = createTempDir();
+
+        ExtensionsManager extensionsManager = new ExtensionsManager(settings, extensionDir);
+
+        extensionsManager.initializeServicesAndRestHandler(restController, transportService, clusterService);
+        String uniqueIdStr = "uniqueid1";
+        List<String> actionsList = List.of("GET", "PUT /bar", "POST /baz");
+        RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(uniqueIdStr, actionsList);
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> extensionsManager.getRestActionsRequestHandler().handleRegisterRestActionsRequest(registerActionsRequest)
+        );
+    }
+
+    public void testHandleExtensionRequest() throws Exception {
+
+        ExtensionsManager extensionsManager = new ExtensionsManager(settings, extensionDir);
+
+        extensionsManager.initializeServicesAndRestHandler(restController, transportService, clusterService);
         ExtensionRequest clusterStateRequest = new ExtensionRequest(ExtensionsManager.RequestType.REQUEST_EXTENSION_CLUSTER_STATE);
-        assertEquals(extensionsManager.handleExtensionRequest(clusterStateRequest).getClass(), ClusterStateResponse.class);
+        assertEquals(ClusterStateResponse.class, extensionsManager.handleExtensionRequest(clusterStateRequest).getClass());
 
         ExtensionRequest clusterSettingRequest = new ExtensionRequest(ExtensionsManager.RequestType.REQUEST_EXTENSION_CLUSTER_SETTINGS);
-        assertEquals(extensionsManager.handleExtensionRequest(clusterSettingRequest).getClass(), ClusterSettingsResponse.class);
+        assertEquals(ClusterSettingsResponse.class, extensionsManager.handleExtensionRequest(clusterSettingRequest).getClass());
 
         ExtensionRequest localNodeRequest = new ExtensionRequest(ExtensionsManager.RequestType.REQUEST_EXTENSION_LOCAL_NODE);
-        assertEquals(extensionsManager.handleExtensionRequest(localNodeRequest).getClass(), LocalNodeResponse.class);
+        assertEquals(LocalNodeResponse.class, extensionsManager.handleExtensionRequest(localNodeRequest).getClass());
 
         ExtensionRequest exceptionRequest = new ExtensionRequest(ExtensionsManager.RequestType.GET_SETTINGS);
         Exception exception = expectThrows(IllegalStateException.class, () -> extensionsManager.handleExtensionRequest(exceptionRequest));
-        assertEquals(exception.getMessage(), "Handler not present for the provided request: " + exceptionRequest.getRequestType());
+        assertEquals("Handler not present for the provided request", exception.getMessage());
     }
 
     public void testRegisterHandler() throws Exception {
-        Path extensionDir = createTempDir();
 
         ExtensionsManager extensionsManager = new ExtensionsManager(settings, extensionDir);
 
@@ -329,49 +435,57 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             )
         );
 
-        extensionsManager.setTransportService(mockTransportService);
-        verify(mockTransportService, times(3)).registerRequestHandler(anyString(), anyString(), anyBoolean(), anyBoolean(), any(), any());
+        extensionsManager.initializeServicesAndRestHandler(restController, mockTransportService, clusterService);
+        verify(mockTransportService, times(5)).registerRequestHandler(anyString(), anyString(), anyBoolean(), anyBoolean(), any(), any());
 
     }
 
+    private static class Example implements NamedWriteable {
+        public static final String INVALID_NAME = "invalid_name";
+        public static final String NAME = "example";
+        private final String message;
+
+        Example(String message) {
+            this.message = message;
+        }
+
+        Example(StreamInput in) throws IOException {
+            this.message = in.readString();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(message);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            Example that = (Example) o;
+            return Objects.equals(message, that.message);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(message);
+        }
+    }
+
     public void testOnIndexModule() throws Exception {
-
-        Path extensionDir = createTempDir();
-
-        List<String> extensionsYmlLines = Arrays.asList(
-            "extensions:",
-            "   - name: firstExtension",
-            "     uniqueId: uniqueid1",
-            "     hostName: 'myIndependentPluginHost1'",
-            "     hostAddress: '127.0.0.0'",
-            "     port: '9300'",
-            "     version: '0.0.7'",
-            "     description: Fake description 1",
-            "     opensearchVersion: '3.0.0'",
-            "     javaVersion: '14'",
-            "     className: fakeClass1",
-            "     customFolderName: fakeFolder1",
-            "     hasNativeController: false",
-            "   - name: secondExtension",
-            "     uniqueId: 'uniqueid2'",
-            "     hostName: 'myIndependentPluginHost2'",
-            "     hostAddress: '127.0.0.1'",
-            "     port: '9301'",
-            "     version: '3.14.16'",
-            "     description: Fake description 2",
-            "     opensearchVersion: '2.0.0'",
-            "     javaVersion: '17'",
-            "     className: fakeClass2",
-            "     customFolderName: fakeFolder2",
-            "     hasNativeController: true"
-        );
         Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
 
         ExtensionsManager extensionsManager = new ExtensionsManager(settings, extensionDir);
 
         transportService.start();
         transportService.acceptIncomingRequests();
-        extensionsManager.setTransportService(transportService);
+        extensionsManager.initializeServicesAndRestHandler(restController, transportService, clusterService);
 
         Environment environment = TestEnvironment.newEnvironment(settings);
         AnalysisRegistry emptyAnalysisRegistry = new AnalysisRegistry(
