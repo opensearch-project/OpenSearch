@@ -32,6 +32,5 @@ public class ClusterDeleteWeightedRoutingResponse extends AcknowledgedResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-
     }
 }

@@ -175,7 +175,7 @@ public class WeightedRoutingServiceTests extends OpenSearchTestCase {
 
     private ClusterState setWeightedRoutingWeights(ClusterState clusterState, Map<String, Double> weights) {
         WeightedRouting weightedRouting = new WeightedRouting("zone", weights);
-        WeightedRoutingMetadata weightedRoutingMetadata = new WeightedRoutingMetadata(weightedRouting);
+        WeightedRoutingMetadata weightedRoutingMetadata = new WeightedRoutingMetadata(Collections.singletonList(weightedRouting));
         Metadata.Builder metadataBuilder = Metadata.builder(clusterState.metadata());
         metadataBuilder.putCustom(WeightedRoutingMetadata.TYPE, weightedRoutingMetadata);
         clusterState = ClusterState.builder(clusterState).metadata(metadataBuilder).build();
@@ -209,7 +209,10 @@ public class WeightedRoutingServiceTests extends OpenSearchTestCase {
             @Override
             public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {
                 assertTrue(clusterStateUpdateResponse.isAcknowledged());
-                assertEquals(updatedWeightedRouting, clusterService.state().metadata().weightedRoutingMetadata().getWeightedRouting());
+                assertEquals(
+                    updatedWeightedRouting,
+                    clusterService.state().metadata().weightedRoutingMetadata().getWeightedRouting("zone")
+                );
                 countDownLatch.countDown();
             }
 
@@ -240,7 +243,10 @@ public class WeightedRoutingServiceTests extends OpenSearchTestCase {
             @Override
             public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {
                 assertTrue(clusterStateUpdateResponse.isAcknowledged());
-                assertEquals(updatedWeightedRouting, clusterService.state().metadata().weightedRoutingMetadata().getWeightedRouting());
+                assertEquals(
+                    updatedWeightedRouting,
+                    clusterService.state().metadata().weightedRoutingMetadata().getWeightedRouting("zone")
+                );
                 countDownLatch.countDown();
             }
 
@@ -387,7 +393,10 @@ public class WeightedRoutingServiceTests extends OpenSearchTestCase {
             @Override
             public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {
                 assertTrue(clusterStateUpdateResponse.isAcknowledged());
-                assertEquals(updatedWeightedRouting, clusterService.state().metadata().weightedRoutingMetadata().getWeightedRouting());
+                assertEquals(
+                    updatedWeightedRouting,
+                    clusterService.state().metadata().weightedRoutingMetadata().getWeightedRouting("zone")
+                );
                 countDownLatch.countDown();
             }
 
@@ -427,6 +436,6 @@ public class WeightedRoutingServiceTests extends OpenSearchTestCase {
         };
         weightedRoutingService.registerWeightedRoutingMetadata(request.request(), listener);
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
-        assertEquals(updatedWeightedRouting, clusterService.state().metadata().weightedRoutingMetadata().getWeightedRouting());
+        assertEquals(updatedWeightedRouting, clusterService.state().metadata().weightedRoutingMetadata().getWeightedRouting("zone"));
     }
 }

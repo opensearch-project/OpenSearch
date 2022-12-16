@@ -8,11 +8,13 @@
 
 package org.opensearch.cluster.routing;
 
+import org.opensearch.ResourceNotFoundException;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.delete.ClusterDeleteWeightedRoutingResponse;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.get.ClusterGetWeightedRoutingResponse;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingResponse;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.rest.RestStatus;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
@@ -306,10 +308,12 @@ public class WeightedRoutingIT extends OpenSearchIntegTestCase {
 
         assertNull(internalCluster().clusterService().state().metadata().weightedRoutingMetadata());
 
-        // delete weighted routing metadata
-        ClusterDeleteWeightedRoutingResponse deleteResponse = client().admin().cluster().prepareDeleteWeightedRouting().get();
-        assertTrue(deleteResponse.isAcknowledged());
-        assertNull(internalCluster().clusterService().state().metadata().weightedRoutingMetadata());
+        ResourceNotFoundException exception = expectThrows(
+            ResourceNotFoundException.class,
+            () -> client().admin().cluster().prepareDeleteWeightedRouting().setAwarenessAttribute("zone").get()
+        );
+        assertEquals(exception.status(), RestStatus.NOT_FOUND);
+        assertTrue(exception.getMessage().contains("weighted routing metadata does not have weights set for awareness attribute zone"));
     }
 
     public void testDeleteWeightedRouting_WeightsAreSet() {
@@ -344,8 +348,12 @@ public class WeightedRoutingIT extends OpenSearchIntegTestCase {
         assertNotNull(internalCluster().clusterService().state().metadata().weightedRoutingMetadata());
 
         // delete weighted routing metadata
-        ClusterDeleteWeightedRoutingResponse deleteResponse = client().admin().cluster().prepareDeleteWeightedRouting().get();
+        ClusterDeleteWeightedRoutingResponse deleteResponse = client().admin()
+            .cluster()
+            .prepareDeleteWeightedRouting()
+            .setAwarenessAttribute("zone")
+            .setAwarenessAttribute("zone")
+            .get();
         assertTrue(deleteResponse.isAcknowledged());
-        assertNull(internalCluster().clusterService().state().metadata().weightedRoutingMetadata());
     }
 }

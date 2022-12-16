@@ -46,6 +46,7 @@ public class WeightedRoutingMetadata extends AbstractNamedDiffable<Metadata.Cust
         for (WeightedRouting wRouting : this.weightedRoutings) {
             if (wRouting.attributeName().equals(awarenessAttribute)) {
                 weightedRouting = wRouting;
+                break;
             }
         }
         return weightedRouting;
