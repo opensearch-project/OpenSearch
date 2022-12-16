@@ -19,18 +19,18 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
-public class ExtensionBooleanResponse extends TransportResponse {
+public class AcknowledgedResponse extends TransportResponse {
 
     private final boolean status;
 
     /**
      * @param status Boolean indicating the status of the parse request sent to the SDK
      */
-    public ExtensionBooleanResponse(boolean status) {
+    public AcknowledgedResponse(boolean status) {
         this.status = status;
     }
 
-    public ExtensionBooleanResponse(StreamInput in) throws IOException {
+    public AcknowledgedResponse(StreamInput in) throws IOException {
         super(in);
         this.status = in.readBoolean();
     }
@@ -42,14 +42,14 @@ public class ExtensionBooleanResponse extends TransportResponse {
 
     @Override
     public String toString() {
-        return "ExtensionBooleanResponse{" + "status=" + this.status + "}";
+        return "AcknowledgedResponse{" + "status=" + this.status + "}";
     }
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        ExtensionBooleanResponse that = (ExtensionBooleanResponse) o;
+        AcknowledgedResponse that = (AcknowledgedResponse) o;
         return Objects.equals(this.status, that.status);
     }
 

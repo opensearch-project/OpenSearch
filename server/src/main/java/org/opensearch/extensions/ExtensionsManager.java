@@ -329,7 +329,7 @@ public class ExtensionsManager {
      * Handles a {@link RegisterTransportActionsRequest}.
      *
      * @param transportActionsRequest  The request to handle.
-     * @return  A {@link ExtensionBooleanResponse} indicating success.
+     * @return  A {@link AcknowledgedResponse} indicating success.
      * @throws Exception if the request is not handled properly.
      */
     TransportResponse handleRegisterTransportActionsRequest(RegisterTransportActionsRequest transportActionsRequest) throws Exception {
@@ -338,7 +338,7 @@ public class ExtensionsManager {
          * Register these new Transport Actions with ActionModule
          * and add support for NodeClient to recognise these actions when making transport calls.
          */
-        return new ExtensionBooleanResponse(true);
+        return new AcknowledgedResponse(true);
     }
 
     /**
@@ -370,11 +370,11 @@ public class ExtensionsManager {
     private void onIndexModule(IndexModule indexModule, DiscoveryNode extensionNode) throws UnknownHostException {
         logger.info("onIndexModule index:" + indexModule.getIndex());
         final CompletableFuture<IndicesModuleResponse> inProgressFuture = new CompletableFuture<>();
-        final CompletableFuture<ExtensionBooleanResponse> inProgressIndexNameFuture = new CompletableFuture<>();
-        final TransportResponseHandler<ExtensionBooleanResponse> extensionBooleanResponseHandler = new TransportResponseHandler<
-            ExtensionBooleanResponse>() {
+        final CompletableFuture<AcknowledgedResponse> inProgressIndexNameFuture = new CompletableFuture<>();
+        final TransportResponseHandler<AcknowledgedResponse> acknowledgedResponseHandler = new TransportResponseHandler<
+            AcknowledgedResponse>() {
             @Override
-            public void handleResponse(ExtensionBooleanResponse response) {
+            public void handleResponse(AcknowledgedResponse response) {
                 logger.info("ACK Response" + response);
                 inProgressIndexNameFuture.complete(response);
             }
@@ -390,8 +390,8 @@ public class ExtensionsManager {
             }
 
             @Override
-            public ExtensionBooleanResponse read(StreamInput in) throws IOException {
-                return new ExtensionBooleanResponse(in);
+            public AcknowledgedResponse read(StreamInput in) throws IOException {
+                return new AcknowledgedResponse(in);
             }
 
         };
@@ -423,7 +423,7 @@ public class ExtensionsManager {
                                     extensionNode,
                                     INDICES_EXTENSION_NAME_ACTION_NAME,
                                     new IndicesModuleRequest(indexModule),
-                                    extensionBooleanResponseHandler
+                                    acknowledgedResponseHandler
                                 );
                                 // TODO: make asynchronous
                                 inProgressIndexNameFuture.get(100, TimeUnit.SECONDS);
