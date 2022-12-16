@@ -259,8 +259,12 @@ public class DecommissionService {
                                         ),
                                         t
                                     );
-                                    // since the request failed to retry, we will attempt to mark it failed which will also ensure cleaning up the exclusion set for the to-be-decommissioned nodes
-                                    decommissionController.updateMetadataWithDecommissionStatus(DecommissionStatus.FAILED, statusUpdateListener());
+                                    // since the request failed to retry, we will attempt to mark it failed which will also ensure cleaning
+                                    // up the exclusion set for the to-be-decommissioned nodes
+                                    decommissionController.updateMetadataWithDecommissionStatus(
+                                        DecommissionStatus.FAILED,
+                                        statusUpdateListener()
+                                    );
                                     delegatedListener.onFailure(t);
                                 })
                             );
