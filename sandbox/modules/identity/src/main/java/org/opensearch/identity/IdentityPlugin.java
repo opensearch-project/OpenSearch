@@ -23,9 +23,13 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
+import org.opensearch.identity.configuration.ConfigurationRepository;
+import org.opensearch.indices.SystemIndexDescriptor;
 import org.opensearch.plugins.ActionPlugin;
+import org.opensearch.plugins.ClusterPlugin;
 import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.SystemIndexPlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.rest.RestHandler;
 import org.opensearch.script.ScriptService;
@@ -35,12 +39,13 @@ import org.opensearch.watcher.ResourceWatcherService;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
-public final class IdentityPlugin extends Plugin implements ActionPlugin, NetworkPlugin {
+public final class IdentityPlugin extends Plugin implements ActionPlugin, NetworkPlugin, SystemIndexPlugin, ClusterPlugin {
     private volatile Logger log = LogManager.getLogger(this.getClass());
 
     private volatile SecurityRestFilter securityRestHandler;
@@ -51,6 +56,8 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
     private volatile Path configPath;
     private volatile SecurityFilter sf;
     private volatile ThreadPool threadPool;
+
+    private volatile ConfigurationRepository cr;
     private volatile ClusterService cs;
     private volatile Client localClient;
     private volatile NamedXContentRegistry namedXContentRegistry = null;
@@ -98,12 +105,25 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
     }
 
     @Override
+    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+        final String indexPattern = settings.get(ConfigConstants.IDENTITY_CONFIG_INDEX_NAME, ConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX);
+        final SystemIndexDescriptor systemIndexDescriptor = new SystemIndexDescriptor(indexPattern, "Identity index");
+        return Collections.singletonList(systemIndexDescriptor);
+    }
+
     public List<Setting<?>> getSettings() {
         List<Setting<?>> settings = new ArrayList<Setting<?>>();
         settings.addAll(super.getSettings());
         settings.add(Setting.boolSetting(ConfigConstants.IDENTITY_ENABLED, false, Setting.Property.NodeScope, Setting.Property.Filtered));
+        settings.add(Setting.simpleString(ConfigConstants.IDENTITY_CONFIG_INDEX_NAME, Setting.Property.NodeScope, Setting.Property.Filtered));
 
         return settings;
+    }
+
+    @Override
+    public void onNodeStarted() {
+        log.info("Node started");
+        cr.initOnNodeStart();
     }
 
     @Override
@@ -133,6 +153,8 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
         sf = new SecurityFilter(localClient, settings, threadPool, cs);
 
         securityRestHandler = new SecurityRestFilter(threadPool, settings, configPath);
+
+        cr = ConfigurationRepository.create(settings, this.configPath, threadPool, localClient, clusterService);
 
         return components;
     }
