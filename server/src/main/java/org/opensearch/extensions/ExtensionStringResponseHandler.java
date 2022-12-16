@@ -17,35 +17,31 @@ import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponseHandler;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * JobDetailsResponseHandler to handle JobDetailsResponse from extensions
+ * ExtensionStringResponseHandler to handle ExtensionStringResponse from extensions
  *
  * @opensearch.internal
  */
-public class JobDetailsResponseHandler implements TransportResponseHandler<JobDetailsResponse> {
-    private static final Logger logger = LogManager.getLogger(JobDetailsResponseHandler.class);
-    final CompletableFuture<JobDetailsResponse> inProgressFuture = new CompletableFuture<>();
-    private Map<String, JobDetails> jobDetailsMap;
+public class ExtensionStringResponseHandler implements TransportResponseHandler<ExtensionStringResponse> {
+    private static final Logger logger = LogManager.getLogger(ExtensionStringResponseHandler.class);
+    final CompletableFuture<ExtensionStringResponse> inProgressFuture = new CompletableFuture<>();
+    private String response;
 
-    private String uniqueExtensionId;
-
-    public JobDetailsResponseHandler(Map<String, JobDetails> jobDetailsMap, String uniqueExtensionId) {
-        this.jobDetailsMap = jobDetailsMap;
-        this.uniqueExtensionId = uniqueExtensionId;
+    public ExtensionStringResponseHandler(String response) {
+        this.response = response;
     }
 
     @Override
-    public JobDetailsResponse read(StreamInput in) throws IOException {
-        return new JobDetailsResponse(in);
+    public ExtensionStringResponse read(StreamInput in) throws IOException {
+        return new ExtensionStringResponse(in);
     }
 
     @Override
-    public void handleResponse(JobDetailsResponse response) {
-        logger.info(response.getJobDetails().toString());
-        jobDetailsMap.put(uniqueExtensionId, response.getJobDetails());
+    public void handleResponse(ExtensionStringResponse response) {
+        logger.info("Response from extension  " + response);
+        this.response = response.getResponse();
         inProgressFuture.complete(response);
     }
 
@@ -58,5 +54,18 @@ public class JobDetailsResponseHandler implements TransportResponseHandler<JobDe
     @Override
     public String executor() {
         return ThreadPool.Names.GENERIC;
+    }
+
+    public String getResponse() {
+        return response;
+    }
+
+    public void setResponse(String response) {
+        this.response = response;
+    }
+
+    @Override
+    public String toString() {
+        return "ExtensionStringResponseHandler{" + "response='" + response + '\'' + '}';
     }
 }

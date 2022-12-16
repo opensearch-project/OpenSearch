@@ -87,7 +87,8 @@ public class ExtensionsManager {
     public static final String REQUEST_REST_EXECUTE_ON_EXTENSION_ACTION = "internal:extensions/restexecuteonextensiontaction";
     public static final String REQUEST_EXTENSION_HANDLE_TRANSPORT_ACTION = "internal:extensions/handle-transportaction";
     public static final String TRANSPORT_ACTION_REQUEST_FROM_EXTENSION = "internal:extensions/request-transportaction-from-extension";
-    public static final String JOB_DETAILS_REQUEST_FROM_EXTENSION = "internal:extensions/job-details-from-extension";
+    public static final String JOB_INDEX_REQUEST_FROM_EXTENSION = "internal:extensions/job-index-from-extension";
+    public static final String JOB_TYPE_REQUEST_FROM_EXTENSION = "internal:extensions/job-type-from-extension";
     public static final int EXTENSION_REQUEST_WAIT_TIMEOUT = 10;
 
     private static final Logger logger = LogManager.getLogger(ExtensionsManager.class);
@@ -107,7 +108,8 @@ public class ExtensionsManager {
         CREATE_COMPONENT,
         ON_INDEX_MODULE,
         GET_SETTINGS,
-        JOB_DETAILS_REQUEST_FROM_EXTENSION
+        JOB_INDEX_REQUEST_FROM_EXTENSION,
+        JOB_TYPE_REQUEST_FROM_EXTENSION
     };
 
     /**
@@ -136,7 +138,7 @@ public class ExtensionsManager {
     private AddSettingsUpdateConsumerRequestHandler addSettingsUpdateConsumerRequestHandler;
     private NodeClient client;
     private Map<String, JobDetails> jobDetailsMap;
-    private JobDetailsResponseHandler jobDetailsResponseHandler;
+    private ExtensionStringResponseHandler extensionStringResponseHandler;
 
     /**
      * Instantiate a new ExtensionsManager object to handle requests and responses from extensions. This is called during Node bootstrap.
@@ -421,24 +423,64 @@ public class ExtensionsManager {
     }
 
     private void fetchJobDetails(DiscoveryExtensionNode extension) {
+        String jobType = null;
+        String jobIndex = null;
         try {
-            logger.info("Sending extension request type: " + JOB_DETAILS_REQUEST_FROM_EXTENSION);
+            logger.info("Sending extension request type: " + JOB_TYPE_REQUEST_FROM_EXTENSION);
+
             transportService.connectToExtensionNode(extension);
-            this.jobDetailsResponseHandler = new JobDetailsResponseHandler(jobDetailsMap, extension.getId());
+            logger.info("Sending fetch Job Details request to extension " + extension.getName());
+            // this.jobDetailsResponseHandler=new JobDetailsResponseHandler(jobDetailsMap,extension.getId());
+            this.extensionStringResponseHandler = new ExtensionStringResponseHandler(jobType);
             transportService.sendRequest(
                 extension,
-                JOB_DETAILS_REQUEST_FROM_EXTENSION,
-                new ExtensionRequest(RequestType.JOB_DETAILS_REQUEST_FROM_EXTENSION),
-                jobDetailsResponseHandler
+                JOB_TYPE_REQUEST_FROM_EXTENSION,
+                new ExtensionRequest(RequestType.JOB_TYPE_REQUEST_FROM_EXTENSION),
+                extensionStringResponseHandler
             );
 
-            jobDetailsResponseHandler.inProgressFuture.join();
+            // inProgressFuture.get(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS);
+            extensionStringResponseHandler.inProgressFuture.join();
+
+            jobType = extensionStringResponseHandler.getResponse();
+
         } catch (Exception e) {
             try {
                 throw e;
             } catch (Exception e1) {
                 logger.error(e.toString());
             }
+        }
+
+        try {
+            logger.info("Sending extension request type: " + JOB_INDEX_REQUEST_FROM_EXTENSION);
+            this.extensionStringResponseHandler = new ExtensionStringResponseHandler(jobIndex);
+            transportService.sendRequest(
+                extension,
+                JOB_INDEX_REQUEST_FROM_EXTENSION,
+                new ExtensionRequest(RequestType.JOB_INDEX_REQUEST_FROM_EXTENSION),
+                extensionStringResponseHandler
+            );
+
+            // inProgressFuture.get(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS);
+            extensionStringResponseHandler.inProgressFuture.join();
+
+            jobIndex = extensionStringResponseHandler.getResponse();
+
+        } catch (Exception e) {
+            try {
+                throw e;
+            } catch (Exception e1) {
+                logger.error(e.toString());
+            }
+        }
+
+        jobDetailsMap.put(extension.getId(), new JobDetails(jobType, jobIndex));
+
+        logger.info("Map size is " + jobDetailsMap.size());
+
+        for (Map.Entry<String, JobDetails> entry : jobDetailsMap.entrySet()) {
+            System.out.println("Map response is " + entry.getKey() + ":" + entry.getValue().toString());
         }
     }
 
@@ -650,8 +692,12 @@ public class ExtensionsManager {
         return EXTENSION_REQUEST_WAIT_TIMEOUT;
     }
 
-    public static String getJobDetailsRequestFromExtension() {
-        return JOB_DETAILS_REQUEST_FROM_EXTENSION;
+    public static String getJobIndexRequestFromExtension() {
+        return JOB_INDEX_REQUEST_FROM_EXTENSION;
+    }
+
+    public static String getJobTypeRequestFromExtension() {
+        return JOB_TYPE_REQUEST_FROM_EXTENSION;
     }
 
     public static Logger getLogger() {
@@ -664,6 +710,10 @@ public class ExtensionsManager {
 
     public ExtensionTransportActionsHandler getExtensionTransportActionsHandler() {
         return extensionTransportActionsHandler;
+    }
+
+    public ExtensionStringResponseHandler getExtensionStringResponseHandler() {
+        return extensionStringResponseHandler;
     }
 
     public List<DiscoveryExtensionNode> getExtensions() {
@@ -700,10 +750,6 @@ public class ExtensionsManager {
 
     public ExtensionActionListenerHandler getListenerHandler() {
         return listenerHandler;
-    }
-
-    public JobDetailsResponseHandler getJobDetailsHandler() {
-        return jobDetailsResponseHandler;
     }
 
     public Settings getEnvironmentSettings() {
