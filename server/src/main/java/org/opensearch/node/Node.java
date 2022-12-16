@@ -785,6 +785,7 @@ public class Node implements Closeable {
             modules.add(actionModule);
 
             final RestController restController = actionModule.getRestController();
+
             final NetworkModule networkModule = new NetworkModule(
                 settings,
                 pluginsService.filterPlugins(NetworkPlugin.class),
@@ -829,8 +830,7 @@ public class Node implements Closeable {
                 taskHeaders
             );
             if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
-                this.extensionsManager.setTransportService(transportService);
-                this.extensionsManager.setClusterService(clusterService);
+                this.extensionsManager.initializeServicesAndRestHandler(restController, transportService, clusterService);
             }
             final GatewayMetaState gatewayMetaState = new GatewayMetaState();
             final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);

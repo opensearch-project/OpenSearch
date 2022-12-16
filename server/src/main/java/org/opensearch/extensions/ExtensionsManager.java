@@ -17,6 +17,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -34,17 +35,19 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
 
-import org.opensearch.discovery.PluginRequest;
-import org.opensearch.discovery.PluginResponse;
+import org.opensearch.discovery.InitializeExtensionRequest;
+import org.opensearch.discovery.InitializeExtensionResponse;
 import org.opensearch.extensions.ExtensionsSettings.Extension;
+import org.opensearch.extensions.rest.RegisterRestActionsRequest;
+import org.opensearch.extensions.rest.RestActionsRequestHandler;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexService;
-import org.opensearch.index.AcknowledgedResponse;
 import org.opensearch.index.IndicesModuleRequest;
 import org.opensearch.index.IndicesModuleResponse;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.plugins.PluginInfo;
+import org.opensearch.rest.RestController;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponse;
@@ -55,7 +58,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 
 /**
- * The main class for Plugin Extensibility
+ * The main class for managing Extension communication with the OpenSearch Node.
  *
  * @opensearch.internal
  */
@@ -66,6 +69,11 @@ public class ExtensionsManager {
     public static final String REQUEST_EXTENSION_CLUSTER_STATE = "internal:discovery/clusterstate";
     public static final String REQUEST_EXTENSION_LOCAL_NODE = "internal:discovery/localnode";
     public static final String REQUEST_EXTENSION_CLUSTER_SETTINGS = "internal:discovery/clustersettings";
+    public static final String REQUEST_EXTENSION_REGISTER_REST_ACTIONS = "internal:discovery/registerrestactions";
+    public static final String REQUEST_OPENSEARCH_NAMED_WRITEABLE_REGISTRY = "internal:discovery/namedwriteableregistry";
+    public static final String REQUEST_OPENSEARCH_PARSE_NAMED_WRITEABLE = "internal:discovery/parsenamedwriteable";
+    public static final String REQUEST_REST_EXECUTE_ON_EXTENSION_ACTION = "internal:extensions/restexecuteonextensiontaction";
+    public static final String REQUEST_EXTENSION_REGISTER_TRANSPORT_ACTIONS = "internal:discovery/registertransportactions";
 
     private static final Logger logger = LogManager.getLogger(ExtensionsManager.class);
 
@@ -78,28 +86,46 @@ public class ExtensionsManager {
         REQUEST_EXTENSION_CLUSTER_STATE,
         REQUEST_EXTENSION_LOCAL_NODE,
         REQUEST_EXTENSION_CLUSTER_SETTINGS,
+        REQUEST_EXTENSION_REGISTER_REST_ACTIONS,
         CREATE_COMPONENT,
         ON_INDEX_MODULE,
         GET_SETTINGS
     };
 
+    /**
+     * Enum for OpenSearch Requests
+     *
+     * @opensearch.internal
+     */
+    public static enum OpenSearchRequestType {
+        REQUEST_OPENSEARCH_NAMED_WRITEABLE_REGISTRY
+    }
+
     private final Path extensionsPath;
-    private final List<DiscoveryExtensionNode> uninitializedExtensions;
+    // A list of initialized extensions, a subset of the values of map below which includes all extensions
     private List<DiscoveryExtensionNode> extensions;
+    private Map<String, DiscoveryExtensionNode> extensionIdMap;
+    private RestActionsRequestHandler restActionsRequestHandler;
     private TransportService transportService;
     private ClusterService clusterService;
 
     public ExtensionsManager() {
         this.extensionsPath = Path.of("");
-        this.uninitializedExtensions = new ArrayList<DiscoveryExtensionNode>();
     }
 
+    /**
+     * Instantiate a new ExtensionsManager object to handle requests and responses from extensions. This is called during Node bootstrap.
+     *
+     * @param settings  Settings from the node the orchestrator is running on.
+     * @param extensionsPath  Path to a directory containing extensions.
+     * @throws IOException  If the extensions discovery file is not properly retrieved.
+     */
     public ExtensionsManager(Settings settings, Path extensionsPath) throws IOException {
         logger.info("ExtensionsManager initialized");
         this.extensionsPath = extensionsPath;
         this.transportService = null;
-        this.uninitializedExtensions = new ArrayList<DiscoveryExtensionNode>();
         this.extensions = new ArrayList<DiscoveryExtensionNode>();
+        this.extensionIdMap = new HashMap<String, DiscoveryExtensionNode>();
         this.clusterService = null;
 
         /*
@@ -109,16 +135,34 @@ public class ExtensionsManager {
 
     }
 
-    public void setTransportService(TransportService transportService) {
+    /**
+     * Initializes the {@link RestActionsRequestHandler}, {@link TransportService} and {@link ClusterService}. This is called during Node bootstrap.
+     * Lists/maps of extensions have already been initialized but not yet populated.
+     *
+     * @param restController  The RestController on which to register Rest Actions.
+     * @param transportService  The Node's transport service.
+     * @param clusterService  The Node's cluster service.
+     */
+    public void initializeServicesAndRestHandler(
+        RestController restController,
+        TransportService transportService,
+        ClusterService clusterService
+    ) {
+        this.restActionsRequestHandler = new RestActionsRequestHandler(restController, extensionIdMap, transportService);
         this.transportService = transportService;
+        this.clusterService = clusterService;
         registerRequestHandler();
     }
 
-    public void setClusterService(ClusterService clusterService) {
-        this.clusterService = clusterService;
-    }
-
     private void registerRequestHandler() {
+        transportService.registerRequestHandler(
+            REQUEST_EXTENSION_REGISTER_REST_ACTIONS,
+            ThreadPool.Names.GENERIC,
+            false,
+            false,
+            RegisterRestActionsRequest::new,
+            ((request, channel, task) -> channel.sendResponse(restActionsRequestHandler.handleRegisterRestActionsRequest(request)))
+        );
         transportService.registerRequestHandler(
             REQUEST_EXTENSION_CLUSTER_STATE,
             ThreadPool.Names.GENERIC,
@@ -143,6 +187,14 @@ public class ExtensionsManager {
             ExtensionRequest::new,
             ((request, channel, task) -> channel.sendResponse(handleExtensionRequest(request)))
         );
+        transportService.registerRequestHandler(
+            REQUEST_EXTENSION_REGISTER_TRANSPORT_ACTIONS,
+            ThreadPool.Names.GENERIC,
+            false,
+            false,
+            RegisterTransportActionsRequest::new,
+            ((request, channel, task) -> channel.sendResponse(handleRegisterTransportActionsRequest(request)))
+        );
     }
 
     /*
@@ -164,7 +216,7 @@ public class ExtensionsManager {
             for (Extension extension : extensions) {
                 loadExtension(extension);
             }
-            if (!uninitializedExtensions.isEmpty()) {
+            if (!extensionIdMap.isEmpty()) {
                 logger.info("Loaded all extensions");
             }
         } else {
@@ -177,9 +229,11 @@ public class ExtensionsManager {
      * @param extension The extension to be loaded
      */
     private void loadExtension(Extension extension) throws IOException {
-        try {
-            uninitializedExtensions.add(
-                new DiscoveryExtensionNode(
+        if (extensionIdMap.containsKey(extension.getUniqueId())) {
+            logger.info("Duplicate uniqueId " + extension.getUniqueId() + ". Did not load extension: " + extension);
+        } else {
+            try {
+                DiscoveryExtensionNode discoveryExtensionNode = new DiscoveryExtensionNode(
                     extension.getName(),
                     extension.getUniqueId(),
                     // placeholder for ephemeral id, will change with POC discovery
@@ -199,42 +253,51 @@ public class ExtensionsManager {
                         new ArrayList<String>(),
                         Boolean.parseBoolean(extension.hasNativeController())
                     )
-                )
-            );
-            logger.info("Loaded extension: " + extension);
-        } catch (IllegalArgumentException e) {
-            throw e;
+                );
+                extensionIdMap.put(extension.getUniqueId(), discoveryExtensionNode);
+                logger.info("Loaded extension with uniqueId " + extension.getUniqueId() + ": " + extension);
+            } catch (IllegalArgumentException e) {
+                throw e;
+            }
         }
     }
 
+    /**
+     * Iterate through all extensions and initialize them.  Initialized extensions will be added to the {@link #extensions}.
+     */
     public void initialize() {
-        for (DiscoveryNode extensionNode : uninitializedExtensions) {
-            initializeExtension(extensionNode);
+        for (DiscoveryExtensionNode extension : extensionIdMap.values()) {
+            initializeExtension(extension);
         }
     }
 
-    private void initializeExtension(DiscoveryNode extensionNode) {
+    private void initializeExtension(DiscoveryExtensionNode extension) {
 
-        final TransportResponseHandler<PluginResponse> pluginResponseHandler = new TransportResponseHandler<PluginResponse>() {
+        final CompletableFuture<InitializeExtensionResponse> inProgressFuture = new CompletableFuture<>();
+        final TransportResponseHandler<InitializeExtensionResponse> initializeExtensionResponseHandler = new TransportResponseHandler<
+            InitializeExtensionResponse>() {
 
             @Override
-            public PluginResponse read(StreamInput in) throws IOException {
-                return new PluginResponse(in);
+            public InitializeExtensionResponse read(StreamInput in) throws IOException {
+                return new InitializeExtensionResponse(in);
             }
 
             @Override
-            public void handleResponse(PluginResponse response) {
-                for (DiscoveryExtensionNode extension : uninitializedExtensions) {
+            public void handleResponse(InitializeExtensionResponse response) {
+                for (DiscoveryExtensionNode extension : extensionIdMap.values()) {
                     if (extension.getName().equals(response.getName())) {
                         extensions.add(extension);
+                        logger.info("Initialized extension: " + extension.getName());
                         break;
                     }
                 }
+                inProgressFuture.complete(response);
             }
 
             @Override
             public void handleException(TransportException exp) {
-                logger.error(new ParameterizedMessage("Plugin request failed"), exp);
+                logger.error(new ParameterizedMessage("Extension initialization failed"), exp);
+                inProgressFuture.completeExceptionally(exp);
             }
 
             @Override
@@ -243,39 +306,63 @@ public class ExtensionsManager {
             }
         };
         try {
-            transportService.connectToExtensionNode(extensionNode);
+            logger.info("Sending extension request type: " + REQUEST_EXTENSION_ACTION_NAME);
+            transportService.connectToExtensionNode(extension);
             transportService.sendRequest(
-                extensionNode,
+                extension,
                 REQUEST_EXTENSION_ACTION_NAME,
-                new PluginRequest(transportService.getLocalNode(), new ArrayList<DiscoveryExtensionNode>(uninitializedExtensions)),
-                pluginResponseHandler
+                new InitializeExtensionRequest(transportService.getLocalNode(), extension),
+                initializeExtensionResponseHandler
             );
+            // TODO: make asynchronous
+            inProgressFuture.get(100, TimeUnit.SECONDS);
         } catch (Exception e) {
-            throw e;
+            try {
+                throw e;
+            } catch (Exception e1) {
+                logger.error(e.toString());
+            }
         }
     }
 
+    /**
+     * Handles a {@link RegisterTransportActionsRequest}.
+     *
+     * @param transportActionsRequest  The request to handle.
+     * @return  A {@link AcknowledgedResponse} indicating success.
+     * @throws Exception if the request is not handled properly.
+     */
+    TransportResponse handleRegisterTransportActionsRequest(RegisterTransportActionsRequest transportActionsRequest) throws Exception {
+        /*
+         * TODO: https://github.com/opensearch-project/opensearch-sdk-java/issues/107
+         * Register these new Transport Actions with ActionModule
+         * and add support for NodeClient to recognise these actions when making transport calls.
+         */
+        return new AcknowledgedResponse(true);
+    }
+
+    /**
+     * Handles an {@link ExtensionRequest}.
+     *
+     * @param extensionRequest  The request to handle, of a type defined in the {@link RequestType} enum.
+     * @return  an Response matching the request.
+     * @throws Exception if the request is not handled properly.
+     */
     TransportResponse handleExtensionRequest(ExtensionRequest extensionRequest) throws Exception {
-        // Read enum
-        if (extensionRequest.getRequestType() == RequestType.REQUEST_EXTENSION_CLUSTER_STATE) {
-            ClusterStateResponse clusterStateResponse = new ClusterStateResponse(
-                clusterService.getClusterName(),
-                clusterService.state(),
-                false
-            );
-            return clusterStateResponse;
-        } else if (extensionRequest.getRequestType() == RequestType.REQUEST_EXTENSION_LOCAL_NODE) {
-            LocalNodeResponse localNodeResponse = new LocalNodeResponse(clusterService);
-            return localNodeResponse;
-        } else if (extensionRequest.getRequestType() == RequestType.REQUEST_EXTENSION_CLUSTER_SETTINGS) {
-            ClusterSettingsResponse clusterSettingsResponse = new ClusterSettingsResponse(clusterService);
-            return clusterSettingsResponse;
+        switch (extensionRequest.getRequestType()) {
+            case REQUEST_EXTENSION_CLUSTER_STATE:
+                return new ClusterStateResponse(clusterService.getClusterName(), clusterService.state(), false);
+            case REQUEST_EXTENSION_LOCAL_NODE:
+                return new LocalNodeResponse(clusterService);
+            case REQUEST_EXTENSION_CLUSTER_SETTINGS:
+                return new ClusterSettingsResponse(clusterService);
+            default:
+                throw new IllegalStateException("Handler not present for the provided request");
         }
-        throw new IllegalStateException("Handler not present for the provided request: " + extensionRequest.getRequestType());
     }
 
     public void onIndexModule(IndexModule indexModule) throws UnknownHostException {
-        for (DiscoveryNode extensionNode : uninitializedExtensions) {
+        for (DiscoveryNode extensionNode : extensionIdMap.values()) {
             onIndexModule(indexModule, extensionNode);
         }
     }
@@ -331,20 +418,22 @@ public class ExtensionsManager {
                             String indexName = indexService.index().getName();
                             logger.info("Index Name" + indexName.toString());
                             try {
-                                logger.info("Sending request of index name to extension");
+                                logger.info("Sending extension request type: " + INDICES_EXTENSION_NAME_ACTION_NAME);
                                 transportService.sendRequest(
                                     extensionNode,
                                     INDICES_EXTENSION_NAME_ACTION_NAME,
                                     new IndicesModuleRequest(indexModule),
                                     acknowledgedResponseHandler
                                 );
-                                /*
-                                 * Making async synchronous for now.
-                                 */
+                                // TODO: make asynchronous
                                 inProgressIndexNameFuture.get(100, TimeUnit.SECONDS);
                                 logger.info("Received ack response from Extension");
                             } catch (Exception e) {
-                                logger.error(e.toString());
+                                try {
+                                    throw e;
+                                } catch (Exception e1) {
+                                    logger.error(e.toString());
+                                }
                             }
                         }
                     });
@@ -365,20 +454,22 @@ public class ExtensionsManager {
         };
 
         try {
-            logger.info("Sending request to extension");
+            logger.info("Sending extension request type: " + INDICES_EXTENSION_POINT_ACTION_NAME);
             transportService.sendRequest(
                 extensionNode,
                 INDICES_EXTENSION_POINT_ACTION_NAME,
                 new IndicesModuleRequest(indexModule),
                 indicesModuleResponseHandler
             );
-            /*
-             * Making async synchronous for now.
-             */
+            // TODO: make asynchronous
             inProgressFuture.get(100, TimeUnit.SECONDS);
             logger.info("Received response from Extension");
         } catch (Exception e) {
-            logger.error(e.toString());
+            try {
+                throw e;
+            } catch (Exception e1) {
+                logger.error(e.toString());
+            }
         }
     }
 
@@ -421,10 +512,6 @@ public class ExtensionsManager {
         return extensionsPath;
     }
 
-    public List<DiscoveryExtensionNode> getUninitializedExtensions() {
-        return uninitializedExtensions;
-    }
-
     public List<DiscoveryExtensionNode> getExtensions() {
         return extensions;
     }
@@ -435,6 +522,30 @@ public class ExtensionsManager {
 
     public ClusterService getClusterService() {
         return clusterService;
+    }
+
+    public static String getRequestExtensionRegisterRestActions() {
+        return REQUEST_EXTENSION_REGISTER_REST_ACTIONS;
+    }
+
+    public static String getRequestOpensearchNamedWriteableRegistry() {
+        return REQUEST_OPENSEARCH_NAMED_WRITEABLE_REGISTRY;
+    }
+
+    public static String getRequestOpensearchParseNamedWriteable() {
+        return REQUEST_OPENSEARCH_PARSE_NAMED_WRITEABLE;
+    }
+
+    public static String getRequestRestExecuteOnExtensionAction() {
+        return REQUEST_REST_EXECUTE_ON_EXTENSION_ACTION;
+    }
+
+    public Map<String, DiscoveryExtensionNode> getExtensionIdMap() {
+        return extensionIdMap;
+    }
+
+    public RestActionsRequestHandler getRestActionsRequestHandler() {
+        return restActionsRequestHandler;
     }
 
 }
