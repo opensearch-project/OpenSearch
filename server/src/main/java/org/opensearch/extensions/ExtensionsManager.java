@@ -427,10 +427,7 @@ public class ExtensionsManager {
         String jobIndex = null;
         try {
             logger.info("Sending extension request type: " + JOB_TYPE_REQUEST_FROM_EXTENSION);
-
             transportService.connectToExtensionNode(extension);
-            logger.info("Sending fetch Job Details request to extension " + extension.getName());
-            // this.jobDetailsResponseHandler=new JobDetailsResponseHandler(jobDetailsMap,extension.getId());
             this.extensionStringResponseHandler = new ExtensionStringResponseHandler(jobType);
             transportService.sendRequest(
                 extension,
@@ -438,10 +435,7 @@ public class ExtensionsManager {
                 new ExtensionRequest(RequestType.JOB_TYPE_REQUEST_FROM_EXTENSION),
                 extensionStringResponseHandler
             );
-
-            // inProgressFuture.get(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS);
             extensionStringResponseHandler.inProgressFuture.join();
-
             jobType = extensionStringResponseHandler.getResponse();
 
         } catch (Exception e) {
@@ -461,10 +455,7 @@ public class ExtensionsManager {
                 new ExtensionRequest(RequestType.JOB_INDEX_REQUEST_FROM_EXTENSION),
                 extensionStringResponseHandler
             );
-
-            // inProgressFuture.get(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS);
             extensionStringResponseHandler.inProgressFuture.join();
-
             jobIndex = extensionStringResponseHandler.getResponse();
 
         } catch (Exception e) {
@@ -476,12 +467,6 @@ public class ExtensionsManager {
         }
 
         jobDetailsMap.put(extension.getId(), new JobDetails(jobType, jobIndex));
-
-        logger.info("Map size is " + jobDetailsMap.size());
-
-        for (Map.Entry<String, JobDetails> entry : jobDetailsMap.entrySet()) {
-            System.out.println("Map response is " + entry.getKey() + ":" + entry.getValue().toString());
-        }
     }
 
     /**
