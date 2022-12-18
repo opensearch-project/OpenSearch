@@ -33,6 +33,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.io.FileSystemUtils;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsModule;
 import org.opensearch.common.transport.TransportAddress;
 
 import org.opensearch.discovery.InitializeExtensionRequest;
@@ -40,6 +41,8 @@ import org.opensearch.discovery.InitializeExtensionResponse;
 import org.opensearch.extensions.ExtensionsSettings.Extension;
 import org.opensearch.extensions.rest.RegisterRestActionsRequest;
 import org.opensearch.extensions.rest.RestActionsRequestHandler;
+import org.opensearch.extensions.settings.CustomSettingsRequestHandler;
+import org.opensearch.extensions.settings.RegisterCustomSettingsRequest;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndicesModuleRequest;
@@ -69,11 +72,15 @@ public class ExtensionsManager {
     public static final String REQUEST_EXTENSION_CLUSTER_STATE = "internal:discovery/clusterstate";
     public static final String REQUEST_EXTENSION_LOCAL_NODE = "internal:discovery/localnode";
     public static final String REQUEST_EXTENSION_CLUSTER_SETTINGS = "internal:discovery/clustersettings";
+    public static final String REQUEST_EXTENSION_ENVIRONMENT_SETTINGS = "internal:discovery/enviornmentsettings";
+    public static final String REQUEST_EXTENSION_ADD_SETTINGS_UPDATE_CONSUMER = "internal:discovery/addsettingsupdateconsumer";
+    public static final String REQUEST_EXTENSION_UPDATE_SETTINGS = "internal:discovery/updatesettings";
+    public static final String REQUEST_EXTENSION_REGISTER_CUSTOM_SETTINGS = "internal:discovery/registercustomsettings";
     public static final String REQUEST_EXTENSION_REGISTER_REST_ACTIONS = "internal:discovery/registerrestactions";
-    public static final String REQUEST_OPENSEARCH_NAMED_WRITEABLE_REGISTRY = "internal:discovery/namedwriteableregistry";
-    public static final String REQUEST_OPENSEARCH_PARSE_NAMED_WRITEABLE = "internal:discovery/parsenamedwriteable";
-    public static final String REQUEST_REST_EXECUTE_ON_EXTENSION_ACTION = "internal:extensions/restexecuteonextensiontaction";
     public static final String REQUEST_EXTENSION_REGISTER_TRANSPORT_ACTIONS = "internal:discovery/registertransportactions";
+    public static final String REQUEST_OPENSEARCH_PARSE_NAMED_WRITEABLE = "internal:discovery/parsenamedwriteable";
+    public static final String REQUEST_EXTENSION_ACTION_LISTENER_ON_FAILURE = "internal:extensions/actionlisteneronfailure";
+    public static final String REQUEST_REST_EXECUTE_ON_EXTENSION_ACTION = "internal:extensions/restexecuteonextensiontaction";
 
     private static final Logger logger = LogManager.getLogger(ExtensionsManager.class);
 
@@ -86,7 +93,9 @@ public class ExtensionsManager {
         REQUEST_EXTENSION_CLUSTER_STATE,
         REQUEST_EXTENSION_LOCAL_NODE,
         REQUEST_EXTENSION_CLUSTER_SETTINGS,
+        REQUEST_EXTENSION_ACTION_LISTENER_ON_FAILURE,
         REQUEST_EXTENSION_REGISTER_REST_ACTIONS,
+        REQUEST_EXTENSION_REGISTER_SETTINGS,
         CREATE_COMPONENT,
         ON_INDEX_MODULE,
         GET_SETTINGS
@@ -106,8 +115,13 @@ public class ExtensionsManager {
     private List<DiscoveryExtensionNode> extensions;
     private Map<String, DiscoveryExtensionNode> extensionIdMap;
     private RestActionsRequestHandler restActionsRequestHandler;
+    private CustomSettingsRequestHandler customSettingsRequestHandler;
     private TransportService transportService;
     private ClusterService clusterService;
+    private ExtensionActionListener listener;
+    private ExtensionActionListenerHandler listenerHandler;
+    private EnvironmentSettingsRequestHandler environmentSettingsRequestHandler;
+    private AddSettingsUpdateConsumerRequestHandler addSettingsUpdateConsumerRequestHandler;
 
     public ExtensionsManager() {
         this.extensionsPath = Path.of("");
@@ -127,6 +141,7 @@ public class ExtensionsManager {
         this.extensions = new ArrayList<DiscoveryExtensionNode>();
         this.extensionIdMap = new HashMap<String, DiscoveryExtensionNode>();
         this.clusterService = null;
+        this.listener = new ExtensionActionListener();
 
         /*
          * Now Discover extensions
@@ -136,21 +151,33 @@ public class ExtensionsManager {
     }
 
     /**
-     * Initializes the {@link RestActionsRequestHandler}, {@link TransportService} and {@link ClusterService}. This is called during Node bootstrap.
+     * Initializes the {@link RestActionsRequestHandler}, {@link TransportService}, {@link ClusterService} and environment settings. This is called during Node bootstrap.
      * Lists/maps of extensions have already been initialized but not yet populated.
      *
      * @param restController  The RestController on which to register Rest Actions.
+     * @param settingsModule The module that binds the provided settings to interface.
      * @param transportService  The Node's transport service.
      * @param clusterService  The Node's cluster service.
+     * @param initialEnvironmentSettings The finalized view of settings for the Environment
      */
     public void initializeServicesAndRestHandler(
         RestController restController,
+        SettingsModule settingsModule,
         TransportService transportService,
-        ClusterService clusterService
+        ClusterService clusterService,
+        Settings initialEnvironmentSettings
     ) {
         this.restActionsRequestHandler = new RestActionsRequestHandler(restController, extensionIdMap, transportService);
+        this.listenerHandler = new ExtensionActionListenerHandler(listener);
+        this.customSettingsRequestHandler = new CustomSettingsRequestHandler(settingsModule);
         this.transportService = transportService;
         this.clusterService = clusterService;
+        this.environmentSettingsRequestHandler = new EnvironmentSettingsRequestHandler(initialEnvironmentSettings);
+        this.addSettingsUpdateConsumerRequestHandler = new AddSettingsUpdateConsumerRequestHandler(
+            clusterService,
+            transportService,
+            REQUEST_EXTENSION_UPDATE_SETTINGS
+        );
         registerRequestHandler();
     }
 
@@ -162,6 +189,14 @@ public class ExtensionsManager {
             false,
             RegisterRestActionsRequest::new,
             ((request, channel, task) -> channel.sendResponse(restActionsRequestHandler.handleRegisterRestActionsRequest(request)))
+        );
+        transportService.registerRequestHandler(
+            REQUEST_EXTENSION_REGISTER_CUSTOM_SETTINGS,
+            ThreadPool.Names.GENERIC,
+            false,
+            false,
+            RegisterCustomSettingsRequest::new,
+            ((request, channel, task) -> channel.sendResponse(customSettingsRequestHandler.handleRegisterCustomSettingsRequest(request)))
         );
         transportService.registerRequestHandler(
             REQUEST_EXTENSION_CLUSTER_STATE,
@@ -186,6 +221,32 @@ public class ExtensionsManager {
             false,
             ExtensionRequest::new,
             ((request, channel, task) -> channel.sendResponse(handleExtensionRequest(request)))
+        );
+        transportService.registerRequestHandler(
+            REQUEST_EXTENSION_ACTION_LISTENER_ON_FAILURE,
+            ThreadPool.Names.GENERIC,
+            false,
+            false,
+            ExtensionActionListenerOnFailureRequest::new,
+            ((request, channel, task) -> channel.sendResponse(listenerHandler.handleExtensionActionListenerOnFailureRequest(request)))
+        );
+        transportService.registerRequestHandler(
+            REQUEST_EXTENSION_ENVIRONMENT_SETTINGS,
+            ThreadPool.Names.GENERIC,
+            false,
+            false,
+            EnvironmentSettingsRequest::new,
+            ((request, channel, task) -> channel.sendResponse(environmentSettingsRequestHandler.handleEnvironmentSettingsRequest(request)))
+        );
+        transportService.registerRequestHandler(
+            REQUEST_EXTENSION_ADD_SETTINGS_UPDATE_CONSUMER,
+            ThreadPool.Names.GENERIC,
+            false,
+            false,
+            AddSettingsUpdateConsumerRequest::new,
+            ((request, channel, task) -> channel.sendResponse(
+                addSettingsUpdateConsumerRequestHandler.handleAddSettingsUpdateConsumerRequest(request)
+            ))
         );
         transportService.registerRequestHandler(
             REQUEST_EXTENSION_REGISTER_TRANSPORT_ACTIONS,
@@ -357,7 +418,7 @@ public class ExtensionsManager {
             case REQUEST_EXTENSION_CLUSTER_SETTINGS:
                 return new ClusterSettingsResponse(clusterService);
             default:
-                throw new IllegalStateException("Handler not present for the provided request");
+                throw new IllegalArgumentException("Handler not present for the provided request");
         }
     }
 
@@ -528,10 +589,6 @@ public class ExtensionsManager {
         return REQUEST_EXTENSION_REGISTER_REST_ACTIONS;
     }
 
-    public static String getRequestOpensearchNamedWriteableRegistry() {
-        return REQUEST_OPENSEARCH_NAMED_WRITEABLE_REGISTRY;
-    }
-
     public static String getRequestOpensearchParseNamedWriteable() {
         return REQUEST_OPENSEARCH_PARSE_NAMED_WRITEABLE;
     }
@@ -546,6 +603,92 @@ public class ExtensionsManager {
 
     public RestActionsRequestHandler getRestActionsRequestHandler() {
         return restActionsRequestHandler;
+    }
+
+    public void setExtensions(List<DiscoveryExtensionNode> extensions) {
+        this.extensions = extensions;
+    }
+
+    public void setExtensionIdMap(Map<String, DiscoveryExtensionNode> extensionIdMap) {
+        this.extensionIdMap = extensionIdMap;
+    }
+
+    public void setRestActionsRequestHandler(RestActionsRequestHandler restActionsRequestHandler) {
+        this.restActionsRequestHandler = restActionsRequestHandler;
+    }
+
+    public void setTransportService(TransportService transportService) {
+        this.transportService = transportService;
+    }
+
+    public void setClusterService(ClusterService clusterService) {
+        this.clusterService = clusterService;
+    }
+
+    public static String getRequestExtensionRegisterTransportActions() {
+        return REQUEST_EXTENSION_REGISTER_TRANSPORT_ACTIONS;
+    }
+
+    public static String getRequestExtensionActionListenerOnFailure() {
+        return REQUEST_EXTENSION_ACTION_LISTENER_ON_FAILURE;
+    }
+
+    public ExtensionActionListener getListener() {
+        return listener;
+    }
+
+    public static String getRequestExtensionRegisterCustomSettings() {
+        return REQUEST_EXTENSION_REGISTER_CUSTOM_SETTINGS;
+    }
+
+    public CustomSettingsRequestHandler getCustomSettingsRequestHandler() {
+        return customSettingsRequestHandler;
+    }
+
+    public void setCustomSettingsRequestHandler(CustomSettingsRequestHandler customSettingsRequestHandler) {
+        this.customSettingsRequestHandler = customSettingsRequestHandler;
+    }
+
+    public static String getRequestExtensionEnvironmentSettings() {
+        return REQUEST_EXTENSION_ENVIRONMENT_SETTINGS;
+    }
+
+    public static String getRequestExtensionAddSettingsUpdateConsumer() {
+        return REQUEST_EXTENSION_ADD_SETTINGS_UPDATE_CONSUMER;
+    }
+
+    public static String getRequestExtensionUpdateSettings() {
+        return REQUEST_EXTENSION_UPDATE_SETTINGS;
+    }
+
+    public EnvironmentSettingsRequestHandler getEnvironmentSettingsRequestHandler() {
+        return environmentSettingsRequestHandler;
+    }
+
+    public void setEnvironmentSettingsRequestHandler(EnvironmentSettingsRequestHandler environmentSettingsRequestHandler) {
+        this.environmentSettingsRequestHandler = environmentSettingsRequestHandler;
+    }
+
+    public AddSettingsUpdateConsumerRequestHandler getAddSettingsUpdateConsumerRequestHandler() {
+        return addSettingsUpdateConsumerRequestHandler;
+    }
+
+    public void setAddSettingsUpdateConsumerRequestHandler(
+        AddSettingsUpdateConsumerRequestHandler addSettingsUpdateConsumerRequestHandler
+    ) {
+        this.addSettingsUpdateConsumerRequestHandler = addSettingsUpdateConsumerRequestHandler;
+    }
+
+    public void setListener(ExtensionActionListener listener) {
+        this.listener = listener;
+    }
+
+    public ExtensionActionListenerHandler getListenerHandler() {
+        return listenerHandler;
+    }
+
+    public void setListenerHandler(ExtensionActionListenerHandler listenerHandler) {
+        this.listenerHandler = listenerHandler;
     }
 
 }
