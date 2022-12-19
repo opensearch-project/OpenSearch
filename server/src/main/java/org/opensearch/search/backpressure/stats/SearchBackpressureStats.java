@@ -22,21 +22,28 @@ import java.util.Objects;
  * Stats related to search backpressure.
  */
 public class SearchBackpressureStats implements ToXContentFragment, Writeable {
+    private final SearchTaskStats searchTaskStats;
     private final SearchShardTaskStats searchShardTaskStats;
     private final SearchBackpressureMode mode;
 
-    public SearchBackpressureStats(SearchShardTaskStats searchShardTaskStats, SearchBackpressureMode mode) {
+    public SearchBackpressureStats(
+        SearchTaskStats searchTaskStats,
+        SearchShardTaskStats searchShardTaskStats,
+        SearchBackpressureMode mode
+    ) {
+        this.searchTaskStats = searchTaskStats;
         this.searchShardTaskStats = searchShardTaskStats;
         this.mode = mode;
     }
 
     public SearchBackpressureStats(StreamInput in) throws IOException {
-        this(new SearchShardTaskStats(in), SearchBackpressureMode.fromName(in.readString()));
+        this(new SearchTaskStats(in), new SearchShardTaskStats(in), SearchBackpressureMode.fromName(in.readString()));
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return builder.startObject("search_backpressure")
+            .field("search_task", searchTaskStats)
             .field("search_shard_task", searchShardTaskStats)
             .field("mode", mode.getName())
             .endObject();
@@ -44,6 +51,7 @@ public class SearchBackpressureStats implements ToXContentFragment, Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        searchTaskStats.writeTo(out);
         searchShardTaskStats.writeTo(out);
         out.writeString(mode.getName());
     }
@@ -53,11 +61,11 @@ public class SearchBackpressureStats implements ToXContentFragment, Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SearchBackpressureStats that = (SearchBackpressureStats) o;
-        return searchShardTaskStats.equals(that.searchShardTaskStats) && mode == that.mode;
+        return searchTaskStats.equals(that.searchTaskStats) && searchShardTaskStats.equals(that.searchShardTaskStats) && mode == that.mode;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(searchShardTaskStats, mode);
+        return Objects.hash(searchTaskStats, searchShardTaskStats, mode);
     }
 }

@@ -110,12 +110,14 @@ public class SearchBackpressureSettings {
     private final Settings settings;
     private final ClusterSettings clusterSettings;
     private final NodeDuressSettings nodeDuressSettings;
+    private final SearchTaskSettings searchTaskSettings;
     private final SearchShardTaskSettings searchShardTaskSettings;
 
     public SearchBackpressureSettings(Settings settings, ClusterSettings clusterSettings) {
         this.settings = settings;
         this.clusterSettings = clusterSettings;
         this.nodeDuressSettings = new NodeDuressSettings(settings, clusterSettings);
+        this.searchTaskSettings = new SearchTaskSettings(settings, clusterSettings);
         this.searchShardTaskSettings = new SearchShardTaskSettings(settings, clusterSettings);
 
         interval = new TimeValue(SETTING_INTERVAL_MILLIS.get(settings));
@@ -147,6 +149,10 @@ public class SearchBackpressureSettings {
 
     public NodeDuressSettings getNodeDuressSettings() {
         return nodeDuressSettings;
+    }
+
+    public SearchTaskSettings getSearchTaskSettings() {
+        return searchTaskSettings;
     }
 
     public SearchShardTaskSettings getSearchShardTaskSettings() {

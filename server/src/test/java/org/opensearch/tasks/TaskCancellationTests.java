@@ -27,16 +27,19 @@ public class TaskCancellationTests extends OpenSearchTestCase {
         TaskResourceUsageTracker mockTracker3 = createMockTaskResourceUsageTracker("mock_tracker_3");
 
         List<TaskCancellation.Reason> reasons = new ArrayList<>();
-        List<Runnable> callbacks = List.of(mockTracker1::incrementCancellations, mockTracker2::incrementCancellations);
+        List<Runnable> callbacks = List.of(
+            mockTracker1::incrementSearchShardTaskCancellations,
+            mockTracker2::incrementSearchShardTaskCancellations
+        );
         TaskCancellation taskCancellation = new TaskCancellation(mockTask, reasons, callbacks);
 
         // Task does not have any reason to be cancelled.
         assertEquals(0, taskCancellation.totalCancellationScore());
         assertFalse(taskCancellation.isEligibleForCancellation());
         taskCancellation.cancel();
-        assertEquals(0, mockTracker1.getCancellations());
-        assertEquals(0, mockTracker2.getCancellations());
-        assertEquals(0, mockTracker3.getCancellations());
+        assertEquals(0, mockTracker1.getSearchShardTaskCancellationCount());
+        assertEquals(0, mockTracker2.getSearchShardTaskCancellationCount());
+        assertEquals(0, mockTracker3.getSearchShardTaskCancellationCount());
 
         // Task has one or more reasons to be cancelled.
         reasons.add(new TaskCancellation.Reason("limits exceeded 1", 10));
@@ -48,9 +51,9 @@ public class TaskCancellationTests extends OpenSearchTestCase {
         // Cancel the task and validate the cancellation reason and invocation of callbacks.
         taskCancellation.cancel();
         assertTrue(mockTask.getReasonCancelled().contains("limits exceeded 1, limits exceeded 2, limits exceeded 3"));
-        assertEquals(1, mockTracker1.getCancellations());
-        assertEquals(1, mockTracker2.getCancellations());
-        assertEquals(0, mockTracker3.getCancellations());
+        assertEquals(1, mockTracker1.getSearchShardTaskCancellationCount());
+        assertEquals(1, mockTracker2.getSearchShardTaskCancellationCount());
+        assertEquals(0, mockTracker3.getSearchShardTaskCancellationCount());
     }
 
     private static TaskResourceUsageTracker createMockTaskResourceUsageTracker(String name) {
@@ -69,7 +72,12 @@ public class TaskCancellationTests extends OpenSearchTestCase {
             }
 
             @Override
-            public Stats stats(List<? extends Task> activeTasks) {
+            public Stats searchTaskStats(List<? extends Task> activeTasks) {
+                return null;
+            }
+
+            @Override
+            public Stats searchShardTaskStats(List<? extends Task> activeTasks) {
                 return null;
             }
         };

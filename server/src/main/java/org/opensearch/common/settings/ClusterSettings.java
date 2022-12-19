@@ -44,6 +44,7 @@ import org.opensearch.index.ShardIndexingPressureStore;
 import org.opensearch.search.backpressure.settings.NodeDuressSettings;
 import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
 import org.opensearch.search.backpressure.settings.SearchShardTaskSettings;
+import org.opensearch.search.backpressure.settings.SearchTaskSettings;
 import org.opensearch.search.backpressure.trackers.CpuUsageTracker;
 import org.opensearch.search.backpressure.trackers.ElapsedTimeTracker;
 import org.opensearch.search.backpressure.trackers.HeapUsageTracker;
@@ -605,11 +606,17 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 NodeDuressSettings.SETTING_CPU_THRESHOLD,
                 NodeDuressSettings.SETTING_HEAP_THRESHOLD,
                 SearchShardTaskSettings.SETTING_TOTAL_HEAP_PERCENT_THRESHOLD,
+                HeapUsageTracker.SETTING_HEAP_PERCENT_THRESHOLD_FOR_SEARCH_QUERY,
                 HeapUsageTracker.SETTING_HEAP_PERCENT_THRESHOLD,
+                HeapUsageTracker.SETTING_HEAP_VARIANCE_THRESHOLD_FOR_SEARCH_QUERY,
                 HeapUsageTracker.SETTING_HEAP_VARIANCE_THRESHOLD,
+                HeapUsageTracker.SETTING_HEAP_MOVING_AVERAGE_WINDOW_SIZE_FOR_SEARCH_QUERY,
                 HeapUsageTracker.SETTING_HEAP_MOVING_AVERAGE_WINDOW_SIZE,
+                CpuUsageTracker.SETTING_CPU_TIME_MILLIS_THRESHOLD_FOR_SEARCH_QUERY,
                 CpuUsageTracker.SETTING_CPU_TIME_MILLIS_THRESHOLD,
-                ElapsedTimeTracker.SETTING_ELAPSED_TIME_MILLIS_THRESHOLD
+                ElapsedTimeTracker.SETTING_ELAPSED_TIME_MILLIS_THRESHOLD_FOR_SEARCH_QUERY,
+                ElapsedTimeTracker.SETTING_ELAPSED_TIME_MILLIS_THRESHOLD,
+                SearchTaskSettings.SETTING_TOTAL_HEAP_PERCENT_THRESHOLD_FOR_SEARCH_QUERY
             )
         )
     );
