@@ -34,7 +34,7 @@ import java.security.Principal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -124,7 +124,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
             emptyList(),
             false
         );
-        final CountDownLatch inProgressLatch = new CountDownLatch(1);
+        final CompletableFuture<RestExecuteOnExtensionResponse> inProgressFuture = new CompletableFuture<>();
         final TransportResponseHandler<RestExecuteOnExtensionResponse> restExecuteOnExtensionResponseHandler = new TransportResponseHandler<
             RestExecuteOnExtensionResponse>() {
 
@@ -145,16 +145,16 @@ public class RestSendToExtensionAction extends BaseRestHandler {
                 if (response.isContentConsumed()) {
                     request.content();
                 }
-                inProgressLatch.countDown();
+                inProgressFuture.complete(response);
             }
 
             @Override
             public void handleException(TransportException exp) {
-                logger.debug("REST request failed", exp);
+                logger.error("REST request failed", exp);
                 // Status is already defaulted to 500 (INTERNAL_SERVER_ERROR)
                 byte[] responseBytes = ("Request failed: " + exp.getMessage()).getBytes(StandardCharsets.UTF_8);
                 restExecuteOnExtensionResponse.setContent(responseBytes);
-                inProgressLatch.countDown();
+                inProgressFuture.completeExceptionally(exp);
             }
 
             @Override
@@ -175,7 +175,8 @@ public class RestSendToExtensionAction extends BaseRestHandler {
                 restExecuteOnExtensionResponseHandler
             );
             try {
-                inProgressLatch.await(ExtensionsManager.EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS);
+                // TODO: make asynchronous
+                inProgressFuture.get(ExtensionsManager.EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS);
             } catch (InterruptedException e) {
                 return channel -> channel.sendResponse(
                     new BytesRestResponse(RestStatus.REQUEST_TIMEOUT, "No response from extension to request.")

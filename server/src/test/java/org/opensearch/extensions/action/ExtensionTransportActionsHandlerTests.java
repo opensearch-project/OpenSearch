@@ -20,7 +20,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.extensions.DiscoveryExtensionNode;
-import org.opensearch.extensions.ExtensionBooleanResponse;
+import org.opensearch.extensions.AcknowledgedResponse;
 import org.opensearch.extensions.RegisterTransportActionsRequest;
 import org.opensearch.extensions.rest.RestSendToExtensionActionTests;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
@@ -132,13 +132,14 @@ public class ExtensionTransportActionsHandlerTests extends OpenSearchTestCase {
     public void testRegisterTransportActionsRequest() {
         String action = "test-action";
         RegisterTransportActionsRequest request = new RegisterTransportActionsRequest("uniqueid1", Map.of(action, TransportAction.class));
-        ExtensionBooleanResponse response = (ExtensionBooleanResponse) extensionTransportActionsHandler
-            .handleRegisterTransportActionsRequest(request);
+        AcknowledgedResponse response = (AcknowledgedResponse) extensionTransportActionsHandler.handleRegisterTransportActionsRequest(
+            request
+        );
         assertTrue(response.getStatus());
         assertEquals(discoveryExtension, extensionTransportActionsHandler.getExtension(action));
 
         // Test duplicate action registration
-        response = (ExtensionBooleanResponse) extensionTransportActionsHandler.handleRegisterTransportActionsRequest(request);
+        response = (AcknowledgedResponse) extensionTransportActionsHandler.handleRegisterTransportActionsRequest(request);
         assertFalse(response.getStatus());
     }
 
@@ -166,8 +167,9 @@ public class ExtensionTransportActionsHandlerTests extends OpenSearchTestCase {
             "uniqueid1",
             Map.of(action, TransportAction.class)
         );
-        ExtensionBooleanResponse response = (ExtensionBooleanResponse) extensionTransportActionsHandler
-            .handleRegisterTransportActionsRequest(registerRequest);
+        AcknowledgedResponse response = (AcknowledgedResponse) extensionTransportActionsHandler.handleRegisterTransportActionsRequest(
+            registerRequest
+        );
         assertTrue(response.getStatus());
 
         ExtensionActionResponse extensionResponse = extensionTransportActionsHandler.sendTransportRequestToExtension(request);

@@ -14,7 +14,7 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.extensions.DiscoveryExtensionNode;
-import org.opensearch.extensions.ExtensionBooleanResponse;
+import org.opensearch.extensions.AcknowledgedResponse;
 import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.extensions.RegisterTransportActionsRequest;
 import org.opensearch.threadpool.ThreadPool;
@@ -82,7 +82,7 @@ public class ExtensionTransportActionsHandler {
      * Handles a {@link RegisterTransportActionsRequest}.
      *
      * @param transportActionsRequest  The request to handle.
-     * @return  A {@link ExtensionBooleanResponse} indicating success.
+     * @return  A {@link AcknowledgedResponse} indicating success.
      */
     public TransportResponse handleRegisterTransportActionsRequest(RegisterTransportActionsRequest transportActionsRequest) {
         /*
@@ -96,9 +96,9 @@ public class ExtensionTransportActionsHandler {
             }
         } catch (Exception e) {
             logger.error("Could not register Transport Action " + e);
-            return new ExtensionBooleanResponse(false);
+            return new AcknowledgedResponse(false);
         }
-        return new ExtensionBooleanResponse(true);
+        return new AcknowledgedResponse(true);
     }
 
     /**
