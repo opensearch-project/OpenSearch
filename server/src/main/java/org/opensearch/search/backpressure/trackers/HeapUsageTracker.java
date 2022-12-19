@@ -8,6 +8,7 @@
 
 package org.opensearch.search.backpressure.trackers;
 
+import org.opensearch.action.search.SearchTask;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -37,13 +38,29 @@ public class HeapUsageTracker extends TaskResourceUsageTracker {
     private static final long HEAP_SIZE_BYTES = JvmStats.jvmStats().getMem().getHeapMax().getBytes();
 
     private static class Defaults {
+        private static final double HEAP_PERCENT_THRESHOLD_FOR_SEARCH_QUERY = 0.02;
         private static final double HEAP_PERCENT_THRESHOLD = 0.005;
+        private static final double HEAP_VARIANCE_THRESHOLD_FOR_SEARCH_QUERY = 2.0;
         private static final double HEAP_VARIANCE_THRESHOLD = 2.0;
+        private static final int HEAP_MOVING_AVERAGE_WINDOW_SIZE_FOR_SEARCH_QUERY = 100;
         private static final int HEAP_MOVING_AVERAGE_WINDOW_SIZE = 100;
     }
 
     /**
-     * Defines the heap usage threshold (in percentage) for an individual task before it is considered for cancellation.
+     * Defines the heap usage threshold (in percentage) for an individual search task before it is considered for cancellation.
+     */
+    private volatile double heapPercentThresholdForSearchQuery;
+    public static final Setting<Double> SETTING_HEAP_PERCENT_THRESHOLD_FOR_SEARCH_QUERY = Setting.doubleSetting(
+        "search_backpressure.search_task.heap_percent_threshold_for_search_query",
+        Defaults.HEAP_PERCENT_THRESHOLD_FOR_SEARCH_QUERY,
+        0.0,
+        1.0,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Defines the heap usage threshold (in percentage) for an individual search shard task before it is considered for cancellation.
      */
     private volatile double heapPercentThreshold;
     public static final Setting<Double> SETTING_HEAP_PERCENT_THRESHOLD = Setting.doubleSetting(
@@ -56,7 +73,20 @@ public class HeapUsageTracker extends TaskResourceUsageTracker {
     );
 
     /**
-     * Defines the heap usage variance for an individual task before it is considered for cancellation.
+     * Defines the heap usage variance for an individual search task before it is considered for cancellation.
+     * A task is considered for cancellation when taskHeapUsage is greater than or equal to heapUsageMovingAverage * variance.
+     */
+    private volatile double heapVarianceThresholdForSearchQuery;
+    public static final Setting<Double> SETTING_HEAP_VARIANCE_THRESHOLD_FOR_SEARCH_QUERY = Setting.doubleSetting(
+        "search_backpressure.search_task.heap_variance_for_search_query",
+        Defaults.HEAP_VARIANCE_THRESHOLD_FOR_SEARCH_QUERY,
+        0.0,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Defines the heap usage variance for an individual search shard task before it is considered for cancellation.
      * A task is considered for cancellation when taskHeapUsage is greater than or equal to heapUsageMovingAverage * variance.
      */
     private volatile double heapVarianceThreshold;
@@ -69,7 +99,19 @@ public class HeapUsageTracker extends TaskResourceUsageTracker {
     );
 
     /**
-     * Defines the window size to calculate the moving average of heap usage of completed tasks.
+     * Defines the window size to calculate the moving average of heap usage of completed search tasks.
+     */
+    private volatile int heapMovingAverageWindowSizeForSearchQuery;
+    public static final Setting<Integer> SETTING_HEAP_MOVING_AVERAGE_WINDOW_SIZE_FOR_SEARCH_QUERY = Setting.intSetting(
+        "search_backpressure.search_task.heap_moving_average_window_size_for_search_query",
+        Defaults.HEAP_MOVING_AVERAGE_WINDOW_SIZE_FOR_SEARCH_QUERY,
+        0,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Defines the window size to calculate the moving average of heap usage of completed search shard tasks.
      */
     private volatile int heapMovingAverageWindowSize;
     public static final Setting<Integer> SETTING_HEAP_MOVING_AVERAGE_WINDOW_SIZE = Setting.intSetting(
@@ -80,19 +122,33 @@ public class HeapUsageTracker extends TaskResourceUsageTracker {
         Setting.Property.NodeScope
     );
 
+    private final AtomicReference<MovingAverage> movingAverageReferenceForSearchQuery;
     private final AtomicReference<MovingAverage> movingAverageReference;
 
     public HeapUsageTracker(SearchBackpressureSettings settings) {
+        heapPercentThresholdForSearchQuery = SETTING_HEAP_PERCENT_THRESHOLD_FOR_SEARCH_QUERY.get(settings.getSettings());
+        settings.getClusterSettings()
+            .addSettingsUpdateConsumer(SETTING_HEAP_PERCENT_THRESHOLD_FOR_SEARCH_QUERY, this::setHeapPercentThresholdForSearchQuery);
         heapPercentThreshold = SETTING_HEAP_PERCENT_THRESHOLD.get(settings.getSettings());
         settings.getClusterSettings().addSettingsUpdateConsumer(SETTING_HEAP_PERCENT_THRESHOLD, this::setHeapPercentThreshold);
 
+        heapPercentThresholdForSearchQuery = SETTING_HEAP_VARIANCE_THRESHOLD_FOR_SEARCH_QUERY.get(settings.getSettings());
+        settings.getClusterSettings()
+            .addSettingsUpdateConsumer(SETTING_HEAP_VARIANCE_THRESHOLD_FOR_SEARCH_QUERY, this::setHeapVarianceThresholdForSearchQuery);
         heapVarianceThreshold = SETTING_HEAP_VARIANCE_THRESHOLD.get(settings.getSettings());
         settings.getClusterSettings().addSettingsUpdateConsumer(SETTING_HEAP_VARIANCE_THRESHOLD, this::setHeapVarianceThreshold);
 
+        heapMovingAverageWindowSizeForSearchQuery = SETTING_HEAP_MOVING_AVERAGE_WINDOW_SIZE_FOR_SEARCH_QUERY.get(settings.getSettings());
+        settings.getClusterSettings()
+            .addSettingsUpdateConsumer(
+                SETTING_HEAP_MOVING_AVERAGE_WINDOW_SIZE_FOR_SEARCH_QUERY,
+                this::setHeapMovingAverageWindowSizeForSearchQuery
+            );
         heapMovingAverageWindowSize = SETTING_HEAP_MOVING_AVERAGE_WINDOW_SIZE.get(settings.getSettings());
         settings.getClusterSettings()
             .addSettingsUpdateConsumer(SETTING_HEAP_MOVING_AVERAGE_WINDOW_SIZE, this::setHeapMovingAverageWindowSize);
 
+        this.movingAverageReferenceForSearchQuery = new AtomicReference<>(new MovingAverage(heapMovingAverageWindowSizeForSearchQuery));
         this.movingAverageReference = new AtomicReference<>(new MovingAverage(heapMovingAverageWindowSize));
     }
 
@@ -103,12 +159,18 @@ public class HeapUsageTracker extends TaskResourceUsageTracker {
 
     @Override
     public void update(Task task) {
-        movingAverageReference.get().record(task.getTotalResourceStats().getMemoryInBytes());
+        if (task instanceof SearchTask) {
+            movingAverageReferenceForSearchQuery.get().record(task.getTotalResourceStats().getMemoryInBytes());
+        } else {
+            movingAverageReference.get().record(task.getTotalResourceStats().getMemoryInBytes());
+        }
     }
 
     @Override
     public Optional<TaskCancellation.Reason> checkAndMaybeGetCancellationReason(Task task) {
-        MovingAverage movingAverage = movingAverageReference.get();
+        MovingAverage movingAverage = (task instanceof SearchTask)
+            ? movingAverageReferenceForSearchQuery.get()
+            : movingAverageReference.get();
 
         // There haven't been enough measurements.
         if (movingAverage.isReady() == false) {
@@ -117,9 +179,11 @@ public class HeapUsageTracker extends TaskResourceUsageTracker {
 
         double currentUsage = task.getTotalResourceStats().getMemoryInBytes();
         double averageUsage = movingAverage.getAverage();
-        double allowedUsage = averageUsage * getHeapVarianceThreshold();
+        double variance = (task instanceof SearchTask) ? getHeapVarianceThresholdForSearchQuery() : getHeapBytesThreshold();
+        double allowedUsage = averageUsage * variance;
+        double threshold = (task instanceof SearchTask) ? getHeapBytesThresholdForSearchQuery() : getHeapBytesThreshold();
 
-        if (currentUsage < getHeapBytesThreshold() || currentUsage < allowedUsage) {
+        if (currentUsage < threshold || currentUsage < allowedUsage) {
             return Optional.empty();
         }
 
@@ -131,20 +195,41 @@ public class HeapUsageTracker extends TaskResourceUsageTracker {
         );
     }
 
+    public long getHeapBytesThresholdForSearchQuery() {
+        return (long) (HEAP_SIZE_BYTES * heapPercentThresholdForSearchQuery);
+    }
+
     public long getHeapBytesThreshold() {
         return (long) (HEAP_SIZE_BYTES * heapPercentThreshold);
+    }
+
+    public void setHeapPercentThresholdForSearchQuery(double heapPercentThresholdForSearchQuery) {
+        this.heapPercentThresholdForSearchQuery = heapPercentThresholdForSearchQuery;
     }
 
     public void setHeapPercentThreshold(double heapPercentThreshold) {
         this.heapPercentThreshold = heapPercentThreshold;
     }
 
+    public double getHeapVarianceThresholdForSearchQuery() {
+        return heapVarianceThresholdForSearchQuery;
+    }
+
     public double getHeapVarianceThreshold() {
         return heapVarianceThreshold;
     }
 
+    public void setHeapVarianceThresholdForSearchQuery(double heapVarianceThresholdForSearchQuery) {
+        this.heapVarianceThresholdForSearchQuery = heapVarianceThresholdForSearchQuery;
+    }
+
     public void setHeapVarianceThreshold(double heapVarianceThreshold) {
         this.heapVarianceThreshold = heapVarianceThreshold;
+    }
+
+    public void setHeapMovingAverageWindowSizeForSearchQuery(int heapMovingAverageWindowSizeForSearchQuery) {
+        this.heapMovingAverageWindowSizeForSearchQuery = heapMovingAverageWindowSizeForSearchQuery;
+        this.movingAverageReferenceForSearchQuery.set(new MovingAverage(heapMovingAverageWindowSizeForSearchQuery));
     }
 
     public void setHeapMovingAverageWindowSize(int heapMovingAverageWindowSize) {
@@ -153,10 +238,17 @@ public class HeapUsageTracker extends TaskResourceUsageTracker {
     }
 
     @Override
-    public TaskResourceUsageTracker.Stats stats(List<? extends Task> activeTasks) {
+    public TaskResourceUsageTracker.Stats searchTaskStats(List<? extends Task> activeTasks) {
         long currentMax = activeTasks.stream().mapToLong(t -> t.getTotalResourceStats().getMemoryInBytes()).max().orElse(0);
         long currentAvg = (long) activeTasks.stream().mapToLong(t -> t.getTotalResourceStats().getMemoryInBytes()).average().orElse(0);
-        return new Stats(getCancellations(), currentMax, currentAvg, (long) movingAverageReference.get().getAverage());
+        return new Stats(getSearchTaskCancellationCount(), currentMax, currentAvg, (long) movingAverageReference.get().getAverage());
+    }
+
+    @Override
+    public TaskResourceUsageTracker.Stats searchShardTaskStats(List<? extends Task> activeTasks) {
+        long currentMax = activeTasks.stream().mapToLong(t -> t.getTotalResourceStats().getMemoryInBytes()).max().orElse(0);
+        long currentAvg = (long) activeTasks.stream().mapToLong(t -> t.getTotalResourceStats().getMemoryInBytes()).average().orElse(0);
+        return new Stats(getSearchShardTaskCancellationCount(), currentMax, currentAvg, (long) movingAverageReference.get().getAverage());
     }
 
     /**
