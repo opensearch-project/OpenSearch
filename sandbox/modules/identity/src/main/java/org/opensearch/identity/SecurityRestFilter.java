@@ -79,16 +79,18 @@ public class SecurityRestFilter {
             jwtClaims.put("sub", "subject");
             jwtClaims.put("iat", Instant.now().toString());
             String encodedJwt = JwtVendor.createJwt(jwtClaims);
-            String prefix = "(nodeName="
-                + client.getLocalNodeId()
-                + ", requestId="
-                + request.getRequestId()
-                + ", path="
-                + request.path()
-                + ", jwtClaims="
-                + jwtClaims
-                + " checkAndAuthenticateRequest)";
-            log.debug(prefix + " Created internal access token " + encodedJwt);
+            String requestInfo = String.format(
+                "(nodeName=%s, requestId=%s, path=%s, jwtClaims=%s checkAndAuthenticateRequest)",
+                client.getLocalNodeId(),
+                request.getRequestId(),
+                request.getRequestId(),
+                jwtClaims
+            );
+            if (log.isDebugEnabled()) {
+                log.debug(requestInfo);
+                String logMsg = String.format("Created internal access token %s", encodedJwt);
+                log.debug("{} {}", requestInfo, logMsg);
+            }
             threadContext.putHeader(ThreadContextConstants.OPENSEARCH_AUTHENTICATION_TOKEN_HEADER, encodedJwt);
         }
         return true;
