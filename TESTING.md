@@ -383,6 +383,10 @@ Use -Dtest.class and -Dtests.method to run a specific bwcTest test. For example 
      -Dtests.class=org.opensearch.upgrades.RecoveryIT \
      -Dtests.method=testHistoryUUIDIsGenerated
 
+Use `-PcustomDistributionDownloadType=bundle` to run the bwcTest against the test cluster with latest CI distribution bundle set up for the specified version; this property is default to min and exclusive choices between `bundle` and `min`:
+
+    ./gradlew bwcTest -PcustomDistributionDownloadType=bundle
+
 When running `./gradlew check`, minimal bwc checks are also run against compatible versions that are not yet released.
 
 ## BWC Testing against a specific remote/branch
