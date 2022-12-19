@@ -68,30 +68,27 @@ public class SecurityFilter implements ActionFilter {
         try {
             // TODO Get jwt here and verify
             // TODO Move this logic to right after successful login
+            String requestInfo = String.format(
+                "(nodeName=%s, requestId=%s, action=%s apply0)",
+                cs.localNode().getId(),
+                request.getParentTask().getId(),
+                action
+            );
+            String logMsg = "";
             if (threadContext.getHeader(ThreadContextConstants.OPENSEARCH_AUTHENTICATION_TOKEN_HEADER) != null) {
                 String encodedJwt = threadContext.getHeader(ThreadContextConstants.OPENSEARCH_AUTHENTICATION_TOKEN_HEADER);
-                String prefix = "(nodeName="
-                    + cs.localNode().getId()
-                    + ", requestId="
-                    + request.getParentTask().getId()
-                    + ", action="
-                    + action
-                    + " apply0)";
-                log.debug(prefix + " Access token provided " + encodedJwt);
+                logMsg = String.format("Access token provided %s", encodedJwt);
             } else {
                 // TODO Figure out where internal actions are invoked and create token on invocation
                 // No token provided, may be an internal request
                 // Token in ThreadContext is created on REST layer and passed to Transport Layer.
-                String prefix = "(nodeName="
-                    + cs.localNode().getName()
-                    + ", requestId="
-                    + request.getParentTask().getId()
-                    + ", action="
-                    + action
-                    + " apply0)";
-                log.info(prefix + "No authorization provided in the request, internal request");
+                logMsg = "No authorization provided in the request, internal request";
                 // String err = "Access token not provided";
                 // listener.onFailure(new OpenSearchSecurityException(err, RestStatus.FORBIDDEN));
+            }
+
+            if (log.isDebugEnabled()) {
+                log.debug("{} {}", requestInfo, logMsg);
             }
 
             final PrivilegesEvaluatorResponse pres = new PrivilegesEvaluatorResponse(); // eval.evaluate(user, action, request, task,
@@ -105,7 +102,7 @@ public class SecurityFilter implements ActionFilter {
             if (pres.isAllowed()) {
                 // auditLog.logGrantedPrivileges(action, request, task);
                 // auditLog.logIndexEvent(action, request, task);
-                log.info("Permission granted");
+                log.debug("Permission granted");
                 chain.proceed(task, action, request, listener);
             } else {
                 // auditLog.logMissingPrivileges(action, request, task);
