@@ -43,6 +43,7 @@ import org.antlr.v4.runtime.tree.AbstractParseTreeVisitor;
  * @param <T> The return type of the visit operation. Use {@link Void} for
  * operations with no return type.
  */
+@SuppressWarnings("CheckReturnValue")
 class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements PainlessParserVisitor<T> {
     /**
      * {@inheritDoc}
