@@ -145,7 +145,6 @@ public final class SecurityUtils {
                 );
             }
         }
-        System.out.println("replaceEnvVarsBase64: " + sb.toString());
         matcher.appendTail(sb);
         return sb.toString();
     }

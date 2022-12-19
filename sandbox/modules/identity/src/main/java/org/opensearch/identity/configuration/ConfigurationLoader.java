@@ -30,6 +30,7 @@ import org.opensearch.action.get.MultiGetResponse.Failure;
 import org.opensearch.authn.DefaultObjectMapper;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
@@ -187,7 +188,12 @@ public class ConfigurationLoader {
     }
 
     private SecurityDynamicConfiguration<?> toConfig(GetResponse singleGetResponse) throws Exception {
-        final BytesReference ref = singleGetResponse.getSourceAsBytesRef();
+        String sourceAsString = singleGetResponse.getSourceAsString();
+        byte[] sourceAsByteArray = sourceAsString.getBytes(StandardCharsets.UTF_8);
+        BytesReference ref = new BytesArray(sourceAsByteArray, 0, sourceAsByteArray.length);
+        // TODO Figure out why the line below works intermittently. Switching to lines above.
+        // BytesReference ref = singleGetResponse.getSourceAsBytesRef();
+
         final String id = singleGetResponse.getId();
         final long seqNo = singleGetResponse.getSeqNo();
         final long primaryTerm = singleGetResponse.getPrimaryTerm();

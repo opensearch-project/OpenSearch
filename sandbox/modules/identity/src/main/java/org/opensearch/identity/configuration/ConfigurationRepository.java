@@ -89,8 +89,6 @@ public class ConfigurationRepository {
                             final String cd = lookupDir != null
                                 ? (lookupDir + "/")
                                 : new Environment(settings, configPath).configDir().toAbsolutePath().toString() + "/";
-
-                            System.out.println("Config Directory: " + cd);
                             File confFile = new File(cd + "internal_users.yml");
                             if (confFile.exists()) {
                                 final ThreadContext threadContext = threadPool.getThreadContext();
@@ -249,7 +247,7 @@ public class ConfigurationRepository {
     }
 
     private void reloadConfiguration0(Collection<CType> configTypes) {
-        final Map<CType, SecurityDynamicConfiguration<?>> loaded = getConfigurationsFromIndex(configTypes, false);
+        final Map<CType, SecurityDynamicConfiguration<?>> loaded = getConfigurationsFromIndex(configTypes);
         configCache.putAll(loaded);
         notifyAboutChanges(loaded);
     }
@@ -270,10 +268,7 @@ public class ConfigurationRepository {
         }
     }
 
-    public Map<CType, SecurityDynamicConfiguration<?>> getConfigurationsFromIndex(
-        Collection<CType> configTypes,
-        boolean logComplianceEvent
-    ) {
+    public Map<CType, SecurityDynamicConfiguration<?>> getConfigurationsFromIndex(Collection<CType> configTypes) {
 
         final ThreadContext threadContext = threadPool.getThreadContext();
         final Map<CType, SecurityDynamicConfiguration<?>> retVal = new HashMap<>();
