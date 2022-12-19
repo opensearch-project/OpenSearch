@@ -45,18 +45,12 @@ public class SecurityDynamicConfiguration<T> implements ToXContent {
         return new SecurityDynamicConfiguration<T>();
     }
 
-    public static <T> SecurityDynamicConfiguration<T> fromJson(String json, CType ctype, int version, long seqNo, long primaryTerm)
-        throws IOException {
-        return fromJson(json, ctype, version, seqNo, primaryTerm, false);
-    }
-
     public static <T> SecurityDynamicConfiguration<T> fromJson(
         String json,
         CType ctype,
         int version,
         long seqNo,
-        long primaryTerm,
-        boolean acceptInvalid
+        long primaryTerm
     ) throws IOException {
         SecurityDynamicConfiguration<T> sdc = null;
         if (ctype != null) {
@@ -64,18 +58,10 @@ public class SecurityDynamicConfiguration<T> implements ToXContent {
             if (implementationClass == null) {
                 throw new IllegalArgumentException("No implementation class found for " + ctype + " and config version " + version);
             }
-            if (acceptInvalid && version < 2) {
-                sdc = NonValidatingObjectMapper.readValue(
-                    json,
-                    NonValidatingObjectMapper.getTypeFactory()
-                        .constructParametricType(SecurityDynamicConfiguration.class, implementationClass)
-                );
-            } else {
-                sdc = DefaultObjectMapper.readValue(
-                    json,
-                    DefaultObjectMapper.getTypeFactory().constructParametricType(SecurityDynamicConfiguration.class, implementationClass)
-                );
-            }
+            sdc = DefaultObjectMapper.readValue(
+                json,
+                DefaultObjectMapper.getTypeFactory().constructParametricType(SecurityDynamicConfiguration.class, implementationClass)
+            );
             validate(sdc, version, ctype);
 
         } else {

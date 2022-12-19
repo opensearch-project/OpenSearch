@@ -10,12 +10,15 @@ package org.opensearch.identity.support;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
+import java.util.Scanner;
 
+import org.opensearch.action.index.IndexResponse;
 import org.opensearch.authn.DefaultObjectMapper;
 import org.opensearch.identity.configuration.CType;
 import org.opensearch.identity.configuration.SecurityDynamicConfiguration;
@@ -68,12 +71,13 @@ public class ConfigHelper {
 
         try (Reader reader = createFileOrStringReader(cType, configVersion, filepath, populateEmptyIfFileMissing)) {
 
-            final IndexRequest indexRequest = new IndexRequest(index).opType("_doc")
+            final IndexRequest indexRequest = new IndexRequest(index)
                 .id(configType)
                 .opType(OpType.CREATE)
                 .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
                 .source(configType, readXContent(reader, XContentType.YAML));
-            final String res = tc.index(indexRequest).actionGet().getId();
+            IndexResponse response = tc.index(indexRequest).actionGet();
+            final String res = response.getId();
 
             if (!configType.equals(res)) {
                 throw new Exception(
@@ -90,7 +94,7 @@ public class ConfigHelper {
         throws Exception {
         Reader reader;
         if (!populateEmptyIfFileMissing || new File(filepath).exists()) {
-            reader = new InputStreamReader(new FileInputStream(filepath), StandardCharsets.UTF_8);
+            reader = new FileReader(filepath, StandardCharsets.UTF_8);
         } else {
             reader = new StringReader(createEmptySdcYaml(cType, configVersion));
         }
@@ -125,23 +129,11 @@ public class ConfigHelper {
         return retVal;
     }
 
-    public static <T> SecurityDynamicConfiguration<T> fromYamlReader(
-        Reader yamlReader,
-        CType ctype,
-        int version,
-        long seqNo,
-        long primaryTerm
-    ) throws IOException {
+    public static <T> SecurityDynamicConfiguration<T> fromYamlReader(Reader yamlReader, CType ctype, int version, long seqNo, long primaryTerm) throws IOException {
         try {
-            return SecurityDynamicConfiguration.fromNode(
-                DefaultObjectMapper.YAML_MAPPER.readTree(yamlReader),
-                ctype,
-                version,
-                seqNo,
-                primaryTerm
-            );
+            return SecurityDynamicConfiguration.fromNode(DefaultObjectMapper.YAML_MAPPER.readTree(yamlReader), ctype, version, seqNo, primaryTerm);
         } finally {
-            if (yamlReader != null) {
+            if(yamlReader != null) {
                 yamlReader.close();
             }
         }
@@ -150,7 +142,7 @@ public class ConfigHelper {
     public static <T> SecurityDynamicConfiguration<T> fromYamlFile(String filepath, CType ctype, int version, long seqNo, long primaryTerm)
         throws IOException {
         return fromYamlReader(
-            new InputStreamReader(new FileInputStream(filepath), StandardCharsets.UTF_8),
+            new FileReader(filepath, StandardCharsets.UTF_8),
             ctype,
             version,
             seqNo,

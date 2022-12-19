@@ -57,10 +57,9 @@ public class ConfigurationRepository {
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
     private DynamicConfigFactory dynamicConfigFactory;
-    private static final int DEFAULT_CONFIG_VERSION = 2;
+    private static final int DEFAULT_CONFIG_VERSION = 1;
     private final Thread bgThread;
     private final AtomicBoolean installDefaultConfig = new AtomicBoolean();
-    private final boolean acceptInvalid;
 
     private ConfigurationRepository(
         Settings settings,
@@ -75,7 +74,6 @@ public class ConfigurationRepository {
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.configurationChangedListener = new ArrayList<>();
-        this.acceptInvalid = settings.getAsBoolean(ConfigConstants.IDENTITY_UNSUPPORTED_ACCEPT_INVALID_CONFIG, false);
         cl = new ConfigurationLoader(client, threadPool, settings, clusterService);
 
         bgThread = new Thread(new Runnable() {
@@ -91,6 +89,8 @@ public class ConfigurationRepository {
                             final String cd = lookupDir != null
                                 ? (lookupDir + "/")
                                 : new Environment(settings, configPath).configDir().toAbsolutePath().toString() + "/";
+
+                            System.out.println("Config Directory: " + cd);
                             File confFile = new File(cd + "internal_users.yml");
                             if (confFile.exists()) {
                                 final ThreadContext threadContext = threadPool.getThreadContext();
@@ -190,15 +190,9 @@ public class ConfigurationRepository {
 
     public void initOnNodeStart() {
         try {
-            if (settings.getAsBoolean(ConfigConstants.IDENTITY_ALLOW_DEFAULT_INIT_SECURITYINDEX, false)) {
+            if (settings.getAsBoolean(ConfigConstants.IDENTITY_ALLOW_DEFAULT_INIT_SECURITYINDEX, true)) {
                 LOGGER.info("Will attempt to create index {} and default configs if they are absent", securityIndex);
                 installDefaultConfig.set(true);
-                bgThread.start();
-            } else if (settings.getAsBoolean(ConfigConstants.IDENTITY_BACKGROUND_INIT_IF_SECURITYINDEX_NOT_EXIST, true)) {
-                LOGGER.info(
-                    "Will not attempt to create index {} and default configs if they are absent. Use securityadmin to initialize cluster",
-                    securityIndex
-                );
                 bgThread.start();
             } else {
                 LOGGER.info(
@@ -241,7 +235,7 @@ public class ConfigurationRepository {
         try {
             if (LOCK.tryLock(60, TimeUnit.SECONDS)) {
                 try {
-                    reloadConfiguration0(configTypes, this.acceptInvalid);
+                    reloadConfiguration0(configTypes);
                 } finally {
                     LOCK.unlock();
                 }
@@ -254,8 +248,8 @@ public class ConfigurationRepository {
         }
     }
 
-    private void reloadConfiguration0(Collection<CType> configTypes, boolean acceptInvalid) {
-        final Map<CType, SecurityDynamicConfiguration<?>> loaded = getConfigurationsFromIndex(configTypes, false, acceptInvalid);
+    private void reloadConfiguration0(Collection<CType> configTypes) {
+        final Map<CType, SecurityDynamicConfiguration<?>> loaded = getConfigurationsFromIndex(configTypes, false);
         configCache.putAll(loaded);
         notifyAboutChanges(loaded);
     }
@@ -276,20 +270,9 @@ public class ConfigurationRepository {
         }
     }
 
-    /**
-     * This retrieves the config directly from the index without caching involved
-     */
     public Map<CType, SecurityDynamicConfiguration<?>> getConfigurationsFromIndex(
         Collection<CType> configTypes,
         boolean logComplianceEvent
-    ) {
-        return getConfigurationsFromIndex(configTypes, logComplianceEvent, this.acceptInvalid);
-    }
-
-    public Map<CType, SecurityDynamicConfiguration<?>> getConfigurationsFromIndex(
-        Collection<CType> configTypes,
-        boolean logComplianceEvent,
-        boolean acceptInvalid
     ) {
 
         final ThreadContext threadContext = threadPool.getThreadContext();
@@ -303,12 +286,12 @@ public class ConfigurationRepository {
 
             if (securityMetadata != null && mappingMetadata != null) {
                 LOGGER.debug("identity index exists");
-                retVal.putAll(validate(cl.load(configTypes.toArray(new CType[0]), 5, TimeUnit.SECONDS, acceptInvalid), configTypes.size()));
+                retVal.putAll(validate(cl.load(configTypes.toArray(new CType[0]), 5, TimeUnit.SECONDS), configTypes.size()));
 
             } else {
                 // wait (and use new layout)
                 LOGGER.debug("identity index not exists (yet)");
-                retVal.putAll(validate(cl.load(configTypes.toArray(new CType[0]), 5, TimeUnit.SECONDS, acceptInvalid), configTypes.size()));
+                retVal.putAll(validate(cl.load(configTypes.toArray(new CType[0]), 5, TimeUnit.SECONDS), configTypes.size()));
             }
 
         } catch (Exception e) {

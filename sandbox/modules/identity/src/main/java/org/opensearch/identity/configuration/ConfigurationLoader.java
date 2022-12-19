@@ -8,7 +8,9 @@
 
 package org.opensearch.identity.configuration;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.ObjectOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -50,7 +52,6 @@ public class ConfigurationLoader {
     private final String securityIndex;
     private final ClusterService cs;
     private final Settings settings;
-    private final AtomicBoolean isAuditConfigDocPresentInIndex = new AtomicBoolean();
 
     ConfigurationLoader(final Client client, ThreadPool threadPool, final Settings settings, ClusterService cs) {
         super();
@@ -61,7 +62,7 @@ public class ConfigurationLoader {
         log.debug("Index is: {}", securityIndex);
     }
 
-    Map<CType, SecurityDynamicConfiguration<?>> load(final CType[] events, long timeout, TimeUnit timeUnit, boolean acceptInvalid)
+    Map<CType, SecurityDynamicConfiguration<?>> load(final CType[] events, long timeout, TimeUnit timeUnit)
         throws InterruptedException, TimeoutException {
         final CountDownLatch latch = new CountDownLatch(events.length);
         final Map<CType, SecurityDynamicConfiguration<?>> rs = new HashMap<>(events.length);
@@ -112,7 +113,7 @@ public class ConfigurationLoader {
             public void failure(Throwable t) {
                 log.error("Exception while retrieving configuration for {} (index={})", Arrays.toString(events), securityIndex, t);
             }
-        }, acceptInvalid);
+        });
 
         if (!latch.await(timeout, timeUnit)) {
             // timeout
@@ -132,7 +133,7 @@ public class ConfigurationLoader {
         return rs;
     }
 
-    void loadAsync(final CType[] events, final ConfigCallback callback, boolean acceptInvalid) {
+    void loadAsync(final CType[] events, final ConfigCallback callback) {
         if (events == null || events.length == 0) {
             log.warn("No config events requested to load");
             return;
@@ -159,7 +160,7 @@ public class ConfigurationLoader {
                         if (singleGetResponse.isExists() && !singleGetResponse.isSourceEmpty()) {
                             // success
                             try {
-                                final SecurityDynamicConfiguration<?> dConf = toConfig(singleGetResponse, acceptInvalid);
+                                final SecurityDynamicConfiguration<?> dConf = toConfig(singleGetResponse);
                                 if (dConf != null) {
                                     callback.success(dConf.deepClone());
                                 } else {
@@ -188,7 +189,7 @@ public class ConfigurationLoader {
 
     }
 
-    private SecurityDynamicConfiguration<?> toConfig(GetResponse singleGetResponse, boolean acceptInvalid) throws Exception {
+    private SecurityDynamicConfiguration<?> toConfig(GetResponse singleGetResponse) throws Exception {
         final BytesReference ref = singleGetResponse.getSourceAsBytesRef();
         final String id = singleGetResponse.getId();
         final long seqNo = singleGetResponse.getSeqNo();
@@ -231,8 +232,7 @@ public class ConfigurationLoader {
                 CType.fromString(id),
                 configVersion,
                 seqNo,
-                primaryTerm,
-                acceptInvalid
+                primaryTerm
             );
 
         } finally {

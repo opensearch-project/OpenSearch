@@ -14,7 +14,6 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.opensearch.authn.User;
-import org.opensearch.identity.auth.InternalAuthenticationBackend;
 import org.opensearch.identity.configuration.model.InternalUsersModel;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
@@ -28,22 +27,12 @@ public class DynamicConfigFactory implements Initializable, ConfigurationChangeL
 
     public static final EventBusBuilder EVENT_BUS_BUILDER = EventBus.builder();
 
-    static void resetStatics() {}
-
-    private void loadStaticConfig() throws IOException {}
-
-    public final static SecurityDynamicConfiguration<?> addStatics(SecurityDynamicConfiguration<?> original) {
-
-        return original;
-    }
-
     protected final Logger log = LogManager.getLogger(this.getClass());
     private final ConfigurationRepository cr;
     private final AtomicBoolean initialized = new AtomicBoolean();
     private final EventBus eventBus = EVENT_BUS_BUILDER.build();
     private final Settings opensearchSettings;
     private final Path configPath;
-    private final InternalAuthenticationBackend iab = new InternalAuthenticationBackend();
 
     SecurityDynamicConfiguration<?> config;
 
@@ -60,7 +49,6 @@ public class DynamicConfigFactory implements Initializable, ConfigurationChangeL
         this.opensearchSettings = opensearchSettings;
         this.configPath = configPath;
 
-        registerDCFListener(this.iab);
         this.cr.subscribeOnChange(this);
     }
 

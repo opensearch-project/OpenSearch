@@ -23,7 +23,9 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
+import org.opensearch.identity.configuration.ClusterInfoHolder;
 import org.opensearch.identity.configuration.ConfigurationRepository;
+import org.opensearch.identity.configuration.DynamicConfigFactory;
 import org.opensearch.indices.SystemIndexDescriptor;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.ClusterPlugin;
@@ -60,11 +62,12 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
     private volatile ConfigurationRepository cr;
     private volatile ClusterService cs;
     private volatile Client localClient;
-    private volatile NamedXContentRegistry namedXContentRegistry = null;
 
     @SuppressWarnings("removal")
     public IdentityPlugin(final Settings settings, final Path configPath) {
         enabled = isEnabled(settings);
+
+        System.out.println("configPath: " + configPath);
 
         if (!enabled) {
             log.warn("Identity module is disabled.");
@@ -152,11 +155,20 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
 
         final List<Object> components = new ArrayList<Object>();
 
+        final ClusterInfoHolder cih = new ClusterInfoHolder();
+        this.cs.addListener(cih);
+
         sf = new SecurityFilter(localClient, settings, threadPool, cs);
 
         securityRestHandler = new SecurityRestFilter(threadPool, settings, configPath);
 
         cr = ConfigurationRepository.create(settings, this.configPath, threadPool, localClient, clusterService);
+
+        final DynamicConfigFactory dcf = new DynamicConfigFactory(cr, settings, configPath, localClient, threadPool, cih);
+        // TODO Register DCF listeners to dynamically load config
+        // dcf.registerDCFListener(securityRestHandler);
+
+        cr.setDynamicConfigFactory(dcf);
 
         return components;
     }
