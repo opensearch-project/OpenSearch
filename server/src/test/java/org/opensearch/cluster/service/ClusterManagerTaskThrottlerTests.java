@@ -42,9 +42,6 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
 
     private static ThreadPool threadPool;
     private ClusterService clusterService;
-    private DiscoveryNode localNode;
-    private DiscoveryNode[] allNodes;
-    private ClusterManagerThrottlingStats throttlingStats;
 
     @BeforeClass
     public static void beforeClass() {
@@ -56,15 +53,6 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        localNode = new DiscoveryNode(
-            "local_node",
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            Collections.singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
-            Version.V_2_4_0
-        );
-        allNodes = new DiscoveryNode[] { localNode };
-        throttlingStats = new ClusterManagerThrottlingStats();
     }
 
     @After
@@ -82,9 +70,10 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
     public void testDefaults() {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         ClusterManagerTaskThrottler throttler = new ClusterManagerTaskThrottler(
+            Settings.EMPTY,
             clusterSettings,
             () -> { return clusterService.getMasterService().getMinNodeVersion(); },
-            throttlingStats
+            new ClusterManagerThrottlingStats()
         );
         throttler.registerClusterManagerTask("put-mapping", true);
         throttler.registerClusterManagerTask("create-index", true);
@@ -103,9 +92,10 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
 
         ClusterSettings clusterSettings = new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         ClusterManagerTaskThrottler throttler = new ClusterManagerTaskThrottler(
+            Settings.EMPTY,
             clusterSettings,
             () -> { return clusterService.getMasterService().getMinNodeVersion(); },
-            throttlingStats
+            new ClusterManagerThrottlingStats()
         );
         throttler.registerClusterManagerTask("put-mapping", true);
 
@@ -135,9 +125,10 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
 
         ClusterSettings clusterSettings = new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         ClusterManagerTaskThrottler throttler = new ClusterManagerTaskThrottler(
+            Settings.EMPTY,
             clusterSettings,
             () -> { return clusterService.getMasterService().getMinNodeVersion(); },
-            throttlingStats
+            new ClusterManagerThrottlingStats()
         );
         throttler.registerClusterManagerTask("put-mapping", false);
 
@@ -146,6 +137,60 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
 
         Settings newSettings = Settings.builder().put("cluster_manager.throttling.thresholds.put-mapping.value", newLimit).build();
         assertThrows(IllegalArgumentException.class, () -> throttler.validateSetting(newSettings));
+    }
+
+    public void testUpdateSettingsForNullValue() {
+        DiscoveryNode clusterManagerNode = getClusterManagerNode(Version.V_2_4_0);
+        DiscoveryNode dataNode = getDataNode(Version.V_2_4_0);
+        setState(
+            clusterService,
+            ClusterStateCreationUtils.state(clusterManagerNode, clusterManagerNode, new DiscoveryNode[] { clusterManagerNode, dataNode })
+        );
+
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        ClusterManagerTaskThrottler throttler = new ClusterManagerTaskThrottler(
+            Settings.EMPTY,
+            clusterSettings,
+            () -> { return clusterService.getMasterService().getMinNodeVersion(); },
+            new ClusterManagerThrottlingStats()
+        );
+        throttler.registerClusterManagerTask("put-mapping", true);
+
+        // set some limit for put-mapping tasks
+        int newLimit = randomIntBetween(1, 10);
+        Settings newSettings = Settings.builder().put("cluster_manager.throttling.thresholds.put-mapping.value", newLimit).build();
+        clusterSettings.applySettings(newSettings);
+        assertEquals(newLimit, throttler.getThrottlingLimit("put-mapping").intValue());
+
+        // set limit to null
+        Settings nullSettings = Settings.builder().build();
+        clusterSettings.applySettings(nullSettings);
+        assertNull(throttler.getThrottlingLimit("put-mapping"));
+    }
+
+    public void testSettingsOnBootstrap() {
+        DiscoveryNode clusterManagerNode = getClusterManagerNode(Version.V_2_4_0);
+        DiscoveryNode dataNode = getDataNode(Version.V_2_4_0);
+        setState(
+            clusterService,
+            ClusterStateCreationUtils.state(clusterManagerNode, clusterManagerNode, new DiscoveryNode[] { clusterManagerNode, dataNode })
+        );
+
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        int put_mapping_threshold_value = randomIntBetween(1, 10);
+        Settings initialSettings = Settings.builder()
+            .put("cluster_manager.throttling.thresholds.put-mapping.value", put_mapping_threshold_value)
+            .build();
+        ClusterManagerTaskThrottler throttler = new ClusterManagerTaskThrottler(
+            initialSettings,
+            clusterSettings,
+            () -> { return clusterService.getMasterService().getMinNodeVersion(); },
+            new ClusterManagerThrottlingStats()
+        );
+        throttler.registerClusterManagerTask("put-mapping", true);
+
+        // assert that limit is applied on throttler
+        assertEquals(put_mapping_threshold_value, throttler.getThrottlingLimit("put-mapping").intValue());
     }
 
     public void testValidateSettingsForUnknownTask() {
@@ -158,14 +203,14 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
 
         ClusterSettings clusterSettings = new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         ClusterManagerTaskThrottler throttler = new ClusterManagerTaskThrottler(
+            Settings.EMPTY,
             clusterSettings,
             () -> { return clusterService.getMasterService().getMinNodeVersion(); },
-            throttlingStats
+            new ClusterManagerThrottlingStats()
         );
 
         // set some limit for update snapshot tasks
         int newLimit = randomIntBetween(1, 10);
-
         Settings newSettings = Settings.builder().put("cluster_manager.throttling.thresholds.random-task.value", newLimit).build();
         assertThrows(IllegalArgumentException.class, () -> throttler.validateSetting(newSettings));
     }
@@ -180,9 +225,10 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
 
         ClusterSettings clusterSettings = new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         ClusterManagerTaskThrottler throttler = new ClusterManagerTaskThrottler(
+            Settings.EMPTY,
             clusterSettings,
             () -> { return clusterService.getMasterService().getMinNodeVersion(); },
-            throttlingStats
+            new ClusterManagerThrottlingStats()
         );
         throttler.registerClusterManagerTask("put-mapping", true);
 
@@ -209,9 +255,10 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
 
         ClusterSettings clusterSettings = new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         ClusterManagerTaskThrottler throttler = new ClusterManagerTaskThrottler(
+            Settings.EMPTY,
             clusterSettings,
             () -> { return clusterService.getMasterService().getMinNodeVersion(); },
-            throttlingStats
+            new ClusterManagerThrottlingStats()
         );
         throttler.registerClusterManagerTask("put-mapping", true);
 
@@ -222,9 +269,10 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
     public void testUpdateLimit() {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         ClusterManagerTaskThrottler throttler = new ClusterManagerTaskThrottler(
+            Settings.EMPTY,
             clusterSettings,
             () -> { return clusterService.getMasterService().getMinNodeVersion(); },
-            throttlingStats
+            new ClusterManagerThrottlingStats()
         );
         throttler.registerClusterManagerTask("put-mapping", true);
 
@@ -255,9 +303,11 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
     }
 
     public void testThrottlingForDisabledThrottlingTask() {
+        ClusterManagerThrottlingStats throttlingStats = new ClusterManagerThrottlingStats();
         String taskKey = "test";
         ClusterSettings clusterSettings = new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         ClusterManagerTaskThrottler throttler = new ClusterManagerTaskThrottler(
+            Settings.EMPTY,
             clusterSettings,
             () -> { return clusterService.getMasterService().getMinNodeVersion(); },
             throttlingStats
@@ -275,9 +325,11 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
     }
 
     public void testThrottling() {
+        ClusterManagerThrottlingStats throttlingStats = new ClusterManagerThrottlingStats();
         String taskKey = "test";
         ClusterSettings clusterSettings = new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         ClusterManagerTaskThrottler throttler = new ClusterManagerTaskThrottler(
+            Settings.EMPTY,
             clusterSettings,
             () -> { return clusterService.getMasterService().getMinNodeVersion(); },
             throttlingStats

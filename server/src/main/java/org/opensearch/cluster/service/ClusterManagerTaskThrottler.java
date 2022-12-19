@@ -16,8 +16,10 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Supplier;
@@ -50,15 +52,18 @@ public class ClusterManagerTaskThrottler implements TaskBatcherListener {
     private final Supplier<Version> minNodeVersionSupplier;
 
     public ClusterManagerTaskThrottler(
+        final Settings settings,
         final ClusterSettings clusterSettings,
         final Supplier<Version> minNodeVersionSupplier,
         final ClusterManagerTaskThrottlerListener clusterManagerTaskThrottlerListener
     ) {
-        clusterSettings.addSettingsUpdateConsumer(THRESHOLD_SETTINGS, this::updateSetting, this::validateSetting);
-        this.minNodeVersionSupplier = minNodeVersionSupplier;
-        this.clusterManagerTaskThrottlerListener = clusterManagerTaskThrottlerListener;
         tasksCount = new ConcurrentHashMap<>(128); // setting initial capacity so each task will land in different segment
         tasksThreshold = new ConcurrentHashMap<>(128); // setting initial capacity so each task will land in different segment
+        this.minNodeVersionSupplier = minNodeVersionSupplier;
+        this.clusterManagerTaskThrottlerListener = clusterManagerTaskThrottlerListener;
+        clusterSettings.addSettingsUpdateConsumer(THRESHOLD_SETTINGS, this::updateSetting, this::validateSetting);
+        // Required for setting values as per current settings during node bootstrap
+        updateSetting(THRESHOLD_SETTINGS.get(settings));
     }
 
     /**
@@ -128,10 +133,16 @@ public class ClusterManagerTaskThrottler implements TaskBatcherListener {
         }
     }
 
-    void updateSetting(final Settings settings) {
-        Map<String, Settings> groups = settings.getAsGroups();
-        for (String key : groups.keySet()) {
-            updateLimit(key, groups.get(key).getAsInt("value", MIN_THRESHOLD_VALUE));
+    void updateSetting(final Settings newSettings) {
+        Map<String, Settings> groups = newSettings.getAsGroups();
+        Set<String> settingKeys = new HashSet<>();
+        // Adding keys which are present in new Setting
+        settingKeys.addAll(groups.keySet());
+        // Adding existing keys that may need to be set to a default value if that is removed in new setting.
+        settingKeys.addAll(tasksThreshold.keySet());
+        for (String key : settingKeys) {
+            Settings setting = groups.get(key);
+            updateLimit(key, setting == null ? MIN_THRESHOLD_VALUE : setting.getAsInt("value", MIN_THRESHOLD_VALUE));
         }
     }
 
