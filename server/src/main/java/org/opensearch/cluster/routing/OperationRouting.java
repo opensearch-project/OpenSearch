@@ -83,6 +83,8 @@ public class OperationRouting {
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
+
+    public static final String WEIGHTED_ROUTING_AWARENESS_ATTRIBUTE = "zone";
     private volatile List<String> awarenessAttributes;
     private volatile boolean useAdaptiveReplicaSelection;
     private volatile boolean ignoreAwarenessAttr;
@@ -324,10 +326,10 @@ public class OperationRouting {
         @Nullable Map<String, Long> nodeCounts,
         @Nullable WeightedRoutingMetadata weightedRoutingMetadata
     ) {
-        if (weightedRoutingMetadata != null && weightedRoutingMetadata.getWeightedRouting("zone") != null) {
+        if (weightedRoutingMetadata != null && weightedRoutingMetadata.getWeightedRouting(WEIGHTED_ROUTING_AWARENESS_ATTRIBUTE) != null) {
             // Weighted round-robin supports zone as awareness attribute currently
             return indexShard.activeInitializingShardsWeightedIt(
-                weightedRoutingMetadata.getWeightedRouting("zone"),
+                weightedRoutingMetadata.getWeightedRouting(WEIGHTED_ROUTING_AWARENESS_ATTRIBUTE),
                 nodes,
                 getWeightedRoutingDefaultWeight()
             );

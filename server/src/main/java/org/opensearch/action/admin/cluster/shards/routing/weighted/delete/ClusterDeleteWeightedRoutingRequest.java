@@ -59,8 +59,8 @@ public class ClusterDeleteWeightedRoutingRequest extends ClusterManagerNodeReque
         out.writeString(awarenessAttribute);
     }
 
-    // @Override
-    // public String toString() {
-    // return "ClusterDeleteWeightedRoutingRequest";
-    // }
+    @Override
+    public String toString() {
+        return "ClusterDeleteWeightedRoutingRequest { awarenessAttribute= " + awarenessAttribute + "}";
+    }
 }
