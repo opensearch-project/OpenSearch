@@ -8,9 +8,7 @@
 
 package org.opensearch.identity.configuration;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.ObjectOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -18,7 +16,6 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.logging.log4j.LogManager;
@@ -62,8 +59,8 @@ public class ConfigurationLoader {
         log.debug("Index is: {}", securityIndex);
     }
 
-    Map<CType, SecurityDynamicConfiguration<?>> load(final CType[] events, long timeout, TimeUnit timeUnit)
-        throws InterruptedException, TimeoutException {
+    Map<CType, SecurityDynamicConfiguration<?>> load(final CType[] events, long timeout, TimeUnit timeUnit) throws InterruptedException,
+        TimeoutException {
         final CountDownLatch latch = new CountDownLatch(events.length);
         final Map<CType, SecurityDynamicConfiguration<?>> rs = new HashMap<>(events.length);
         final boolean isDebugEnabled = log.isDebugEnabled();
@@ -227,13 +224,7 @@ public class ConfigurationLoader {
                 log.debug("Load " + id + " with version " + configVersion);
             }
 
-            return SecurityDynamicConfiguration.fromJson(
-                jsonAsString,
-                CType.fromString(id),
-                configVersion,
-                seqNo,
-                primaryTerm
-            );
+            return SecurityDynamicConfiguration.fromJson(jsonAsString, CType.fromString(id), configVersion, seqNo, primaryTerm);
 
         } finally {
             if (parser != null) {

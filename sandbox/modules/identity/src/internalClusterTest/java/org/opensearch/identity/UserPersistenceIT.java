@@ -20,6 +20,7 @@ import java.util.stream.Collectors;
 public class UserPersistenceIT extends HttpSmokeTestCaseWithIdentity {
 
     public static final String TEST_RESOURCE_RELATIVE_PATH = "../../resources/test/";
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         List<Class<? extends Plugin>> plugins = super.nodePlugins().stream().collect(Collectors.toList());
@@ -33,4 +34,3 @@ public class UserPersistenceIT extends HttpSmokeTestCaseWithIdentity {
         ensureGreen();
     }
 }
-

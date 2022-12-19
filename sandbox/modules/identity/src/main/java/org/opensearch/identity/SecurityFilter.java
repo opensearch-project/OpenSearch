@@ -26,6 +26,8 @@ import org.opensearch.rest.RestStatus;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 
+import java.util.Locale;
+
 public class SecurityFilter implements ActionFilter {
 
     protected final Logger log = LogManager.getLogger(this.getClass());
@@ -69,6 +71,7 @@ public class SecurityFilter implements ActionFilter {
             // TODO Get jwt here and verify
             // TODO Move this logic to right after successful login
             String requestInfo = String.format(
+                Locale.ROOT,
                 "(nodeName=%s, requestId=%s, action=%s apply0)",
                 cs.localNode().getId(),
                 request.getParentTask().getId(),
@@ -77,7 +80,7 @@ public class SecurityFilter implements ActionFilter {
             String logMsg = "";
             if (threadContext.getHeader(ThreadContextConstants.OPENSEARCH_AUTHENTICATION_TOKEN_HEADER) != null) {
                 String encodedJwt = threadContext.getHeader(ThreadContextConstants.OPENSEARCH_AUTHENTICATION_TOKEN_HEADER);
-                logMsg = String.format("Access token provided %s", encodedJwt);
+                logMsg = String.format(Locale.ROOT, "Access token provided %s", encodedJwt);
             } else {
                 // TODO Figure out where internal actions are invoked and create token on invocation
                 // No token provided, may be an internal request

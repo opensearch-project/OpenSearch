@@ -16,7 +16,6 @@ import java.util.Map.Entry;
 
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.authn.DefaultObjectMapper;
-import org.opensearch.authn.NonValidatingObjectMapper;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
@@ -45,13 +44,8 @@ public class SecurityDynamicConfiguration<T> implements ToXContent {
         return new SecurityDynamicConfiguration<T>();
     }
 
-    public static <T> SecurityDynamicConfiguration<T> fromJson(
-        String json,
-        CType ctype,
-        int version,
-        long seqNo,
-        long primaryTerm
-    ) throws IOException {
+    public static <T> SecurityDynamicConfiguration<T> fromJson(String json, CType ctype, int version, long seqNo, long primaryTerm)
+        throws IOException {
         SecurityDynamicConfiguration<T> sdc = null;
         if (ctype != null) {
             final Class<?> implementationClass = ctype.getImplementationClass().get(version);

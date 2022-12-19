@@ -8,7 +8,6 @@
 
 package org.opensearch.identity.configuration;
 
-import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
