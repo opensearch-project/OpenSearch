@@ -41,7 +41,7 @@ opensearchplugin {
 dependencies {
   api('com.maxmind.geoip2:geoip2:3.0.2')
   // geoip2 dependencies:
-  api('com.maxmind.db:maxmind-db:2.1.0')
+  api('com.maxmind.db:maxmind-db:3.0.0')
 
   testImplementation 'org.elasticsearch:geolite2-databases:20191119'
 }
