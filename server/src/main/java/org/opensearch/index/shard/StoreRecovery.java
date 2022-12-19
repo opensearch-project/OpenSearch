@@ -38,8 +38,6 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.search.Sort;
-import org.apache.lucene.store.BufferedChecksumIndexInput;
-import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
@@ -78,8 +76,6 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.opensearch.common.unit.TimeValue.timeValueMillis;
-import static org.opensearch.index.seqno.SequenceNumbers.LOCAL_CHECKPOINT_KEY;
-import static org.opensearch.index.shard.RemoteStoreRefreshListener.SEGMENT_INFO_SNAPSHOT_FILENAME_PREFIX;
 
 /**
  * This package private utility class encapsulates the logic to recover an index shard from either an existing index on
@@ -448,48 +444,16 @@ final class StoreRecovery {
                 new IllegalArgumentException()
             );
         }
+
         indexShard.preRecovery();
         indexShard.prepareForIndexRecovery();
-        assert remoteStore.directory() instanceof FilterDirectory : "Store.directory is not an instance of FilterDirectory";
-        FilterDirectory remoteStoreDirectory = (FilterDirectory) remoteStore.directory();
-        assert remoteStoreDirectory.getDelegate() instanceof FilterDirectory
-            : "Store.directory is not enclosing an instance of FilterDirectory";
-        FilterDirectory byteSizeCachingStoreDirectory = (FilterDirectory) remoteStoreDirectory.getDelegate();
-        final Directory remoteDirectory = byteSizeCachingStoreDirectory.getDelegate();
+
         final Store store = indexShard.store();
-        final Directory storeDirectory = store.directory();
         store.incRef();
         remoteStore.incRef();
         try {
-            // Cleaning up local directory before copying file from remote directory.
-            // This is done to make sure we start with clean slate.
-            // ToDo: Check if we can copy only missing files
-            for (String file : storeDirectory.listAll()) {
-                storeDirectory.deleteFile(file);
-            }
-            String segmentInfosSnapshotFilename = null;
-            for (String file : remoteDirectory.listAll()) {
-                storeDirectory.copyFrom(remoteDirectory, file, file, IOContext.DEFAULT);
-                if (file.startsWith(SEGMENT_INFO_SNAPSHOT_FILENAME_PREFIX)) {
-                    segmentInfosSnapshotFilename = file;
-                }
-            }
-
-            if (segmentInfosSnapshotFilename != null) {
-                try (
-                    ChecksumIndexInput indexInput = new BufferedChecksumIndexInput(
-                        storeDirectory.openInput(segmentInfosSnapshotFilename, IOContext.DEFAULT)
-                    )
-                ) {
-                    SegmentInfos infosSnapshot = SegmentInfos.readCommit(
-                        store.directory(),
-                        indexInput,
-                        Long.parseLong(segmentInfosSnapshotFilename.split("__")[1])
-                    );
-                    long processedLocalCheckpoint = Long.parseLong(infosSnapshot.getUserData().get(LOCAL_CHECKPOINT_KEY));
-                    store.commitSegmentInfos(infosSnapshot, processedLocalCheckpoint, processedLocalCheckpoint);
-                }
-            }
+            //
+            indexShard.syncSegmentsFromRemoteSegmentStore(true);
 
             // This creates empty trans-log for now
             // ToDo: Add code to restore from remote trans-log
@@ -500,7 +464,7 @@ final class StoreRecovery {
             indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
             indexShard.finalizeRecovery();
             indexShard.postRecovery("post recovery from remote_store");
-        } catch (IOException e) {
+        } catch (IOException | IndexShardRecoveryException e) {
             throw new IndexShardRecoveryException(indexShard.shardId, "Exception while recovering from remote store", e);
         } finally {
             store.decRef();
