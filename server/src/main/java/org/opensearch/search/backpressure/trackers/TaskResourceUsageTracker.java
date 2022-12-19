@@ -26,14 +26,23 @@ public abstract class TaskResourceUsageTracker {
     /**
      * Counts the number of cancellations made due to this tracker.
      */
-    private final AtomicLong cancellations = new AtomicLong();
+    private final AtomicLong searchTaskCancellationCount = new AtomicLong();
+    private final AtomicLong searchShardTaskCancellationCount = new AtomicLong();
 
-    public long incrementCancellations() {
-        return cancellations.incrementAndGet();
+    public long incrementSearchTaskCancellations() {
+        return searchTaskCancellationCount.incrementAndGet();
     }
 
-    public long getCancellations() {
-        return cancellations.get();
+    public long incrementSearchShardTaskCancellations() {
+        return searchShardTaskCancellationCount.incrementAndGet();
+    }
+
+    public long getSearchTaskCancellationCount() {
+        return searchTaskCancellationCount.get();
+    }
+
+    public long getSearchShardTaskCancellationCount() {
+        return searchShardTaskCancellationCount.get();
     }
 
     /**
@@ -52,9 +61,14 @@ public abstract class TaskResourceUsageTracker {
     public abstract Optional<TaskCancellation.Reason> checkAndMaybeGetCancellationReason(Task task);
 
     /**
-     * Returns the tracker's state as seen in the stats API.
+     * Returns the tracker's state for SearchTasks as seen in the stats API.
      */
-    public abstract Stats stats(List<? extends Task> activeTasks);
+    public abstract Stats searchTaskStats(List<? extends Task> activeTasks);
+
+    /**
+     * Returns the tracker's state for SearchShardTasks as seen in the stats API.
+     */
+    public abstract Stats searchShardTaskStats(List<? extends Task> activeTasks);
 
     /**
      * Represents the tracker's state as seen in the stats API.

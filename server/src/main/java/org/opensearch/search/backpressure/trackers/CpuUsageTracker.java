@@ -8,6 +8,7 @@
 
 package org.opensearch.search.backpressure.trackers;
 
+import org.opensearch.action.search.SearchTask;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -32,11 +33,24 @@ import static org.opensearch.search.backpressure.trackers.TaskResourceUsageTrack
  */
 public class CpuUsageTracker extends TaskResourceUsageTracker {
     private static class Defaults {
+        private static final long CPU_TIME_MILLIS_THRESHOLD_FOR_SEARCH_QUERY = 60000;
         private static final long CPU_TIME_MILLIS_THRESHOLD = 15000;
     }
 
     /**
-     * Defines the CPU usage threshold (in millis) for an individual task before it is considered for cancellation.
+     * Defines the CPU usage threshold (in millis) for an individual search task before it is considered for cancellation.
+     */
+    private volatile long cpuTimeMillisThresholdForSearchQuery;
+    public static final Setting<Long> SETTING_CPU_TIME_MILLIS_THRESHOLD_FOR_SEARCH_QUERY = Setting.longSetting(
+        "search_backpressure.search_task.cpu_time_millis_threshold_for_search_query",
+        Defaults.CPU_TIME_MILLIS_THRESHOLD_FOR_SEARCH_QUERY,
+        0,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Defines the CPU usage threshold (in millis) for an individual search shard task before it is considered for cancellation.
      */
     private volatile long cpuTimeMillisThreshold;
     public static final Setting<Long> SETTING_CPU_TIME_MILLIS_THRESHOLD = Setting.longSetting(
@@ -48,7 +62,10 @@ public class CpuUsageTracker extends TaskResourceUsageTracker {
     );
 
     public CpuUsageTracker(SearchBackpressureSettings settings) {
+        this.cpuTimeMillisThresholdForSearchQuery = SETTING_CPU_TIME_MILLIS_THRESHOLD_FOR_SEARCH_QUERY.get(settings.getSettings());
         this.cpuTimeMillisThreshold = SETTING_CPU_TIME_MILLIS_THRESHOLD.get(settings.getSettings());
+        settings.getClusterSettings()
+            .addSettingsUpdateConsumer(SETTING_CPU_TIME_MILLIS_THRESHOLD_FOR_SEARCH_QUERY, this::setCpuTimeMillisThresholdForSearchQuery);
         settings.getClusterSettings().addSettingsUpdateConsumer(SETTING_CPU_TIME_MILLIS_THRESHOLD, this::setCpuTimeMillisThreshold);
     }
 
@@ -60,7 +77,7 @@ public class CpuUsageTracker extends TaskResourceUsageTracker {
     @Override
     public Optional<TaskCancellation.Reason> checkAndMaybeGetCancellationReason(Task task) {
         long usage = task.getTotalResourceStats().getCpuTimeInNanos();
-        long threshold = getCpuTimeNanosThreshold();
+        long threshold = (task instanceof SearchTask) ? getCpuTimeNanosThresholdForSearchQuery() : getCpuTimeNanosThreshold();
 
         if (usage < threshold) {
             return Optional.empty();
@@ -78,8 +95,16 @@ public class CpuUsageTracker extends TaskResourceUsageTracker {
         );
     }
 
+    public long getCpuTimeNanosThresholdForSearchQuery() {
+        return TimeUnit.MILLISECONDS.toNanos(cpuTimeMillisThresholdForSearchQuery);
+    }
+
     public long getCpuTimeNanosThreshold() {
         return TimeUnit.MILLISECONDS.toNanos(cpuTimeMillisThreshold);
+    }
+
+    public void setCpuTimeMillisThresholdForSearchQuery(long cpuTimeMillisThresholdForSearchQuery) {
+        this.cpuTimeMillisThresholdForSearchQuery = cpuTimeMillisThresholdForSearchQuery;
     }
 
     public void setCpuTimeMillisThreshold(long cpuTimeMillisThreshold) {
@@ -87,10 +112,20 @@ public class CpuUsageTracker extends TaskResourceUsageTracker {
     }
 
     @Override
-    public TaskResourceUsageTracker.Stats stats(List<? extends Task> activeTasks) {
-        long currentMax = activeTasks.stream().mapToLong(t -> t.getTotalResourceStats().getCpuTimeInNanos()).max().orElse(0);
-        long currentAvg = (long) activeTasks.stream().mapToLong(t -> t.getTotalResourceStats().getCpuTimeInNanos()).average().orElse(0);
-        return new Stats(getCancellations(), currentMax, currentAvg);
+    public TaskResourceUsageTracker.Stats searchTaskStats(List<? extends Task> searchTasks) {
+        long currentMax = searchTasks.stream().mapToLong(t -> t.getTotalResourceStats().getCpuTimeInNanos()).max().orElse(0);
+        long currentAvg = (long) searchTasks.stream().mapToLong(t -> t.getTotalResourceStats().getCpuTimeInNanos()).average().orElse(0);
+        return new Stats(getSearchTaskCancellationCount(), currentMax, currentAvg);
+    }
+
+    @Override
+    public TaskResourceUsageTracker.Stats searchShardTaskStats(List<? extends Task> searchShardTasks) {
+        long currentMax = searchShardTasks.stream().mapToLong(t -> t.getTotalResourceStats().getCpuTimeInNanos()).max().orElse(0);
+        long currentAvg = (long) searchShardTasks.stream()
+            .mapToLong(t -> t.getTotalResourceStats().getCpuTimeInNanos())
+            .average()
+            .orElse(0);
+        return new Stats(getSearchShardTaskCancellationCount(), currentMax, currentAvg);
     }
 
     /**
