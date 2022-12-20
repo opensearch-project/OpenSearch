@@ -28,6 +28,7 @@ import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
@@ -126,16 +127,25 @@ public class ClusterPutWeightedRoutingRequest extends ClusterManagerNodeRequest<
         if (weightedRouting.weights() == null || weightedRouting.weights().isEmpty()) {
             validationException = addValidationError("Weights are missing", validationException);
         }
+        int countValueWithZeroWeights = 0;
+        double weight;
         try {
             for (Object value : weightedRouting.weights().values()) {
                 if (value == null) {
                     validationException = addValidationError(("Weight is null"), validationException);
                 } else {
-                    Double.parseDouble(value.toString());
+                    weight = Double.parseDouble(value.toString());
+                    countValueWithZeroWeights = (weight == 0) ? countValueWithZeroWeights + 1 : countValueWithZeroWeights;
                 }
             }
         } catch (NumberFormatException e) {
             validationException = addValidationError(("Weight is not a number"), validationException);
+        }
+        if (countValueWithZeroWeights > weightedRouting.weights().size() / 2) {
+            validationException = addValidationError(
+                (String.format(Locale.ROOT, "More than half [%d] value has weight set as 0", countValueWithZeroWeights)),
+                validationException
+            );
         }
         return validationException;
     }

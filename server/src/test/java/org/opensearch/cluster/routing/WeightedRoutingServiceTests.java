@@ -323,7 +323,39 @@ public class WeightedRoutingServiceTests extends OpenSearchTestCase {
         MatcherAssert.assertThat(exceptionReference.get(), instanceOf(UnsupportedWeightedRoutingStateException.class));
         MatcherAssert.assertThat(
             exceptionReference.get().getMessage(),
-            containsString("weight for [zone_B] is not set and it is part of forced awareness value or a node has this attribute.")
+            containsString("weight for [zone_B] is not set and it is part of forced awareness value or a routing node has this attribute.")
+        );
+    }
+
+    public void testAddWeightedRoutingFailsWhenWeightsForMoreThanHalfIsZero() throws InterruptedException {
+        ClusterPutWeightedRoutingRequestBuilder request = new ClusterPutWeightedRoutingRequestBuilder(
+            client,
+            ClusterAddWeightedRoutingAction.INSTANCE
+        );
+        Map<String, Double> weights = Map.of("zone_A", 0.0, "zone_B", 0.0, "zone_C", 1.0, "zone_D", 1.0, "zone_E", 1.0, "zone_F", 1.0);
+        WeightedRouting weightedRouting = new WeightedRouting("zone", weights);
+        request.setWeightedRouting(weightedRouting);
+        final CountDownLatch countDownLatch = new CountDownLatch(1);
+        final AtomicReference<Exception> exceptionReference = new AtomicReference<>();
+        ActionListener<ClusterStateUpdateResponse> listener = new ActionListener<ClusterStateUpdateResponse>() {
+            @Override
+            public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {
+                countDownLatch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                exceptionReference.set(e);
+                countDownLatch.countDown();
+            }
+        };
+        weightedRoutingService.registerWeightedRoutingMetadata(request.request(), listener);
+        assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
+        MatcherAssert.assertThat("Expected onFailure to be called", exceptionReference.get(), notNullValue());
+        MatcherAssert.assertThat(exceptionReference.get(), instanceOf(ActionRequestValidationException.class));
+        MatcherAssert.assertThat(
+            exceptionReference.get().getMessage(),
+            containsString("More than half [2] value has weight set as 0")
         );
     }
 
