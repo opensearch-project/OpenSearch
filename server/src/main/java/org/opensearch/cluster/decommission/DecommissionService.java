@@ -415,10 +415,10 @@ public class DecommissionService {
             msg = "invalid awareness attribute requested for decommissioning";
         } else if (forcedAwarenessAttributes.containsKey(decommissionAttribute.attributeName()) == false) {
             msg = "forced awareness attribute [" + forcedAwarenessAttributes.toString() + "] doesn't have the decommissioning attribute";
-        } else if (forcedAwarenessAttributes.get(decommissionAttribute.attributeName())
-            .contains(decommissionAttribute.attributeValue()) == false) {
-                msg = "invalid awareness attribute value requested for decommissioning. Set forced awareness values before to decommission";
-            }
+        }
+        // we don't need to check for attributes presence in forced awareness attribute because, weights API ensures that weights are set for all discovered routing attributes and forced attributes.
+        // So, if the weight is not present for the attribute it could mean its a non routing node (eg. cluster manager)
+        // And in that case, we are ok to proceed with the decommission. A routing node's attribute absence in forced awareness attribute is a problem elsewhere
 
         if (msg != null) {
             throw new DecommissioningFailedException(decommissionAttribute, msg);
@@ -440,8 +440,11 @@ public class DecommissionService {
                 "no weights are specified to attribute [" + decommissionAttribute.attributeName() + "]"
             );
         }
+        // in case the weight is not set for the attribute value, then we know that attribute values was not part of discovered routing node
+        // attribute or forced awareness attribute and in that case, we are ok if the attribute's value weight is not set. But if it's set,
+        // its weight has to be zero
         Double attributeValueWeight = weightedRouting.weights().get(decommissionAttribute.attributeValue());
-        if (attributeValueWeight == null || attributeValueWeight.equals(0.0) == false) {
+        if (attributeValueWeight != null && attributeValueWeight.equals(0.0) == false) {
             throw new DecommissioningFailedException(
                 decommissionAttribute,
                 "weight for decommissioned attribute is expected to be [0.0] but found [" + attributeValueWeight + "]"
