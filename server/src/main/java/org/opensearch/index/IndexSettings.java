@@ -60,6 +60,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
+import static org.opensearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING;
@@ -577,7 +578,7 @@ public final class IndexSettings {
 
     public static final Setting<Integer> SEARCHABLE_SNAPSHOT_MINIMUM_VERSION = Setting.intSetting(
         "index.searchable_snapshot.minversion",
-        0,
+        Version.V_EMPTY_ID,
         Property.IndexScope,
         Property.InternalIndex
     );
@@ -756,7 +757,8 @@ public final class IndexSettings {
         isRemoteStoreEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false);
         remoteStoreRepository = settings.get(IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY);
         isRemoteTranslogStoreEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, false);
-        isRemoteSnapshot = IndexModule.Type.REMOTE_SNAPSHOT.match(this);
+        isRemoteSnapshot = IndexModule.Type.REMOTE_SNAPSHOT.match(this.settings);
+
         if (isRemoteSnapshot) {
             Integer minVersion = settings.getAsInt(SEARCHABLE_SNAPSHOT_MINIMUM_VERSION.getKey(), Version.V_EMPTY_ID);
             if (minVersion > Version.V_EMPTY_ID) {
