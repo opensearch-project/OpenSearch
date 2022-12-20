@@ -46,6 +46,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.ingest.IngestService;
@@ -60,12 +61,13 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
-import static org.opensearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
+import static org.opensearch.common.util.FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING;
+import static org.opensearch.index.store.remote.directory.RemoteSnapshotDirectory.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION;
 
 /**
  * This class encapsulates all index level settings and handles settings updates.
@@ -576,13 +578,6 @@ public final class IndexSettings {
         Property.InternalIndex
     );
 
-    public static final Setting<Integer> SEARCHABLE_SNAPSHOT_MINIMUM_VERSION = Setting.intSetting(
-        "index.searchable_snapshot.minversion",
-        Version.V_EMPTY_ID,
-        Property.IndexScope,
-        Property.InternalIndex
-    );
-
     private final Index index;
     private final Version version;
     private final Logger logger;
@@ -760,9 +755,8 @@ public final class IndexSettings {
         isRemoteSnapshot = IndexModule.Type.REMOTE_SNAPSHOT.match(this.settings);
 
         if (isRemoteSnapshot) {
-            Integer minVersion = settings.getAsInt(SEARCHABLE_SNAPSHOT_MINIMUM_VERSION.getKey(), Version.V_EMPTY_ID);
-            if (minVersion > Version.V_EMPTY_ID) {
-                extendedCompatibilitySnapshotVersion = LegacyESVersion.fromId(minVersion);
+            if (FeatureFlags.isEnabled(SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY)) {
+                extendedCompatibilitySnapshotVersion = SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION;
             }
         }
         this.searchThrottled = INDEX_SEARCH_THROTTLED.get(settings);

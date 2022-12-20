@@ -123,6 +123,7 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_UPGR
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
 import static org.opensearch.common.util.FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY;
 import static org.opensearch.common.util.set.Sets.newHashSet;
+import static org.opensearch.index.store.remote.directory.RemoteSnapshotDirectory.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION;
 import static org.opensearch.snapshots.SnapshotUtils.filterIndices;
 
 /**
@@ -472,10 +473,8 @@ public class RestoreService implements ClusterStateApplier {
                                 );
                                 final Version minIndexCompatibilityVersion;
                                 if (isSearchableSnapshot && isSearchableSnapshotsExtendedCompatibilityEnabled()) {
-                                    final int minVersion = IndexSettings.SEARCHABLE_SNAPSHOT_MINIMUM_VERSION.get(
-                                        snapshotIndexMetadata.getSettings()
-                                    );
-                                    minIndexCompatibilityVersion = LegacyESVersion.fromId(minVersion).minimumIndexCompatibilityVersion();
+                                    minIndexCompatibilityVersion = SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION
+                                        .minimumIndexCompatibilityVersion();
                                 } else {
                                     minIndexCompatibilityVersion = currentState.getNodes()
                                         .getMaxNodeVersion()
@@ -1254,19 +1253,15 @@ public class RestoreService implements ClusterStateApplier {
     }
 
     private static IndexMetadata addSnapshotToIndexSettings(IndexMetadata metadata, Snapshot snapshot, IndexId indexId) {
-        final Settings.Builder settingsBuilder = Settings.builder()
+        final Settings newSettings = Settings.builder()
             .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey())
             .put(IndexSettings.SEARCHABLE_SNAPSHOT_REPOSITORY.getKey(), snapshot.getRepository())
             .put(IndexSettings.SEARCHABLE_SNAPSHOT_ID_UUID.getKey(), snapshot.getSnapshotId().getUUID())
             .put(IndexSettings.SEARCHABLE_SNAPSHOT_ID_NAME.getKey(), snapshot.getSnapshotId().getName())
             .put(IndexSettings.SEARCHABLE_SNAPSHOT_INDEX_ID.getKey(), indexId.getId())
-            .put(metadata.getSettings());
-        // Check for extended backwards compatibility feature flag
-        if (isSearchableSnapshotsExtendedCompatibilityEnabled()) {
-            // The oldest snapshot version we can read is ES 6.0
-            settingsBuilder.put(IndexSettings.SEARCHABLE_SNAPSHOT_MINIMUM_VERSION.getKey(), 6000099);
-        }
-        return IndexMetadata.builder(metadata).settings(settingsBuilder.build()).build();
+            .put(metadata.getSettings())
+            .build();
+        return IndexMetadata.builder(metadata).settings(newSettings).build();
     }
 
     private static boolean isSearchableSnapshotsExtendedCompatibilityEnabled() {

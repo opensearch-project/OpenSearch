@@ -66,14 +66,15 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
 import org.hamcrest.Matchers;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.io.stream.InputStreamStreamInput;
 import org.opensearch.common.io.stream.OutputStreamStreamOutput;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.env.ShardLock;
 import org.opensearch.index.Index;
@@ -95,6 +96,8 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -118,6 +121,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.opensearch.index.store.remote.directory.RemoteSnapshotDirectory.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION;
 import static org.opensearch.test.VersionUtils.randomVersion;
 
 public class StoreTests extends OpenSearchTestCase {
@@ -1259,61 +1263,52 @@ public class StoreTests extends OpenSearchTestCase {
         assertTrue(diff.identical.isEmpty());
     }
 
+    @SuppressForbidden(reason = "sets the SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY feature flag")
     public void testReadSegmentsFromOldIndices() throws IOException {
-        int version = 6030099;
-        int expectedIndexCreatedVersionMajor = LegacyESVersion.fromId(version).luceneVersion.major;
+        int expectedIndexCreatedVersionMajor = SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION.luceneVersion.major;
         final String pathToTestIndex = "/indices/bwc/testIndex-6.3.0.zip";
         Path tmp = createTempDir();
         TestUtil.unzip(getClass().getResourceAsStream(pathToTestIndex), tmp);
         final ShardId shardId = new ShardId("index", "_na_", 1);
-        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
-            "index",
-            Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
-                .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey())
-                .put(IndexSettings.SEARCHABLE_SNAPSHOT_MINIMUM_VERSION.getKey(), String.valueOf(version))
-                .build()
-        );
-        Store store = new Store(shardId, indexSettings, StoreTests.newMockFSDirectory(tmp), new DummyShardLock(shardId));
-        assertEquals(expectedIndexCreatedVersionMajor, store.readLastCommittedSegmentsInfo().getIndexCreatedVersionMajor());
-        store.close();
+        Store store = null;
+        try {
+            AccessController.doPrivileged(
+                (PrivilegedAction<String>) () -> System.setProperty(FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY, "true")
+            );
+            IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
+                "index",
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
+                    .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey())
+                    .build()
+            );
+            store = new Store(shardId, indexSettings, StoreTests.newMockFSDirectory(tmp), new DummyShardLock(shardId));
+            assertEquals(expectedIndexCreatedVersionMajor, store.readLastCommittedSegmentsInfo().getIndexCreatedVersionMajor());
+        } finally {
+            AccessController.doPrivileged(
+                (PrivilegedAction<String>) () -> System.clearProperty(FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY)
+            );
+            if (store != null) {
+                store.close();
+            }
+        }
     }
 
     public void testReadSegmentsFromOldIndicesFailure() throws IOException {
         final String pathToTestIndex = "/indices/bwc/testIndex-6.3.0.zip";
         final ShardId shardId = new ShardId("index", "_na_", 1);
-        ArrayList<Settings> testSettingsList = new ArrayList<>();
-        // non-snapshot use-case
-        testSettingsList.add(
+        Path tmp = createTempDir();
+        TestUtil.unzip(getClass().getResourceAsStream(pathToTestIndex), tmp);
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
+            "index",
             Settings.builder()
                 .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
                 .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.FS.getSettingsKey())
-                .put(IndexSettings.SEARCHABLE_SNAPSHOT_MINIMUM_VERSION.getKey(), String.valueOf(6030099))
                 .build()
         );
-        // remote snapshot, but without the min-version key
-        testSettingsList.add(
-            Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
-                .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey())
-                .build()
-        );
-        // remote snapshot, but min-version mismatch
-        testSettingsList.add(
-            Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
-                .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey())
-                .put(IndexSettings.SEARCHABLE_SNAPSHOT_MINIMUM_VERSION.getKey(), String.valueOf(2000099 ^ org.opensearch.Version.MASK))
-                .build()
-        );
-        for (Settings testSettings : testSettingsList) {
-            Path tmp = createTempDir();
-            TestUtil.unzip(getClass().getResourceAsStream(pathToTestIndex), tmp);
-            IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("index", testSettings);
-            Store store = new Store(shardId, indexSettings, StoreTests.newMockFSDirectory(tmp), new DummyShardLock(shardId));
-            assertThrows(IndexFormatTooOldException.class, store::readLastCommittedSegmentsInfo);
-            store.close();
-        }
+        Store store = new Store(shardId, indexSettings, StoreTests.newMockFSDirectory(tmp), new DummyShardLock(shardId));
+        assertThrows(IndexFormatTooOldException.class, store::readLastCommittedSegmentsInfo);
+        store.close();
     }
 
     private void commitRandomDocs(Store store) throws IOException {

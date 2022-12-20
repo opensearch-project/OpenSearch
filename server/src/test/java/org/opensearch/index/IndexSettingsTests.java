@@ -32,9 +32,9 @@
 
 package org.opensearch.index;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.AbstractScopedSettings;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
@@ -42,11 +42,14 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -58,6 +61,7 @@ import java.util.function.Function;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.core.StringContains.containsString;
 import static org.hamcrest.object.HasToString.hasToString;
+import static org.opensearch.index.store.remote.directory.RemoteSnapshotDirectory.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION;
 
 public class IndexSettingsTests extends OpenSearchTestCase {
 
@@ -945,20 +949,27 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         assertEquals("Setting index.remote_store.repository should be provided with non-empty repository ID", iae.getMessage());
     }
 
+    @SuppressForbidden(reason = "sets the SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY feature flag")
     public void testExtendedCompatibilityVersionForRemoteSnapshot() {
-        int version = randomIntBetween(1000000, 6999999);
-        Version expected = LegacyESVersion.fromId(version);
-        IndexMetadata metadata = newIndexMeta(
-            "index",
-            Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey())
-                .put(IndexSettings.SEARCHABLE_SNAPSHOT_MINIMUM_VERSION.getKey(), version)
-                .build()
-        );
-        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
-        assertTrue(settings.isRemoteSnapshot());
-        assertEquals(expected, settings.getExtendedCompatibilitySnapshotVersion());
+        try {
+            AccessController.doPrivileged(
+                (PrivilegedAction<String>) () -> System.setProperty(FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY, "true")
+            );
+            IndexMetadata metadata = newIndexMeta(
+                "index",
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey())
+                    .build()
+            );
+            IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+            assertTrue(settings.isRemoteSnapshot());
+            assertEquals(SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION, settings.getExtendedCompatibilitySnapshotVersion());
+        } finally {
+            AccessController.doPrivileged(
+                (PrivilegedAction<String>) () -> System.clearProperty(FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY)
+            );
+        }
     }
 
     public void testExtendedCompatibilityVersionForNonRemoteSnapshot() {
@@ -967,7 +978,6 @@ public class IndexSettingsTests extends OpenSearchTestCase {
             Settings.builder()
                 .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.FS.getSettingsKey())
-                .put(IndexSettings.SEARCHABLE_SNAPSHOT_MINIMUM_VERSION.getKey(), 99)
                 .build()
         );
         IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);

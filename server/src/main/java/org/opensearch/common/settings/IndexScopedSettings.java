@@ -234,9 +234,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             IndexSettings.SEARCHABLE_SNAPSHOT_INDEX_ID,
             IndexSettings.SEARCHABLE_SNAPSHOT_ID_NAME,
             IndexSettings.SEARCHABLE_SNAPSHOT_ID_UUID
-        ),
-        FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY,
-        List.of(IndexSettings.SEARCHABLE_SNAPSHOT_MINIMUM_VERSION)
+        )
     );
 
     public static final IndexScopedSettings DEFAULT_SCOPED_SETTINGS = new IndexScopedSettings(Settings.EMPTY, BUILT_IN_INDEX_SETTINGS);
