@@ -8,6 +8,7 @@
 
 package org.opensearch.identity;
 
+import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
@@ -28,9 +29,21 @@ public class UserPersistenceIT extends HttpSmokeTestCaseWithIdentity {
     }
 
     public void testUserPersistence() throws Exception {
-        final String defaultInitDirectory = new File(TEST_RESOURCE_RELATIVE_PATH + "persistence").getAbsolutePath();
+        // TODO see if possible to do this without relative paths
+        final String defaultInitDirectory = new File("../../resources/internalClusterTest/persistence").getAbsolutePath();
         System.setProperty("identity.default_init.dir", defaultInitDirectory);
 
-        ensureGreen();
+        final String clusterManagerNode = internalCluster().startClusterManagerOnlyNode();
+
+        ClusterStateResponse clusterStateResponse = client(clusterManagerNode).admin()
+            .cluster()
+            .prepareState()
+            .setClusterManagerNodeTimeout("1s")
+            .clear()
+            .setNodes(true)
+            .get();
+        assertNotNull(clusterStateResponse.getState().nodes().getClusterManagerNodeId());
+
+        ensureGreen(ConfigConstants.IDENTITY_CONFIG_INDEX_NAME);
     }
 }

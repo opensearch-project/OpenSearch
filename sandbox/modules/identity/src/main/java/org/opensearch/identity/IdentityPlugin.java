@@ -67,8 +67,6 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
     public IdentityPlugin(final Settings settings, final Path configPath) {
         enabled = isEnabled(settings);
 
-        System.out.println("configPath: " + configPath);
-
         if (!enabled) {
             log.warn("Identity module is disabled.");
             return;
@@ -128,7 +126,9 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
     @Override
     public void onNodeStarted() {
         log.info("Node started");
-        cr.initOnNodeStart();
+        if (enabled) {
+            cr.initOnNodeStart();
+        }
     }
 
     @Override
@@ -149,11 +149,20 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
         final AuthenticationManager authManager = new InternalAuthenticationManager();
         Identity.setAuthManager(authManager);
 
+        // TODO The constructor is not getting called in time leaving these values as null when creating the ConfigurationRepository
+        // Can the constructor be substituted by taking these from environment?
+        this.configPath = environment.configDir();
+        this.settings = environment.settings();
+
         this.threadPool = threadPool;
         this.cs = clusterService;
         this.localClient = localClient;
 
         final List<Object> components = new ArrayList<Object>();
+
+        if (!enabled) {
+            return components;
+        }
 
         final ClusterInfoHolder cih = new ClusterInfoHolder();
         this.cs.addListener(cih);
