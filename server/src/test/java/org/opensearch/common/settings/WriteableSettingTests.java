@@ -471,17 +471,12 @@ public class WriteableSettingTests extends OpenSearchTestCase {
         Field p = setting.getClass().getDeclaredField("parser");
         p.setAccessible(true);
 
-        // test null default value
-        dv.set(setting, null);
-        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> new WriteableSetting(setting));
-        assertTrue(iae.getMessage().contains("null default value"));
-
         // test default value type not in enum
         Function<Settings, String> dvfi = s -> "";
         dv.set(setting, dvfi);
         Function<String, WriteableSettingTests> pfi = s -> new WriteableSettingTests();
         p.set(setting, pfi);
-        UnsupportedOperationException uoe = expectThrows(UnsupportedOperationException.class, () -> new WriteableSetting(setting));
-        assertTrue(uoe.getMessage().contains("generic type: WriteableSettingTests"));
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> new WriteableSetting(setting));
+        assertTrue(iae.getMessage().contains("generic type: WriteableSettingTests"));
     }
 }

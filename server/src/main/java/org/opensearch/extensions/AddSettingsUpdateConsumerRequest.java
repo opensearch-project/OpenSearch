@@ -44,11 +44,10 @@ public class AddSettingsUpdateConsumerRequest extends TransportRequest {
 
         // Read in component setting list
         int componentSettingsCount = in.readVInt();
-        List<WriteableSetting> componentSettings = new ArrayList<>(componentSettingsCount);
+        this.componentSettings = new ArrayList<>(componentSettingsCount);
         for (int i = 0; i < componentSettingsCount; i++) {
-            componentSettings.add(new WriteableSetting(in));
+            this.componentSettings.add(new WriteableSetting(in));
         }
-        this.componentSettings = componentSettings;
     }
 
     @Override
@@ -75,11 +74,7 @@ public class AddSettingsUpdateConsumerRequest extends TransportRequest {
 
     @Override
     public String toString() {
-        return "AddSettingsUpdateConsumerRequest{extensionNode="
-            + this.extensionNode.toString()
-            + ", componentSettings="
-            + this.componentSettings.toString()
-            + "}";
+        return "AddSettingsUpdateConsumerRequest{extensionNode=" + this.extensionNode.toString() + "}";
     }
 
     @Override

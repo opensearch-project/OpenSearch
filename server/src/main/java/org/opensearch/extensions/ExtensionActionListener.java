@@ -9,6 +9,8 @@
 package org.opensearch.extensions;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -23,7 +25,7 @@ import org.opensearch.action.admin.indices.analyze.AnalyzeAction.Response;
 public class ExtensionActionListener implements ActionListener<Response> {
 
     private static final Logger logger = LogManager.getLogger(ExtensionActionListener.class);
-    private ArrayList<Exception> exceptionList;
+    private List<Exception> exceptionList;
 
     public ExtensionActionListener() {
         exceptionList = new ArrayList<Exception>();
@@ -40,11 +42,7 @@ public class ExtensionActionListener implements ActionListener<Response> {
         logger.error(e.getMessage());
     }
 
-    public static Logger getLogger() {
-        return logger;
-    }
-
-    public ArrayList<Exception> getExceptionList() {
-        return exceptionList;
+    public List<Exception> getExceptionList() {
+        return Collections.unmodifiableList(exceptionList);
     }
 }

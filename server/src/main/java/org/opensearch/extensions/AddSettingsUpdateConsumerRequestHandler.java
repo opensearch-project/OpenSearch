@@ -71,7 +71,7 @@ public class AddSettingsUpdateConsumerRequestHandler {
 
                 // Register setting update consumer with callback method to extension
                 clusterService.getClusterSettings().addSettingsUpdateConsumer(setting, (data) -> {
-                    logger.info("Sending extension request type: " + updateSettingsRequestType);
+                    logger.debug("Sending extension request type: " + updateSettingsRequestType);
                     UpdateSettingsResponseHandler updateSettingsResponseHandler = new UpdateSettingsResponseHandler();
                     transportService.sendRequest(
                         extensionNode,

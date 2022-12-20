@@ -101,16 +101,12 @@ public class WriteableSetting implements Writeable {
      * @return The corresponding {@link SettingType} for the default value.
      */
     private static SettingType getGenericTypeFromDefault(Setting<?> setting) {
-        String typeStr = null;
+        String typeStr = setting.getDefault(Settings.EMPTY).getClass().getSimpleName();
         try {
-            // This throws NPE on null default
-            typeStr = setting.getDefault(Settings.EMPTY).getClass().getSimpleName();
             // This throws IAE if not in enum
             return SettingType.valueOf(typeStr);
-        } catch (NullPointerException e) {
-            throw new IllegalArgumentException("Unable to determine the generic type of this setting with a null default value.");
         } catch (IllegalArgumentException e) {
-            throw new UnsupportedOperationException(
+            throw new IllegalArgumentException(
                 "This class is not yet set up to handle the generic type: "
                     + typeStr
                     + ". Supported types are "

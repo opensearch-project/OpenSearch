@@ -8,8 +8,6 @@
 
 package org.opensearch.extensions;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.transport.TransportRequest;
@@ -23,7 +21,6 @@ import java.util.Objects;
  * @opensearch.internal
  */
 public class ExtensionActionListenerOnFailureRequest extends TransportRequest {
-    private static final Logger logger = LogManager.getLogger(ExtensionRequest.class);
     private String failureExceptionMessage;
 
     /**

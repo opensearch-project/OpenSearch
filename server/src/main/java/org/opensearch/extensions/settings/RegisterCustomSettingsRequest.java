@@ -37,12 +37,11 @@ public class RegisterCustomSettingsRequest extends TransportRequest {
         super(in);
         this.uniqueId = in.readString();
         int size = in.readVInt();
-        List<Setting<?>> settingsList = new ArrayList<>(size);
+        this.settings = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             WriteableSetting ws = new WriteableSetting(in);
-            settingsList.add(ws.getSetting());
+            this.settings.add(ws.getSetting());
         }
-        this.settings = settingsList;
     }
 
     @Override
