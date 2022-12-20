@@ -310,10 +310,16 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
      *
      * @param weightedRouting entity
      * @param nodes           discovered nodes in the cluster
+     * @param isFailOpenEnabled
      * @return an iterator over active and initializing shards, ordered by weighted round-robin
      * scheduling policy. Making sure that initializing shards are the last to iterate through.
      */
-    public ShardIterator activeInitializingShardsWeightedIt(WeightedRouting weightedRouting, DiscoveryNodes nodes, double defaultWeight) {
+    public ShardIterator activeInitializingShardsWeightedIt(
+        WeightedRouting weightedRouting,
+        DiscoveryNodes nodes,
+        double defaultWeight,
+        boolean isFailOpenEnabled
+    ) {
         final int seed = shuffler.nextSeed();
         List<ShardRouting> ordered = new ArrayList<>();
         List<ShardRouting> orderedActiveShards = getActiveShardsByWeight(weightedRouting, nodes, defaultWeight);
@@ -325,22 +331,24 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
 
         // append shards for attribute value with weight zero, so that shard search requests can be tried on
         // shard copies in case of request failure from other attribute values.
-        try {
-            Stream<String> keys = weightedRouting.weights()
-                .entrySet()
-                .stream()
-                .filter(entry -> entry.getValue().intValue() == 0)
-                .map(Map.Entry::getKey);
-            keys.forEach(key -> {
-                ShardIterator iterator = onlyNodeSelectorActiveInitializingShardsIt("zone:" + key, nodes);
-                while (iterator.remaining() > 0) {
-                    ordered.add(iterator.nextOrNull());
-                }
-            });
-        } catch (IllegalArgumentException e) {
-            // this exception is thrown by {@link onlyNodeSelectorActiveInitializingShardsIt} in case count of shard
-            // copies found is zero
-            logger.debug("no shard copies found for shard id [{}] for node attribute with weight zero", shardId);
+        if (isFailOpenEnabled) {
+            try {
+                Stream<String> keys = weightedRouting.weights()
+                    .entrySet()
+                    .stream()
+                    .filter(entry -> entry.getValue().intValue() == 0)
+                    .map(Map.Entry::getKey);
+                keys.forEach(key -> {
+                    ShardIterator iterator = onlyNodeSelectorActiveInitializingShardsIt("zone:" + key, nodes);
+                    while (iterator.remaining() > 0) {
+                        ordered.add(iterator.nextOrNull());
+                    }
+                });
+            } catch (IllegalArgumentException e) {
+                // this exception is thrown by {@link onlyNodeSelectorActiveInitializingShardsIt} in case count of shard
+                // copies found is zero
+                logger.debug("no shard copies found for shard id [{}] for node attribute with weight zero", shardId);
+            }
         }
 
         return new PlainShardIterator(shardId, ordered);
