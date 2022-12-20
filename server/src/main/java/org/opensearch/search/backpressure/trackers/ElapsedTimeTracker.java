@@ -119,18 +119,18 @@ public class ElapsedTimeTracker extends TaskResourceUsageTracker {
     }
 
     @Override
-    public TaskResourceUsageTracker.Stats searchTaskStats(List<? extends Task> activeTasks) {
+    public TaskResourceUsageTracker.Stats searchTaskStats(List<? extends Task> searchTasks) {
         long now = timeNanosSupplier.getAsLong();
-        long currentMax = activeTasks.stream().mapToLong(t -> now - t.getStartTimeNanos()).max().orElse(0);
-        long currentAvg = (long) activeTasks.stream().mapToLong(t -> now - t.getStartTimeNanos()).average().orElse(0);
+        long currentMax = searchTasks.stream().mapToLong(t -> now - t.getStartTimeNanos()).max().orElse(0);
+        long currentAvg = (long) searchTasks.stream().mapToLong(t -> now - t.getStartTimeNanos()).average().orElse(0);
         return new Stats(getSearchTaskCancellationCount(), currentMax, currentAvg);
     }
 
     @Override
-    public TaskResourceUsageTracker.Stats searchShardTaskStats(List<? extends Task> activeTasks) {
+    public TaskResourceUsageTracker.Stats searchShardTaskStats(List<? extends Task> searchShardTasks) {
         long now = timeNanosSupplier.getAsLong();
-        long currentMax = activeTasks.stream().mapToLong(t -> now - t.getStartTimeNanos()).max().orElse(0);
-        long currentAvg = (long) activeTasks.stream().mapToLong(t -> now - t.getStartTimeNanos()).average().orElse(0);
+        long currentMax = searchShardTasks.stream().mapToLong(t -> now - t.getStartTimeNanos()).max().orElse(0);
+        long currentAvg = (long) searchShardTasks.stream().mapToLong(t -> now - t.getStartTimeNanos()).average().orElse(0);
         return new Stats(getSearchShardTaskCancellationCount(), currentMax, currentAvg);
     }
 

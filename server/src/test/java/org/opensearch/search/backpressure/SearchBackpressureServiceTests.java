@@ -151,12 +151,12 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
             }
 
             @Override
-            public Stats searchTaskStats(List<? extends Task> activeTasks) {
+            public Stats searchTaskStats(List<? extends Task> searchTasks) {
                 return new MockStats(getSearchTaskCancellationCount());
             }
 
             @Override
-            public Stats searchShardTaskStats(List<? extends Task> activeTasks) {
+            public Stats searchShardTaskStats(List<? extends Task> searchShardTasks) {
                 return new MockStats(getSearchShardTaskCancellationCount());
             }
         };
