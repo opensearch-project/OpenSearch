@@ -1,4 +1,4 @@
-# README for _testIndex-6.3.0.zip_
+# README for _testIndex-es-6.3.0.zip_
 
 This zip file holds a Lucene index created using ElasticSearch 6.3.0.
 It was created by running the underlying commands against a single-node cluster,
