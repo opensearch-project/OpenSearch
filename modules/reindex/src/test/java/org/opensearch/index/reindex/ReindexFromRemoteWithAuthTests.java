@@ -167,8 +167,6 @@ public class ReindexFromRemoteWithAuthTests extends OpenSearchSingleNodeTestCase
             .destination("dest")
             .setRemoteInfo(newRemoteInfo("junk", "auth", emptyMap()));
         OpenSearchStatusException e = expectThrows(OpenSearchStatusException.class, () -> request.get());
-        assertThat(e.getMessage(), containsString("\"error\":\"junk does not exist in internal realm.\"")); // Due to native auth
-                                                                                                            // implementation
     }
 
     /**

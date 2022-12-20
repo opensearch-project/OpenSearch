@@ -765,7 +765,6 @@ public class TransportService extends AbstractLifecycleComponent
         final TransportResponseHandler<T> handler
     ) {
         try {
-            logger.info("Action: " + action);
             final TransportResponseHandler<T> delegate;
             if (request.getParentTask().isSet()) {
                 // TODO: capture the connection instead so that we can cancel child tasks on the remote connections.

@@ -17,7 +17,7 @@ import java.util.Map;
 public class JwtVendorTests extends OpenSearchTestCase {
 
     public void testCreateJwtWithClaims() {
-        Map<String, Object> jwtClaims = new HashMap<>();
+        Map<String, String> jwtClaims = new HashMap<>();
         jwtClaims.put("sub", "testSubject");
 
         String encodedToken = JwtVendor.createJwt(jwtClaims);

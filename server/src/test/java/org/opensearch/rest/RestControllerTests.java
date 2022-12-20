@@ -33,6 +33,8 @@
 package org.opensearch.rest;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
+import org.junit.After;
+import org.junit.Before;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.bytes.BytesArray;
@@ -53,17 +55,12 @@ import org.opensearch.http.HttpRequest;
 import org.opensearch.http.HttpResponse;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.http.HttpStats;
-import org.opensearch.authn.AuthenticationManager;
-import org.opensearch.identity.Identity;
-import org.opensearch.authn.internal.InternalAuthenticationManager;
 import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.opensearch.rest.action.admin.indices.RestCreateIndexAction;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.client.NoOpNodeClient;
 import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.usage.UsageService;
-import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -82,8 +79,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.doCallRealMethod;
+import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
@@ -656,42 +653,6 @@ public class RestControllerTests extends OpenSearchTestCase {
             channel.getRestResponse().content().utf8ToString(),
             equalTo("{\"error\":\"Unexpected HTTP method, allowed: [GET]\",\"status\":405}")
         );
-    }
-
-    // Tests to check authenticate(...) method
-    public void testRestRequestAuthenticationSuccess() {
-        final AuthenticationManager authManager = new InternalAuthenticationManager();
-        Identity.setAuthManager(authManager);
-
-        final ThreadContext threadContext = client.threadPool().getThreadContext();
-
-        final FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withHeaders(
-            Collections.singletonMap("Authorization", Collections.singletonList("Basic YWRtaW46YWRtaW4="))
-        ) // admin:admin
-            .build();
-        final AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.OK);
-        restController.dispatchRequest(fakeRestRequest, channel, threadContext);
-
-        assertTrue(channel.getSendResponseCalled());
-    }
-
-    public void testRestRequestAuthenticationFailure() {
-        final AuthenticationManager authManager = new InternalAuthenticationManager();
-        Identity.setAuthManager(authManager);
-
-        final ThreadContext threadContext = client.threadPool().getThreadContext();
-
-        final FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withHeaders(
-            Collections.singletonMap("Authorization", Collections.singletonList("Basic bWFydmluOmdhbGF4eQ=="))
-        ) // marvin:galaxy
-            .build();
-
-        // RestStatus is OK even though the authn information is incorrect. This is because we, yet, don't fail the request
-        // if it was unauthorized. The status should be changed to UNAUTHORIZED once the flow is updated.
-        final AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.UNAUTHORIZED);
-        restController.dispatchRequest(fakeRestRequest, channel, threadContext);
-
-        assertTrue(channel.getSendResponseCalled());
     }
 
     private static final class TestHttpServerTransport extends AbstractLifecycleComponent implements HttpServerTransport {

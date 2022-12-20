@@ -41,11 +41,6 @@ grant codeBase "${codebase.opensearch-secure-sm}" {
   permission java.security.AllPermission;
 };
 
-grant codeBase "${codebase.opensearch-authn}" {
-  // this is required by jackson databind to access declared methods for javax.security.Principal class via StringPrincipal.java
-  permission java.security.AllPermission;
-};
-
 //// Opensearch core:
 //// These are only allowed inside the server jar, not in plugins
 grant codeBase "${codebase.opensearch}" {
@@ -79,16 +74,6 @@ grant codeBase "${codebase.opensearch-plugin-classloader}" {
   permission java.lang.RuntimePermission "createClassLoader";
 };
 
-grant codeBase "${codebase.jackson-databind}" {
-  // needed by jackson-databind ObjectMapper.readValue
-  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
-  permission java.lang.RuntimePermission "accessDeclaredMembers";
-};
-
-grant codeBase "${codebase.cxf-rt-rs-security-jose}" {
-  permission java.lang.RuntimePermission "setContextClassLoader";
-};
-
 grant codeBase "${codebase.jna}" {
   // for registering native methods
   permission java.lang.RuntimePermission "accessDeclaredMembers";
@@ -117,7 +102,7 @@ grant {
 
   permission java.lang.RuntimePermission "accessDeclaredMembers";
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
-  
+
   // Allow read access to all system properties
   permission java.util.PropertyPermission "*", "read";
 
