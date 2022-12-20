@@ -379,7 +379,9 @@ public class SearchBackpressureService extends AbstractLifecycleComponent
             searchBackpressureStates.get(SearchTask.class).getLimitReachedCount(),
             taskResourceUsageTrackers.stream()
                 .collect(
-                    Collectors.toUnmodifiableMap(t -> TaskResourceUsageTrackerType.fromName(t.name()), t -> t.searchTaskStats(searchTasks))
+                    Collectors.toUnmodifiableMap(
+                        t -> TaskResourceUsageTrackerType.fromName(t.name()),
+                        t -> t.searchTaskStats(searchTasks))
                 )
         );
 

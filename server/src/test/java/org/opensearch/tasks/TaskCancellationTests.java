@@ -72,12 +72,12 @@ public class TaskCancellationTests extends OpenSearchTestCase {
             }
 
             @Override
-            public Stats searchTaskStats(List<? extends Task> activeTasks) {
+            public Stats searchTaskStats(List<? extends Task> searchTasks) {
                 return null;
             }
 
             @Override
-            public Stats searchShardTaskStats(List<? extends Task> activeTasks) {
+            public Stats searchShardTaskStats(List<? extends Task> searchShardTasks) {
                 return null;
             }
         };

@@ -179,7 +179,7 @@ public class HeapUsageTracker extends TaskResourceUsageTracker {
 
         double currentUsage = task.getTotalResourceStats().getMemoryInBytes();
         double averageUsage = movingAverage.getAverage();
-        double variance = (task instanceof SearchTask) ? getHeapVarianceThresholdForSearchQuery() : getHeapBytesThreshold();
+        double variance = (task instanceof SearchTask) ? getHeapVarianceThresholdForSearchQuery() : getHeapVarianceThreshold();
         double allowedUsage = averageUsage * variance;
         double threshold = (task instanceof SearchTask) ? getHeapBytesThresholdForSearchQuery() : getHeapBytesThreshold();
 
@@ -238,16 +238,16 @@ public class HeapUsageTracker extends TaskResourceUsageTracker {
     }
 
     @Override
-    public TaskResourceUsageTracker.Stats searchTaskStats(List<? extends Task> activeTasks) {
-        long currentMax = activeTasks.stream().mapToLong(t -> t.getTotalResourceStats().getMemoryInBytes()).max().orElse(0);
-        long currentAvg = (long) activeTasks.stream().mapToLong(t -> t.getTotalResourceStats().getMemoryInBytes()).average().orElse(0);
-        return new Stats(getSearchTaskCancellationCount(), currentMax, currentAvg, (long) movingAverageReference.get().getAverage());
+    public TaskResourceUsageTracker.Stats searchTaskStats(List<? extends Task> searchTasks) {
+        long currentMax = searchTasks.stream().mapToLong(t -> t.getTotalResourceStats().getMemoryInBytes()).max().orElse(0);
+        long currentAvg = (long) searchTasks.stream().mapToLong(t -> t.getTotalResourceStats().getMemoryInBytes()).average().orElse(0);
+        return new Stats(getSearchTaskCancellationCount(), currentMax, currentAvg, (long) movingAverageReferenceForSearchQuery.get().getAverage());
     }
 
     @Override
-    public TaskResourceUsageTracker.Stats searchShardTaskStats(List<? extends Task> activeTasks) {
-        long currentMax = activeTasks.stream().mapToLong(t -> t.getTotalResourceStats().getMemoryInBytes()).max().orElse(0);
-        long currentAvg = (long) activeTasks.stream().mapToLong(t -> t.getTotalResourceStats().getMemoryInBytes()).average().orElse(0);
+    public TaskResourceUsageTracker.Stats searchShardTaskStats(List<? extends Task> searchShardTasks) {
+        long currentMax = searchShardTasks.stream().mapToLong(t -> t.getTotalResourceStats().getMemoryInBytes()).max().orElse(0);
+        long currentAvg = (long) searchShardTasks.stream().mapToLong(t -> t.getTotalResourceStats().getMemoryInBytes()).average().orElse(0);
         return new Stats(getSearchShardTaskCancellationCount(), currentMax, currentAvg, (long) movingAverageReference.get().getAverage());
     }
 
