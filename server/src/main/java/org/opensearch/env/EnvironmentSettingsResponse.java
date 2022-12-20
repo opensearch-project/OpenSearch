@@ -10,16 +10,10 @@ package org.opensearch.env;
 
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.transport.TransportResponse;
-import org.opensearch.common.settings.WriteableSetting;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -28,47 +22,28 @@ import java.util.Objects;
  * @opensearch.internal
  */
 public class EnvironmentSettingsResponse extends TransportResponse {
-    private Map<Setting<?>, Object> componentSettingValues;
+    private final Settings environmentSettings;
 
-    public EnvironmentSettingsResponse(Settings environmentSettings, List<Setting<?>> componentSettings) {
-        Map<Setting<?>, Object> componentSettingValues = new HashMap<>();
-        for (Setting<?> componentSetting : componentSettings) {
-
-            // Retrieve component setting value from enviornment settings, or default value if it does not exist
-            Object componentSettingValue = componentSetting.get(environmentSettings);
-            componentSettingValues.put(componentSetting, componentSettingValue);
-        }
-        this.componentSettingValues = componentSettingValues;
+    public EnvironmentSettingsResponse(Settings environmentSettings) {
+        this.environmentSettings = environmentSettings;
     }
 
     public EnvironmentSettingsResponse(StreamInput in) throws IOException {
-        super(in);
-        Map<Setting<?>, Object> componentSettingValues = new HashMap<>();
-        int componentSettingValuesCount = in.readVInt();
-        for (int i = 0; i < componentSettingValuesCount; i++) {
-            Setting<?> componentSetting = new WriteableSetting(in).getSetting();
-            Object componentSettingValue = in.readGenericValue();
-            componentSettingValues.put(componentSetting, componentSettingValue);
-        }
-        this.componentSettingValues = componentSettingValues;
+        this.environmentSettings = Settings.readSettingsFromStream(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(componentSettingValues.size());
-        for (Map.Entry<Setting<?>, Object> entry : componentSettingValues.entrySet()) {
-            new WriteableSetting(entry.getKey()).writeTo(out);
-            out.writeGenericValue(entry.getValue());
-        }
+        Settings.writeSettingsToStream(this.environmentSettings, out);
     }
 
-    public Map<Setting<?>, Object> getComponentSettingValues() {
-        return Collections.unmodifiableMap(this.componentSettingValues);
+    public Settings getEnvironmentSettings() {
+        return environmentSettings;
     }
 
     @Override
     public String toString() {
-        return "EnvironmentSettingsResponse{componentSettingValues=" + componentSettingValues.toString() + '}';
+        return "EnvironmentSettingsResponse{environmentSettings=" + environmentSettings.toString() + '}';
     }
 
     @Override
@@ -76,11 +51,11 @@ public class EnvironmentSettingsResponse extends TransportResponse {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         EnvironmentSettingsResponse that = (EnvironmentSettingsResponse) o;
-        return Objects.equals(componentSettingValues, that.componentSettingValues);
+        return Objects.equals(environmentSettings, that.environmentSettings);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(componentSettingValues);
+        return Objects.hash(environmentSettings);
     }
 }

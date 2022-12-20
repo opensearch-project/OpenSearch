@@ -454,6 +454,11 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         ExtensionRequest localNodeRequest = new ExtensionRequest(ExtensionsManager.RequestType.REQUEST_EXTENSION_LOCAL_NODE);
         assertEquals(LocalNodeResponse.class, extensionsManager.handleExtensionRequest(localNodeRequest).getClass());
 
+        ExtensionRequest environmentSettingsRequest = new ExtensionRequest(
+            ExtensionsManager.RequestType.REQUEST_EXTENSION_ENVIRONMENT_SETTINGS
+        );
+        assertEquals(EnvironmentSettingsResponse.class, extensionsManager.handleExtensionRequest(environmentSettingsRequest).getClass());
+
         ExtensionRequest exceptionRequest = new ExtensionRequest(ExtensionsManager.RequestType.GET_SETTINGS);
         Exception exception = expectThrows(
             IllegalArgumentException.class,
@@ -479,96 +484,65 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         assertEquals("Test failure", extensionsManager.getListener().getExceptionList().get(0).getMessage());
     }
 
-    public void testEnvironmentSettingsRequest() throws Exception {
+    public void testEnvironmentSettingsResponse() throws Exception {
 
-        Path extensionDir = createTempDir();
-        Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
-        ExtensionsManager extensionsManager = new ExtensionsManager(settings, extensionDir);
-        extensionsManager.initializeServicesAndRestHandler(restController, settingsModule, transportService, clusterService, settings);
+        // Test EnvironmentSettingsResponse arg constructor
+        EnvironmentSettingsResponse environmentSettingsResponse = new EnvironmentSettingsResponse(settings);
+        assertEquals(settings, environmentSettingsResponse.getEnvironmentSettings());
 
-        List<Setting<?>> componentSettings = List.of(
-            Setting.boolSetting("falseSetting", false, Property.IndexScope, Property.NodeScope),
-            Setting.simpleString("fooSetting", "foo", Property.Dynamic)
-        );
-
-        // Test EnvironmentSettingsRequest arg constructor
-        EnvironmentSettingsRequest environmentSettingsRequest = new EnvironmentSettingsRequest(componentSettings);
-        List<Setting<?>> requestComponentSettings = environmentSettingsRequest.getComponentSettings();
-        assertEquals(componentSettings.size(), requestComponentSettings.size());
-        assertTrue(requestComponentSettings.containsAll(componentSettings));
-        assertTrue(componentSettings.containsAll(requestComponentSettings));
-
-        // Test EnvironmentSettingsRequest StreamInput constructor
+        // Test EnvironmentSettingsResponse StreamInput constructor
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            environmentSettingsRequest.writeTo(out);
+            environmentSettingsResponse.writeTo(out);
             out.flush();
             try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
-                environmentSettingsRequest = new EnvironmentSettingsRequest(in);
-                requestComponentSettings = environmentSettingsRequest.getComponentSettings();
-                assertEquals(componentSettings.size(), requestComponentSettings.size());
-                assertTrue(requestComponentSettings.containsAll(componentSettings));
-                assertTrue(componentSettings.containsAll(requestComponentSettings));
+                environmentSettingsResponse = new EnvironmentSettingsResponse(in);
+                assertEquals(settings, environmentSettingsResponse.getEnvironmentSettings());
             }
         }
 
     }
 
-    public void testEnvironmentSettingsResponse() throws Exception {
+    public void testEnvironmentSettingsRegisteredValue() throws Exception {
+        // Create setting with value false
+        Setting<Boolean> boolSetting = Setting.boolSetting("boolSetting", false, Property.Dynamic);
 
-        List<Setting<?>> componentSettings = List.of(
-            Setting.boolSetting("falseSetting", false, Property.IndexScope, Property.NodeScope),
-            Setting.simpleString("fooSetting", "foo", Property.Dynamic)
-        );
+        // Create Settings with registered bool setting with value true
+        Settings environmentSettings = Settings.builder().put("boolSetting", "true").build();
 
-        // Test EnvironmentSettingsResponse arg constructor
-        EnvironmentSettingsResponse environmentSettingsResponse = new EnvironmentSettingsResponse(settings, componentSettings);
-        assertEquals(componentSettings.size(), environmentSettingsResponse.getComponentSettingValues().size());
-
-        List<Setting<?>> responseSettings = new ArrayList<>();
-        responseSettings.addAll(environmentSettingsResponse.getComponentSettingValues().keySet());
-        assertTrue(responseSettings.containsAll(componentSettings));
-        assertTrue(componentSettings.containsAll(responseSettings));
-
-        // Test EnvironmentSettingsResponse StreamInput constrcutor
+        EnvironmentSettingsResponse environmentSettingsResponse = new EnvironmentSettingsResponse(environmentSettings);
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             environmentSettingsResponse.writeTo(out);
             out.flush();
             try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
 
                 environmentSettingsResponse = new EnvironmentSettingsResponse(in);
-                assertEquals(componentSettings.size(), environmentSettingsResponse.getComponentSettingValues().size());
+                assertEquals(environmentSettings, environmentSettingsResponse.getEnvironmentSettings());
 
-                responseSettings = new ArrayList<>();
-                responseSettings.addAll(environmentSettingsResponse.getComponentSettingValues().keySet());
-                assertTrue(responseSettings.containsAll(componentSettings));
-                assertTrue(componentSettings.containsAll(responseSettings));
+                // bool setting is registered in Settings object, thus the expected return value is the registered setting value
+                assertEquals(true, boolSetting.get(environmentSettingsResponse.getEnvironmentSettings()));
             }
         }
     }
 
-    public void testHandleEnvironmentSettingsRequest() throws Exception {
+    public void testEnvironmentSettingsDefaultValue() throws Exception {
+        // Create setting with value false
+        Setting<Boolean> boolSetting = Setting.boolSetting("boolSetting", false, Property.Dynamic);
 
-        Path extensionDir = createTempDir();
-        Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
-        ExtensionsManager extensionsManager = new ExtensionsManager(settings, extensionDir);
-        extensionsManager.initializeServicesAndRestHandler(restController, settingsModule, transportService, clusterService, settings);
+        // Create settings object without registered bool setting
+        Settings environmentSettings = Settings.builder().put("testSetting", "true").build();
 
-        List<Setting<?>> componentSettings = List.of(
-            Setting.boolSetting("falseSetting", false, Property.Dynamic),
-            Setting.boolSetting("trueSetting", true, Property.Dynamic)
-        );
+        EnvironmentSettingsResponse environmentSettingsResponse = new EnvironmentSettingsResponse(environmentSettings);
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            environmentSettingsResponse.writeTo(out);
+            out.flush();
+            try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
 
-        EnvironmentSettingsRequest environmentSettingsRequest = new EnvironmentSettingsRequest(componentSettings);
-        TransportResponse response = extensionsManager.getEnvironmentSettingsRequestHandler()
-            .handleEnvironmentSettingsRequest(environmentSettingsRequest);
-
-        assertEquals(EnvironmentSettingsResponse.class, response.getClass());
-        assertEquals(componentSettings.size(), ((EnvironmentSettingsResponse) response).getComponentSettingValues().size());
-
-        List<Setting<?>> responseSettings = new ArrayList<>();
-        responseSettings.addAll(((EnvironmentSettingsResponse) response).getComponentSettingValues().keySet());
-        assertTrue(responseSettings.containsAll(componentSettings));
-        assertTrue(componentSettings.containsAll(responseSettings));
+                environmentSettingsResponse = new EnvironmentSettingsResponse(in);
+                assertEquals(environmentSettings, environmentSettingsResponse.getEnvironmentSettings());
+                // bool setting is not registered in Settings object, thus the expected return value is the default setting value
+                assertEquals(false, boolSetting.get(environmentSettingsResponse.getEnvironmentSettings()));
+            }
+        }
     }
 
     public void testAddSettingsUpdateConsumerRequest() throws Exception {
