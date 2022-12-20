@@ -416,9 +416,11 @@ public class DecommissionService {
         } else if (forcedAwarenessAttributes.containsKey(decommissionAttribute.attributeName()) == false) {
             msg = "forced awareness attribute [" + forcedAwarenessAttributes.toString() + "] doesn't have the decommissioning attribute";
         }
-        // we don't need to check for attributes presence in forced awareness attribute because, weights API ensures that weights are set for all discovered routing attributes and forced attributes.
+        // we don't need to check for attributes presence in forced awareness attribute because, weights API ensures that weights are set
+        // for all discovered routing attributes and forced attributes.
         // So, if the weight is not present for the attribute it could mean its a non routing node (eg. cluster manager)
-        // And in that case, we are ok to proceed with the decommission. A routing node's attribute absence in forced awareness attribute is a problem elsewhere
+        // And in that case, we are ok to proceed with the decommission. A routing node's attribute absence in forced awareness attribute is
+        // a problem elsewhere
 
         if (msg != null) {
             throw new DecommissioningFailedException(decommissionAttribute, msg);

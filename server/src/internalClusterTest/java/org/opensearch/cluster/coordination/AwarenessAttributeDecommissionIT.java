@@ -930,7 +930,8 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
         // Set the timeout to 0 to do immediate Decommission
         DecommissionRequest decommissionRequest = new DecommissionRequest(decommissionAttribute);
         decommissionRequest.setNoDelay(true);
-        DecommissionResponse decommissionResponse = client(dataNodes.get(0)).execute(DecommissionAction.INSTANCE, decommissionRequest).get();
+        DecommissionResponse decommissionResponse = client(dataNodes.get(0)).execute(DecommissionAction.INSTANCE, decommissionRequest)
+            .get();
         assertTrue(decommissionResponse.isAcknowledged());
 
         client(dataNodes.get(0)).admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get();
