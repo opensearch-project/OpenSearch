@@ -42,6 +42,7 @@ public class RemoteFsTranslog extends Translog {
     private final BlobStoreRepository blobStoreRepository;
     private final TranslogTransferManager translogTransferManager;
     private final FileTransferTracker fileTransferTracker;
+    private volatile long maxRemoteTranslogGenerationUploaded;
 
     public RemoteFsTranslog(
         TranslogConfig config,
@@ -62,13 +63,13 @@ public class RemoteFsTranslog extends Translog {
             fileTransferTracker,
             fileTransferTracker::exclusionFilter
         );
+
         try {
             final Checkpoint checkpoint = readCheckpoint(location);
             this.readers.addAll(recoverFromFiles(checkpoint));
             if (readers.isEmpty()) {
                 throw new IllegalStateException("at least one reader must be recovered");
             }
-
             boolean success = false;
             current = null;
             try {
@@ -250,6 +251,7 @@ public class RemoteFsTranslog extends Translog {
                 public void onUploadComplete(TransferSnapshot transferSnapshot) throws IOException {
                     transferReleasable.close();
                     closeFilesIfNoPendingRetentionLocks();
+                    maxRemoteTranslogGenerationUploaded = generation;
                     logger.trace("uploaded translog for {} {} ", primaryTerm, generation);
                 }
 
@@ -257,6 +259,11 @@ public class RemoteFsTranslog extends Translog {
                 public void onUploadFailed(TransferSnapshot transferSnapshot, Exception ex) throws IOException {
                     transferReleasable.close();
                     closeFilesIfNoPendingRetentionLocks();
+                    if (ex instanceof IOException) {
+                        throw (IOException) ex;
+                    } else {
+                        throw (RuntimeException) ex;
+                    }
                 }
             });
         }
@@ -280,13 +287,23 @@ public class RemoteFsTranslog extends Translog {
     @Override
     public void sync() throws IOException {
         try {
-            if (syncToDisk()) {
+            if (syncToDisk() || syncNeeded()) {
                 prepareAndUpload(primaryTermSupplier.getAsLong(), null);
             }
         } catch (final Exception e) {
             tragedy.setTragicException(e);
             closeOnTragicEvent(e);
             throw e;
+        }
+    }
+
+    /**
+     *  Returns <code>true</code> if an fsync and/or remote transfer is required to ensure durability of the translogs operations or it's metadata.
+     */
+    public boolean syncNeeded() {
+        try (ReleasableLock lock = readLock.acquire()) {
+            return current.syncNeeded()
+                || (maxRemoteTranslogGenerationUploaded + 1 < this.currentFileGeneration() && current.totalOperations() == 0);
         }
     }
 

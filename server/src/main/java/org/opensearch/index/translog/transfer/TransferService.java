@@ -57,6 +57,6 @@ public interface TransferService {
      * @return inputstream of the remote file
      * @throws IOException the exception while reading the data
      */
-    InputStream readFile(Iterable<String> path, String fileName) throws IOException;
+    InputStream downloadBlob(Iterable<String> path, String fileName) throws IOException;
 
 }

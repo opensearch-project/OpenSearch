@@ -17,10 +17,15 @@ import org.apache.lucene.tests.mockfile.FilterFileChannel;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.junit.After;
 import org.junit.Before;
+import org.opensearch.OpenSearchException;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.blobstore.BlobStore;
+import org.opensearch.common.blobstore.fs.FsBlobContainer;
+import org.opensearch.common.blobstore.fs.FsBlobStore;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.ReleasableBytesReference;
 import org.opensearch.common.settings.ClusterSettings;
@@ -29,6 +34,7 @@ import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
+import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
@@ -106,6 +112,8 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
     BlobStoreRepository repository;
 
     BlobStoreTransferService blobStoreTransferService;
+
+    TestTranslog.FailSwitch fail;
 
     private LongConsumer getPersistedSeqNoConsumer() {
         return seqNo -> {
@@ -187,12 +195,15 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
         Settings settings = Settings.builder().put("location", randomAlphaOfLength(10)).build();
         RepositoryMetadata repositoryMetadata = new RepositoryMetadata(randomAlphaOfLength(10), FsRepository.TYPE, settings);
         final ClusterService clusterService = BlobStoreTestUtil.mockClusterService(repositoryMetadata);
-        final FsRepository repository = new FsRepository(
+        fail = new TestTranslog.FailSwitch();
+        fail.failNever();
+        final FsRepository repository = new ThrowingBlobRepository(
             repositoryMetadata,
             createEnvironment(),
             xContentRegistry(),
             clusterService,
-            new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
+            new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
+            fail
         ) {
             @Override
             protected void assertSnapshotOrGenericThread() {
@@ -423,7 +434,7 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
             Path translogPath = reader.path();
             try (
                 InputStream stream = new CheckedInputStream(Files.newInputStream(translogPath), new CRC32());
-                InputStream tlogStream = blobStoreTransferService.readFile(path, Translog.getFilename(readerGeneration));
+                InputStream tlogStream = blobStoreTransferService.downloadBlob(path, Translog.getFilename(readerGeneration));
             ) {
                 byte[] content = stream.readAllBytes();
                 byte[] tlog = tlogStream.readAllBytes();
@@ -433,7 +444,7 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
             Path checkpointPath = translog.location().resolve(Translog.getCommitCheckpointFileName(readerGeneration));
             try (
                 CheckedInputStream stream = new CheckedInputStream(Files.newInputStream(checkpointPath), new CRC32());
-                InputStream ckpStream = blobStoreTransferService.readFile(path, Translog.getCommitCheckpointFileName(readerGeneration))
+                InputStream ckpStream = blobStoreTransferService.downloadBlob(path, Translog.getCommitCheckpointFileName(readerGeneration))
             ) {
                 byte[] content = stream.readAllBytes();
                 byte[] ckp = ckpStream.readAllBytes();
@@ -513,7 +524,7 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
         int threadCount = 2 + randomInt(5);
 
         logger.info("testing with [{}] threads, each doing [{}] ops", threadCount, opsPerThread);
-        final BlockingQueue<LocalTranslogTests.LocationOperation> writtenOperations = new ArrayBlockingQueue<>(threadCount * opsPerThread);
+        final BlockingQueue<TestTranslog.LocationOperation> writtenOperations = new ArrayBlockingQueue<>(threadCount * opsPerThread);
 
         Thread[] threads = new Thread[threadCount];
         final Exception[] threadExceptions = new Exception[threadCount];
@@ -543,7 +554,7 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
             threads[i].join(60 * 1000);
         }
 
-        List<LocalTranslogTests.LocationOperation> collect = new ArrayList<>(writtenOperations);
+        List<TestTranslog.LocationOperation> collect = new ArrayList<>(writtenOperations);
         collect.sort(Comparator.comparing(op -> op.operation.seqNo()));
 
         List<Translog.Operation> opsList = new ArrayList<>(threadCount * opsPerThread);
@@ -790,6 +801,44 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
         }
     }
 
+    public void testSyncUpFailure() throws IOException {
+        int translogOperations = randomIntBetween(1, 20);
+        int count = 0;
+        fail.failAlways();
+        ArrayList<Translog.Location> locations = new ArrayList<>();
+        for (int op = 0; op < translogOperations; op++) {
+            int seqNo = ++count;
+            final Translog.Location location = translog.add(
+                new Translog.Index("" + op, seqNo, primaryTerm.get(), Integer.toString(seqNo).getBytes(Charset.forName("UTF-8")))
+            );
+            if (randomBoolean()) {
+                fail.failAlways();
+                try {
+                    translog.ensureSynced(location);
+                    fail("io exception expected");
+                } catch (IOException e) {
+                    assertTrue("at least one operation pending", translog.syncNeeded());
+                }
+            } else {
+                fail.failNever();
+                translog.ensureSynced(location);
+                assertFalse("no sync needed since no operations in current translog", translog.syncNeeded());
+            }
+            locations.add(location);
+
+        }
+        // clean up
+        fail.failNever();
+
+        // writes should get synced up now
+        translog.sync();
+        assertFalse(translog.syncNeeded());
+        for (Translog.Location location : locations) {
+            assertFalse("all of the locations should be synced: " + location, translog.ensureSynced(location));
+        }
+
+    }
+
     public void testSyncUpToStream() throws IOException {
         int iters = randomIntBetween(5, 10);
         for (int i = 0; i < iters; i++) {
@@ -849,7 +898,7 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
             max = max(max, location);
         }
 
-        try (Translog.Snapshot snap = new LocalTranslogTests.SortedSnapshot(translog.newSnapshot())) {
+        try (Translog.Snapshot snap = new TestTranslog.SortedSnapshot(translog.newSnapshot())) {
             Translog.Operation next;
             Translog.Operation maxOp = null;
             while ((next = snap.next()) != null) {
@@ -1066,94 +1115,65 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
         }
     }
 
-    // ToDo : Fix me . Close() called twice causing assert failures
-    public void doNotTestRecoveryUncommitted() throws IOException {
-        List<Translog.Location> locations = new ArrayList<>();
-        int translogOperations = randomIntBetween(10, 100);
-        final int prepareOp = randomIntBetween(0, translogOperations - 1);
-        Translog.TranslogGeneration translogGeneration = null;
-        final boolean sync = randomBoolean();
-        for (int op = 0; op < translogOperations; op++) {
-            locations.add(
-                translog.add(new Translog.Index("" + op, op, primaryTerm.get(), Integer.toString(op).getBytes(Charset.forName("UTF-8"))))
-            );
-            if (op == prepareOp) {
-                translogGeneration = translog.getGeneration();
-                translog.rollGeneration();
-                assertEquals(
-                    "expected this to be the first roll (1 gen is on creation, 2 when opened)",
-                    2L,
-                    translogGeneration.translogFileGeneration
-                );
-                assertNotNull(translogGeneration.translogUUID);
-            }
-        }
-        if (sync) {
-            translog.sync();
-        }
-        // we intentionally don't close the tlog that is in the prepareCommit stage since we try to recovery the uncommitted
-        // translog here as well.
-        TranslogConfig config = translog.getConfig();
-        final String translogUUID = translog.getTranslogUUID();
-        final TranslogDeletionPolicy deletionPolicy = translog.getDeletionPolicy();
-        try (
-            Translog translog = new RemoteFsTranslog(
-                config,
-                translogUUID,
-                deletionPolicy,
-                () -> globalCheckpoint.get(),
-                primaryTerm::get,
-                getPersistedSeqNoConsumer(),
-                repository,
-                threadPool.executor(ThreadPool.Names.TRANSLOG_TRANSFER)
-            )
+    public class ThrowingBlobRepository extends FsRepository {
+        private final Environment environment;
+
+        private TestTranslog.FailSwitch fail;
+
+        public ThrowingBlobRepository(
+            RepositoryMetadata metadata,
+            Environment environment,
+            NamedXContentRegistry namedXContentRegistry,
+            ClusterService clusterService,
+            RecoverySettings recoverySettings,
+            TestTranslog.FailSwitch fail
         ) {
-            assertNotNull(translogGeneration);
-//            assertEquals(
-//                "lastCommitted must be 1 less than current - we never finished the commit",
-//                translogGeneration.translogFileGeneration + 1,
-//                translog.currentFileGeneration()
-//            );
-            assertFalse(translog.syncNeeded());
-            try (Translog.Snapshot snapshot = new LocalTranslogTests.SortedSnapshot(translog.newSnapshot())) {
-                int upTo = sync ? translogOperations : prepareOp;
-                for (int i = 0; i < upTo; i++) {
-                    Translog.Operation next = snapshot.next();
-                    assertNotNull("operation " + i + " must be non-null synced: " + sync, next);
-                    assertEquals("payload mismatch, synced: " + sync, i, Integer.parseInt(next.getSource().source.utf8ToString()));
-                }
-            }
+            super(metadata, environment, namedXContentRegistry, clusterService, recoverySettings);
+            this.environment = environment;
+            this.fail = fail;
         }
 
-        if (randomBoolean()) { // recover twice
-            try (
-                Translog translog = new RemoteFsTranslog(
-                    config,
-                    translogUUID,
-                    deletionPolicy,
-                    () -> SequenceNumbers.NO_OPS_PERFORMED,
-                    primaryTerm::get,
-                    seqNo -> {},
-                    repository,
-                    threadPool.executor(ThreadPool.Names.TRANSLOG_TRANSFER)
-                )
-            ) {
-                assertNotNull(translogGeneration);
-//                assertEquals(
-//                    "lastCommitted must be 3 less than current - we never finished the commit and run recovery twice",
-//                    translogGeneration.translogFileGeneration + 3,
-//                    translog.currentFileGeneration()
-//                );
-                assertFalse(translog.syncNeeded());
-                try (Translog.Snapshot snapshot = new LocalTranslogTests.SortedSnapshot(translog.newSnapshot())) {
-                    int upTo = sync ? translogOperations : prepareOp;
-                    for (int i = 0; i < upTo; i++) {
-                        Translog.Operation next = snapshot.next();
-                        assertNotNull("operation " + i + " must be non-null synced: " + sync, next);
-                        assertEquals("payload mismatch, synced: " + sync, i, Integer.parseInt(next.getSource().source.utf8ToString()));
-                    }
-                }
+        protected BlobStore createBlobStore() throws Exception {
+            final String location = REPOSITORIES_LOCATION_SETTING.get(getMetadata().settings());
+            final Path locationFile = environment.resolveRepoFile(location);
+            return new ThrowingBlobStore(bufferSize, locationFile, isReadOnly(), fail);
+        }
+    }
+
+    private class ThrowingBlobStore extends FsBlobStore {
+
+        private TestTranslog.FailSwitch fail;
+
+        public ThrowingBlobStore(int bufferSizeInBytes, Path path, boolean readonly, TestTranslog.FailSwitch fail) throws IOException {
+            super(bufferSizeInBytes, path, readonly);
+            this.fail = fail;
+        }
+
+        @Override
+        public BlobContainer blobContainer(BlobPath path) {
+            try {
+                return new ThrowingBlobContainer(this, path, buildAndCreate(path), fail);
+            } catch (IOException ex) {
+                throw new OpenSearchException("failed to create blob container", ex);
             }
+        }
+    }
+
+    private class ThrowingBlobContainer extends FsBlobContainer {
+
+        private TestTranslog.FailSwitch fail;
+
+        public ThrowingBlobContainer(FsBlobStore blobStore, BlobPath blobPath, Path path, TestTranslog.FailSwitch fail) {
+            super(blobStore, blobPath, path);
+            this.fail = fail;
+        }
+
+        public void writeBlobAtomic(final String blobName, final InputStream inputStream, final long blobSize, boolean failIfAlreadyExists)
+            throws IOException {
+            if (fail.fail()) {
+                throw new IOException("blob container throwing error");
+            }
+            super.writeBlobAtomic(blobName, inputStream, blobSize, failIfAlreadyExists);
         }
     }
 
@@ -1161,7 +1181,7 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
         private final CountDownLatch downLatch;
         private final int opsPerThread;
         private final int threadId;
-        private final Collection<LocalTranslogTests.LocationOperation> writtenOperations;
+        private final Collection<TestTranslog.LocationOperation> writtenOperations;
         private final Exception[] threadExceptions;
         private final Translog translog;
         private final AtomicLong seqNoGenerator;
@@ -1171,7 +1191,7 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
             CountDownLatch downLatch,
             int opsPerThread,
             int threadId,
-            Collection<LocalTranslogTests.LocationOperation> writtenOperations,
+            Collection<TestTranslog.LocationOperation> writtenOperations,
             AtomicLong seqNoGenerator,
             Exception[] threadExceptions
         ) {
@@ -1217,7 +1237,7 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
                     }
 
                     Translog.Location loc = add(op);
-                    writtenOperations.add(new LocalTranslogTests.LocationOperation(op, loc));
+                    writtenOperations.add(new TestTranslog.LocationOperation(op, loc));
                     if (rarely()) { // lets verify we can concurrently read this
                         assertEquals(op, translog.readOperation(loc));
                     }

@@ -70,7 +70,7 @@ public class BlobStoreTransferService implements TransferService {
         }
     }
 
-    public InputStream readFile(Iterable<String> path, String fileName) throws IOException {
+    public InputStream downloadBlob(Iterable<String> path, String fileName) throws IOException {
         return blobStore.blobContainer((BlobPath) path).readBlob(fileName);
     }
 

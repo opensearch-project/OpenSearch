@@ -117,7 +117,7 @@ public class TranslogTransferManager {
                 translogTransferListener.onUploadComplete(transferSnapshot);
                 return true;
             } else {
-                Exception ex = new RuntimeException("Failed to upload some files during transfer");
+                Exception ex = new IOException("Failed to upload " + exceptionList.size() + " files during transfer");
                 exceptionList.forEach(ex::addSuppressed);
                 throw ex;
             }
