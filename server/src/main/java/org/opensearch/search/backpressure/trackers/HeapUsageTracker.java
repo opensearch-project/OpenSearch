@@ -241,7 +241,12 @@ public class HeapUsageTracker extends TaskResourceUsageTracker {
     public TaskResourceUsageTracker.Stats searchTaskStats(List<? extends Task> searchTasks) {
         long currentMax = searchTasks.stream().mapToLong(t -> t.getTotalResourceStats().getMemoryInBytes()).max().orElse(0);
         long currentAvg = (long) searchTasks.stream().mapToLong(t -> t.getTotalResourceStats().getMemoryInBytes()).average().orElse(0);
-        return new Stats(getSearchTaskCancellationCount(), currentMax, currentAvg, (long) movingAverageReferenceForSearchQuery.get().getAverage());
+        return new Stats(
+            getSearchTaskCancellationCount(),
+            currentMax,
+            currentAvg,
+            (long) movingAverageReferenceForSearchQuery.get().getAverage()
+        );
     }
 
     @Override
