@@ -202,7 +202,7 @@ public class WeightedRoutingServiceTests extends OpenSearchTestCase {
             client,
             ClusterAddWeightedRoutingAction.INSTANCE
         );
-        WeightedRouting updatedWeightedRouting = new WeightedRouting("zone", Map.of("zone_A", 1.0, "zone_B", 0.0, "zone_C", 0.0));
+        WeightedRouting updatedWeightedRouting = new WeightedRouting("zone", Map.of("zone_A", 1.0, "zone_B", 1.0, "zone_C", 0.0));
         request.setWeightedRouting(updatedWeightedRouting);
         final CountDownLatch countDownLatch = new CountDownLatch(1);
         ActionListener<ClusterStateUpdateResponse> listener = new ActionListener<ClusterStateUpdateResponse>() {
