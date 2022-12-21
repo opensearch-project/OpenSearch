@@ -14,9 +14,10 @@ import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.delete.ClusterDeleteWeightedRoutingResponse;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingResponse;
+import org.opensearch.action.get.MultiGetRequest;
+import org.opensearch.action.get.MultiGetResponse;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.WeightedRouting;
@@ -542,7 +543,7 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
             SearchStats.Stats searchStats = stat.getIndices().getSearch().getTotal();
             if (stat.getNode().isDataNode()) {
                 if (stat.getNode().getId().equals(dataNodeId)) {
-                    Assert.assertTrue(searchStats.getQueryCount() > 0L);
+                    Assert.assertTrue(searchStats.getFetchCount() > 0L);
                     Assert.assertTrue(searchStats.getQueryCount() > 0L);
                 }
             }
@@ -552,79 +553,48 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
     /**
      * Shard routing request is served by data nodes in az with weight set as 0,
      * in case shard copies are not available in other azs.
-     * This is tested by setting up a 4 node cluster with one data node per az.
+     * This is tested by setting up a 3 node cluster with one data node per az.
      * Weighted shard routing weight is set as 0 for az-c.
      * Indices are created with one replica copy and network disruption is introduced,
-     * which makes node in zone a unresponsive.
+     * which makes node in zone-a unresponsive.
      * Since there are two copies of a shard, there can be few shards for which copy doesn't exist in zone b.
      * Assertions are put to make sure such shard search requests are served by data node in zone c.
      * @throws IOException
      */
-    public void testSearchAggregationFailOpen_WithUnresponsiveNetworkDisruption() throws Exception {
+    public void testSearchAggregationWithNetworkDisruption_FailOpenEnabled() throws Exception {
 
         Settings commonSettings = Settings.builder()
             .put("cluster.routing.allocation.awareness.attributes", "zone")
             .put("cluster.routing.allocation.awareness.force.zone.values", "a,b,c")
+            .put("cluster.routing.weighted.fail_open", true)
             .build();
 
         int nodeCountPerAZ = 1;
-
-        logger.info("--> starting a dedicated cluster manager node");
-        internalCluster().startClusterManagerOnlyNode(Settings.builder().put(commonSettings).build());
-
-        logger.info("--> starting 1 nodes on zones 'a' & 'b' & 'c'");
-        List<String> nodes_in_zone_a = internalCluster().startDataOnlyNodes(
-            nodeCountPerAZ,
-            Settings.builder().put(commonSettings).put("node.attr.zone", "a").build()
-        );
-        List<String> nodes_in_zone_b = internalCluster().startDataOnlyNodes(
-            nodeCountPerAZ,
-            Settings.builder().put(commonSettings).put("node.attr.zone", "b").build()
-        );
-        List<String> nodes_in_zone_c = internalCluster().startDataOnlyNodes(
-            nodeCountPerAZ,
-            Settings.builder().put(commonSettings).put("node.attr.zone", "c").build()
-        );
-
-        logger.info("--> waiting for nodes to form a cluster");
-        ClusterHealthResponse health = client().admin().cluster().prepareHealth().setWaitForNodes("4").execute().actionGet();
-        assertThat(health.isTimedOut(), equalTo(false));
-
-        ensureGreen();
+        Map<String, List<String>> nodeMap = setupCluster(nodeCountPerAZ, commonSettings);
 
         assertAcked(
             prepareCreate("index").setMapping("f", "type=keyword")
                 .setSettings(Settings.builder().put("index" + ".number_of_shards", 10).put("index" + ".number_of_replicas", 1))
         );
 
-        // assertAcked(prepareCreate("index").setMapping("f", "type=keyword").get());
         int numDocs = randomIntBetween(1, 20);
         List<IndexRequestBuilder> docs = new ArrayList<>();
         for (int i = 0; i < numDocs; ++i) {
             docs.add(client().prepareIndex("index").setSource("f", Integer.toString(i / 3)));
         }
         indexRandom(true, docs);
-
         ensureGreen();
-
         refresh("index");
 
         logger.info("--> setting shard routing weights for weighted round robin");
         Map<String, Double> weights = Map.of("a", 1.0, "b", 1.0, "c", 0.0);
-        WeightedRouting weightedRouting = new WeightedRouting("zone", weights);
-
-        ClusterPutWeightedRoutingResponse response = client().admin()
-            .cluster()
-            .prepareWeightedRouting()
-            .setWeightedRouting(weightedRouting)
-            .get();
-        assertEquals(response.isAcknowledged(), true);
+        setShardRoutingWeights(weights);
 
         logger.info("--> creating network partition disruption");
         final String clusterManagerNode1 = internalCluster().getClusterManagerName();
-        Set<String> nodesInOneSide = Stream.of(clusterManagerNode1, nodes_in_zone_b.get(0), nodes_in_zone_c.get(0))
+        Set<String> nodesInOneSide = Stream.of(clusterManagerNode1, nodeMap.get("b").get(0), nodeMap.get("c").get(0))
             .collect(Collectors.toCollection(HashSet::new));
-        Set<String> nodesInOtherSide = Stream.of(nodes_in_zone_a.get(0)).collect(Collectors.toCollection(HashSet::new));
+        Set<String> nodesInOtherSide = Stream.of(nodeMap.get("a").get(0)).collect(Collectors.toCollection(HashSet::new));
 
         NetworkDisruption networkDisruption = new NetworkDisruption(
             new NetworkDisruption.TwoPartitions(nodesInOneSide, nodesInOtherSide),
@@ -639,14 +609,14 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
         Future<SearchResponse>[] responses = new Future[50];
         int size = 17;
         logger.info("--> making search requests");
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < 10; i++) {
             responses[i] = client().prepareSearch("index").setSize(size).addAggregation(terms("f").field("f")).execute();
         }
 
         logger.info("--> network disruption is stopped");
         networkDisruption.stopDisrupting();
 
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < 10; i++) {
             try {
                 SearchResponse searchResponse = responses[i].get();
                 Aggregations aggregations = searchResponse.getAggregations();
@@ -661,41 +631,159 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
                 fail("search should not fail");
             }
         }
+        assertSearchInAZ("b");
+        assertSearchInAZ("c");
+        assertNoSearchInAZ("a");
 
-        ImmutableOpenMap<String, DiscoveryNode> dataNodes = internalCluster().clusterService().state().nodes().getDataNodes();
-        String dataNodeInZoneAId = null;
-        String dataNodeInZoneBId = null;
-        String dataNodeInZoneCId = null;
-        for (Iterator<DiscoveryNode> it = dataNodes.valuesIt(); it.hasNext();) {
-            DiscoveryNode node = it.next();
-            switch (node.getAttributes().get("zone")) {
-                case "a":
-                    dataNodeInZoneAId = node.getId();
-                    break;
-                case "b":
-                    dataNodeInZoneBId = node.getId();
-                    break;
-                case "c":
-                    dataNodeInZoneCId = node.getId();
-            }
-        }
-
-        NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().execute().actionGet();
-        for (NodeStats stat : nodeStats.getNodes()) {
-            SearchStats.Stats searchStats = stat.getIndices().getSearch().getTotal();
-            if (stat.getNode().isDataNode()) {
-                if (stat.getNode().getId().equals(dataNodeInZoneBId)) {
-                    Assert.assertTrue(searchStats.getQueryCount() > 0L);
-                    Assert.assertTrue(searchStats.getFetchCount() > 0L);
-                } else if (stat.getNode().getId().equals(dataNodeInZoneCId)) {
-                    Assert.assertTrue(searchStats.getQueryCount() > 0L);
-                }
-            }
-        }
         assertBusy(
             () -> assertThat(client().admin().indices().prepareStats().get().getTotal().getSearch().getOpenContexts(), equalTo(0L)),
             60,
             TimeUnit.SECONDS
         );
     }
+
+    /**
+     * MultiGet with fail open enabled. No request failure on network disruption
+     * @throws IOException
+     */
+    public void testMultiGetWithNetworkDisruption_FailOpenEnabled() throws Exception {
+
+        Settings commonSettings = Settings.builder()
+            .put("cluster.routing.allocation.awareness.attributes", "zone")
+            .put("cluster.routing.allocation.awareness.force.zone.values", "a,b,c")
+            .put("cluster.routing.weighted.fail_open", true)
+            .build();
+
+        int nodeCountPerAZ = 1;
+        Map<String, List<String>> nodeMap = setupCluster(nodeCountPerAZ, commonSettings);
+
+        int numShards = 10;
+        int numReplicas = 1;
+        setUpIndexing(numShards, numReplicas);
+
+        logger.info("--> setting shard routing weights for weighted round robin");
+        Map<String, Double> weights = Map.of("a", 1.0, "b", 1.0, "c", 0.0);
+        setShardRoutingWeights(weights);
+
+        logger.info("--> creating network partition disruption");
+        final String clusterManagerNode1 = internalCluster().getClusterManagerName();
+        Set<String> nodesInOneSide = Stream.of(clusterManagerNode1, nodeMap.get("b").get(0), nodeMap.get("c").get(0))
+            .collect(Collectors.toCollection(HashSet::new));
+        Set<String> nodesInOtherSide = Stream.of(nodeMap.get("a").get(0)).collect(Collectors.toCollection(HashSet::new));
+
+        NetworkDisruption networkDisruption = new NetworkDisruption(
+            new NetworkDisruption.TwoPartitions(nodesInOneSide, nodesInOtherSide),
+            NetworkDisruption.UNRESPONSIVE
+        );
+        internalCluster().setDisruptionScheme(networkDisruption);
+
+        logger.info("--> network disruption is started");
+        networkDisruption.startDisrupting();
+
+        Future<MultiGetResponse>[] responses = new Future[50];
+        logger.info("--> making search requests");
+        int index1, index2;
+        for (int i = 0; i < 50; i++) {
+            index1 = randomIntBetween(0, 9);
+            index2 = randomIntBetween(0, 9);
+            responses[i] = client().prepareMultiGet()
+                .add(new MultiGetRequest.Item("test", "" + index1))
+                .add(new MultiGetRequest.Item("test", "" + index2))
+                .execute();
+        }
+
+        logger.info("--> network disruption is stopped");
+        networkDisruption.stopDisrupting();
+
+        for (int i = 0; i < 50; i++) {
+            try {
+                MultiGetResponse multiGetResponse = responses[i].get();
+                assertThat(multiGetResponse.getResponses().length, equalTo(2));
+                assertThat(multiGetResponse.getResponses()[0].isFailed(), equalTo(false));
+                assertThat(multiGetResponse.getResponses()[1].isFailed(), equalTo(false));
+            } catch (Exception t) {
+                fail("search should not fail");
+            }
+        }
+
+        assertBusy(
+            () -> assertThat(client().admin().indices().prepareStats().get().getTotal().getSearch().getOpenContexts(), equalTo(0L)),
+            60,
+            TimeUnit.SECONDS
+        );
+    }
+
+    /**
+     * MultiGet with fail open disabled. Assert that some requests do fail.
+     * @throws IOException
+     */
+    public void testMultiGetWithNetworkDisruption_FailOpenDisabled() throws Exception {
+
+        Settings commonSettings = Settings.builder()
+            .put("cluster.routing.allocation.awareness.attributes", "zone")
+            .put("cluster.routing.allocation.awareness.force.zone.values", "a,b,c")
+            .build();
+
+        int nodeCountPerAZ = 1;
+        Map<String, List<String>> nodeMap = setupCluster(nodeCountPerAZ, commonSettings);
+
+        int numShards = 10;
+        int numReplicas = 1;
+        setUpIndexing(numShards, numReplicas);
+
+        logger.info("--> setting shard routing weights for weighted round robin");
+        Map<String, Double> weights = Map.of("a", 1.0, "b", 1.0, "c", 0.0);
+        setShardRoutingWeights(weights);
+
+        logger.info("--> creating network partition disruption");
+        final String clusterManagerNode1 = internalCluster().getClusterManagerName();
+        Set<String> nodesInOneSide = Stream.of(clusterManagerNode1, nodeMap.get("b").get(0), nodeMap.get("c").get(0))
+            .collect(Collectors.toCollection(HashSet::new));
+        Set<String> nodesInOtherSide = Stream.of(nodeMap.get("a").get(0)).collect(Collectors.toCollection(HashSet::new));
+
+        NetworkDisruption networkDisruption = new NetworkDisruption(
+            new NetworkDisruption.TwoPartitions(nodesInOneSide, nodesInOtherSide),
+            NetworkDisruption.UNRESPONSIVE
+        );
+        internalCluster().setDisruptionScheme(networkDisruption);
+
+        logger.info("--> network disruption is started");
+        networkDisruption.startDisrupting();
+
+        Future<MultiGetResponse>[] responses = new Future[50];
+        logger.info("--> making search requests");
+        int index1, index2;
+        for (int i = 0; i < 50; i++) {
+            index1 = randomIntBetween(0, 9);
+            index2 = randomIntBetween(0, 9);
+            responses[i] = client().prepareMultiGet()
+                .add(new MultiGetRequest.Item("test", "" + index1))
+                .add(new MultiGetRequest.Item("test", "" + index2))
+                .execute();
+        }
+
+        logger.info("--> network disruption is stopped");
+        networkDisruption.stopDisrupting();
+        int failedCount = 0;
+        for (int i = 0; i < 50; i++) {
+            try {
+                MultiGetResponse multiGetResponse = responses[i].get();
+                assertThat(multiGetResponse.getResponses().length, equalTo(2));
+                if (multiGetResponse.getResponses()[0].isFailed() || multiGetResponse.getResponses()[1].isFailed()) {
+                    failedCount++;
+                }
+            } catch (Exception t) {
+                fail("search should not fail");
+            }
+        }
+
+        Assert.assertTrue(failedCount > 0);
+
+        assertBusy(
+            () -> assertThat(client().admin().indices().prepareStats().get().getTotal().getSearch().getOpenContexts(), equalTo(0L)),
+            60,
+            TimeUnit.SECONDS
+        );
+    }
+
 }
