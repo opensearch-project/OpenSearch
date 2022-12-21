@@ -123,6 +123,8 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DAT
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance.USE_FORCE_ZONE_FOR_REPLICA_SETTING;
+import static org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance.maxAwarenessAttributes;
 
 /**
  * Service responsible for submitting create index requests
@@ -554,7 +556,6 @@ public class MetadataCreateIndexService {
                 xContentRegistry
             )
         );
-
         final Settings aggregatedIndexSettings = aggregateIndexSettings(
             currentState,
             request,
@@ -862,7 +863,12 @@ public class MetadataCreateIndexService {
             indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, INDEX_NUMBER_OF_SHARDS_SETTING.get(settings));
         }
         if (INDEX_NUMBER_OF_REPLICAS_SETTING.exists(indexSettingsBuilder) == false) {
-            indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, INDEX_NUMBER_OF_REPLICAS_SETTING.get(settings));
+            if(USE_FORCE_ZONE_FOR_REPLICA_SETTING.get(currentState.metadata().settings())) {
+                int replicaCount = maxAwarenessAttributes(currentState.metadata().settings()) - 1;
+                indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, replicaCount);
+            } else {
+                indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, INDEX_NUMBER_OF_REPLICAS_SETTING.get(settings));
+            }
         }
         if (settings.get(SETTING_AUTO_EXPAND_REPLICAS) != null && indexSettingsBuilder.get(SETTING_AUTO_EXPAND_REPLICAS) == null) {
             indexSettingsBuilder.put(SETTING_AUTO_EXPAND_REPLICAS, settings.get(SETTING_AUTO_EXPAND_REPLICAS));
@@ -1194,6 +1200,9 @@ public class MetadataCreateIndexService {
                 IndexMetadata.SETTING_NUMBER_OF_REPLICAS,
                 INDEX_NUMBER_OF_REPLICAS_SETTING.getDefault(Settings.EMPTY)
             );
+            if(INDEX_NUMBER_OF_REPLICAS_SETTING.exists(settings) == false && awarenessReplicaBalance.getUseForceZoneForReplicaSetting()){
+                replicaCount = awarenessReplicaBalance.maxAwarenessAttributes() - 1;
+            }
             AutoExpandReplicas autoExpandReplica = AutoExpandReplicas.SETTING.get(settings);
             Optional<String> error = awarenessReplicaBalance.validate(replicaCount, autoExpandReplica);
             if (error.isPresent()) {

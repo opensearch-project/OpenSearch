@@ -8,16 +8,18 @@
 
 package org.opensearch.cluster.routing.allocation;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.metadata.AutoExpandReplicas;
+import org.opensearch.cluster.metadata.MetadataCreateIndexService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.indices.replication.common.ReplicationType;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 
+import static java.lang.Math.log;
 import static java.lang.Math.max;
 import static org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING;
 import static org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING;
@@ -31,9 +33,44 @@ import static org.opensearch.cluster.routing.allocation.decider.AwarenessAllocat
  * Helps in balancing shards across all awareness attributes and ensuring high availability of data.
  */
 public class AwarenessReplicaBalance {
+    public static final String SETTING_CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE = "cluster.routing.allocation.awareness.balance";
+    public static final String SETTING_USE_FORCE_ZONE_FOR_REPLICA = "cluster.use_force_zone_for_replica";
+    private static final Logger logger = LogManager.getLogger(AwarenessReplicaBalance.class);
     public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING = Setting.boolSetting(
-        "cluster.routing.allocation.awareness.balance",
+        SETTING_CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE,
         false,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<Boolean> USE_FORCE_ZONE_FOR_REPLICA_SETTING = Setting.boolSetting(
+        SETTING_USE_FORCE_ZONE_FOR_REPLICA,
+        false,
+        new Setting.Validator<>() {
+
+            @Override
+            public void validate(final Boolean value) {}
+
+            @Override
+            public void validate(final Boolean value, final Map<Setting<?>, Object> settings) {
+                final Boolean clusterAwarenessSetting = (Boolean) settings.get(CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING);
+                if (clusterAwarenessSetting == false && value == true) {
+                    throw new IllegalArgumentException(
+                        "To enable "
+                            + USE_FORCE_ZONE_FOR_REPLICA_SETTING.getKey()
+                            + ", "
+                            + CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING.getKey()
+                            + " should be enabled "
+                    );
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                final List<Setting<?>> settings = Collections.singletonList(CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING);
+                return settings.iterator();
+            }
+        },
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -43,6 +80,8 @@ public class AwarenessReplicaBalance {
     private volatile Map<String, List<String>> forcedAwarenessAttributes;
 
     private volatile Boolean awarenessBalance;
+
+    private volatile Boolean useForceZoneForReplica;
 
     public AwarenessReplicaBalance(Settings settings, ClusterSettings clusterSettings) {
         this.awarenessAttributes = CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.get(settings);
@@ -54,7 +93,8 @@ public class AwarenessReplicaBalance {
         );
         setAwarenessBalance(CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING.get(settings));
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING, this::setAwarenessBalance);
-
+        this.useForceZoneForReplica = USE_FORCE_ZONE_FOR_REPLICA_SETTING.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(USE_FORCE_ZONE_FOR_REPLICA_SETTING, this::setUseForceZoneForReplica);
     }
 
     private void setAwarenessBalance(Boolean awarenessBalance) {
@@ -62,6 +102,13 @@ public class AwarenessReplicaBalance {
     }
 
     private void setForcedAwarenessAttributes(Settings forceSettings) {
+        this.forcedAwarenessAttributes = getForcedAwarenessAttributes(forceSettings);
+    }
+
+    private void setUseForceZoneForReplica(Boolean useForceZoneForReplica){
+        this.useForceZoneForReplica = useForceZoneForReplica;
+    }
+    public static Map<String, List<String>> getForcedAwarenessAttributes(Settings forceSettings) {
         Map<String, List<String>> forcedAwarenessAttributes = new HashMap<>();
         Map<String, Settings> forceGroups = forceSettings.getAsGroups();
         for (Map.Entry<String, Settings> entry : forceGroups.entrySet()) {
@@ -70,13 +117,16 @@ public class AwarenessReplicaBalance {
                 forcedAwarenessAttributes.put(entry.getKey(), aValues);
             }
         }
-        this.forcedAwarenessAttributes = forcedAwarenessAttributes;
+        return forcedAwarenessAttributes;
     }
 
     private void setAwarenessAttributes(List<String> awarenessAttributes) {
         this.awarenessAttributes = awarenessAttributes;
     }
 
+    public Boolean getUseForceZoneForReplicaSetting(){
+        return this.useForceZoneForReplica;
+    }
     /*
     For a cluster having zone as awareness attribute , it will return the size of zones if set it forced awareness attributes
 
@@ -102,6 +152,24 @@ public class AwarenessReplicaBalance {
         return awarenessAttributes;
     }
 
+    public static int maxAwarenessAttributes(Settings settings) {
+        Boolean awarenessBalance = CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING.get(settings);
+        List<String> awarenessAttributes = CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.get(settings);
+        Map<String, List<String>> forcedAwarenessAttributes = getForcedAwarenessAttributes(CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.get(settings));
+        logger.info(forcedAwarenessAttributes);
+        logger.info(awarenessAttributes);
+        logger.info(awarenessBalance);
+        int defaultAwarenessAttributes = 1;
+        if (awarenessBalance == false) {
+            return defaultAwarenessAttributes;
+        }
+        for (String awarenessAttribute : awarenessAttributes) {
+            if (forcedAwarenessAttributes.containsKey(awarenessAttribute)) {
+                defaultAwarenessAttributes = max(defaultAwarenessAttributes, forcedAwarenessAttributes.get(awarenessAttribute).size());
+            }
+        }
+        return defaultAwarenessAttributes;
+    }
     public Optional<String> validate(int replicaCount, AutoExpandReplicas autoExpandReplica) {
         if (autoExpandReplica.isEnabled()) {
             if ((autoExpandReplica.getMaxReplicas() != Integer.MAX_VALUE)
