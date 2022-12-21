@@ -719,8 +719,13 @@ public abstract class TransportReplicationAction<
                     return new PrimaryTermValidationReplicaAction(replicaRequest, onCompletionListener, task, replica);
                 }
             }
-            // TODO - revisit exception type and the string arg
-            throw new RuntimeException("This call should not have come");
+            setPhase(task, "failed");
+            throw new UnsupportedReplicaActionException(
+                "ReplicationMode:{} is not supported on targetAllocationId={} for shard={}",
+                replicationMode,
+                replicaRequest.getTargetAllocationID(),
+                replica.shardId()
+            );
         }
     }
 
@@ -750,11 +755,13 @@ public abstract class TransportReplicationAction<
 
         @Override
         public void onResponse(Releasable releasable) {
+            setPhase(task, "finished");
             onCompletionListener.onResponse(new ReplicaResponse(-2, -2));
         }
 
         @Override
         public void onFailure(Exception e) {
+            setPhase(task, "failed");
             onCompletionListener.onFailure(e);
         }
 

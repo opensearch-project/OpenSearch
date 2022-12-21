@@ -33,6 +33,7 @@
 package org.opensearch;
 
 import org.opensearch.action.support.replication.ReplicationOperation;
+import org.opensearch.action.support.replication.UnsupportedReplicaActionException;
 import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.routing.UnsupportedWeightedRoutingStateException;
 import org.opensearch.cluster.service.ClusterManagerThrottlingException;
@@ -1626,7 +1627,8 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
             UnsupportedWeightedRoutingStateException::new,
             167,
             V_2_5_0
-        );
+        ),
+        UNSUPPORTED_REPLICA_ACTION_EXCEPTION(UnsupportedReplicaActionException.class, UnsupportedReplicaActionException::new, 168, V_3_0_0);
 
         final Class<? extends OpenSearchException> exceptionClass;
         final CheckedFunction<StreamInput, ? extends OpenSearchException, IOException> constructor;
