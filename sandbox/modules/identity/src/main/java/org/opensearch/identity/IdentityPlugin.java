@@ -62,6 +62,7 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
     private volatile ConfigurationRepository cr;
     private volatile ClusterService cs;
     private volatile Client localClient;
+    private volatile NamedXContentRegistry namedXContentRegistry = null;
 
     @SuppressWarnings("removal")
     public IdentityPlugin(final Settings settings, final Path configPath) {
