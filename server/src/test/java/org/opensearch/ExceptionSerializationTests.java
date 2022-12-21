@@ -43,6 +43,7 @@ import org.opensearch.action.TimestampParsingException;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.action.support.replication.ReplicationOperation;
+import org.opensearch.action.support.replication.UnsupportedReplicaActionException;
 import org.opensearch.client.AbstractClientHeadersTestCase;
 import org.opensearch.cluster.NotMasterException;
 import org.opensearch.cluster.action.shard.ShardStateAction;
@@ -866,6 +867,7 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
         ids.put(165, ClusterManagerThrottlingException.class);
         ids.put(166, SnapshotInUseDeletionException.class);
         ids.put(167, UnsupportedWeightedRoutingStateException.class);
+        ids.put(168, UnsupportedReplicaActionException.class);
 
         Map<Class<? extends OpenSearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends OpenSearchException>> entry : ids.entrySet()) {

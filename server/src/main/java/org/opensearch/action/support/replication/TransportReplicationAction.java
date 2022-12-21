@@ -268,7 +268,7 @@ public abstract class TransportReplicationAction<
      * @return the overridden replication mode.
      */
     protected ReplicationMode getReplicationMode(IndexShard indexShard) {
-        if (indexShard.indexSettings().isRemoteTranslogStoreEnabled()) {
+        if (indexShard.indexSettings() != null && indexShard.indexSettings().isRemoteTranslogStoreEnabled()) {
             return ReplicationMode.NO_REPLICATION;
         }
         return ReplicationMode.FULL_REPLICATION;
@@ -713,7 +713,7 @@ public abstract class TransportReplicationAction<
             if (replicationMode == ReplicationMode.FULL_REPLICATION) {
                 return new FullReplicationAsyncReplicaAction(replicaRequest, onCompletionListener, task, replica);
             } else if (replicationMode == ReplicationMode.PRIMARY_TERM_VALIDATION) {
-                if (replica.routingEntry().primary()) {
+                if (replica.isRemoteTranslogEnabled()) {
                     return new FullReplicationAsyncReplicaAction(replicaRequest, onCompletionListener, task, replica);
                 } else {
                     return new PrimaryTermValidationReplicaAction(replicaRequest, onCompletionListener, task, replica);
@@ -756,7 +756,7 @@ public abstract class TransportReplicationAction<
         @Override
         public void onResponse(Releasable releasable) {
             setPhase(task, "finished");
-            onCompletionListener.onResponse(new ReplicaResponse(-2, -2));
+            onCompletionListener.onResponse(new ReplicaResponse(SequenceNumbers.NO_OPS_PERFORMED, SequenceNumbers.NO_OPS_PERFORMED));
         }
 
         @Override

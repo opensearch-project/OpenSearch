@@ -197,7 +197,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     @Override
     protected ReplicationMode getReplicationMode(IndexShard indexShard) {
-        if (indexShard.indexSettings().isRemoteTranslogStoreEnabled()) {
+        if (indexShard.indexSettings() != null && indexShard.indexSettings().isRemoteTranslogStoreEnabled()) {
             return ReplicationMode.PRIMARY_TERM_VALIDATION;
         }
         return super.getReplicationMode(indexShard);
