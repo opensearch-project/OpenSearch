@@ -132,7 +132,7 @@ public class HeapUsageTracker extends TaskResourceUsageTracker {
         heapPercentThreshold = SETTING_HEAP_PERCENT_THRESHOLD.get(settings.getSettings());
         settings.getClusterSettings().addSettingsUpdateConsumer(SETTING_HEAP_PERCENT_THRESHOLD, this::setHeapPercentThreshold);
 
-        heapPercentThresholdForSearchQuery = SETTING_HEAP_VARIANCE_THRESHOLD_FOR_SEARCH_QUERY.get(settings.getSettings());
+        heapVarianceThresholdForSearchQuery = SETTING_HEAP_VARIANCE_THRESHOLD_FOR_SEARCH_QUERY.get(settings.getSettings());
         settings.getClusterSettings()
             .addSettingsUpdateConsumer(SETTING_HEAP_VARIANCE_THRESHOLD_FOR_SEARCH_QUERY, this::setHeapVarianceThresholdForSearchQuery);
         heapVarianceThreshold = SETTING_HEAP_VARIANCE_THRESHOLD.get(settings.getSettings());
