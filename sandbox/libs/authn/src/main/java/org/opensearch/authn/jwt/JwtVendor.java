@@ -42,10 +42,10 @@ public class JwtVendor {
         return jwk;
     }
 
-    static JsonWebKey getESJsonWebKey() {
+    static JsonWebKey getSmallerWebKey() {
         JsonWebKey jwk = new JsonWebKey();
         jwk.setKeyType(KeyType.OCTET);
-        jwk.setAlgorithm("ES256");
+        jwk.setAlgorithm("HS256");
         jwk.setPublicKeyUse(PublicKeyUse.SIGN);
         String b64SigningKey = Base64.getEncoder().encodeToString("exchangeKey".getBytes(StandardCharsets.UTF_8));
         jwk.setProperty("k", b64SigningKey);
@@ -156,7 +156,7 @@ public class JwtVendor {
 
     public static String createInvalidJwt(Map<String, String> claims) {
         JoseJwtProducer jwtProducer = new JoseJwtProducer();
-        jwtProducer.setSignatureProvider(JwsUtils.getSignatureProvider(getESJsonWebKey()));
+        jwtProducer.setSignatureProvider(JwsUtils.getSignatureProvider(getSmallerWebKey()));
         JwtClaims jwtClaims = new JwtClaims();
         JwtToken jwt = new JwtToken(jwtClaims);
 

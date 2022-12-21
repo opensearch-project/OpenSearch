@@ -382,7 +382,7 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
     /**
      * Get the client used for ordinary api calls while writing a test
      */
-    public static RestClient client() {
+    protected static RestClient client() {
         return client;
     }
 
