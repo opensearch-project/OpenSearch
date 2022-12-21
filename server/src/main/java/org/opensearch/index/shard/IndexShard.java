@@ -35,6 +35,7 @@ package org.opensearch.index.shard;
 import com.carrotsearch.hppc.ObjectLongMap;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
@@ -53,6 +54,7 @@ import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.SetOnce;
 import org.apache.lucene.util.ThreadInterruptedException;
 import org.opensearch.Assertions;
@@ -4168,16 +4170,23 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             : "Store.directory is not enclosing an instance of FilterDirectory";
         FilterDirectory byteSizeCachingStoreDirectory = (FilterDirectory) remoteStoreDirectory.getDelegate();
         final Directory remoteDirectory = byteSizeCachingStoreDirectory.getDelegate();
+        // We need to call RemoteSegmentStoreDirectory.init() in order to get latest metadata of the files that
+        // are uploaded to the remote segment store.
         assert remoteDirectory instanceof RemoteSegmentStoreDirectory : "remoteDirectory is not an instance of RemoteSegmentStoreDirectory";
         ((RemoteSegmentStoreDirectory) remoteDirectory).init();
+        Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegments = ((RemoteSegmentStoreDirectory) remoteDirectory).getSegmentsUploadedToRemoteStore();
         final Directory storeDirectory = store.directory();
         store.incRef();
         remoteStore.incRef();
         try {
             String segmentInfosSnapshotFilename = null;
             Set<String> localSegmentFiles = Sets.newHashSet(storeDirectory.listAll());
-            for (String file : remoteDirectory.listAll()) {
-                if (override || localSegmentFiles.contains(file) == false) {
+            for (String file : uploadedSegments.keySet()) {
+                long checksum = Long.parseLong(uploadedSegments.get(file).getChecksum());
+                if (override || localDirectoryContains(storeDirectory, file, checksum)) {
+                    if(localSegmentFiles.contains(file)) {
+                        storeDirectory.deleteFile(file);
+                    }
                     logger.info("Downloading segments file: {} ", file);
                     storeDirectory.copyFrom(remoteDirectory, file, file, IOContext.DEFAULT);
                 } else {
@@ -4209,6 +4218,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             store.decRef();
             remoteStore.decRef();
         }
+    }
+
+    private boolean localDirectoryContains(Directory localDirectory, String file, long checksum) {
+        try (IndexInput indexInput = localDirectory.openInput(file, IOContext.DEFAULT)) {
+            return checksum == CodecUtil.retrieveChecksum(indexInput);
+        } catch(IOException e) {
+            logger.debug("Exception while reading checksum of file: {}, this can happen if file does not exist", file);
+        }
+        return false;
     }
 
     /**
