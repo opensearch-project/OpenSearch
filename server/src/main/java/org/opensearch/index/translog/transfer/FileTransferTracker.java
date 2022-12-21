@@ -13,7 +13,6 @@ import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
 import org.opensearch.index.translog.transfer.listener.FileTransferListener;
 
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -23,7 +22,7 @@ import java.util.stream.Collectors;
  */
 public class FileTransferTracker implements FileTransferListener {
 
-    private final Map<String, TransferState> fileTransferTracker;
+    private final ConcurrentHashMap<String, TransferState> fileTransferTracker;
     private final ShardId shardId;
 
     public FileTransferTracker(ShardId shardId) {
@@ -72,7 +71,7 @@ public class FileTransferTracker implements FileTransferListener {
     /**
      * Represents the state of the upload operation
      */
-    public enum TransferState {
+    private enum TransferState {
         SUCCESS,
         FAILED;
 

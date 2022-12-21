@@ -14,6 +14,7 @@ import org.opensearch.index.translog.TranslogReader;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -71,9 +72,22 @@ public class TranslogCheckpointTransferSnapshot implements TransferSnapshot, Clo
     }
 
     public void close() throws IOException {
-        for (Tuple<TranslogFileSnapshot, CheckpointFileSnapshot> tlogCkpTuple : translogCheckpointFileInfoTupleSet) {
-            tlogCkpTuple.v1().close();
-            tlogCkpTuple.v2().close();
+        List<Exception> exceptionList = new ArrayList<>();
+        Set<FileSnapshot.TransferFileSnapshot> fileSnapshots = getTranslogFileSnapshots();
+        fileSnapshots.addAll(getCheckpointFileSnapshots());
+
+        for (FileSnapshot fileSnapshot : fileSnapshots) {
+            try {
+                fileSnapshot.close();
+            } catch (IOException e) {
+                exceptionList.add(e);
+            }
+        }
+
+        if (!exceptionList.isEmpty()) {
+            IOException ex = new IOException("IO Exception while closing file snapshots");
+            exceptionList.forEach(ex::addSuppressed);
+            throw ex;
         }
     }
 
