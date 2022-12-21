@@ -17,3 +17,4 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - [Identity] User operations: create update delete ([#4741](https://github.com/opensearch-project/OpenSearch/pull/4741))
 - [Identity] Adds Basic Auth mechanism via Internal IdP ([#4798](https://github.com/opensearch-project/OpenSearch/pull/4798))
 - [Identity] Introduce Identity Module ([#5583](https://github.com/opensearch-project/OpenSearch/pull/5583))
+- [Identity] Persistence for the Identity module using a System Index ([#5613](https://github.com/opensearch-project/OpenSearch/pull/5613))
