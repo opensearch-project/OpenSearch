@@ -172,6 +172,7 @@ public class TransportReplicationActionTests extends OpenSearchTestCase {
     private CapturingTransport transport;
     private TestAction action;
     private ShardStateAction shardStateAction;
+    private AtomicBoolean hasRemoteTranslogWithPrimaryRouting;
 
     /* *
     * TransportReplicationAction needs an instance of IndexShard to count operations.
@@ -202,6 +203,7 @@ public class TransportReplicationActionTests extends OpenSearchTestCase {
         transportService.acceptIncomingRequests();
         shardStateAction = new ShardStateAction(clusterService, transportService, null, null, threadPool);
         action = new TestAction(Settings.EMPTY, "internal:testAction", transportService, clusterService, shardStateAction, threadPool);
+        hasRemoteTranslogWithPrimaryRouting = new AtomicBoolean();
     }
 
     @Override
@@ -1081,7 +1083,7 @@ public class TransportReplicationActionTests extends OpenSearchTestCase {
         final ReplicationTask task = maybeTask();
         TestAction action = new TestAction(
             Settings.EMPTY,
-            "internal:testActionWithExceptions",
+            "internal:testHandleReplicaRequestWithFullReplicationMode",
             transportService,
             clusterService,
             shardStateAction,
@@ -1130,7 +1132,7 @@ public class TransportReplicationActionTests extends OpenSearchTestCase {
         PlainActionFuture<TransportResponse> plainActionFuture = new PlainActionFuture<>();
         TestAction action = new TestAction(
             Settings.EMPTY,
-            "internal:testActionWithExceptions",
+            "internal:testHandleReplicaRequestWithNoReplicationMode",
             transportService,
             clusterService,
             shardStateAction,
@@ -1165,9 +1167,10 @@ public class TransportReplicationActionTests extends OpenSearchTestCase {
         final ShardRouting replicaRouting = state.getRoutingTable().shardRoutingTable(shardId).replicaShards().get(0);
         final ReplicationTask task = maybeTask();
         boolean throwException = randomBoolean();
+        hasRemoteTranslogWithPrimaryRouting.set(true);
         TestAction action = new TestAction(
             Settings.EMPTY,
-            "internal:testActionWithExceptions",
+            "internal:testHandleReplicaRequestWithPrimaryTermValidationModeAndReplicaWithPrimaryRouting",
             transportService,
             clusterService,
             shardStateAction,
@@ -1202,6 +1205,7 @@ public class TransportReplicationActionTests extends OpenSearchTestCase {
             createTransportChannel(new PlainActionFuture<>()),
             task
         );
+        hasRemoteTranslogWithPrimaryRouting.set(false);
         assertPhase(task, "finished");
         assertIndexShardCounter(0);
     }
@@ -1212,10 +1216,11 @@ public class TransportReplicationActionTests extends OpenSearchTestCase {
         setState(clusterService, state);
         final ShardRouting replicaRouting = state.getRoutingTable().shardRoutingTable(shardId).replicaShards().get(0);
         final ReplicationTask task = maybeTask();
-        boolean throwException = randomBoolean();
+        PlainActionFuture<TransportResponse> plainActionFuture = new PlainActionFuture<>();
+        hasRemoteTranslogWithPrimaryRouting.set(false);
         TestAction action = new TestAction(
             Settings.EMPTY,
-            "internal:testActionWithExceptions",
+            "internal:testHandleReplicaRequestWithPrimaryTermValidationModeAndReplicaWithNonPrimaryRouting",
             transportService,
             clusterService,
             shardStateAction,
@@ -1226,18 +1231,6 @@ public class TransportReplicationActionTests extends OpenSearchTestCase {
             protected ReplicationMode getReplicationMode(IndexShard indexShard) {
                 return ReplicationMode.PRIMARY_TERM_VALIDATION;
             }
-
-            @Override
-            protected void shardOperationOnReplica(Request shardRequest, IndexShard replica, ActionListener<ReplicaResult> listener) {
-                ActionListener.completeWith(listener, () -> {
-                    assertIndexShardCounter(1);
-                    assertPhase(task, "replica");
-                    if (throwException) {
-                        throw new OpenSearchException("simulated");
-                    }
-                    return new ReplicaResult();
-                });
-            }
         };
         action.handleReplicaRequest(
             new TransportReplicationAction.ConcreteReplicaRequest<>(
@@ -1247,11 +1240,50 @@ public class TransportReplicationActionTests extends OpenSearchTestCase {
                 randomNonNegativeLong(),
                 randomNonNegativeLong()
             ),
-            createTransportChannel(new PlainActionFuture<>()),
+            createTransportChannel(plainActionFuture),
             task
         );
         assertPhase(task, "finished");
         assertIndexShardCounter(0);
+        assertTrue(plainActionFuture.actionGet() instanceof ReplicaResponse);
+    }
+
+    public void testHandleReplicaRequestWithPrimaryTermValidationModeFailure() {
+        final ShardId shardId = new ShardId("test", "_na_", 0);
+        final ClusterState state = state(shardId.getIndexName(), true, ShardRoutingState.STARTED, ShardRoutingState.STARTED);
+        setState(clusterService, state);
+        final ShardRouting replicaRouting = state.getRoutingTable().shardRoutingTable(shardId).replicaShards().get(0);
+        final ReplicationTask task = maybeTask();
+        PlainActionFuture<TransportResponse> plainActionFuture = new PlainActionFuture<>();
+        hasRemoteTranslogWithPrimaryRouting.set(false);
+        TestAction action = new TestAction(
+            Settings.EMPTY,
+            "internal:testHandleReplicaRequestWithPrimaryTermValidationModeAndReplicaWithNonPrimaryRouting",
+            transportService,
+            clusterService,
+            shardStateAction,
+            threadPool
+        ) {
+
+            @Override
+            protected ReplicationMode getReplicationMode(IndexShard indexShard) {
+                return ReplicationMode.PRIMARY_TERM_VALIDATION;
+            }
+        };
+        action.handleReplicaRequest(
+            new TransportReplicationAction.ConcreteReplicaRequest<>(
+                new Request(shardId),
+                replicaRouting.allocationId().getId(),
+                -1,
+                randomNonNegativeLong(),
+                randomNonNegativeLong()
+            ),
+            createTransportChannel(plainActionFuture),
+            task
+        );
+        assertPhase(task, "finished");
+        assertIndexShardCounter(0);
+        assertThrows(IllegalStateException.class, plainActionFuture::actionGet);
     }
 
     public void testReplicasCounter() {
@@ -1819,6 +1851,9 @@ public class TransportReplicationActionTests extends OpenSearchTestCase {
         final IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.shardId()).thenReturn(shardId);
         when(indexShard.state()).thenReturn(IndexShardState.STARTED);
+        if (hasRemoteTranslogWithPrimaryRouting.get()) {
+            when(indexShard.isRemoteTranslogEnabled()).thenReturn(true);
+        }
         doAnswer(invocation -> {
             ActionListener<Releasable> callback = (ActionListener<Releasable>) invocation.getArguments()[0];
             if (isPrimaryMode.get()) {

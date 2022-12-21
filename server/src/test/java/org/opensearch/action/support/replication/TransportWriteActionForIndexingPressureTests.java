@@ -135,7 +135,19 @@ public class TransportWriteActionForIndexingPressureTests extends OpenSearchTest
             .build();
         this.indexingPressureService = new IndexingPressureService(settings, clusterService);
 
-        TestAction action = new TestAction(settings, "internal:testAction", transportService, clusterService, shardStateAction, threadPool);
+        TestAction action = new TestAction(
+            settings,
+            "internal:testAction",
+            transportService,
+            clusterService,
+            shardStateAction,
+            threadPool
+        ) {
+            @Override
+            protected ReplicationMode getReplicationMode(IndexShard indexShard) {
+                return ReplicationMode.FULL_REPLICATION;
+            }
+        };
 
         action.handleReplicaRequest(
             new TransportReplicationAction.ConcreteReplicaRequest<>(
@@ -167,7 +179,19 @@ public class TransportWriteActionForIndexingPressureTests extends OpenSearchTest
             .build();
         this.indexingPressureService = new IndexingPressureService(settings, clusterService);
 
-        TestAction action = new TestAction(settings, "internal:testAction", transportService, clusterService, shardStateAction, threadPool);
+        TestAction action = new TestAction(
+            settings,
+            "internal:testAction",
+            transportService,
+            clusterService,
+            shardStateAction,
+            threadPool
+        ) {
+            @Override
+            protected ReplicationMode getReplicationMode(IndexShard indexShard) {
+                return ReplicationMode.FULL_REPLICATION;
+            }
+        };
 
         action.handleReplicaRequest(
             new TransportReplicationAction.ConcreteReplicaRequest<>(
