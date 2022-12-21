@@ -80,6 +80,7 @@ import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardClosedException;
 import org.opensearch.index.shard.IndexShardState;
@@ -749,6 +750,12 @@ public class TransportReplicationActionTests extends OpenSearchTestCase {
             new TransportReplicationAction.ConcreteShardRequest<>(request, primaryShard.allocationId().getId(), primaryTerm);
 
         new TestAction(Settings.EMPTY, "internal:testAction2", transportService, clusterService, shardStateAction, threadPool) {
+
+            @Override
+            protected ReplicationMode getReplicationMode(IndexShard indexShard) {
+                return ReplicationMode.FULL_REPLICATION;
+            }
+
             @Override
             protected void shardOperationOnPrimary(
                 Request shardRequest,
@@ -810,6 +817,12 @@ public class TransportReplicationActionTests extends OpenSearchTestCase {
             new TransportReplicationAction.ConcreteShardRequest<>(request, primaryShard.allocationId().getRelocationId(), primaryTerm);
 
         new TestAction(Settings.EMPTY, "internal:testAction2", transportService, clusterService, shardStateAction, threadPool) {
+
+            @Override
+            protected ReplicationMode getReplicationMode(IndexShard indexShard) {
+                return ReplicationMode.FULL_REPLICATION;
+            }
+
             @Override
             protected void shardOperationOnPrimary(
                 Request shardRequest,
@@ -943,6 +956,13 @@ public class TransportReplicationActionTests extends OpenSearchTestCase {
         PlainActionFuture<TransportResponse> listener = new PlainActionFuture<>();
 
         final IndexShard shard = mockIndexShard(shardId, clusterService);
+        final IndexMetadata build = IndexMetadata.builder("")
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        IndexSettings indexSettings = new IndexSettings(build, Settings.EMPTY);
+        when(shard.indexSettings()).thenReturn(indexSettings);
         when(shard.getPendingPrimaryTerm()).thenReturn(primaryTerm);
         when(shard.routingEntry()).thenReturn(routingEntry);
         when(shard.isRelocatedPrimary()).thenReturn(false);
@@ -1009,6 +1029,12 @@ public class TransportReplicationActionTests extends OpenSearchTestCase {
             new TransportReplicationAction.ConcreteShardRequest<>(request, primaryShard.allocationId().getId(), primaryTerm);
 
         new TestAction(Settings.EMPTY, "internal:testAction2", transportService, clusterService, shardStateAction, threadPool) {
+
+            @Override
+            protected ReplicationMode getReplicationMode(IndexShard indexShard) {
+                return ReplicationMode.FULL_REPLICATION;
+            }
+
             @Override
             protected void shardOperationOnPrimary(
                 Request shardRequest,
@@ -1245,6 +1271,11 @@ public class TransportReplicationActionTests extends OpenSearchTestCase {
         ) {
 
             @Override
+            protected ReplicationMode getReplicationMode(IndexShard indexShard) {
+                return ReplicationMode.FULL_REPLICATION;
+            }
+
+            @Override
             protected void shardOperationOnReplica(Request shardRequest, IndexShard replica, ActionListener<ReplicaResult> listener) {
                 ActionListener.completeWith(listener, () -> {
                     assertIndexShardCounter(1);
@@ -1370,6 +1401,19 @@ public class TransportReplicationActionTests extends OpenSearchTestCase {
 
         PlainActionFuture<TransportResponse> listener = new PlainActionFuture<>();
         Request request = new Request(shardId).timeout("1ms");
+        TestAction action = new TestAction(
+            Settings.EMPTY,
+            "internal:testAnotherAction",
+            transportService,
+            clusterService,
+            shardStateAction,
+            threadPool
+        ) {
+            @Override
+            protected ReplicationMode getReplicationMode(IndexShard indexShard) {
+                return ReplicationMode.FULL_REPLICATION;
+            }
+        };
         action.handleReplicaRequest(
             new TransportReplicationAction.ConcreteReplicaRequest<>(
                 request,
@@ -1415,6 +1459,11 @@ public class TransportReplicationActionTests extends OpenSearchTestCase {
             shardStateAction,
             threadPool
         ) {
+            @Override
+            protected ReplicationMode getReplicationMode(IndexShard indexShard) {
+                return ReplicationMode.FULL_REPLICATION;
+            }
+
             @Override
             protected void shardOperationOnReplica(Request shardRequest, IndexShard replica, ActionListener<ReplicaResult> listener) {
                 ActionListener.completeWith(listener, () -> {
@@ -1515,6 +1564,12 @@ public class TransportReplicationActionTests extends OpenSearchTestCase {
             shardStateAction,
             threadPool
         ) {
+
+            @Override
+            protected ReplicationMode getReplicationMode(IndexShard indexShard) {
+                return ReplicationMode.FULL_REPLICATION;
+            }
+
             @Override
             protected void shardOperationOnReplica(Request shardRequest, IndexShard replica, ActionListener<ReplicaResult> listener) {
                 ActionListener.completeWith(listener, () -> {
