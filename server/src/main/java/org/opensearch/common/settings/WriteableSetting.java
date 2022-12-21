@@ -179,7 +179,7 @@ public class WriteableSetting implements Writeable {
                 return Setting.versionSetting(key, (Version) defaultValue, propertyArray);
             default:
                 // This Should Never Happen (TM)
-                throw new UnsupportedOperationException("A SettingType has been added to the enum and not handled here.");
+                throw new IllegalArgumentException("A SettingType has been added to the enum and not handled here.");
         }
     }
 
@@ -236,7 +236,7 @@ public class WriteableSetting implements Writeable {
                 break;
             default:
                 // This Should Never Happen (TM)
-                throw new UnsupportedOperationException("A SettingType has been added to the enum and not handled here.");
+                throw new IllegalArgumentException("A SettingType has been added to the enum and not handled here.");
         }
     }
 
@@ -264,7 +264,7 @@ public class WriteableSetting implements Writeable {
                 return Version.readVersion(in);
             default:
                 // This Should Never Happen (TM)
-                throw new UnsupportedOperationException("A SettingType has been added to the enum and not handled here.");
+                throw new IllegalArgumentException("A SettingType has been added to the enum and not handled here.");
         }
     }
 

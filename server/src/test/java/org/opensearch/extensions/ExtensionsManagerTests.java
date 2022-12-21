@@ -467,23 +467,6 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         assertEquals("Handler not present for the provided request", exception.getMessage());
     }
 
-    public void testHandleActionListenerOnFailureRequest() throws Exception {
-
-        Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
-
-        ExtensionsManager extensionsManager = new ExtensionsManager(settings, extensionDir);
-
-        extensionsManager.initializeServicesAndRestHandler(restController, settingsModule, transportService, clusterService, settings);
-
-        ExtensionActionListenerOnFailureRequest listenerFailureRequest = new ExtensionActionListenerOnFailureRequest("Test failure");
-
-        assertEquals(
-            AcknowledgedResponse.class,
-            extensionsManager.getListenerHandler().handleExtensionActionListenerOnFailureRequest(listenerFailureRequest).getClass()
-        );
-        assertEquals("Test failure", extensionsManager.getListener().getExceptionList().get(0).getMessage());
-    }
-
     public void testEnvironmentSettingsResponse() throws Exception {
 
         // Test EnvironmentSettingsResponse arg constructor
@@ -661,7 +644,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             )
         );
         extensionsManager.initializeServicesAndRestHandler(restController, settingsModule, mockTransportService, clusterService, settings);
-        verify(mockTransportService, times(9)).registerRequestHandler(anyString(), anyString(), anyBoolean(), anyBoolean(), any(), any());
+        verify(mockTransportService, times(8)).registerRequestHandler(anyString(), anyString(), anyBoolean(), anyBoolean(), any(), any());
 
     }
 

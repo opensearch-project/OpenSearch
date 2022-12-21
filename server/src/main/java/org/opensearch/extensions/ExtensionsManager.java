@@ -80,7 +80,6 @@ public class ExtensionsManager {
     public static final String REQUEST_EXTENSION_REGISTER_REST_ACTIONS = "internal:discovery/registerrestactions";
     public static final String REQUEST_EXTENSION_REGISTER_TRANSPORT_ACTIONS = "internal:discovery/registertransportactions";
     public static final String REQUEST_OPENSEARCH_PARSE_NAMED_WRITEABLE = "internal:discovery/parsenamedwriteable";
-    public static final String REQUEST_EXTENSION_ACTION_LISTENER_ON_FAILURE = "internal:extensions/actionlisteneronfailure";
     public static final String REQUEST_REST_EXECUTE_ON_EXTENSION_ACTION = "internal:extensions/restexecuteonextensiontaction";
 
     private static final Logger logger = LogManager.getLogger(ExtensionsManager.class);
@@ -94,7 +93,6 @@ public class ExtensionsManager {
         REQUEST_EXTENSION_CLUSTER_STATE,
         REQUEST_EXTENSION_LOCAL_NODE,
         REQUEST_EXTENSION_CLUSTER_SETTINGS,
-        REQUEST_EXTENSION_ACTION_LISTENER_ON_FAILURE,
         REQUEST_EXTENSION_REGISTER_REST_ACTIONS,
         REQUEST_EXTENSION_REGISTER_SETTINGS,
         REQUEST_EXTENSION_ENVIRONMENT_SETTINGS,
@@ -120,8 +118,6 @@ public class ExtensionsManager {
     private CustomSettingsRequestHandler customSettingsRequestHandler;
     private TransportService transportService;
     private ClusterService clusterService;
-    private ExtensionActionListener listener;
-    private ExtensionActionListenerHandler listenerHandler;
     private Settings environmentSettings;
     private AddSettingsUpdateConsumerRequestHandler addSettingsUpdateConsumerRequestHandler;
 
@@ -143,7 +139,6 @@ public class ExtensionsManager {
         this.extensions = new ArrayList<DiscoveryExtensionNode>();
         this.extensionIdMap = new HashMap<String, DiscoveryExtensionNode>();
         this.clusterService = null;
-        this.listener = new ExtensionActionListener();
 
         /*
          * Now Discover extensions
@@ -170,7 +165,6 @@ public class ExtensionsManager {
         Settings initialEnvironmentSettings
     ) {
         this.restActionsRequestHandler = new RestActionsRequestHandler(restController, extensionIdMap, transportService);
-        this.listenerHandler = new ExtensionActionListenerHandler(listener);
         this.customSettingsRequestHandler = new CustomSettingsRequestHandler(settingsModule);
         this.transportService = transportService;
         this.clusterService = clusterService;
@@ -223,14 +217,6 @@ public class ExtensionsManager {
             false,
             ExtensionRequest::new,
             ((request, channel, task) -> channel.sendResponse(handleExtensionRequest(request)))
-        );
-        transportService.registerRequestHandler(
-            REQUEST_EXTENSION_ACTION_LISTENER_ON_FAILURE,
-            ThreadPool.Names.GENERIC,
-            false,
-            false,
-            ExtensionActionListenerOnFailureRequest::new,
-            ((request, channel, task) -> channel.sendResponse(listenerHandler.handleExtensionActionListenerOnFailureRequest(request)))
         );
         transportService.registerRequestHandler(
             REQUEST_EXTENSION_ENVIRONMENT_SETTINGS,
@@ -633,14 +619,6 @@ public class ExtensionsManager {
         return REQUEST_EXTENSION_REGISTER_TRANSPORT_ACTIONS;
     }
 
-    public static String getRequestExtensionActionListenerOnFailure() {
-        return REQUEST_EXTENSION_ACTION_LISTENER_ON_FAILURE;
-    }
-
-    public ExtensionActionListener getListener() {
-        return listener;
-    }
-
     public static String getRequestExtensionRegisterCustomSettings() {
         return REQUEST_EXTENSION_REGISTER_CUSTOM_SETTINGS;
     }
@@ -673,18 +651,6 @@ public class ExtensionsManager {
         AddSettingsUpdateConsumerRequestHandler addSettingsUpdateConsumerRequestHandler
     ) {
         this.addSettingsUpdateConsumerRequestHandler = addSettingsUpdateConsumerRequestHandler;
-    }
-
-    public void setListener(ExtensionActionListener listener) {
-        this.listener = listener;
-    }
-
-    public ExtensionActionListenerHandler getListenerHandler() {
-        return listenerHandler;
-    }
-
-    public void setListenerHandler(ExtensionActionListenerHandler listenerHandler) {
-        this.listenerHandler = listenerHandler;
     }
 
     public Settings getEnvironmentSettings() {
