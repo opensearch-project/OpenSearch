@@ -9,10 +9,8 @@
 package org.opensearch.identity.configuration;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Map.Entry;
 
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.authn.DefaultObjectMapper;
@@ -71,11 +69,11 @@ public class SecurityDynamicConfiguration<T> implements ToXContent {
     }
 
     public static void validate(SecurityDynamicConfiguration sdc, int version, CType ctype) throws IOException {
-        if (version < 2 && sdc.get_meta() != null) {
+        if (version < 2 && sdc.getConfigVersion() != null) {
             throw new IOException("A version of " + version + " can not have a _meta key for " + ctype);
         }
 
-        if (version >= 2 && sdc.get_meta() == null) {
+        if (version >= 2 && sdc.getConfigVersion() == null) {
             throw new IOException("A version of " + version + " must have a _meta key for " + ctype);
         }
     }
@@ -90,14 +88,14 @@ public class SecurityDynamicConfiguration<T> implements ToXContent {
         super();
     }
 
-    private Meta _meta;
+    private ConfigVersion _configVersion;
 
-    public Meta get_meta() {
-        return _meta;
+    public ConfigVersion getConfigVersion() {
+        return _configVersion;
     }
 
-    public void set_meta(Meta _meta) {
-        this._meta = _meta;
+    public void setConfigVersion(ConfigVersion _configVersion) {
+        this._configVersion = _configVersion;
     }
 
     @JsonAnySetter
@@ -108,21 +106,6 @@ public class SecurityDynamicConfiguration<T> implements ToXContent {
     @JsonAnyGetter
     public Map<String, T> getCEntries() {
         return centries;
-    }
-
-    @JsonIgnore
-    public void clearHashes() {
-        for (Entry<String, T> entry : centries.entrySet()) {
-            if (entry.getValue() instanceof Hashed) {
-                ((Hashed) entry.getValue()).clearHash();
-            }
-        }
-    }
-
-    public void removeOthers(String key) {
-        T tmp = this.centries.get(key);
-        this.centries.clear();
-        this.centries.put(key, tmp);
     }
 
     @JsonIgnore
@@ -217,35 +200,5 @@ public class SecurityDynamicConfiguration<T> implements ToXContent {
         } catch (Exception e) {
             throw ExceptionsHelper.convertToOpenSearchException(e);
         }
-    }
-
-    @JsonIgnore
-    public void remove(String key) {
-        centries.remove(key);
-
-    }
-
-    @SuppressWarnings({ "rawtypes", "unchecked" })
-    public boolean add(SecurityDynamicConfiguration other) {
-        if (other.ctype == null || !other.ctype.equals(this.ctype)) {
-            return false;
-        }
-
-        if (other.getImplementingClass() == null || !other.getImplementingClass().equals(this.getImplementingClass())) {
-            return false;
-        }
-
-        if (other.version != this.version) {
-            return false;
-        }
-
-        this.centries.putAll(other.centries);
-        return true;
-    }
-
-    @JsonIgnore
-    @SuppressWarnings({ "rawtypes" })
-    public boolean containsAny(SecurityDynamicConfiguration other) {
-        return !Collections.disjoint(this.centries.keySet(), other.centries.keySet());
     }
 }

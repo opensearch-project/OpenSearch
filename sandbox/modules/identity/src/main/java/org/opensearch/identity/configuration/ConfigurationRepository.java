@@ -199,7 +199,7 @@ public class ConfigurationRepository {
                 );
             }
         } catch (Throwable e2) {
-            LOGGER.error("Error during node initialization: {}", e2, e2);
+            LOGGER.error("Error during node initialization", e2);
             bgThread.start();
         }
     }
@@ -259,10 +259,11 @@ public class ConfigurationRepository {
     private synchronized void notifyAboutChanges(Map<CType, SecurityDynamicConfiguration<?>> typeToConfig) {
         for (ConfigurationChangeListener listener : configurationChangedListener) {
             try {
-                LOGGER.debug("Notify {} listener about change configuration with type {}", listener);
+                LOGGER.debug("Notify {} listener about change configuration", listener);
                 listener.onChange(typeToConfig);
             } catch (Exception e) {
-                LOGGER.error("{} listener errored: " + e, listener, e);
+                String errorMsg = String.format("%s listener errored", listener);
+                LOGGER.error(errorMsg, e);
                 throw ExceptionsHelper.convertToOpenSearchException(e);
             }
         }

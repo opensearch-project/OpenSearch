@@ -8,22 +8,16 @@
 
 package org.opensearch.identity.utils;
 
-import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
-import java.util.Base64;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
 import org.opensearch.common.settings.Settings;
 import org.opensearch.identity.ConfigConstants;
+
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
+import java.util.Locale;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public final class SecurityUtils {
 
@@ -51,42 +45,6 @@ public final class SecurityUtils {
         }
 
         return Locale.getDefault();
-    }
-
-    public static String evalMap(final Map<String, Set<String>> map, final String index) {
-
-        if (map == null) {
-            return null;
-        }
-
-        // TODO: check what to do with _all
-        /*if (map.get(index) != null) {
-            return index;
-        } else if (map.get("*") != null) {
-            return "*";
-        }
-        if (map.get("_all") != null) {
-            return "_all";
-        }*/
-
-        return map.keySet().stream().filter(key -> WildcardMatcher.from(key).test(index)).findAny().orElse(null);
-    }
-
-    @SafeVarargs
-    public static <T> Map<T, T> mapFromArray(T... keyValues) {
-        if (keyValues == null) {
-            return Collections.emptyMap();
-        }
-        if (keyValues.length % 2 != 0) {
-            log.error("Expected even number of key/value pairs, got {}.", Arrays.toString(keyValues));
-            return null;
-        }
-        Map<T, T> map = new HashMap<>();
-
-        for (int i = 0; i < keyValues.length; i += 2) {
-            map.put(keyValues[i], keyValues[i + 1]);
-        }
-        return map;
     }
 
     public static String replaceEnvVars(String in, Settings settings) {

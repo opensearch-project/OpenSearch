@@ -109,7 +109,8 @@ public class ConfigurationLoader {
 
             @Override
             public void failure(Throwable t) {
-                log.error("Exception while retrieving configuration for {} (index={})", Arrays.toString(events), securityIndex, t);
+                String errorMsg = String.format("Exception while retrieving configuration for %s (index=%s)", Arrays.toString(events), securityIndex);
+                log.error(errorMsg, t);
             }
         });
 

@@ -10,7 +10,7 @@ package org.opensearch.identity.configuration;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
-public class Meta {
+public class ConfigVersion {
 
     private String type;
     private int config_version;
@@ -41,7 +41,7 @@ public class Meta {
 
     @Override
     public String toString() {
-        return "Meta [type=" + type + ", config_version=" + config_version + ", cType=" + cType + "]";
+        return "ConfigVersion [type=" + type + ", config_version=" + config_version + ", cType=" + cType + "]";
     }
 
 }
