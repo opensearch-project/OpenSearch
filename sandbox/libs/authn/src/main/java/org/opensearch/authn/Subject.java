@@ -28,5 +28,5 @@ public interface Subject {
      * throws SubjectNotFound
      * throws SubjectDisabled
      */
-    void login(final AuthenticationToken token);
+    void login(final AuthenticationToken token) throws RuntimeException;
 }

@@ -16,6 +16,7 @@ import org.opensearch.authn.Subject;
 import org.opensearch.authn.jwt.JwtVendor;
 import org.opensearch.authn.tokens.AuthenticationToken;
 import org.opensearch.authn.tokens.BasicAuthToken;
+import org.opensearch.authn.tokens.BearerAuthToken;
 import org.opensearch.authn.tokens.HttpHeaderToken;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.settings.Settings;
@@ -32,7 +33,6 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
@@ -80,19 +80,16 @@ public class SecurityRestFilter {
             jwtClaims.put("sub", "subject");
             jwtClaims.put("iat", Instant.now().toString());
             String encodedJwt = JwtVendor.createJwt(jwtClaims);
-            String requestInfo = String.format(
-                Locale.ROOT,
-                "(nodeName=%s, requestId=%s, path=%s, jwtClaims=%s checkAndAuthenticateRequest)",
-                client.getLocalNodeId(),
-                request.getRequestId(),
-                request.getRequestId(),
-                jwtClaims
-            );
-            if (log.isDebugEnabled()) {
-                log.debug(requestInfo);
-                String logMsg = String.format(Locale.ROOT, "Created internal access token %s", encodedJwt);
-                log.debug("{} {}", requestInfo, logMsg);
-            }
+            String prefix = "(nodeName="
+                + client.getLocalNodeId()
+                + ", requestId="
+                + request.getRequestId()
+                + ", path="
+                + request.path()
+                + ", jwtClaims="
+                + jwtClaims
+                + " checkAndAuthenticateRequest)";
+            log.info(prefix + " Created internal access token " + encodedJwt);
             threadContext.putHeader(ThreadContextConstants.OPENSEARCH_AUTHENTICATION_TOKEN_HEADER, encodedJwt);
         }
         return true;
@@ -126,6 +123,8 @@ public class SecurityRestFilter {
             } catch (final AuthenticationException ae) {
                 log.info("Authentication finally failed: {}", ae.getMessage());
                 return false;
+            } catch (RuntimeException e) {
+                throw new RuntimeException(e);
             }
         }
 
@@ -155,6 +154,7 @@ public class SecurityRestFilter {
      */
     static AuthenticationToken tokenType(String authHeader) {
         if (authHeader.contains("Basic")) return new BasicAuthToken(authHeader);
+        if (authHeader.contains("Bearer")) return new BearerAuthToken(authHeader);
         // support other type of header tokens
         return null;
     }
