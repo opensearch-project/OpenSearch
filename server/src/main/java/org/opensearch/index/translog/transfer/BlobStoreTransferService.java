@@ -69,10 +69,12 @@ public class BlobStoreTransferService implements TransferService {
             throw ex;
         }
     }
+
     @Override
     public InputStream downloadBlob(Iterable<String> path, String fileName) throws IOException {
         return blobStore.blobContainer((BlobPath) path).readBlob(fileName);
     }
+
     @Override
     public Set<String> listAll(Iterable<String> path) throws IOException {
         return blobStore.blobContainer((BlobPath) path).listBlobs().keySet();
