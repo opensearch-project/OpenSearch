@@ -9,6 +9,7 @@
 package org.opensearch.search.backpressure.trackers;
 
 import org.opensearch.action.search.SearchShardTask;
+import org.opensearch.action.search.SearchTask;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
@@ -24,11 +25,22 @@ public class CpuUsageTrackerTests extends OpenSearchTestCase {
     private static final SearchBackpressureSettings mockSettings = new SearchBackpressureSettings(
         Settings.builder()
             .put(CpuUsageTracker.SETTING_CPU_TIME_MILLIS_THRESHOLD.getKey(), 15)  // 15 ms
+            .put(CpuUsageTracker.SETTING_CPU_TIME_MILLIS_THRESHOLD_FOR_SEARCH_QUERY.getKey(), 25)   // 25 ms
             .build(),
         new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
     );
 
-    public void testEligibleForCancellation() {
+    public void testSearchTaskEligibleForCancellation() {
+        Task task = createMockTaskWithResourceStats(SearchTask.class, 100000000, 200);
+        CpuUsageTracker tracker = new CpuUsageTracker(mockSettings);
+
+        Optional<TaskCancellation.Reason> reason = tracker.checkAndMaybeGetCancellationReason(task);
+        assertTrue(reason.isPresent());
+        assertEquals(1, reason.get().getCancellationScore());
+        assertEquals("cpu usage exceeded [100ms >= 25ms]", reason.get().getMessage());
+    }
+
+    public void testSearchShardTaskEligibleForCancellation() {
         Task task = createMockTaskWithResourceStats(SearchShardTask.class, 200000000, 200);
         CpuUsageTracker tracker = new CpuUsageTracker(mockSettings);
 
