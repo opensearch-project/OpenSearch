@@ -80,6 +80,7 @@ public class DefaultObjectMapper {
         );
     }
 
+    @SuppressWarnings("unchecked")
     public static <T> T getOrDefault(Map<String, Object> properties, String key, T defaultValue) {
         T value = (T) properties.get(key);
         return value != null ? value : defaultValue;
@@ -211,7 +212,7 @@ public class DefaultObjectMapper {
         return objectMapper.getTypeFactory();
     }
 
-    public static Set<String> getFields(Class cls) {
+    public static Set<String> getFields(Class<?> cls) {
         return objectMapper.getSerializationConfig()
             .introspect(getTypeFactory().constructType(cls))
             .findProperties()
