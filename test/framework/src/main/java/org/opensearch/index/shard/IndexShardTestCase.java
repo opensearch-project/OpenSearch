@@ -855,7 +855,8 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         replica.prepareForIndexRecovery();
         final RecoveryTarget recoveryTarget = targetSupplier.apply(replica, pNode);
         IndexShard indexShard = recoveryTarget.indexShard();
-        boolean remoteTranslogEnabled = recoveryTarget.state().getPrimary() == false && indexShard.isRemoteTranslogEnabled();
+        boolean remoteTranslogEnabled = recoveryTarget.state().getPrimary() == false
+            && indexShard.indexSettings().isRemoteTranslogStoreEnabled();
         final long startingSeqNo = indexShard.recoverLocallyAndFetchStartSeqNo(!remoteTranslogEnabled);
         final StartRecoveryRequest request = PeerRecoveryTargetService.getStartRecoveryRequest(
             logger,

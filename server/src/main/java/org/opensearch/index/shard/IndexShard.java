@@ -1805,7 +1805,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @return the starting sequence number from which the recovery should start.
      */
     private long recoverLocallyUptoLastCommit() {
-        assert isRemoteTranslogEnabled() : "Remote translog store is not enabled";
+        assert indexSettings().isRemoteTranslogStoreEnabled() : "Remote translog store is not enabled";
         long seqNo;
         validateLocalRecoveryState();
 
@@ -3338,7 +3338,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public boolean isRemoteTranslogEnabled() {
-        return indexSettings() != null && indexSettings().isRemoteTranslogStoreEnabled();
+        return shardRouting.primary() && indexSettings().isRemoteTranslogStoreEnabled();
     }
 
     /**

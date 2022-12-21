@@ -13,6 +13,11 @@ import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
+/**
+ * Thrown when a transport replication request is made to a replica with replication mode as NO_REPLICATION.
+ *
+ * @opensearch.internal
+ */
 public class UnsupportedReplicaActionException extends OpenSearchException {
 
     public UnsupportedReplicaActionException(StreamInput in) throws IOException {

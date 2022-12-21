@@ -268,7 +268,7 @@ public abstract class TransportReplicationAction<
      * @return the overridden replication mode.
      */
     protected ReplicationMode getReplicationMode(IndexShard indexShard) {
-        if (indexShard.isRemoteTranslogEnabled()) {
+        if (indexShard.indexSettings().isRemoteTranslogStoreEnabled()) {
             return ReplicationMode.NO_REPLICATION;
         }
         return ReplicationMode.FULL_REPLICATION;

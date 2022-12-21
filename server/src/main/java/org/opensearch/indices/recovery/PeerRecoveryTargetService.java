@@ -220,8 +220,8 @@ public class PeerRecoveryTargetService implements IndexEventListener {
     }
 
     /**
-     * Initiates recovery of the replica. TODO - Need to revisit it with PRRL and later. @see
-     * <a href="https://github.com/opensearch-project/OpenSearch/issues/4502">github issue</a> on it.
+     * Initiates recovery of the replica.
+     *
      * @param recoveryId recovery id
      * @param preExistingRequest start recovery request
      */
@@ -244,7 +244,8 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     assert recoveryTarget.sourceNode() != null : "can not do a recovery without a source node";
                     logger.trace("{} preparing shard for peer recovery", recoveryTarget.shardId());
                     indexShard.prepareForIndexRecovery();
-                    final boolean hasRemoteTranslog = recoveryTarget.state().getPrimary() == false && indexShard.isRemoteTranslogEnabled();
+                    final boolean hasRemoteTranslog = recoveryTarget.state().getPrimary() == false
+                        && indexShard.indexSettings().isRemoteTranslogStoreEnabled();
                     final boolean hasNoTranslog = IndexModule.Type.REMOTE_SNAPSHOT.match(indexShard.indexSettings());
                     final boolean verifyTranslog = (hasRemoteTranslog || hasNoTranslog) == false;
                     final long startingSeqNo = indexShard.recoverLocallyAndFetchStartSeqNo(!hasRemoteTranslog);
