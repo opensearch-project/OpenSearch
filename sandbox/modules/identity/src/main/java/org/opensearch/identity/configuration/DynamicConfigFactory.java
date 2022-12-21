@@ -51,6 +51,7 @@ public class DynamicConfigFactory implements Initializable, ConfigurationChangeL
         this.cr.subscribeOnChange(this);
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public void onChange(Map<CType, SecurityDynamicConfiguration<?>> typeToConfig) {
 

@@ -68,7 +68,7 @@ public class SecurityDynamicConfiguration<T> implements ToXContent {
         return sdc;
     }
 
-    public static void validate(SecurityDynamicConfiguration sdc, int version, CType ctype) throws IOException {
+    public static void validate(SecurityDynamicConfiguration<?> sdc, int version, CType ctype) throws IOException {
         if (version < 2 && sdc.getConfigVersion() != null) {
             throw new IOException("A version of " + version + " can not have a _meta key for " + ctype);
         }
@@ -114,6 +114,7 @@ public class SecurityDynamicConfiguration<T> implements ToXContent {
     }
 
     @JsonIgnore
+    @SuppressWarnings("unchecked")
     public void putCObject(String key, Object value) {
         centries.put(key, (T) value);
     }
