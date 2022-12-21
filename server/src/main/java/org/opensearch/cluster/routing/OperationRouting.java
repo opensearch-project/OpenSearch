@@ -86,7 +86,7 @@ public class OperationRouting {
 
     public static final Setting<Boolean> WEIGHTED_ROUTING_FAILOPEN_ENABLED = Setting.boolSetting(
         "cluster.routing.weighted.fail_open",
-        true,
+        false,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
