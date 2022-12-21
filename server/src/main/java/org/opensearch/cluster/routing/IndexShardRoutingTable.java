@@ -339,7 +339,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
                     .filter(entry -> entry.getValue().intValue() == 0)
                     .map(Map.Entry::getKey);
                 keys.forEach(key -> {
-                    ShardIterator iterator = onlyNodeSelectorActiveInitializingShardsIt("zone:" + key, nodes);
+                    ShardIterator iterator = onlyNodeSelectorActiveInitializingShardsIt(weightedRouting.attributeName() + ":" + key, nodes);
                     while (iterator.remaining() > 0) {
                         ordered.add(iterator.nextOrNull());
                     }
