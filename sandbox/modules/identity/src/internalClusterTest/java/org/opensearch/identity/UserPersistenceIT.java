@@ -68,13 +68,12 @@ public class UserPersistenceIT extends HttpSmokeTestCaseWithIdentity {
 
         Thread.sleep(3000);
 
-        ClusterHealthResponse clusterHealthResponse = client().admin()
-            .cluster()
-            .prepareHealth()
-            .setClusterManagerNodeTimeout("1s")
-            .get();
+        ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setClusterManagerNodeTimeout("1s").get();
 
-        assertTrue(ConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX + " index exists", clusterHealthResponse.getIndices().containsKey(ConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX));
+        assertTrue(
+            ConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX + " index exists",
+            clusterHealthResponse.getIndices().containsKey(ConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX)
+        );
 
         ClusterIndexHealth identityIndexHealth = clusterHealthResponse.getIndices().get(ConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX);
         assertEquals(ClusterHealthStatus.GREEN, identityIndexHealth.getStatus());
