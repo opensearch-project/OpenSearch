@@ -41,14 +41,9 @@ import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexSettings;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.HashMap;
-import java.util.Map;
+import java.text.ParseException;
+import java.text.RuleBasedCollator;
+import java.util.*;
 
 /**
  * Snapshot utilities
@@ -69,6 +64,8 @@ public class SnapshotUtils {
         if (IndexNameExpressionResolver.isAllIndices(Arrays.asList(selectedIndices))) {
             return availableIndices;
         }
+        String[] orderedIndices =
+
         Set<String> result = null;
         for (int i = 0; i < selectedIndices.length; i++) {
             String indexOrPattern = selectedIndices[i];
@@ -89,8 +86,8 @@ public class SnapshotUtils {
                         result = new HashSet<>();
                     }
                 } else if (indexOrPattern.charAt(0) == '-') {
-                    // if its the first, fill it with all the indices...
-                    if (i == 0) {
+                    // if its the first index pattern, fill it with all the indices...
+                    if (i == 0 && selectedIndices.length == 1) {
                         result = new HashSet<>(availableIndices);
                     }
                     add = false;
@@ -177,4 +174,14 @@ public class SnapshotUtils {
             );
         }
     }
+}
+
+public class IndexPatternComparator implements Comparator<String> {
+
+    @Override
+    public int compare(String index1, String index2) {
+
+        return .compare(firstPlayer.getRanking(), secondPlayer.getRanking());
+    }
+
 }
