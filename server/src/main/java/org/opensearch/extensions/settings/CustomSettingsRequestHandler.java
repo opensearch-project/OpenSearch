@@ -10,7 +10,7 @@ package org.opensearch.extensions.settings;
 
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.SettingsModule;
-import org.opensearch.extensions.ExtensionStringResponse;
+import org.opensearch.extensions.AcknowledgedResponse;
 import org.opensearch.transport.TransportResponse;
 
 import java.util.ArrayList;
@@ -38,7 +38,7 @@ public class CustomSettingsRequestHandler {
      * Handles a {@link RegisterCustomSettingsRequest}.
      *
      * @param customSettingsRequest  The request to handle.
-     * @return A {@link ExtensionStringResponse} indicating success.
+     * @return A {@link AcknowledgedResponse} indicating success.
      * @throws Exception if the request is not handled properly.
      */
     public TransportResponse handleRegisterCustomSettingsRequest(RegisterCustomSettingsRequest customSettingsRequest) throws Exception {
@@ -50,8 +50,6 @@ public class CustomSettingsRequestHandler {
             settingsModule.registerDynamicSetting(setting);
             registeredCustomSettings.add(setting.getKey());
         }
-        return new ExtensionStringResponse(
-            "Registered settings from extension " + customSettingsRequest.getUniqueId() + ": " + String.join(", ", registeredCustomSettings)
-        );
+        return new AcknowledgedResponse(true);
     }
 }

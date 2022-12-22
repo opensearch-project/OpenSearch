@@ -459,9 +459,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(uniqueIdStr, actionsList);
         TransportResponse response = extensionsManager.getRestActionsRequestHandler()
             .handleRegisterRestActionsRequest(registerActionsRequest);
-        assertEquals(ExtensionStringResponse.class, response.getClass());
-        assertTrue(((ExtensionStringResponse) response).getResponse().contains(uniqueIdStr));
-        assertTrue(((ExtensionStringResponse) response).getResponse().contains(actionsList.toString()));
+        assertEquals(AcknowledgedResponse.class, response.getClass());
+        assertTrue(((AcknowledgedResponse) response).getStatus());
     }
 
     public void testHandleRegisterSettingsRequest() throws Exception {
@@ -477,10 +476,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         RegisterCustomSettingsRequest registerCustomSettingsRequest = new RegisterCustomSettingsRequest(uniqueIdStr, settingsList);
         TransportResponse response = extensionsManager.getCustomSettingsRequestHandler()
             .handleRegisterCustomSettingsRequest(registerCustomSettingsRequest);
-        assertEquals(ExtensionStringResponse.class, response.getClass());
-        assertTrue(((ExtensionStringResponse) response).getResponse().contains(uniqueIdStr));
-        assertTrue(((ExtensionStringResponse) response).getResponse().contains("falseSetting"));
-        assertTrue(((ExtensionStringResponse) response).getResponse().contains("fooSetting"));
+        assertEquals(AcknowledgedResponse.class, response.getClass());
+        assertTrue(((AcknowledgedResponse) response).getStatus());
     }
 
     public void testHandleRegisterRestActionsRequestWithInvalidMethod() throws Exception {
