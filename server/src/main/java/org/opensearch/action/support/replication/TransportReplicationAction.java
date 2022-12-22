@@ -830,7 +830,7 @@ public abstract class TransportReplicationAction<
         }
     }
 
-    private IndexShard getIndexShard(final ShardId shardId) {
+    protected IndexShard getIndexShard(final ShardId shardId) {
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         return indexService.getShard(shardId.id());
     }
@@ -1283,7 +1283,7 @@ public abstract class TransportReplicationAction<
         private long localCheckpoint;
         private long globalCheckpoint;
 
-        ReplicaResponse(StreamInput in) throws IOException {
+        public ReplicaResponse(StreamInput in) throws IOException {
             super(in);
             localCheckpoint = in.readZLong();
             globalCheckpoint = in.readZLong();
@@ -1347,7 +1347,8 @@ public abstract class TransportReplicationAction<
             final long primaryTerm,
             final long globalCheckpoint,
             final long maxSeqNoOfUpdatesOrDeletes,
-            final ActionListener<ReplicationOperation.ReplicaResponse> listener
+            final ActionListener<ReplicationOperation.ReplicaResponse> listener,
+            final ReplicationMode replicationMode
         ) {
             String nodeId = replica.currentNodeId();
             final DiscoveryNode node = clusterService.state().nodes().get(nodeId);
@@ -1401,7 +1402,9 @@ public abstract class TransportReplicationAction<
      */
     public static class ConcreteShardRequest<R extends TransportRequest> extends TransportRequest {
 
-        /** {@link AllocationId#getId()} of the shard this request is sent to **/
+        /**
+         * {@link AllocationId#getId()} of the shard this request is sent to
+         **/
         private final String targetAllocationID;
         private final long primaryTerm;
         private final R request;
@@ -1568,7 +1571,7 @@ public abstract class TransportReplicationAction<
      * Sets the current phase on the task if it isn't null. Pulled into its own
      * method because its more convenient that way.
      */
-    static void setPhase(ReplicationTask task, String phase) {
+    protected static void setPhase(ReplicationTask task, String phase) {
         if (task != null) {
             task.setPhase(phase);
         }

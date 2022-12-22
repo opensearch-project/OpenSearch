@@ -327,7 +327,8 @@ public class TransportWriteActionTests extends OpenSearchTestCase {
             primaryTerm,
             randomNonNegativeLong(),
             randomNonNegativeLong(),
-            listener
+            listener,
+            ReplicationMode.FULL_REPLICATION
         );
         assertTrue(listener.isDone());
         assertListenerThrows("non existent node should throw a NoNodeAvailableException", listener, NoNodeAvailableException.class);
@@ -337,7 +338,15 @@ public class TransportWriteActionTests extends OpenSearchTestCase {
             shardRoutings.replicaShards().stream().filter(ShardRouting::assignedToNode).collect(Collectors.toList())
         );
         listener = new PlainActionFuture<>();
-        proxy.performOn(replica, new TestRequest(), primaryTerm, randomNonNegativeLong(), randomNonNegativeLong(), listener);
+        proxy.performOn(
+            replica,
+            new TestRequest(),
+            primaryTerm,
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            listener,
+            ReplicationMode.FULL_REPLICATION
+        );
         assertFalse(listener.isDone());
 
         CapturingTransport.CapturedRequest[] captures = transport.getCapturedRequestsAndClear();

@@ -1005,7 +1005,8 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
             final long primaryTerm,
             final long globalCheckpoint,
             final long maxSeqNoOfUpdatesOrDeletes,
-            final ActionListener<ReplicationOperation.ReplicaResponse> listener
+            final ActionListener<ReplicationOperation.ReplicaResponse> listener,
+            final ReplicationMode replicationMode
         ) {
             boolean added = request.processedOnReplicas.add(replica);
             if (retryable == false) {

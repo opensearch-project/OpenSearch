@@ -319,7 +319,15 @@ public class ReplicationOperation<
 
             @Override
             public void tryAction(ActionListener<ReplicaResponse> listener) {
-                replicasProxy.performOn(shard, replicaRequest, primaryTerm, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, listener);
+                replicasProxy.performOn(
+                    shard,
+                    replicaRequest,
+                    primaryTerm,
+                    globalCheckpoint,
+                    maxSeqNoOfUpdatesOrDeletes,
+                    listener,
+                    replicationMode
+                );
             }
 
             @Override
@@ -549,6 +557,7 @@ public class ReplicationOperation<
          * @param maxSeqNoOfUpdatesOrDeletes the max seq_no of updates (index operations overwriting Lucene) or deletes on primary
          *                                   after this replication was executed on it.
          * @param listener                   callback for handling the response or failure
+         * @param replicationMode            the replication mode which will be used for resolving the transport action
          */
         void performOn(
             ShardRouting replica,
@@ -556,7 +565,8 @@ public class ReplicationOperation<
             long primaryTerm,
             long globalCheckpoint,
             long maxSeqNoOfUpdatesOrDeletes,
-            ActionListener<ReplicaResponse> listener
+            ActionListener<ReplicaResponse> listener,
+            ReplicationMode replicationMode
         );
 
         /**

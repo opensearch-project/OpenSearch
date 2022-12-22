@@ -55,6 +55,7 @@ import org.opensearch.action.support.WriteRequest;
 import org.opensearch.action.support.replication.FanoutReplicationProxy;
 import org.opensearch.action.support.replication.PendingReplicationActions;
 import org.opensearch.action.support.replication.ReplicatedWriteRequest;
+import org.opensearch.action.support.replication.ReplicationMode;
 import org.opensearch.action.support.replication.ReplicationOperation;
 import org.opensearch.action.support.replication.ReplicationRequest;
 import org.opensearch.action.support.replication.ReplicationResponse;
@@ -816,7 +817,8 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
                 final long primaryTerm,
                 final long globalCheckpoint,
                 final long maxSeqNoOfUpdatesOrDeletes,
-                final ActionListener<ReplicationOperation.ReplicaResponse> listener
+                final ActionListener<ReplicationOperation.ReplicaResponse> listener,
+                final ReplicationMode replicationMode
             ) {
                 IndexShard replica = replicationTargets.findReplicaShard(replicaRouting);
                 replica.acquireReplicaOperationPermit(
