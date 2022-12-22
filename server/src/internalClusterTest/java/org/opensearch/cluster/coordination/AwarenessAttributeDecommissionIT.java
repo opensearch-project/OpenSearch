@@ -781,15 +781,15 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
         });
     }
 
-    public void testDecommissionFailedWithOnlyOneAttributeValue() throws Exception {
+    public void testDecommissionFailedWithOnlyOneAttributeValueForLeader() throws Exception {
         Settings commonSettings = Settings.builder()
             .put("cluster.routing.allocation.awareness.attributes", "zone")
-            .put("cluster.routing.allocation.awareness.force.zone.values", "a")
+            .put("cluster.routing.allocation.awareness.force.zone.values", "b") // force zone values is only set for zones of routing nodes
             .build();
-        // Start 3 cluster manager eligible nodes
+        // Start 3 cluster manager eligible nodes in zone a
         internalCluster().startClusterManagerOnlyNodes(3, Settings.builder().put(commonSettings).put("node.attr.zone", "a").build());
-        // start 3 data nodes
-        internalCluster().startDataOnlyNodes(3, Settings.builder().put(commonSettings).put("node.attr.zone", "a").build());
+        // Start 3 data nodes in zone b
+        internalCluster().startDataOnlyNodes(3, Settings.builder().put(commonSettings).put("node.attr.zone", "b").build());
         ensureStableCluster(6);
         ClusterHealthResponse health = client().admin()
             .cluster()
@@ -802,7 +802,7 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
         assertFalse(health.isTimedOut());
 
         logger.info("--> setting shard routing weights");
-        Map<String, Double> weights = Map.of("a", 0.0);
+        Map<String, Double> weights = Map.of("b", 1.0); // weights are expected to be set only for routing nodes
         WeightedRouting weightedRouting = new WeightedRouting("zone", weights);
 
         ClusterPutWeightedRoutingResponse weightedRoutingResponse = client().admin()
