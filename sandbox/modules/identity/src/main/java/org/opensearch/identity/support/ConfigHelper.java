@@ -8,22 +8,13 @@
 
 package org.opensearch.identity.support;
 
-import java.io.File;
-import java.io.FileReader;
-import java.io.IOException;
-import java.io.Reader;
-import java.io.StringReader;
-import java.nio.charset.StandardCharsets;
-
-import org.opensearch.action.index.IndexResponse;
-import org.opensearch.authn.DefaultObjectMapper;
-import org.opensearch.identity.configuration.CType;
-import org.opensearch.identity.configuration.SecurityDynamicConfiguration;
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.action.DocWriteRequest.OpType;
 import org.opensearch.action.index.IndexRequest;
+import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.support.WriteRequest.RefreshPolicy;
+import org.opensearch.authn.DefaultObjectMapper;
 import org.opensearch.client.Client;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
@@ -31,8 +22,17 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
-
+import org.opensearch.identity.configuration.CType;
+import org.opensearch.identity.configuration.SecurityDynamicConfiguration;
 import org.opensearch.index.engine.VersionConflictEngineException;
+
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.Reader;
+import java.io.StringReader;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 import static org.opensearch.common.xcontent.DeprecationHandler.THROW_UNSUPPORTED_OPERATION;
 
@@ -89,7 +89,7 @@ public class ConfigHelper {
     public static Reader createFileOrStringReader(CType cType, int configVersion, String filepath, boolean populateEmptyIfFileMissing)
         throws Exception {
         Reader reader;
-        if (!populateEmptyIfFileMissing || new File(filepath).exists()) {
+        if (!populateEmptyIfFileMissing || Files.exists(Path.of(filepath))) {
             reader = new FileReader(filepath, StandardCharsets.UTF_8);
         } else {
             reader = new StringReader(createEmptySdcYaml(cType, configVersion));

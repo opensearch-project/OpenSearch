@@ -12,6 +12,7 @@ import org.opensearch.authn.User;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 public enum CType {
@@ -29,11 +30,11 @@ public enum CType {
     }
 
     public static CType fromString(String value) {
-        return CType.valueOf(value.toUpperCase());
+        return CType.valueOf(value.toUpperCase(Locale.ROOT));
     }
 
     public String toLCString() {
-        return this.toString().toLowerCase();
+        return this.toString().toLowerCase(Locale.ROOT);
     }
 
     private static Map<Integer, Class<?>> toMap(Object... objects) {

@@ -13,10 +13,11 @@ import org.opensearch.action.admin.cluster.node.info.NodeInfo;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.health.ClusterIndexHealth;
+import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.io.PathUtils;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
-import java.nio.file.Paths;
 import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -34,9 +35,10 @@ public class UserPersistenceIT extends HttpSmokeTestCaseWithIdentity {
         return plugins;
     }
 
+    @SuppressForbidden(reason = "manipulates system properties for testing")
     public void testUserPersistence() throws Exception {
         // TODO see if possible to do this without relative paths
-        final String defaultInitDirectory = Paths.get("../../resources/internalClusterTest/persistence").toAbsolutePath().toString();
+        final String defaultInitDirectory = PathUtils.get("../../resources/internalClusterTest/persistence").toAbsolutePath().toString();
         System.setProperty("identity.default_init.dir", defaultInitDirectory);
 
         final String clusterManagerNode = internalCluster().startClusterManagerOnlyNode();

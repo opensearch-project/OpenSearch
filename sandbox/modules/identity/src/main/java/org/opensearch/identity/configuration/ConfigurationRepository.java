@@ -8,13 +8,14 @@
 
 package org.opensearch.identity.configuration;
 
-import java.io.File;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -89,8 +90,8 @@ public class ConfigurationRepository {
                             final String cd = lookupDir != null
                                 ? (lookupDir + "/")
                                 : new Environment(settings, configPath).configDir().toAbsolutePath().toString() + "/";
-                            File confFile = new File(cd + "internal_users.yml");
-                            if (confFile.exists()) {
+                            Path confFile = Path.of(cd + "internal_users.yml");
+                            if (Files.exists(confFile)) {
                                 final ThreadContext threadContext = threadPool.getThreadContext();
                                 try (StoredContext ctx = threadContext.stashContext()) {
                                     threadContext.putHeader(ConfigConstants.IDENTITY_CONF_REQUEST_HEADER, "true");
@@ -107,7 +108,7 @@ public class ConfigurationRepository {
                                     );
                                 }
                             } else {
-                                LOGGER.error("{} does not exist", confFile.getAbsolutePath());
+                                LOGGER.error("{} does not exist", confFile.toAbsolutePath().toString());
                             }
                         } catch (Exception e) {
                             LOGGER.error("Cannot apply default config (this is maybe not an error!)", e);
@@ -262,7 +263,7 @@ public class ConfigurationRepository {
                 LOGGER.debug("Notify {} listener about change configuration", listener);
                 listener.onChange(typeToConfig);
             } catch (Exception e) {
-                String errorMsg = String.format("%s listener errored", listener);
+                String errorMsg = String.format(Locale.ROOT, "%s listener errored", listener);
                 LOGGER.error(errorMsg, e);
                 throw ExceptionsHelper.convertToOpenSearchException(e);
             }

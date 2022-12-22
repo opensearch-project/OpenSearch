@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -110,6 +111,7 @@ public class ConfigurationLoader {
             @Override
             public void failure(Throwable t) {
                 String errorMsg = String.format(
+                    Locale.ROOT,
                     "Exception while retrieving configuration for %s (index=%s)",
                     Arrays.toString(events),
                     securityIndex
