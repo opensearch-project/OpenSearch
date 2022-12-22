@@ -21,10 +21,6 @@ import org.opensearch.index.translog.transfer.listener.TranslogTransferListener;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.function.LongConsumer;
@@ -36,6 +32,7 @@ import java.util.function.LongSupplier;
  * for every sync, post syncing to disk. Post that, a new generation is
  * created.
  *
+ * @opensearch.internal
  */
 public class RemoteFsTranslog extends Translog {
 
@@ -95,81 +92,6 @@ public class RemoteFsTranslog extends Translog {
             IOUtils.closeWhileHandlingException(readers);
             throw e;
         }
-    }
-
-    /** recover all translog files found on disk */
-    protected ArrayList<TranslogReader> recoverFromFiles(Checkpoint checkpoint) throws IOException {
-        boolean success = false;
-        ArrayList<TranslogReader> foundTranslogs = new ArrayList<>();
-        try (ReleasableLock ignored = writeLock.acquire()) {
-            logger.debug("open uncommitted translog checkpoint {}", checkpoint);
-            final long minGenerationToRecoverFrom = checkpoint.minTranslogGeneration;
-
-            // we open files in reverse order in order to validate the translog uuid before we start traversing the translog based on
-            // the generation id we found in the lucene commit. This gives for better error messages if the wrong
-            // translog was found.
-            for (long i = checkpoint.generation; i >= minGenerationToRecoverFrom; i--) {
-                logger.info("recovering generation {}", i);
-                Path committedTranslogFile = location.resolve(Translog.getFilename(i));
-                if (Files.exists(committedTranslogFile) == false) {
-                    throw new TranslogCorruptedException(
-                        committedTranslogFile.toString(),
-                        "translog file doesn't exist with generation: "
-                            + i
-                            + " recovering from: "
-                            + minGenerationToRecoverFrom
-                            + " checkpoint: "
-                            + checkpoint.generation
-                            + " - translog ids must be consecutive"
-                    );
-                }
-                final Checkpoint readerCheckpoint = i == checkpoint.generation
-                    ? checkpoint
-                    : Checkpoint.read(location.resolve(Translog.getCommitCheckpointFileName(i)));
-                final TranslogReader reader = openReader(committedTranslogFile, readerCheckpoint);
-                assert reader.getPrimaryTerm() <= primaryTermSupplier.getAsLong() : "Primary terms go backwards; current term ["
-                    + primaryTermSupplier.getAsLong()
-                    + "] translog path [ "
-                    + committedTranslogFile
-                    + ", existing term ["
-                    + reader.getPrimaryTerm()
-                    + "]";
-                foundTranslogs.add(reader);
-                logger.debug("recovered local translog from checkpoint {}", checkpoint);
-            }
-            Collections.reverse(foundTranslogs);
-
-            // when we clean up files, we first update the checkpoint with a new minReferencedTranslog and then delete them;
-            // if we crash just at the wrong moment, it may be that we leave one unreferenced file behind so we delete it if there
-            IOUtils.deleteFilesIgnoringExceptions(
-                location.resolve(Translog.getFilename(minGenerationToRecoverFrom - 1)),
-                location.resolve(Translog.getCommitCheckpointFileName(minGenerationToRecoverFrom - 1))
-            );
-
-            Path commitCheckpoint = location.resolve(Translog.getCommitCheckpointFileName(checkpoint.generation));
-            if (Files.exists(commitCheckpoint)) {
-                Checkpoint checkpointFromDisk = Checkpoint.read(commitCheckpoint);
-                if (checkpoint.equals(checkpointFromDisk) == false) {
-                    throw new TranslogCorruptedException(
-                        commitCheckpoint.toString(),
-                        "checkpoint file "
-                            + commitCheckpoint.getFileName()
-                            + " already exists but has corrupted content: expected "
-                            + checkpoint
-                            + " but got "
-                            + checkpointFromDisk
-                    );
-                }
-            } else {
-                copyCheckpointTo(commitCheckpoint);
-            }
-            success = true;
-        } finally {
-            if (success == false) {
-                IOUtils.closeWhileHandlingException(foundTranslogs);
-            }
-        }
-        return foundTranslogs;
     }
 
     @Override
