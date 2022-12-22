@@ -163,7 +163,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
             );
             try {
                 // TODO: make asynchronous
-                inProgressFuture.get(5, TimeUnit.SECONDS);
+                inProgressFuture.get(ExtensionsManager.EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS);
             } catch (InterruptedException e) {
                 return channel -> channel.sendResponse(
                     new BytesRestResponse(RestStatus.REQUEST_TIMEOUT, "No response from extension to request.")

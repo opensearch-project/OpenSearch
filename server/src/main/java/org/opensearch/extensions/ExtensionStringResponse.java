@@ -17,7 +17,7 @@ import java.io.IOException;
 /**
  * Generic string response indicating the status of some previous request sent to the SDK
  *
- * @opensearch.internal
+ * @opensearch.api
  */
 public class ExtensionStringResponse extends TransportResponse {
     private String response;
