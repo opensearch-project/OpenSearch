@@ -95,6 +95,7 @@ import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.tasks.Task;
+import org.opensearch.tasks.TaskId;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPool.Names;
 import org.opensearch.transport.TransportChannel;
@@ -289,6 +290,11 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             shardId.writeTo(out);
         }
 
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new ReplicationTask(id, type, action, getDescription(), parentTaskId, headers);
+        }
+
         public String getTargetAllocationID() {
             return targetAllocationID;
         }
@@ -299,6 +305,22 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
         public ShardId getShardId() {
             return shardId;
+        }
+
+        @Override
+        public String getDescription() {
+            return toString();
+        }
+
+        @Override
+        public String toString() {
+            return "PrimaryTermValidationRequest ["
+                + shardId
+                + "] for targetAllocationID ["
+                + targetAllocationID
+                + "] with primaryTerm ["
+                + primaryTerm
+                + "]";
         }
     }
 
