@@ -452,7 +452,7 @@ final class StoreRecovery {
         store.incRef();
         remoteStore.incRef();
         try {
-            //
+            // Download segments from remote segment store
             indexShard.syncSegmentsFromRemoteSegmentStore(true);
 
             // This creates empty trans-log for now

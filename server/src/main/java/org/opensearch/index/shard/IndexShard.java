@@ -2045,6 +2045,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             assert currentEngineReference.get() == null : "engine is running";
             verifyNotClosed();
             // we must create a new engine under mutex (see IndexShard#snapshotStoreMetadata).
+            if (config.isReadOnlyReplica() == false && indexSettings.isRemoteStoreEnabled()) {
+                syncSegmentsFromRemoteSegmentStore(false);
+            }
             final Engine newEngine = engineFactory.newReadWriteEngine(config);
             onNewEngine(newEngine);
             currentEngineReference.set(newEngine);
@@ -4131,10 +4134,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 }
             };
             IOUtils.close(currentEngineReference.getAndSet(readOnlyEngine));
-            if (indexSettings.isRemoteStoreEnabled()) {
+            EngineConfig newEngineConfig = newEngineConfig(replicationTracker);
+            if (newEngineConfig.isReadOnlyReplica() == false && indexSettings.isRemoteStoreEnabled()) {
                 syncSegmentsFromRemoteSegmentStore(false);
             }
-            newEngineReference.set(engineFactory.newReadWriteEngine(newEngineConfig(replicationTracker)));
+            newEngineReference.set(engineFactory.newReadWriteEngine(newEngineConfig));
             onNewEngine(newEngineReference.get());
         }
         final TranslogRecoveryRunner translogRunner = (snapshot) -> runTranslogRecovery(
@@ -4183,20 +4187,19 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             Set<String> localSegmentFiles = Sets.newHashSet(storeDirectory.listAll());
             for (String file : uploadedSegments.keySet()) {
                 long checksum = Long.parseLong(uploadedSegments.get(file).getChecksum());
-                if (override || localDirectoryContains(storeDirectory, file, checksum)) {
+                if (override || localDirectoryContains(storeDirectory, file, checksum) == false) {
                     if(localSegmentFiles.contains(file)) {
                         storeDirectory.deleteFile(file);
                     }
                     logger.info("Downloading segments file: {} ", file);
                     storeDirectory.copyFrom(remoteDirectory, file, file, IOContext.DEFAULT);
+                    if (file.startsWith(SEGMENT_INFO_SNAPSHOT_FILENAME_PREFIX)) {
+                        segmentInfosSnapshotFilename = file;
+                    }
                 } else {
                     logger.info("Skipping file download for: {}", file);
                 }
-                if (file.startsWith(SEGMENT_INFO_SNAPSHOT_FILENAME_PREFIX)) {
-                    segmentInfosSnapshotFilename = file;
-                }
             }
-
             if (segmentInfosSnapshotFilename != null) {
                 try (
                     ChecksumIndexInput indexInput = new BufferedChecksumIndexInput(
