@@ -123,8 +123,6 @@ public class SecurityRestFilter {
             } catch (final AuthenticationException ae) {
                 log.info("Authentication finally failed: {}", ae.getMessage());
                 return false;
-            } catch (RuntimeException e) {
-                throw new RuntimeException(e);
             }
         }
 

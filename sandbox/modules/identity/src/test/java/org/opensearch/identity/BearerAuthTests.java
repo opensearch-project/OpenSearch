@@ -9,11 +9,10 @@
 package org.opensearch.identity;
 
 import org.apache.cxf.rs.security.jose.jwt.JwtToken;
-import org.apache.shiro.authc.AuthenticationToken;
 import org.hamcrest.MatcherAssert;
+import org.opensearch.authn.jwt.BadCredentialsException;
 import org.opensearch.authn.jwt.JwtVendor;
 import org.opensearch.authn.jwt.JwtVerifier;
-import org.opensearch.authn.tokens.BearerAuthToken;
 import org.opensearch.client.Request;
 import org.opensearch.client.RequestOptions;
 import org.opensearch.client.Response;
@@ -27,7 +26,6 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.opensearch.authn.AuthenticationTokenHandler.extractShiroAuthToken;
 
 public class BearerAuthTests extends AbstractIdentityTestCase {
 
@@ -35,13 +33,11 @@ public class BearerAuthTests extends AbstractIdentityTestCase {
 
         Map<String, String> jwtClaims = new HashMap<>();
         jwtClaims.put("sub", "testSubject");
-        String encodedToken = JwtVendor.createExpiredJwt(jwtClaims);
-        String headerBody = "Bearer " + encodedToken;
-        BearerAuthToken bearerAuthToken = new BearerAuthToken(headerBody);
+        String encodedToken = JwtVendorTestUtils.createExpiredJwt(jwtClaims);
 
         try {
-            AuthenticationToken extractedShiroToken = extractShiroAuthToken(bearerAuthToken);
-        } catch (RuntimeException ex) {
+            JwtToken verifiedJwt = JwtVerifier.getVerifiedJwtToken(encodedToken);
+        } catch (BadCredentialsException ex) {
             assertFalse(ex.getMessage().isEmpty());
             assertEquals("The token has expired", ex.getMessage());
         }
@@ -51,13 +47,12 @@ public class BearerAuthTests extends AbstractIdentityTestCase {
 
         Map<String, String> jwtClaims = new HashMap<>();
         jwtClaims.put("sub", "testSubject");
-        String encodedToken = JwtVendor.createEarlyJwt(jwtClaims);
+        String encodedToken = JwtVendorTestUtils.createEarlyJwt(jwtClaims);
         String headerBody = "Bearer " + encodedToken;
-        BearerAuthToken bearerAuthToken = new BearerAuthToken(headerBody);
 
         try {
-            AuthenticationToken extractedShiroToken = extractShiroAuthToken(bearerAuthToken);
-        } catch (RuntimeException ex) {
+            JwtToken verifiedJwt = JwtVerifier.getVerifiedJwtToken(encodedToken);
+        } catch (BadCredentialsException ex) {
             assertFalse(ex.getMessage().isEmpty());
             assertEquals("The token cannot be accepted yet", ex.getMessage());
         }
@@ -68,32 +63,30 @@ public class BearerAuthTests extends AbstractIdentityTestCase {
         Map<String, String> jwtClaims = new HashMap<>();
         jwtClaims.put("sub", "testSubject");
         String encodedToken = JwtVendor.createJwt(jwtClaims);
-        String headerBody = "Bearer " + encodedToken;
-        BearerAuthToken bearerAuthToken = new BearerAuthToken(headerBody);
-        AuthenticationToken extractedShiroToken;
+        JwtToken verifiedJwt = null;
 
         try {
-            extractedShiroToken = extractShiroAuthToken(bearerAuthToken); // This should verify and then extract the shiro token for login
-            assertEquals(encodedToken, extractedShiroToken.getPrincipal());
-        } catch (RuntimeException ex) {
+            verifiedJwt = JwtVerifier.getVerifiedJwtToken(encodedToken);
+            assertEquals("testSubject", verifiedJwt.getClaim("sub"));
+        } catch (BadCredentialsException ex) {
             throw new Error(ex);
         }
-        if (extractedShiroToken == null) {
+        if (verifiedJwt == null) {
             throw new Error("The value of the extracted token is null.");
         }
     }
 
-    public void testInvalidJwt() {
+    public void testMismatchedSignatureJwt() {
 
         Map<String, String> jwtClaims = new HashMap<>();
         jwtClaims.put("sub", "testSubject");
 
-        String encodedToken = JwtVendor.createInvalidJwt(jwtClaims);
+        String encodedToken = JwtVendorTestUtils.createInvalidJwt(jwtClaims);
         try {
             JwtToken token = JwtVerifier.getVerifiedJwtToken(encodedToken);
-        } catch (RuntimeException ex) {
+        } catch (BadCredentialsException ex) {
             assertFalse(ex.getMessage().isEmpty());
-            assertEquals("Algorithm of JWT does not match algorithm of JWK (HS512 != HS256)", ex.getMessage());
+            assertEquals("Algorithm of JWT does not match algorithm of JWK (HS512 != HS256)", ex.getMessage().trim());
         }
     }
 
@@ -120,7 +113,7 @@ public class BearerAuthTests extends AbstractIdentityTestCase {
 
         Map<String, String> jwtClaims = new HashMap<>();
         jwtClaims.put("sub", "testSubject");
-        String encodedToken = JwtVendor.createExpiredJwt(jwtClaims);
+        String encodedToken = JwtVendorTestUtils.createExpiredJwt(jwtClaims);
         String headerBody = "Bearer " + encodedToken;
 
         Request request = new Request("GET", "/_cluster/health");
@@ -130,7 +123,7 @@ public class BearerAuthTests extends AbstractIdentityTestCase {
         try {
             getRestClient().performRequest(request);
         } catch (ResponseException e) {
-            MatcherAssert.assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(500));
+            MatcherAssert.assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(401));
         }
     }
 
@@ -138,7 +131,7 @@ public class BearerAuthTests extends AbstractIdentityTestCase {
 
         Map<String, String> jwtClaims = new HashMap<>();
         jwtClaims.put("sub", "testSubject");
-        String encodedToken = JwtVendor.createInvalidJwt(jwtClaims);
+        String encodedToken = JwtVendorTestUtils.createInvalidJwt(jwtClaims);
         String headerBody = "Bearer " + encodedToken;
 
         Request request = new Request("GET", "/_cluster/health");
@@ -147,7 +140,7 @@ public class BearerAuthTests extends AbstractIdentityTestCase {
         try {
             getRestClient().performRequest(request);
         } catch (ResponseException e) {
-            MatcherAssert.assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(500));
+            MatcherAssert.assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(401));
         }
     }
 
@@ -161,7 +154,7 @@ public class BearerAuthTests extends AbstractIdentityTestCase {
         try {
             getRestClient().performRequest(request);
         } catch (ResponseException e) {
-            MatcherAssert.assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(500));
+            MatcherAssert.assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(401));
         }
     }
 }

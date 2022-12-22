@@ -25,8 +25,8 @@ public class JwtVendorTests extends OpenSearchTestCase {
         try {
             JwtToken token = JwtVerifier.getVerifiedJwtToken(encodedToken);
             assertTrue(token.getClaims().getClaim("sub").equals("testSubject"));
-        } catch (RuntimeException e) {
-            fail("Unexpected RuntimeException thrown");
+        } catch (BadCredentialsException e) {
+            fail("Unexpected BadCredentialsException thrown");
         }
     }
 }

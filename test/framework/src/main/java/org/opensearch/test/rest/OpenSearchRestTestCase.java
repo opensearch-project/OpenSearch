@@ -900,7 +900,7 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
         return runningTasks;
     }
 
-    public static void assertOK(Response response) {
+    protected static void assertOK(Response response) {
         assertThat(response.getStatusLine().getStatusCode(), anyOf(equalTo(200), equalTo(201)));
     }
 

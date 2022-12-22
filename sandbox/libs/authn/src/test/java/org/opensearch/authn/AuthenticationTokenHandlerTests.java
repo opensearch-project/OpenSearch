@@ -17,9 +17,8 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class AuthenticationTokenHandlerTests extends OpenSearchTestCase {
 
-    public void testShouldExtractBasicAuthTokenSuccessfully() throws RuntimeException {
+    public void testShouldExtractBasicAuthTokenSuccessfully() {
 
-        // The auth header that is part of the request
         String authHeader = "Basic YWRtaW46YWRtaW4="; // admin:admin
 
         AuthenticationToken authToken = new BasicAuthToken(authHeader);
@@ -31,7 +30,7 @@ public class AuthenticationTokenHandlerTests extends OpenSearchTestCase {
         MatcherAssert.assertThat(new String(usernamePasswordToken.getPassword()), equalTo("admin"));
     }
 
-    public void testShouldExtractBasicAuthTokenSuccessfully_twoSemiColonPassword() throws RuntimeException {
+    public void testShouldExtractBasicAuthTokenSuccessfully_twoSemiColonPassword() {
 
         // The auth header that is part of the request
         String authHeader = "Basic dGVzdDp0ZTpzdA=="; // test:te:st
@@ -45,7 +44,7 @@ public class AuthenticationTokenHandlerTests extends OpenSearchTestCase {
         MatcherAssert.assertThat(new String(usernamePasswordToken.getPassword()), equalTo("te:st"));
     }
 
-    public void testShouldReturnNullWhenExtractingInvalidToken() throws RuntimeException {
+    public void testShouldReturnNullWhenExtractingInvalidToken() {
         String authHeader = "Basic Nah";
 
         AuthenticationToken authToken = new BasicAuthToken(authHeader);
@@ -55,7 +54,7 @@ public class AuthenticationTokenHandlerTests extends OpenSearchTestCase {
         MatcherAssert.assertThat(usernamePasswordToken, nullValue());
     }
 
-    public void testShouldReturnNullWhenExtractingNullToken() throws RuntimeException {
+    public void testShouldReturnNullWhenExtractingNullToken() {
 
         org.apache.shiro.authc.AuthenticationToken shiroAuthToken = AuthenticationTokenHandler.extractShiroAuthToken(null);
 

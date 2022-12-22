@@ -26,7 +26,7 @@ import org.apache.logging.log4j.Logger;
 public class JwtVerifier {
     private final static Logger log = LogManager.getLogger(JwtVerifier.class);
 
-    public static JwtToken getVerifiedJwtToken(String encodedJwt) throws RuntimeException {
+    public static JwtToken getVerifiedJwtToken(String encodedJwt) throws BadCredentialsException {
         try {
             JwsJwtCompactConsumer jwtConsumer = new JwsJwtCompactConsumer(encodedJwt);
             JwtToken jwt = jwtConsumer.getJwtToken();
@@ -48,18 +48,18 @@ public class JwtVerifier {
             boolean signatureValid = jwtConsumer.verifySignatureWith(signatureVerifier);
 
             if (!signatureValid) {
-                throw new RuntimeException("Invalid JWT signature");
+                throw new BadCredentialsException("Invalid JWT signature");
             }
 
             validateClaims(jwt);
 
             return jwt;
         } catch (JwtException e) {
-            throw new RuntimeException(e.getMessage(), e);
+            throw new BadCredentialsException(e.getMessage(), e);
         }
     }
 
-    private static void validateSignatureAlgorithm(JsonWebKey key, JwtToken jwt) throws RuntimeException {
+    private static void validateSignatureAlgorithm(JsonWebKey key, JwtToken jwt) throws BadCredentialsException {
         if (key.getAlgorithm() == null || key.getAlgorithm().isBlank()) {
             return;
         }
@@ -68,23 +68,25 @@ public class JwtVerifier {
         SignatureAlgorithm tokenAlgorithm = SignatureAlgorithm.getAlgorithm(jwt.getJwsHeaders().getAlgorithm());
 
         if (!keyAlgorithm.equals(tokenAlgorithm)) {
-            throw new RuntimeException("Algorithm of JWT does not match algorithm of JWK (" + keyAlgorithm + " != " + tokenAlgorithm + ")");
+            throw new BadCredentialsException(
+                "Algorithm of JWT does not match algorithm of JWK (" + keyAlgorithm + " != " + tokenAlgorithm + ")"
+            );
         }
     }
 
-    private static JwsSignatureVerifier getInitializedSignatureVerifier(JsonWebKey key, JwtToken jwt) throws RuntimeException,
+    private static JwsSignatureVerifier getInitializedSignatureVerifier(JsonWebKey key, JwtToken jwt) throws BadCredentialsException,
         JwtException {
 
         validateSignatureAlgorithm(key, jwt);
         JwsSignatureVerifier result = JwsUtils.getSignatureVerifier(key, jwt.getJwsHeaders().getSignatureAlgorithm());
         if (result == null) {
-            throw new RuntimeException("Cannot verify JWT");
+            throw new BadCredentialsException("Cannot verify JWT");
         } else {
             return result;
         }
     }
 
-    private static void validateClaims(JwtToken jwt) throws RuntimeException, JwtException {
+    private static void validateClaims(JwtToken jwt) {
         JwtClaims claims = jwt.getClaims();
 
         if (claims != null) {
