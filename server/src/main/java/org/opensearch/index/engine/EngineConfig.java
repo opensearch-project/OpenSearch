@@ -466,6 +466,11 @@ public final class EngineConfig {
         return translogDeletionPolicyFactory;
     }
 
+    /**
+     * Builder for EngineConfig class
+     *
+     * @opensearch.internal
+     */
     public static class Builder {
         private ShardId shardId;
         private ThreadPool threadPool;
