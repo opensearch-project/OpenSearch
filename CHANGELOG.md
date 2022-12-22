@@ -3,6 +3,7 @@
 ## [Unreleased]
 ### Dependencies
 - Bumps `protobuf-java` from 3.21.11 to 3.21.12
+- Bumps `maxmind-db` from 2.1.0 to 3.0.0
 
 All notable changes to this project are documented in this file.
 
