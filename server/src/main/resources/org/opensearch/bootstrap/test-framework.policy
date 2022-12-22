@@ -153,4 +153,5 @@ grant {
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
   permission java.lang.RuntimePermission "accessDeclaredMembers";
   permission java.lang.RuntimePermission "setContextClassLoader";
+  permission java.util.PropertyPermission "*", "read,write";
 };
