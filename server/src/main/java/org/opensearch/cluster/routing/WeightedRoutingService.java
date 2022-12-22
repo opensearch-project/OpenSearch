@@ -223,7 +223,15 @@ public class WeightedRoutingService {
         // discovered awareness values has weight zero
         if (countWithZeroWeight.get() > allAwarenessValues.size() / 2) {
             throw addValidationError(
-                (String.format(Locale.ROOT, "There are too many discovered attribute values [%s] given zero weight [%d]. Maximum expected number of routing weights having zero weight is [%d]", request.getWeightedRouting().weights().toString(), countWithZeroWeight.get(), allAwarenessValues.size() / 2)), null);
+                (String.format(
+                    Locale.ROOT,
+                    "There are too many discovered attribute values [%s] given zero weight [%d]. Maximum expected number of routing weights having zero weight is [%d]",
+                    request.getWeightedRouting().weights().toString(),
+                    countWithZeroWeight.get(),
+                    allAwarenessValues.size() / 2
+                )),
+                null
+            );
         }
     }
 

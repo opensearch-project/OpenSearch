@@ -353,7 +353,10 @@ public class WeightedRoutingServiceTests extends OpenSearchTestCase {
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
         MatcherAssert.assertThat("Expected onFailure to be called", exceptionReference.get(), notNullValue());
         MatcherAssert.assertThat(exceptionReference.get(), instanceOf(ActionRequestValidationException.class));
-        MatcherAssert.assertThat(exceptionReference.get().getMessage(), containsString("Maximum expected number of routing weights having zero weight is [1]"));
+        MatcherAssert.assertThat(
+            exceptionReference.get().getMessage(),
+            containsString("Maximum expected number of routing weights having zero weight is [1]")
+        );
     }
 
     public void testAddWeightedRoutingFailsWhenDecommissionOngoing() throws InterruptedException {

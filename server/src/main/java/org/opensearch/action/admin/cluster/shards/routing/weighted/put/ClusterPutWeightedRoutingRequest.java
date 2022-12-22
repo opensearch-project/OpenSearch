@@ -147,7 +147,15 @@ public class ClusterPutWeightedRoutingRequest extends ClusterManagerNodeRequest<
         }
         if (countValueWithZeroWeights > weightedRouting.weights().size() / 2) {
             validationException = addValidationError(
-                (String.format(Locale.ROOT, "There are too many attribute values [%s] given zero weight [%d]. Maximum expected number of routing weights having zero weight is [%d]", weightedRouting.weights().toString(), countValueWithZeroWeights, weightedRouting.weights().size() / 2)), null);
+                (String.format(
+                    Locale.ROOT,
+                    "There are too many attribute values [%s] given zero weight [%d]. Maximum expected number of routing weights having zero weight is [%d]",
+                    weightedRouting.weights().toString(),
+                    countValueWithZeroWeights,
+                    weightedRouting.weights().size() / 2
+                )),
+                null
+            );
         }
         return validationException;
     }
