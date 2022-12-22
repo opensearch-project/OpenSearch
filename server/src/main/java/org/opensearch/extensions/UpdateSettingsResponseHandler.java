@@ -33,6 +33,9 @@ public class UpdateSettingsResponseHandler implements TransportResponseHandler<A
     @Override
     public void handleResponse(AcknowledgedResponse response) {
         logger.info("response {}", response.getStatus());
+        if (!response.getStatus()) {
+            handleException(new TransportException("Request was not completed successfully"));
+        }
     }
 
     @Override
