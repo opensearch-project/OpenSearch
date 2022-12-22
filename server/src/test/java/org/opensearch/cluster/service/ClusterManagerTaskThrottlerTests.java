@@ -83,7 +83,7 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
     }
 
     public void testValidateSettingsForDifferentVersion() {
-        DiscoveryNode clusterManagerNode = getClusterManagerNode(Version.V_2_4_0);
+        DiscoveryNode clusterManagerNode = getClusterManagerNode(Version.V_2_5_0);
         DiscoveryNode dataNode = getDataNode(Version.V_2_0_0);
         setState(
             clusterService,
@@ -116,8 +116,8 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
     }
 
     public void testValidateSettingsForTaskWihtoutRetryOnDataNode() {
-        DiscoveryNode clusterManagerNode = getClusterManagerNode(Version.V_2_4_0);
-        DiscoveryNode dataNode = getDataNode(Version.V_2_4_0);
+        DiscoveryNode clusterManagerNode = getClusterManagerNode(Version.V_2_5_0);
+        DiscoveryNode dataNode = getDataNode(Version.V_2_5_0);
         setState(
             clusterService,
             ClusterStateCreationUtils.state(clusterManagerNode, clusterManagerNode, new DiscoveryNode[] { clusterManagerNode, dataNode })
@@ -140,8 +140,8 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
     }
 
     public void testUpdateSettingsForNullValue() {
-        DiscoveryNode clusterManagerNode = getClusterManagerNode(Version.V_2_4_0);
-        DiscoveryNode dataNode = getDataNode(Version.V_2_4_0);
+        DiscoveryNode clusterManagerNode = getClusterManagerNode(Version.V_2_5_0);
+        DiscoveryNode dataNode = getDataNode(Version.V_2_5_0);
         setState(
             clusterService,
             ClusterStateCreationUtils.state(clusterManagerNode, clusterManagerNode, new DiscoveryNode[] { clusterManagerNode, dataNode })
@@ -169,8 +169,8 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
     }
 
     public void testSettingsOnBootstrap() {
-        DiscoveryNode clusterManagerNode = getClusterManagerNode(Version.V_2_4_0);
-        DiscoveryNode dataNode = getDataNode(Version.V_2_4_0);
+        DiscoveryNode clusterManagerNode = getClusterManagerNode(Version.V_2_5_0);
+        DiscoveryNode dataNode = getDataNode(Version.V_2_5_0);
         setState(
             clusterService,
             ClusterStateCreationUtils.state(clusterManagerNode, clusterManagerNode, new DiscoveryNode[] { clusterManagerNode, dataNode })
@@ -194,8 +194,8 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
     }
 
     public void testValidateSettingsForUnknownTask() {
-        DiscoveryNode clusterManagerNode = getClusterManagerNode(Version.V_2_4_0);
-        DiscoveryNode dataNode = getDataNode(Version.V_2_4_0);
+        DiscoveryNode clusterManagerNode = getClusterManagerNode(Version.V_2_5_0);
+        DiscoveryNode dataNode = getDataNode(Version.V_2_5_0);
         setState(
             clusterService,
             ClusterStateCreationUtils.state(clusterManagerNode, clusterManagerNode, new DiscoveryNode[] { clusterManagerNode, dataNode })
@@ -216,8 +216,8 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
     }
 
     public void testUpdateThrottlingLimitForBasicSanity() {
-        DiscoveryNode clusterManagerNode = getClusterManagerNode(Version.V_2_4_0);
-        DiscoveryNode dataNode = getDataNode(Version.V_2_4_0);
+        DiscoveryNode clusterManagerNode = getClusterManagerNode(Version.V_2_5_0);
+        DiscoveryNode dataNode = getDataNode(Version.V_2_5_0);
         setState(
             clusterService,
             ClusterStateCreationUtils.state(clusterManagerNode, clusterManagerNode, new DiscoveryNode[] { clusterManagerNode, dataNode })
@@ -246,8 +246,8 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
     }
 
     public void testValidateSettingForLimit() {
-        DiscoveryNode clusterManagerNode = getClusterManagerNode(Version.V_2_4_0);
-        DiscoveryNode dataNode = getDataNode(Version.V_2_4_0);
+        DiscoveryNode clusterManagerNode = getClusterManagerNode(Version.V_2_5_0);
+        DiscoveryNode dataNode = getDataNode(Version.V_2_5_0);
         setState(
             clusterService,
             ClusterStateCreationUtils.state(clusterManagerNode, clusterManagerNode, new DiscoveryNode[] { clusterManagerNode, dataNode })
