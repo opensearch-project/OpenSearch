@@ -400,30 +400,29 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
         final List<ReferenceManager.RefreshListener> internalRefreshListener = new ArrayList<>(config.getInternalRefreshListener());
         ;
         internalRefreshListener.add(listener);
-        return new EngineConfig(
-            config.getShardId(),
-            config.getThreadPool(),
-            config.getIndexSettings(),
-            config.getWarmer(),
-            config.getStore(),
-            config.getMergePolicy(),
-            config.getAnalyzer(),
-            config.getSimilarity(),
-            new CodecService(null, logger),
-            config.getEventListener(),
-            config.getQueryCache(),
-            config.getQueryCachingPolicy(),
-            config.getTranslogConfig(),
-            config.getFlushMergesAfter(),
-            config.getExternalRefreshListener(),
-            internalRefreshListener,
-            config.getIndexSort(),
-            config.getCircuitBreakerService(),
-            config.getGlobalCheckpointSupplier(),
-            config.retentionLeasesSupplier(),
-            config.getPrimaryTermSupplier(),
-            config.getTombstoneDocSupplier()
-        );
+        return new EngineConfig.Builder().setShardId(config.getShardId())
+            .setThreadPool(config.getThreadPool())
+            .setIndexSettings(config.getIndexSettings())
+            .setWarmer(config.getWarmer())
+            .setStore(config.getStore())
+            .setMergePolicy(config.getMergePolicy())
+            .setAnalyzer(config.getAnalyzer())
+            .setSimilarity(config.getSimilarity())
+            .setCodecService(new CodecService(null, logger))
+            .setEventListener(config.getEventListener())
+            .setQueryCache(config.getQueryCache())
+            .setQueryCachingPolicy(config.getQueryCachingPolicy())
+            .setTranslogConfig(config.getTranslogConfig())
+            .setFlushMergesAfter(config.getFlushMergesAfter())
+            .setExternalRefreshListener(config.getExternalRefreshListener())
+            .setInternalRefreshListener(internalRefreshListener)
+            .setIndexSort(config.getIndexSort())
+            .setCircuitBreakerService(config.getCircuitBreakerService())
+            .setGlobalCheckpointSupplier(config.getGlobalCheckpointSupplier())
+            .setRetentionLeasesSupplier(config.retentionLeasesSupplier())
+            .setPrimaryTermSupplier(config.getPrimaryTermSupplier())
+            .setTombstoneDocSupplier(config.getTombstoneDocSupplier())
+            .createEngineConfig();
     }
 
     ThreadPoolStats.Stats getRefreshThreadPoolStats() {

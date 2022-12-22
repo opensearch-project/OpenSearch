@@ -81,30 +81,29 @@ public class IndexingMemoryControllerIT extends OpenSearchSingleNodeTestCase {
                 .put("indices.memory.index_buffer_size", "10mb")
                 .build();
             IndexSettings indexSettings = new IndexSettings(config.getIndexSettings().getIndexMetadata(), settings);
-            return new EngineConfig(
-                config.getShardId(),
-                config.getThreadPool(),
-                indexSettings,
-                config.getWarmer(),
-                config.getStore(),
-                config.getMergePolicy(),
-                config.getAnalyzer(),
-                config.getSimilarity(),
-                new CodecService(null, LogManager.getLogger(IndexingMemoryControllerIT.class)),
-                config.getEventListener(),
-                config.getQueryCache(),
-                config.getQueryCachingPolicy(),
-                config.getTranslogConfig(),
-                config.getFlushMergesAfter(),
-                config.getExternalRefreshListener(),
-                config.getInternalRefreshListener(),
-                config.getIndexSort(),
-                config.getCircuitBreakerService(),
-                config.getGlobalCheckpointSupplier(),
-                config.retentionLeasesSupplier(),
-                config.getPrimaryTermSupplier(),
-                config.getTombstoneDocSupplier()
-            );
+            return new EngineConfig.Builder().setShardId(config.getShardId())
+                .setThreadPool(config.getThreadPool())
+                .setIndexSettings(indexSettings)
+                .setWarmer(config.getWarmer())
+                .setStore(config.getStore())
+                .setMergePolicy(config.getMergePolicy())
+                .setAnalyzer(config.getAnalyzer())
+                .setSimilarity(config.getSimilarity())
+                .setCodecService(new CodecService(null, LogManager.getLogger(IndexingMemoryControllerIT.class)))
+                .setEventListener(config.getEventListener())
+                .setQueryCache(config.getQueryCache())
+                .setQueryCachingPolicy(config.getQueryCachingPolicy())
+                .setTranslogConfig(config.getTranslogConfig())
+                .setFlushMergesAfter(config.getFlushMergesAfter())
+                .setExternalRefreshListener(config.getExternalRefreshListener())
+                .setInternalRefreshListener(config.getInternalRefreshListener())
+                .setIndexSort(config.getIndexSort())
+                .setCircuitBreakerService(config.getCircuitBreakerService())
+                .setGlobalCheckpointSupplier(config.getGlobalCheckpointSupplier())
+                .setRetentionLeasesSupplier(config.retentionLeasesSupplier())
+                .setPrimaryTermSupplier(config.getPrimaryTermSupplier())
+                .setTombstoneDocSupplier(config.getTombstoneDocSupplier())
+                .createEngineConfig();
         }
 
         @Override

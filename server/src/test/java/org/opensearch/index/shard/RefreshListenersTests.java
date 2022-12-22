@@ -148,30 +148,29 @@ public class RefreshListenersTests extends OpenSearchTestCase {
             primaryTerm
         );
         store.associateIndexWithNewTranslog(translogUUID);
-        EngineConfig config = new EngineConfig(
-            shardId,
-            threadPool,
-            indexSettings,
-            null,
-            store,
-            newMergePolicy(),
-            iwc.getAnalyzer(),
-            iwc.getSimilarity(),
-            new CodecService(null, logger),
-            eventListener,
-            IndexSearcher.getDefaultQueryCache(),
-            IndexSearcher.getDefaultQueryCachingPolicy(),
-            translogConfig,
-            TimeValue.timeValueMinutes(5),
-            Collections.singletonList(listeners),
-            Collections.emptyList(),
-            null,
-            new NoneCircuitBreakerService(),
-            () -> SequenceNumbers.NO_OPS_PERFORMED,
-            () -> RetentionLeases.EMPTY,
-            () -> primaryTerm,
-            EngineTestCase.tombstoneDocSupplier()
-        );
+        EngineConfig config = new EngineConfig.Builder().setShardId(shardId)
+            .setThreadPool(threadPool)
+            .setIndexSettings(indexSettings)
+            .setWarmer(null)
+            .setStore(store)
+            .setMergePolicy(newMergePolicy())
+            .setAnalyzer(iwc.getAnalyzer())
+            .setSimilarity(iwc.getSimilarity())
+            .setCodecService(new CodecService(null, logger))
+            .setEventListener(eventListener)
+            .setQueryCache(IndexSearcher.getDefaultQueryCache())
+            .setQueryCachingPolicy(IndexSearcher.getDefaultQueryCachingPolicy())
+            .setTranslogConfig(translogConfig)
+            .setFlushMergesAfter(TimeValue.timeValueMinutes(5))
+            .setExternalRefreshListener(Collections.singletonList(listeners))
+            .setInternalRefreshListener(Collections.emptyList())
+            .setIndexSort(null)
+            .setCircuitBreakerService(new NoneCircuitBreakerService())
+            .setGlobalCheckpointSupplier(() -> SequenceNumbers.NO_OPS_PERFORMED)
+            .setRetentionLeasesSupplier(() -> RetentionLeases.EMPTY)
+            .setPrimaryTermSupplier(() -> primaryTerm)
+            .setTombstoneDocSupplier(EngineTestCase.tombstoneDocSupplier())
+            .createEngineConfig();
         engine = new InternalEngine(config);
         engine.translogManager().recoverFromTranslog((s) -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
         listeners.setCurrentRefreshLocationSupplier(engine.translogManager()::getTranslogLastWriteLocation);

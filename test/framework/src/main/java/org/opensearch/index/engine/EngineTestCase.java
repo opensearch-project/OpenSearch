@@ -246,84 +246,81 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
     }
 
     public EngineConfig copy(EngineConfig config, LongSupplier globalCheckpointSupplier) {
-        return new EngineConfig(
-            config.getShardId(),
-            config.getThreadPool(),
-            config.getIndexSettings(),
-            config.getWarmer(),
-            config.getStore(),
-            config.getMergePolicy(),
-            config.getAnalyzer(),
-            config.getSimilarity(),
-            new CodecService(null, logger),
-            config.getEventListener(),
-            config.getQueryCache(),
-            config.getQueryCachingPolicy(),
-            config.getTranslogConfig(),
-            config.getFlushMergesAfter(),
-            config.getExternalRefreshListener(),
-            Collections.emptyList(),
-            config.getIndexSort(),
-            config.getCircuitBreakerService(),
-            globalCheckpointSupplier,
-            config.retentionLeasesSupplier(),
-            config.getPrimaryTermSupplier(),
-            tombstoneDocSupplier()
-        );
+        return new EngineConfig.Builder().setShardId(config.getShardId())
+            .setThreadPool(config.getThreadPool())
+            .setIndexSettings(config.getIndexSettings())
+            .setWarmer(config.getWarmer())
+            .setStore(config.getStore())
+            .setMergePolicy(config.getMergePolicy())
+            .setAnalyzer(config.getAnalyzer())
+            .setSimilarity(config.getSimilarity())
+            .setCodecService(new CodecService(null, logger))
+            .setEventListener(config.getEventListener())
+            .setQueryCache(config.getQueryCache())
+            .setQueryCachingPolicy(config.getQueryCachingPolicy())
+            .setTranslogConfig(config.getTranslogConfig())
+            .setFlushMergesAfter(config.getFlushMergesAfter())
+            .setExternalRefreshListener(config.getExternalRefreshListener())
+            .setInternalRefreshListener(emptyList())
+            .setIndexSort(config.getIndexSort())
+            .setCircuitBreakerService(config.getCircuitBreakerService())
+            .setGlobalCheckpointSupplier(globalCheckpointSupplier)
+            .setRetentionLeasesSupplier(config.retentionLeasesSupplier())
+            .setPrimaryTermSupplier(config.getPrimaryTermSupplier())
+            .setTombstoneDocSupplier(tombstoneDocSupplier())
+            .createEngineConfig();
     }
 
     public EngineConfig copy(EngineConfig config, Analyzer analyzer) {
-        return new EngineConfig(
-            config.getShardId(),
-            config.getThreadPool(),
-            config.getIndexSettings(),
-            config.getWarmer(),
-            config.getStore(),
-            config.getMergePolicy(),
-            analyzer,
-            config.getSimilarity(),
-            new CodecService(null, logger),
-            config.getEventListener(),
-            config.getQueryCache(),
-            config.getQueryCachingPolicy(),
-            config.getTranslogConfig(),
-            config.getFlushMergesAfter(),
-            config.getExternalRefreshListener(),
-            Collections.emptyList(),
-            config.getIndexSort(),
-            config.getCircuitBreakerService(),
-            config.getGlobalCheckpointSupplier(),
-            config.retentionLeasesSupplier(),
-            config.getPrimaryTermSupplier(),
-            config.getTombstoneDocSupplier()
-        );
+        return new EngineConfig.Builder().setShardId(config.getShardId())
+            .setThreadPool(config.getThreadPool())
+            .setIndexSettings(config.getIndexSettings())
+            .setWarmer(config.getWarmer())
+            .setStore(config.getStore())
+            .setMergePolicy(config.getMergePolicy())
+            .setAnalyzer(analyzer)
+            .setSimilarity(config.getSimilarity())
+            .setCodecService(new CodecService(null, logger))
+            .setEventListener(config.getEventListener())
+            .setQueryCache(config.getQueryCache())
+            .setQueryCachingPolicy(config.getQueryCachingPolicy())
+            .setTranslogConfig(config.getTranslogConfig())
+            .setFlushMergesAfter(config.getFlushMergesAfter())
+            .setExternalRefreshListener(config.getExternalRefreshListener())
+            .setInternalRefreshListener(emptyList())
+            .setIndexSort(config.getIndexSort())
+            .setCircuitBreakerService(config.getCircuitBreakerService())
+            .setGlobalCheckpointSupplier(config.getGlobalCheckpointSupplier())
+            .setRetentionLeasesSupplier(config.retentionLeasesSupplier())
+            .setPrimaryTermSupplier(config.getPrimaryTermSupplier())
+            .setTombstoneDocSupplier(config.getTombstoneDocSupplier())
+            .createEngineConfig();
     }
 
     public EngineConfig copy(EngineConfig config, MergePolicy mergePolicy) {
-        return new EngineConfig(
-            config.getShardId(),
-            config.getThreadPool(),
-            config.getIndexSettings(),
-            config.getWarmer(),
-            config.getStore(),
-            mergePolicy,
-            config.getAnalyzer(),
-            config.getSimilarity(),
-            new CodecService(null, logger),
-            config.getEventListener(),
-            config.getQueryCache(),
-            config.getQueryCachingPolicy(),
-            config.getTranslogConfig(),
-            config.getFlushMergesAfter(),
-            config.getExternalRefreshListener(),
-            Collections.emptyList(),
-            config.getIndexSort(),
-            config.getCircuitBreakerService(),
-            config.getGlobalCheckpointSupplier(),
-            config.retentionLeasesSupplier(),
-            config.getPrimaryTermSupplier(),
-            config.getTombstoneDocSupplier()
-        );
+        return new EngineConfig.Builder().setShardId(config.getShardId())
+            .setThreadPool(config.getThreadPool())
+            .setIndexSettings(config.getIndexSettings())
+            .setWarmer(config.getWarmer())
+            .setStore(config.getStore())
+            .setMergePolicy(mergePolicy)
+            .setAnalyzer(config.getAnalyzer())
+            .setSimilarity(config.getSimilarity())
+            .setCodecService(new CodecService(null, logger))
+            .setEventListener(config.getEventListener())
+            .setQueryCache(config.getQueryCache())
+            .setQueryCachingPolicy(config.getQueryCachingPolicy())
+            .setTranslogConfig(config.getTranslogConfig())
+            .setFlushMergesAfter(config.getFlushMergesAfter())
+            .setExternalRefreshListener(config.getExternalRefreshListener())
+            .setInternalRefreshListener(emptyList())
+            .setIndexSort(config.getIndexSort())
+            .setCircuitBreakerService(config.getCircuitBreakerService())
+            .setGlobalCheckpointSupplier(config.getGlobalCheckpointSupplier())
+            .setRetentionLeasesSupplier(config.retentionLeasesSupplier())
+            .setPrimaryTermSupplier(config.getPrimaryTermSupplier())
+            .setTombstoneDocSupplier(config.getTombstoneDocSupplier())
+            .createEngineConfig();
     }
 
     @Override
@@ -866,30 +863,29 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
             globalCheckpointSupplier = maybeGlobalCheckpointSupplier;
             retentionLeasesSupplier = maybeRetentionLeasesSupplier;
         }
-        return new EngineConfig(
-            shardId,
-            threadPool,
-            indexSettings,
-            null,
-            store,
-            mergePolicy,
-            iwc.getAnalyzer(),
-            iwc.getSimilarity(),
-            new CodecService(null, logger),
-            eventListener,
-            IndexSearcher.getDefaultQueryCache(),
-            IndexSearcher.getDefaultQueryCachingPolicy(),
-            translogConfig,
-            TimeValue.timeValueMinutes(5),
-            extRefreshListenerList,
-            intRefreshListenerList,
-            indexSort,
-            breakerService,
-            globalCheckpointSupplier,
-            retentionLeasesSupplier,
-            primaryTerm,
-            tombstoneDocSupplier()
-        );
+        return new EngineConfig.Builder().setShardId(shardId)
+            .setThreadPool(threadPool)
+            .setIndexSettings(indexSettings)
+            .setWarmer(null)
+            .setStore(store)
+            .setMergePolicy(mergePolicy)
+            .setAnalyzer(iwc.getAnalyzer())
+            .setSimilarity(iwc.getSimilarity())
+            .setCodecService(new CodecService(null, logger))
+            .setEventListener(eventListener)
+            .setQueryCache(IndexSearcher.getDefaultQueryCache())
+            .setQueryCachingPolicy(IndexSearcher.getDefaultQueryCachingPolicy())
+            .setTranslogConfig(translogConfig)
+            .setFlushMergesAfter(TimeValue.timeValueMinutes(5))
+            .setExternalRefreshListener(extRefreshListenerList)
+            .setInternalRefreshListener(intRefreshListenerList)
+            .setIndexSort(indexSort)
+            .setCircuitBreakerService(breakerService)
+            .setGlobalCheckpointSupplier(globalCheckpointSupplier)
+            .setRetentionLeasesSupplier(retentionLeasesSupplier)
+            .setPrimaryTermSupplier(primaryTerm)
+            .setTombstoneDocSupplier(tombstoneDocSupplier())
+            .createEngineConfig();
     }
 
     protected EngineConfig config(
@@ -906,30 +902,29 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
                 .build()
         );
         TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
-        return new EngineConfig(
-            config.getShardId(),
-            config.getThreadPool(),
-            indexSettings,
-            config.getWarmer(),
-            store,
-            config.getMergePolicy(),
-            config.getAnalyzer(),
-            config.getSimilarity(),
-            new CodecService(null, logger),
-            config.getEventListener(),
-            config.getQueryCache(),
-            config.getQueryCachingPolicy(),
-            translogConfig,
-            config.getFlushMergesAfter(),
-            config.getExternalRefreshListener(),
-            config.getInternalRefreshListener(),
-            config.getIndexSort(),
-            config.getCircuitBreakerService(),
-            config.getGlobalCheckpointSupplier(),
-            config.retentionLeasesSupplier(),
-            config.getPrimaryTermSupplier(),
-            tombstoneDocSupplier
-        );
+        return new EngineConfig.Builder().setShardId(config.getShardId())
+            .setThreadPool(config.getThreadPool())
+            .setIndexSettings(indexSettings)
+            .setWarmer(config.getWarmer())
+            .setStore(store)
+            .setMergePolicy(config.getMergePolicy())
+            .setAnalyzer(config.getAnalyzer())
+            .setSimilarity(config.getSimilarity())
+            .setCodecService(new CodecService(null, logger))
+            .setEventListener(config.getEventListener())
+            .setQueryCache(config.getQueryCache())
+            .setQueryCachingPolicy(config.getQueryCachingPolicy())
+            .setTranslogConfig(translogConfig)
+            .setFlushMergesAfter(config.getFlushMergesAfter())
+            .setExternalRefreshListener(config.getExternalRefreshListener())
+            .setInternalRefreshListener(config.getInternalRefreshListener())
+            .setIndexSort(config.getIndexSort())
+            .setCircuitBreakerService(config.getCircuitBreakerService())
+            .setGlobalCheckpointSupplier(config.getGlobalCheckpointSupplier())
+            .setRetentionLeasesSupplier(config.retentionLeasesSupplier())
+            .setPrimaryTermSupplier(config.getPrimaryTermSupplier())
+            .setTombstoneDocSupplier(tombstoneDocSupplier)
+            .createEngineConfig();
     }
 
     protected EngineConfig noOpConfig(IndexSettings indexSettings, Store store, Path translogPath) {

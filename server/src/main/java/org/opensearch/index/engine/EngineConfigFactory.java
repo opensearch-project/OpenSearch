@@ -156,33 +156,32 @@ public class EngineConfigFactory {
             codecServiceToUse = newCodecServiceOrDefault(indexSettings, null, null, null);
         }
 
-        return new EngineConfig(
-            shardId,
-            threadPool,
-            indexSettings,
-            warmer,
-            store,
-            mergePolicy,
-            analyzer,
-            similarity,
-            codecServiceToUse,
-            eventListener,
-            queryCache,
-            queryCachingPolicy,
-            translogConfig,
-            translogDeletionPolicyFactory,
-            flushMergesAfter,
-            externalRefreshListener,
-            internalRefreshListener,
-            indexSort,
-            circuitBreakerService,
-            globalCheckpointSupplier,
-            retentionLeasesSupplier,
-            primaryTermSupplier,
-            tombstoneDocSupplier,
-            isReadOnlyReplica,
-            translogFactory
-        );
+        return new EngineConfig.Builder().setShardId(shardId)
+            .setThreadPool(threadPool)
+            .setIndexSettings(indexSettings)
+            .setWarmer(warmer)
+            .setStore(store)
+            .setMergePolicy(mergePolicy)
+            .setAnalyzer(analyzer)
+            .setSimilarity(similarity)
+            .setCodecService(codecServiceToUse)
+            .setEventListener(eventListener)
+            .setQueryCache(queryCache)
+            .setQueryCachingPolicy(queryCachingPolicy)
+            .setTranslogConfig(translogConfig)
+            .setTranslogDeletionPolicyFactory(translogDeletionPolicyFactory)
+            .setFlushMergesAfter(flushMergesAfter)
+            .setExternalRefreshListener(externalRefreshListener)
+            .setInternalRefreshListener(internalRefreshListener)
+            .setIndexSort(indexSort)
+            .setCircuitBreakerService(circuitBreakerService)
+            .setGlobalCheckpointSupplier(globalCheckpointSupplier)
+            .setRetentionLeasesSupplier(retentionLeasesSupplier)
+            .setPrimaryTermSupplier(primaryTermSupplier)
+            .setTombstoneDocSupplier(tombstoneDocSupplier)
+            .setIsReadOnlyReplica(isReadOnlyReplica)
+            .setTranslogFactory(translogFactory)
+            .createEngineConfig();
     }
 
     public CodecService newCodecServiceOrDefault(

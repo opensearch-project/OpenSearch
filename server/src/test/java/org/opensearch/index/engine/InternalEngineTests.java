@@ -3685,30 +3685,29 @@ public class InternalEngineTests extends EngineTestCase {
             BigArrays.NON_RECYCLING_INSTANCE
         );
 
-        EngineConfig brokenConfig = new EngineConfig(
-            shardId,
-            threadPool,
-            config.getIndexSettings(),
-            null,
-            store,
-            newMergePolicy(),
-            config.getAnalyzer(),
-            config.getSimilarity(),
-            new CodecService(null, logger),
-            config.getEventListener(),
-            IndexSearcher.getDefaultQueryCache(),
-            IndexSearcher.getDefaultQueryCachingPolicy(),
-            translogConfig,
-            TimeValue.timeValueMinutes(5),
-            config.getExternalRefreshListener(),
-            config.getInternalRefreshListener(),
-            null,
-            new NoneCircuitBreakerService(),
-            () -> UNASSIGNED_SEQ_NO,
-            () -> RetentionLeases.EMPTY,
-            primaryTerm::get,
-            tombstoneDocSupplier()
-        );
+        EngineConfig brokenConfig = new EngineConfig.Builder().setShardId(shardId)
+            .setThreadPool(threadPool)
+            .setIndexSettings(config.getIndexSettings())
+            .setWarmer(null)
+            .setStore(store)
+            .setMergePolicy(newMergePolicy())
+            .setAnalyzer(config.getAnalyzer())
+            .setSimilarity(config.getSimilarity())
+            .setCodecService(new CodecService(null, logger))
+            .setEventListener(config.getEventListener())
+            .setQueryCache(IndexSearcher.getDefaultQueryCache())
+            .setQueryCachingPolicy(IndexSearcher.getDefaultQueryCachingPolicy())
+            .setTranslogConfig(translogConfig)
+            .setFlushMergesAfter(TimeValue.timeValueMinutes(5))
+            .setExternalRefreshListener(config.getExternalRefreshListener())
+            .setInternalRefreshListener(config.getInternalRefreshListener())
+            .setIndexSort(null)
+            .setCircuitBreakerService(new NoneCircuitBreakerService())
+            .setGlobalCheckpointSupplier(() -> UNASSIGNED_SEQ_NO)
+            .setRetentionLeasesSupplier(() -> RetentionLeases.EMPTY)
+            .setPrimaryTermSupplier(primaryTerm::get)
+            .setTombstoneDocSupplier(tombstoneDocSupplier())
+            .createEngineConfig();
         expectThrows(EngineCreationFailureException.class, () -> new InternalEngine(brokenConfig));
 
         engine = createEngine(store, primaryTranslogDir); // and recover again!
@@ -3728,31 +3727,30 @@ public class InternalEngineTests extends EngineTestCase {
         TranslogDeletionPolicyFactory translogDeletionPolicyFactory = CustomTranslogDeletionPolicy::new;
 
         EngineConfig config = engine.config();
-        EngineConfig configWithCustomTranslogDeletionPolicyFactory = new EngineConfig(
-            config.getShardId(),
-            config.getThreadPool(),
-            config.getIndexSettings(),
-            config.getWarmer(),
-            config.getStore(),
-            config.getMergePolicy(),
-            config.getAnalyzer(),
-            config.getSimilarity(),
-            new CodecService(null, logger),
-            config.getEventListener(),
-            config.getQueryCache(),
-            config.getQueryCachingPolicy(),
-            config.getTranslogConfig(),
-            translogDeletionPolicyFactory,
-            config.getFlushMergesAfter(),
-            config.getExternalRefreshListener(),
-            config.getInternalRefreshListener(),
-            config.getIndexSort(),
-            config.getCircuitBreakerService(),
-            config.getGlobalCheckpointSupplier(),
-            config.retentionLeasesSupplier(),
-            config.getPrimaryTermSupplier(),
-            config.getTombstoneDocSupplier()
-        );
+        EngineConfig configWithCustomTranslogDeletionPolicyFactory = new EngineConfig.Builder().setShardId(config.getShardId())
+            .setThreadPool(config.getThreadPool())
+            .setIndexSettings(config.getIndexSettings())
+            .setWarmer(config.getWarmer())
+            .setStore(config.getStore())
+            .setMergePolicy(config.getMergePolicy())
+            .setAnalyzer(config.getAnalyzer())
+            .setSimilarity(config.getSimilarity())
+            .setCodecService(new CodecService(null, logger))
+            .setEventListener(config.getEventListener())
+            .setQueryCache(config.getQueryCache())
+            .setQueryCachingPolicy(config.getQueryCachingPolicy())
+            .setTranslogConfig(config.getTranslogConfig())
+            .setTranslogDeletionPolicyFactory(translogDeletionPolicyFactory)
+            .setFlushMergesAfter(config.getFlushMergesAfter())
+            .setExternalRefreshListener(config.getExternalRefreshListener())
+            .setInternalRefreshListener(config.getInternalRefreshListener())
+            .setIndexSort(config.getIndexSort())
+            .setCircuitBreakerService(config.getCircuitBreakerService())
+            .setGlobalCheckpointSupplier(config.getGlobalCheckpointSupplier())
+            .setRetentionLeasesSupplier(config.retentionLeasesSupplier())
+            .setPrimaryTermSupplier(config.getPrimaryTermSupplier())
+            .setTombstoneDocSupplier(config.getTombstoneDocSupplier())
+            .createEngineConfig();
         engine.close();
         engine = createEngine(configWithCustomTranslogDeletionPolicyFactory);
         engine.ensureOpen();
@@ -7372,30 +7370,29 @@ public class InternalEngineTests extends EngineTestCase {
                 config.getTranslogConfig().getIndexSettings(),
                 config.getTranslogConfig().getBigArrays()
             );
-            EngineConfig configWithWarmer = new EngineConfig(
-                config.getShardId(),
-                config.getThreadPool(),
-                config.getIndexSettings(),
-                warmer,
-                store,
-                config.getMergePolicy(),
-                config.getAnalyzer(),
-                config.getSimilarity(),
-                new CodecService(null, logger),
-                config.getEventListener(),
-                config.getQueryCache(),
-                config.getQueryCachingPolicy(),
-                translogConfig,
-                config.getFlushMergesAfter(),
-                config.getExternalRefreshListener(),
-                config.getInternalRefreshListener(),
-                config.getIndexSort(),
-                config.getCircuitBreakerService(),
-                config.getGlobalCheckpointSupplier(),
-                config.retentionLeasesSupplier(),
-                config.getPrimaryTermSupplier(),
-                config.getTombstoneDocSupplier()
-            );
+            EngineConfig configWithWarmer = new EngineConfig.Builder().setShardId(config.getShardId())
+                .setThreadPool(config.getThreadPool())
+                .setIndexSettings(config.getIndexSettings())
+                .setWarmer(warmer)
+                .setStore(store)
+                .setMergePolicy(config.getMergePolicy())
+                .setAnalyzer(config.getAnalyzer())
+                .setSimilarity(config.getSimilarity())
+                .setCodecService(new CodecService(null, logger))
+                .setEventListener(config.getEventListener())
+                .setQueryCache(config.getQueryCache())
+                .setQueryCachingPolicy(config.getQueryCachingPolicy())
+                .setTranslogConfig(translogConfig)
+                .setFlushMergesAfter(config.getFlushMergesAfter())
+                .setExternalRefreshListener(config.getExternalRefreshListener())
+                .setInternalRefreshListener(config.getInternalRefreshListener())
+                .setIndexSort(config.getIndexSort())
+                .setCircuitBreakerService(config.getCircuitBreakerService())
+                .setGlobalCheckpointSupplier(config.getGlobalCheckpointSupplier())
+                .setRetentionLeasesSupplier(config.retentionLeasesSupplier())
+                .setPrimaryTermSupplier(config.getPrimaryTermSupplier())
+                .setTombstoneDocSupplier(config.getTombstoneDocSupplier())
+                .createEngineConfig();
             try (InternalEngine engine = createEngine(configWithWarmer)) {
                 assertThat(warmedUpReaders, empty());
                 assertThat(

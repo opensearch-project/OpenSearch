@@ -4660,30 +4660,29 @@ public class IndexShardTests extends IndexShardTestCase {
                     throw new AssertionError(e);
                 }
             };
-            EngineConfig configWithWarmer = new EngineConfig(
-                config.getShardId(),
-                config.getThreadPool(),
-                config.getIndexSettings(),
-                warmer,
-                config.getStore(),
-                config.getMergePolicy(),
-                config.getAnalyzer(),
-                config.getSimilarity(),
-                new CodecService(null, logger),
-                config.getEventListener(),
-                config.getQueryCache(),
-                config.getQueryCachingPolicy(),
-                config.getTranslogConfig(),
-                config.getFlushMergesAfter(),
-                config.getExternalRefreshListener(),
-                config.getInternalRefreshListener(),
-                config.getIndexSort(),
-                config.getCircuitBreakerService(),
-                config.getGlobalCheckpointSupplier(),
-                config.retentionLeasesSupplier(),
-                config.getPrimaryTermSupplier(),
-                config.getTombstoneDocSupplier()
-            );
+            EngineConfig configWithWarmer = new EngineConfig.Builder().setShardId(config.getShardId())
+                .setThreadPool(config.getThreadPool())
+                .setIndexSettings(config.getIndexSettings())
+                .setWarmer(warmer)
+                .setStore(config.getStore())
+                .setMergePolicy(config.getMergePolicy())
+                .setAnalyzer(config.getAnalyzer())
+                .setSimilarity(config.getSimilarity())
+                .setCodecService(new CodecService(null, logger))
+                .setEventListener(config.getEventListener())
+                .setQueryCache(config.getQueryCache())
+                .setQueryCachingPolicy(config.getQueryCachingPolicy())
+                .setTranslogConfig(config.getTranslogConfig())
+                .setFlushMergesAfter(config.getFlushMergesAfter())
+                .setExternalRefreshListener(config.getExternalRefreshListener())
+                .setInternalRefreshListener(config.getInternalRefreshListener())
+                .setIndexSort(config.getIndexSort())
+                .setCircuitBreakerService(config.getCircuitBreakerService())
+                .setGlobalCheckpointSupplier(config.getGlobalCheckpointSupplier())
+                .setRetentionLeasesSupplier(config.retentionLeasesSupplier())
+                .setPrimaryTermSupplier(config.getPrimaryTermSupplier())
+                .setTombstoneDocSupplier(config.getTombstoneDocSupplier())
+                .createEngineConfig();
             return new InternalEngine(configWithWarmer);
         });
         Thread recoveryThread = new Thread(() -> expectThrows(AlreadyClosedException.class, () -> recoverShardFromStore(shard)));
