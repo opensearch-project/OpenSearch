@@ -59,6 +59,6 @@ public class ClusterPutWeightedRoutingRequestTests extends OpenSearchTestCase {
         request.setWeightedRouting(new BytesArray(reqString), XContentType.JSON);
         ActionRequestValidationException actionRequestValidationException = request.validate();
         assertNotNull(actionRequestValidationException);
-        assertTrue(actionRequestValidationException.getMessage().contains("More than half [2] value has weight set as 0"));
+        assertTrue(actionRequestValidationException.getMessage().contains("Maximum expected number of routing weights having zero weight is [1]"));
     }
 }
