@@ -27,20 +27,13 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoTimeout;
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class UserPersistenceIT extends HttpSmokeTestCaseWithIdentity {
 
-    public static final String TEST_RESOURCE_RELATIVE_PATH = "../../resources/test/";
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         List<Class<? extends Plugin>> plugins = super.nodePlugins().stream().collect(Collectors.toList());
         return plugins;
     }
 
-    @SuppressForbidden(reason = "manipulates system properties for testing")
-    public void testUserPersistence() throws Exception {
-        // TODO see if possible to do this without relative paths
-        final String defaultInitDirectory = PathUtils.get("../../resources/internalClusterTest/persistence").toAbsolutePath().toString();
-        System.setProperty("identity.default_init.dir", defaultInitDirectory);
-
+    public void startNodes() throws Exception {
         final String clusterManagerNode = internalCluster().startClusterManagerOnlyNode();
 
         ClusterStateResponse clusterStateResponse = client(clusterManagerNode).admin()
@@ -69,6 +62,43 @@ public class UserPersistenceIT extends HttpSmokeTestCaseWithIdentity {
         assertEquals(2, nodeInfos.size());
 
         Thread.sleep(3000);
+    }
+
+    @SuppressForbidden(reason = "manipulates system properties for testing")
+    public void testUserPersistence() throws Exception {
+        // TODO see if possible to do this without relative paths
+        final String defaultInitDirectory = PathUtils.get("../../resources/internalClusterTest/persistence").toAbsolutePath().toString();
+        System.setProperty("identity.default_init.dir", defaultInitDirectory);
+
+        startNodes();
+
+        ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setClusterManagerNodeTimeout("1s").get();
+
+        assertTrue(
+            ConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX + " index exists",
+            clusterHealthResponse.getIndices().containsKey(ConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX)
+        );
+
+        ClusterIndexHealth identityIndexHealth = clusterHealthResponse.getIndices().get(ConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX);
+        assertEquals(ClusterHealthStatus.GREEN, identityIndexHealth.getStatus());
+    }
+
+    /**
+     * This test tests weather identity can initialize with invalid yml supplied, for this test a user without a hash
+     * is supplied in the internal_users.yml file
+     *
+     * The node should start up with invalid config.
+     *
+     * TODO Should this prevent node startup, log with warnings, or what should be intended behavior?
+     *
+     * @throws Exception - This test should not throw an exception
+     */
+    @SuppressForbidden(reason = "manipulates system properties for testing")
+    public void testUserPersistenceInvalidYml() throws Exception {
+        final String defaultInitDirectory = PathUtils.get("../../resources/internalClusterTest/invalid").toAbsolutePath().toString();
+        System.setProperty("identity.default_init.dir", defaultInitDirectory);
+
+        startNodes();
 
         ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setClusterManagerNodeTimeout("1s").get();
 

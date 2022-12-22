@@ -69,6 +69,7 @@ public class SecurityDynamicConfiguration<T> implements ToXContent {
     }
 
     public static void validate(SecurityDynamicConfiguration<?> sdc, int version, CType ctype) throws IOException {
+        // TODO See if jackson can be used to validate that config file has required properties
         if (version < 2 && sdc.getConfigVersion() != null) {
             throw new IOException("A version of " + version + " can not have a _meta key for " + ctype);
         }

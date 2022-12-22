@@ -99,11 +99,7 @@ public class InternalRealm extends AuthenticatingRealm {
             // Check for other things, like a locked account, expired password, etc.
 
             // Verify the user
-            SimpleAuthenticationInfo sai = new SimpleAuthenticationInfo(
-                userRecord.getPrimaryPrincipal(),
-                userRecord.getBcryptHash(),
-                realmName
-            );
+            SimpleAuthenticationInfo sai = new SimpleAuthenticationInfo(userRecord.getUsername(), userRecord.getBcryptHash(), realmName);
             boolean successfulAuthentication = getCredentialsMatcher().doCredentialsMatch(token, sai);
 
             if (successfulAuthentication) {
@@ -132,7 +128,7 @@ public class InternalRealm extends AuthenticatingRealm {
         if (user == null) {
             throw new IllegalArgumentException(INVALID_SUBJECT_MESSAGE);
         }
-        String primaryPrincipal = user.getPrimaryPrincipal().getName();
+        String primaryPrincipal = user.getUsername().getName();
 
         // TODO: should we update if an object already exists with same principal.
         // If so, it should be handled in updateSubject
@@ -158,7 +154,7 @@ public class InternalRealm extends AuthenticatingRealm {
         }
 
         User user = new User();
-        user.setPrimaryPrincipal(new StringPrincipal(primaryPrincipal));
+        user.setUsername(new StringPrincipal(primaryPrincipal));
         user.setBcryptHash(hash);
         user.setAttributes(attributes);
 

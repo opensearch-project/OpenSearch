@@ -18,8 +18,8 @@ import java.util.Map;
 
 public class User {
 
-    @JsonProperty(value = "primary_principal")
-    private StringPrincipal primaryPrincipal;
+    @JsonProperty(value = "username")
+    private StringPrincipal username;
 
     @JsonProperty(value = "hash")
     private String bcryptHash;
@@ -27,14 +27,14 @@ public class User {
     @JsonProperty(value = "attributes")
     private Map<String, String> attributes = Collections.emptyMap();
 
-    @JsonProperty(value = "primary_principal")
-    public StringPrincipal getPrimaryPrincipal() {
-        return primaryPrincipal;
+    @JsonProperty(value = "username")
+    public StringPrincipal getUsername() {
+        return username;
     }
 
-    @JsonProperty(value = "primary_principal")
-    public void setPrimaryPrincipal(StringPrincipal primaryPrincipal) {
-        this.primaryPrincipal = primaryPrincipal;
+    @JsonProperty(value = "username")
+    public void setUsername(StringPrincipal username) {
+        this.username = username;
     }
 
     @JsonProperty(value = "hash")
@@ -59,6 +59,6 @@ public class User {
 
     @Override
     public String toString() {
-        return "User [primaryPrincipal=" + primaryPrincipal + ", bcryptHash=" + bcryptHash + ", attributes=" + attributes + "]";
+        return "User [username=" + username + ", bcryptHash=" + bcryptHash + ", attributes=" + attributes + "]";
     }
 }
