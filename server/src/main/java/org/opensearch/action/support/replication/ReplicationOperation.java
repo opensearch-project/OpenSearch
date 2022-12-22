@@ -243,7 +243,7 @@ public class ReplicationOperation<
         }
     }
 
-    private void performOnReplica(final ReplicationProxyRequest<ReplicaRequest> replicationProxyRequest) {
+    private void performOnReplica(final ReplicationProxyRequest<ReplicaRequest> replicationProxyRequest, ReplicationMode replicationMode) {
         final ShardRouting shard = replicationProxyRequest.getShardRouting();
         final ReplicaRequest replicaRequest = replicationProxyRequest.getReplicaRequest();
         final long globalCheckpoint = replicationProxyRequest.getGlobalCheckpoint();
