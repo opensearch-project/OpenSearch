@@ -31,21 +31,4 @@ public class ExtensionResponseTests extends OpenSearchTestCase {
             }
         }
     }
-
-    public void testExtensionStringResponse() throws Exception {
-        String response = "This is a response";
-        ExtensionStringResponse stringResponse = new ExtensionStringResponse(response);
-
-        assertEquals(response, stringResponse.getResponse());
-
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            stringResponse.writeTo(out);
-            out.flush();
-            try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
-                stringResponse = new ExtensionStringResponse(in);
-
-                assertEquals(response, stringResponse.getResponse());
-            }
-        }
-    }
 }
