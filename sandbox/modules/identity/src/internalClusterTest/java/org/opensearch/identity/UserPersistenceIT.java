@@ -84,8 +84,8 @@ public class UserPersistenceIT extends HttpSmokeTestCaseWithIdentity {
     }
 
     /**
-     * This test tests weather identity can initialize with invalid yml supplied, for this test a user without a hash
-     * is supplied in the internal_users.yml file
+     * This test verifies that identity module can initialize with invalid yml supplied, for this test a user without a
+     * hash is supplied in the internal_users.yml file
      *
      * The node should start up with invalid config.
      *
