@@ -387,24 +387,26 @@ public class LuceneTests extends OpenSearchTestCase {
         final Version minVersion = LegacyESVersion.fromId(6000099);
         Path tmp = createTempDir();
         TestUtil.unzip(getClass().getResourceAsStream(pathToTestIndex), tmp);
-        MockDirectoryWrapper dir = newMockFSDirectory(tmp);
-        // The standard API will throw an exception
-        expectThrows(IndexFormatTooOldException.class, () -> Lucene.readSegmentInfos(dir));
-        SegmentInfos si = Lucene.readSegmentInfosExtendedCompatibility(dir, minVersion);
-        assertEquals(1, Lucene.getNumDocs(si));
-        IndexCommit indexCommit = Lucene.getIndexCommit(si, dir);
-        // uses the "expert" Lucene API
-        StandardDirectoryReader reader = (StandardDirectoryReader) DirectoryReader.open(
-            indexCommit,
-            minVersion.minimumIndexCompatibilityVersion().luceneVersion.major,
-            null
-        );
-        IndexSearcher searcher = newSearcher(reader);
-        // radius too small, should get no results
-        assertFalse(Lucene.exists(searcher, LatLonPoint.newDistanceQuery("testLocation", 48.57532, -112.87695, 2)));
-        assertTrue(Lucene.exists(searcher, LatLonPoint.newDistanceQuery("testLocation", 48.57532, -112.87695, 20000)));
-        reader.close();
-        dir.close();
+        try (MockDirectoryWrapper dir = newMockFSDirectory(tmp)) {
+            // The standard API will throw an exception
+            expectThrows(IndexFormatTooOldException.class, () -> Lucene.readSegmentInfos(dir));
+            SegmentInfos si = Lucene.readSegmentInfosExtendedCompatibility(dir, minVersion);
+            assertEquals(1, Lucene.getNumDocs(si));
+            IndexCommit indexCommit = Lucene.getIndexCommit(si, dir);
+            // uses the "expert" Lucene API
+            try (
+                StandardDirectoryReader reader = (StandardDirectoryReader) DirectoryReader.open(
+                    indexCommit,
+                    minVersion.minimumIndexCompatibilityVersion().luceneVersion.major,
+                    null
+                )
+            ) {
+                IndexSearcher searcher = newSearcher(reader);
+                // radius too small, should get no results
+                assertFalse(Lucene.exists(searcher, LatLonPoint.newDistanceQuery("testLocation", 48.57532, -112.87695, 2)));
+                assertTrue(Lucene.exists(searcher, LatLonPoint.newDistanceQuery("testLocation", 48.57532, -112.87695, 20000)));
+            }
+        }
     }
 
     /**

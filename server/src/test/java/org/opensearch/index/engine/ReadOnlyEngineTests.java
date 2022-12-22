@@ -238,22 +238,22 @@ public class ReadOnlyEngineTests extends EngineTestCase {
         final String pathToTestIndex = "/indices/bwc/es-6.3.0/testIndex-es-6.3.0.zip";
         Path tmp = createTempDir();
         TestUtil.unzip(getClass().getResourceAsStream(pathToTestIndex), tmp);
-        Store store = createStore(newFSDirectory(tmp));
-        EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
-        try (
-            ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(
-                config,
-                null,
-                new TranslogStats(),
-                true,
-                Function.identity(),
-                true,
-                LegacyESVersion.fromId(6000099)
-            )
-        ) {
-            assertVisibleCount(readOnlyEngine, 1, false);
+        try (Store store = createStore(newFSDirectory(tmp))) {
+            EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
+            try (
+                ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(
+                    config,
+                    null,
+                    new TranslogStats(),
+                    true,
+                    Function.identity(),
+                    true,
+                    LegacyESVersion.fromId(6000099)
+                )
+            ) {
+                assertVisibleCount(readOnlyEngine, 1, false);
+            }
         }
-        store.close();
     }
 
     /**
