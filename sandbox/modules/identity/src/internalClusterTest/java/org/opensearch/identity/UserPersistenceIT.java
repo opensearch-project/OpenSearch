@@ -16,7 +16,7 @@ import org.opensearch.cluster.health.ClusterIndexHealth;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
-import java.io.File;
+import java.nio.file.Paths;
 import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -36,7 +36,7 @@ public class UserPersistenceIT extends HttpSmokeTestCaseWithIdentity {
 
     public void testUserPersistence() throws Exception {
         // TODO see if possible to do this without relative paths
-        final String defaultInitDirectory = new File("../../resources/internalClusterTest/persistence").getAbsolutePath();
+        final String defaultInitDirectory = Paths.get("../../resources/internalClusterTest/persistence").toAbsolutePath().toString();
         System.setProperty("identity.default_init.dir", defaultInitDirectory);
 
         final String clusterManagerNode = internalCluster().startClusterManagerOnlyNode();
