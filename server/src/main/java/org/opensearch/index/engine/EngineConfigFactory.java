@@ -181,7 +181,7 @@ public class EngineConfigFactory {
             .setTombstoneDocSupplier(tombstoneDocSupplier)
             .setIsReadOnlyReplica(isReadOnlyReplica)
             .setTranslogFactory(translogFactory)
-            .createEngineConfig();
+            .create();
     }
 
     public CodecService newCodecServiceOrDefault(

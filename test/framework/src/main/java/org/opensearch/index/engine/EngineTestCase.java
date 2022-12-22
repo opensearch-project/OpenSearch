@@ -268,7 +268,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
             .setRetentionLeasesSupplier(config.retentionLeasesSupplier())
             .setPrimaryTermSupplier(config.getPrimaryTermSupplier())
             .setTombstoneDocSupplier(tombstoneDocSupplier())
-            .createEngineConfig();
+            .create();
     }
 
     public EngineConfig copy(EngineConfig config, Analyzer analyzer) {
@@ -294,7 +294,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
             .setRetentionLeasesSupplier(config.retentionLeasesSupplier())
             .setPrimaryTermSupplier(config.getPrimaryTermSupplier())
             .setTombstoneDocSupplier(config.getTombstoneDocSupplier())
-            .createEngineConfig();
+            .create();
     }
 
     public EngineConfig copy(EngineConfig config, MergePolicy mergePolicy) {
@@ -320,7 +320,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
             .setRetentionLeasesSupplier(config.retentionLeasesSupplier())
             .setPrimaryTermSupplier(config.getPrimaryTermSupplier())
             .setTombstoneDocSupplier(config.getTombstoneDocSupplier())
-            .createEngineConfig();
+            .create();
     }
 
     @Override
@@ -885,7 +885,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
             .setRetentionLeasesSupplier(retentionLeasesSupplier)
             .setPrimaryTermSupplier(primaryTerm)
             .setTombstoneDocSupplier(tombstoneDocSupplier())
-            .createEngineConfig();
+            .create();
     }
 
     protected EngineConfig config(
@@ -924,7 +924,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
             .setRetentionLeasesSupplier(config.retentionLeasesSupplier())
             .setPrimaryTermSupplier(config.getPrimaryTermSupplier())
             .setTombstoneDocSupplier(tombstoneDocSupplier)
-            .createEngineConfig();
+            .create();
     }
 
     protected EngineConfig noOpConfig(IndexSettings indexSettings, Store store, Path translogPath) {

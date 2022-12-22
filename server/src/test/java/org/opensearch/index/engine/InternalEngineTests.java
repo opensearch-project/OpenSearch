@@ -3707,7 +3707,7 @@ public class InternalEngineTests extends EngineTestCase {
             .setRetentionLeasesSupplier(() -> RetentionLeases.EMPTY)
             .setPrimaryTermSupplier(primaryTerm::get)
             .setTombstoneDocSupplier(tombstoneDocSupplier())
-            .createEngineConfig();
+            .create();
         expectThrows(EngineCreationFailureException.class, () -> new InternalEngine(brokenConfig));
 
         engine = createEngine(store, primaryTranslogDir); // and recover again!
@@ -3750,7 +3750,7 @@ public class InternalEngineTests extends EngineTestCase {
             .setRetentionLeasesSupplier(config.retentionLeasesSupplier())
             .setPrimaryTermSupplier(config.getPrimaryTermSupplier())
             .setTombstoneDocSupplier(config.getTombstoneDocSupplier())
-            .createEngineConfig();
+            .create();
         engine.close();
         engine = createEngine(configWithCustomTranslogDeletionPolicyFactory);
         engine.ensureOpen();
@@ -7392,7 +7392,7 @@ public class InternalEngineTests extends EngineTestCase {
                 .setRetentionLeasesSupplier(config.retentionLeasesSupplier())
                 .setPrimaryTermSupplier(config.getPrimaryTermSupplier())
                 .setTombstoneDocSupplier(config.getTombstoneDocSupplier())
-                .createEngineConfig();
+                .create();
             try (InternalEngine engine = createEngine(configWithWarmer)) {
                 assertThat(warmedUpReaders, empty());
                 assertThat(

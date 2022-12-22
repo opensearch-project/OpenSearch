@@ -33,29 +33,9 @@ public class EngineConfigTests extends OpenSearchTestCase {
     }
 
     public void testEngineConfig_DefaultValueForReadOnlyEngine() {
-        EngineConfig config = new EngineConfig.Builder().setShardId(null)
-            .setThreadPool(null)
-            .setIndexSettings(defaultIndexSettings)
-            .setWarmer(null)
-            .setStore(null)
-            .setMergePolicy(null)
-            .setAnalyzer(null)
-            .setSimilarity(null)
-            .setCodecService(null)
-            .setEventListener(null)
-            .setQueryCache(null)
-            .setQueryCachingPolicy(null)
-            .setTranslogConfig(null)
-            .setFlushMergesAfter(null)
-            .setExternalRefreshListener(null)
-            .setInternalRefreshListener(null)
-            .setIndexSort(null)
-            .setCircuitBreakerService(null)
-            .setGlobalCheckpointSupplier(null)
+        EngineConfig config = new EngineConfig.Builder().setIndexSettings(defaultIndexSettings)
             .setRetentionLeasesSupplier(() -> RetentionLeases.EMPTY)
-            .setPrimaryTermSupplier(null)
-            .setTombstoneDocSupplier(null)
-            .createEngineConfig();
+            .create();
         assertFalse(config.isReadOnlyReplica());
     }
 
@@ -76,29 +56,9 @@ public class EngineConfigTests extends OpenSearchTestCase {
     }
 
     private EngineConfig createReadOnlyEngine(IndexSettings indexSettings) {
-        return new EngineConfig.Builder().setShardId(null)
-            .setThreadPool(null)
-            .setIndexSettings(indexSettings)
-            .setWarmer(null)
-            .setStore(null)
-            .setMergePolicy(null)
-            .setAnalyzer(null)
-            .setSimilarity(null)
-            .setCodecService(null)
-            .setEventListener(null)
-            .setQueryCache(null)
-            .setQueryCachingPolicy(null)
-            .setTranslogConfig(null)
-            .setFlushMergesAfter(null)
-            .setExternalRefreshListener(null)
-            .setInternalRefreshListener(null)
-            .setIndexSort(null)
-            .setCircuitBreakerService(null)
-            .setGlobalCheckpointSupplier(null)
+        return new EngineConfig.Builder().setIndexSettings(indexSettings)
             .setRetentionLeasesSupplier(() -> RetentionLeases.EMPTY)
-            .setPrimaryTermSupplier(null)
-            .setTombstoneDocSupplier(null)
             .setIsReadOnlyReplica(true)
-            .createEngineConfig();
+            .create();
     }
 }

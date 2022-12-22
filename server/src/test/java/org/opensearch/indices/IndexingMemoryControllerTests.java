@@ -422,7 +422,7 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
             .setRetentionLeasesSupplier(config.retentionLeasesSupplier())
             .setPrimaryTermSupplier(config.getPrimaryTermSupplier())
             .setTombstoneDocSupplier(config.getTombstoneDocSupplier())
-            .createEngineConfig();
+            .create();
     }
 
     ThreadPoolStats.Stats getRefreshThreadPoolStats() {

@@ -4682,7 +4682,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 .setRetentionLeasesSupplier(config.retentionLeasesSupplier())
                 .setPrimaryTermSupplier(config.getPrimaryTermSupplier())
                 .setTombstoneDocSupplier(config.getTombstoneDocSupplier())
-                .createEngineConfig();
+                .create();
             return new InternalEngine(configWithWarmer);
         });
         Thread recoveryThread = new Thread(() -> expectThrows(AlreadyClosedException.class, () -> recoverShardFromStore(shard)));
