@@ -104,7 +104,7 @@ public class SnapshotUtils {
                     }
                 } else if (indexOrPattern.charAt(0) == '-') {
                     // if its the first index pattern, fill it with all the indices...
-                    if (i == 0 && selectedIndices.length == 1) {
+                    if (i == 0) {
                         result = new HashSet<>(availableIndices);
                     }
                     add = false;
