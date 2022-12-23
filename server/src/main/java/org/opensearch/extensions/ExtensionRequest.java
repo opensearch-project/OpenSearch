@@ -10,6 +10,7 @@ package org.opensearch.extensions;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.transport.TransportRequest;
@@ -24,29 +25,42 @@ import java.util.Objects;
  */
 public class ExtensionRequest extends TransportRequest {
     private static final Logger logger = LogManager.getLogger(ExtensionRequest.class);
-    private ExtensionsManager.RequestType requestType;
+    private final ExtensionsManager.RequestType requestType;
+    private final String uniqueId;
 
     public ExtensionRequest(ExtensionsManager.RequestType requestType) {
+        this(requestType, null);
+    }
+
+    public ExtensionRequest(ExtensionsManager.RequestType requestType, String uniqueId){
         this.requestType = requestType;
+        this.uniqueId = uniqueId;
     }
 
     public ExtensionRequest(StreamInput in) throws IOException {
         super(in);
         this.requestType = in.readEnum(ExtensionsManager.RequestType.class);
+        this.uniqueId = in.readOptionalString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeEnum(requestType);
+        out.writeOptionalString(uniqueId);
     }
 
     public ExtensionsManager.RequestType getRequestType() {
         return this.requestType;
     }
 
+    @Nullable
+    public String getUniqueId(){
+        return uniqueId;
+    }
+
     public String toString() {
-        return "ExtensionRequest{" + "requestType=" + requestType + '}';
+        return "ExtensionRequest{" + "requestType=" + requestType + "uniqueId=" + uniqueId + '}';
     }
 
     @Override
@@ -54,11 +68,20 @@ public class ExtensionRequest extends TransportRequest {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ExtensionRequest that = (ExtensionRequest) o;
-        return Objects.equals(requestType, that.requestType);
+        if(uniqueId == null){
+            return Objects.equals(requestType, that.requestType) && true;
+            if(that.uniqueId == null){
+                return Objects.equals(requestType, that.requestType) && true;
+            }else{
+                return Objects.equals(requestType, that.requestType) && false;
+            }
+        }else{
+            return Objects.equals(requestType, that.requestType) && Object.equals(uniqueId, that.uniqueId);
+        }
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(requestType);
+        return Objects.hash(requestType, uniqueId);
     }
 }

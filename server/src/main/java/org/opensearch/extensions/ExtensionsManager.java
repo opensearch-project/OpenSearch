@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -80,6 +81,7 @@ public class ExtensionsManager {
     public static final String REQUEST_EXTENSION_UPDATE_SETTINGS = "internal:discovery/updatesettings";
     public static final String REQUEST_EXTENSION_REGISTER_CUSTOM_SETTINGS = "internal:discovery/registercustomsettings";
     public static final String REQUEST_EXTENSION_REGISTER_REST_ACTIONS = "internal:discovery/registerrestactions";
+    public static final String REQUEST_EXTENSION_DEPENDENCY_INFORMATION = "internal:discovery/dependencyinformation";
     public static final String REQUEST_EXTENSION_REGISTER_TRANSPORT_ACTIONS = "internal:discovery/registertransportactions";
     public static final String REQUEST_OPENSEARCH_NAMED_WRITEABLE_REGISTRY = "internal:discovery/namedwriteableregistry";
     public static final String REQUEST_OPENSEARCH_PARSE_NAMED_WRITEABLE = "internal:discovery/parsenamedwriteable";
@@ -103,6 +105,7 @@ public class ExtensionsManager {
         REQUEST_EXTENSION_REGISTER_REST_ACTIONS,
         REQUEST_EXTENSION_REGISTER_SETTINGS,
         REQUEST_EXTENSION_ENVIRONMENT_SETTINGS,
+        REQUEST_EXTENSION_DEPENDENCY_INFORMATION,
         CREATE_COMPONENT,
         ON_INDEX_MODULE,
         GET_SETTINGS
@@ -246,6 +249,14 @@ public class ExtensionsManager {
         );
         transportService.registerRequestHandler(
             REQUEST_EXTENSION_ENVIRONMENT_SETTINGS,
+            ThreadPool.Names.GENERIC,
+            false,
+            false,
+            ExtensionRequest::new,
+            ((request, channel, task) -> channel.sendResponse(handleExtensionRequest(request)))
+        );
+        transportService.registerRequestHandler(
+            REQUEST_EXTENSION_DEPENDENCY_INFORMATION,
             ThreadPool.Names.GENERIC,
             false,
             false,
@@ -426,6 +437,17 @@ public class ExtensionsManager {
                 return new ClusterSettingsResponse(clusterService);
             case REQUEST_EXTENSION_ENVIRONMENT_SETTINGS:
                 return new EnvironmentSettingsResponse(this.environmentSettings);
+            case REQUEST_EXTENSION_DEPENDENCY_INFORMATION:
+                String uniqueId = extensionRequest.getUniqueId();
+                if(uniqueId == null){
+                    return new ExtensionDependencyResponse(extensions);
+                }else{
+                    ExtensionDependency matchingId = new ExtensionDependency(uniqueId, Version.CURRENT);
+                    return new ExtensionDependencyResponse(extensions
+                    .stream()
+                    .filter(e -> e.dependenciesContain(matchingId))
+                    .collect(Collectors.toList()));
+                }
             default:
                 throw new IllegalArgumentException("Handler not present for the provided request");
         }
@@ -565,6 +587,10 @@ public class ExtensionsManager {
 
     public static String getRequestExtensionEnvironmentSettings() {
         return REQUEST_EXTENSION_ENVIRONMENT_SETTINGS;
+    }
+
+    public static String getRequestExtensionDependencyInformation() {
+        return REQUEST_EXTENSION_DEPENDENCY_INFORMATION;
     }
 
     public static String getRequestExtensionAddSettingsUpdateConsumer() {
