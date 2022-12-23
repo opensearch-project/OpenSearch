@@ -167,7 +167,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         );
         this.updateHelper = updateHelper;
         this.mappingUpdatedAction = mappingUpdatedAction;
-        this.transportPrimaryTermValidationAction = ACTION_NAME + "[ptv]";
+        this.transportPrimaryTermValidationAction = ACTION_NAME + "[validate_primary_term]";
 
         transportService.registerRequestHandler(
             transportPrimaryTermValidationAction,
@@ -195,6 +195,12 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         }
     }
 
+    /**
+     * This action is the primary term validation action which is used for doing primary term validation with replicas.
+     * This is only applicable for TransportShardBulkAction.
+     *
+     * @opensearch.internal
+     */
     private static final class PrimaryTermValidationReplicaAction extends AbstractRunnable implements ActionListener<Releasable> {
 
         private final ActionListener<ReplicaResponse> onCompletionListener;
@@ -328,7 +334,14 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         return new PrimaryTermValidationProxy();
     }
 
+    /**
+     * This {@link org.opensearch.action.support.replication.TransportReplicationAction.ReplicasProxy} implementation is
+     * used for primary term validation and is only relevant for TransportShardBulkAction replication action.
+     *
+     * @opensearch.internal
+     */
     private final class PrimaryTermValidationProxy extends WriteActionReplicasProxy {
+
         @Override
         public void performOn(
             ShardRouting replica,
@@ -498,9 +511,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     /**
      * Executes bulk item requests and handles request execution exceptions.
-     *
      * @return {@code true} if request completed on this thread and the listener was invoked, {@code false} if the request triggered
-     * a mapping update that will finish and invoke the listener on a different thread
+     *                      a mapping update that will finish and invoke the listener on a different thread
      */
     static boolean executeBulkItemRequest(
         BulkPrimaryExecutionContext context,

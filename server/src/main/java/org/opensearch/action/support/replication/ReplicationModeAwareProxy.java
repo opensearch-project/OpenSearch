@@ -24,6 +24,10 @@ import java.util.function.Consumer;
 public class ReplicationModeAwareProxy<ReplicaRequest extends ReplicationRequest<ReplicaRequest>> extends ReplicationProxy<ReplicaRequest> {
 
     private final ReplicationMode replicationModeOverride;
+
+    /**
+     * This ReplicasProxy is used for performing primary term validation.
+     */
     private final ReplicationOperation.Replicas<ReplicaRequest> primaryTermValidationProxy;
 
     public ReplicationModeAwareProxy(

@@ -22,6 +22,9 @@ import java.util.function.Consumer;
  */
 public abstract class ReplicationProxy<ReplicaRequest extends ReplicationRequest<ReplicaRequest>> {
 
+    /**
+     * This is the replicas proxy which is used for full replication.
+     */
     private final ReplicationOperation.Replicas<ReplicaRequest> replicasProxy;
 
     public ReplicationProxy(ReplicationOperation.Replicas<ReplicaRequest> replicasProxy) {
@@ -51,6 +54,9 @@ public abstract class ReplicationProxy<ReplicaRequest extends ReplicationRequest
     }
 
     /**
+     * The implementor can decide the {@code Consumer<ActionListener<ReplicationOperation.ReplicaResponse>>} basis the
+     * proxyRequest and replicationMode. This will ultimately make the calls to replica.
+     *
      * @param proxyRequest                     replication proxy request
      * @param replicationMode                  replication mode
      * @param performOnReplicasProxyBiConsumer performOnReplicasProxy

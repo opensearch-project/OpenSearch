@@ -258,6 +258,13 @@ public abstract class TransportReplicationAction<
         return new ReplicasProxy();
     }
 
+    /**
+     * This returns a ReplicaProxy that is used for primary term validation. The default behavior is that the control
+     * must not reach inside the performOn method for ReplicationActions. However, the implementations of the underlying
+     * class can provide primary term validation proxy that can allow performOn method to make calls to replica.
+     *
+     * @return Primary term validation replicas proxy.
+     */
     protected ReplicationOperation.Replicas<ReplicaRequest> primaryTermValidationProxy() {
         return new ReplicasProxy() {
             @Override
