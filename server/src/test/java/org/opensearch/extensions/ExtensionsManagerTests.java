@@ -520,7 +520,9 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
 
         assertEquals(EnvironmentSettingsResponse.class, extensionsManager.handleExtensionRequest(environmentSettingsRequest).getClass());
 
-        ExtensionRequest extensionDependencyRequest = new ExtensionRequest(ExtensionsManager.RequestType.REQUEST_EXTENSION_DEPENDENCY_INFORMATION);
+        ExtensionRequest extensionDependencyRequest = new ExtensionRequest(
+            ExtensionsManager.RequestType.REQUEST_EXTENSION_DEPENDENCY_INFORMATION
+        );
 
         assertEquals(ExtensionDependencyResponse.class, extensionsManager.handleExtensionRequest(extensionDependencyRequest).getClass());
 
@@ -590,18 +592,18 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                 List.of(expectedDependency)
             )
         );
-        
-        //Test ExtensionDependencyResponse arg constructor
-        ExtensionDependencyResponse extensionDependencyResponse = new ExtensionDependencyResponse(expectedExtensionsList);
-        assertEquals(expectedExtensionsList , extensionDependencyResponse.getExtensionDependency());
 
-        //Test ExtensionDependencyResponse StreamInput constructor
+        // Test ExtensionDependencyResponse arg constructor
+        ExtensionDependencyResponse extensionDependencyResponse = new ExtensionDependencyResponse(expectedExtensionsList);
+        assertEquals(expectedExtensionsList, extensionDependencyResponse.getExtensionDependency());
+
+        // Test ExtensionDependencyResponse StreamInput constructor
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             extensionDependencyResponse.writeTo(out);
             out.flush();
             try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
                 extensionDependencyResponse = new ExtensionDependencyResponse(in);
-                assertEquals(expectedExtensionsList , extensionDependencyResponse.getExtensionDependency());
+                assertEquals(expectedExtensionsList, extensionDependencyResponse.getExtensionDependency());
             }
         }
     }

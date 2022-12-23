@@ -439,14 +439,13 @@ public class ExtensionsManager {
                 return new EnvironmentSettingsResponse(this.environmentSettings);
             case REQUEST_EXTENSION_DEPENDENCY_INFORMATION:
                 String uniqueId = extensionRequest.getUniqueId();
-                if(uniqueId == null){
+                if (uniqueId == null) {
                     return new ExtensionDependencyResponse(extensions);
-                }else{
+                } else {
                     ExtensionDependency matchingId = new ExtensionDependency(uniqueId, Version.CURRENT);
-                    return new ExtensionDependencyResponse(extensions
-                    .stream()
-                    .filter(e -> e.dependenciesContain(matchingId))
-                    .collect(Collectors.toList()));
+                    return new ExtensionDependencyResponse(
+                        extensions.stream().filter(e -> e.dependenciesContain(matchingId)).collect(Collectors.toList())
+                    );
                 }
             default:
                 throw new IllegalArgumentException("Handler not present for the provided request");

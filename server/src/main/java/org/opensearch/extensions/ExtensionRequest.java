@@ -32,7 +32,7 @@ public class ExtensionRequest extends TransportRequest {
         this(requestType, null);
     }
 
-    public ExtensionRequest(ExtensionsManager.RequestType requestType, String uniqueId){
+    public ExtensionRequest(ExtensionsManager.RequestType requestType, String uniqueId) {
         this.requestType = requestType;
         this.uniqueId = uniqueId;
     }
@@ -55,7 +55,7 @@ public class ExtensionRequest extends TransportRequest {
     }
 
     @Nullable
-    public String getUniqueId(){
+    public String getUniqueId() {
         return uniqueId;
     }
 
@@ -68,15 +68,12 @@ public class ExtensionRequest extends TransportRequest {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ExtensionRequest that = (ExtensionRequest) o;
-        if(uniqueId == null){
+        if (uniqueId == null) {
             return Objects.equals(requestType, that.requestType) && true;
-            if(that.uniqueId == null){
-                return Objects.equals(requestType, that.requestType) && true;
-            }else{
-                return Objects.equals(requestType, that.requestType) && false;
-            }
-        }else{
-            return Objects.equals(requestType, that.requestType) && Object.equals(uniqueId, that.uniqueId);
+        } else if (that.uniqueId == null) {
+            return Objects.equals(requestType, that.requestType) && false;
+        } else {
+            return Objects.equals(requestType, that.requestType) && uniqueId.equals(that.uniqueId);
         }
     }
 

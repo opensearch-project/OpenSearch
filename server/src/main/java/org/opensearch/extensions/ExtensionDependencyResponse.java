@@ -8,7 +8,7 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.transport.TransportResponse;
 
-public class ExtensionDependencyResponse extends TransportResponse  {
+public class ExtensionDependencyResponse extends TransportResponse {
     private List<DiscoveryExtensionNode> dependency;
 
     public ExtensionDependencyResponse(List<DiscoveryExtensionNode> dependency) {
@@ -35,7 +35,6 @@ public class ExtensionDependencyResponse extends TransportResponse  {
     public List<DiscoveryExtensionNode> getExtensionDependency() {
         return dependency;
     }
-
 
     @Override
     public String toString() {
