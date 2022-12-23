@@ -10,7 +10,6 @@ package org.opensearch.index.shard;
 
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.store.Directory;
 import org.junit.Assert;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.delete.DeleteRequest;

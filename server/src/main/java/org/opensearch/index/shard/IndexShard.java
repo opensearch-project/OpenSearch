@@ -4178,7 +4178,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // are uploaded to the remote segment store.
         assert remoteDirectory instanceof RemoteSegmentStoreDirectory : "remoteDirectory is not an instance of RemoteSegmentStoreDirectory";
         ((RemoteSegmentStoreDirectory) remoteDirectory).init();
-        Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegments = ((RemoteSegmentStoreDirectory) remoteDirectory).getSegmentsUploadedToRemoteStore();
+        Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegments = ((RemoteSegmentStoreDirectory) remoteDirectory)
+            .getSegmentsUploadedToRemoteStore();
         final Directory storeDirectory = store.directory();
         store.incRef();
         remoteStore.incRef();
@@ -4188,7 +4189,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             for (String file : uploadedSegments.keySet()) {
                 long checksum = Long.parseLong(uploadedSegments.get(file).getChecksum());
                 if (override || localDirectoryContains(storeDirectory, file, checksum) == false) {
-                    if(localSegmentFiles.contains(file)) {
+                    if (localSegmentFiles.contains(file)) {
                         storeDirectory.deleteFile(file);
                     }
                     logger.info("Downloading segments file: {} ", file);
@@ -4226,7 +4227,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private boolean localDirectoryContains(Directory localDirectory, String file, long checksum) {
         try (IndexInput indexInput = localDirectory.openInput(file, IOContext.DEFAULT)) {
             return checksum == CodecUtil.retrieveChecksum(indexInput);
-        } catch(IOException e) {
+        } catch (IOException e) {
             logger.debug("Exception while reading checksum of file: {}, this can happen if file does not exist", file);
         }
         return false;

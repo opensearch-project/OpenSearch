@@ -147,7 +147,8 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
         return createGroup(replicas, settings, indexMapping, engineFactory);
     }
 
-    protected ReplicationGroup createGroup(int replicas, Settings settings, String mappings, EngineFactory engineFactory)  throws IOException {
+    protected ReplicationGroup createGroup(int replicas, Settings settings, String mappings, EngineFactory engineFactory)
+        throws IOException {
         return createGroup(replicas, settings, mappings, engineFactory, null);
     }
 
@@ -247,10 +248,18 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
         protected ReplicationGroup(final IndexMetadata indexMetadata, Path remotePath) throws IOException {
             final ShardRouting primaryRouting = this.createShardRouting("s0", true);
             Store remoteStore = null;
-            if(remotePath != null) {
+            if (remotePath != null) {
                 remoteStore = createRemoteStore(remotePath, primaryRouting, indexMetadata);
             }
-            primary = newShard(primaryRouting, indexMetadata, null, getEngineFactory(primaryRouting), () -> {}, retentionLeaseSyncer, remoteStore);
+            primary = newShard(
+                primaryRouting,
+                indexMetadata,
+                null,
+                getEngineFactory(primaryRouting),
+                () -> {},
+                retentionLeaseSyncer,
+                remoteStore
+            );
             replicas = new CopyOnWriteArrayList<>();
             this.indexMetadata = indexMetadata;
             updateAllocationIDsOnPrimary();
@@ -370,13 +379,13 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
         }
 
         public IndexShard addReplica() throws IOException {
-            return addReplica((Path)null);
+            return addReplica((Path) null);
         }
 
         public IndexShard addReplica(Path remotePath) throws IOException {
             final ShardRouting replicaRouting = createShardRouting("s" + replicaId.incrementAndGet(), false);
             Store remoteStore = null;
-            if(remotePath != null) {
+            if (remotePath != null) {
                 remoteStore = createRemoteStore(remotePath, replicaRouting, indexMetadata);
             }
             final IndexShard replica = newShard(
