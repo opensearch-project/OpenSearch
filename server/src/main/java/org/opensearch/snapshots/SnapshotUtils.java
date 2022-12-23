@@ -63,6 +63,15 @@ public class SnapshotUtils {
             return availableIndices;
         }
 
+        Arrays.sort(selectedIndices, (o1, o2) -> {
+            char o1FirstChar = o1.charAt(0);
+            char o2FirstChar = o2.charAt(0);
+            if (o1FirstChar == '-' && o2FirstChar != '-') { // Make '-' lower priority then everything
+                return 1;
+            }
+            return o1.compareTo(o2);
+        });
+
         Set<String> result = null;
         for (int i = 0; i < selectedIndices.length; i++) {
             String indexOrPattern = selectedIndices[i];
@@ -173,12 +182,3 @@ public class SnapshotUtils {
     }
 }
 
-public class IndexPatternComparator implements Comparator<String> {
-
-    @Override
-    public int compare(String index1, String index2) {
-
-        return .compare(firstPlayer.getRanking(), secondPlayer.getRanking());
-    }
-
-}
