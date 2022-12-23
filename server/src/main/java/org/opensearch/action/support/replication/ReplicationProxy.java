@@ -8,9 +8,11 @@
 
 package org.opensearch.action.support.replication;
 
+import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.routing.ShardRouting;
 
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 /**
  * Used for performing any replication operation on replicas. Depending on the implementation, the replication call
@@ -18,26 +20,48 @@ import java.util.function.BiConsumer;
  *
  * @opensearch.internal
  */
-public abstract class ReplicationProxy<ReplicaRequest> {
+public abstract class ReplicationProxy<ReplicaRequest extends ReplicationRequest<ReplicaRequest>> {
+
+    private final ReplicationOperation.Replicas<ReplicaRequest> replicasProxy;
+
+    public ReplicationProxy(ReplicationOperation.Replicas<ReplicaRequest> replicasProxy) {
+        this.replicasProxy = replicasProxy;
+    }
 
     /**
      * Depending on the actual implementation and the passed {@link ReplicationMode}, the replication
      * mode is determined using which the replication request is performed on the replica or not.
      *
      * @param proxyRequest                     replication proxy request
-     * @param originalPerformOnReplicaConsumer original performOnReplica method passed as consumer
+     * @param performOnReplicasProxyBiConsumer performOnReplicasProxy
      */
-    public void performOnReplicaProxy(
+    final void performOnReplicaProxy(
         ReplicationProxyRequest<ReplicaRequest> proxyRequest,
-        BiConsumer<ReplicationProxyRequest<ReplicaRequest>, ReplicationMode> originalPerformOnReplicaConsumer
+        BiConsumer<
+            Consumer<ActionListener<ReplicationOperation.ReplicaResponse>>,
+            ReplicationProxyRequest<ReplicaRequest>> performOnReplicasProxyBiConsumer
     ) {
         ReplicationMode replicationMode = determineReplicationMode(proxyRequest.getShardRouting(), proxyRequest.getPrimaryRouting());
         // If the replication modes are 1. Logical replication or 2. Primary term validation, we let the call get performed on the
         // replica shard.
-        if (replicationMode == ReplicationMode.FULL_REPLICATION || replicationMode == ReplicationMode.PRIMARY_TERM_VALIDATION) {
-            originalPerformOnReplicaConsumer.accept(proxyRequest, replicationMode);
+        if (replicationMode == ReplicationMode.NO_REPLICATION) {
+            return;
         }
+        performOnReplicaProxy(proxyRequest, replicationMode, performOnReplicasProxyBiConsumer);
     }
+
+    /**
+     * @param proxyRequest                     replication proxy request
+     * @param replicationMode                  replication mode
+     * @param performOnReplicasProxyBiConsumer performOnReplicasProxy
+     */
+    protected abstract void performOnReplicaProxy(
+        ReplicationProxyRequest<ReplicaRequest> proxyRequest,
+        ReplicationMode replicationMode,
+        BiConsumer<
+            Consumer<ActionListener<ReplicationOperation.ReplicaResponse>>,
+            ReplicationProxyRequest<ReplicaRequest>> performOnReplicasProxyBiConsumer
+    );
 
     /**
      * Determines what is the replication mode basis the constructor arguments of the implementation and the current
@@ -48,4 +72,8 @@ public abstract class ReplicationProxy<ReplicaRequest> {
      * @return the determined replication mode.
      */
     abstract ReplicationMode determineReplicationMode(final ShardRouting shardRouting, final ShardRouting primaryRouting);
+
+    public ReplicationOperation.Replicas<ReplicaRequest> getReplicasProxy() {
+        return replicasProxy;
+    }
 }

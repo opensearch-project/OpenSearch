@@ -17,13 +17,15 @@ import org.opensearch.index.shard.IndexShard;
  */
 public class ReplicationProxyFactory {
 
-    public static <ReplicaRequest> ReplicationProxy<ReplicaRequest> create(
+    public static <ReplicaRequest extends ReplicationRequest<ReplicaRequest>> ReplicationProxy<ReplicaRequest> create(
         final IndexShard indexShard,
-        final ReplicationMode replicationModeOverride
+        final ReplicationMode replicationModeOverride,
+        final ReplicationOperation.Replicas<ReplicaRequest> replicasProxy,
+        final ReplicationOperation.Replicas<ReplicaRequest> primaryTermValidationProxy
     ) {
         if (indexShard.isRemoteTranslogEnabled()) {
-            return new ReplicationModeAwareProxy<>(replicationModeOverride);
+            return new ReplicationModeAwareProxy<>(replicationModeOverride, replicasProxy, primaryTermValidationProxy);
         }
-        return new FanoutReplicationProxy<>();
+        return new FanoutReplicationProxy<>(replicasProxy);
     }
 }

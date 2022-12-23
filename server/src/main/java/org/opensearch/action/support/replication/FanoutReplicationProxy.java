@@ -8,7 +8,11 @@
 
 package org.opensearch.action.support.replication;
 
+import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.routing.ShardRouting;
+
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 /**
  * This implementation of {@link ReplicationProxy} fans out the replication request to current shard routing if
@@ -16,7 +20,34 @@ import org.opensearch.cluster.routing.ShardRouting;
  *
  * @opensearch.internal
  */
-public class FanoutReplicationProxy<ReplicaRequest> extends ReplicationProxy<ReplicaRequest> {
+public class FanoutReplicationProxy<ReplicaRequest extends ReplicationRequest<ReplicaRequest>> extends ReplicationProxy<ReplicaRequest> {
+
+    public FanoutReplicationProxy(ReplicationOperation.Replicas<ReplicaRequest> replicasProxy) {
+        super(replicasProxy);
+    }
+
+    @Override
+    protected void performOnReplicaProxy(
+        ReplicationProxyRequest<ReplicaRequest> proxyRequest,
+        ReplicationMode replicationMode,
+        BiConsumer<
+            Consumer<ActionListener<ReplicationOperation.ReplicaResponse>>,
+            ReplicationProxyRequest<ReplicaRequest>> performOnReplicasProxyBiConsumer
+    ) {
+        if (replicationMode == ReplicationMode.FULL_REPLICATION) {
+            Consumer<ActionListener<ReplicationOperation.ReplicaResponse>> replicasProxyConsumer = (listener) -> {
+                getReplicasProxy().performOn(
+                    proxyRequest.getShardRouting(),
+                    proxyRequest.getReplicaRequest(),
+                    proxyRequest.getPrimaryTerm(),
+                    proxyRequest.getGlobalCheckpoint(),
+                    proxyRequest.getMaxSeqNoOfUpdatesOrDeletes(),
+                    listener
+                );
+            };
+            performOnReplicasProxyBiConsumer.accept(replicasProxyConsumer, proxyRequest);
+        }
+    }
 
     @Override
     ReplicationMode determineReplicationMode(ShardRouting shardRouting, ShardRouting primaryRouting) {

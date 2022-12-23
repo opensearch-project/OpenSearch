@@ -258,6 +258,10 @@ public abstract class TransportReplicationAction<
         return new ReplicasProxy();
     }
 
+    protected ReplicationOperation.Replicas<ReplicaRequest> primaryTermValidationProxy() {
+        throw new UnsupportedOperationException("Primary term validation is not available for " + actionName);
+    }
+
     /**
      * This method is used for defining the {@link ReplicationMode} override per {@link TransportReplicationAction}.
      *
@@ -536,11 +540,13 @@ public abstract class TransportReplicationAction<
                         onCompletionListener.onResponse(response);
                     }, e -> handleException(primaryShardReference, e));
 
+                    ReplicationOperation.Replicas<ReplicaRequest> replicasProxy = newReplicasProxy();
+
                     new ReplicationOperation<>(
                         primaryRequest.getRequest(),
                         primaryShardReference,
                         ActionListener.map(responseListener, result -> result.finalResponseIfSuccessful),
-                        newReplicasProxy(),
+                        replicasProxy,
                         logger,
                         threadPool,
                         actionName,
@@ -549,7 +555,9 @@ public abstract class TransportReplicationAction<
                         retryTimeout,
                         ReplicationProxyFactory.create(
                             primaryShardReference.indexShard,
-                            getReplicationMode(primaryShardReference.indexShard)
+                            getReplicationMode(primaryShardReference.indexShard),
+                            replicasProxy,
+                            primaryTermValidationProxy()
                         )
                     ).execute();
                 }
@@ -1347,8 +1355,7 @@ public abstract class TransportReplicationAction<
             final long primaryTerm,
             final long globalCheckpoint,
             final long maxSeqNoOfUpdatesOrDeletes,
-            final ActionListener<ReplicationOperation.ReplicaResponse> listener,
-            final ReplicationMode replicationMode
+            final ActionListener<ReplicationOperation.ReplicaResponse> listener
         ) {
             String nodeId = replica.currentNodeId();
             final DiscoveryNode node = clusterService.state().nodes().get(nodeId);

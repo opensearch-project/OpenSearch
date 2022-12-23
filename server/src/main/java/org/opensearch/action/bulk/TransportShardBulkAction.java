@@ -48,6 +48,7 @@ import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.ChannelActionListener;
+import org.opensearch.action.support.replication.ReplicationMode;
 import org.opensearch.action.support.replication.ReplicationOperation;
 import org.opensearch.action.support.replication.ReplicationTask;
 import org.opensearch.action.support.replication.TransportReplicationAction;
@@ -111,8 +112,6 @@ import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
-
-import org.opensearch.action.support.replication.ReplicationMode;
 
 /**
  * Performs shard-level bulk (index, delete or update) operations
@@ -329,6 +328,11 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         return new PrimaryTermValidationProxy();
     }
 
+    @Override
+    protected ReplicationOperation.Replicas<BulkShardRequest> primaryTermValidationProxy() {
+        return new PrimaryTermValidationProxy();
+    }
+
     private final class PrimaryTermValidationProxy extends WriteActionReplicasProxy {
         @Override
         public void performOn(
@@ -337,16 +341,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             long primaryTerm,
             long globalCheckpoint,
             long maxSeqNoOfUpdatesOrDeletes,
-            ActionListener<ReplicationOperation.ReplicaResponse> listener,
-            ReplicationMode replicationMode
+            ActionListener<ReplicationOperation.ReplicaResponse> listener
         ) {
-            assert replicationMode == ReplicationMode.FULL_REPLICATION || replicationMode == ReplicationMode.PRIMARY_TERM_VALIDATION;
-
-            if (replicationMode == ReplicationMode.FULL_REPLICATION) {
-                super.performOn(replica, request, primaryTerm, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, listener, replicationMode);
-                return;
-            }
-
             String nodeId = replica.currentNodeId();
             final DiscoveryNode node = clusterService.state().nodes().get(nodeId);
             if (node == null) {

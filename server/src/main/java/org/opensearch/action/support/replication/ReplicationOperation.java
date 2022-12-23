@@ -66,6 +66,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 
 /**
@@ -237,17 +238,19 @@ public class ReplicationOperation<
                 globalCheckpoint,
                 maxSeqNoOfUpdatesOrDeletes,
                 pendingReplicationActions,
-                replicaRequest
+                replicaRequest,
+                primaryTerm
             ).build();
             replicationProxy.performOnReplicaProxy(proxyRequest, this::performOnReplica);
         }
     }
 
-    private void performOnReplica(final ReplicationProxyRequest<ReplicaRequest> replicationProxyRequest, ReplicationMode replicationMode) {
+    private void performOnReplica(
+        final Consumer<ActionListener<ReplicaResponse>> replicasProxyConsumer,
+        final ReplicationProxyRequest<ReplicaRequest> replicationProxyRequest
+    ) {
         final ShardRouting shard = replicationProxyRequest.getShardRouting();
         final ReplicaRequest replicaRequest = replicationProxyRequest.getReplicaRequest();
-        final long globalCheckpoint = replicationProxyRequest.getGlobalCheckpoint();
-        final long maxSeqNoOfUpdatesOrDeletes = replicationProxyRequest.getMaxSeqNoOfUpdatesOrDeletes();
         final PendingReplicationActions pendingReplicationActions = replicationProxyRequest.getPendingReplicationActions();
 
         if (logger.isTraceEnabled()) {
@@ -319,15 +322,7 @@ public class ReplicationOperation<
 
             @Override
             public void tryAction(ActionListener<ReplicaResponse> listener) {
-                replicasProxy.performOn(
-                    shard,
-                    replicaRequest,
-                    primaryTerm,
-                    globalCheckpoint,
-                    maxSeqNoOfUpdatesOrDeletes,
-                    listener,
-                    replicationMode
-                );
+                replicasProxyConsumer.accept(listener);
             }
 
             @Override
@@ -557,7 +552,6 @@ public class ReplicationOperation<
          * @param maxSeqNoOfUpdatesOrDeletes the max seq_no of updates (index operations overwriting Lucene) or deletes on primary
          *                                   after this replication was executed on it.
          * @param listener                   callback for handling the response or failure
-         * @param replicationMode            the replication mode which will be used for resolving the transport action
          */
         void performOn(
             ShardRouting replica,
@@ -565,8 +559,7 @@ public class ReplicationOperation<
             long primaryTerm,
             long globalCheckpoint,
             long maxSeqNoOfUpdatesOrDeletes,
-            ActionListener<ReplicaResponse> listener,
-            ReplicationMode replicationMode
+            ActionListener<ReplicaResponse> listener
         );
 
         /**

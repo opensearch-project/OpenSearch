@@ -292,7 +292,7 @@ public class TransportVerifyShardBeforeCloseActionTests extends OpenSearchTestCa
                 primaryTerm,
                 TimeValue.timeValueMillis(20),
                 TimeValue.timeValueSeconds(60),
-                new FanoutReplicationProxy<>()
+                new FanoutReplicationProxy<>(proxy)
             );
         operation.execute();
 

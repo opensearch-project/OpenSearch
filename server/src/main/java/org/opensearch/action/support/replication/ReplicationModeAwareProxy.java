@@ -8,9 +8,12 @@
 
 package org.opensearch.action.support.replication;
 
+import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.routing.ShardRouting;
 
 import java.util.Objects;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 /**
  * This implementation of {@link ReplicationProxy} fans out the replication request to current shard routing basis
@@ -18,13 +21,56 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
-public class ReplicationModeAwareProxy<ReplicaRequest> extends ReplicationProxy<ReplicaRequest> {
+public class ReplicationModeAwareProxy<ReplicaRequest extends ReplicationRequest<ReplicaRequest>> extends ReplicationProxy<ReplicaRequest> {
 
     private final ReplicationMode replicationModeOverride;
+    private final ReplicationOperation.Replicas<ReplicaRequest> primaryTermValidationProxy;
 
-    public ReplicationModeAwareProxy(ReplicationMode replicationModeOverride) {
-        assert Objects.nonNull(replicationModeOverride);
-        this.replicationModeOverride = replicationModeOverride;
+    public ReplicationModeAwareProxy(
+        ReplicationMode replicationModeOverride,
+        ReplicationOperation.Replicas<ReplicaRequest> replicasProxy,
+        ReplicationOperation.Replicas<ReplicaRequest> primaryTermValidationProxy
+    ) {
+        super(replicasProxy);
+        this.replicationModeOverride = Objects.requireNonNull(replicationModeOverride);
+        this.primaryTermValidationProxy = Objects.requireNonNull(primaryTermValidationProxy);
+    }
+
+    @Override
+    protected void performOnReplicaProxy(
+        ReplicationProxyRequest<ReplicaRequest> proxyRequest,
+        ReplicationMode replicationMode,
+        BiConsumer<
+            Consumer<ActionListener<ReplicationOperation.ReplicaResponse>>,
+            ReplicationProxyRequest<ReplicaRequest>> performOnReplicasProxyBiConsumer
+    ) {
+        assert replicationMode == ReplicationMode.FULL_REPLICATION || replicationMode == ReplicationMode.PRIMARY_TERM_VALIDATION;
+
+        Consumer<ActionListener<ReplicationOperation.ReplicaResponse>> replicasProxyConsumer;
+        if (replicationMode == ReplicationMode.FULL_REPLICATION) {
+            replicasProxyConsumer = (listener) -> {
+                getReplicasProxy().performOn(
+                    proxyRequest.getShardRouting(),
+                    proxyRequest.getReplicaRequest(),
+                    proxyRequest.getPrimaryTerm(),
+                    proxyRequest.getGlobalCheckpoint(),
+                    proxyRequest.getMaxSeqNoOfUpdatesOrDeletes(),
+                    listener
+                );
+            };
+        } else {
+            replicasProxyConsumer = (listener) -> {
+                getPrimaryTermValidationProxy().performOn(
+                    proxyRequest.getShardRouting(),
+                    proxyRequest.getReplicaRequest(),
+                    proxyRequest.getPrimaryTerm(),
+                    proxyRequest.getGlobalCheckpoint(),
+                    proxyRequest.getMaxSeqNoOfUpdatesOrDeletes(),
+                    listener
+                );
+            };
+        }
+        performOnReplicasProxyBiConsumer.accept(replicasProxyConsumer, proxyRequest);
     }
 
     @Override
@@ -40,5 +86,9 @@ public class ReplicationModeAwareProxy<ReplicaRequest> extends ReplicationProxy<
         }
 
         return replicationModeOverride;
+    }
+
+    public ReplicationOperation.Replicas<ReplicaRequest> getPrimaryTermValidationProxy() {
+        return primaryTermValidationProxy;
     }
 }
