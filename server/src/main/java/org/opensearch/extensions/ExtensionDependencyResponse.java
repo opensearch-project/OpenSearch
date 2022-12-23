@@ -17,6 +17,11 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.transport.TransportResponse;
 
+/**
+ * The response for getting the Extension Dependency.
+ *
+ * @opensearch.internal
+ */
 public class ExtensionDependencyResponse extends TransportResponse {
     private List<DiscoveryExtensionNode> dependency;
 
