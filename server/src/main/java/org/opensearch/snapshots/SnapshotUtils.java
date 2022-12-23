@@ -41,8 +41,6 @@ import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexSettings;
 
-import java.text.ParseException;
-import java.text.RuleBasedCollator;
 import java.util.*;
 
 /**
@@ -64,7 +62,6 @@ public class SnapshotUtils {
         if (IndexNameExpressionResolver.isAllIndices(Arrays.asList(selectedIndices))) {
             return availableIndices;
         }
-        String[] orderedIndices =
 
         Set<String> result = null;
         for (int i = 0; i < selectedIndices.length; i++) {
