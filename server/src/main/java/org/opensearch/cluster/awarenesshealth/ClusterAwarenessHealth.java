@@ -109,7 +109,7 @@ public class ClusterAwarenessHealth implements Writeable {
                 if (relocatingShard) {
                     if (shardAllocationPerNode.containsKey(relocatingNodeId)) {
                         nodeShardInfo = shardAllocationPerNode.get(relocatingNodeId);
-                        nodeShardInfo.setInitialisingShards(nodeShardInfo.getInitialisingShards() + 1);
+                        nodeShardInfo.setInitializingShards(nodeShardInfo.getInitializingShards() + 1);
                     } else {
                         nodeShardInfo = new NodeShardInfo(relocatingNodeId, 0, 0, 1);
                     }
@@ -128,14 +128,14 @@ public class ClusterAwarenessHealth implements Writeable {
                         if (activeShard) {
                             nodeShardInfo.setActiveShards(nodeShardInfo.getActiveShards() + 1);
                         } else if (initializingShard) {
-                            nodeShardInfo.setInitialisingShards(nodeShardInfo.getInitialisingShards() + 1);
+                            nodeShardInfo.setInitializingShards(nodeShardInfo.getInitializingShards() + 1);
                         }
                     } else {
                         nodeShardInfo = new NodeShardInfo(relocatingNodeId, 0, 0, 0);
                         if (activeShard) {
                             nodeShardInfo.setActiveShards(1);
                         } else if (initializingShard) {
-                            nodeShardInfo.setInitialisingShards(1);
+                            nodeShardInfo.setInitializingShards(1);
                         }
                     }
 

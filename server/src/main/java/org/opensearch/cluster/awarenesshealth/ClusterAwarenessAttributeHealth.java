@@ -104,7 +104,7 @@ public class ClusterAwarenessAttributeHealth implements Iterable<ClusterAwarenes
                             );
                             clusterAwarenessAttributeValueHealth.setInitializingShards(
                                 clusterAwarenessAttributeValueHealth.getInitializingShards() + shardAllocationPerNode.get(node)
-                                    .getInitialisingShards()
+                                    .getInitializingShards()
                             );
                             clusterAwarenessAttributeValueHealth.setRelocatingShards(
                                 clusterAwarenessAttributeValueHealth.getRelocatingShards() + shardAllocationPerNode.get(node)
