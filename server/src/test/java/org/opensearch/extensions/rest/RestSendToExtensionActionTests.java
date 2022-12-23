@@ -93,7 +93,8 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
                 "fakeClass1",
                 new ArrayList<String>(),
                 false
-            )
+            ),
+            Collections.emptyList()
         );
     }
 
