@@ -41,6 +41,7 @@ import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexSettings;
 
+import java.lang.reflect.Array;
 import java.util.*;
 
 /**
@@ -63,11 +64,15 @@ public class SnapshotUtils {
             return availableIndices;
         }
 
-        Arrays.sort(selectedIndices, (o1, o2) -> {
+        selectedIndices = Arrays.stream(selectedIndices).filter(s -> !s.isEmpty()).toArray(a -> new String[a]); // Remove all empty strings
+        Arrays.sort(selectedIndices, (o1, o2) -> { // Make '-' lower priority then everything
+
             char o1FirstChar = o1.charAt(0);
             char o2FirstChar = o2.charAt(0);
-            if (o1FirstChar == '-' && o2FirstChar != '-') { // Make '-' lower priority then everything
+            if (o1FirstChar == '-' && o2FirstChar != '-') {
                 return 1;
+            } else if (o1FirstChar != '-' && o2FirstChar == '-') {
+                return -1;
             }
             return o1.compareTo(o2);
         });
