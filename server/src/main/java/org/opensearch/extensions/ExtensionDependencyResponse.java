@@ -40,7 +40,6 @@ public class ExtensionDependencyResponse extends TransportResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeVInt(dependency.size());
         for (DiscoveryExtensionNode dependency : dependency) {
             dependency.writeTo(out);
