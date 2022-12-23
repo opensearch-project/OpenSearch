@@ -259,7 +259,19 @@ public abstract class TransportReplicationAction<
     }
 
     protected ReplicationOperation.Replicas<ReplicaRequest> primaryTermValidationProxy() {
-        throw new UnsupportedOperationException("Primary term validation is not available for " + actionName);
+        return new ReplicasProxy() {
+            @Override
+            public void performOn(
+                ShardRouting replica,
+                ReplicaRequest request,
+                long primaryTerm,
+                long globalCheckpoint,
+                long maxSeqNoOfUpdatesOrDeletes,
+                ActionListener<ReplicationOperation.ReplicaResponse> listener
+            ) {
+                throw new UnsupportedOperationException("Primary term validation is not available for " + actionName);
+            }
+        };
     }
 
     /**

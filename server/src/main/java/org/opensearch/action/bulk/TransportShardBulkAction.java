@@ -503,8 +503,9 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     /**
      * Executes bulk item requests and handles request execution exceptions.
+     *
      * @return {@code true} if request completed on this thread and the listener was invoked, {@code false} if the request triggered
-     *                      a mapping update that will finish and invoke the listener on a different thread
+     * a mapping update that will finish and invoke the listener on a different thread
      */
     static boolean executeBulkItemRequest(
         BulkPrimaryExecutionContext context,
