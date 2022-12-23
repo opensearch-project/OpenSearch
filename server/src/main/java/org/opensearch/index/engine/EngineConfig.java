@@ -472,132 +472,132 @@ public final class EngineConfig {
         private boolean isReadOnlyReplica;
         private TranslogFactory translogFactory = new InternalTranslogFactory();
 
-        public Builder setShardId(ShardId shardId) {
+        public Builder shardId(ShardId shardId) {
             this.shardId = shardId;
             return this;
         }
 
-        public Builder setThreadPool(ThreadPool threadPool) {
+        public Builder threadPool(ThreadPool threadPool) {
             this.threadPool = threadPool;
             return this;
         }
 
-        public Builder setIndexSettings(IndexSettings indexSettings) {
+        public Builder indexSettings(IndexSettings indexSettings) {
             this.indexSettings = indexSettings;
             return this;
         }
 
-        public Builder setWarmer(Engine.Warmer warmer) {
+        public Builder warmer(Engine.Warmer warmer) {
             this.warmer = warmer;
             return this;
         }
 
-        public Builder setStore(Store store) {
+        public Builder store(Store store) {
             this.store = store;
             return this;
         }
 
-        public Builder setMergePolicy(MergePolicy mergePolicy) {
+        public Builder mergePolicy(MergePolicy mergePolicy) {
             this.mergePolicy = mergePolicy;
             return this;
         }
 
-        public Builder setAnalyzer(Analyzer analyzer) {
+        public Builder analyzer(Analyzer analyzer) {
             this.analyzer = analyzer;
             return this;
         }
 
-        public Builder setSimilarity(Similarity similarity) {
+        public Builder similarity(Similarity similarity) {
             this.similarity = similarity;
             return this;
         }
 
-        public Builder setCodecService(CodecService codecService) {
+        public Builder codecService(CodecService codecService) {
             this.codecService = codecService;
             return this;
         }
 
-        public Builder setEventListener(Engine.EventListener eventListener) {
+        public Builder eventListener(Engine.EventListener eventListener) {
             this.eventListener = eventListener;
             return this;
         }
 
-        public Builder setQueryCache(QueryCache queryCache) {
+        public Builder queryCache(QueryCache queryCache) {
             this.queryCache = queryCache;
             return this;
         }
 
-        public Builder setQueryCachingPolicy(QueryCachingPolicy queryCachingPolicy) {
+        public Builder queryCachingPolicy(QueryCachingPolicy queryCachingPolicy) {
             this.queryCachingPolicy = queryCachingPolicy;
             return this;
         }
 
-        public Builder setTranslogConfig(TranslogConfig translogConfig) {
+        public Builder translogConfig(TranslogConfig translogConfig) {
             this.translogConfig = translogConfig;
             return this;
         }
 
-        public Builder setFlushMergesAfter(TimeValue flushMergesAfter) {
+        public Builder flushMergesAfter(TimeValue flushMergesAfter) {
             this.flushMergesAfter = flushMergesAfter;
             return this;
         }
 
-        public Builder setExternalRefreshListener(List<ReferenceManager.RefreshListener> externalRefreshListener) {
+        public Builder externalRefreshListener(List<ReferenceManager.RefreshListener> externalRefreshListener) {
             this.externalRefreshListener = externalRefreshListener;
             return this;
         }
 
-        public Builder setInternalRefreshListener(List<ReferenceManager.RefreshListener> internalRefreshListener) {
+        public Builder internalRefreshListener(List<ReferenceManager.RefreshListener> internalRefreshListener) {
             this.internalRefreshListener = internalRefreshListener;
             return this;
         }
 
-        public Builder setIndexSort(Sort indexSort) {
+        public Builder indexSort(Sort indexSort) {
             this.indexSort = indexSort;
             return this;
         }
 
-        public Builder setCircuitBreakerService(CircuitBreakerService circuitBreakerService) {
+        public Builder circuitBreakerService(CircuitBreakerService circuitBreakerService) {
             this.circuitBreakerService = circuitBreakerService;
             return this;
         }
 
-        public Builder setGlobalCheckpointSupplier(LongSupplier globalCheckpointSupplier) {
+        public Builder globalCheckpointSupplier(LongSupplier globalCheckpointSupplier) {
             this.globalCheckpointSupplier = globalCheckpointSupplier;
             return this;
         }
 
-        public Builder setRetentionLeasesSupplier(Supplier<RetentionLeases> retentionLeasesSupplier) {
+        public Builder retentionLeasesSupplier(Supplier<RetentionLeases> retentionLeasesSupplier) {
             this.retentionLeasesSupplier = retentionLeasesSupplier;
             return this;
         }
 
-        public Builder setPrimaryTermSupplier(LongSupplier primaryTermSupplier) {
+        public Builder primaryTermSupplier(LongSupplier primaryTermSupplier) {
             this.primaryTermSupplier = primaryTermSupplier;
             return this;
         }
 
-        public Builder setTombstoneDocSupplier(TombstoneDocSupplier tombstoneDocSupplier) {
+        public Builder tombstoneDocSupplier(TombstoneDocSupplier tombstoneDocSupplier) {
             this.tombstoneDocSupplier = tombstoneDocSupplier;
             return this;
         }
 
-        public Builder setTranslogDeletionPolicyFactory(TranslogDeletionPolicyFactory translogDeletionPolicyFactory) {
+        public Builder translogDeletionPolicyFactory(TranslogDeletionPolicyFactory translogDeletionPolicyFactory) {
             this.translogDeletionPolicyFactory = translogDeletionPolicyFactory;
             return this;
         }
 
-        public Builder setIsReadOnlyReplica(boolean isReadOnlyReplica) {
+        public Builder readOnlyReplica(boolean isReadOnlyReplica) {
             this.isReadOnlyReplica = isReadOnlyReplica;
             return this;
         }
 
-        public Builder setTranslogFactory(TranslogFactory translogFactory) {
+        public Builder translogFactory(TranslogFactory translogFactory) {
             this.translogFactory = translogFactory;
             return this;
         }
 
-        public EngineConfig create() {
+        public EngineConfig build() {
             return new EngineConfig(this);
         }
     }

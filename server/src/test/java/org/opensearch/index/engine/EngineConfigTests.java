@@ -33,9 +33,9 @@ public class EngineConfigTests extends OpenSearchTestCase {
     }
 
     public void testEngineConfig_DefaultValueForReadOnlyEngine() {
-        EngineConfig config = new EngineConfig.Builder().setIndexSettings(defaultIndexSettings)
-            .setRetentionLeasesSupplier(() -> RetentionLeases.EMPTY)
-            .create();
+        EngineConfig config = new EngineConfig.Builder().indexSettings(defaultIndexSettings)
+            .retentionLeasesSupplier(() -> RetentionLeases.EMPTY)
+            .build();
         assertFalse(config.isReadOnlyReplica());
     }
 
@@ -56,9 +56,9 @@ public class EngineConfigTests extends OpenSearchTestCase {
     }
 
     private EngineConfig createReadOnlyEngine(IndexSettings indexSettings) {
-        return new EngineConfig.Builder().setIndexSettings(indexSettings)
-            .setRetentionLeasesSupplier(() -> RetentionLeases.EMPTY)
-            .setIsReadOnlyReplica(true)
-            .create();
+        return new EngineConfig.Builder().indexSettings(indexSettings)
+            .retentionLeasesSupplier(() -> RetentionLeases.EMPTY)
+            .readOnlyReplica(true)
+            .build();
     }
 }
