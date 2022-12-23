@@ -42,21 +42,4 @@ public class RegisterRestActionsTests extends OpenSearchTestCase {
             }
         }
     }
-
-    public void testRegisterRestActionsResponse() throws Exception {
-        String response = "This is a response";
-        RegisterRestActionsResponse registerRestActionsResponse = new RegisterRestActionsResponse(response);
-
-        assertEquals(response, registerRestActionsResponse.getResponse());
-
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            registerRestActionsResponse.writeTo(out);
-            out.flush();
-            try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
-                registerRestActionsResponse = new RegisterRestActionsResponse(in);
-
-                assertEquals(response, registerRestActionsResponse.getResponse());
-            }
-        }
-    }
 }

@@ -830,7 +830,13 @@ public class Node implements Closeable {
                 taskHeaders
             );
             if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
-                this.extensionsManager.initializeServicesAndRestHandler(restController, transportService, clusterService);
+                this.extensionsManager.initializeServicesAndRestHandler(
+                    restController,
+                    settingsModule,
+                    transportService,
+                    clusterService,
+                    environment.settings()
+                );
             }
             final GatewayMetaState gatewayMetaState = new GatewayMetaState();
             final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);

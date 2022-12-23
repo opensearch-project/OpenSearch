@@ -156,6 +156,8 @@ public class RestSendToExtensionAction extends BaseRestHandler {
             transportService.sendRequest(
                 discoveryExtensionNode,
                 ExtensionsManager.REQUEST_REST_EXECUTE_ON_EXTENSION_ACTION,
+                // HERE BE DRAGONS - DO NOT INCLUDE HEADERS
+                // SEE https://github.com/opensearch-project/OpenSearch/issues/4429
                 new RestExecuteOnExtensionRequest(method, uri),
                 restExecuteOnExtensionResponseHandler
             );
