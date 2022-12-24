@@ -9,6 +9,8 @@
 package org.opensearch.action.support.replication;
 
 import org.opensearch.action.ActionListener;
+import org.opensearch.action.support.replication.ReplicationOperation.ReplicaResponse;
+import org.opensearch.action.support.replication.ReplicationOperation.Replicas;
 import org.opensearch.cluster.routing.ShardRouting;
 
 import java.util.function.BiConsumer;
@@ -22,7 +24,7 @@ import java.util.function.Consumer;
  */
 public class FanoutReplicationProxy<ReplicaRequest extends ReplicationRequest<ReplicaRequest>> extends ReplicationProxy<ReplicaRequest> {
 
-    public FanoutReplicationProxy(ReplicationOperation.Replicas<ReplicaRequest> replicasProxy) {
+    public FanoutReplicationProxy(Replicas<ReplicaRequest> replicasProxy) {
         super(replicasProxy);
     }
 
@@ -30,23 +32,9 @@ public class FanoutReplicationProxy<ReplicaRequest extends ReplicationRequest<Re
     protected void performOnReplicaProxy(
         ReplicationProxyRequest<ReplicaRequest> proxyRequest,
         ReplicationMode replicationMode,
-        BiConsumer<
-            Consumer<ActionListener<ReplicationOperation.ReplicaResponse>>,
-            ReplicationProxyRequest<ReplicaRequest>> performOnReplicasProxyBiConsumer
+        BiConsumer<Consumer<ActionListener<ReplicaResponse>>, ReplicationProxyRequest<ReplicaRequest>> requestBiConsumer
     ) {
-        if (replicationMode == ReplicationMode.FULL_REPLICATION) {
-            Consumer<ActionListener<ReplicationOperation.ReplicaResponse>> replicasProxyConsumer = (listener) -> {
-                getReplicasProxy().performOn(
-                    proxyRequest.getShardRouting(),
-                    proxyRequest.getReplicaRequest(),
-                    proxyRequest.getPrimaryTerm(),
-                    proxyRequest.getGlobalCheckpoint(),
-                    proxyRequest.getMaxSeqNoOfUpdatesOrDeletes(),
-                    listener
-                );
-            };
-            performOnReplicasProxyBiConsumer.accept(replicasProxyConsumer, proxyRequest);
-        }
+        requestBiConsumer.accept(getReplicasProxyConsumer(fullReplicationProxy, proxyRequest), proxyRequest);
     }
 
     @Override

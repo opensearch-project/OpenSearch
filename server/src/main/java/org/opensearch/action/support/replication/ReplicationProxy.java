@@ -9,6 +9,8 @@
 package org.opensearch.action.support.replication;
 
 import org.opensearch.action.ActionListener;
+import org.opensearch.action.support.replication.ReplicationOperation.ReplicaResponse;
+import org.opensearch.action.support.replication.ReplicationOperation.Replicas;
 import org.opensearch.cluster.routing.ShardRouting;
 
 import java.util.function.BiConsumer;
@@ -25,10 +27,10 @@ public abstract class ReplicationProxy<ReplicaRequest extends ReplicationRequest
     /**
      * This is the replicas proxy which is used for full replication.
      */
-    private final ReplicationOperation.Replicas<ReplicaRequest> replicasProxy;
+    protected final Replicas<ReplicaRequest> fullReplicationProxy;
 
-    public ReplicationProxy(ReplicationOperation.Replicas<ReplicaRequest> replicasProxy) {
-        this.replicasProxy = replicasProxy;
+    public ReplicationProxy(Replicas<ReplicaRequest> fullReplicationProxy) {
+        this.fullReplicationProxy = fullReplicationProxy;
     }
 
     /**
@@ -36,13 +38,11 @@ public abstract class ReplicationProxy<ReplicaRequest extends ReplicationRequest
      * mode is determined using which the replication request is performed on the replica or not.
      *
      * @param proxyRequest                     replication proxy request
-     * @param performOnReplicasProxyBiConsumer performOnReplicasProxy
+     * @param requestBiConsumer performOnReplicasProxy
      */
     final void performOnReplicaProxy(
         ReplicationProxyRequest<ReplicaRequest> proxyRequest,
-        BiConsumer<
-            Consumer<ActionListener<ReplicationOperation.ReplicaResponse>>,
-            ReplicationProxyRequest<ReplicaRequest>> performOnReplicasProxyBiConsumer
+        BiConsumer<Consumer<ActionListener<ReplicaResponse>>, ReplicationProxyRequest<ReplicaRequest>> requestBiConsumer
     ) {
         ReplicationMode replicationMode = determineReplicationMode(proxyRequest.getShardRouting(), proxyRequest.getPrimaryRouting());
         // If the replication modes are 1. Logical replication or 2. Primary term validation, we let the call get performed on the
@@ -50,7 +50,7 @@ public abstract class ReplicationProxy<ReplicaRequest extends ReplicationRequest
         if (replicationMode == ReplicationMode.NO_REPLICATION) {
             return;
         }
-        performOnReplicaProxy(proxyRequest, replicationMode, performOnReplicasProxyBiConsumer);
+        performOnReplicaProxy(proxyRequest, replicationMode, requestBiConsumer);
     }
 
     /**
@@ -59,14 +59,12 @@ public abstract class ReplicationProxy<ReplicaRequest extends ReplicationRequest
      *
      * @param proxyRequest                     replication proxy request
      * @param replicationMode                  replication mode
-     * @param performOnReplicasProxyBiConsumer performOnReplicasProxy
+     * @param requestBiConsumer performOnReplicasProxy
      */
     protected abstract void performOnReplicaProxy(
         ReplicationProxyRequest<ReplicaRequest> proxyRequest,
         ReplicationMode replicationMode,
-        BiConsumer<
-            Consumer<ActionListener<ReplicationOperation.ReplicaResponse>>,
-            ReplicationProxyRequest<ReplicaRequest>> performOnReplicasProxyBiConsumer
+        BiConsumer<Consumer<ActionListener<ReplicaResponse>>, ReplicationProxyRequest<ReplicaRequest>> requestBiConsumer
     );
 
     /**
@@ -79,7 +77,17 @@ public abstract class ReplicationProxy<ReplicaRequest extends ReplicationRequest
      */
     abstract ReplicationMode determineReplicationMode(final ShardRouting shardRouting, final ShardRouting primaryRouting);
 
-    public ReplicationOperation.Replicas<ReplicaRequest> getReplicasProxy() {
-        return replicasProxy;
+    protected Consumer<ActionListener<ReplicaResponse>> getReplicasProxyConsumer(
+        Replicas<ReplicaRequest> proxy,
+        ReplicationProxyRequest<ReplicaRequest> proxyRequest
+    ) {
+        return (listener) -> proxy.performOn(
+            proxyRequest.getShardRouting(),
+            proxyRequest.getReplicaRequest(),
+            proxyRequest.getPrimaryTerm(),
+            proxyRequest.getGlobalCheckpoint(),
+            proxyRequest.getMaxSeqNoOfUpdatesOrDeletes(),
+            listener
+        );
     }
 }

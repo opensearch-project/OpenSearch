@@ -330,7 +330,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     @Override
-    protected ReplicationOperation.Replicas<BulkShardRequest> primaryTermValidationProxy() {
+    protected ReplicationOperation.Replicas<BulkShardRequest> primaryTermValidationReplicasProxy() {
         return new PrimaryTermValidationProxy();
     }
 

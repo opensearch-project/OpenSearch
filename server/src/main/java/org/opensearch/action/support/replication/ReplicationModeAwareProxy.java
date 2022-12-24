@@ -9,6 +9,7 @@
 package org.opensearch.action.support.replication;
 
 import org.opensearch.action.ActionListener;
+import org.opensearch.action.support.replication.ReplicationOperation.ReplicaResponse;
 import org.opensearch.cluster.routing.ShardRouting;
 
 import java.util.Objects;
@@ -44,37 +45,17 @@ public class ReplicationModeAwareProxy<ReplicaRequest extends ReplicationRequest
     protected void performOnReplicaProxy(
         ReplicationProxyRequest<ReplicaRequest> proxyRequest,
         ReplicationMode replicationMode,
-        BiConsumer<
-            Consumer<ActionListener<ReplicationOperation.ReplicaResponse>>,
-            ReplicationProxyRequest<ReplicaRequest>> performOnReplicasProxyBiConsumer
+        BiConsumer<Consumer<ActionListener<ReplicaResponse>>, ReplicationProxyRequest<ReplicaRequest>> requestBiConsumer
     ) {
         assert replicationMode == ReplicationMode.FULL_REPLICATION || replicationMode == ReplicationMode.PRIMARY_TERM_VALIDATION;
 
-        Consumer<ActionListener<ReplicationOperation.ReplicaResponse>> replicasProxyConsumer;
+        Consumer<ActionListener<ReplicaResponse>> replicasProxyConsumer;
         if (replicationMode == ReplicationMode.FULL_REPLICATION) {
-            replicasProxyConsumer = (listener) -> {
-                getReplicasProxy().performOn(
-                    proxyRequest.getShardRouting(),
-                    proxyRequest.getReplicaRequest(),
-                    proxyRequest.getPrimaryTerm(),
-                    proxyRequest.getGlobalCheckpoint(),
-                    proxyRequest.getMaxSeqNoOfUpdatesOrDeletes(),
-                    listener
-                );
-            };
+            replicasProxyConsumer = getReplicasProxyConsumer(fullReplicationProxy, proxyRequest);
         } else {
-            replicasProxyConsumer = (listener) -> {
-                getPrimaryTermValidationProxy().performOn(
-                    proxyRequest.getShardRouting(),
-                    proxyRequest.getReplicaRequest(),
-                    proxyRequest.getPrimaryTerm(),
-                    proxyRequest.getGlobalCheckpoint(),
-                    proxyRequest.getMaxSeqNoOfUpdatesOrDeletes(),
-                    listener
-                );
-            };
+            replicasProxyConsumer = getReplicasProxyConsumer(primaryTermValidationProxy, proxyRequest);
         }
-        performOnReplicasProxyBiConsumer.accept(replicasProxyConsumer, proxyRequest);
+        requestBiConsumer.accept(replicasProxyConsumer, proxyRequest);
     }
 
     @Override
@@ -90,9 +71,5 @@ public class ReplicationModeAwareProxy<ReplicaRequest extends ReplicationRequest
         }
 
         return replicationModeOverride;
-    }
-
-    public ReplicationOperation.Replicas<ReplicaRequest> getPrimaryTermValidationProxy() {
-        return primaryTermValidationProxy;
     }
 }

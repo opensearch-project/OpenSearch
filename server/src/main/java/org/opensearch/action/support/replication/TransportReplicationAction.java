@@ -46,6 +46,7 @@ import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.ChannelActionListener;
 import org.opensearch.action.support.TransportAction;
 import org.opensearch.action.support.TransportActions;
+import org.opensearch.action.support.replication.ReplicationOperation.Replicas;
 import org.opensearch.client.transport.NoNodeAvailableException;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
@@ -254,7 +255,7 @@ public abstract class TransportReplicationAction<
         }
     }
 
-    protected ReplicationOperation.Replicas<ReplicaRequest> newReplicasProxy() {
+    protected Replicas<ReplicaRequest> newReplicasProxy() {
         return new ReplicasProxy();
     }
 
@@ -265,7 +266,7 @@ public abstract class TransportReplicationAction<
      *
      * @return Primary term validation replicas proxy.
      */
-    protected ReplicationOperation.Replicas<ReplicaRequest> primaryTermValidationProxy() {
+    protected Replicas<ReplicaRequest> primaryTermValidationReplicasProxy() {
         return new ReplicasProxy() {
             @Override
             public void performOn(
@@ -559,7 +560,9 @@ public abstract class TransportReplicationAction<
                         onCompletionListener.onResponse(response);
                     }, e -> handleException(primaryShardReference, e));
 
-                    ReplicationOperation.Replicas<ReplicaRequest> replicasProxy = newReplicasProxy();
+                    final Replicas<ReplicaRequest> replicasProxy = newReplicasProxy();
+                    final IndexShard indexShard = primaryShardReference.indexShard;
+                    final Replicas<ReplicaRequest> termValidationProxy = primaryTermValidationReplicasProxy();
 
                     new ReplicationOperation<>(
                         primaryRequest.getRequest(),
@@ -572,12 +575,9 @@ public abstract class TransportReplicationAction<
                         primaryRequest.getPrimaryTerm(),
                         initialRetryBackoffBound,
                         retryTimeout,
-                        ReplicationProxyFactory.create(
-                            primaryShardReference.indexShard,
-                            getReplicationMode(primaryShardReference.indexShard),
-                            replicasProxy,
-                            primaryTermValidationProxy()
-                        )
+                        indexShard.isRemoteTranslogEnabled()
+                            ? new ReplicationModeAwareProxy<>(getReplicationMode(indexShard), replicasProxy, termValidationProxy)
+                            : new FanoutReplicationProxy<>(replicasProxy)
                     ).execute();
                 }
             } catch (Exception e) {
@@ -1365,7 +1365,7 @@ public abstract class TransportReplicationAction<
      *
      * @opensearch.internal
      */
-    protected class ReplicasProxy implements ReplicationOperation.Replicas<ReplicaRequest> {
+    protected class ReplicasProxy implements Replicas<ReplicaRequest> {
 
         @Override
         public void performOn(
