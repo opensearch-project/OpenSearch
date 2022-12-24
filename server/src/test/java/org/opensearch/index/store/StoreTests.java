@@ -87,6 +87,7 @@ import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadata;
 import org.opensearch.test.DummyShardLock;
+import org.opensearch.test.FeatureFlagSetter;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -96,8 +97,6 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -1264,17 +1263,15 @@ public class StoreTests extends OpenSearchTestCase {
     }
 
     @SuppressForbidden(reason = "sets the SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY feature flag")
-    public void testReadSegmentsFromOldIndices() throws IOException {
+    public void testReadSegmentsFromOldIndices() throws Exception {
         int expectedIndexCreatedVersionMajor = SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION.luceneVersion.major;
         final String pathToTestIndex = "/indices/bwc/es-6.3.0/testIndex-es-6.3.0.zip";
         Path tmp = createTempDir();
         TestUtil.unzip(getClass().getResourceAsStream(pathToTestIndex), tmp);
         final ShardId shardId = new ShardId("index", "_na_", 1);
         Store store = null;
-        try {
-            AccessController.doPrivileged(
-                (PrivilegedAction<String>) () -> System.setProperty(FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY, "true")
-            );
+
+        try (FeatureFlagSetter f = FeatureFlagSetter.set(FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY)) {
             IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
                 "index",
                 Settings.builder()
@@ -1285,9 +1282,6 @@ public class StoreTests extends OpenSearchTestCase {
             store = new Store(shardId, indexSettings, StoreTests.newMockFSDirectory(tmp), new DummyShardLock(shardId));
             assertEquals(expectedIndexCreatedVersionMajor, store.readLastCommittedSegmentsInfo().getIndexCreatedVersionMajor());
         } finally {
-            AccessController.doPrivileged(
-                (PrivilegedAction<String>) () -> System.clearProperty(FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY)
-            );
             if (store != null) {
                 store.close();
             }

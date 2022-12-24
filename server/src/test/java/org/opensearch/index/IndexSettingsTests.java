@@ -45,11 +45,10 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.test.FeatureFlagSetter;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -950,11 +949,8 @@ public class IndexSettingsTests extends OpenSearchTestCase {
     }
 
     @SuppressForbidden(reason = "sets the SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY feature flag")
-    public void testExtendedCompatibilityVersionForRemoteSnapshot() {
-        try {
-            AccessController.doPrivileged(
-                (PrivilegedAction<String>) () -> System.setProperty(FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY, "true")
-            );
+    public void testExtendedCompatibilityVersionForRemoteSnapshot() throws Exception {
+        try (FeatureFlagSetter f = FeatureFlagSetter.set(FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY)) {
             IndexMetadata metadata = newIndexMeta(
                 "index",
                 Settings.builder()
@@ -965,10 +961,6 @@ public class IndexSettingsTests extends OpenSearchTestCase {
             IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
             assertTrue(settings.isRemoteSnapshot());
             assertEquals(SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION, settings.getExtendedCompatibilitySnapshotVersion());
-        } finally {
-            AccessController.doPrivileged(
-                (PrivilegedAction<String>) () -> System.clearProperty(FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY)
-            );
         }
     }
 

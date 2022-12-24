@@ -60,7 +60,7 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.WriteableSetting.SettingType;
 import org.opensearch.common.settings.SettingsModule;
 import org.opensearch.common.transport.TransportAddress;
-import org.opensearch.common.util.FeatureFlagTests;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.env.Environment;
@@ -75,6 +75,7 @@ import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.plugins.PluginInfo;
 import org.opensearch.rest.RestController;
+import org.opensearch.test.FeatureFlagSetter;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.OpenSearchTestCase;
@@ -90,6 +91,7 @@ import org.opensearch.usage.UsageService;
 
 public class ExtensionsManagerTests extends OpenSearchTestCase {
 
+    private FeatureFlagSetter featureFlagSetter;
     private TransportService transportService;
     private RestController restController;
     private SettingsModule settingsModule;
@@ -137,7 +139,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
 
     @Before
     public void setup() throws Exception {
-        FeatureFlagTests.enableFeature();
+        featureFlagSetter = FeatureFlagSetter.set(FeatureFlags.EXTENSIONS);
         Settings settings = Settings.builder().put("cluster.name", "test").build();
         transport = new MockNioTransport(
             settings,
@@ -207,6 +209,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         transportService.close();
         client.close();
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
+        featureFlagSetter.close();
     }
 
     public void testDiscover() throws Exception {
