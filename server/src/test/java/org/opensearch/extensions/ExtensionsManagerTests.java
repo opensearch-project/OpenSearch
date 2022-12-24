@@ -42,7 +42,6 @@ import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterSettingsResponse;
-import org.opensearch.cluster.LocalNodeResponse;
 import org.opensearch.env.EnvironmentSettingsResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
@@ -79,6 +78,7 @@ import org.opensearch.rest.RestController;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.client.NoOpNodeClient;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -94,6 +94,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
     private RestController restController;
     private SettingsModule settingsModule;
     private ClusterService clusterService;
+    private NodeClient client;
     private MockNioTransport transport;
     private Path extensionDir;
     private final ThreadPool threadPool = new TestThreadPool(ExtensionsManagerTests.class.getSimpleName());
@@ -126,7 +127,10 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         "     javaVersion: '17'",
         "     className: fakeClass2",
         "     customFolderName: fakeFolder2",
-        "     hasNativeController: true"
+        "     hasNativeController: true",
+        "     dependencies:",
+        "       - uniqueId: 'uniqueid0'",
+        "       - version: '2.0.0'"
     );
 
     private DiscoveryExtensionNode extensionNode;
@@ -190,8 +194,10 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                 "fakeClass1",
                 new ArrayList<String>(),
                 false
-            )
+            ),
+            Collections.emptyList()
         );
+        client = new NoOpNodeClient(this.getTestName());
     }
 
     @Override
@@ -199,6 +205,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
     public void tearDown() throws Exception {
         super.tearDown();
         transportService.close();
+        client.close();
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
     }
 
@@ -208,6 +215,10 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         ExtensionsManager extensionsManager = new ExtensionsManager(settings, extensionDir);
 
         List<DiscoveryExtensionNode> expectedUninitializedExtensions = new ArrayList<DiscoveryExtensionNode>();
+
+        String expectedUniqueId = "uniqueid0";
+        Version expectedVersion = Version.fromString("2.0.0");
+        ExtensionDependency expectedDependency = new ExtensionDependency(expectedUniqueId, expectedVersion);
 
         expectedUninitializedExtensions.add(
             new DiscoveryExtensionNode(
@@ -228,7 +239,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                     "fakeClass1",
                     new ArrayList<String>(),
                     false
-                )
+                ),
+                Collections.emptyList()
             )
         );
 
@@ -251,10 +263,12 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                     "fakeClass2",
                     new ArrayList<String>(),
                     true
-                )
+                ),
+                List.of(expectedDependency)
             )
         );
         assertEquals(expectedUninitializedExtensions.size(), extensionsManager.getExtensionIdMap().values().size());
+        assertEquals(List.of(expectedDependency), expectedUninitializedExtensions.get(1).getDependencies());
         assertTrue(expectedUninitializedExtensions.containsAll(extensionsManager.getExtensionIdMap().values()));
         assertTrue(extensionsManager.getExtensionIdMap().values().containsAll(expectedUninitializedExtensions));
     }
@@ -289,12 +303,74 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                     "fakeClass1",
                     new ArrayList<String>(),
                     false
-                )
+                ),
+                Collections.emptyList()
             )
         );
         assertEquals(expectedUninitializedExtensions.size(), extensionsManager.getExtensionIdMap().values().size());
         assertTrue(expectedUninitializedExtensions.containsAll(extensionsManager.getExtensionIdMap().values()));
         assertTrue(extensionsManager.getExtensionIdMap().values().containsAll(expectedUninitializedExtensions));
+        assertTrue(expectedUninitializedExtensions.containsAll(emptyList()));
+    }
+
+    public void testDiscoveryExtension() throws Exception {
+        String expectedId = "test id";
+        Version expectedVersion = Version.fromString("2.0.0");
+        ExtensionDependency expectedDependency = new ExtensionDependency(expectedId, expectedVersion);
+
+        DiscoveryExtensionNode discoveryExtensionNode = new DiscoveryExtensionNode(
+            "firstExtension",
+            "uniqueid1",
+            "uniqueid1",
+            "myIndependentPluginHost1",
+            "127.0.0.0",
+            new TransportAddress(InetAddress.getByName("127.0.0.0"), 9300),
+            new HashMap<String, String>(),
+            Version.fromString("3.0.0"),
+            new PluginInfo(
+                "firstExtension",
+                "Fake description 1",
+                "0.0.7",
+                Version.fromString("3.0.0"),
+                "14",
+                "fakeClass1",
+                new ArrayList<String>(),
+                false
+            ),
+            List.of(expectedDependency)
+        );
+
+        assertEquals(List.of(expectedDependency), discoveryExtensionNode.getDependencies());
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            discoveryExtensionNode.writeTo(out);
+            out.flush();
+            try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
+                discoveryExtensionNode = new DiscoveryExtensionNode(in);
+
+                assertEquals(List.of(expectedDependency), discoveryExtensionNode.getDependencies());
+            }
+        }
+    }
+
+    public void testExtensionDependency() throws Exception {
+        String expectedUniqueId = "Test uniqueId";
+        Version expectedVersion = Version.fromString("3.0.0");
+
+        ExtensionDependency dependency = new ExtensionDependency(expectedUniqueId, expectedVersion);
+
+        assertEquals(expectedUniqueId, dependency.getUniqueId());
+        assertEquals(expectedVersion, dependency.getVersion());
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            dependency.writeTo(out);
+            out.flush();
+            try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
+                dependency = new ExtensionDependency(in);
+                assertEquals(expectedUniqueId, dependency.getUniqueId());
+                assertEquals(expectedVersion, dependency.getVersion());
+            }
+        }
     }
 
     public void testNonAccessibleDirectory() throws Exception {
@@ -339,12 +415,9 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
 
     public void testInitialize() throws Exception {
         Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
-
         ExtensionsManager extensionsManager = new ExtensionsManager(settings, extensionDir);
 
-        transportService.start();
-        transportService.acceptIncomingRequests();
-        extensionsManager.initializeServicesAndRestHandler(restController, settingsModule, transportService, clusterService, settings);
+        initialize(extensionsManager);
 
         try (MockLogAppender mockLogAppender = MockLogAppender.createForLoggers(LogManager.getLogger(ExtensionsManager.class))) {
 
@@ -379,8 +452,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
 
         ExtensionsManager extensionsManager = new ExtensionsManager(settings, extensionDir);
+        initialize(extensionsManager);
 
-        extensionsManager.initializeServicesAndRestHandler(restController, settingsModule, transportService, clusterService, settings);
         String uniqueIdStr = "uniqueid1";
         List<String> actionsList = List.of("GET /foo", "PUT /bar", "POST /baz");
         RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(uniqueIdStr, actionsList);
@@ -392,10 +465,9 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
 
     public void testHandleRegisterSettingsRequest() throws Exception {
         Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
-
         ExtensionsManager extensionsManager = new ExtensionsManager(settings, extensionDir);
+        initialize(extensionsManager);
 
-        extensionsManager.initializeServicesAndRestHandler(restController, settingsModule, transportService, clusterService, settings);
         String uniqueIdStr = "uniqueid1";
         List<Setting<?>> settingsList = List.of(
             Setting.boolSetting("index.falseSetting", false, Property.IndexScope, Property.Dynamic),
@@ -410,8 +482,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
 
     public void testHandleRegisterRestActionsRequestWithInvalidMethod() throws Exception {
         ExtensionsManager extensionsManager = new ExtensionsManager(settings, extensionDir);
+        initialize(extensionsManager);
 
-        extensionsManager.initializeServicesAndRestHandler(restController, settingsModule, transportService, clusterService, settings);
         String uniqueIdStr = "uniqueid1";
         List<String> actionsList = List.of("FOO /foo", "PUT /bar", "POST /baz");
         RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(uniqueIdStr, actionsList);
@@ -422,12 +494,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
     }
 
     public void testHandleRegisterRestActionsRequestWithInvalidUri() throws Exception {
-
-        Path extensionDir = createTempDir();
-
         ExtensionsManager extensionsManager = new ExtensionsManager(settings, extensionDir);
-
-        extensionsManager.initializeServicesAndRestHandler(restController, settingsModule, transportService, clusterService, settings);
+        initialize(extensionsManager);
         String uniqueIdStr = "uniqueid1";
         List<String> actionsList = List.of("GET", "PUT /bar", "POST /baz");
         RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(uniqueIdStr, actionsList);
@@ -438,18 +506,14 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
     }
 
     public void testHandleExtensionRequest() throws Exception {
-
         ExtensionsManager extensionsManager = new ExtensionsManager(settings, extensionDir);
+        initialize(extensionsManager);
 
-        extensionsManager.initializeServicesAndRestHandler(restController, settingsModule, transportService, clusterService, settings);
         ExtensionRequest clusterStateRequest = new ExtensionRequest(ExtensionsManager.RequestType.REQUEST_EXTENSION_CLUSTER_STATE);
         assertEquals(ClusterStateResponse.class, extensionsManager.handleExtensionRequest(clusterStateRequest).getClass());
 
         ExtensionRequest clusterSettingRequest = new ExtensionRequest(ExtensionsManager.RequestType.REQUEST_EXTENSION_CLUSTER_SETTINGS);
         assertEquals(ClusterSettingsResponse.class, extensionsManager.handleExtensionRequest(clusterSettingRequest).getClass());
-
-        ExtensionRequest localNodeRequest = new ExtensionRequest(ExtensionsManager.RequestType.REQUEST_EXTENSION_LOCAL_NODE);
-        assertEquals(LocalNodeResponse.class, extensionsManager.handleExtensionRequest(localNodeRequest).getClass());
 
         ExtensionRequest environmentSettingsRequest = new ExtensionRequest(
             ExtensionsManager.RequestType.REQUEST_EXTENSION_ENVIRONMENT_SETTINGS
@@ -529,7 +593,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         Path extensionDir = createTempDir();
         Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
         ExtensionsManager extensionsManager = new ExtensionsManager(settings, extensionDir);
-        extensionsManager.initializeServicesAndRestHandler(restController, settingsModule, transportService, clusterService, settings);
+        initialize(extensionsManager);
 
         List<Setting<?>> componentSettings = List.of(
             Setting.boolSetting("falseSetting", false, Property.IndexScope, Property.NodeScope),
@@ -576,8 +640,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         Path extensionDir = createTempDir();
         Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
         ExtensionsManager extensionsManager = new ExtensionsManager(settings, extensionDir);
-
-        extensionsManager.initializeServicesAndRestHandler(restController, settingsModule, transportService, clusterService, settings);
+        initialize(extensionsManager);
 
         List<Setting<?>> componentSettings = List.of(
             Setting.boolSetting("falseSetting", false, Property.Dynamic),
@@ -599,7 +662,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         Path extensionDir = createTempDir();
         Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
         ExtensionsManager extensionsManager = new ExtensionsManager(settings, extensionDir);
-        extensionsManager.initializeServicesAndRestHandler(restController, settingsModule, transportService, clusterService, settings);
+        initialize(extensionsManager);
 
         Setting<?> componentSetting = Setting.boolSetting("falseSetting", false, Property.Dynamic);
         SettingType settingType = SettingType.Boolean;
@@ -640,19 +703,22 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                 Collections.emptySet()
             )
         );
-        extensionsManager.initializeServicesAndRestHandler(restController, settingsModule, mockTransportService, clusterService, settings);
+        extensionsManager.initializeServicesAndRestHandler(
+            restController,
+            settingsModule,
+            mockTransportService,
+            clusterService,
+            settings,
+            client
+        );
         verify(mockTransportService, times(8)).registerRequestHandler(anyString(), anyString(), anyBoolean(), anyBoolean(), any(), any());
 
     }
 
     public void testOnIndexModule() throws Exception {
         Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
-
         ExtensionsManager extensionsManager = new ExtensionsManager(settings, extensionDir);
-
-        transportService.start();
-        transportService.acceptIncomingRequests();
-        extensionsManager.initializeServicesAndRestHandler(restController, settingsModule, transportService, clusterService, settings);
+        initialize(extensionsManager);
 
         Environment environment = TestEnvironment.newEnvironment(settings);
         AnalysisRegistry emptyAnalysisRegistry = new AnalysisRegistry(
@@ -696,4 +762,16 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         }
     }
 
+    private void initialize(ExtensionsManager extensionsManager) {
+        transportService.start();
+        transportService.acceptIncomingRequests();
+        extensionsManager.initializeServicesAndRestHandler(
+            restController,
+            settingsModule,
+            transportService,
+            clusterService,
+            settings,
+            client
+        );
+    }
 }
