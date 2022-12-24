@@ -32,9 +32,10 @@ public class FanoutReplicationProxy<ReplicaRequest extends ReplicationRequest<Re
     protected void performOnReplicaProxy(
         ReplicationProxyRequest<ReplicaRequest> proxyRequest,
         ReplicationMode replicationMode,
-        BiConsumer<Consumer<ActionListener<ReplicaResponse>>, ReplicationProxyRequest<ReplicaRequest>> requestBiConsumer
+        BiConsumer<Consumer<ActionListener<ReplicaResponse>>, ReplicationProxyRequest<ReplicaRequest>> performOnReplicaConsumer
     ) {
-        requestBiConsumer.accept(getReplicasProxyConsumer(fullReplicationProxy, proxyRequest), proxyRequest);
+        assert replicationMode == ReplicationMode.FULL_REPLICATION : "FanoutReplicationProxy allows only full replication mode";
+        performOnReplicaConsumer.accept(getReplicasProxyConsumer(fullReplicationProxy, proxyRequest), proxyRequest);
     }
 
     @Override

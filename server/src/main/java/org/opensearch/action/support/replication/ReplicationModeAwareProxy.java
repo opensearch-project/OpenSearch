@@ -45,7 +45,7 @@ public class ReplicationModeAwareProxy<ReplicaRequest extends ReplicationRequest
     protected void performOnReplicaProxy(
         ReplicationProxyRequest<ReplicaRequest> proxyRequest,
         ReplicationMode replicationMode,
-        BiConsumer<Consumer<ActionListener<ReplicaResponse>>, ReplicationProxyRequest<ReplicaRequest>> requestBiConsumer
+        BiConsumer<Consumer<ActionListener<ReplicaResponse>>, ReplicationProxyRequest<ReplicaRequest>> performOnReplicaConsumer
     ) {
         assert replicationMode == ReplicationMode.FULL_REPLICATION || replicationMode == ReplicationMode.PRIMARY_TERM_VALIDATION;
 
@@ -55,7 +55,7 @@ public class ReplicationModeAwareProxy<ReplicaRequest extends ReplicationRequest
         } else {
             replicasProxyConsumer = getReplicasProxyConsumer(primaryTermValidationProxy, proxyRequest);
         }
-        requestBiConsumer.accept(replicasProxyConsumer, proxyRequest);
+        performOnReplicaConsumer.accept(replicasProxyConsumer, proxyRequest);
     }
 
     @Override

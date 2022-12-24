@@ -38,11 +38,11 @@ public abstract class ReplicationProxy<ReplicaRequest extends ReplicationRequest
      * mode is determined using which the replication request is performed on the replica or not.
      *
      * @param proxyRequest                     replication proxy request
-     * @param requestBiConsumer performOnReplicasProxy
+     * @param performOnReplicaConsumer performOnReplicasProxy
      */
     final void performOnReplicaProxy(
         ReplicationProxyRequest<ReplicaRequest> proxyRequest,
-        BiConsumer<Consumer<ActionListener<ReplicaResponse>>, ReplicationProxyRequest<ReplicaRequest>> requestBiConsumer
+        BiConsumer<Consumer<ActionListener<ReplicaResponse>>, ReplicationProxyRequest<ReplicaRequest>> performOnReplicaConsumer
     ) {
         ReplicationMode replicationMode = determineReplicationMode(proxyRequest.getShardRouting(), proxyRequest.getPrimaryRouting());
         // If the replication modes are 1. Logical replication or 2. Primary term validation, we let the call get performed on the
@@ -50,7 +50,7 @@ public abstract class ReplicationProxy<ReplicaRequest extends ReplicationRequest
         if (replicationMode == ReplicationMode.NO_REPLICATION) {
             return;
         }
-        performOnReplicaProxy(proxyRequest, replicationMode, requestBiConsumer);
+        performOnReplicaProxy(proxyRequest, replicationMode, performOnReplicaConsumer);
     }
 
     /**
@@ -59,12 +59,12 @@ public abstract class ReplicationProxy<ReplicaRequest extends ReplicationRequest
      *
      * @param proxyRequest                     replication proxy request
      * @param replicationMode                  replication mode
-     * @param requestBiConsumer performOnReplicasProxy
+     * @param performOnReplicaConsumer performOnReplicasProxy
      */
     protected abstract void performOnReplicaProxy(
         ReplicationProxyRequest<ReplicaRequest> proxyRequest,
         ReplicationMode replicationMode,
-        BiConsumer<Consumer<ActionListener<ReplicaResponse>>, ReplicationProxyRequest<ReplicaRequest>> requestBiConsumer
+        BiConsumer<Consumer<ActionListener<ReplicaResponse>>, ReplicationProxyRequest<ReplicaRequest>> performOnReplicaConsumer
     );
 
     /**
