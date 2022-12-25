@@ -255,8 +255,9 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     replica.getOperationPrimaryTerm()
                 );
                 onFailure(new IllegalStateException(message));
+            } else {
+                onResponse(null);
             }
-            onResponse(null);
         }
     }
 
