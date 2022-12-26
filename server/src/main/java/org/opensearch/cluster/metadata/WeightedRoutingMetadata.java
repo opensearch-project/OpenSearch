@@ -179,11 +179,13 @@ public class WeightedRoutingMetadata extends AbstractNamedDiffable<Metadata.Cust
 
     public static void toXContent(WeightedRouting weightedRouting, XContentBuilder builder, long version) throws IOException {
         builder.startObject(AWARENESS);
-        builder.startObject(weightedRouting.attributeName());
-        for (Map.Entry<String, Double> entry : weightedRouting.weights().entrySet()) {
-            builder.field(entry.getKey(), entry.getValue());
+        if (weightedRouting.isSet()) {
+            builder.startObject(weightedRouting.attributeName());
+            for (Map.Entry<String, Double> entry : weightedRouting.weights().entrySet()) {
+                builder.field(entry.getKey(), entry.getValue());
+            }
+            builder.endObject();
         }
-        builder.endObject();
         builder.endObject();
         builder.field(VERSION, version);
     }
