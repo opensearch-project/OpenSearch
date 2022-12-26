@@ -133,6 +133,14 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     private final UpdateHelper updateHelper;
     private final MappingUpdatedAction mappingUpdatedAction;
+
+    /**
+     * This action is used for performing primary term validation. With remote translog enabled, the translogs would
+     * be durably persisted in remote store. Without remote translog, current transport replication calls does primary
+     * term validation as well as logically replicate the data. With remote translog, the primary would make calls to
+     * replicas to perform primary term validation. This make sures an isolated primary fails to ack after primary
+     * term validation in presence of a new primary.
+     */
     private final String transportPrimaryTermValidationAction;
 
     @Inject
@@ -167,6 +175,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         );
         this.updateHelper = updateHelper;
         this.mappingUpdatedAction = mappingUpdatedAction;
+
         this.transportPrimaryTermValidationAction = ACTION_NAME + "[validate_primary_term]";
 
         transportService.registerRequestHandler(
@@ -197,7 +206,10 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     /**
      * This action is the primary term validation action which is used for doing primary term validation with replicas.
-     * This is only applicable for TransportShardBulkAction.
+     * This is only applicable for TransportShardBulkAction because all writes (delete/update/single write/bulk)
+     * ultimately boils down to TransportShardBulkAction and isolated primary could continue to acknowledge if it is not
+     * aware that the primary has changed. This helps achieve the same. More details in java doc of
+     * {@link TransportShardBulkAction#transportPrimaryTermValidationAction}.
      *
      * @opensearch.internal
      */
