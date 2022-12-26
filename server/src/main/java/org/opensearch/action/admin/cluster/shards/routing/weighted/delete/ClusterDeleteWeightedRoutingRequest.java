@@ -44,7 +44,9 @@ public class ClusterDeleteWeightedRoutingRequest extends ClusterManagerNodeReque
     private long version;
     private String awarenessAttribute;
 
-    public ClusterDeleteWeightedRoutingRequest() {}
+    public ClusterDeleteWeightedRoutingRequest() {
+
+    }
 
     public ClusterDeleteWeightedRoutingRequest(StreamInput in) throws IOException {
         super(in);
@@ -66,6 +68,7 @@ public class ClusterDeleteWeightedRoutingRequest extends ClusterManagerNodeReque
 
     public ClusterDeleteWeightedRoutingRequest(String awarenessAttribute) {
         this.awarenessAttribute = awarenessAttribute;
+        this.version = WeightedRoutingMetadata.INITIAL_VERSION;
     }
 
     @Override
@@ -109,17 +112,18 @@ public class ClusterDeleteWeightedRoutingRequest extends ClusterManagerNodeReque
                     String fieldName = parser.currentName();
                     if (fieldName != null && fieldName.equals(WeightedRoutingMetadata.VERSION)) {
                         versionAttr = parser.currentName();
-                        continue;
-                    } else if (token == XContentParser.Token.VALUE_STRING) {
-                        if (versionAttr.equals(WeightedRoutingMetadata.VERSION)) {
-                            this.version = Long.parseLong(parser.text());
-                        }
                     } else {
                         throw new OpenSearchParseException(
-                            "failed to parse delete weighted routing request body [{}], " + "unknown type",
-                            versionAttr
+                            "failed to parse delete weighted routing request body [{}], unknown type",
+                            fieldName
                         );
                     }
+                } else if (token == XContentParser.Token.VALUE_STRING) {
+                    if (versionAttr != null && versionAttr.equals(WeightedRoutingMetadata.VERSION)) {
+                        this.version = Long.parseLong(parser.text());
+                    }
+                } else {
+                    throw new OpenSearchParseException("failed to parse delete weighted routing request body");
                 }
             }
         } catch (IOException e) {

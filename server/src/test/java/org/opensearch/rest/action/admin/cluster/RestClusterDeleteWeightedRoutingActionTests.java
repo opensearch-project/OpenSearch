@@ -9,6 +9,7 @@
 package org.opensearch.rest.action.admin.cluster;
 
 import org.junit.Before;
+import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.delete.ClusterDeleteWeightedRoutingRequest;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.xcontent.XContentType;
@@ -35,25 +36,44 @@ public class RestClusterDeleteWeightedRoutingActionTests extends RestActionTestC
         ClusterDeleteWeightedRoutingRequest clusterDeleteWeightedRoutingRequest = RestClusterDeleteWeightedRoutingAction.createRequest(
             restRequest
         );
+        assertEquals(2, clusterDeleteWeightedRoutingRequest.getVersion());
+
+        restRequest = buildRestRequestWithAwarenessAttribute(req);
+        clusterDeleteWeightedRoutingRequest = RestClusterDeleteWeightedRoutingAction.createRequest(restRequest);
         assertEquals("zone", clusterDeleteWeightedRoutingRequest.getAwarenessAttribute());
         assertEquals(2, clusterDeleteWeightedRoutingRequest.getVersion());
     }
 
-    public void testDeleteRequest_VersionNotProvided() throws IOException {
+    public void testDeleteRequest_BadRequest() throws IOException {
         String req = "{\"_ver\":2}";
         RestRequest restRequest = buildRestRequest(req);
-        ClusterDeleteWeightedRoutingRequest clusterDeleteWeightedRoutingRequest = RestClusterDeleteWeightedRoutingAction.createRequest(
-            restRequest
-        );
-        assertEquals("zone", clusterDeleteWeightedRoutingRequest.getAwarenessAttribute());
-        assertEquals(2, clusterDeleteWeightedRoutingRequest.getVersion());
+        assertThrows(OpenSearchParseException.class, () -> RestClusterDeleteWeightedRoutingAction.createRequest(restRequest));
+
+        RestRequest restRequest2 = buildRestRequestWithAwarenessAttribute(req);
+        assertThrows(OpenSearchParseException.class, () -> RestClusterDeleteWeightedRoutingAction.createRequest(restRequest2));
     }
 
-    private RestRequest buildRestRequest(String content) {
+    private RestRequest buildRestRequestWithAwarenessAttribute(String content) {
         return new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.DELETE)
             .withPath("/_cluster/routing/awareness/zone/weights")
             .withParams(singletonMap("attribute", "zone"))
             .withContent(new BytesArray(content), XContentType.JSON)
             .build();
+    }
+
+    private RestRequest buildRestRequest(String content) {
+        return new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.DELETE)
+            .withPath("/_cluster/routing/awareness/weights")
+            .withContent(new BytesArray(content), XContentType.JSON)
+            .build();
+    }
+
+    public void testCreateRequest_EmptyRequestBody() throws IOException {
+        String req = "{}";
+        RestRequest restRequest = buildRestRequest(req);
+        assertThrows(OpenSearchParseException.class, () -> RestClusterDeleteWeightedRoutingAction.createRequest(restRequest));
+
+        RestRequest restRequest2 = buildRestRequestWithAwarenessAttribute(req);
+        assertThrows(OpenSearchParseException.class, () -> RestClusterDeleteWeightedRoutingAction.createRequest(restRequest2));
     }
 }

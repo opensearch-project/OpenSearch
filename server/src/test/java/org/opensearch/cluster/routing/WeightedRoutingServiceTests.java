@@ -260,13 +260,13 @@ public class WeightedRoutingServiceTests extends OpenSearchTestCase {
         ClusterState.Builder builder = ClusterState.builder(state);
         ClusterServiceUtils.setState(clusterService, builder);
 
-        ClusterDeleteWeightedRoutingRequest clusterDeleteWeightedRoutingRequest = new ClusterDeleteWeightedRoutingRequest();
+        ClusterDeleteWeightedRoutingRequest clusterDeleteWeightedRoutingRequest = new ClusterDeleteWeightedRoutingRequest("zone");
+        clusterDeleteWeightedRoutingRequest.setVersion(0);
         final CountDownLatch countDownLatch = new CountDownLatch(1);
         ActionListener<ClusterDeleteWeightedRoutingResponse> listener = new ActionListener<ClusterDeleteWeightedRoutingResponse>() {
             @Override
             public void onResponse(ClusterDeleteWeightedRoutingResponse clusterDeleteWeightedRoutingResponse) {
                 assertTrue(clusterDeleteWeightedRoutingResponse.isAcknowledged());
-                assertNull(clusterService.state().metadata().weightedRoutingMetadata());
                 countDownLatch.countDown();
             }
 
