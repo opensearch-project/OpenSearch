@@ -59,7 +59,7 @@ public class ClusterAwarenessHealth implements Writeable {
 
         setClusterHealth(clusterState);
 
-        clusterAwarenessAttributeHealth = generateAwarenessAttributeHealthMap(clusterState, clusterSettings, awarenessAttributeName);
+        clusterAwarenessAttributeHealth = getAwarenessAttributeHealth(clusterState, clusterSettings, awarenessAttributeName);
     }
 
     private void setClusterHealth(ClusterState clusterState) {
@@ -147,7 +147,7 @@ public class ClusterAwarenessHealth implements Writeable {
         return shardAllocationPerNode;
     }
 
-    private ClusterAwarenessAttributeHealth generateAwarenessAttributeHealthMap(
+    private ClusterAwarenessAttributeHealth getAwarenessAttributeHealth(
         ClusterState clusterState,
         ClusterSettings clusterSettings,
         String awarenessAttributeName
