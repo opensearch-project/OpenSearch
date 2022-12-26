@@ -26,28 +26,24 @@ import static org.mockito.Mockito.when;
 public class TransportShardFlushActionTests extends OpenSearchTestCase {
 
     public void testGetReplicationModeWithRemoteTranslog() {
-        ClusterService clusterService = mock(ClusterService.class);
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
-        TransportShardFlushAction action = new TransportShardFlushAction(
-            Settings.EMPTY,
-            mock(TransportService.class),
-            clusterService,
-            mock(IndicesService.class),
-            mock(ThreadPool.class),
-            mock(ShardStateAction.class),
-            mock(ActionFilters.class)
-        );
+        TransportShardFlushAction action = createAction();
         final IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.isRemoteTranslogEnabled()).thenReturn(true);
         assertEquals(ReplicationMode.NO_REPLICATION, action.getReplicationMode(indexShard));
     }
 
     public void testGetReplicationModeWithLocalTranslog() {
+        TransportShardFlushAction action = createAction();
+        final IndexShard indexShard = mock(IndexShard.class);
+        when(indexShard.isRemoteTranslogEnabled()).thenReturn(false);
+        assertEquals(ReplicationMode.FULL_REPLICATION, action.getReplicationMode(indexShard));
+    }
+
+    private TransportShardFlushAction createAction() {
         ClusterService clusterService = mock(ClusterService.class);
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
-        TransportShardFlushAction action = new TransportShardFlushAction(
+        return new TransportShardFlushAction(
             Settings.EMPTY,
             mock(TransportService.class),
             clusterService,
@@ -56,8 +52,5 @@ public class TransportShardFlushActionTests extends OpenSearchTestCase {
             mock(ShardStateAction.class),
             mock(ActionFilters.class)
         );
-        final IndexShard indexShard = mock(IndexShard.class);
-        when(indexShard.isRemoteTranslogEnabled()).thenReturn(false);
-        assertEquals(ReplicationMode.FULL_REPLICATION, action.getReplicationMode(indexShard));
     }
 }

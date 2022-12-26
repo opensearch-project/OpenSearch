@@ -327,22 +327,21 @@ public class TransportVerifyShardBeforeCloseActionTests extends OpenSearchTestCa
     }
 
     public void testGetReplicationModeWithRemoteTranslog() {
-        TransportVerifyShardBeforeCloseAction action = new TransportVerifyShardBeforeCloseAction(
-            Settings.EMPTY,
-            mock(TransportService.class),
-            clusterService,
-            mock(IndicesService.class),
-            mock(ThreadPool.class),
-            mock(ShardStateAction.class),
-            mock(ActionFilters.class)
-        );
+        TransportVerifyShardBeforeCloseAction action = createAction();
         final IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.isRemoteTranslogEnabled()).thenReturn(true);
         assertEquals(ReplicationMode.NO_REPLICATION, action.getReplicationMode(indexShard));
     }
 
     public void testGetReplicationModeWithLocalTranslog() {
-        TransportVerifyShardBeforeCloseAction action = new TransportVerifyShardBeforeCloseAction(
+        TransportVerifyShardBeforeCloseAction action = createAction();
+        final IndexShard indexShard = mock(IndexShard.class);
+        when(indexShard.isRemoteTranslogEnabled()).thenReturn(true);
+        assertEquals(ReplicationMode.NO_REPLICATION, action.getReplicationMode(indexShard));
+    }
+
+    private TransportVerifyShardBeforeCloseAction createAction() {
+        return new TransportVerifyShardBeforeCloseAction(
             Settings.EMPTY,
             mock(TransportService.class),
             clusterService,
@@ -351,9 +350,6 @@ public class TransportVerifyShardBeforeCloseActionTests extends OpenSearchTestCa
             mock(ShardStateAction.class),
             mock(ActionFilters.class)
         );
-        final IndexShard indexShard = mock(IndexShard.class);
-        when(indexShard.isRemoteTranslogEnabled()).thenReturn(true);
-        assertEquals(ReplicationMode.NO_REPLICATION, action.getReplicationMode(indexShard));
     }
 
     private static

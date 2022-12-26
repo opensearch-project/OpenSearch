@@ -160,23 +160,21 @@ public class PublishCheckpointActionTests extends OpenSearchTestCase {
     }
 
     public void testGetReplicationModeWithRemoteTranslog() {
-        final PublishCheckpointAction action = new PublishCheckpointAction(
-            Settings.EMPTY,
-            transportService,
-            clusterService,
-            mock(IndicesService.class),
-            threadPool,
-            shardStateAction,
-            new ActionFilters(Collections.emptySet()),
-            mock(SegmentReplicationTargetService.class)
-        );
+        final PublishCheckpointAction action = createAction();
         final IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.isRemoteTranslogEnabled()).thenReturn(true);
         assertEquals(ReplicationMode.FULL_REPLICATION, action.getReplicationMode(indexShard));
     }
 
     public void testGetReplicationModeWithLocalTranslog() {
-        final PublishCheckpointAction action = new PublishCheckpointAction(
+        final PublishCheckpointAction action = createAction();
+        final IndexShard indexShard = mock(IndexShard.class);
+        when(indexShard.isRemoteTranslogEnabled()).thenReturn(false);
+        assertEquals(ReplicationMode.FULL_REPLICATION, action.getReplicationMode(indexShard));
+    }
+
+    private PublishCheckpointAction createAction() {
+        return new PublishCheckpointAction(
             Settings.EMPTY,
             transportService,
             clusterService,
@@ -186,9 +184,6 @@ public class PublishCheckpointActionTests extends OpenSearchTestCase {
             new ActionFilters(Collections.emptySet()),
             mock(SegmentReplicationTargetService.class)
         );
-        final IndexShard indexShard = mock(IndexShard.class);
-        when(indexShard.isRemoteTranslogEnabled()).thenReturn(false);
-        assertEquals(ReplicationMode.FULL_REPLICATION, action.getReplicationMode(indexShard));
     }
 
 }

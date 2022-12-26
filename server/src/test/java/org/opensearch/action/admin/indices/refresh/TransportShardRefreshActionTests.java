@@ -26,28 +26,24 @@ import static org.mockito.Mockito.when;
 public class TransportShardRefreshActionTests extends OpenSearchTestCase {
 
     public void testGetReplicationModeWithRemoteTranslog() {
-        ClusterService clusterService = mock(ClusterService.class);
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
-        TransportShardRefreshAction action = new TransportShardRefreshAction(
-            Settings.EMPTY,
-            mock(TransportService.class),
-            clusterService,
-            mock(IndicesService.class),
-            mock(ThreadPool.class),
-            mock(ShardStateAction.class),
-            mock(ActionFilters.class)
-        );
+        TransportShardRefreshAction action = createAction();
         final IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.isRemoteTranslogEnabled()).thenReturn(true);
         assertEquals(ReplicationMode.NO_REPLICATION, action.getReplicationMode(indexShard));
     }
 
     public void testGetReplicationModeWithLocalTranslog() {
+        TransportShardRefreshAction action = createAction();
+        final IndexShard indexShard = mock(IndexShard.class);
+        when(indexShard.isRemoteTranslogEnabled()).thenReturn(false);
+        assertEquals(ReplicationMode.FULL_REPLICATION, action.getReplicationMode(indexShard));
+    }
+
+    private TransportShardRefreshAction createAction() {
         ClusterService clusterService = mock(ClusterService.class);
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
-        TransportShardRefreshAction action = new TransportShardRefreshAction(
+        return new TransportShardRefreshAction(
             Settings.EMPTY,
             mock(TransportService.class),
             clusterService,
@@ -56,8 +52,5 @@ public class TransportShardRefreshActionTests extends OpenSearchTestCase {
             mock(ShardStateAction.class),
             mock(ActionFilters.class)
         );
-        final IndexShard indexShard = mock(IndexShard.class);
-        when(indexShard.isRemoteTranslogEnabled()).thenReturn(false);
-        assertEquals(ReplicationMode.FULL_REPLICATION, action.getReplicationMode(indexShard));
     }
 }

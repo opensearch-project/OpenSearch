@@ -26,28 +26,24 @@ import static org.mockito.Mockito.when;
 public class TransportVerifyShardIndexBlockActionTests extends OpenSearchTestCase {
 
     public void testGetReplicationModeWithRemoteTranslog() {
-        ClusterService clusterService = mock(ClusterService.class);
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
-        TransportVerifyShardIndexBlockAction action = new TransportVerifyShardIndexBlockAction(
-            Settings.EMPTY,
-            mock(TransportService.class),
-            clusterService,
-            mock(IndicesService.class),
-            mock(ThreadPool.class),
-            mock(ShardStateAction.class),
-            mock(ActionFilters.class)
-        );
+        TransportVerifyShardIndexBlockAction action = createAction();
         final IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.isRemoteTranslogEnabled()).thenReturn(true);
         assertEquals(ReplicationMode.NO_REPLICATION, action.getReplicationMode(indexShard));
     }
 
     public void testGetReplicationModeWithLocalTranslog() {
+        TransportVerifyShardIndexBlockAction action = createAction();
+        final IndexShard indexShard = mock(IndexShard.class);
+        when(indexShard.isRemoteTranslogEnabled()).thenReturn(false);
+        assertEquals(ReplicationMode.FULL_REPLICATION, action.getReplicationMode(indexShard));
+    }
+
+    private TransportVerifyShardIndexBlockAction createAction() {
         ClusterService clusterService = mock(ClusterService.class);
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
-        TransportVerifyShardIndexBlockAction action = new TransportVerifyShardIndexBlockAction(
+        return new TransportVerifyShardIndexBlockAction(
             Settings.EMPTY,
             mock(TransportService.class),
             clusterService,
@@ -56,8 +52,5 @@ public class TransportVerifyShardIndexBlockActionTests extends OpenSearchTestCas
             mock(ShardStateAction.class),
             mock(ActionFilters.class)
         );
-        final IndexShard indexShard = mock(IndexShard.class);
-        when(indexShard.isRemoteTranslogEnabled()).thenReturn(false);
-        assertEquals(ReplicationMode.FULL_REPLICATION, action.getReplicationMode(indexShard));
     }
 }

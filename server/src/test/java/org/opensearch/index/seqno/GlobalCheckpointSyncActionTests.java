@@ -154,24 +154,22 @@ public class GlobalCheckpointSyncActionTests extends OpenSearchTestCase {
     }
 
     public void testGetReplicationModeWithRemoteTranslog() {
-        final IndicesService indicesService = mock(IndicesService.class);
-        final GlobalCheckpointSyncAction action = new GlobalCheckpointSyncAction(
-            Settings.EMPTY,
-            transportService,
-            clusterService,
-            indicesService,
-            threadPool,
-            shardStateAction,
-            new ActionFilters(Collections.emptySet())
-        );
+        final GlobalCheckpointSyncAction action = createAction();
         final IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.isRemoteTranslogEnabled()).thenReturn(true);
         assertEquals(ReplicationMode.NO_REPLICATION, action.getReplicationMode(indexShard));
     }
 
     public void testGetReplicationModeWithLocalTranslog() {
+        final GlobalCheckpointSyncAction action = createAction();
+        final IndexShard indexShard = mock(IndexShard.class);
+        when(indexShard.isRemoteTranslogEnabled()).thenReturn(false);
+        assertEquals(ReplicationMode.FULL_REPLICATION, action.getReplicationMode(indexShard));
+    }
+
+    private GlobalCheckpointSyncAction createAction() {
         final IndicesService indicesService = mock(IndicesService.class);
-        final GlobalCheckpointSyncAction action = new GlobalCheckpointSyncAction(
+        return new GlobalCheckpointSyncAction(
             Settings.EMPTY,
             transportService,
             clusterService,
@@ -180,9 +178,6 @@ public class GlobalCheckpointSyncActionTests extends OpenSearchTestCase {
             shardStateAction,
             new ActionFilters(Collections.emptySet())
         );
-        final IndexShard indexShard = mock(IndexShard.class);
-        when(indexShard.isRemoteTranslogEnabled()).thenReturn(false);
-        assertEquals(ReplicationMode.FULL_REPLICATION, action.getReplicationMode(indexShard));
     }
 
 }

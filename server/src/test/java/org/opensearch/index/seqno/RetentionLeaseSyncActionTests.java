@@ -208,24 +208,21 @@ public class RetentionLeaseSyncActionTests extends OpenSearchTestCase {
     }
 
     public void testGetReplicationModeWithRemoteTranslog() {
-        final RetentionLeaseSyncAction action = new RetentionLeaseSyncAction(
-            Settings.EMPTY,
-            transportService,
-            clusterService,
-            mock(IndicesService.class),
-            threadPool,
-            shardStateAction,
-            new ActionFilters(Collections.emptySet()),
-            new IndexingPressureService(Settings.EMPTY, clusterService),
-            new SystemIndices(emptyMap())
-        );
+        final RetentionLeaseSyncAction action = createAction();
         final IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.isRemoteTranslogEnabled()).thenReturn(true);
         assertEquals(ReplicationMode.NO_REPLICATION, action.getReplicationMode(indexShard));
     }
 
     public void testGetReplicationModeWithLocalTranslog() {
-        final RetentionLeaseSyncAction action = new RetentionLeaseSyncAction(
+        final RetentionLeaseSyncAction action = createAction();
+        final IndexShard indexShard = mock(IndexShard.class);
+        when(indexShard.isRemoteTranslogEnabled()).thenReturn(true);
+        assertEquals(ReplicationMode.NO_REPLICATION, action.getReplicationMode(indexShard));
+    }
+
+    private RetentionLeaseSyncAction createAction() {
+        return new RetentionLeaseSyncAction(
             Settings.EMPTY,
             transportService,
             clusterService,
@@ -236,9 +233,6 @@ public class RetentionLeaseSyncActionTests extends OpenSearchTestCase {
             new IndexingPressureService(Settings.EMPTY, clusterService),
             new SystemIndices(emptyMap())
         );
-        final IndexShard indexShard = mock(IndexShard.class);
-        when(indexShard.isRemoteTranslogEnabled()).thenReturn(true);
-        assertEquals(ReplicationMode.NO_REPLICATION, action.getReplicationMode(indexShard));
     }
 
 }

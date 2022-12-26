@@ -51,6 +51,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.network.NetworkService;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.index.Index;
@@ -226,27 +227,27 @@ public class TransportResyncReplicationActionTests extends OpenSearchTestCase {
     }
 
     public void testGetReplicationModeWithRemoteTranslog() {
-        final TransportResyncReplicationAction action = new TransportResyncReplicationAction(
-            Settings.EMPTY,
-            mock(TransportService.class),
-            mock(ClusterService.class),
-            mock(IndicesService.class),
-            threadPool,
-            mock(ShardStateAction.class),
-            new ActionFilters(new HashSet<>()),
-            mock(IndexingPressureService.class),
-            new SystemIndices(emptyMap())
-        );
+        final TransportResyncReplicationAction action = createAction();
         final IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.isRemoteTranslogEnabled()).thenReturn(true);
         assertEquals(ReplicationMode.NO_REPLICATION, action.getReplicationMode(indexShard));
     }
 
     public void testGetReplicationModeWithLocalTranslog() {
-        final TransportResyncReplicationAction action = new TransportResyncReplicationAction(
+        final TransportResyncReplicationAction action = createAction();
+        final IndexShard indexShard = mock(IndexShard.class);
+        when(indexShard.isRemoteTranslogEnabled()).thenReturn(false);
+        assertEquals(ReplicationMode.FULL_REPLICATION, action.getReplicationMode(indexShard));
+    }
+
+    private TransportResyncReplicationAction createAction() {
+        ClusterService clusterService = mock(ClusterService.class);
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        return new TransportResyncReplicationAction(
             Settings.EMPTY,
             mock(TransportService.class),
-            mock(ClusterService.class),
+            clusterService,
             mock(IndicesService.class),
             threadPool,
             mock(ShardStateAction.class),
@@ -254,8 +255,5 @@ public class TransportResyncReplicationActionTests extends OpenSearchTestCase {
             mock(IndexingPressureService.class),
             new SystemIndices(emptyMap())
         );
-        final IndexShard indexShard = mock(IndexShard.class);
-        when(indexShard.isRemoteTranslogEnabled()).thenReturn(false);
-        assertEquals(ReplicationMode.FULL_REPLICATION, action.getReplicationMode(indexShard));
     }
 }

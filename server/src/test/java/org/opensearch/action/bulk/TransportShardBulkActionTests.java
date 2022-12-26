@@ -1143,26 +1143,21 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
     }
 
     public void testGetReplicationModeWithRemoteTranslog() {
-        TransportShardBulkAction action = new TransportShardBulkAction(
-            Settings.EMPTY,
-            mock(TransportService.class),
-            mockClusterService(),
-            mock(IndicesService.class),
-            threadPool,
-            mock(ShardStateAction.class),
-            mock(MappingUpdatedAction.class),
-            mock(UpdateHelper.class),
-            mock(ActionFilters.class),
-            mock(IndexingPressureService.class),
-            mock(SystemIndices.class)
-        );
+        TransportShardBulkAction action = createAction();
         final IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.isRemoteTranslogEnabled()).thenReturn(true);
         assertEquals(ReplicationMode.PRIMARY_TERM_VALIDATION, action.getReplicationMode(indexShard));
     }
 
     public void testGetReplicationModeWithLocalTranslog() {
-        TransportShardBulkAction action = new TransportShardBulkAction(
+        TransportShardBulkAction action = createAction();
+        final IndexShard indexShard = mock(IndexShard.class);
+        when(indexShard.isRemoteTranslogEnabled()).thenReturn(false);
+        assertEquals(ReplicationMode.FULL_REPLICATION, action.getReplicationMode(indexShard));
+    }
+
+    private TransportShardBulkAction createAction() {
+        return new TransportShardBulkAction(
             Settings.EMPTY,
             mock(TransportService.class),
             mockClusterService(),
@@ -1175,9 +1170,6 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             mock(IndexingPressureService.class),
             mock(SystemIndices.class)
         );
-        final IndexShard indexShard = mock(IndexShard.class);
-        when(indexShard.isRemoteTranslogEnabled()).thenReturn(false);
-        assertEquals(ReplicationMode.FULL_REPLICATION, action.getReplicationMode(indexShard));
     }
 
     private ClusterService mockClusterService() {
