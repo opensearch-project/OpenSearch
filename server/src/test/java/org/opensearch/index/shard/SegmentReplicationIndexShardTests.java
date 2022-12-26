@@ -401,6 +401,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
 
             // refresh but do not copy the segments over.
             oldPrimary.refresh("Test");
+            // replicateSegments(primary, shards.getReplicas());
 
             // at this point both shards should have numDocs persisted and searchable.
             assertDocCounts(oldPrimary, numDocs, numDocs);
@@ -414,6 +415,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             final int additonalDocs = shards.indexDocs(randomInt(10));
             final int totalDocs = numDocs + additonalDocs;
 
+            oldPrimary.refresh("Test");
             assertDocCounts(oldPrimary, totalDocs, totalDocs);
             for (IndexShard shard : shards.getReplicas()) {
                 assertDocCounts(shard, totalDocs, 0);
@@ -430,6 +432,9 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
 
             assertEquals(InternalEngine.class, nextPrimary.getEngine().getClass());
             assertDocCounts(nextPrimary, totalDocs, totalDocs);
+
+            // As we are downloading segments from remote segment store on failover, there should not be
+            // any operations replayed from translog
             assertEquals(0, nextPrimary.translogStats().estimatedNumberOfOperations());
 
             // refresh and push segments to our other replica.

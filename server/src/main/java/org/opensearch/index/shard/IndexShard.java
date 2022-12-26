@@ -2044,10 +2044,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         synchronized (engineMutex) {
             assert currentEngineReference.get() == null : "engine is running";
             verifyNotClosed();
-            // we must create a new engine under mutex (see IndexShard#snapshotStoreMetadata).
-            if (config.isReadOnlyReplica() == false && indexSettings.isRemoteStoreEnabled()) {
+            if (indexSettings.isRemoteStoreEnabled()) {
                 syncSegmentsFromRemoteSegmentStore(false);
             }
+            // we must create a new engine under mutex (see IndexShard#snapshotStoreMetadata).
             final Engine newEngine = engineFactory.newReadWriteEngine(config);
             onNewEngine(newEngine);
             currentEngineReference.set(newEngine);
@@ -4135,7 +4135,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             };
             IOUtils.close(currentEngineReference.getAndSet(readOnlyEngine));
             EngineConfig newEngineConfig = newEngineConfig(replicationTracker);
-            if (newEngineConfig.isReadOnlyReplica() == false && indexSettings.isRemoteStoreEnabled()) {
+            if (indexSettings.isRemoteStoreEnabled()) {
                 syncSegmentsFromRemoteSegmentStore(false);
             }
             newEngineReference.set(engineFactory.newReadWriteEngine(newEngineConfig));
@@ -4165,6 +4165,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         onSettingsChanged();
     }
 
+    /**
+     * Downloads segments from remote segment store.
+     * @param override whether to override local segment files with those in remote store
+     * @throws IOException
+     */
     public void syncSegmentsFromRemoteSegmentStore(boolean override) throws IOException {
         assert indexSettings.isRemoteStoreEnabled();
         logger.info("Downloading segments from remote segment store");
