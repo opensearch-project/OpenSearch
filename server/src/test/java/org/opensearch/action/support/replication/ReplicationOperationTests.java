@@ -168,7 +168,7 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
             listener,
             replicasProxy,
             primaryTerm,
-            new FanoutReplicationProxy<>()
+            new FanoutReplicationProxy<>(replicasProxy)
         );
         op.execute();
         assertThat("request was not processed on primary", request.processedOnPrimary.get(), equalTo(true));
@@ -239,7 +239,7 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
             listener,
             replicasProxy,
             0,
-            new ReplicationModeAwareProxy<>(ReplicationMode.NO_REPLICATION)
+            new ReplicationModeAwareProxy<>(ReplicationMode.NO_REPLICATION, replicasProxy, replicasProxy)
         );
         op.execute();
         assertTrue("request was not processed on primary", request.processedOnPrimary.get());
@@ -304,7 +304,7 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
             listener,
             replicasProxy,
             0,
-            new ReplicationModeAwareProxy<>(ReplicationMode.NO_REPLICATION)
+            new ReplicationModeAwareProxy<>(ReplicationMode.NO_REPLICATION, replicasProxy, replicasProxy)
         );
         op.execute();
         assertTrue("request was not processed on primary", request.processedOnPrimary.get());
@@ -366,7 +366,7 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
             listener,
             replicasProxy,
             0,
-            new FanoutReplicationProxy<>()
+            new FanoutReplicationProxy<>(replicasProxy)
         );
         op.execute();
         assertTrue("request was not processed on primary", request.processedOnPrimary.get());
@@ -448,7 +448,7 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
             primaryTerm,
             TimeValue.timeValueMillis(20),
             TimeValue.timeValueSeconds(60),
-            new FanoutReplicationProxy<>()
+            new FanoutReplicationProxy<>(replicasProxy)
         );
         op.execute();
         assertThat("request was not processed on primary", request.processedOnPrimary.get(), equalTo(true));
@@ -591,7 +591,7 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
             listener,
             replicasProxy,
             primaryTerm,
-            new FanoutReplicationProxy<>()
+            new FanoutReplicationProxy<>(replicasProxy)
         );
         op.execute();
 
@@ -657,7 +657,7 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
             listener,
             new TestReplicaProxy(),
             primaryTerm,
-            new FanoutReplicationProxy<>()
+            new FanoutReplicationProxy<>(new TestReplicaProxy())
         );
         op.execute();
 
@@ -714,7 +714,7 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
             threadPool,
             "test",
             primaryTerm,
-            new FanoutReplicationProxy<>()
+            new FanoutReplicationProxy<>(new TestReplicaProxy())
         );
 
         if (passesActiveShardCheck) {
@@ -781,7 +781,7 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
             listener,
             replicas,
             primaryTerm,
-            new FanoutReplicationProxy<>()
+            new FanoutReplicationProxy<>(replicas)
         );
         operation.execute();
 
