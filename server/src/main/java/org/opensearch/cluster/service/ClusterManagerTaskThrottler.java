@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 /**
@@ -50,6 +51,9 @@ public class ClusterManagerTaskThrottler implements TaskBatcherListener {
     private final ConcurrentMap<String, Long> tasksCount;
     private final ConcurrentMap<String, Long> tasksThreshold;
     private final Supplier<Version> minNodeVersionSupplier;
+    // Once all nodes are higher than 2.5.0 version, then only it will start throttling.
+    // Needed for static threshold settings.
+    private AtomicBoolean startThrottling = new AtomicBoolean();
 
     public ClusterManagerTaskThrottler(
         final Settings settings,
@@ -168,7 +172,7 @@ public class ClusterManagerTaskThrottler implements TaskBatcherListener {
             int size = tasks.size();
             if (clusterManagerThrottlingKey.isThrottlingEnabled()) {
                 Long threshold = tasksThreshold.get(clusterManagerThrottlingKey.getTaskThrottlingKey());
-                if (threshold != null && (count + size > threshold)) {
+                if (threshold != null && checkForThrottling(threshold, count, size)) {
                     clusterManagerTaskThrottlerListener.onThrottle(clusterManagerThrottlingKey.getTaskThrottlingKey(), size);
                     logger.warn(
                         "Throwing Throttling Exception for [{}]. Trying to add [{}] tasks to queue, limit is set to [{}]",
@@ -183,6 +187,27 @@ public class ClusterManagerTaskThrottler implements TaskBatcherListener {
             }
             return count + size;
         });
+    }
+
+    /**
+     * If throttling thresholds are set via static setting, it will update the threshold map.
+     * It may start throwing throttling exception to older nodes in cluster.
+     *
+     * On submission of first task, it validates if all nodes are of 2.5.0 or not and
+     * update startThrottling flag.
+     * Once the flag is set it will start throttling, and won't perform check for next tasks.
+     */
+    private boolean checkForThrottling(Long threshold, Long count, int size) {
+        if (!startThrottling.get()) {
+            if (minNodeVersionSupplier.get().compareTo(Version.V_2_5_0) >= 0) {
+                startThrottling.compareAndSet(false, true);
+                logger.info("Starting cluster manager throttling as all nodes are higher than or equal to 2.5.0");
+            } else {
+                logger.info("Skipping cluster manager throttling as node older than 2.5.0 is present in cluster");
+                return false;
+            }
+        }
+        return count + size > threshold;
     }
 
     @Override
