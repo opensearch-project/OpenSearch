@@ -288,7 +288,7 @@ public abstract class TransportReplicationAction<
      * @param indexShard index shard used to determining the policy.
      * @return the overridden replication mode.
      */
-    protected ReplicationMode getReplicationMode(IndexShard indexShard) {
+    public ReplicationMode getReplicationMode(IndexShard indexShard) {
         if (indexShard.isRemoteTranslogEnabled()) {
             return ReplicationMode.NO_REPLICATION;
         }
