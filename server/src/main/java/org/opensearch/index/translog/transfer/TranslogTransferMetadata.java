@@ -8,6 +8,7 @@
 
 package org.opensearch.index.translog.transfer;
 
+import org.apache.logging.log4j.util.PropertySource;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.InputStreamDataInput;
@@ -19,6 +20,7 @@ import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -44,13 +46,15 @@ public class TranslogTransferMetadata {
 
     private final SetOnce<Map<String, String>> generationToPrimaryTermMapper = new SetOnce<>();
 
-    protected static final String METADATA_SEPARATOR = "__";
+    private static final String METADATA_SEPARATOR = "__";
 
     private static final int BUFFER_SIZE = 4096;
 
     private static final int CURRENT_VERSION = 1;
 
     private static final String METADATA_CODEC = "md";
+
+    public static final MetadataFilenameComparator METADATA_FILENAME_COMPARATOR = new MetadataFilenameComparator();
 
     public TranslogTransferMetadata(long primaryTerm, long generation, long minTranslogGeneration, int count) {
         this.primaryTerm = primaryTerm;
@@ -143,6 +147,21 @@ public class TranslogTransferMetadata {
             out.writeMapOfStrings(generationToPrimaryTermMapper.get());
         } else {
             out.writeMapOfStrings(new HashMap<>());
+        }
+    }
+
+    private static class MetadataFilenameComparator implements Comparator<String> {
+        @Override
+        public int compare(String metadaFilename1, String metadaFilename2) {
+            // Format of metadata filename is <Primary Term>__<Generation>__<Timestamp>
+            String[] filenameTokens1 = metadaFilename1.split(METADATA_SEPARATOR);
+            String[] filenameTokens2 = metadaFilename2.split(METADATA_SEPARATOR);
+            for (int i = 0; i < filenameTokens1.length; i++) {
+                if (filenameTokens1[i].equals(filenameTokens2[i]) == false) {
+                    return (int) (Long.parseLong(filenameTokens1[i]) - Long.parseLong(filenameTokens2[i]));
+                }
+            }
+            return 0;
         }
     }
 }
