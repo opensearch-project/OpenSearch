@@ -14,6 +14,7 @@ import org.opensearch.OpenSearchGenerationException;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
+import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
 import org.opensearch.cluster.routing.WeightedRouting;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.StreamInput;
@@ -43,9 +44,6 @@ public class ClusterPutWeightedRoutingRequest extends ClusterManagerNodeRequest<
     private WeightedRouting weightedRouting;
     private String attributeName;
     private long version;
-
-    public static final String VERSION = "_version";
-    public static final long VERSION_UNSET_VALUE = -2;
 
     public void version(long version) {
         this.version = version;
@@ -110,12 +108,12 @@ public class ClusterPutWeightedRoutingRequest extends ClusterManagerNodeRequest<
             parser.nextToken();
             String versionAttr = null;
             String weightsAttr = null;
-            long version = VERSION_UNSET_VALUE;
+            long version = WeightedRoutingMetadata.VERSION_UNSET_VALUE;
 
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     String fieldName = parser.currentName();
-                    if (fieldName != null && fieldName.equals(VERSION)) {
+                    if (fieldName != null && fieldName.equals(WeightedRoutingMetadata.VERSION)) {
                         versionAttr = parser.currentName();
                         continue;
                     } else {
@@ -142,7 +140,7 @@ public class ClusterPutWeightedRoutingRequest extends ClusterManagerNodeRequest<
                         }
                     }
                 } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                    if (versionAttr.equals(VERSION)) {
+                    if (versionAttr != null && versionAttr.equals(WeightedRoutingMetadata.VERSION)) {
                         version = parser.longValue();
                     }
                 } else {
@@ -171,7 +169,7 @@ public class ClusterPutWeightedRoutingRequest extends ClusterManagerNodeRequest<
         if (weightedRouting.weights() == null || weightedRouting.weights().isEmpty()) {
             validationException = addValidationError("Weights are missing", validationException);
         }
-        if (version == VERSION_UNSET_VALUE) {
+        if (version == WeightedRoutingMetadata.VERSION_UNSET_VALUE) {
             validationException = addValidationError("Version is missing", validationException);
         }
         try {

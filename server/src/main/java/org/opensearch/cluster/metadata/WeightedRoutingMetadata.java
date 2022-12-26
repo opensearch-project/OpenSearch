@@ -38,6 +38,7 @@ public class WeightedRoutingMetadata extends AbstractNamedDiffable<Metadata.Cust
     public static final String AWARENESS = "awareness";
     public static final String VERSION = "_version";
     public static final long INITIAL_VERSION = -1;
+    public static final long VERSION_UNSET_VALUE = -2;
 
     public long getVersion() {
         return version;
