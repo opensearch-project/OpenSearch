@@ -19,7 +19,7 @@ import java.util.Map;
 public class ClusterPutWeightedRoutingRequestTests extends OpenSearchTestCase {
 
     public void testSetWeightedRoutingWeight() {
-        String reqString = "{\"weights\":{\"us-east-1c\": \"0\",\"us-east-1b\": \"1\",\"us-east-1a\": \"1\"	},\"_version\": 1}";
+        String reqString = "{\"weights\":{\"us-east-1c\":\"0\",\"us-east-1b\":\"1\",\"us-east-1a\":\"1\"},\"_version\":1}";
         ClusterPutWeightedRoutingRequest request = new ClusterPutWeightedRoutingRequest("zone");
         Map<String, Double> weights = Map.of("us-east-1a", 1.0, "us-east-1b", 1.0, "us-east-1c", 0.0);
         WeightedRouting weightedRouting = new WeightedRouting("zone", weights);
@@ -30,7 +30,7 @@ public class ClusterPutWeightedRoutingRequestTests extends OpenSearchTestCase {
     }
 
     public void testValidate_ValuesAreProper() {
-        String reqString = "{\"weights\":{\"us-east-1c\": \"0\",\"us-east-1b\": \"1\",\"us-east-1a\": \"1\"	},\"_version\": 1}";
+        String reqString = "{\"weights\":{\"us-east-1c\":\"0\",\"us-east-1b\":\"1\",\"us-east-1a\":\"1\"},\"_version\":1}";
         ClusterPutWeightedRoutingRequest request = new ClusterPutWeightedRoutingRequest("zone");
         request.setWeightedRouting(new BytesArray(reqString), XContentType.JSON);
         ActionRequestValidationException actionRequestValidationException = request.validate();
@@ -47,7 +47,7 @@ public class ClusterPutWeightedRoutingRequestTests extends OpenSearchTestCase {
     }
 
     public void testValidate_AttributeMissing() {
-        String reqString = "{\"weights\":{\"us-east-1c\": \"0\",\"us-east-1b\": \"1\",\"us-east-1a\": \"1\"	},\"_version\": 1}";
+        String reqString = "{\"weights\":{\"us-east-1c\":\"0\",\"us-east-1b\":\"1\",\"us-east-1a\": \"1\"},\"_version\":1}";
         ClusterPutWeightedRoutingRequest request = new ClusterPutWeightedRoutingRequest();
         request.setWeightedRouting(new BytesArray(reqString), XContentType.JSON);
         ActionRequestValidationException actionRequestValidationException = request.validate();
@@ -56,7 +56,7 @@ public class ClusterPutWeightedRoutingRequestTests extends OpenSearchTestCase {
     }
 
     public void testValidate_VersionMissing() {
-        String reqString = "{\"weights\":{\"us-east-1c\": \"0\",\"us-east-1b\": \"1\",\"us-east-1a\": \"1\"	}}";
+        String reqString = "{\"weights\":{\"us-east-1c\": \"0\",\"us-east-1b\": \"1\",\"us-east-1a\": \"1\"}}";
         ClusterPutWeightedRoutingRequest request = new ClusterPutWeightedRoutingRequest("zone");
         request.setWeightedRouting(new BytesArray(reqString), XContentType.JSON);
         ActionRequestValidationException actionRequestValidationException = request.validate();
