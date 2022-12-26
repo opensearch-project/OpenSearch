@@ -80,10 +80,6 @@ public class ClusterAwarenessAttributeHealth implements Iterable<ClusterAwarenes
 
                         if (!attributesHealth.containsKey(attributeValue)) {
                             clusterAwarenessAttributeValueHealth = new ClusterAwarenessAttributeValueHealth(attributeValue);
-                            clusterAwarenessAttributeValueHealth.setNodes(0);
-                            clusterAwarenessAttributeValueHealth.setActiveShards(0);
-                            clusterAwarenessAttributeValueHealth.setInitializingShards(0);
-                            clusterAwarenessAttributeValueHealth.setRelocatingShards(0);
 
                             // We calculate weight here as we will be
                             double attributeWeight = 1.0;

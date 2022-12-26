@@ -14,7 +14,7 @@ package org.opensearch.cluster.awarenesshealth;
  */
 public class NodeShardInfo {
 
-    private String nodeID;
+    private final String nodeID;
     private int activeShards;
     private int relocatingShards;
     private int initializingShards;
@@ -23,23 +23,13 @@ public class NodeShardInfo {
      * Stores shard level information for a node
      *
      * @param nodeID node id in the cluster
-     * @param activeShards active shards present on the node
-     * @param relocatingShards relocating shards present on the node
-     * @param initializingShards initialising shards present on the node
      */
-    public NodeShardInfo(String nodeID, int activeShards, int relocatingShards, int initializingShards) {
+    public NodeShardInfo(String nodeID) {
         this.nodeID = nodeID;
-        this.activeShards = activeShards;
-        this.relocatingShards = relocatingShards;
-        this.initializingShards = initializingShards;
     }
 
     public String getNodeID() {
         return nodeID;
-    }
-
-    public void setNodeID(String nodeID) {
-        this.nodeID = nodeID;
     }
 
     public int getActiveShards() {
@@ -64,5 +54,17 @@ public class NodeShardInfo {
 
     public void setInitializingShards(int initializingShards) {
         this.initializingShards = initializingShards;
+    }
+
+    public void incrementActiveShards() {
+        activeShards += 1;
+    }
+
+    public void incrementInitializingShards() {
+        initializingShards += 1;
+    }
+
+    public void incrementRelocatingShards() {
+        relocatingShards += 1;
     }
 }

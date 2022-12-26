@@ -134,9 +134,15 @@ public class ClusterAwarenessAttributeHealthTests extends OpenSearchTestCase {
             .build();
 
         Map<String, NodeShardInfo> shardMapPerNode = new HashMap<>();
-        shardMapPerNode.put("node1", new NodeShardInfo("node1", 2, 0, 0));
-        shardMapPerNode.put("node2", new NodeShardInfo("node2", 2, 0, 0));
-        shardMapPerNode.put("node3", new NodeShardInfo("node3", 2, 0, 0));
+        NodeShardInfo node1 = new NodeShardInfo("node1");
+        node1.setActiveShards(2);
+        NodeShardInfo node2 = new NodeShardInfo("node2");
+        node2.setActiveShards(2);
+        NodeShardInfo node3 = new NodeShardInfo("node3");
+        node3.setActiveShards(2);
+        shardMapPerNode.put("node1", node1);
+        shardMapPerNode.put("node2", node2);
+        shardMapPerNode.put("node3", node3);
 
         ClusterAwarenessAttributeHealth clusterAwarenessAttributeHealth = new ClusterAwarenessAttributeHealth(
             "zone",
@@ -201,9 +207,15 @@ public class ClusterAwarenessAttributeHealthTests extends OpenSearchTestCase {
             .build();
 
         Map<String, NodeShardInfo> shardMapPerNode = new HashMap<>();
-        shardMapPerNode.put("node1", new NodeShardInfo("node1", 2, 0, 0));
-        shardMapPerNode.put("node2", new NodeShardInfo("node2", 2, 0, 0));
-        shardMapPerNode.put("node3", new NodeShardInfo("node3", 2, 0, 0));
+        NodeShardInfo node1 = new NodeShardInfo("node1");
+        node1.setActiveShards(2);
+        NodeShardInfo node2 = new NodeShardInfo("node2");
+        node2.setActiveShards(2);
+        NodeShardInfo node3 = new NodeShardInfo("node3");
+        node3.setActiveShards(2);
+        shardMapPerNode.put("node1", node1);
+        shardMapPerNode.put("node2", node2);
+        shardMapPerNode.put("node3", node3);
 
         ClusterAwarenessAttributeHealth clusterAwarenessAttributeHealth = new ClusterAwarenessAttributeHealth(
             "rack",
@@ -267,9 +279,15 @@ public class ClusterAwarenessAttributeHealthTests extends OpenSearchTestCase {
             .build();
 
         Map<String, NodeShardInfo> shardMapPerNode = new HashMap<>();
-        shardMapPerNode.put("node1", new NodeShardInfo("node1", 2, 0, 0));
-        shardMapPerNode.put("node2", new NodeShardInfo("node2", 2, 0, 0));
-        shardMapPerNode.put("node3", new NodeShardInfo("node3", 2, 0, 0));
+        NodeShardInfo node1 = new NodeShardInfo("node1");
+        node1.setActiveShards(2);
+        NodeShardInfo node2 = new NodeShardInfo("node2");
+        node2.setActiveShards(2);
+        NodeShardInfo node3 = new NodeShardInfo("node3");
+        node3.setActiveShards(2);
+        shardMapPerNode.put("node1", node1);
+        shardMapPerNode.put("node2", node2);
+        shardMapPerNode.put("node3", node3);
 
         ClusterAwarenessAttributeHealth clusterAwarenessAttributeHealth = new ClusterAwarenessAttributeHealth(
             "zone",

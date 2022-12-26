@@ -109,34 +109,30 @@ public class ClusterAwarenessHealth implements Writeable {
                 if (relocatingShard) {
                     if (shardAllocationPerNode.containsKey(relocatingNodeId)) {
                         nodeShardInfo = shardAllocationPerNode.get(relocatingNodeId);
-                        nodeShardInfo.setInitializingShards(nodeShardInfo.getInitializingShards() + 1);
                     } else {
-                        nodeShardInfo = new NodeShardInfo(relocatingNodeId, 0, 0, 1);
+                        nodeShardInfo = new NodeShardInfo(relocatingNodeId);
                     }
+                    nodeShardInfo.incrementInitializingShards();
                     shardAllocationPerNode.put(relocatingNodeId, nodeShardInfo);
 
                     if (shardAllocationPerNode.containsKey(nodeId)) {
                         nodeShardInfo = shardAllocationPerNode.get(nodeId);
-                        nodeShardInfo.setRelocatingShards(nodeShardInfo.getRelocatingShards() + 1);
                     } else {
-                        nodeShardInfo = new NodeShardInfo(relocatingNodeId, 0, 1, 0);
+                        nodeShardInfo = new NodeShardInfo(nodeId);
                     }
+                    nodeShardInfo.incrementRelocatingShards();
 
                 } else { // This will handle the non-relocating shard scenario
                     if (shardAllocationPerNode.containsKey(nodeId)) {
                         nodeShardInfo = shardAllocationPerNode.get(nodeId);
-                        if (activeShard) {
-                            nodeShardInfo.setActiveShards(nodeShardInfo.getActiveShards() + 1);
-                        } else if (initializingShard) {
-                            nodeShardInfo.setInitializingShards(nodeShardInfo.getInitializingShards() + 1);
-                        }
                     } else {
-                        nodeShardInfo = new NodeShardInfo(relocatingNodeId, 0, 0, 0);
-                        if (activeShard) {
-                            nodeShardInfo.setActiveShards(1);
-                        } else if (initializingShard) {
-                            nodeShardInfo.setInitializingShards(1);
-                        }
+                        nodeShardInfo = new NodeShardInfo(nodeId);
+                    }
+
+                    if (activeShard) {
+                        nodeShardInfo.incrementActiveShards();
+                    } else if (initializingShard) {
+                        nodeShardInfo.incrementInitializingShards();
                     }
 
                 }
