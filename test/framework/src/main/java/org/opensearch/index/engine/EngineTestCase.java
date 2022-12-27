@@ -112,6 +112,7 @@ import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.InternalTranslogManager;
+import org.opensearch.index.translog.LocalTranslog;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
@@ -150,9 +151,9 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.shuffle;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.opensearch.index.engine.Engine.Operation.Origin.PEER_RECOVERY;
 import static org.opensearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.opensearch.index.engine.Engine.Operation.Origin.REPLICA;
@@ -528,7 +529,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
             shardId,
             primaryTermSupplier.getAsLong()
         );
-        return new Translog(
+        return new LocalTranslog(
             translogConfig,
             translogUUID,
             createTranslogDeletionPolicy(INDEX_SETTINGS),
