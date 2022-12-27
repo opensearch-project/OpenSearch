@@ -48,13 +48,13 @@ public class DecommissionRequestBuilder extends ClusterManagerNodeOperationReque
     }
 
     /**
-     * Sets retryOnClusterManagerChange for decommission request
+     * Sets retryOnClusterManagerSwitch for decommission request
      *
-     * @param retryOnClusterManagerChange boolean for request to retry decommission action on cluster manager change
+     * @param retryOnClusterManagerSwitch boolean for request to retry decommission action on cluster manager switch
      * @return current object
      */
-    public DecommissionRequestBuilder setRetryOnClusterManagerChange(boolean retryOnClusterManagerChange) {
-        request.setRetryOnClusterManagerChange(retryOnClusterManagerChange);
+    public DecommissionRequestBuilder setRetryOnClusterManagerSwitch(boolean retryOnClusterManagerSwitch) {
+        request.setRetryOnClusterManagerSwitch(retryOnClusterManagerSwitch);
         return this;
     }
 

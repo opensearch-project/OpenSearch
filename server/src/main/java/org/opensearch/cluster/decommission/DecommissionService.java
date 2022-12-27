@@ -524,7 +524,7 @@ public class DecommissionService {
         if (decommissionAttributeMetadata != null) {
             // we just need to check for INIT status as for other transient statuses we already handle it separately
             if (decommissionAttributeMetadata.status().equals(DecommissionStatus.INIT)
-                && decommissionRequest.retryOnClusterManagerChange() == false) {
+                && decommissionRequest.retryOnClusterManagerSwitch() == false) {
                 throw new DecommissioningFailedException(
                     decommissionRequest.getDecommissionAttribute(),
                     "concurrent request received to decommission attribute"

@@ -102,7 +102,7 @@ public class DecommissionController {
             listener.onFailure(new OpenSearchTimeoutException(errorMsg));
             return;
         }
-        decommissionRequest.setRetryOnClusterManagerChange(true);
+        decommissionRequest.setRetryOnClusterManagerSwitch(true);
         decommissionRequest.setTimeout(TimeValue.timeValueMillis(remainingTimeoutMS));
         transportService.sendRequest(
             transportService.getLocalNode(),
