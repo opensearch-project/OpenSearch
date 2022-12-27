@@ -417,7 +417,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
             @Override
             public void validate(final String value, final Map<Setting<?>, Object> settings) {
-                if (value != null && !value.isEmpty()) {
+                if (value == null || value.isEmpty()) {
+                    throw new IllegalArgumentException(
+                        "Setting " + INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey() + " should be provided with non-empty repository ID"
+                    );
+                } else {
                     final Boolean isRemoteTranslogStoreEnabled = (Boolean) settings.get(INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING);
                     if (isRemoteTranslogStoreEnabled == null || isRemoteTranslogStoreEnabled == false) {
                         throw new IllegalArgumentException(

@@ -524,7 +524,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 remoteStore = new Store(shardId, this.indexSettings, remoteDirectory, lock, Store.OnClose.EMPTY);
             }
 
-            TranslogFactory translogFactory = this.indexSettings.isRemoteTranslogStoreEnabled()
+            TranslogFactory translogFactory = this.indexSettings.isRemoteTranslogStoreEnabled() && routing.primary()
                 ? new RemoteBlobStoreInternalTranslogFactory(
                     repositoriesServiceSupplier,
                     threadPool,
