@@ -385,6 +385,71 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         }
     }
 
+    public void testNRTReplicaWithRemoteStorePromotedAsPrimary() throws Exception {
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+            .build();
+
+        try (ReplicationGroup shards = createGroup(1, settings, indexMapping, new NRTReplicationEngineFactory(), createTempDir())) {
+            shards.startAll();
+            IndexShard oldPrimary = shards.getPrimary();
+            final IndexShard nextPrimary = shards.getReplicas().get(0);
+
+            // 1. Create ops that are in the index and xlog of both shards but not yet part of a commit point.
+            final int numDocs = shards.indexDocs(randomInt(10));
+
+            // refresh but do not copy the segments over.
+            oldPrimary.refresh("Test");
+            // replicateSegments(primary, shards.getReplicas());
+
+            // at this point both shards should have numDocs persisted and searchable.
+            assertDocCounts(oldPrimary, numDocs, numDocs);
+            for (IndexShard shard : shards.getReplicas()) {
+                assertDocCounts(shard, numDocs, 0);
+            }
+
+            // 2. Create ops that are in the replica's xlog, not in the index.
+            // index some more into both but don't replicate. replica will have only numDocs searchable, but should have totalDocs
+            // persisted.
+            final int additonalDocs = shards.indexDocs(randomInt(10));
+            final int totalDocs = numDocs + additonalDocs;
+
+            oldPrimary.refresh("Test");
+            assertDocCounts(oldPrimary, totalDocs, totalDocs);
+            for (IndexShard shard : shards.getReplicas()) {
+                assertDocCounts(shard, totalDocs, 0);
+            }
+            assertTrue(nextPrimary.translogStats().estimatedNumberOfOperations() >= additonalDocs);
+            assertTrue(nextPrimary.translogStats().getUncommittedOperations() >= additonalDocs);
+
+            // promote the replica
+            shards.promoteReplicaToPrimary(nextPrimary).get();
+
+            // close and start the oldPrimary as a replica.
+            oldPrimary.close("demoted", false);
+            oldPrimary.store().close();
+
+            assertEquals(InternalEngine.class, nextPrimary.getEngine().getClass());
+            assertDocCounts(nextPrimary, totalDocs, totalDocs);
+
+            // As we are downloading segments from remote segment store on failover, there should not be
+            // any operations replayed from translog
+            assertEquals(0, nextPrimary.translogStats().estimatedNumberOfOperations());
+
+            // refresh and push segments to our other replica.
+            nextPrimary.refresh("test");
+
+            for (IndexShard shard : shards) {
+                assertConsistentHistoryBetweenTranslogAndLucene(shard);
+            }
+            final List<DocIdSeqNoAndSource> docsAfterRecovery = getDocIdAndSeqNos(shards.getPrimary());
+            for (IndexShard shard : shards.getReplicas()) {
+                assertThat(shard.routingEntry().toString(), getDocIdAndSeqNos(shard), equalTo(docsAfterRecovery));
+            }
+        }
+    }
+
     public void testNRTReplicaPromotedAsPrimary() throws Exception {
         try (ReplicationGroup shards = createGroup(2, settings, new NRTReplicationEngineFactory())) {
             shards.startAll();
