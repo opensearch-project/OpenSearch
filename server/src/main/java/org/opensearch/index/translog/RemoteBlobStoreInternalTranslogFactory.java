@@ -20,6 +20,11 @@ import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
+/**
+ * Translog Factory for the remotefs  translog {@link RemoteFsTranslog}
+ *
+ * @opensearch.internal
+ */
 public class RemoteBlobStoreInternalTranslogFactory implements TranslogFactory {
 
     private final Repository repository;
