@@ -147,8 +147,7 @@ public class DecommissionService {
                 validateAwarenessAttribute(decommissionAttribute, awarenessAttributes, forcedAwarenessAttributes);
                 DecommissionAttributeMetadata decommissionAttributeMetadata = currentState.metadata().decommissionAttributeMetadata();
                 // check that request is eligible to proceed and attribute is weighed away
-                ensureEligibleRequest(decommissionAttributeMetadata, decommissionAttribute);
-                ensureEligibleRetry(decommissionRequest, decommissionAttributeMetadata);
+                ensureEligibleRequest(decommissionAttributeMetadata, decommissionRequest);
                 ensureToBeDecommissionedAttributeWeighedAway(currentState, decommissionAttribute);
 
                 ClusterState newState = registerDecommissionAttributeInClusterState(currentState, decommissionAttribute);
@@ -465,9 +464,10 @@ public class DecommissionService {
 
     private static void ensureEligibleRequest(
         DecommissionAttributeMetadata decommissionAttributeMetadata,
-        DecommissionAttribute requestedDecommissionAttribute
+        DecommissionRequest decommissionRequest
     ) {
         String msg = null;
+        DecommissionAttribute requestedDecommissionAttribute = decommissionRequest.getDecommissionAttribute();
         if (decommissionAttributeMetadata != null) {
             // check if the same attribute is registered and handle it accordingly
             if (decommissionAttributeMetadata.decommissionAttribute().equals(requestedDecommissionAttribute)) {
@@ -515,11 +515,12 @@ public class DecommissionService {
         if (msg != null) {
             throw new DecommissioningFailedException(requestedDecommissionAttribute, msg);
         }
+        ensureEligibleRetry(decommissionAttributeMetadata, decommissionRequest);
     }
 
     private static void ensureEligibleRetry(
-        DecommissionRequest decommissionRequest,
-        DecommissionAttributeMetadata decommissionAttributeMetadata
+        DecommissionAttributeMetadata decommissionAttributeMetadata,
+        DecommissionRequest decommissionRequest
     ) {
         if (decommissionAttributeMetadata != null) {
             // we just need to check for INIT status as for other transient statuses we already handle it separately
