@@ -28,6 +28,7 @@ import org.opensearch.common.blobstore.fs.FsBlobContainer;
 import org.opensearch.common.blobstore.fs.FsBlobStore;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.ReleasableBytesReference;
+import org.opensearch.common.io.FileSystemUtils;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeUnit;
@@ -46,6 +47,7 @@ import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.blobstore.BlobStoreTestUtil;
 import org.opensearch.repositories.fs.FsRepository;
@@ -147,11 +149,15 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
     }
 
     private RemoteFsTranslog create(Path path) throws IOException {
+        final String translogUUID = Translog.createEmptyTranslog(path, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
+        return create(path, createRepository(), translogUUID);
+    }
+
+    private RemoteFsTranslog create(Path path, BlobStoreRepository repository, String translogUUID) throws IOException {
+        this.repository = repository;
         globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         final TranslogConfig translogConfig = getTranslogConfig(path);
         final TranslogDeletionPolicy deletionPolicy = createTranslogDeletionPolicy(translogConfig.getIndexSettings());
-        final String translogUUID = Translog.createEmptyTranslog(path, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
-        repository = createRepository();
         threadPool = new TestThreadPool(getClass().getName());
         blobStoreTransferService = new BlobStoreTransferService(
             repository.blobStore(),
@@ -294,6 +300,38 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
             assertEquals(op, translog.readOperation(locs.get(i++)));
         }
         assertNull(translog.readOperation(new Translog.Location(100, 0, 0)));
+    }
+
+    public void testReadLocationDownload() throws IOException {
+        ArrayList<Translog.Operation> ops = new ArrayList<>();
+        ArrayList<Translog.Location> locs = new ArrayList<>();
+        locs.add(addToTranslogAndListAndUpload(translog, ops, new Translog.Index("1", 0, primaryTerm.get(), new byte[] { 1 })));
+        locs.add(addToTranslogAndListAndUpload(translog, ops, new Translog.Index("2", 1, primaryTerm.get(), new byte[] { 1 })));
+        locs.add(addToTranslogAndListAndUpload(translog, ops, new Translog.Index("3", 2, primaryTerm.get(), new byte[] { 1 })));
+        translog.sync();
+        int i = 0;
+        for (Translog.Operation op : ops) {
+            assertEquals(op, translog.readOperation(locs.get(i++)));
+        }
+
+        String translogUUID = translog.translogUUID;
+        try {
+            translog.getDeletionPolicy().assertNoOpenTranslogRefs();
+            translog.close();
+        } finally {
+            terminate(threadPool);
+        }
+
+        // Delete translog files to test download flow
+        for(Path file: FileSystemUtils.files(translogDir)) {
+            Files.delete(file);
+        }
+
+        translog = create(translogDir, repository, translogUUID);
+        i = 0;
+        for (Translog.Operation op : ops) {
+            assertEquals(op, translog.readOperation(locs.get(i++)));
+        }
     }
 
     public void testSnapshotWithNewTranslog() throws IOException {
