@@ -10,9 +10,11 @@ package org.opensearch.cluster.routing.allocation;
 
 import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.metadata.AutoExpandReplicas;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.indices.replication.common.ReplicationType;
 
 import java.util.Optional;
 
@@ -37,6 +39,30 @@ public class AwarenessReplicaBalanceTests extends OpenSearchAllocationTestCase {
 
         assertEquals(awarenessReplicaBalance.validate(0, autoExpandReplica), Optional.empty());
         assertEquals(awarenessReplicaBalance.validate(1, autoExpandReplica), Optional.empty());
+    }
+
+    public void testStaticMaxAwarenessAttributes() {
+        Settings settings = Settings.builder()
+            .put("cluster.routing.allocation.awareness.attributes", "rack_id")
+            .put(SETTING_AUTO_EXPAND_REPLICAS, "0-1")
+            .build();
+        assertThat(AwarenessReplicaBalance.maxAwarenessAttributes(settings), equalTo(1));
+
+        settings = Settings.builder()
+            .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(), "zone, rack")
+            .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.getKey() + "zone.values", "a, b")
+            .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.getKey() + "rack.values", "c, d, e")
+            .put(AwarenessReplicaBalance.CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING.getKey(), true)
+            .put(SETTING_AUTO_EXPAND_REPLICAS, "0-2")
+            .build();
+        assertThat(AwarenessReplicaBalance.maxAwarenessAttributes(settings), equalTo(3));
+
+        settings = Settings.builder()
+            .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(), "zone, rack")
+            .put(AwarenessReplicaBalance.CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING.getKey(), true)
+            .put(SETTING_AUTO_EXPAND_REPLICAS, "0-1")
+            .build();
+        assertThat(AwarenessReplicaBalance.maxAwarenessAttributes(settings), equalTo(1));
     }
 
     public void testForcedAwarenessAttribute() {
@@ -129,6 +155,37 @@ public class AwarenessReplicaBalanceTests extends OpenSearchAllocationTestCase {
         assertThat(awarenessReplicaBalance.maxAwarenessAttributes(), equalTo(1));
         assertEquals(awarenessReplicaBalance.validate(0, autoExpandReplica), Optional.empty());
         assertEquals(awarenessReplicaBalance.validate(1, autoExpandReplica), Optional.empty());
+    }
+
+    public void testSetUseForceZoneForReplicaWhenAllocationAwarenessIsDefault() {
+        Settings settings = Settings.builder()
+            .put(AwarenessReplicaBalance.USE_FORCE_ZONE_FOR_REPLICA_SETTING.getKey(), true)
+            .build();
+
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> new AwarenessReplicaBalance(settings, EMPTY_CLUSTER_SETTINGS)
+        );
+        assertEquals(
+            "To enable cluster.use_force_zone_for_replica, cluster.routing.allocation.awareness.balance should be enabled",
+            iae.getMessage()
+        );
+    }
+
+    public void testSetUseForceZoneForReplicaWhenAllocationAwarenessIsFalse() {
+        Settings settings = Settings.builder()
+            .put(AwarenessReplicaBalance.CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING.getKey(), false)
+            .put(AwarenessReplicaBalance.USE_FORCE_ZONE_FOR_REPLICA_SETTING.getKey(), true)
+            .build();
+
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> new AwarenessReplicaBalance(settings, EMPTY_CLUSTER_SETTINGS)
+        );
+        assertEquals(
+            "To enable cluster.use_force_zone_for_replica, cluster.routing.allocation.awareness.balance should be enabled",
+            iae.getMessage()
+        );
     }
 
 }

@@ -60,7 +60,7 @@ public class AwarenessReplicaBalance {
                             + USE_FORCE_ZONE_FOR_REPLICA_SETTING.getKey()
                             + ", "
                             + CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING.getKey()
-                            + " should be enabled "
+                            + " should be enabled"
                     );
                 }
             }
@@ -156,9 +156,6 @@ public class AwarenessReplicaBalance {
         Boolean awarenessBalance = CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING.get(settings);
         List<String> awarenessAttributes = CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.get(settings);
         Map<String, List<String>> forcedAwarenessAttributes = getForcedAwarenessAttributes(CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.get(settings));
-        logger.info(forcedAwarenessAttributes);
-        logger.info(awarenessAttributes);
-        logger.info(awarenessBalance);
         int defaultAwarenessAttributes = 1;
         if (awarenessBalance == false) {
             return defaultAwarenessAttributes;
