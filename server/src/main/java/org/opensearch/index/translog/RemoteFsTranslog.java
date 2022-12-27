@@ -67,7 +67,8 @@ public class RemoteFsTranslog extends Translog {
         );
 
         try {
-            Checkpoint checkpoint = readCheckpoint();
+            download(translogTransferManager, location);
+            Checkpoint checkpoint = readCheckpoint(location);
             this.readers.addAll(recoverFromFiles(checkpoint));
             if (readers.isEmpty()) {
                 throw new IllegalStateException("at least one reader must be recovered");
@@ -99,44 +100,15 @@ public class RemoteFsTranslog extends Translog {
         }
     }
 
-    private Checkpoint readCheckpoint() throws IOException {
-        boolean override = false;
-        Checkpoint checkpoint;
-        try {
-            checkpoint = readCheckpoint(location);
-            if (isLocalTranslogLagging(checkpoint, primaryTermSupplier.getAsLong()) == false) {
-                return checkpoint;
-            } else {
-                logger.info("Local checkpoint is behind remote, downloading the diff from remote translog");
-            }
-        } catch (Exception e) {
-            logger.warn("Exception while reading checkpoint, downloading from remote translog");
-            override = true;
-        }
-        download(translogTransferManager, location, override);
-        checkpoint = readCheckpoint(location);
-        return checkpoint;
-    }
-
-    private boolean isLocalTranslogLagging(Checkpoint checkpoint, long primaryTerm) throws IOException {
-        TranslogTransferMetadata translogMetadata = translogTransferManager.readMetadata();
-        if (translogMetadata != null) {
-            return translogMetadata.getGeneration() > checkpoint.getGeneration() && translogMetadata.getPrimaryTerm() >= primaryTerm;
-        }
-        return false;
-    }
-
-    public static void download(TranslogTransferManager translogTransferManager, Path location, boolean override) throws IOException {
+    public static void download(TranslogTransferManager translogTransferManager, Path location) throws IOException {
         TranslogTransferMetadata translogMetadata = translogTransferManager.readMetadata();
         if (translogMetadata != null) {
             if (Files.notExists(location)) {
                 Files.createDirectories(location);
             }
-            if (override) {
-                // Delete translog files on local before downloading from remote
-                for (Path file : FileSystemUtils.files(location)) {
-                    Files.delete(file);
-                }
+            // Delete translog files on local before downloading from remote
+            for (Path file : FileSystemUtils.files(location)) {
+                Files.delete(file);
             }
             Map<String, String> generationToPrimaryTermMapper = translogMetadata.getGenerationToPrimaryTermMapper();
             for (long i = translogMetadata.getGeneration(); i >= translogMetadata.getMinTranslogGeneration(); i--) {

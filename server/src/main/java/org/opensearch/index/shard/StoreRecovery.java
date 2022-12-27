@@ -472,7 +472,7 @@ final class StoreRecovery {
                     fileTransferTracker,
                     fileTransferTracker::exclusionFilter
                 );
-                RemoteFsTranslog.download(translogTransferManager, indexShard.shardPath().resolveTranslog(), true);
+                RemoteFsTranslog.download(translogTransferManager, indexShard.shardPath().resolveTranslog());
             }
 
             assert indexShard.shardRouting.primary() : "only primary shards can recover from store";
