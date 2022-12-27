@@ -47,7 +47,6 @@ import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.indices.recovery.RecoverySettings;
-import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.blobstore.BlobStoreTestUtil;
 import org.opensearch.repositories.fs.FsRepository;
@@ -323,7 +322,7 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
         }
 
         // Delete translog files to test download flow
-        for(Path file: FileSystemUtils.files(translogDir)) {
+        for (Path file : FileSystemUtils.files(translogDir)) {
             Files.delete(file);
         }
 

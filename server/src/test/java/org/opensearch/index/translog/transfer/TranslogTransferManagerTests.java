@@ -181,7 +181,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         when(transferService.listAll(any(BlobPath.class))).thenReturn(Sets.newHashSet("12__234__123456789"));
 
         TranslogTransferMetadata metadata = createTransferSnapshot().getTranslogTransferMetadata();
-        when(transferService.readFile(any(BlobPath.class), eq("12__234__123456789"))).thenReturn(
+        when(transferService.downloadBlob(any(BlobPath.class), eq("12__234__123456789"))).thenReturn(
             new ByteArrayInputStream(metadata.createMetadataBytes())
         );
 
@@ -201,7 +201,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         );
 
         TranslogTransferMetadata metadata = createTransferSnapshot().getTranslogTransferMetadata();
-        when(transferService.readFile(any(BlobPath.class), eq("12__235__56823"))).thenReturn(
+        when(transferService.downloadBlob(any(BlobPath.class), eq("12__235__56823"))).thenReturn(
             new ByteArrayInputStream(metadata.createMetadataBytes())
         );
 
@@ -220,7 +220,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
             Sets.newHashSet("12__234__56789", "12__235__56823", "12__235__56700")
         );
 
-        when(transferService.readFile(any(BlobPath.class), eq("12__235__56823"))).thenThrow(new IOException("Something went wrong"));
+        when(transferService.downloadBlob(any(BlobPath.class), eq("12__235__56823"))).thenThrow(new IOException("Something went wrong"));
 
         assertThrows(IOException.class, translogTransferManager::readMetadata);
     }
@@ -234,11 +234,11 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
             r -> r
         );
 
-        when(transferService.readFile(any(BlobPath.class), eq("translog-23.tlog"))).thenReturn(
+        when(transferService.downloadBlob(any(BlobPath.class), eq("translog-23.tlog"))).thenReturn(
             new ByteArrayInputStream("Hello Translog".getBytes(StandardCharsets.UTF_8))
         );
 
-        when(transferService.readFile(any(BlobPath.class), eq("translog-23.ckp"))).thenReturn(
+        when(transferService.downloadBlob(any(BlobPath.class), eq("translog-23.ckp"))).thenReturn(
             new ByteArrayInputStream("Hello Checkpoint".getBytes(StandardCharsets.UTF_8))
         );
 
@@ -263,8 +263,8 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
 
         translogTransferManager.downloadTranslog("12", "23", location, false);
 
-        verify(transferService, times(0)).readFile(any(BlobPath.class), eq("translog-23.tlog"));
-        verify(transferService, times(0)).readFile(any(BlobPath.class), eq("translog-23.ckp"));
+        verify(transferService, times(0)).downloadBlob(any(BlobPath.class), eq("translog-23.tlog"));
+        verify(transferService, times(0)).downloadBlob(any(BlobPath.class), eq("translog-23.ckp"));
     }
 
     public void testDownloadTranslogLatestCheckpoint() throws IOException {
@@ -278,14 +278,14 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
             r -> r
         );
 
-        when(transferService.readFile(any(BlobPath.class), eq("translog-23.ckp"))).thenReturn(
+        when(transferService.downloadBlob(any(BlobPath.class), eq("translog-23.ckp"))).thenReturn(
             new ByteArrayInputStream("Hello Checkpoint".getBytes(StandardCharsets.UTF_8))
         );
 
         assertFalse(Files.exists(location.resolve("translog.ckp")));
         translogTransferManager.downloadTranslog("12", "23", location, true);
         assertTrue(Files.exists(location.resolve("translog.ckp")));
-        verify(transferService, times(0)).readFile(any(BlobPath.class), eq("translog-23.tlog"));
+        verify(transferService, times(0)).downloadBlob(any(BlobPath.class), eq("translog-23.tlog"));
     }
 
 }

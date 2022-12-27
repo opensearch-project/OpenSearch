@@ -140,7 +140,7 @@ public class TranslogTransferManager {
         }
         if (Files.exists(location.resolve(checkpointFilename)) == false) {
             try (
-                InputStream checkpointFileInputStream = transferService.readFile(
+                InputStream checkpointFileInputStream = transferService.downloadBlob(
                     remoteBaseTransferPath.add(primaryTerm),
                     "translog-" + generation + ".ckp"
                 )
@@ -151,7 +151,7 @@ public class TranslogTransferManager {
         String translogFilename = "translog-" + generation + ".tlog";
         if (Files.exists(location.resolve(translogFilename)) == false) {
             try (
-                InputStream translogFileInputStream = transferService.readFile(
+                InputStream translogFileInputStream = transferService.downloadBlob(
                     remoteBaseTransferPath.add(primaryTerm),
                     "translog-" + generation + ".tlog"
                 )
@@ -166,7 +166,11 @@ public class TranslogTransferManager {
         List<String> metadataFilenames = new ArrayList<>(transferService.listAll(remoteMetadaTransferPath));
         if (!metadataFilenames.isEmpty()) {
             metadataFilenames.sort(TranslogTransferMetadata.METADATA_FILENAME_COMPARATOR);
-            try (InputStreamStreamInput streamInput = new InputStreamStreamInput(transferService.readFile(remoteMetadaTransferPath, metadataFilenames.get(metadataFilenames.size() - 1)))) {
+            try (
+                InputStreamStreamInput streamInput = new InputStreamStreamInput(
+                    transferService.downloadBlob(remoteMetadaTransferPath, metadataFilenames.get(metadataFilenames.size() - 1))
+                )
+            ) {
                 return new TranslogTransferMetadata(streamInput);
             }
         }

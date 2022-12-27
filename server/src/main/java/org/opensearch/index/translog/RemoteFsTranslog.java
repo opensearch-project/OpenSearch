@@ -25,8 +25,6 @@ import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -131,7 +129,7 @@ public class RemoteFsTranslog extends Translog {
     public static void download(TranslogTransferManager translogTransferManager, Path location, boolean override) throws IOException {
         TranslogTransferMetadata translogMetadata = translogTransferManager.readMetadata();
         if (translogMetadata != null) {
-            if(Files.notExists(location)) {
+            if (Files.notExists(location)) {
                 Files.createDirectories(location);
             }
             if (override) {
