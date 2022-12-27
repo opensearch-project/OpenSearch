@@ -78,7 +78,7 @@ public class ClusterPutWeightedRoutingRequest extends ClusterManagerNodeRequest<
         this.attributeName = attributeName;
     }
 
-    public void setWeightedRouting(Map<String, String> source) {
+    public void setWeightedRouting(Map<String, Object> source) {
         try {
             if (source.isEmpty()) {
                 throw new OpenSearchParseException(("Empty request body"));
@@ -190,7 +190,7 @@ public class ClusterPutWeightedRoutingRequest extends ClusterManagerNodeRequest<
      * @param source weights definition from request body
      * @return this request
      */
-    public ClusterPutWeightedRoutingRequest source(Map<String, String> source) {
+    public ClusterPutWeightedRoutingRequest source(Map<String, Object> source) {
         setWeightedRouting(source);
         return this;
     }
