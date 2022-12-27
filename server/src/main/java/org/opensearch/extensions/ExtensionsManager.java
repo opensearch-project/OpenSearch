@@ -391,8 +391,10 @@ public class ExtensionsManager {
                 new InitializeExtensionRequest(transportService.getLocalNode(), extension),
                 initializeExtensionResponseHandler
             );
-            // TODO: make asynchronous
-            inProgressFuture.get(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS);
+            inProgressFuture.orTimeout(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS);
+            if (inProgressFuture.isCompletedExceptionally()) {
+                inProgressFuture.get();
+            }
         } catch (Exception e) {
             try {
                 throw e;
@@ -486,8 +488,10 @@ public class ExtensionsManager {
                                     new IndicesModuleRequest(indexModule),
                                     acknowledgedResponseHandler
                                 );
-                                // TODO: make asynchronous
-                                inProgressIndexNameFuture.get(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS);
+                                inProgressIndexNameFuture.orTimeout(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS);
+                                if (inProgressFuture.isCompletedExceptionally()) {
+                                    inProgressIndexNameFuture.get();
+                                }
                                 logger.info("Received ack response from Extension");
                             } catch (Exception e) {
                                 try {
@@ -522,8 +526,10 @@ public class ExtensionsManager {
                 new IndicesModuleRequest(indexModule),
                 indicesModuleResponseHandler
             );
-            // TODO: make asynchronous
-            inProgressFuture.get(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS);
+            inProgressFuture.orTimeout(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS);
+            if (inProgressFuture.isCompletedExceptionally()) {
+                inProgressFuture.get();
+            }
             logger.info("Received response from Extension");
         } catch (Exception e) {
             try {

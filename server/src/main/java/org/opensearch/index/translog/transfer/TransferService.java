@@ -52,8 +52,8 @@ public interface TransferService {
 
     /**
      *
-     * @param path
-     * @param fileName
+     * @param path path
+     * @param fileName file name
      * @return inputstream of the remote file
      * @throws IOException the exception while reading the data
      */

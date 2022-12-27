@@ -32,8 +32,9 @@ import java.security.Principal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableList;
@@ -122,7 +123,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
             emptyList(),
             false
         );
-        final CountDownLatch inProgressLatch = new CountDownLatch(1);
+        final CompletableFuture<RestExecuteOnExtensionResponse> inProgressFuture = new CompletableFuture<>();
         final TransportResponseHandler<RestExecuteOnExtensionResponse> restExecuteOnExtensionResponseHandler = new TransportResponseHandler<
             RestExecuteOnExtensionResponse>() {
 
@@ -151,7 +152,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
                 // Status is already defaulted to 500 (INTERNAL_SERVER_ERROR)
                 byte[] responseBytes = ("Request failed: " + exp.getMessage()).getBytes(StandardCharsets.UTF_8);
                 restExecuteOnExtensionResponse.setContent(responseBytes);
-                inProgressLatch.countDown();
+                inProgressFuture.completeExceptionally(exp);
             }
 
             @Override
@@ -172,8 +173,11 @@ public class RestSendToExtensionAction extends BaseRestHandler {
                 new ExtensionRestRequest(method, path, params, contentType, content, requestIssuerIdentity),
                 restExecuteOnExtensionResponseHandler
             );
+            inProgressFuture.orTimeout(5, TimeUnit.SECONDS);
             try {
-                inProgressLatch.await(5, TimeUnit.SECONDS);
+                if (inProgressFuture.isCompletedExceptionally()) {
+                    inProgressFuture.get();
+                }
             } catch (InterruptedException e) {
                 return channel -> channel.sendResponse(
                     new BytesRestResponse(RestStatus.REQUEST_TIMEOUT, "No response from extension to request.")
