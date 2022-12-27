@@ -80,15 +80,19 @@ public class BytesStreamInput extends StreamInput {
         pos += count;
     }
 
-    // NOTE: AIOOBE not EOF if you read too much
     @Override
-    public byte readByte() {
+    public byte readByte() throws EOFException {
+        if (eof()) {
+            throw new EOFException();
+        }
         return bytes[pos++];
     }
 
-    // NOTE: AIOOBE not EOF if you read too much
     @Override
-    public void readBytes(byte[] b, int offset, int len) {
+    public void readBytes(byte[] b, int offset, int len) throws EOFException {
+        if (available() < len) {
+            throw new EOFException();
+        }
         System.arraycopy(bytes, pos, b, offset, len);
         pos += len;
     }
@@ -111,6 +115,9 @@ public class BytesStreamInput extends StreamInput {
 
     @Override
     public int read() throws IOException {
+        if (eof()) {
+            throw new EOFException();
+        }
         return bytes[pos++] & 0xFF;
     }
 
