@@ -96,10 +96,10 @@ public class WeightedRoutingService {
                 WeightedRoutingMetadata weightedRoutingMetadata = metadata.custom(WeightedRoutingMetadata.TYPE);
                 ensureNoVersionConflict(requestVersion, weightedRoutingMetadata);
                 if (weightedRoutingMetadata == null) {
-                    logger.info("put weighted routing weights in metadata [{}]", newWeightedRouting);
+                    logger.info("add weighted routing weights in metadata [{}]", newWeightedRouting);
                     weightedRoutingMetadata = new WeightedRoutingMetadata(newWeightedRouting, requestVersion + 1);
                 } else {
-                    if (!checkIfSameWeightsInMetadata(request.getWeightedRouting(), weightedRoutingMetadata.getWeightedRouting())) {
+                    if (!checkIfSameWeightsInMetadata(newWeightedRouting, weightedRoutingMetadata.getWeightedRouting())) {
                         logger.info("updated weighted routing weights [{}] in metadata", newWeightedRouting);
                         weightedRoutingMetadata = new WeightedRoutingMetadata(newWeightedRouting, weightedRoutingMetadata.getVersion() + 1);
                     } else {
@@ -275,7 +275,7 @@ public class WeightedRoutingService {
             throw new UnsupportedWeightedRoutingStateException(
                 String.format(
                     Locale.ROOT,
-                    "weighted routing " + "version in request is %s but cluster weighted routing metadata is at a different version %s ",
+                    "requested version is %s but cluster weighted routing metadata is at a " + "different version %s ",
                     requestedVersion,
                     weightedRoutingMetadata != null ? weightedRoutingMetadata.getVersion() : WeightedRoutingMetadata.INITIAL_VERSION
                 )

@@ -37,21 +37,23 @@ import java.util.Map;
 public class ClusterDeleteWeightedRoutingRequest extends ClusterManagerNodeRequest<ClusterDeleteWeightedRoutingRequest> {
     private static final Logger logger = LogManager.getLogger(ClusterDeleteWeightedRoutingRequest.class);
 
+    private long version;
+    private String awarenessAttribute;
+
     public void setVersion(long version) {
         this.version = version;
     }
 
-    private long version;
-    private String awarenessAttribute;
-
     public ClusterDeleteWeightedRoutingRequest() {
-
+        this.version = WeightedRoutingMetadata.VERSION_UNSET_VALUE;
     }
 
     public ClusterDeleteWeightedRoutingRequest(StreamInput in) throws IOException {
         super(in);
         version = in.readLong();
-        awarenessAttribute = in.readString();
+        if (in.available() != 0) {
+            awarenessAttribute = in.readString();
+        }
     }
 
     public long getVersion() {
@@ -68,7 +70,7 @@ public class ClusterDeleteWeightedRoutingRequest extends ClusterManagerNodeReque
 
     public ClusterDeleteWeightedRoutingRequest(String awarenessAttribute) {
         this.awarenessAttribute = awarenessAttribute;
-        this.version = WeightedRoutingMetadata.INITIAL_VERSION;
+        this.version = WeightedRoutingMetadata.VERSION_UNSET_VALUE;
     }
 
     @Override
@@ -127,7 +129,7 @@ public class ClusterDeleteWeightedRoutingRequest extends ClusterManagerNodeReque
                 }
             }
         } catch (IOException e) {
-            logger.error("error while parsing delete for weighted routing request object", e);
+            logger.error("error while parsing delete request for weighted routing request object", e);
         }
     }
 
@@ -135,7 +137,9 @@ public class ClusterDeleteWeightedRoutingRequest extends ClusterManagerNodeReque
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeLong(version);
-        out.writeString(awarenessAttribute);
+        if (awarenessAttribute != null) {
+            out.writeString(awarenessAttribute);
+        }
     }
 
     @Override

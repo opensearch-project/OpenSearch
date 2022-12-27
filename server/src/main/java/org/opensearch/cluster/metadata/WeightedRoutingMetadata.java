@@ -100,11 +100,11 @@ public class WeightedRoutingMetadata extends AbstractNamedDiffable<Metadata.Cust
         Double attrValue;
         String attributeName = null;
         Map<String, Double> weights = new HashMap<>();
-        WeightedRouting weightedRouting = null;
+        WeightedRouting weightedRouting;
         XContentParser.Token token;
-        String awarenessField = null;
+        String awarenessField;
         String versionAttr = null;
-        long version = INITIAL_VERSION;
+        long version = VERSION_UNSET_VALUE;
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -116,16 +116,13 @@ public class WeightedRoutingMetadata extends AbstractNamedDiffable<Metadata.Cust
                     awarenessField = parser.currentName();
                 }
                 if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
-                    throw new OpenSearchParseException(
-                        "failed to parse weighted routing metadata  [{}], expected " + "object",
-                        awarenessField
-                    );
+                    throw new OpenSearchParseException("failed to parse weighted routing metadata  [{}], expected object", awarenessField);
                 }
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     attributeName = parser.currentName();
                     if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
                         throw new OpenSearchParseException(
-                            "failed to parse weighted routing metadata  [{}], expected" + " object",
+                            "failed to parse weighted routing metadata  [{}], expected object",
                             attributeName
                         );
                     }
@@ -134,7 +131,7 @@ public class WeightedRoutingMetadata extends AbstractNamedDiffable<Metadata.Cust
                             attrKey = parser.currentName();
 
                         } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                            if (attrKey != null && attrKey.equals("_version")) {
+                            if (attrKey != null && attrKey.equals(VERSION)) {
                                 version = Long.parseLong(parser.text());
                             } else {
                                 attrValue = Double.parseDouble(parser.text());
@@ -150,7 +147,7 @@ public class WeightedRoutingMetadata extends AbstractNamedDiffable<Metadata.Cust
                     }
                 }
             } else if (token == XContentParser.Token.VALUE_STRING) {
-                if (versionAttr.equals(VERSION)) {
+                if (versionAttr != null && versionAttr.equals(VERSION)) {
                     version = Long.parseLong(parser.text());
                 }
             }

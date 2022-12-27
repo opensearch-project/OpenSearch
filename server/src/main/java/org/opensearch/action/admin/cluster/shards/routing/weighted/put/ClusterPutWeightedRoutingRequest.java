@@ -107,7 +107,7 @@ public class ClusterPutWeightedRoutingRequest extends ClusterManagerNodeRequest<
             // move to the first alias
             parser.nextToken();
             String versionAttr = null;
-            String weightsAttr = null;
+            String weightsAttr;
             long version = WeightedRoutingMetadata.VERSION_UNSET_VALUE;
 
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -116,12 +116,14 @@ public class ClusterPutWeightedRoutingRequest extends ClusterManagerNodeRequest<
                     if (fieldName != null && fieldName.equals(WeightedRoutingMetadata.VERSION)) {
                         versionAttr = parser.currentName();
                         continue;
-                    } else {
+                    } else if (fieldName != null && fieldName.equals("weights")) {
                         weightsAttr = parser.currentName();
+                    } else {
+                        throw new OpenSearchParseException("failed to parse weighted routing request object [{}]", fieldName);
                     }
                     if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
                         throw new OpenSearchParseException(
-                            "failed to parse weighted routing request object  [{}], expected " + "object",
+                            "failed to parse weighted routing request object  [{}], expected object",
                             weightsAttr
                         );
                     }
@@ -153,7 +155,7 @@ public class ClusterPutWeightedRoutingRequest extends ClusterManagerNodeRequest<
             this.weightedRouting = new WeightedRouting(this.attributeName, weights);
             this.version = version;
         } catch (IOException e) {
-            logger.error("error while parsing put for weighted routing request object", e);
+            logger.error("error while parsing put weighted routing request object", e);
         }
     }
 
@@ -204,7 +206,7 @@ public class ClusterPutWeightedRoutingRequest extends ClusterManagerNodeRequest<
 
     @Override
     public String toString() {
-        return "ClusterPutWeightedRoutingRequest{" + "weightedRouting= " + weightedRouting.toString() + "}";
+        return "ClusterPutWeightedRoutingRequest{" + "weightedRouting= " + weightedRouting.toString() + "version= " + version + "}";
     }
 
 }
