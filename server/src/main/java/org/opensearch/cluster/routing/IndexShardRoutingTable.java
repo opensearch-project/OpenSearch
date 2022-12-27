@@ -310,7 +310,8 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
      *
      * @param weightedRouting entity
      * @param nodes           discovered nodes in the cluster
-     * @param isFailOpenEnabled
+     * @param isFailOpenEnabled if true, shards search requests in case of failures are tried on shard copies present
+     *                          in node attribute value with weight zero
      * @return an iterator over active and initializing shards, ordered by weighted round-robin
      * scheduling policy. Making sure that initializing shards are the last to iterate through.
      */

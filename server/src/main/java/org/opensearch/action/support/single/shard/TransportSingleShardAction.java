@@ -47,9 +47,9 @@ import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.routing.FailOpenRouting;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardsIterator;
-import org.opensearch.cluster.routing.WeightedRoutingHelper;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamInput;
@@ -245,26 +245,8 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                 lastFailure = currentFailure;
                 this.lastFailure = currentFailure;
             }
-            ShardRouting shardRouting = shardIt.nextOrNull();
+            ShardRouting shardRouting = FailOpenRouting.findNext(shardIt, currentFailure, clusterService.state());
 
-            // This checks if the shard is present in data node with weighted routing weight set to 0,
-            // In such cases we fail open, if shard search request for the shard from other shard copies fail with non
-            // retryable exception.
-            while (shardRouting != null
-                && WeightedRoutingHelper.shardInWeighedAwayAZ(shardRouting.currentNodeId(), clusterService.state())) {
-                if (WeightedRoutingHelper.isInternalFailure(currentFailure)) {
-                    ShardRouting shardToFailOpen = shardRouting;
-                    logger.info(
-                        () -> new ParameterizedMessage(
-                            "{}: Fail open executed",
-                            shardToFailOpen.shardId()
-
-                        )
-                    );
-                    break;
-                }
-                shardRouting = shardIt.nextOrNull();
-            }
             if (shardRouting == null) {
                 Exception failure = lastFailure;
                 if (failure == null || isShardNotAvailableException(failure)) {

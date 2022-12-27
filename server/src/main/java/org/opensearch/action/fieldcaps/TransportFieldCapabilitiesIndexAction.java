@@ -48,10 +48,10 @@ import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.routing.FailOpenRouting;
 import org.opensearch.cluster.routing.GroupShardsIterator;
 import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.routing.ShardRouting;
-import org.opensearch.cluster.routing.WeightedRoutingHelper;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.inject.Inject;
@@ -266,25 +266,7 @@ public class TransportFieldCapabilitiesIndexAction extends HandledTransportActio
             if (shardsIt.size() == 0 || shardIndex >= shardsIt.size()) {
                 return null;
             }
-            ShardRouting next = shardsIt.get(shardIndex).nextOrNull();
-
-            // This checks if the shard is present in data node with weighted routing weight set to 0,
-            // In such cases we fail open, if shard search request for the shard from other shard copies fail with non
-            // retryable exception.
-            while (next != null && WeightedRoutingHelper.shardInWeighedAwayAZ(next.currentNodeId(), clusterService.state())) {
-                if (WeightedRoutingHelper.isInternalFailure(failure)) {
-                    ShardRouting shardToFailOpen = next;
-                    logger.info(
-                        () -> new ParameterizedMessage(
-                            "{}: Fail open executed",
-                            shardToFailOpen.shardId()
-
-                        )
-                    );
-                    break;
-                }
-                next = shardsIt.get(shardIndex).nextOrNull();
-            }
+            ShardRouting next = FailOpenRouting.findNext(shardsIt.get(shardIndex), failure, clusterService.state());
 
             if (next != null) {
                 return next;

@@ -43,8 +43,8 @@ import org.opensearch.action.NoShardAvailableActionException;
 import org.opensearch.action.ShardOperationFailedException;
 import org.opensearch.action.support.TransportActions;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.routing.FailOpenRouting;
 import org.opensearch.cluster.routing.GroupShardsIterator;
-import org.opensearch.cluster.routing.WeightedRoutingHelper;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
@@ -450,24 +450,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         // we always add the shard failure for a specific shard instance
         // we do make sure to clean it on a successful response from a shard
         onShardFailure(shardIndex, shard, e);
-        SearchShardTarget nextShard = shardIt.nextOrNull();
-        // This checks if the shard is present in data node with weighted routing weight set to 0,
-        // In such cases we fail open, if shard search request for the shard from other shard copies fail with non
-        // retryable exception.
-        while (nextShard != null && WeightedRoutingHelper.shardInWeighedAwayAZ(nextShard.getNodeId(), clusterState)) {
-            if (WeightedRoutingHelper.isInternalFailure(e)) {
-                SearchShardTarget shardToFailOpen = nextShard;
-                logger.info(
-                    () -> new ParameterizedMessage(
-                        "{}: Fail open executed",
-                        shardToFailOpen.getShardId()
+        SearchShardTarget nextShard = FailOpenRouting.findNext(shardIt, e, clusterState);
 
-                    )
-                );
-                break;
-            }
-            nextShard = shardIt.nextOrNull();
-        }
         final boolean lastShard = nextShard == null;
         logger.debug(
             () -> new ParameterizedMessage(

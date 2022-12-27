@@ -44,10 +44,10 @@ import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.routing.FailOpenRouting;
 import org.opensearch.cluster.routing.GroupShardsIterator;
 import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.routing.ShardRouting;
-import org.opensearch.cluster.routing.WeightedRoutingHelper;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamInput;
@@ -251,25 +251,8 @@ public abstract class TransportBroadcastAction<
             // we set the shard failure always, even if its the first in the replication group, and the next one
             // will work (it will just override it...)
             setFailure(shardIt, shardIndex, e);
-            ShardRouting nextShard = shardIt.nextOrNull();
+            ShardRouting nextShard = FailOpenRouting.findNext(shardIt, e, clusterState);
 
-            // This checks if the shard is present in data node with weighted routing weight set to 0,
-            // In such cases we fail open, if shard search request for the shard from other shard copies fail with non
-            // retryable exception.
-            while (nextShard != null && WeightedRoutingHelper.shardInWeighedAwayAZ(nextShard.currentNodeId(), clusterState)) {
-                if (WeightedRoutingHelper.isInternalFailure(e)) {
-                    ShardRouting shardToFailOpen = nextShard;
-                    logger.info(
-                        () -> new ParameterizedMessage(
-                            "{}: Fail open executed",
-                            shardToFailOpen.shardId()
-
-                        )
-                    );
-                    break;
-                }
-                nextShard = shardIt.nextOrNull();
-            }
             if (nextShard != null) {
                 if (e != null) {
                     if (logger.isTraceEnabled()) {
