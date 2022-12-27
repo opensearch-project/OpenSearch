@@ -67,6 +67,7 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
         Settings commonSettings = Settings.builder()
             .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.getKey() + "zone" + ".values", "a,b,c")
             .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(), "zone")
+            .put("cluster.routing.weighted.fail_open", false)
             .build();
 
         logger.info("--> starting 6 nodes on different zones");
@@ -252,6 +253,7 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
         Settings commonSettings = Settings.builder()
             .put("cluster.routing.allocation.awareness.attributes", "zone")
             .put("cluster.routing.allocation.awareness.force.zone.values", "a,b,c")
+            .put("cluster.routing.weighted.fail_open", false)
             .build();
 
         int nodeCountPerAZ = 1;
@@ -368,6 +370,7 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
         Settings commonSettings = Settings.builder()
             .put("cluster.routing.allocation.awareness.attributes", "zone")
             .put("cluster.routing.allocation.awareness.force.zone.values", "a,b,c")
+            .put("cluster.routing.weighted.fail_open", false)
             .build();
 
         int nodeCountPerAZ = 1;
@@ -722,6 +725,7 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
         Settings commonSettings = Settings.builder()
             .put("cluster.routing.allocation.awareness.attributes", "zone")
             .put("cluster.routing.allocation.awareness.force.zone.values", "a,b,c")
+            .put("cluster.routing.weighted.fail_open", false)
             .build();
 
         int nodeCountPerAZ = 1;
