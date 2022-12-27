@@ -51,9 +51,10 @@ public class ClusterManagerTaskThrottler implements TaskBatcherListener {
     private final ConcurrentMap<String, Long> tasksCount;
     private final ConcurrentMap<String, Long> tasksThreshold;
     private final Supplier<Version> minNodeVersionSupplier;
-    // Needed for static threshold settings.
-    // Once all nodes are grater than or equal to 2.5.0 version, then only it will start throttling.
-    // During upgrade, it will wait for all older version nodes to leave the cluster and then only start throttling.
+
+    // Once all nodes are greater than or equal 2.5.0 version, then only it will start throttling.
+    // During upgrade as well, it will wait for all older version nodes to leave the cluster before starting throttling.
+    // This is needed specifically for static setting to enable throttling.
     private AtomicBoolean startThrottling = new AtomicBoolean();
 
     public ClusterManagerTaskThrottler(
