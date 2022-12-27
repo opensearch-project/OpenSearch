@@ -8,6 +8,7 @@
 
 package org.opensearch.index.translog;
 
+import org.opensearch.common.io.FileSystemUtils;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.concurrent.ReleasableLock;
@@ -17,10 +18,14 @@ import org.opensearch.index.translog.transfer.FileTransferTracker;
 import org.opensearch.index.translog.transfer.TransferSnapshot;
 import org.opensearch.index.translog.transfer.TranslogCheckpointTransferSnapshot;
 import org.opensearch.index.translog.transfer.TranslogTransferManager;
+import org.opensearch.index.translog.transfer.TranslogTransferMetadata;
 import org.opensearch.index.translog.transfer.listener.TranslogTransferListener;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.function.LongConsumer;
@@ -62,7 +67,7 @@ public class RemoteFsTranslog extends Translog {
         );
 
         try {
-            final Checkpoint checkpoint = readCheckpoint(location);
+            Checkpoint checkpoint = readCheckpoint();
             this.readers.addAll(recoverFromFiles(checkpoint));
             if (readers.isEmpty()) {
                 throw new IllegalStateException("at least one reader must be recovered");
@@ -91,6 +96,58 @@ public class RemoteFsTranslog extends Translog {
             IOUtils.closeWhileHandlingException(current);
             IOUtils.closeWhileHandlingException(readers);
             throw e;
+        }
+    }
+
+    private Checkpoint readCheckpoint() throws IOException {
+        boolean override = false;
+        Checkpoint checkpoint;
+        try {
+            checkpoint = readCheckpoint(location);
+            if (isLocalTranslogLagging(checkpoint, primaryTermSupplier.getAsLong()) == false) {
+                return checkpoint;
+            } else {
+                logger.info("Local checkpoint is behind remote, downloading the diff from remote translog");
+            }
+        } catch (Exception e) {
+            logger.warn("Exception while reading checkpoint, downloading from remote translog");
+            override = true;
+        }
+        download(translogTransferManager, location, override);
+        checkpoint = readCheckpoint(location);
+        return checkpoint;
+    }
+
+    private boolean isLocalTranslogLagging(Checkpoint checkpoint, long primaryTerm) throws IOException {
+        TranslogTransferMetadata translogMetadata = translogTransferManager.readMetadata();
+        if (translogMetadata != null) {
+            return translogMetadata.getGeneration() > checkpoint.getGeneration() && translogMetadata.getPrimaryTerm() >= primaryTerm;
+        }
+        return false;
+    }
+
+    public static void download(TranslogTransferManager translogTransferManager, Path location, boolean override) throws IOException {
+        TranslogTransferMetadata translogMetadata = translogTransferManager.readMetadata();
+        if (translogMetadata != null) {
+            if (Files.notExists(location)) {
+                Files.createDirectories(location);
+            }
+            if (override) {
+                // Delete translog files on local before downloading from remote
+                for (Path file : FileSystemUtils.files(location)) {
+                    Files.delete(file);
+                }
+            }
+            Map<String, String> generationToPrimaryTermMapper = translogMetadata.getGenerationToPrimaryTermMapper();
+            for (long i = translogMetadata.getGeneration(); i >= translogMetadata.getMinTranslogGeneration(); i--) {
+                String generation = Long.toString(i);
+                translogTransferManager.downloadTranslog(
+                    generationToPrimaryTermMapper.get(generation),
+                    generation,
+                    location,
+                    i == translogMetadata.getGeneration()
+                );
+            }
         }
     }
 

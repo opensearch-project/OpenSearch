@@ -12,6 +12,7 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.mockito.Mockito;
 import org.opensearch.action.ActionListener;
 import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.util.set.Sets;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.transfer.listener.FileTransferListener;
 import org.opensearch.index.translog.transfer.listener.TranslogTransferListener;
@@ -20,14 +21,22 @@ import org.opensearch.index.translog.transfer.FileSnapshot.CheckpointFileSnapsho
 import org.opensearch.index.translog.transfer.FileSnapshot.TranslogFileSnapshot;
 import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.times;
 
 @LuceneTestCase.SuppressFileSystems("*")
 public class TranslogTransferManagerTests extends OpenSearchTestCase {
@@ -147,4 +156,136 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
             }
         };
     }
+
+    public void testReadMetadataNoFile() throws IOException {
+        TranslogTransferManager translogTransferManager = new TranslogTransferManager(
+            transferService,
+            remoteBaseTransferPath,
+            null,
+            r -> r
+        );
+
+        when(transferService.listAll(remoteBaseTransferPath)).thenReturn(Sets.newHashSet());
+        assertNull(translogTransferManager.readMetadata());
+    }
+
+    public void testReadMetadataSingleFile() throws IOException {
+        TranslogTransferManager translogTransferManager = new TranslogTransferManager(
+            transferService,
+            remoteBaseTransferPath,
+            null,
+            r -> r
+        );
+
+        // BlobPath does not have equals method, so we can't use the instance directly in when
+        when(transferService.listAll(any(BlobPath.class))).thenReturn(Sets.newHashSet("12__234__123456789"));
+
+        TranslogTransferMetadata metadata = createTransferSnapshot().getTranslogTransferMetadata();
+        when(transferService.downloadBlob(any(BlobPath.class), eq("12__234__123456789"))).thenReturn(
+            new ByteArrayInputStream(metadata.createMetadataBytes())
+        );
+
+        assertEquals(metadata, translogTransferManager.readMetadata());
+    }
+
+    public void testReadMetadataMultipleFiles() throws IOException {
+        TranslogTransferManager translogTransferManager = new TranslogTransferManager(
+            transferService,
+            remoteBaseTransferPath,
+            null,
+            r -> r
+        );
+
+        when(transferService.listAll(any(BlobPath.class))).thenReturn(
+            Sets.newHashSet("12__234__56789", "12__235__56823", "12__235__56700")
+        );
+
+        TranslogTransferMetadata metadata = createTransferSnapshot().getTranslogTransferMetadata();
+        when(transferService.downloadBlob(any(BlobPath.class), eq("12__235__56823"))).thenReturn(
+            new ByteArrayInputStream(metadata.createMetadataBytes())
+        );
+
+        assertEquals(metadata, translogTransferManager.readMetadata());
+    }
+
+    public void testReadMetadataException() throws IOException {
+        TranslogTransferManager translogTransferManager = new TranslogTransferManager(
+            transferService,
+            remoteBaseTransferPath,
+            null,
+            r -> r
+        );
+
+        when(transferService.listAll(any(BlobPath.class))).thenReturn(
+            Sets.newHashSet("12__234__56789", "12__235__56823", "12__235__56700")
+        );
+
+        when(transferService.downloadBlob(any(BlobPath.class), eq("12__235__56823"))).thenThrow(new IOException("Something went wrong"));
+
+        assertThrows(IOException.class, translogTransferManager::readMetadata);
+    }
+
+    public void testDownloadTranslog() throws IOException {
+        Path location = createTempDir();
+        TranslogTransferManager translogTransferManager = new TranslogTransferManager(
+            transferService,
+            remoteBaseTransferPath,
+            null,
+            r -> r
+        );
+
+        when(transferService.downloadBlob(any(BlobPath.class), eq("translog-23.tlog"))).thenReturn(
+            new ByteArrayInputStream("Hello Translog".getBytes(StandardCharsets.UTF_8))
+        );
+
+        when(transferService.downloadBlob(any(BlobPath.class), eq("translog-23.ckp"))).thenReturn(
+            new ByteArrayInputStream("Hello Checkpoint".getBytes(StandardCharsets.UTF_8))
+        );
+
+        assertFalse(Files.exists(location.resolve("translog-23.tlog")));
+        assertFalse(Files.exists(location.resolve("translog-23.ckp")));
+        translogTransferManager.downloadTranslog("12", "23", location, false);
+        assertTrue(Files.exists(location.resolve("translog-23.tlog")));
+        assertTrue(Files.exists(location.resolve("translog-23.ckp")));
+    }
+
+    public void testDownloadTranslogAlreadyExists() throws IOException {
+        Path location = createTempDir();
+        Files.createFile(location.resolve("translog-23.tlog"));
+        Files.createFile(location.resolve("translog-23.ckp"));
+
+        TranslogTransferManager translogTransferManager = new TranslogTransferManager(
+            transferService,
+            remoteBaseTransferPath,
+            null,
+            r -> r
+        );
+
+        translogTransferManager.downloadTranslog("12", "23", location, false);
+
+        verify(transferService, times(0)).downloadBlob(any(BlobPath.class), eq("translog-23.tlog"));
+        verify(transferService, times(0)).downloadBlob(any(BlobPath.class), eq("translog-23.ckp"));
+    }
+
+    public void testDownloadTranslogLatestCheckpoint() throws IOException {
+        Path location = createTempDir();
+        Files.createFile(location.resolve("translog-23.tlog"));
+
+        TranslogTransferManager translogTransferManager = new TranslogTransferManager(
+            transferService,
+            remoteBaseTransferPath,
+            null,
+            r -> r
+        );
+
+        when(transferService.downloadBlob(any(BlobPath.class), eq("translog-23.ckp"))).thenReturn(
+            new ByteArrayInputStream("Hello Checkpoint".getBytes(StandardCharsets.UTF_8))
+        );
+
+        assertFalse(Files.exists(location.resolve("translog.ckp")));
+        translogTransferManager.downloadTranslog("12", "23", location, true);
+        assertTrue(Files.exists(location.resolve("translog.ckp")));
+        verify(transferService, times(0)).downloadBlob(any(BlobPath.class), eq("translog-23.tlog"));
+    }
+
 }

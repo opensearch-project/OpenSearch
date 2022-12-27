@@ -14,10 +14,14 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.io.stream.InputStreamStreamInput;
 import org.opensearch.index.translog.transfer.listener.FileTransferListener;
 import org.opensearch.index.translog.transfer.listener.TranslogTransferListener;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -126,6 +130,51 @@ public class TranslogTransferManager {
             translogTransferListener.onUploadFailed(transferSnapshot, ex);
             return false;
         }
+    }
+
+    public boolean downloadTranslog(String primaryTerm, String generation, Path location, boolean latest) throws IOException {
+        logger.info("Downloading translog files with: Primry Term = {}, Generation = {}, Location = {}", primaryTerm, generation, location);
+        String checkpointFilename = "translog-" + generation + ".ckp";
+        if (latest) {
+            checkpointFilename = "translog.ckp";
+        }
+        if (Files.exists(location.resolve(checkpointFilename)) == false) {
+            try (
+                InputStream checkpointFileInputStream = transferService.downloadBlob(
+                    remoteBaseTransferPath.add(primaryTerm),
+                    "translog-" + generation + ".ckp"
+                )
+            ) {
+                Files.copy(checkpointFileInputStream, location.resolve(checkpointFilename));
+            }
+        }
+        String translogFilename = "translog-" + generation + ".tlog";
+        if (Files.exists(location.resolve(translogFilename)) == false) {
+            try (
+                InputStream translogFileInputStream = transferService.downloadBlob(
+                    remoteBaseTransferPath.add(primaryTerm),
+                    "translog-" + generation + ".tlog"
+                )
+            ) {
+                Files.copy(translogFileInputStream, location.resolve(translogFilename));
+            }
+        }
+        return true;
+    }
+
+    public TranslogTransferMetadata readMetadata() throws IOException {
+        List<String> metadataFilenames = new ArrayList<>(transferService.listAll(remoteMetadaTransferPath));
+        if (!metadataFilenames.isEmpty()) {
+            metadataFilenames.sort(TranslogTransferMetadata.METADATA_FILENAME_COMPARATOR);
+            try (
+                InputStreamStreamInput streamInput = new InputStreamStreamInput(
+                    transferService.downloadBlob(remoteMetadaTransferPath, metadataFilenames.get(metadataFilenames.size() - 1))
+                )
+            ) {
+                return new TranslogTransferMetadata(streamInput);
+            }
+        }
+        return null;
     }
 
     private TransferFileSnapshot prepareMetadata(TransferSnapshot transferSnapshot) throws IOException {
