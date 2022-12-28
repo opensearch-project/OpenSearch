@@ -144,6 +144,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
                 if (response.isContentConsumed()) {
                     request.content();
                 }
+                inProgressFuture.complete(response);
             }
 
             @Override
