@@ -198,6 +198,7 @@ public abstract class RecoverySourceHandler {
     protected void resumeSegmentReplicationRefresh() {
         // Enable this shard from performing segment replication on replicas
         if (shard.indexSettings().isSegRepEnabled() && request.isPrimaryRelocation() == true) {
+            assert shard.isBlockInternalCheckPointRefresh() : "checkpoint refresh is not blocked";
             shard.setBlockInternalCheckPointRefresh(false);
         }
     }
