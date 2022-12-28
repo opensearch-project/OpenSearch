@@ -22,12 +22,13 @@ import org.opensearch.search.SearchShardTarget;
 import org.opensearch.transport.NodeDisconnectedException;
 import org.opensearch.transport.NodeNotConnectedException;
 
+import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Stream;
 
 /**
- * This class contains logic to decide if retryable shard search requests can be tried on shard copies present in data
+ * This class contains logic to find next shard to retry search request in case of failure from other shard copy.
+ * This decides if retryable shard search requests can be tried on shard copies present in data
  * nodes whose attribute value weight for weighted shard routing is set to zero.
  */
 
@@ -35,16 +36,25 @@ public class FailOpenRouting {
 
     private static final Logger logger = LogManager.getLogger(FailOpenRouting.class);
 
+    /* exception causing failure for previous shard copy */
+    private Exception exception;
+
+    private ClusterState clusterState;
+
+    public FailOpenRouting(Exception e, ClusterState clusterState) {
+        this.exception = e;
+        this.clusterState = clusterState;
+    }
+
     /**
      * *
-     * @param e exception causing failure for previous shard copy
      * @return true if exception is due to cluster availability issues
      */
-    private static boolean isInternalFailure(Exception e) {
-        return e instanceof NoShardAvailableActionException
-            || e instanceof UnavailableShardsException
-            || e instanceof NodeNotConnectedException
-            || e instanceof NodeDisconnectedException;
+    private boolean isInternalFailure() {
+        return exception instanceof NoShardAvailableActionException
+            || exception instanceof UnavailableShardsException
+            || exception instanceof NodeNotConnectedException
+            || exception instanceof NodeDisconnectedException;
     }
 
     /**
@@ -53,12 +63,10 @@ public class FailOpenRouting {
      * retryable exception.
      *
      * @param nodeId the node with the shard copy
-     * @param clusterState the cluster state
      * @return true if the node has attribute value with shard routing weight set to zero, else false
      */
-    private static boolean shardInNodeWithZeroWeightedRouting(String nodeId, ClusterState clusterState) {
+    private boolean shardInNodeWithZeroWeightedRouting(String nodeId) {
         DiscoveryNode node = clusterState.nodes().get(nodeId);
-        AtomicBoolean shardInNodeWithZeroWeightedRouting = new AtomicBoolean(false);
         WeightedRoutingMetadata weightedRoutingMetadata = clusterState.metadata().weightedRoutingMetadata();
         if (weightedRoutingMetadata != null) {
             WeightedRouting weightedRouting = weightedRoutingMetadata.getWeightedRouting();
@@ -70,14 +78,15 @@ public class FailOpenRouting {
                     .stream()
                     .filter(entry -> entry.getValue().intValue() == 0)
                     .map(Map.Entry::getKey);
-                keys.forEach(key -> {
-                    if (node.getAttributes().get(weightedRouting.attributeName()).equals(key)) {
-                        shardInNodeWithZeroWeightedRouting.set(true);
+
+                for (Object key : keys.toArray()) {
+                    if (node.getAttributes().get(weightedRouting.attributeName()).equals(key.toString())) {
+                        return true;
                     }
-                });
+                }
             }
         }
-        return shardInNodeWithZeroWeightedRouting.get();
+        return false;
     }
 
     /**
@@ -86,15 +95,13 @@ public class FailOpenRouting {
      * routing weight set to zero
      *
      * @param shardIt Shard Iterator containing order in which shard copies for a shard need to be requested
-     * @param e exception causing failure for previous shard copy
-     * @param clusterState the cluster state
      * @return the next shard copy
      */
-    public static SearchShardTarget findNext(final SearchShardIterator shardIt, Exception e, ClusterState clusterState) {
+    public SearchShardTarget findNext(final SearchShardIterator shardIt) {
         SearchShardTarget next = shardIt.nextOrNull();
-        while (next != null && shardInNodeWithZeroWeightedRouting(next.getNodeId(), clusterState)) {
+        while (next != null && shardInNodeWithZeroWeightedRouting(next.getNodeId())) {
 
-            if (canFailOpen(e)) {
+            if (canFailOpen(next.getShardId())) {
                 logFailOpen(next.getShardId());
                 break;
             }
@@ -109,15 +116,13 @@ public class FailOpenRouting {
      * routing weight set to zero
      *
      * @param shardsIt Shard Iterator containing order in which shard copies for a shard need to be requested
-     * @param failure exception causing failure for previous shard copy
-     * @param clusterState the cluster state
      * @return the next shard copy
      */
-    public static ShardRouting findNext(final ShardsIterator shardsIt, Exception failure, ClusterState clusterState) {
+    public ShardRouting findNext(final ShardsIterator shardsIt) {
         ShardRouting next = shardsIt.nextOrNull();
 
-        while (next != null && shardInNodeWithZeroWeightedRouting(next.currentNodeId(), clusterState)) {
-            if (canFailOpen(failure)) {
+        while (next != null && shardInNodeWithZeroWeightedRouting(next.currentNodeId())) {
+            if (canFailOpen(next.shardId())) {
                 logFailOpen(next.shardId());
                 break;
             }
@@ -126,18 +131,27 @@ public class FailOpenRouting {
         return next;
     }
 
-    private static void logFailOpen(ShardId shardID) {
+    private void logFailOpen(ShardId shardID) {
         logger.info(() -> new ParameterizedMessage("{}: Fail open executed", shardID));
     }
 
     /**
      * *
-     * @param e exception causing failure for previous shard copy
      * @return true if can fail open ie request shard copies present in nodes with weighted shard
      * routing weight set to zero
      */
-    private static boolean canFailOpen(Exception e) {
-        return isInternalFailure(e);
+    private boolean canFailOpen(ShardId shardId) {
+        return isInternalFailure() || hasUnassignedShards(shardId);
+    }
+
+    private boolean hasUnassignedShards(ShardId shardId) {
+        List<ShardRouting> shards = clusterState.routingTable().shardRoutingTable(shardId).shards();
+        for (ShardRouting shardRouting : shards) {
+            if (shardRouting.unassigned()) {
+                return true;
+            }
+        }
+        return false;
     }
 
 }

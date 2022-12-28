@@ -245,7 +245,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                 lastFailure = currentFailure;
                 this.lastFailure = currentFailure;
             }
-            ShardRouting shardRouting = FailOpenRouting.findNext(shardIt, currentFailure, clusterService.state());
+            ShardRouting shardRouting = new FailOpenRouting(currentFailure, clusterService.state()).findNext(shardIt);
 
             if (shardRouting == null) {
                 Exception failure = lastFailure;

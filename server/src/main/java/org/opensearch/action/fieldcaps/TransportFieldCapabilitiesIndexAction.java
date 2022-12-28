@@ -266,7 +266,7 @@ public class TransportFieldCapabilitiesIndexAction extends HandledTransportActio
             if (shardsIt.size() == 0 || shardIndex >= shardsIt.size()) {
                 return null;
             }
-            ShardRouting next = FailOpenRouting.findNext(shardsIt.get(shardIndex), failure, clusterService.state());
+            ShardRouting next = new FailOpenRouting(failure, clusterService.state()).findNext(shardsIt.get(shardIndex));
 
             if (next != null) {
                 return next;
