@@ -4167,8 +4167,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     /**
      * Downloads segments from remote segment store.
-     * @param override whether to override local segment files with those in remote store
-     * @throws IOException
+     * @param override flag to override local segment files with those in remote store
+     * @throws IOException if exception occurs while reading segments from remote store
      */
     public void syncSegmentsFromRemoteSegmentStore(boolean override) throws IOException {
         assert indexSettings.isRemoteStoreEnabled();
