@@ -668,8 +668,7 @@ public class UpdateNumberOfReplicasIT extends OpenSearchIntegTestCase {
     public void testAwarenessReplicaBalanceWithUseZoneForDefaultReplicaCount() {
         createIndex("aware-replica", Settings.builder().put("index.number_of_replicas", 0).build());
         createIndex(".system-index", Settings.builder().put("index.number_of_replicas", 0).build());
-        DeleteIndexTemplateRequestBuilder deleteTemplate = client().admin().indices()
-            .prepareDeleteTemplate("random_index_template");
+        DeleteIndexTemplateRequestBuilder deleteTemplate = client().admin().indices().prepareDeleteTemplate("random_index_template");
         assertAcked(deleteTemplate.execute().actionGet());
         manageUseZoneForReplicaSetting(true);
         int updated = 0;
@@ -680,7 +679,7 @@ public class UpdateNumberOfReplicasIT extends OpenSearchIntegTestCase {
             client().admin()
                 .indices()
                 .prepareUpdateSettings("aware-replica")
-                .setSettings(Settings.builder().put("refresh_interval","1s"))
+                .setSettings(Settings.builder().put("refresh_interval", "1s"))
                 .execute()
                 .actionGet();
             updated++;
@@ -697,8 +696,6 @@ public class UpdateNumberOfReplicasIT extends OpenSearchIntegTestCase {
                 .execute()
                 .actionGet();
             updated++;
-
-
 
             // Since auto expand replica setting take precedence, this should pass
             client().admin()

@@ -8,13 +8,10 @@
 
 package org.opensearch.cluster.routing.allocation;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.metadata.AutoExpandReplicas;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-
 
 import java.util.Iterator;
 import java.util.List;
@@ -107,9 +104,10 @@ public class AwarenessReplicaBalance {
         this.forcedAwarenessAttributes = getForcedAwarenessAttributes(forceSettings);
     }
 
-    private void setUseForceZoneForReplica(Boolean useForceZoneForReplica){
+    private void setUseForceZoneForReplica(Boolean useForceZoneForReplica) {
         this.useForceZoneForReplica = useForceZoneForReplica;
     }
+
     public static Map<String, List<String>> getForcedAwarenessAttributes(Settings forceSettings) {
         Map<String, List<String>> forcedAwarenessAttributes = new HashMap<>();
         Map<String, Settings> forceGroups = forceSettings.getAsGroups();
@@ -126,9 +124,10 @@ public class AwarenessReplicaBalance {
         this.awarenessAttributes = awarenessAttributes;
     }
 
-    public Boolean getUseForceZoneForReplicaSetting(){
+    public Boolean getUseForceZoneForReplicaSetting() {
         return this.useForceZoneForReplica;
     }
+
     /*
     For a cluster having zone as awareness attribute , it will return the size of zones if set it forced awareness attributes
 
@@ -157,7 +156,9 @@ public class AwarenessReplicaBalance {
     public static int maxAwarenessAttributes(Settings settings) {
         Boolean awarenessBalance = CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING.get(settings);
         List<String> awarenessAttributes = CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.get(settings);
-        Map<String, List<String>> forcedAwarenessAttributes = getForcedAwarenessAttributes(CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.get(settings));
+        Map<String, List<String>> forcedAwarenessAttributes = getForcedAwarenessAttributes(
+            CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.get(settings)
+        );
         int defaultAwarenessAttributes = 1;
         if (awarenessBalance == false) {
             return defaultAwarenessAttributes;
@@ -169,6 +170,7 @@ public class AwarenessReplicaBalance {
         }
         return defaultAwarenessAttributes;
     }
+
     public Optional<String> validate(int replicaCount, AutoExpandReplicas autoExpandReplica) {
         if (autoExpandReplica.isEnabled()) {
             if ((autoExpandReplica.getMaxReplicas() != Integer.MAX_VALUE)

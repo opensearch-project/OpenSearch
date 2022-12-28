@@ -863,7 +863,7 @@ public class MetadataCreateIndexService {
             indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, INDEX_NUMBER_OF_SHARDS_SETTING.get(settings));
         }
         if (INDEX_NUMBER_OF_REPLICAS_SETTING.exists(indexSettingsBuilder) == false) {
-            if(USE_FORCE_ZONE_FOR_REPLICA_SETTING.get(currentState.metadata().settings())) {
+            if (USE_FORCE_ZONE_FOR_REPLICA_SETTING.get(currentState.metadata().settings())) {
                 int replicaCount = maxAwarenessAttributes(currentState.metadata().settings()) - 1;
                 indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, replicaCount);
             } else {
@@ -1200,7 +1200,7 @@ public class MetadataCreateIndexService {
                 IndexMetadata.SETTING_NUMBER_OF_REPLICAS,
                 INDEX_NUMBER_OF_REPLICAS_SETTING.getDefault(Settings.EMPTY)
             );
-            if(INDEX_NUMBER_OF_REPLICAS_SETTING.exists(settings) == false && awarenessReplicaBalance.getUseForceZoneForReplicaSetting()){
+            if (INDEX_NUMBER_OF_REPLICAS_SETTING.exists(settings) == false && awarenessReplicaBalance.getUseForceZoneForReplicaSetting()) {
                 replicaCount = awarenessReplicaBalance.maxAwarenessAttributes() - 1;
             }
             AutoExpandReplicas autoExpandReplica = AutoExpandReplicas.SETTING.get(settings);

@@ -10,11 +10,9 @@ package org.opensearch.cluster.routing.allocation;
 
 import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.metadata.AutoExpandReplicas;
-import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.indices.replication.common.ReplicationType;
 
 import java.util.Optional;
 
@@ -158,9 +156,7 @@ public class AwarenessReplicaBalanceTests extends OpenSearchAllocationTestCase {
     }
 
     public void testSetUseForceZoneForReplicaWhenAllocationAwarenessIsDefault() {
-        Settings settings = Settings.builder()
-            .put(AwarenessReplicaBalance.USE_FORCE_ZONE_FOR_REPLICA_SETTING.getKey(), true)
-            .build();
+        Settings settings = Settings.builder().put(AwarenessReplicaBalance.USE_FORCE_ZONE_FOR_REPLICA_SETTING.getKey(), true).build();
 
         IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,

@@ -44,7 +44,6 @@ import org.opensearch.action.admin.indices.template.put.PutIndexTemplateRequestB
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.AutoExpandReplicas;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.cluster.metadata.Template;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
@@ -302,8 +301,7 @@ public class RolloverIT extends OpenSearchIntegTestCase {
     }
 
     public void testRolloverWithIndexSettingsBalancedWithUseZoneForReplicaDefaultCount() throws Exception {
-        DeleteIndexTemplateRequestBuilder deleteTemplate = client().admin().indices()
-            .prepareDeleteTemplate("random_index_template");
+        DeleteIndexTemplateRequestBuilder deleteTemplate = client().admin().indices().prepareDeleteTemplate("random_index_template");
         assertAcked(deleteTemplate.execute().actionGet());
 
         Alias testAlias = new Alias("test_alias");
@@ -316,9 +314,7 @@ public class RolloverIT extends OpenSearchIntegTestCase {
         index("test_index-2", "type1", "1", "field", "value");
         flush("test_index-2");
 
-        final Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
-            .build();
+        final Settings settings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3).build();
         client().admin().indices().prepareRolloverIndex("test_alias").settings(settings).alias(new Alias("extra_alias")).get();
 
         final ClusterState state = client().admin().cluster().prepareState().get().getState();

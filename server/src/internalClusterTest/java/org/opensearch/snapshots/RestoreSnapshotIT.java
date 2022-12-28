@@ -978,8 +978,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
     public void testRestoreBalancedReplica() {
         try {
             createRepository("test-repo", "fs");
-            DeleteIndexTemplateRequestBuilder deleteTemplate = client().admin().indices()
-                .prepareDeleteTemplate("random_index_template");
+            DeleteIndexTemplateRequestBuilder deleteTemplate = client().admin().indices().prepareDeleteTemplate("random_index_template");
             assertAcked(deleteTemplate.execute().actionGet());
 
             createIndex("test-index", Settings.builder().put("index.number_of_replicas", 0).build());
