@@ -663,7 +663,6 @@ public class Node implements Closeable {
             );
 
             final IndicesService indicesService;
-
             if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
                 indicesService = new IndicesService(
                     settings,
@@ -687,7 +686,8 @@ public class Node implements Closeable {
                     Map.copyOf(directoryFactories),
                     searchModule.getValuesSourceRegistry(),
                     recoveryStateFactories,
-                    remoteDirectoryFactory
+                    remoteDirectoryFactory,
+                    repositoriesServiceReference::get
                 );
             } else {
                 indicesService = new IndicesService(
@@ -711,7 +711,8 @@ public class Node implements Closeable {
                     Map.copyOf(directoryFactories),
                     searchModule.getValuesSourceRegistry(),
                     recoveryStateFactories,
-                    remoteDirectoryFactory
+                    remoteDirectoryFactory,
+                    repositoriesServiceReference::get
                 );
             }
 

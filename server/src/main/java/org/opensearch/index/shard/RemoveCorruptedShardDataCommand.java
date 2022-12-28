@@ -191,6 +191,11 @@ public class RemoveCorruptedShardDataCommand extends OpenSearchNodeCommand {
         }
 
         final IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
+        if (indexSettings.isRemoteTranslogStoreEnabled()) {
+            // ToDo : Need to revisit corrupt shard recovery strategy for remote store enabled indices
+            throw new OpenSearchException("tool doesn't work for remote translog enabled indices");
+        }
+
         final Index index = indexMetadata.getIndex();
         final ShardId shId = new ShardId(index, shardId);
 

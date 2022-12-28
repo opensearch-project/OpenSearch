@@ -44,6 +44,7 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.SetOnce;
 import org.apache.lucene.util.SetOnce.AlreadySetException;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -217,6 +218,8 @@ public class IndexModuleTests extends OpenSearchTestCase {
     }
 
     private IndexService newIndexService(IndexModule module) throws IOException {
+        final SetOnce<RepositoriesService> repositoriesServiceReference = new SetOnce<>();
+        repositoriesServiceReference.set(repositoriesService);
         return module.newIndexService(
             CREATE_INDEX,
             nodeEnvironment,
@@ -234,7 +237,8 @@ public class IndexModuleTests extends OpenSearchTestCase {
             writableRegistry(),
             () -> false,
             null,
-            new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService)
+            new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService),
+            repositoriesServiceReference::get
         );
     }
 
