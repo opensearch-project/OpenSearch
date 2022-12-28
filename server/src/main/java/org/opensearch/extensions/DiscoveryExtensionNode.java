@@ -88,6 +88,7 @@ public class DiscoveryExtensionNode extends DiscoveryNode implements Writeable, 
                 if(dependency.getVersion().equals(extensiondependency.getVersion())) {
                     return true;
                 }
+                return false;
             }
         }
         return false;
