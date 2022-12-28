@@ -67,7 +67,7 @@ public class RemoteFsTranslog extends Translog {
         );
 
         try {
-            download(translogTransferManager, location);
+            download(translogTransferManager, location, fileTransferTracker);
             Checkpoint checkpoint = readCheckpoint(location);
             this.readers.addAll(recoverFromFiles(checkpoint));
             if (readers.isEmpty()) {
@@ -100,7 +100,8 @@ public class RemoteFsTranslog extends Translog {
         }
     }
 
-    public static void download(TranslogTransferManager translogTransferManager, Path location) throws IOException {
+    public static void download(TranslogTransferManager translogTransferManager, Path location, FileTransferTracker fileTransferTracker)
+        throws IOException {
         TranslogTransferMetadata translogMetadata = translogTransferManager.readMetadata();
         if (translogMetadata != null) {
             if (Files.notExists(location)) {
@@ -119,6 +120,11 @@ public class RemoteFsTranslog extends Translog {
                     location,
                     i == translogMetadata.getGeneration()
                 );
+            }
+
+            // Mark in FileTransferTracker so that the same files are not uploaded at the time of translog sync
+            for (Path file : FileSystemUtils.files(location)) {
+                fileTransferTracker.add(file.getFileName().toString());
             }
         }
     }

@@ -568,7 +568,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 globalCheckpointSyncer,
                 retentionLeaseSyncer,
                 breakerService,
-                new InternalTranslogFactory(),
+                (idxSettings, shardRouting) -> new InternalTranslogFactory(),
                 checkpointPublisher,
                 remoteStore
             );
