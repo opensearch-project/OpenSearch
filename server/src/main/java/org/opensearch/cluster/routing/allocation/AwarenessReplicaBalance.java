@@ -11,15 +11,18 @@ package org.opensearch.cluster.routing.allocation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.metadata.AutoExpandReplicas;
-import org.opensearch.cluster.metadata.MetadataCreateIndexService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.indices.replication.common.ReplicationType;
 
-import java.util.*;
 
-import static java.lang.Math.log;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Collections;
+import java.util.HashMap;
+
 import static java.lang.Math.max;
 import static org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING;
 import static org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING;
@@ -35,7 +38,6 @@ import static org.opensearch.cluster.routing.allocation.decider.AwarenessAllocat
 public class AwarenessReplicaBalance {
     public static final String SETTING_CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE = "cluster.routing.allocation.awareness.balance";
     public static final String SETTING_USE_FORCE_ZONE_FOR_REPLICA = "cluster.use_force_zone_for_replica";
-    private static final Logger logger = LogManager.getLogger(AwarenessReplicaBalance.class);
     public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING = Setting.boolSetting(
         SETTING_CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE,
         false,
