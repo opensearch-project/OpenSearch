@@ -30,6 +30,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * This class manages TransportActions for extensions
@@ -108,8 +109,7 @@ public class ExtensionTransportActionsHandler {
      * @return {@link TransportResponse} which is sent back to the transport action invoker.
      * @throws InterruptedException when message transport fails.
      */
-    public TransportResponse handleTransportActionRequestFromExtension(TransportActionRequestFromExtension request)
-        throws InterruptedException {
+    public TransportResponse handleTransportActionRequestFromExtension(TransportActionRequestFromExtension request) throws Exception {
         DiscoveryExtensionNode extension = extensionIdMap.get(request.getUniqueId());
         final CompletableFuture<ExtensionActionResponse> inProgressFuture = new CompletableFuture<>();
         final TransportActionResponseToExtension response = new TransportActionResponseToExtension(new byte[0]);
@@ -133,6 +133,11 @@ public class ExtensionTransportActionsHandler {
             }
         );
         inProgressFuture.orTimeout(ExtensionsManager.EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS);
+        inProgressFuture.whenComplete((r, e) -> {
+            if (e != null && e instanceof TimeoutException) {
+                logger.info("No response from extension to request.");
+            }
+        });
         return response;
     }
 
@@ -188,6 +193,11 @@ public class ExtensionTransportActionsHandler {
             logger.info("Failed to send transport action to extension " + extension.getName(), e);
         }
         inProgressFuture.orTimeout(ExtensionsManager.EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS);
+        inProgressFuture.whenComplete((r, e) -> {
+            if (e != null && e instanceof TimeoutException) {
+                logger.info("No response from extension to request.");
+            }
+        });
         return extensionActionResponse;
     }
 }

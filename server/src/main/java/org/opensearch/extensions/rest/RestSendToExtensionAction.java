@@ -33,7 +33,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -150,9 +152,6 @@ public class RestSendToExtensionAction extends BaseRestHandler {
             @Override
             public void handleException(TransportException exp) {
                 logger.debug("REST request failed", exp);
-                // Status is already defaulted to 500 (INTERNAL_SERVER_ERROR)
-                byte[] responseBytes = ("Request failed: " + exp.getMessage()).getBytes(StandardCharsets.UTF_8);
-                restExecuteOnExtensionResponse.setContent(responseBytes);
                 inProgressFuture.completeExceptionally(exp);
             }
 
@@ -174,18 +173,23 @@ public class RestSendToExtensionAction extends BaseRestHandler {
                 new ExtensionRestRequest(method, path, params, contentType, content, requestIssuerIdentity),
                 restExecuteOnExtensionResponseHandler
             );
-            inProgressFuture.orTimeout(5, TimeUnit.SECONDS);
+            inProgressFuture.orTimeout(ExtensionsManager.EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS);
             try {
                 if (inProgressFuture.isCompletedExceptionally()) {
                     inProgressFuture.get();
                 }
-            } catch (InterruptedException e) {
-                return channel -> channel.sendResponse(
-                    new BytesRestResponse(RestStatus.REQUEST_TIMEOUT, "No response from extension to request.")
-                );
+            } catch (ExecutionException e) {
+                Throwable cause = e.getCause();
+                if (cause instanceof TimeoutException) {
+                    return channel -> channel.sendResponse(
+                        new BytesRestResponse(RestStatus.REQUEST_TIMEOUT, "No response from extension to request.")
+                    );
+                }
+                throw e;
             }
         } catch (Exception e) {
             logger.info("Failed to send REST Actions to extension " + discoveryExtensionNode.getName(), e);
+            return channel -> channel.sendResponse(new BytesRestResponse(RestStatus.INTERNAL_SERVER_ERROR, e.getMessage()));
         }
         BytesRestResponse restResponse = new BytesRestResponse(
             restExecuteOnExtensionResponse.getStatus(),

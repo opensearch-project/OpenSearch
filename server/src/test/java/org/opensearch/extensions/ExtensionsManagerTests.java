@@ -82,6 +82,7 @@ import org.opensearch.test.client.NoOpNodeClient;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.ConnectTransportException;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportService;
@@ -439,7 +440,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                 )
             );
 
-            extensionsManager.initialize();
+            expectThrows(ConnectTransportException.class, () -> extensionsManager.initialize());
 
             // Test needs to be changed to mock the connection between the local node and an extension. Assert statment is commented out for
             // now.

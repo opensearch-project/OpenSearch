@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -392,15 +393,15 @@ public class ExtensionsManager {
                 initializeExtensionResponseHandler
             );
             inProgressFuture.orTimeout(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS);
-            if (inProgressFuture.isCompletedExceptionally()) {
-                inProgressFuture.get();
-            }
+            inProgressFuture.whenComplete((r, e) -> {
+                if (e != null && e instanceof TimeoutException) {
+                    logger.info("No response from extension to request.");
+                } else if (e == null) {
+                    logger.info("Received response from Extension");
+                }
+            });
         } catch (Exception e) {
-            try {
-                throw e;
-            } catch (Exception e1) {
-                logger.error(e.toString());
-            }
+            throw e;
         }
     }
 
@@ -488,17 +489,15 @@ public class ExtensionsManager {
                                     new IndicesModuleRequest(indexModule),
                                     acknowledgedResponseHandler
                                 );
-                                inProgressIndexNameFuture.orTimeout(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS);
-                                if (inProgressFuture.isCompletedExceptionally()) {
-                                    inProgressIndexNameFuture.get();
-                                }
-                                logger.info("Received ack response from Extension");
+                                inProgressFuture.whenComplete((r, e) -> {
+                                    if (e != null && e instanceof TimeoutException) {
+                                        logger.info("No response from extension to request.");
+                                    } else if (e == null) {
+                                        logger.info("Received response from Extension");
+                                    }
+                                });
                             } catch (Exception e) {
-                                try {
-                                    throw e;
-                                } catch (Exception e1) {
-                                    logger.error(e.toString());
-                                }
+                                throw e;
                             }
                         }
                     });
@@ -527,16 +526,15 @@ public class ExtensionsManager {
                 indicesModuleResponseHandler
             );
             inProgressFuture.orTimeout(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS);
-            if (inProgressFuture.isCompletedExceptionally()) {
-                inProgressFuture.get();
-            }
-            logger.info("Received response from Extension");
+            inProgressFuture.whenComplete((r, e) -> {
+                if (e != null && e instanceof TimeoutException) {
+                    logger.info("No response from extension to request.");
+                } else if (e == null) {
+                    logger.info("Received response from Extension");
+                }
+            });
         } catch (Exception e) {
-            try {
-                throw e;
-            } catch (Exception e1) {
-                logger.error(e.toString());
-            }
+            throw e;
         }
     }
 
