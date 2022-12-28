@@ -28,10 +28,6 @@ public class ExtensionRequest extends TransportRequest {
     private final ExtensionsManager.RequestType requestType;
     private final String uniqueId;
 
-    public ExtensionRequest(ExtensionsManager.RequestType requestType) {
-        this(requestType, null);
-    }
-
     public ExtensionRequest(ExtensionsManager.RequestType requestType, String uniqueId) {
         this.requestType = requestType;
         this.uniqueId = uniqueId;

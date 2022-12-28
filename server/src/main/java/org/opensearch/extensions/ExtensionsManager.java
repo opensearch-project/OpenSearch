@@ -588,10 +588,6 @@ public class ExtensionsManager {
         return REQUEST_EXTENSION_ENVIRONMENT_SETTINGS;
     }
 
-    public static String getRequestExtensionDependencyInformation() {
-        return REQUEST_EXTENSION_DEPENDENCY_INFORMATION;
-    }
-
     public static String getRequestExtensionAddSettingsUpdateConsumer() {
         return REQUEST_EXTENSION_ADD_SETTINGS_UPDATE_CONSUMER;
     }
