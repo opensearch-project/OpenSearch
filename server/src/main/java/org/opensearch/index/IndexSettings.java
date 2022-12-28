@@ -586,8 +586,9 @@ public final class IndexSettings {
     private final int numberOfShards;
     private final ReplicationType replicationType;
     private final boolean isRemoteStoreEnabled;
-    private final String remoteStoreRepository;
     private final boolean isRemoteTranslogStoreEnabled;
+    private final String remoteStoreTranslogRepository;
+    private final String remoteStoreRepository;
     private final boolean isRemoteSnapshot;
     private Version extendedCompatibilitySnapshotVersion;
     // volatile fields are updated via #updateIndexMetadata(IndexMetadata) under lock
@@ -750,8 +751,9 @@ public final class IndexSettings {
         numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
         replicationType = ReplicationType.parseString(settings.get(IndexMetadata.SETTING_REPLICATION_TYPE));
         isRemoteStoreEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false);
-        remoteStoreRepository = settings.get(IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY);
         isRemoteTranslogStoreEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, false);
+        remoteStoreTranslogRepository = settings.get(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY);
+        remoteStoreRepository = settings.get(IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY);
         isRemoteSnapshot = IndexModule.Type.REMOTE_SNAPSHOT.match(this.settings);
 
         if (isRemoteSnapshot && FeatureFlags.isEnabled(SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY)) {
@@ -1038,6 +1040,10 @@ public final class IndexSettings {
      */
     public Version getExtendedCompatibilitySnapshotVersion() {
         return extendedCompatibilitySnapshotVersion;
+    }
+
+    public String getRemoteStoreTranslogRepository() {
+        return remoteStoreTranslogRepository;
     }
 
     /**
