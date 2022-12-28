@@ -18,17 +18,10 @@ opensearchplugin {
 
 dependencies {
   api project(':libs:opensearch-core')
-  api project(':sandbox:libs:opensearch-authn')
+  implementation project(':sandbox:libs:opensearch-authn')
 
   testImplementation project(path: ':modules:transport-netty4') // for http
   testImplementation project(path: ':plugins:transport-nio') // for http
-
-  implementation('org.apache.cxf:cxf-rt-rs-security-jose:3.4.5') {
-    exclude(group: 'jakarta.activation', module: 'jakarta.activation-api')
-  }
-
-  implementation 'org.apache.cxf:cxf-rt-rs-json-basic:3.4.5'
-}
 
 //task integTest(type: RestIntegTestTask) {
 //  systemProperty 'opensearch.set.netty.runtime.available.processors', 'false'
