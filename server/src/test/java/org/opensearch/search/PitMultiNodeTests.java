@@ -28,6 +28,7 @@ import org.opensearch.action.search.GetAllPitNodesResponse;
 import org.opensearch.action.search.GetAllPitsAction;
 import org.opensearch.action.search.PitTestsUtil;
 import org.opensearch.action.search.SearchResponse;
+import org.opensearch.client.Requests;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -36,6 +37,7 @@ import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 
@@ -337,8 +339,12 @@ public class PitMultiNodeTests extends OpenSearchIntegTestCase {
 
     public void validatePitStats(String index, long expectedPitCurrent, long expectedOpenContexts) throws ExecutionException,
         InterruptedException {
+        // Clear the index transaction log
+        FlushRequest flushRequest = Requests.flushRequest(index);
+        client().admin().indices().flush(flushRequest).get();
+        // Test stats
         IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
-        indicesStatsRequest.indices("index");
+        indicesStatsRequest.indices(index);
         indicesStatsRequest.all();
         IndicesStatsResponse indicesStatsResponse = client().admin().indices().stats(indicesStatsRequest).get();
         long pitCurrent = indicesStatsResponse.getIndex(index).getTotal().search.getTotal().getPitCurrent();
