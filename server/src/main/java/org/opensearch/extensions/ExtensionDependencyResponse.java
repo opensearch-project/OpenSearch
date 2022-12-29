@@ -23,36 +23,35 @@ import org.opensearch.transport.TransportResponse;
  * @opensearch.internal
  */
 public class ExtensionDependencyResponse extends TransportResponse {
-    private List<DiscoveryExtensionNode> dependency;
+    private List<DiscoveryExtensionNode> dependencies;
 
-    public ExtensionDependencyResponse(List<DiscoveryExtensionNode> dependency) {
-        this.dependency = dependency;
+    public ExtensionDependencyResponse(List<DiscoveryExtensionNode> dependencies) {
+        this.dependencies = dependencies;
     }
 
     public ExtensionDependencyResponse(StreamInput in) throws IOException {
-        super(in);
         int size = in.readVInt();
-        dependency = new ArrayList<>(size);
+        dependencies = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            dependency.add(new DiscoveryExtensionNode(in));
+            dependencies.add(new DiscoveryExtensionNode(in));
         }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(dependency.size());
-        for (DiscoveryExtensionNode dependency : dependency) {
+        out.writeVInt(dependencies.size());
+        for (DiscoveryExtensionNode dependency : dependencies) {
             dependency.writeTo(out);
         }
     }
 
     public List<DiscoveryExtensionNode> getExtensionDependency() {
-        return dependency;
+        return dependencies;
     }
 
     @Override
     public String toString() {
-        return "ExtensionDependencyResponse{extensiondependency=" + dependency.toString() + '}';
+        return "ExtensionDependencyResponse{extensiondependency=" + dependencies.toString() + '}';
     }
 
     @Override
@@ -60,11 +59,11 @@ public class ExtensionDependencyResponse extends TransportResponse {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ExtensionDependencyResponse that = (ExtensionDependencyResponse) o;
-        return Objects.equals(dependency, that.dependency);
+        return Objects.equals(dependencies, that.dependencies);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(dependency);
+        return Objects.hash(dependencies);
     }
 }

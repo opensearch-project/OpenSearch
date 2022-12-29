@@ -17,6 +17,7 @@ import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * CLusterService Request for Extensibility
@@ -38,25 +39,23 @@ public class ExtensionRequest extends TransportRequest {
     }
 
     public ExtensionRequest(StreamInput in) throws IOException {
-        super(in);
         this.requestType = in.readEnum(ExtensionsManager.RequestType.class);
-        this.uniqueId = in.readOptionalString();
+        this.uniqueId = in.readString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeEnum(requestType);
-        out.writeOptionalString(uniqueId);
+        out.writeString(uniqueId);
     }
 
     public ExtensionsManager.RequestType getRequestType() {
         return this.requestType;
     }
 
-    @Nullable
-    public String getUniqueId() {
-        return uniqueId;
+    public Optional<String> getUniqueId() {
+        return uniqueId == null ? Optional.empty() : Optional.of(uniqueId);
     }
 
     public String toString() {
@@ -68,13 +67,7 @@ public class ExtensionRequest extends TransportRequest {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ExtensionRequest that = (ExtensionRequest) o;
-        if (uniqueId == null) {
-            return Objects.equals(requestType, that.requestType) && true;
-        } else if (that.uniqueId == null) {
-            return Objects.equals(requestType, that.requestType) && false;
-        } else {
-            return Objects.equals(requestType, that.requestType) && uniqueId.equals(that.uniqueId);
-        }
+        return Objects.equals(requestType, that.requestType) && uniqueId.equals(that.uniqueId);
     }
 
     @Override
