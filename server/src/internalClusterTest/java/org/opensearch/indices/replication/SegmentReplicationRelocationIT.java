@@ -22,7 +22,6 @@ import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.IndexModule;
-import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
@@ -55,7 +54,7 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationIT {
 
     /**
      * This test verifies happy path when primary shard is relocated newly added node (target) in the cluster. Before
-     * relocation and after relocation documents are indexed and document is verified
+     * relocation and after relocation documents are indexed and documents are verified
      */
     public void testSimplePrimaryRelocationWithoutFlushBeforeRelocation() throws Exception {
         final String old_primary = internalCluster().startNode();
@@ -124,7 +123,8 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationIT {
 
     /**
      * This test verifies the primary to primary relocation behavior when segment replication round fails on new primary.
-     * Post failure, test asserts that the old primary continues segment replication rounds to refresh replicas.
+     * Post failure, more documents are ingested and verified on replica which confirms replica still getting refresh from
+     * older primary.
      */
     public void testPrimaryRelocationWithSegRepFailure() throws Exception {
         final String old_primary = internalCluster().startNode();
@@ -181,14 +181,12 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationIT {
             .actionGet();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
-        final IndexShard indexShard = getIndexShard(old_primary);
-        logger.info("Verify old primary shard is not disabled to perform segrep on replicas");
-        assertFalse(indexShard.isBlockInternalCheckPointRefresh());
-
         final int finalDocCount = initialDocCount;
         ingestDocs(finalDocCount);
 
-        logger.info("Verify all documents are available on both old primary and replica");
+        logger.info(
+            "Verify all documents are available on both old primary and replica i.e. older primary is still refreshing replica nodes"
+        );
         client().admin().indices().prepareRefresh().execute().actionGet();
         assertHitCount(
             client(old_primary).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(),

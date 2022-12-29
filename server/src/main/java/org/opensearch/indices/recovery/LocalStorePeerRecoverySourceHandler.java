@@ -172,7 +172,6 @@ public class LocalStorePeerRecoverySourceHandler extends RecoverySourceHandler {
         assert startingSeqNo >= 0 : "startingSeqNo must be non negative. got: " + startingSeqNo;
 
         sendFileStep.whenComplete(r -> {
-            this.preventRefreshOnReplicas();
             assert Transports.assertNotTransportThread(this + "[prepareTargetForTranslog]");
             // For a sequence based recovery, the target can keep its local translog
             prepareTargetForTranslog(countNumberOfHistoryOperations(startingSeqNo), prepareEngineStep);

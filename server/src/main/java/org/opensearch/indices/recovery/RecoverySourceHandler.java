@@ -188,21 +188,6 @@ public abstract class RecoverySourceHandler {
         }
     }
 
-    protected void preventRefreshOnReplicas() {
-        // Disable this shard from performing segment replication on replicas
-        if (shard.indexSettings().isSegRepEnabled() && request.isPrimaryRelocation() == true) {
-            shard.setBlockInternalCheckPointRefresh(true);
-        }
-    }
-
-    protected void resumeSegmentReplicationRefresh() {
-        // Enable this shard from performing segment replication on replicas
-        if (shard.indexSettings().isSegRepEnabled() && request.isPrimaryRelocation() == true) {
-            assert shard.isBlockInternalCheckPointRefresh() : "checkpoint refresh is not blocked";
-            shard.setBlockInternalCheckPointRefresh(false);
-        }
-    }
-
     protected abstract void innerRecoveryToTarget(ActionListener<RecoveryResponse> listener, Consumer<Exception> onFailure)
         throws IOException;
 
@@ -823,20 +808,7 @@ public abstract class RecoverySourceHandler {
         final long globalCheckpoint = shard.getLastKnownGlobalCheckpoint(); // this global checkpoint is persisted in finalizeRecovery
         final StepListener<Void> finalizeListener = new StepListener<>();
         cancellableThreads.checkForCancel();
-        final StepListener<Void> segRepSyncListener = new StepListener<>();
-        // Force a round of segment replication before finalizing the recovery
-        if (shard.indexSettings().isSegRepEnabled() && request.isPrimaryRelocation() == true) {
-            recoveryTarget.forceSegmentFileSync(segRepSyncListener);
-        } else {
-            segRepSyncListener.onResponse(null);
-        }
-        segRepSyncListener.whenComplete(
-            r -> { recoveryTarget.finalizeRecovery(globalCheckpoint, trimAboveSeqNo, finalizeListener); },
-            e -> {
-                this.resumeSegmentReplicationRefresh();
-                listener.onFailure(e);
-            }
-        );
+        recoveryTarget.finalizeRecovery(globalCheckpoint, trimAboveSeqNo, finalizeListener);
 
         finalizeListener.whenComplete(r -> {
             RunUnderPrimaryPermit.run(
@@ -847,19 +819,34 @@ public abstract class RecoverySourceHandler {
                 logger
             );
 
+            final StepListener<Void> handoffListener = new StepListener<>();
             if (request.isPrimaryRelocation()) {
                 logger.trace("performing relocation hand-off");
+                final Consumer<StepListener> forceSegRepConsumer = shard.indexSettings().isSegRepEnabled()
+                    ? recoveryTarget::forceSegmentFileSync
+                    : res -> res.onResponse(null);
                 // TODO: make relocated async
                 // this acquires all IndexShard operation permits and will thus delay new recoveries until it is done
-                cancellableThreads.execute(() -> shard.relocated(request.targetAllocationId(), recoveryTarget::handoffPrimaryContext));
+                cancellableThreads.execute(
+                    () -> shard.relocated(
+                        request.targetAllocationId(),
+                        recoveryTarget::handoffPrimaryContext,
+                        forceSegRepConsumer,
+                        handoffListener
+                    )
+                );
                 /*
                  * if the recovery process fails after disabling primary mode on the source shard, both relocation source and
                  * target are failed (see {@link IndexShard#updateRoutingEntry}).
                  */
+            } else {
+                handoffListener.onResponse(null);
             }
-            stopWatch.stop();
-            logger.trace("finalizing recovery took [{}]", stopWatch.totalTime());
-            listener.onResponse(null);
+            handoffListener.whenComplete(res -> {
+                stopWatch.stop();
+                logger.trace("finalizing recovery took [{}]", stopWatch.totalTime());
+                listener.onResponse(null);
+            }, listener::onFailure);
         }, listener::onFailure);
     }
 
