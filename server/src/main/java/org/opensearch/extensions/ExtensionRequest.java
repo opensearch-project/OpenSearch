@@ -27,7 +27,6 @@ public class ExtensionRequest extends TransportRequest {
     private static final Logger logger = LogManager.getLogger(ExtensionRequest.class);
     private final ExtensionsManager.RequestType requestType;
     private final Optional<String> uniqueId;
-    private String id;
 
     public ExtensionRequest(ExtensionsManager.RequestType requestType) {
         this(requestType, null);
@@ -40,15 +39,15 @@ public class ExtensionRequest extends TransportRequest {
 
     public ExtensionRequest(StreamInput in) throws IOException {
         this.requestType = in.readEnum(ExtensionsManager.RequestType.class);
+        String id = in.readOptionalString();
         this.uniqueId = id == null ? Optional.empty() : Optional.of(id);
-        id = in.readOptionalString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeEnum(requestType);
-        out.writeOptionalString(id);
+        out.writeOptionalString(uniqueId.orElse(null));
     }
 
     public ExtensionsManager.RequestType getRequestType() {
@@ -56,7 +55,7 @@ public class ExtensionRequest extends TransportRequest {
     }
 
     public Optional<String> getUniqueId() {
-        return uniqueId == null ? Optional.empty() : uniqueId;
+        return uniqueId;
     }
 
     public String toString() {
