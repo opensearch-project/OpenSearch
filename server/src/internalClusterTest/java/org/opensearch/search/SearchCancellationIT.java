@@ -241,7 +241,8 @@ public class SearchCancellationIT extends OpenSearchIntegTestCase {
             .execute();
         awaitForBlock(plugins);
         // sleep for cancellation timeout to ensure scheduled cancellation task is actually executed
-        Thread.sleep(cancellationTimeout.getMillis());
+        // add 100ms to account for multithreading and sleep inaccuracies
+        Thread.sleep(cancellationTimeout.getMillis() + 100L);
         // unblock the search thread
         disableBlocks(plugins);
         ensureSearchWasCancelled(searchResponse);
@@ -263,7 +264,8 @@ public class SearchCancellationIT extends OpenSearchIntegTestCase {
             .execute();
         awaitForBlock(plugins);
         // sleep for cluster cancellation timeout to ensure scheduled cancellation task is actually executed
-        Thread.sleep(cancellationTimeout.getMillis());
+        // add 100ms to account for multithreading and sleep inaccuracies
+        Thread.sleep(cancellationTimeout.getMillis() + 100L);
         // unblock the search thread
         disableBlocks(plugins);
         ensureSearchWasCancelled(searchResponse);
@@ -295,7 +297,8 @@ public class SearchCancellationIT extends OpenSearchIntegTestCase {
             .execute();
         awaitForBlock(plugins);
         // sleep for request cancellation timeout to ensure scheduled cancellation task is actually executed
-        Thread.sleep(cancellationTimeout.getMillis());
+        // add 100ms to account for multithreading and sleep inaccuracies
+        Thread.sleep(cancellationTimeout.getMillis() + 100L);
         // unblock the search thread
         disableBlocks(plugins);
         ensureSearchWasCancelled(searchResponse);
@@ -335,7 +338,9 @@ public class SearchCancellationIT extends OpenSearchIntegTestCase {
             .execute();
 
         awaitForBlock(plugins);
-        Thread.sleep(cancellationTimeout.getMillis());
+        // sleep for request cancellation timeout to ensure scheduled cancellation task is actually executed
+        // add 100ms to account for multithreading and sleep inaccuracies
+        Thread.sleep(cancellationTimeout.getMillis() + 100L);
         disableBlocks(plugins);
         SearchResponse response = ensureSearchWasCancelled(searchResponse);
         if (response != null) {
@@ -419,7 +424,8 @@ public class SearchCancellationIT extends OpenSearchIntegTestCase {
 
         awaitForBlock(plugins);
         // sleep for cancellation timeout to ensure there is no scheduled task for cancellation
-        Thread.sleep(cancellationTimeout.getMillis());
+        // add 100ms to account for multithreading and sleep inaccuracies
+        Thread.sleep(cancellationTimeout.getMillis() + 100L);
         disableBlocks(plugins);
 
         // wait for response and ensure there is no failure
@@ -445,7 +451,8 @@ public class SearchCancellationIT extends OpenSearchIntegTestCase {
             .execute();
         awaitForBlock(plugins);
         // sleep for cancellation timeout to ensure there is no scheduled task for cancellation
-        Thread.sleep(cancellationTimeout.getMillis());
+        // add 100ms to account for multithreading and sleep inaccuracies
+        Thread.sleep(cancellationTimeout.getMillis() + 100L);
         // unblock the search thread
         disableBlocks(plugins);
         // ensure search was successful since cancellation was disabled at request level
@@ -467,7 +474,8 @@ public class SearchCancellationIT extends OpenSearchIntegTestCase {
             .execute();
         awaitForBlock(plugins);
         // sleep for cancellation timeout to ensure there is no scheduled task for cancellation
-        Thread.sleep(cancellationTimeout.getMillis());
+        // add 100ms to account for multithreading and sleep inaccuracies
+        Thread.sleep(cancellationTimeout.getMillis() + 100L);
         // unblock the search thread
         disableBlocks(plugins);
         // ensure search was successful since cancellation was disabled at request level
@@ -527,7 +535,8 @@ public class SearchCancellationIT extends OpenSearchIntegTestCase {
             .execute();
         awaitForBlock(plugins);
         // sleep for cluster cancellation timeout to ensure scheduled cancellation task is actually executed
-        Thread.sleep(cancellationTimeout.getMillis());
+        // add 100ms to account for multithreading and sleep inaccuracies
+        Thread.sleep(cancellationTimeout.getMillis() + 100L);
         // unblock the search thread
         disableBlocks(plugins);
         // both child requests are expected to fail
@@ -582,7 +591,8 @@ public class SearchCancellationIT extends OpenSearchIntegTestCase {
             .execute();
         awaitForBlock(plugins);
         // sleep for cluster cancellation timeout to ensure scheduled cancellation task is actually executed
-        Thread.sleep(Math.max(reqCancellationTimeout.getMillis(), clusterCancellationTimeout.getMillis()));
+        // add 100ms to account for multithreading and sleep inaccuracies
+        Thread.sleep(Math.max(reqCancellationTimeout.getMillis(), clusterCancellationTimeout.getMillis()) + 100L);
         // unblock the search thread
         disableBlocks(plugins);
         // only first and last child request are expected to fail
