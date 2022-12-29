@@ -40,6 +40,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyMap;
@@ -172,10 +173,6 @@ public class ExtensionTransportActionsHandlerTests extends OpenSearchTestCase {
         );
         assertTrue(response.getStatus());
 
-        ExtensionActionResponse extensionResponse = extensionTransportActionsHandler.sendTransportRequestToExtension(request);
-        assertEquals(
-            "Request failed: [firstExtension][127.0.0.0:9300] Node not connected",
-            new String(extensionResponse.getResponseBytes(), StandardCharsets.UTF_8)
-        );
+        expectThrows(CompletionException.class, () -> extensionTransportActionsHandler.sendTransportRequestToExtension(request));
     }
 }

@@ -29,6 +29,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -132,12 +133,14 @@ public class ExtensionTransportActionsHandler {
                 }
             }
         );
-        inProgressFuture.orTimeout(ExtensionsManager.EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS);
-        inProgressFuture.whenComplete((r, e) -> {
-            if (e != null && e instanceof TimeoutException) {
+        try {
+            inProgressFuture.orTimeout(ExtensionsManager.EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS).join();
+        } catch (CompletionException e) {
+            if (e.getCause() instanceof TimeoutException) {
                 logger.info("No response from extension to request.");
             }
-        });
+            throw e;
+        }
         return response;
     }
 
@@ -192,12 +195,14 @@ public class ExtensionTransportActionsHandler {
         } catch (Exception e) {
             logger.info("Failed to send transport action to extension " + extension.getName(), e);
         }
-        inProgressFuture.orTimeout(ExtensionsManager.EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS);
-        inProgressFuture.whenComplete((r, e) -> {
-            if (e != null && e instanceof TimeoutException) {
+        try {
+            inProgressFuture.orTimeout(ExtensionsManager.EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS).join();
+        } catch (CompletionException e) {
+            if (e.getCause() instanceof TimeoutException) {
                 logger.info("No response from extension to request.");
             }
-        });
+            throw e;
+        }
         return extensionActionResponse;
     }
 }

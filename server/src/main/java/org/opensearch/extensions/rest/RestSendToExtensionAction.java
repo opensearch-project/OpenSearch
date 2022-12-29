@@ -33,7 +33,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -173,20 +173,15 @@ public class RestSendToExtensionAction extends BaseRestHandler {
                 new ExtensionRestRequest(method, path, params, contentType, content, requestIssuerIdentity),
                 restExecuteOnExtensionResponseHandler
             );
-            inProgressFuture.orTimeout(ExtensionsManager.EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS);
-            try {
-                if (inProgressFuture.isCompletedExceptionally()) {
-                    inProgressFuture.get();
-                }
-            } catch (ExecutionException e) {
-                Throwable cause = e.getCause();
-                if (cause instanceof TimeoutException) {
-                    return channel -> channel.sendResponse(
-                        new BytesRestResponse(RestStatus.REQUEST_TIMEOUT, "No response from extension to request.")
-                    );
-                }
-                throw e;
+            inProgressFuture.orTimeout(ExtensionsManager.EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS).join();
+        } catch (CompletionException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof TimeoutException) {
+                return channel -> channel.sendResponse(
+                    new BytesRestResponse(RestStatus.REQUEST_TIMEOUT, "No response from extension to request.")
+                );
             }
+            throw e;
         } catch (Exception e) {
             logger.info("Failed to send REST Actions to extension " + discoveryExtensionNode.getName(), e);
             return channel -> channel.sendResponse(new BytesRestResponse(RestStatus.INTERNAL_SERVER_ERROR, e.getMessage()));

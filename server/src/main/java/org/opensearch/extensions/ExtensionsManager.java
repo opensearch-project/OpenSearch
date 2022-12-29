@@ -19,6 +19,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -392,14 +393,12 @@ public class ExtensionsManager {
                 new InitializeExtensionRequest(transportService.getLocalNode(), extension),
                 initializeExtensionResponseHandler
             );
-            inProgressFuture.orTimeout(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS);
-            inProgressFuture.whenComplete((r, e) -> {
-                if (e != null && e instanceof TimeoutException) {
-                    logger.info("No response from extension to request.");
-                } else if (e == null) {
-                    logger.info("Received response from Extension");
-                }
-            });
+            inProgressFuture.orTimeout(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS).join();
+        } catch (CompletionException e) {
+            if (e.getCause() instanceof TimeoutException) {
+                logger.info("No response from extension to request.");
+            }
+            throw e;
         } catch (Exception e) {
             throw e;
         }
@@ -445,7 +444,7 @@ public class ExtensionsManager {
 
             @Override
             public void handleException(TransportException exp) {
-
+                inProgressIndexNameFuture.completeExceptionally(exp);
             }
 
             @Override
@@ -489,20 +488,21 @@ public class ExtensionsManager {
                                     new IndicesModuleRequest(indexModule),
                                     acknowledgedResponseHandler
                                 );
-                                inProgressFuture.whenComplete((r, e) -> {
-                                    if (e != null && e instanceof TimeoutException) {
-                                        logger.info("No response from extension to request.");
+                                inProgressIndexNameFuture.whenComplete((r, e) -> {
+                                    if (e != null) {
+                                        inProgressFuture.complete(response);
                                     } else if (e == null) {
-                                        logger.info("Received response from Extension");
+                                        inProgressFuture.completeExceptionally(e);
                                     }
                                 });
-                            } catch (Exception e) {
-                                throw e;
+                            } catch (Exception ex) {
+                                inProgressFuture.completeExceptionally(ex);
                             }
                         }
                     });
+                } else {
+                    inProgressFuture.complete(response);
                 }
-                inProgressFuture.complete(response);
             }
 
             @Override
@@ -525,14 +525,13 @@ public class ExtensionsManager {
                 new IndicesModuleRequest(indexModule),
                 indicesModuleResponseHandler
             );
-            inProgressFuture.orTimeout(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS);
-            inProgressFuture.whenComplete((r, e) -> {
-                if (e != null && e instanceof TimeoutException) {
-                    logger.info("No response from extension to request.");
-                } else if (e == null) {
-                    logger.info("Received response from Extension");
-                }
-            });
+            inProgressFuture.orTimeout(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS).join();
+            logger.info("Received response from Extension");
+        } catch (CompletionException e) {
+            if (e.getCause() instanceof TimeoutException) {
+                logger.info("No response from extension to request.");
+            }
+            throw e;
         } catch (Exception e) {
             throw e;
         }
