@@ -326,10 +326,17 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
             Files.delete(file);
         }
 
-        translog = create(translogDir, repository, translogUUID);
+        // Creating RemoteFsTranslog with the same location
+        Translog newTranslog = create(translogDir, repository, translogUUID);
         i = 0;
         for (Translog.Operation op : ops) {
-            assertEquals(op, translog.readOperation(locs.get(i++)));
+            assertEquals(op, newTranslog.readOperation(locs.get(i++)));
+        }
+        try {
+            newTranslog.close();
+        } catch (Exception e) {
+            // Ignoring this exception for now. Once the download flow populates FileTracker,
+            // we can remove this try-catch block
         }
     }
 

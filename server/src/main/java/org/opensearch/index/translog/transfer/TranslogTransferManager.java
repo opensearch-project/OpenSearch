@@ -134,32 +134,29 @@ public class TranslogTransferManager {
 
     public boolean downloadTranslog(String primaryTerm, String generation, Path location, boolean latest) throws IOException {
         logger.info("Downloading translog files with: Primry Term = {}, Generation = {}, Location = {}", primaryTerm, generation, location);
-        String checkpointFilename = "translog-" + generation + ".ckp";
+        String ckpFileName = "translog-" + generation + ".ckp";
         if (latest) {
-            checkpointFilename = "translog.ckp";
+            String ckpWithoutGenerationFileName = "translog.ckp";
+            downloadToFS(ckpFileName, ckpWithoutGenerationFileName, location, primaryTerm);
         }
-        if (Files.exists(location.resolve(checkpointFilename)) == false) {
-            try (
-                InputStream checkpointFileInputStream = transferService.downloadBlob(
-                    remoteBaseTransferPath.add(primaryTerm),
-                    "translog-" + generation + ".ckp"
-                )
-            ) {
-                Files.copy(checkpointFileInputStream, location.resolve(checkpointFilename));
-            }
-        }
+        // Download Checkpoint file from remote and store on FS
+        downloadToFS(ckpFileName, location, primaryTerm);
+        // Download translog file from remote and store on FS
         String translogFilename = "translog-" + generation + ".tlog";
-        if (Files.exists(location.resolve(translogFilename)) == false) {
-            try (
-                InputStream translogFileInputStream = transferService.downloadBlob(
-                    remoteBaseTransferPath.add(primaryTerm),
-                    "translog-" + generation + ".tlog"
-                )
-            ) {
-                Files.copy(translogFileInputStream, location.resolve(translogFilename));
+        downloadToFS(translogFilename, location, primaryTerm);
+        return true;
+    }
+
+    private void downloadToFS(String fileName, Path location, String primaryTerm) throws IOException {
+        downloadToFS(fileName, fileName, location, primaryTerm);
+    }
+
+    private void downloadToFS(String remoteFileName, String localFileName, Path location, String primaryTerm) throws IOException {
+        if (Files.exists(location.resolve(localFileName)) == false) {
+            try (InputStream inputStream = transferService.downloadBlob(remoteBaseTransferPath.add(primaryTerm), remoteFileName)) {
+                Files.copy(inputStream, location.resolve(localFileName));
             }
         }
-        return true;
     }
 
     public TranslogTransferMetadata readMetadata() throws IOException {

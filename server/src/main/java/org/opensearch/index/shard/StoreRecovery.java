@@ -460,19 +460,9 @@ final class StoreRecovery {
             indexShard.syncSegmentsFromRemoteSegmentStore(true);
 
             if (repository != null) {
-                FileTransferTracker fileTransferTracker = new FileTransferTracker(shardId);
-                assert repository instanceof BlobStoreRepository : "repository should be instance of BlobStoreRepository";
-                BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repository;
-                TranslogTransferManager translogTransferManager = new TranslogTransferManager(
-                    new BlobStoreTransferService(
-                        blobStoreRepository.blobStore(),
-                        indexShard.getThreadPool().executor(ThreadPool.Names.TRANSLOG_TRANSFER)
-                    ),
-                    blobStoreRepository.basePath().add(shardId.getIndex().getUUID()).add(String.valueOf(shardId.id())),
-                    fileTransferTracker,
-                    fileTransferTracker::exclusionFilter
-                );
-                RemoteFsTranslog.download(translogTransferManager, indexShard.shardPath().resolveTranslog());
+                syncTranslogFilesFromRemoteTranslog(indexShard, repository);
+            } else {
+                bootstrap(indexShard, store);
             }
 
             assert indexShard.shardRouting.primary() : "only primary shards can recover from store";
@@ -487,6 +477,22 @@ final class StoreRecovery {
             store.decRef();
             remoteStore.decRef();
         }
+    }
+
+    private void syncTranslogFilesFromRemoteTranslog(IndexShard indexShard, Repository repository) throws IOException {
+        FileTransferTracker fileTransferTracker = new FileTransferTracker(shardId);
+        assert repository instanceof BlobStoreRepository : "repository should be instance of BlobStoreRepository";
+        BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repository;
+        TranslogTransferManager translogTransferManager = new TranslogTransferManager(
+            new BlobStoreTransferService(
+                blobStoreRepository.blobStore(),
+                indexShard.getThreadPool().executor(ThreadPool.Names.TRANSLOG_TRANSFER)
+            ),
+            blobStoreRepository.basePath().add(shardId.getIndex().getUUID()).add(String.valueOf(shardId.id())),
+            fileTransferTracker,
+            fileTransferTracker::exclusionFilter
+        );
+        RemoteFsTranslog.download(translogTransferManager, indexShard.shardPath().resolveTranslog());
     }
 
     /**
