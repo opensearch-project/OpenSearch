@@ -25,7 +25,6 @@ import java.util.Optional;
  */
 public class ExtensionRequest extends TransportRequest {
     private static final Logger logger = LogManager.getLogger(ExtensionRequest.class);
-    private ExtensionsManager.RequestType requestType;
     private final ExtensionsManager.RequestType requestType;
     private final Optional<String> uniqueId;
 
