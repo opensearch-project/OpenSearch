@@ -93,7 +93,6 @@ public class DiscoveryExtensionNode extends DiscoveryNode implements Writeable, 
         return false;
     }
 
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return null;
