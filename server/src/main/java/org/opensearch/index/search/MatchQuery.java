@@ -70,7 +70,6 @@ import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.TextFieldMapper;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.support.QueryParsers;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -81,6 +80,9 @@ import java.util.function.Supplier;
 
 import static org.opensearch.common.lucene.search.Queries.newLenientFieldQuery;
 import static org.opensearch.common.lucene.search.Queries.newUnmappedFieldQuery;
+
+import java.util.logging.Logger;
+
 
 /**
  * Foundation match query
@@ -133,6 +135,13 @@ public class MatchQuery {
             out.writeVInt(this.ordinal);
         }
     }
+
+    /**
+     * logging function
+     */
+
+    private static final Logger logger = Logger.getLogger((MatchQuery.class.getName()));
+
 
     /**
      * Query with zero terms
@@ -737,10 +746,14 @@ public class MatchQuery {
             }
         }
 
+
+
         private Query analyzeGraphBoolean(String field, TokenStream source, BooleanClause.Occur operator, boolean isPrefix)
             throws IOException {
             source.reset();
             GraphTokenStreamFiniteStrings graph = new GraphTokenStreamFiniteStrings(source);
+            logger.info("\n check the source" + source);
+            logger.info("\n check the GraphTokenStreamFiniteStrings" + graph);
             BooleanQuery.Builder builder = new BooleanQuery.Builder();
             int[] articulationPoints = graph.articulationPoints();
             int lastState = 0;
@@ -753,7 +766,15 @@ public class MatchQuery {
                 lastState = end;
                 final Query queryPos;
                 boolean usePrefix = isPrefix && end == -1;
-                if (graph.hasSidePath(start)) {
+                boolean graphHasSidePath = false;
+                try {
+                    graphHasSidePath = graph.hasSidePath(start); }
+                catch (AssertionError e){
+                    logger.info("GraphTokenStreamFiniteStrings has no path. Catch assertion error: \n" + e);
+                    return zeroTermsQuery();
+                }
+                if (graphHasSidePath) {
+                    logger.info("this graph has sidePath starting at: \n" + start);
                     final Iterator<TokenStream> it = graph.getFiniteStrings(start, end);
                     Iterator<Query> queries = new Iterator<Query>() {
                         @Override
