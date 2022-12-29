@@ -756,7 +756,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             settings,
             client
         );
-        verify(mockTransportService, times(8)).registerRequestHandler(anyString(), anyString(), anyBoolean(), anyBoolean(), any(), any());
+        verify(mockTransportService, times(9)).registerRequestHandler(anyString(), anyString(), anyBoolean(), anyBoolean(), any(), any());
 
     }
 
