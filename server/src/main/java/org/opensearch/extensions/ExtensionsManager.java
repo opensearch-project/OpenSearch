@@ -438,7 +438,12 @@ public class ExtensionsManager {
             case REQUEST_EXTENSION_ENVIRONMENT_SETTINGS:
                 return new EnvironmentSettingsResponse(this.environmentSettings);
             case REQUEST_EXTENSION_DEPENDENCY_INFORMATION:
-                String uniqueId = extensionRequest.getUniqueId().stream().filter(x -> x.length() == 1).findFirst().map(Object::toString).orElse(null);
+                String uniqueId = extensionRequest.getUniqueId()
+                    .stream()
+                    .filter(x -> x.length() == 1)
+                    .findFirst()
+                    .map(Object::toString)
+                    .orElse(null);
                 if (uniqueId == null) {
                     return new ExtensionDependencyResponse(extensions);
                 } else {

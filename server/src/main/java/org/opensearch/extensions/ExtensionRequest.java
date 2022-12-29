@@ -10,7 +10,6 @@ package org.opensearch.extensions;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.transport.TransportRequest;
@@ -27,27 +26,29 @@ import java.util.Optional;
 public class ExtensionRequest extends TransportRequest {
     private static final Logger logger = LogManager.getLogger(ExtensionRequest.class);
     private final ExtensionsManager.RequestType requestType;
-    private final String uniqueId;
+    private final Optional<String> uniqueId;
+    private String id;
 
     public ExtensionRequest(ExtensionsManager.RequestType requestType) {
         this(requestType, null);
     }
 
-    public ExtensionRequest(ExtensionsManager.RequestType requestType, String uniqueId) {
+    public ExtensionRequest(ExtensionsManager.RequestType requestType, Optional<String> uniqueId) {
         this.requestType = requestType;
         this.uniqueId = uniqueId;
     }
 
     public ExtensionRequest(StreamInput in) throws IOException {
         this.requestType = in.readEnum(ExtensionsManager.RequestType.class);
-        this.uniqueId = in.readString();
+        this.uniqueId = id == null ? Optional.empty() : Optional.of(id);
+        id = in.readOptionalString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeEnum(requestType);
-        out.writeString(uniqueId);
+        out.writeOptionalString(id);
     }
 
     public ExtensionsManager.RequestType getRequestType() {
@@ -55,7 +56,7 @@ public class ExtensionRequest extends TransportRequest {
     }
 
     public Optional<String> getUniqueId() {
-        return uniqueId == null ? Optional.empty() : Optional.of(uniqueId);
+        return uniqueId == null ? Optional.empty() : uniqueId;
     }
 
     public String toString() {
