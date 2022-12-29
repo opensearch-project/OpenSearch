@@ -584,7 +584,7 @@ public class SearchCancellationIT extends OpenSearchIntegTestCase {
     }
 
     /**
-     * Sleeps for the specified number of milliseconds plus a 100ms buffer to account for system timer/sheduler inaccuracies.
+     * Sleeps for the specified number of milliseconds plus a 100ms buffer to account for system timer/scheduler inaccuracies.
      *
      * @param milliseconds The minimum time to sleep
      * @throws InterruptedException if interrupted during sleep
