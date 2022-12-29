@@ -16,6 +16,7 @@ import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * CLusterService Request for Extensibility
@@ -25,28 +26,41 @@ import java.util.Objects;
 public class ExtensionRequest extends TransportRequest {
     private static final Logger logger = LogManager.getLogger(ExtensionRequest.class);
     private ExtensionsManager.RequestType requestType;
+    private final ExtensionsManager.RequestType requestType;
+    private final Optional<String> uniqueId;
 
     public ExtensionRequest(ExtensionsManager.RequestType requestType) {
+        this(requestType, null);
+    }
+
+    public ExtensionRequest(ExtensionsManager.RequestType requestType, Optional<String> uniqueId) {
         this.requestType = requestType;
+        this.uniqueId = uniqueId;
     }
 
     public ExtensionRequest(StreamInput in) throws IOException {
-        super(in);
         this.requestType = in.readEnum(ExtensionsManager.RequestType.class);
+        String id = in.readOptionalString();
+        this.uniqueId = id == null ? Optional.empty() : Optional.of(id);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeEnum(requestType);
+        out.writeOptionalString(uniqueId.orElse(null));
     }
 
     public ExtensionsManager.RequestType getRequestType() {
         return this.requestType;
     }
 
+    public Optional<String> getUniqueId() {
+        return uniqueId;
+    }
+
     public String toString() {
-        return "ExtensionRequest{" + "requestType=" + requestType + '}';
+        return "ExtensionRequest{" + "requestType=" + requestType + "uniqueId=" + uniqueId + '}';
     }
 
     @Override
@@ -54,11 +68,11 @@ public class ExtensionRequest extends TransportRequest {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ExtensionRequest that = (ExtensionRequest) o;
-        return Objects.equals(requestType, that.requestType);
+        return Objects.equals(requestType, that.requestType) && uniqueId.equals(that.uniqueId);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(requestType);
+        return Objects.hash(requestType, uniqueId);
     }
 }

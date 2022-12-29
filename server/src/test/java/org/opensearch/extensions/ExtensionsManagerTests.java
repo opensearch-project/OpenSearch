@@ -528,6 +528,51 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         assertEquals("Handler not present for the provided request", exception.getMessage());
     }
 
+    public void testExtensionDependencyResponse() throws Exception {
+        String expectedUniqueId = "test uniqueid";
+        List<DiscoveryExtensionNode> expectedExtensionsList = new ArrayList<DiscoveryExtensionNode>();
+        Version expectedVersion = Version.fromString("2.0.0");
+        ExtensionDependency expectedDependency = new ExtensionDependency(expectedUniqueId, expectedVersion);
+
+        expectedExtensionsList.add(
+            new DiscoveryExtensionNode(
+                "firstExtension",
+                "uniqueid1",
+                "uniqueid1",
+                "myIndependentPluginHost1",
+                "127.0.0.0",
+                new TransportAddress(InetAddress.getByName("127.0.0.0"), 9300),
+                new HashMap<String, String>(),
+                Version.fromString("3.0.0"),
+                new PluginInfo(
+                    "firstExtension",
+                    "Fake description 1",
+                    "0.0.7",
+                    Version.fromString("3.0.0"),
+                    "14",
+                    "fakeClass1",
+                    new ArrayList<String>(),
+                    false
+                ),
+                List.of(expectedDependency)
+            )
+        );
+
+        // Test ExtensionDependencyResponse arg constructor
+        ExtensionDependencyResponse extensionDependencyResponse = new ExtensionDependencyResponse(expectedExtensionsList);
+        assertEquals(expectedExtensionsList, extensionDependencyResponse.getExtensionDependency());
+
+        // Test ExtensionDependencyResponse StreamInput constructor
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            extensionDependencyResponse.writeTo(out);
+            out.flush();
+            try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
+                extensionDependencyResponse = new ExtensionDependencyResponse(in);
+                assertEquals(expectedExtensionsList, extensionDependencyResponse.getExtensionDependency());
+            }
+        }
+    }
+
     public void testEnvironmentSettingsResponse() throws Exception {
 
         // Test EnvironmentSettingsResponse arg constructor
