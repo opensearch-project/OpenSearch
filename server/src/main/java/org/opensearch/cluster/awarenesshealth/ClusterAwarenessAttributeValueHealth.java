@@ -9,6 +9,10 @@
 package org.opensearch.cluster.awarenesshealth;
 
 import org.opensearch.OpenSearchParseException;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
+import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.WeightedRouting;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -18,23 +22,16 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * Cluster Awareness AttributeValue Health information
- *
  */
 public class ClusterAwarenessAttributeValueHealth implements Writeable, ToXContentFragment {
-
-    private final String name;
-    private int activeShards;
-    private int unassignedShards;
-    private int initializingShards;
-    private int relocatingShards;
-    private int nodes;
-    private double weight;
 
     private static final String ACTIVE_SHARDS = "active_shards";
     private static final String INITIALIZING_SHARDS = "initializing_shards";
@@ -42,14 +39,23 @@ public class ClusterAwarenessAttributeValueHealth implements Writeable, ToXConte
     private static final String UNASSIGNED_SHARDS = "unassigned_shards";
     private static final String NODES = "data_nodes";
     private static final String WEIGHTS = "weight";
+    private final String name;
+    private int activeShards;
+    private int unassignedShards;
+    private int initializingShards;
+    private int relocatingShards;
+    private int nodes;
+    private double weight;
+    private List<String> nodeList;
 
     /**
      * Creates Awareness AttributeValue Health information
      *
-     * @param attributeValue name of awareness attribute
+     * @param name name of awareness attribute
      */
-    public ClusterAwarenessAttributeValueHealth(String attributeValue) {
-        name = attributeValue;
+    public ClusterAwarenessAttributeValueHealth(String name) {
+        this.name = name;
+        this.nodeList = new ArrayList<>();
     }
 
     // Constructor use by Unit test case.
@@ -79,82 +85,6 @@ public class ClusterAwarenessAttributeValueHealth implements Writeable, ToXConte
         unassignedShards = in.readVInt();
         nodes = in.readVInt();
         weight = in.readDouble();
-    }
-
-    public int getActiveShards() {
-        return activeShards;
-    }
-
-    public void setActiveShards(int activeShards) {
-        this.activeShards = activeShards;
-    }
-
-    public int getUnassignedShards() {
-        return unassignedShards;
-    }
-
-    public void setUnassignedShards(int unassignedShards) {
-        this.unassignedShards = unassignedShards;
-    }
-
-    public int getNodes() {
-        return nodes;
-    }
-
-    public void setNodes(int nodes) {
-        this.nodes = nodes;
-    }
-
-    public double getWeight() {
-        return weight;
-    }
-
-    public void setWeight(double weight) {
-        this.weight = weight;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public int getInitializingShards() {
-        return initializingShards;
-    }
-
-    public void setInitializingShards(int initializingShards) {
-        this.initializingShards = initializingShards;
-    }
-
-    public int getRelocatingShards() {
-        return relocatingShards;
-    }
-
-    public void setRelocatingShards(int relocatingShards) {
-        this.relocatingShards = relocatingShards;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
-        out.writeVInt(activeShards);
-        out.writeVInt(initializingShards);
-        out.writeVInt(relocatingShards);
-        out.writeVInt(unassignedShards);
-        out.writeVInt(nodes);
-        out.writeDouble(weight);
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(getName());
-        builder.field(ACTIVE_SHARDS, getActiveShards());
-        builder.field(INITIALIZING_SHARDS, getInitializingShards());
-        builder.field(RELOCATING_SHARDS, getRelocatingShards());
-        builder.field(UNASSIGNED_SHARDS, getUnassignedShards());
-        builder.field(NODES, getNodes());
-        builder.field(WEIGHTS, getWeight());
-        builder.endObject();
-        return builder;
     }
 
     public static ClusterAwarenessAttributeValueHealth fromXContent(XContentParser parser) throws IOException {
@@ -235,6 +165,157 @@ public class ClusterAwarenessAttributeValueHealth implements Writeable, ToXConte
             nodes,
             weight
         );
+    }
+
+    public int getActiveShards() {
+        return activeShards;
+    }
+
+    public void setActiveShards(int activeShards) {
+        this.activeShards = activeShards;
+    }
+
+    public int getUnassignedShards() {
+        return unassignedShards;
+    }
+
+    public void setUnassignedShards(int unassignedShards) {
+        this.unassignedShards = unassignedShards;
+    }
+
+    public int getNodes() {
+        return nodes;
+    }
+
+    public void setNodes(int nodes) {
+        this.nodes = nodes;
+    }
+
+    public double getWeight() {
+        return weight;
+    }
+
+    public void setWeight(double weight) {
+        this.weight = weight;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public int getInitializingShards() {
+        return initializingShards;
+    }
+
+    public void setInitializingShards(int initializingShards) {
+        this.initializingShards = initializingShards;
+    }
+
+    public int getRelocatingShards() {
+        return relocatingShards;
+    }
+
+    public void setRelocatingShards(int relocatingShards) {
+        this.relocatingShards = relocatingShards;
+    }
+
+    public List<String> getNodeList() {
+        return nodeList;
+    }
+
+    public void setNodeList(List<String> nodeList) {
+        this.nodeList = nodeList;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(name);
+        out.writeVInt(activeShards);
+        out.writeVInt(initializingShards);
+        out.writeVInt(relocatingShards);
+        out.writeVInt(unassignedShards);
+        out.writeVInt(nodes);
+        out.writeDouble(weight);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(getName());
+        builder.field(ACTIVE_SHARDS, getActiveShards());
+        builder.field(INITIALIZING_SHARDS, getInitializingShards());
+        builder.field(RELOCATING_SHARDS, getRelocatingShards());
+        builder.field(UNASSIGNED_SHARDS, getUnassignedShards());
+        builder.field(NODES, getNodes());
+        builder.field(WEIGHTS, getWeight());
+        builder.endObject();
+        return builder;
+    }
+
+    protected void computeAttributeValueLevelInfo(
+        ClusterState clusterState,
+        boolean displayUnassignedShardLevelInfo,
+        int shardsPerAttributeValue
+    ) {
+
+        // computing nodes info
+        setNodes(nodeList.size());
+
+        // computing shards into
+        setShardLevelInfo(clusterState, displayUnassignedShardLevelInfo, shardsPerAttributeValue);
+
+        // compute weight info
+        setWeightInfo(clusterState);
+
+    }
+
+    private void setShardLevelInfo(ClusterState clusterState, boolean displayUnassignedShardLevelInfo, int shardsPerAttributeValue) {
+
+        String nodeId;
+
+        // computing active, relocating and initializing shards info
+        for (ShardRouting shard : clusterState.routingTable().allShards()) {
+            if (shard.assignedToNode()) {
+                nodeId = shard.currentNodeId();
+                boolean nodeInCurrentAZ = nodeList.contains(nodeId);
+                if (shard.active()) {
+                    if (shard.started() && nodeInCurrentAZ) {
+                        activeShards += 1;
+                    } else if (shard.relocating()) {
+
+                        // On which shard is relocating i.e. destination node
+                        if (nodeList.contains(shard.relocatingNodeId())) {
+                            initializingShards += 1;
+                        }
+
+                        // On which shard is relocating from i.e. source node
+                        if (nodeInCurrentAZ) {
+                            relocatingShards += 1;
+                        }
+                    }
+                } else if (shard.initializing() && nodeInCurrentAZ) {
+                    initializingShards += 1;
+                }
+            }
+        }
+
+        // computing unassigned shards info
+        if (displayUnassignedShardLevelInfo && shardsPerAttributeValue > 0) {
+            int unassignedShardsPerAttribute = shardsPerAttributeValue - getActiveShards() - getInitializingShards();
+            setUnassignedShards(unassignedShardsPerAttribute);
+        } else {
+            setUnassignedShards(-1);
+        }
+    }
+
+    private void setWeightInfo(ClusterState clusterState) {
+
+        WeightedRoutingMetadata weightedRoutingMetadata = clusterState.getMetadata().weightedRoutingMetadata();
+        double attributeWeight = 1.0;
+        if (weightedRoutingMetadata != null) {
+            WeightedRouting weightedRouting = weightedRoutingMetadata.getWeightedRouting();
+            attributeWeight = weightedRouting.weights().getOrDefault(name, 1.0);
+        }
+        setWeight(attributeWeight);
     }
 
     @Override

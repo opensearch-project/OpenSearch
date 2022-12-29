@@ -16,20 +16,20 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-public class ClusterAwarenessAttributeHealthSerializationTests extends AbstractSerializingTestCase<ClusterAwarenessAttributeHealth> {
+public class ClusterAwarenessAttributesHealthSerializationTests extends AbstractSerializingTestCase<ClusterAwarenessAttributesHealth> {
 
     @Override
-    protected ClusterAwarenessAttributeHealth doParseInstance(XContentParser parser) throws IOException {
-        return ClusterAwarenessAttributeHealth.fromXContent(parser);
+    protected ClusterAwarenessAttributesHealth doParseInstance(XContentParser parser) throws IOException {
+        return ClusterAwarenessAttributesHealth.fromXContent(parser);
     }
 
     @Override
-    protected Writeable.Reader<ClusterAwarenessAttributeHealth> instanceReader() {
-        return ClusterAwarenessAttributeHealth::new;
+    protected Writeable.Reader<ClusterAwarenessAttributesHealth> instanceReader() {
+        return ClusterAwarenessAttributesHealth::new;
     }
 
     @Override
-    protected ClusterAwarenessAttributeHealth createTestInstance() {
+    protected ClusterAwarenessAttributesHealth createTestInstance() {
         Map<String, ClusterAwarenessAttributeValueHealth> clusterAwarenessAttributeValueHealthMap = new HashMap<>();
         ClusterAwarenessAttributeValueHealth clusterAwarenessAttributeValueHealth1 = new ClusterAwarenessAttributeValueHealth(
             "zone-1",
@@ -65,6 +65,6 @@ public class ClusterAwarenessAttributeHealthSerializationTests extends AbstractS
         clusterAwarenessAttributeValueHealthMap.put(clusterAwarenessAttributeValueHealth2.getName(), clusterAwarenessAttributeValueHealth2);
         clusterAwarenessAttributeValueHealthMap.put(clusterAwarenessAttributeValueHealth3.getName(), clusterAwarenessAttributeValueHealth3);
 
-        return new ClusterAwarenessAttributeHealth("zone", clusterAwarenessAttributeValueHealthMap);
+        return new ClusterAwarenessAttributesHealth("zone", clusterAwarenessAttributeValueHealthMap);
     }
 }

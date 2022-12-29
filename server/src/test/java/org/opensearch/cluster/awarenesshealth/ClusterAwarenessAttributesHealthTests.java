@@ -18,10 +18,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
-import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
-import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.CapturingTransport;
@@ -31,7 +28,6 @@ import org.opensearch.transport.TransportService;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -40,7 +36,7 @@ import java.util.concurrent.TimeUnit;
 import static java.util.Collections.singletonMap;
 import static org.opensearch.test.ClusterServiceUtils.createClusterService;
 
-public class ClusterAwarenessAttributeHealthTests extends OpenSearchTestCase {
+public class ClusterAwarenessAttributesHealthTests extends OpenSearchTestCase {
 
     private static ThreadPool threadPool;
 
@@ -89,17 +85,6 @@ public class ClusterAwarenessAttributeHealthTests extends OpenSearchTestCase {
 
     public void testClusterAwarenessAttributeHealth() {
 
-        Settings settings = Settings.builder()
-            .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(), "zone")
-            .put(AwarenessReplicaBalance.CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING.getKey(), "true")
-            .put(
-                AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.getKey() + "zone.values",
-                "zone_1, zone_2, zone_3"
-            )
-            .build();
-
-        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .nodes(
                 DiscoveryNodes.builder(clusterService.state().nodes())
@@ -133,46 +118,21 @@ public class ClusterAwarenessAttributeHealthTests extends OpenSearchTestCase {
             )
             .build();
 
-        Map<String, NodeShardInfo> shardMapPerNode = new HashMap<>();
-        NodeShardInfo node1 = new NodeShardInfo("node1");
-        node1.setActiveShards(2);
-        NodeShardInfo node2 = new NodeShardInfo("node2");
-        node2.setActiveShards(2);
-        NodeShardInfo node3 = new NodeShardInfo("node3");
-        node3.setActiveShards(2);
-        shardMapPerNode.put("node1", node1);
-        shardMapPerNode.put("node2", node2);
-        shardMapPerNode.put("node3", node3);
-
-        ClusterAwarenessAttributeHealth clusterAwarenessAttributeHealth = new ClusterAwarenessAttributeHealth(
+        ClusterAwarenessAttributesHealth clusterAwarenessAttributesHealth = new ClusterAwarenessAttributesHealth(
             "zone",
-            null,
             true,
-            shardMapPerNode,
-            clusterState.nodes().getDataNodes(),
+            clusterState,
             12
         );
 
-        assertEquals("zone", clusterAwarenessAttributeHealth.getAwarenessAttributeName());
-        Map<String, ClusterAwarenessAttributeValueHealth> attributeValueMap = clusterAwarenessAttributeHealth
+        assertEquals("zone", clusterAwarenessAttributesHealth.getAwarenessAttributeName());
+        Map<String, ClusterAwarenessAttributeValueHealth> attributeValueMap = clusterAwarenessAttributesHealth
             .getAwarenessAttributeHealthMap();
         assertEquals(3, attributeValueMap.size());
-        assertClusterAwarenessAttributeValueHealth(attributeValueMap, true);
     }
 
     public void testClusterAwarenessAttributeHealthNodeAttributeDoesNotExists() {
 
-        Settings settings = Settings.builder()
-            .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(), "zone")
-            .put(AwarenessReplicaBalance.CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING.getKey(), "true")
-            .put(
-                AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.getKey() + "zone.values",
-                "zone_1, zone_2, zone_3"
-            )
-            .build();
-
-        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .nodes(
                 DiscoveryNodes.builder(clusterService.state().nodes())
@@ -206,45 +166,21 @@ public class ClusterAwarenessAttributeHealthTests extends OpenSearchTestCase {
             )
             .build();
 
-        Map<String, NodeShardInfo> shardMapPerNode = new HashMap<>();
-        NodeShardInfo node1 = new NodeShardInfo("node1");
-        node1.setActiveShards(2);
-        NodeShardInfo node2 = new NodeShardInfo("node2");
-        node2.setActiveShards(2);
-        NodeShardInfo node3 = new NodeShardInfo("node3");
-        node3.setActiveShards(2);
-        shardMapPerNode.put("node1", node1);
-        shardMapPerNode.put("node2", node2);
-        shardMapPerNode.put("node3", node3);
-
-        ClusterAwarenessAttributeHealth clusterAwarenessAttributeHealth = new ClusterAwarenessAttributeHealth(
+        ClusterAwarenessAttributesHealth clusterAwarenessAttributesHealth = new ClusterAwarenessAttributesHealth(
             "rack",
-            null,
             true,
-            shardMapPerNode,
-            clusterState.nodes().getDataNodes(),
+            clusterState,
             12
         );
 
-        assertEquals("rack", clusterAwarenessAttributeHealth.getAwarenessAttributeName());
-        Map<String, ClusterAwarenessAttributeValueHealth> attributeValueMap = clusterAwarenessAttributeHealth
+        assertEquals("rack", clusterAwarenessAttributesHealth.getAwarenessAttributeName());
+        Map<String, ClusterAwarenessAttributeValueHealth> attributeValueMap = clusterAwarenessAttributesHealth
             .getAwarenessAttributeHealthMap();
         assertEquals(0, attributeValueMap.size());
     }
 
     public void testClusterAwarenessAttributeHealthNoReplicaEnforcement() {
 
-        Settings settings = Settings.builder()
-            .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(), "zone")
-            .put(AwarenessReplicaBalance.CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING.getKey(), "true")
-            .put(
-                AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.getKey() + "zone.values",
-                "zone_1, zone_2, zone_3"
-            )
-            .build();
-
-        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .nodes(
                 DiscoveryNodes.builder(clusterService.state().nodes())
@@ -278,47 +214,16 @@ public class ClusterAwarenessAttributeHealthTests extends OpenSearchTestCase {
             )
             .build();
 
-        Map<String, NodeShardInfo> shardMapPerNode = new HashMap<>();
-        NodeShardInfo node1 = new NodeShardInfo("node1");
-        node1.setActiveShards(2);
-        NodeShardInfo node2 = new NodeShardInfo("node2");
-        node2.setActiveShards(2);
-        NodeShardInfo node3 = new NodeShardInfo("node3");
-        node3.setActiveShards(2);
-        shardMapPerNode.put("node1", node1);
-        shardMapPerNode.put("node2", node2);
-        shardMapPerNode.put("node3", node3);
-
-        ClusterAwarenessAttributeHealth clusterAwarenessAttributeHealth = new ClusterAwarenessAttributeHealth(
+        ClusterAwarenessAttributesHealth clusterAwarenessAttributesHealth = new ClusterAwarenessAttributesHealth(
             "zone",
-            null,
             false,
-            shardMapPerNode,
-            clusterState.nodes().getDataNodes(),
+            clusterState,
             12
         );
 
-        assertEquals("zone", clusterAwarenessAttributeHealth.getAwarenessAttributeName());
-        Map<String, ClusterAwarenessAttributeValueHealth> attributeValueMap = clusterAwarenessAttributeHealth
+        assertEquals("zone", clusterAwarenessAttributesHealth.getAwarenessAttributeName());
+        Map<String, ClusterAwarenessAttributeValueHealth> attributeValueMap = clusterAwarenessAttributesHealth
             .getAwarenessAttributeHealthMap();
         assertEquals(3, attributeValueMap.size());
-        assertClusterAwarenessAttributeValueHealth(attributeValueMap, false);
     }
-
-    private void assertClusterAwarenessAttributeValueHealth(
-        Map<String, ClusterAwarenessAttributeValueHealth> attributeValueMap,
-        boolean replicaEnforcement
-    ) {
-        for (ClusterAwarenessAttributeValueHealth clusterAwarenessAttributeValueHealth : attributeValueMap.values()) {
-            assertEquals("1.0", String.valueOf(clusterAwarenessAttributeValueHealth.getWeight()));
-            assertEquals(2, clusterAwarenessAttributeValueHealth.getActiveShards());
-            if (replicaEnforcement) {
-                assertEquals(2, clusterAwarenessAttributeValueHealth.getUnassignedShards());
-            } else {
-                assertEquals(-1, clusterAwarenessAttributeValueHealth.getUnassignedShards());
-            }
-            assertEquals(1, clusterAwarenessAttributeValueHealth.getNodes());
-        }
-    }
-
 }

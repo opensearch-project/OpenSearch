@@ -9,6 +9,7 @@
 package org.opensearch.cluster.awarenesshealth;
 
 import org.opensearch.OpenSearchParseException;
+import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Strings;
 import org.opensearch.common.collect.ImmutableOpenMap;
@@ -32,7 +33,7 @@ import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedT
  * Cluster Awareness health information
  *
  */
-public class ClusterAwarenessAttributeHealth implements Iterable<ClusterAwarenessAttributeValueHealth>, Writeable, ToXContentFragment {
+public class ClusterAwarenessAttributesHealth implements Iterable<ClusterAwarenessAttributeValueHealth>, Writeable, ToXContentFragment {
 
     private final String awarenessAttributeName;
     private Map<String, ClusterAwarenessAttributeValueHealth> awarenessAttributeValueHealthMap;
@@ -41,18 +42,14 @@ public class ClusterAwarenessAttributeHealth implements Iterable<ClusterAwarenes
      * Creates Awareness AttributeValue Health information
      *
      * @param awarenessAttributeValue Awareness Attribute value ie zone, rack etc
-     * @param weightedRoutingWeights  Weights Map of Awareness Attribute
      * @param displayUnassignedShardLevelInfo Governs if unassigned info should be visible or not
-     * @param shardAllocationPerNode Shard Allocation per node
-     * @param nodeMap The nodeMap stored in cluster state
+     * @param clusterState cluster state
      * @param totalShards Total shards currently in cluster
      */
-    public ClusterAwarenessAttributeHealth(
+    public ClusterAwarenessAttributesHealth(
         String awarenessAttributeValue,
-        Map<String, Double> weightedRoutingWeights,
         boolean displayUnassignedShardLevelInfo,
-        Map<String, NodeShardInfo> shardAllocationPerNode,
-        ImmutableOpenMap<String, DiscoveryNode> nodeMap,
+        ClusterState clusterState,
         int totalShards
     ) {
 
@@ -61,6 +58,9 @@ public class ClusterAwarenessAttributeHealth implements Iterable<ClusterAwarenes
         // This is the Map which is storing the per attribute value health stats.
         // The key would be the attribute value like rack-1 and the stats would be stored as value.
         Map<String, ClusterAwarenessAttributeValueHealth> attributesHealth = new HashMap<>();
+
+        // Getting the node map for cluster
+        ImmutableOpenMap<String, DiscoveryNode> nodeMap = clusterState.nodes().getDataNodes();
 
         // This is the map that would store all the stats per attribute ie
         // health stats for rack-1, rack-2 etc.
@@ -80,71 +80,47 @@ public class ClusterAwarenessAttributeHealth implements Iterable<ClusterAwarenes
 
                         if (!attributesHealth.containsKey(attributeValue)) {
                             clusterAwarenessAttributeValueHealth = new ClusterAwarenessAttributeValueHealth(attributeValue);
-
-                            // We calculate weight here as we will be
-                            double attributeWeight = 1.0;
-                            if (weightedRoutingWeights != null) {
-                                attributeWeight = weightedRoutingWeights.getOrDefault(attributeValue, 1.0);
-                            }
-                            clusterAwarenessAttributeValueHealth.setWeight(attributeWeight);
                         }
 
                         clusterAwarenessAttributeValueHealth = (clusterAwarenessAttributeValueHealth != null)
                             ? clusterAwarenessAttributeValueHealth
                             : attributesHealth.get(attributeValue);
 
-                        clusterAwarenessAttributeValueHealth.setNodes(clusterAwarenessAttributeValueHealth.getNodes() + 1);
-                        if (shardAllocationPerNode.containsKey(node)) {
-                            clusterAwarenessAttributeValueHealth.setActiveShards(
-                                clusterAwarenessAttributeValueHealth.getActiveShards() + shardAllocationPerNode.get(node).getActiveShards()
-                            );
-                            clusterAwarenessAttributeValueHealth.setInitializingShards(
-                                clusterAwarenessAttributeValueHealth.getInitializingShards() + shardAllocationPerNode.get(node)
-                                    .getInitializingShards()
-                            );
-                            clusterAwarenessAttributeValueHealth.setRelocatingShards(
-                                clusterAwarenessAttributeValueHealth.getRelocatingShards() + shardAllocationPerNode.get(node)
-                                    .getRelocatingShards()
-                            );
-                        }
+                        clusterAwarenessAttributeValueHealth.getNodeList().add(node);
                         attributesHealth.put(attributeValue, clusterAwarenessAttributeValueHealth);
                     }
                 }
             }
         }
-        getUnassignedShardCount(attributesHealth, totalShards, displayUnassignedShardLevelInfo);
+
+        setClusterAwarenessAttributeValue(attributesHealth, totalShards, displayUnassignedShardLevelInfo, clusterState);
     }
 
-    private void getUnassignedShardCount(
+    private void setClusterAwarenessAttributeValue(
         Map<String, ClusterAwarenessAttributeValueHealth> perAttributeValueHealthMap,
         int totalShards,
-        boolean displayUnassignedShardLevelInfo
+        boolean displayUnassignedShardLevelInfo,
+        ClusterState clusterState
     ) {
 
         int numAttributes = perAttributeValueHealthMap.size();
-        int shardsByAttribute = 0;
+        int shardsPerAttributeValue = 0;
 
         // Can happen customer has defined weights as well as awareness attribute but no node level attribute was there
         // So to avoid divide-by-zero error checking this
         if (numAttributes != 0) {
-            shardsByAttribute = totalShards / numAttributes;
+            shardsPerAttributeValue = totalShards / numAttributes;
         }
 
-        for (String attributeValueKey : perAttributeValueHealthMap.keySet()) {
-            ClusterAwarenessAttributeValueHealth attributeHealthMapPerValue = perAttributeValueHealthMap.get(attributeValueKey);
-
-            if (displayUnassignedShardLevelInfo) {
-                int unassignedShardsPerAttribute = shardsByAttribute - attributeHealthMapPerValue.getActiveShards()
-                    - attributeHealthMapPerValue.getInitializingShards();
-                attributeHealthMapPerValue.setUnassignedShards(unassignedShardsPerAttribute);
-            } else {
-                attributeHealthMapPerValue.setUnassignedShards(-1);
-            }
+        for (ClusterAwarenessAttributeValueHealth attributeValueKey : perAttributeValueHealthMap.values()) {
+            // computing attribute info
+            attributeValueKey.computeAttributeValueLevelInfo(clusterState, displayUnassignedShardLevelInfo, shardsPerAttributeValue);
         }
+
         awarenessAttributeValueHealthMap = perAttributeValueHealthMap;
     }
 
-    public ClusterAwarenessAttributeHealth(final StreamInput in) throws IOException {
+    public ClusterAwarenessAttributesHealth(final StreamInput in) throws IOException {
         awarenessAttributeName = in.readString();
         int size = in.readVInt();
         if (size > 0) {
@@ -158,7 +134,7 @@ public class ClusterAwarenessAttributeHealth implements Iterable<ClusterAwarenes
         }
     }
 
-    public ClusterAwarenessAttributeHealth(
+    public ClusterAwarenessAttributesHealth(
         String awarenessAttributeName,
         Map<String, ClusterAwarenessAttributeValueHealth> awarenessAttributeValueHealthMap
     ) {
@@ -201,14 +177,14 @@ public class ClusterAwarenessAttributeHealth implements Iterable<ClusterAwarenes
         return null;
     }
 
-    public static ClusterAwarenessAttributeHealth fromXContent(XContentParser parser) throws IOException {
+    public static ClusterAwarenessAttributesHealth fromXContent(XContentParser parser) throws IOException {
         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
         XContentParser.Token token = parser.nextToken();
         ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
         String attributeName = parser.currentName();
         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
         Map<String, ClusterAwarenessAttributeValueHealth> clusterAwarenessAttributeValueHealthMap = new HashMap<>();
-        String currentFieldName = null;
+        String currentFieldName;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
             String attributeValue = parser.currentName();
@@ -295,7 +271,7 @@ public class ClusterAwarenessAttributeHealth implements Iterable<ClusterAwarenes
             }
         }
         ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
-        return new ClusterAwarenessAttributeHealth(attributeName, clusterAwarenessAttributeValueHealthMap);
+        return new ClusterAwarenessAttributesHealth(attributeName, clusterAwarenessAttributeValueHealthMap);
     }
 
     @Override
@@ -306,8 +282,8 @@ public class ClusterAwarenessAttributeHealth implements Iterable<ClusterAwarenes
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof ClusterAwarenessAttributeHealth)) return false;
-        ClusterAwarenessAttributeHealth that = (ClusterAwarenessAttributeHealth) o;
+        if (!(o instanceof ClusterAwarenessAttributesHealth)) return false;
+        ClusterAwarenessAttributesHealth that = (ClusterAwarenessAttributesHealth) o;
         return awarenessAttributeName.equals(that.awarenessAttributeName)
             && awarenessAttributeValueHealthMap.size() == that.awarenessAttributeValueHealthMap.size();
     }
