@@ -66,6 +66,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 
 /**
@@ -237,17 +238,19 @@ public class ReplicationOperation<
                 globalCheckpoint,
                 maxSeqNoOfUpdatesOrDeletes,
                 pendingReplicationActions,
-                replicaRequest
+                replicaRequest,
+                primaryTerm
             ).build();
             replicationProxy.performOnReplicaProxy(proxyRequest, this::performOnReplica);
         }
     }
 
-    private void performOnReplica(final ReplicationProxyRequest<ReplicaRequest> replicationProxyRequest) {
+    private void performOnReplica(
+        final Consumer<ActionListener<ReplicaResponse>> replicasProxyConsumer,
+        final ReplicationProxyRequest<ReplicaRequest> replicationProxyRequest
+    ) {
         final ShardRouting shard = replicationProxyRequest.getShardRouting();
         final ReplicaRequest replicaRequest = replicationProxyRequest.getReplicaRequest();
-        final long globalCheckpoint = replicationProxyRequest.getGlobalCheckpoint();
-        final long maxSeqNoOfUpdatesOrDeletes = replicationProxyRequest.getMaxSeqNoOfUpdatesOrDeletes();
         final PendingReplicationActions pendingReplicationActions = replicationProxyRequest.getPendingReplicationActions();
 
         if (logger.isTraceEnabled()) {
@@ -319,7 +322,7 @@ public class ReplicationOperation<
 
             @Override
             public void tryAction(ActionListener<ReplicaResponse> listener) {
-                replicasProxy.performOn(shard, replicaRequest, primaryTerm, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, listener);
+                replicasProxyConsumer.accept(listener);
             }
 
             @Override

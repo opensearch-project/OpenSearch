@@ -663,7 +663,6 @@ public class Node implements Closeable {
             );
 
             final IndicesService indicesService;
-
             if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
                 indicesService = new IndicesService(
                     settings,
@@ -687,7 +686,8 @@ public class Node implements Closeable {
                     Map.copyOf(directoryFactories),
                     searchModule.getValuesSourceRegistry(),
                     recoveryStateFactories,
-                    remoteDirectoryFactory
+                    remoteDirectoryFactory,
+                    repositoriesServiceReference::get
                 );
             } else {
                 indicesService = new IndicesService(
@@ -711,7 +711,8 @@ public class Node implements Closeable {
                     Map.copyOf(directoryFactories),
                     searchModule.getValuesSourceRegistry(),
                     recoveryStateFactories,
-                    remoteDirectoryFactory
+                    remoteDirectoryFactory,
+                    repositoriesServiceReference::get
                 );
             }
 
@@ -833,7 +834,8 @@ public class Node implements Closeable {
                     settingsModule,
                     transportService,
                     clusterService,
-                    environment.settings()
+                    environment.settings(),
+                    client
                 );
             }
             final GatewayMetaState gatewayMetaState = new GatewayMetaState();
@@ -1001,6 +1003,9 @@ public class Node implements Closeable {
                 b.bind(Client.class).toInstance(client);
                 b.bind(NodeClient.class).toInstance(client);
                 b.bind(Environment.class).toInstance(this.environment);
+                if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
+                    b.bind(ExtensionsManager.class).toInstance(this.extensionsManager);
+                }
                 b.bind(ThreadPool.class).toInstance(threadPool);
                 b.bind(NodeEnvironment.class).toInstance(nodeEnvironment);
                 b.bind(ResourceWatcherService.class).toInstance(resourceWatcherService);

@@ -89,7 +89,9 @@ import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.InternalTranslogFactory;
+import org.opensearch.index.translog.RemoteBlobStoreInternalTranslogFactory;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
@@ -97,6 +99,7 @@ import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.plugins.IndexStorePlugin;
+import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
 import org.opensearch.threadpool.ThreadPool;
@@ -173,6 +176,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final IndexNameExpressionResolver expressionResolver;
     private final Supplier<Sort> indexSortSupplier;
     private final ValuesSourceRegistry valuesSourceRegistry;
+    private final Supplier<RepositoriesService> repositoriesServiceSupplier;
 
     public IndexService(
         IndexSettings indexSettings,
@@ -204,7 +208,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         BooleanSupplier allowExpensiveQueries,
         IndexNameExpressionResolver expressionResolver,
         ValuesSourceRegistry valuesSourceRegistry,
-        IndexStorePlugin.RecoveryStateFactory recoveryStateFactory
+        IndexStorePlugin.RecoveryStateFactory recoveryStateFactory,
+        Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
         super(indexSettings);
         this.allowExpensiveQueries = allowExpensiveQueries;
@@ -276,6 +281,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.trimTranslogTask = new AsyncTrimTranslogTask(this);
         this.globalCheckpointTask = new AsyncGlobalCheckpointTask(this);
         this.retentionLeaseSyncTask = new AsyncRetentionLeaseSyncTask(this);
+        this.repositoriesServiceSupplier = repositoriesServiceSupplier;
         updateFsyncTaskIfNecessary();
     }
 
@@ -518,6 +524,14 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 remoteStore = new Store(shardId, this.indexSettings, remoteDirectory, lock, Store.OnClose.EMPTY);
             }
 
+            TranslogFactory translogFactory = this.indexSettings.isRemoteTranslogStoreEnabled() && routing.primary()
+                ? new RemoteBlobStoreInternalTranslogFactory(
+                    repositoriesServiceSupplier,
+                    threadPool,
+                    this.indexSettings.getRemoteStoreTranslogRepository()
+                )
+                : new InternalTranslogFactory();
+
             Directory directory = directoryFactory.newDirectory(this.indexSettings, path);
             store = new Store(
                 shardId,
@@ -548,8 +562,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 () -> globalCheckpointSyncer.accept(shardId),
                 retentionLeaseSyncer,
                 circuitBreakerService,
-                // TODO Replace with remote translog factory in the follow up PR
-                this.indexSettings.isRemoteTranslogStoreEnabled() ? null : new InternalTranslogFactory(),
+                translogFactory,
                 this.indexSettings.isSegRepEnabled() ? checkpointPublisher : null,
                 remoteStore
             );

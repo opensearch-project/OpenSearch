@@ -26,8 +26,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
+import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterSettingsResponse;
-import org.opensearch.cluster.LocalNodeResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.io.FileSystemUtils;
@@ -39,6 +39,10 @@ import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.discovery.InitializeExtensionRequest;
 import org.opensearch.discovery.InitializeExtensionResponse;
 import org.opensearch.extensions.ExtensionsSettings.Extension;
+import org.opensearch.extensions.action.ExtensionActionRequest;
+import org.opensearch.extensions.action.ExtensionActionResponse;
+import org.opensearch.extensions.action.ExtensionTransportActionsHandler;
+import org.opensearch.extensions.action.TransportActionRequestFromExtension;
 import org.opensearch.extensions.rest.RegisterRestActionsRequest;
 import org.opensearch.extensions.rest.RestActionsRequestHandler;
 import org.opensearch.extensions.settings.CustomSettingsRequestHandler;
@@ -71,7 +75,6 @@ public class ExtensionsManager {
     public static final String INDICES_EXTENSION_POINT_ACTION_NAME = "indices:internal/extensions";
     public static final String INDICES_EXTENSION_NAME_ACTION_NAME = "indices:internal/name";
     public static final String REQUEST_EXTENSION_CLUSTER_STATE = "internal:discovery/clusterstate";
-    public static final String REQUEST_EXTENSION_LOCAL_NODE = "internal:discovery/localnode";
     public static final String REQUEST_EXTENSION_CLUSTER_SETTINGS = "internal:discovery/clustersettings";
     public static final String REQUEST_EXTENSION_ENVIRONMENT_SETTINGS = "internal:discovery/enviornmentsettings";
     public static final String REQUEST_EXTENSION_ADD_SETTINGS_UPDATE_CONSUMER = "internal:discovery/addsettingsupdateconsumer";
@@ -81,6 +84,9 @@ public class ExtensionsManager {
     public static final String REQUEST_EXTENSION_REGISTER_TRANSPORT_ACTIONS = "internal:discovery/registertransportactions";
     public static final String REQUEST_OPENSEARCH_PARSE_NAMED_WRITEABLE = "internal:discovery/parsenamedwriteable";
     public static final String REQUEST_REST_EXECUTE_ON_EXTENSION_ACTION = "internal:extensions/restexecuteonextensiontaction";
+    public static final String REQUEST_EXTENSION_HANDLE_TRANSPORT_ACTION = "internal:extensions/handle-transportaction";
+    public static final String TRANSPORT_ACTION_REQUEST_FROM_EXTENSION = "internal:extensions/request-transportaction-from-extension";
+    public static final int EXTENSION_REQUEST_WAIT_TIMEOUT = 10;
 
     private static final Logger logger = LogManager.getLogger(ExtensionsManager.class);
 
@@ -91,7 +97,6 @@ public class ExtensionsManager {
      */
     public static enum RequestType {
         REQUEST_EXTENSION_CLUSTER_STATE,
-        REQUEST_EXTENSION_LOCAL_NODE,
         REQUEST_EXTENSION_CLUSTER_SETTINGS,
         REQUEST_EXTENSION_REGISTER_REST_ACTIONS,
         REQUEST_EXTENSION_REGISTER_SETTINGS,
@@ -111,6 +116,7 @@ public class ExtensionsManager {
     }
 
     private final Path extensionsPath;
+    private ExtensionTransportActionsHandler extensionTransportActionsHandler;
     // A list of initialized extensions, a subset of the values of map below which includes all extensions
     private List<DiscoveryExtensionNode> extensions;
     private Map<String, DiscoveryExtensionNode> extensionIdMap;
@@ -120,6 +126,7 @@ public class ExtensionsManager {
     private ClusterService clusterService;
     private Settings environmentSettings;
     private AddSettingsUpdateConsumerRequestHandler addSettingsUpdateConsumerRequestHandler;
+    private NodeClient client;
 
     public ExtensionsManager() {
         this.extensionsPath = Path.of("");
@@ -135,10 +142,13 @@ public class ExtensionsManager {
     public ExtensionsManager(Settings settings, Path extensionsPath) throws IOException {
         logger.info("ExtensionsManager initialized");
         this.extensionsPath = extensionsPath;
-        this.transportService = null;
         this.extensions = new ArrayList<DiscoveryExtensionNode>();
         this.extensionIdMap = new HashMap<String, DiscoveryExtensionNode>();
+        // will be initialized in initializeServicesAndRestHandler which is called after the Node is initialized
+        this.transportService = null;
         this.clusterService = null;
+        this.client = null;
+        this.extensionTransportActionsHandler = null;
 
         /*
          * Now Discover extensions
@@ -156,13 +166,15 @@ public class ExtensionsManager {
      * @param transportService  The Node's transport service.
      * @param clusterService  The Node's cluster service.
      * @param initialEnvironmentSettings The finalized view of settings for the Environment
+     * @param client The client used to make transport requests
      */
     public void initializeServicesAndRestHandler(
         RestController restController,
         SettingsModule settingsModule,
         TransportService transportService,
         ClusterService clusterService,
-        Settings initialEnvironmentSettings
+        Settings initialEnvironmentSettings,
+        NodeClient client
     ) {
         this.restActionsRequestHandler = new RestActionsRequestHandler(restController, extensionIdMap, transportService);
         this.customSettingsRequestHandler = new CustomSettingsRequestHandler(settingsModule);
@@ -174,7 +186,18 @@ public class ExtensionsManager {
             transportService,
             REQUEST_EXTENSION_UPDATE_SETTINGS
         );
+        this.client = client;
+        this.extensionTransportActionsHandler = new ExtensionTransportActionsHandler(extensionIdMap, transportService, client);
         registerRequestHandler();
+    }
+
+    /**
+     * Handles Transport Request from {@link org.opensearch.extensions.action.ExtensionTransportAction} which was invoked by an extension via {@link ExtensionTransportActionsHandler}.
+     *
+     * @param request which was sent by an extension.
+     */
+    public ExtensionActionResponse handleTransportRequest(ExtensionActionRequest request) throws InterruptedException {
+        return extensionTransportActionsHandler.sendTransportRequestToExtension(request);
     }
 
     private void registerRequestHandler() {
@@ -196,14 +219,6 @@ public class ExtensionsManager {
         );
         transportService.registerRequestHandler(
             REQUEST_EXTENSION_CLUSTER_STATE,
-            ThreadPool.Names.GENERIC,
-            false,
-            false,
-            ExtensionRequest::new,
-            ((request, channel, task) -> channel.sendResponse(handleExtensionRequest(request)))
-        );
-        transportService.registerRequestHandler(
-            REQUEST_EXTENSION_LOCAL_NODE,
             ThreadPool.Names.GENERIC,
             false,
             false,
@@ -242,7 +257,19 @@ public class ExtensionsManager {
             false,
             false,
             RegisterTransportActionsRequest::new,
-            ((request, channel, task) -> channel.sendResponse(handleRegisterTransportActionsRequest(request)))
+            ((request, channel, task) -> channel.sendResponse(
+                extensionTransportActionsHandler.handleRegisterTransportActionsRequest(request)
+            ))
+        );
+        transportService.registerRequestHandler(
+            TRANSPORT_ACTION_REQUEST_FROM_EXTENSION,
+            ThreadPool.Names.GENERIC,
+            false,
+            false,
+            TransportActionRequestFromExtension::new,
+            ((request, channel, task) -> channel.sendResponse(
+                extensionTransportActionsHandler.handleTransportActionRequestFromExtension(request)
+            ))
         );
     }
 
@@ -301,7 +328,8 @@ public class ExtensionsManager {
                         extension.getClassName(),
                         new ArrayList<String>(),
                         Boolean.parseBoolean(extension.hasNativeController())
-                    )
+                    ),
+                    extension.getDependencies()
                 );
                 extensionIdMap.put(extension.getUniqueId(), discoveryExtensionNode);
                 logger.info("Loaded extension with uniqueId " + extension.getUniqueId() + ": " + extension);
@@ -364,7 +392,7 @@ public class ExtensionsManager {
                 initializeExtensionResponseHandler
             );
             // TODO: make asynchronous
-            inProgressFuture.get(100, TimeUnit.SECONDS);
+            inProgressFuture.get(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS);
         } catch (Exception e) {
             try {
                 throw e;
@@ -372,22 +400,6 @@ public class ExtensionsManager {
                 logger.error(e.toString());
             }
         }
-    }
-
-    /**
-     * Handles a {@link RegisterTransportActionsRequest}.
-     *
-     * @param transportActionsRequest  The request to handle.
-     * @return  A {@link AcknowledgedResponse} indicating success.
-     * @throws Exception if the request is not handled properly.
-     */
-    TransportResponse handleRegisterTransportActionsRequest(RegisterTransportActionsRequest transportActionsRequest) throws Exception {
-        /*
-         * TODO: https://github.com/opensearch-project/opensearch-sdk-java/issues/107
-         * Register these new Transport Actions with ActionModule
-         * and add support for NodeClient to recognise these actions when making transport calls.
-         */
-        return new AcknowledgedResponse(true);
     }
 
     /**
@@ -401,8 +413,6 @@ public class ExtensionsManager {
         switch (extensionRequest.getRequestType()) {
             case REQUEST_EXTENSION_CLUSTER_STATE:
                 return new ClusterStateResponse(clusterService.getClusterName(), clusterService.state(), false);
-            case REQUEST_EXTENSION_LOCAL_NODE:
-                return new LocalNodeResponse(clusterService);
             case REQUEST_EXTENSION_CLUSTER_SETTINGS:
                 return new ClusterSettingsResponse(clusterService);
             case REQUEST_EXTENSION_ENVIRONMENT_SETTINGS:
@@ -477,7 +487,7 @@ public class ExtensionsManager {
                                     acknowledgedResponseHandler
                                 );
                                 // TODO: make asynchronous
-                                inProgressIndexNameFuture.get(100, TimeUnit.SECONDS);
+                                inProgressIndexNameFuture.get(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS);
                                 logger.info("Received ack response from Extension");
                             } catch (Exception e) {
                                 try {
@@ -513,7 +523,7 @@ public class ExtensionsManager {
                 indicesModuleResponseHandler
             );
             // TODO: make asynchronous
-            inProgressFuture.get(100, TimeUnit.SECONDS);
+            inProgressFuture.get(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS);
             logger.info("Received response from Extension");
         } catch (Exception e) {
             try {
@@ -545,10 +555,6 @@ public class ExtensionsManager {
 
     public static String getRequestExtensionClusterState() {
         return REQUEST_EXTENSION_CLUSTER_STATE;
-    }
-
-    public static String getRequestExtensionLocalNode() {
-        return REQUEST_EXTENSION_LOCAL_NODE;
     }
 
     public static String getRequestExtensionClusterSettings() {
@@ -659,6 +665,34 @@ public class ExtensionsManager {
 
     public void setEnvironmentSettings(Settings environmentSettings) {
         this.environmentSettings = environmentSettings;
+    }
+
+    public static String getRequestExtensionHandleTransportAction() {
+        return REQUEST_EXTENSION_HANDLE_TRANSPORT_ACTION;
+    }
+
+    public static String getTransportActionRequestFromExtension() {
+        return TRANSPORT_ACTION_REQUEST_FROM_EXTENSION;
+    }
+
+    public static int getExtensionRequestWaitTimeout() {
+        return EXTENSION_REQUEST_WAIT_TIMEOUT;
+    }
+
+    public ExtensionTransportActionsHandler getExtensionTransportActionsHandler() {
+        return extensionTransportActionsHandler;
+    }
+
+    public void setExtensionTransportActionsHandler(ExtensionTransportActionsHandler extensionTransportActionsHandler) {
+        this.extensionTransportActionsHandler = extensionTransportActionsHandler;
+    }
+
+    public NodeClient getClient() {
+        return client;
+    }
+
+    public void setClient(NodeClient client) {
+        this.client = client;
     }
 
 }

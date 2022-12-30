@@ -10,14 +10,11 @@ package org.opensearch.extensions.rest;
 
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.transport.TransportResponse;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -27,20 +24,13 @@ import java.util.Map;
  * @opensearch.internal
  */
 public class RestExecuteOnExtensionResponse extends TransportResponse {
+
     private RestStatus status;
     private String contentType;
     private byte[] content;
     private Map<String, List<String>> headers;
-
-    /**
-     * Instantiate this object with a status and response string.
-     *
-     * @param status  The REST status.
-     * @param responseString  The response content as a String.
-     */
-    public RestExecuteOnExtensionResponse(RestStatus status, String responseString) {
-        this(status, BytesRestResponse.TEXT_CONTENT_TYPE, responseString.getBytes(StandardCharsets.UTF_8), Collections.emptyMap());
-    }
+    private List<String> consumedParams;
+    private boolean contentConsumed;
 
     /**
      * Instantiate this object with the components of a {@link RestResponse}.
@@ -49,33 +39,49 @@ public class RestExecuteOnExtensionResponse extends TransportResponse {
      * @param contentType  The type of the content.
      * @param content  The content.
      * @param headers  The headers.
+     * @param consumedParams  The consumed params.
+     * @param contentConsumed  Whether content was consumed.
      */
-    public RestExecuteOnExtensionResponse(RestStatus status, String contentType, byte[] content, Map<String, List<String>> headers) {
+    public RestExecuteOnExtensionResponse(
+        RestStatus status,
+        String contentType,
+        byte[] content,
+        Map<String, List<String>> headers,
+        List<String> consumedParams,
+        boolean contentConsumed
+    ) {
+        super();
         setStatus(status);
         setContentType(contentType);
         setContent(content);
         setHeaders(headers);
+        setConsumedParams(consumedParams);
+        setContentConsumed(contentConsumed);
     }
 
     /**
-     * Instantiate this object from a Transport Stream
+     * Instantiate this object from a Transport Stream.
      *
      * @param in  The stream input.
      * @throws IOException on transport failure.
      */
     public RestExecuteOnExtensionResponse(StreamInput in) throws IOException {
-        setStatus(RestStatus.readFrom(in));
+        setStatus(in.readEnum(RestStatus.class));
         setContentType(in.readString());
         setContent(in.readByteArray());
         setHeaders(in.readMapOfLists(StreamInput::readString, StreamInput::readString));
+        setConsumedParams(in.readStringList());
+        setContentConsumed(in.readBoolean());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        RestStatus.writeTo(out, status);
+        out.writeEnum(status);
         out.writeString(contentType);
         out.writeByteArray(content);
         out.writeMapOfLists(headers, StreamOutput::writeString, StreamOutput::writeString);
+        out.writeStringCollection(consumedParams);
+        out.writeBoolean(contentConsumed);
     }
 
     public RestStatus getStatus() {
@@ -108,5 +114,21 @@ public class RestExecuteOnExtensionResponse extends TransportResponse {
 
     public void setHeaders(Map<String, List<String>> headers) {
         this.headers = Map.copyOf(headers);
+    }
+
+    public List<String> getConsumedParams() {
+        return consumedParams;
+    }
+
+    public void setConsumedParams(List<String> consumedParams) {
+        this.consumedParams = consumedParams;
+    }
+
+    public boolean isContentConsumed() {
+        return contentConsumed;
+    }
+
+    public void setContentConsumed(boolean contentConsumed) {
+        this.contentConsumed = contentConsumed;
     }
 }
