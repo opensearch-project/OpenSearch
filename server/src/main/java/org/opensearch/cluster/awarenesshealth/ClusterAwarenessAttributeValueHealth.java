@@ -251,11 +251,7 @@ public class ClusterAwarenessAttributeValueHealth implements Writeable, ToXConte
         return builder;
     }
 
-    void computeAttributeValueLevelInfo(
-        ClusterState clusterState,
-        boolean displayUnassignedShardLevelInfo,
-        int shardsPerAttributeValue
-    ) {
+    void computeAttributeValueLevelInfo(ClusterState clusterState, boolean displayUnassignedShardLevelInfo, int shardsPerAttributeValue) {
         // computing nodes info
         nodes = nodeList.size();
 
