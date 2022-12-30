@@ -82,6 +82,7 @@ import static org.opensearch.common.lucene.search.Queries.newLenientFieldQuery;
 import static org.opensearch.common.lucene.search.Queries.newUnmappedFieldQuery;
 
 import java.util.logging.Logger;
+
 /**
  * Foundation match query
  *
@@ -760,8 +761,8 @@ public class MatchQuery {
                 boolean usePrefix = isPrefix && end == -1;
                 boolean graphHasSidePath = false;
                 try {
-                    graphHasSidePath = graph.hasSidePath(start); }
-                catch (AssertionError e){
+                    graphHasSidePath = graph.hasSidePath(start);
+                } catch (AssertionError e) {
                     logger.info("GraphTokenStreamFiniteStrings has no path. Catch assertion error: \n" + e);
                     return zeroTermsQuery();
                 }
