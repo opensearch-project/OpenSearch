@@ -15,6 +15,7 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.io.stream.InputStreamStreamInput;
+import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.transfer.listener.FileTransferListener;
 import org.opensearch.index.translog.transfer.listener.TranslogTransferListener;
 
@@ -132,30 +133,26 @@ public class TranslogTransferManager {
         }
     }
 
-    public boolean downloadTranslog(String primaryTerm, String generation, Path location, boolean latest) throws IOException {
+    public boolean downloadTranslog(String primaryTerm, String generation, Path location) throws IOException {
         logger.info("Downloading translog files with: Primry Term = {}, Generation = {}, Location = {}", primaryTerm, generation, location);
-        String ckpFileName = "translog-" + generation + ".ckp";
-        if (latest) {
-            String ckpWithoutGenerationFileName = "translog.ckp";
-            downloadToFS(ckpFileName, ckpWithoutGenerationFileName, location, primaryTerm);
-        }
-        // Download Checkpoint file from remote and store on FS
+        // Download Checkpoint file from remote to local FS
+        String ckpFileName = Translog.getCommitCheckpointFileName(Long.parseLong(generation));
         downloadToFS(ckpFileName, location, primaryTerm);
-        // Download translog file from remote and store on FS
-        String translogFilename = "translog-" + generation + ".tlog";
+        // Download translog file from remote to local FS
+        String translogFilename = Translog.getFilename(Long.parseLong(generation));
         downloadToFS(translogFilename, location, primaryTerm);
         return true;
     }
 
     private void downloadToFS(String fileName, Path location, String primaryTerm) throws IOException {
-        downloadToFS(fileName, fileName, location, primaryTerm);
-    }
-
-    private void downloadToFS(String remoteFileName, String localFileName, Path location, String primaryTerm) throws IOException {
-        if (Files.exists(location.resolve(localFileName)) == false) {
-            try (InputStream inputStream = transferService.downloadBlob(remoteBaseTransferPath.add(primaryTerm), remoteFileName)) {
-                Files.copy(inputStream, location.resolve(localFileName));
-            }
+        Path filePath = location.resolve(fileName);
+        // Here, we always override the existing file if present.
+        // We need to change this logic when we introduce incremental download
+        if (Files.exists(filePath)) {
+            Files.delete(filePath);
+        }
+        try (InputStream inputStream = transferService.downloadBlob(remoteBaseTransferPath.add(primaryTerm), fileName)) {
+            Files.copy(inputStream, filePath);
         }
     }
 

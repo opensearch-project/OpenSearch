@@ -113,13 +113,14 @@ public class RemoteFsTranslog extends Translog {
             Map<String, String> generationToPrimaryTermMapper = translogMetadata.getGenerationToPrimaryTermMapper();
             for (long i = translogMetadata.getGeneration(); i >= translogMetadata.getMinTranslogGeneration(); i--) {
                 String generation = Long.toString(i);
-                translogTransferManager.downloadTranslog(
-                    generationToPrimaryTermMapper.get(generation),
-                    generation,
-                    location,
-                    i == translogMetadata.getGeneration()
-                );
+                translogTransferManager.downloadTranslog(generationToPrimaryTermMapper.get(generation), generation, location);
             }
+            // We copy the latest generation .ckp file to translog.ckp so that flows that depend on
+            // existence of translog.ckp file work in the same way
+            Files.copy(
+                location.resolve(Translog.getCommitCheckpointFileName(translogMetadata.getGeneration())),
+                location.resolve(Translog.CHECKPOINT_FILE_NAME)
+            );
         }
     }
 
