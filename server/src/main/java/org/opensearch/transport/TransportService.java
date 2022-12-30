@@ -397,6 +397,11 @@ public class TransportService extends AbstractLifecycleComponent
         connectToNode(node, (ConnectionProfile) null);
     }
 
+    // We are skipping node validation for extensibility as extensionNode and opensearchNode(LocalNode) will have different ephemeral id's
+    public void connectToExtensionNode(final DiscoveryNode node) {
+        PlainActionFuture.get(fut -> connectToExtensionNode(node, (ConnectionProfile) null, ActionListener.map(fut, x -> null)));
+    }
+
     /**
      * Connect to the specified node with the given connection profile
      *
@@ -405,6 +410,10 @@ public class TransportService extends AbstractLifecycleComponent
      */
     public void connectToNode(final DiscoveryNode node, ConnectionProfile connectionProfile) {
         PlainActionFuture.get(fut -> connectToNode(node, connectionProfile, ActionListener.map(fut, x -> null)));
+    }
+
+    public void connectToExtensionNode(final DiscoveryNode node, ConnectionProfile connectionProfile) {
+        PlainActionFuture.get(fut -> connectToExtensionNode(node, connectionProfile, ActionListener.map(fut, x -> null)));
     }
 
     /**
@@ -416,6 +425,10 @@ public class TransportService extends AbstractLifecycleComponent
      */
     public void connectToNode(DiscoveryNode node, ActionListener<Void> listener) throws ConnectTransportException {
         connectToNode(node, null, listener);
+    }
+
+    public void connectToExtensionNode(DiscoveryNode node, ActionListener<Void> listener) throws ConnectTransportException {
+        connectToExtensionNode(node, null, listener);
     }
 
     /**
@@ -434,14 +447,35 @@ public class TransportService extends AbstractLifecycleComponent
         connectionManager.connectToNode(node, connectionProfile, connectionValidator(node), listener);
     }
 
+    public void connectToExtensionNode(final DiscoveryNode node, ConnectionProfile connectionProfile, ActionListener<Void> listener) {
+        if (isLocalNode(node)) {
+            listener.onResponse(null);
+            return;
+        }
+        connectionManager.connectToNode(node, connectionProfile, extensionConnectionValidator(node), listener);
+    }
+
     public ConnectionManager.ConnectionValidator connectionValidator(DiscoveryNode node) {
         return (newConnection, actualProfile, listener) -> {
             // We don't validate cluster names to allow for CCS connections.
             handshake(newConnection, actualProfile.getHandshakeTimeout().millis(), cn -> true, ActionListener.map(listener, resp -> {
                 final DiscoveryNode remote = resp.discoveryNode;
+
                 if (node.equals(remote) == false) {
                     throw new ConnectTransportException(node, "handshake failed. unexpected remote node " + remote);
                 }
+
+                return null;
+            }));
+        };
+    }
+
+    public ConnectionManager.ConnectionValidator extensionConnectionValidator(DiscoveryNode node) {
+        return (newConnection, actualProfile, listener) -> {
+            // We don't validate cluster names to allow for CCS connections.
+            handshake(newConnection, actualProfile.getHandshakeTimeout().millis(), cn -> true, ActionListener.map(listener, resp -> {
+                final DiscoveryNode remote = resp.discoveryNode;
+                logger.info("Connection validation was skipped");
                 return null;
             }));
         };
@@ -731,6 +765,7 @@ public class TransportService extends AbstractLifecycleComponent
         final TransportResponseHandler<T> handler
     ) {
         try {
+            logger.debug("Action: " + action);
             final TransportResponseHandler<T> delegate;
             if (request.getParentTask().isSet()) {
                 // TODO: capture the connection instead so that we can cancel child tasks on the remote connections.

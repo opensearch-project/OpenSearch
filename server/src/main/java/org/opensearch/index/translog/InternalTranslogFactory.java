@@ -29,7 +29,7 @@ public class InternalTranslogFactory implements TranslogFactory {
         LongConsumer persistedSequenceNumberConsumer
     ) throws IOException {
 
-        return new Translog(
+        return new LocalTranslog(
             translogConfig,
             translogUUID,
             translogDeletionPolicy,

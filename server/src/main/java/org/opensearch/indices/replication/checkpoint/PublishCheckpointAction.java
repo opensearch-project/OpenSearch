@@ -40,6 +40,8 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Objects;
 
+import org.opensearch.action.support.replication.ReplicationMode;
+
 /**
  * Replication action responsible for publishing checkpoint to a replica shard.
  *
@@ -91,6 +93,14 @@ public class PublishCheckpointAction extends TransportReplicationAction<
     @Override
     protected void doExecute(Task task, PublishCheckpointRequest request, ActionListener<ReplicationResponse> listener) {
         assert false : "use PublishCheckpointAction#publish";
+    }
+
+    @Override
+    public ReplicationMode getReplicationMode(IndexShard indexShard) {
+        if (indexShard.isRemoteTranslogEnabled()) {
+            return ReplicationMode.FULL_REPLICATION;
+        }
+        return super.getReplicationMode(indexShard);
     }
 
     /**

@@ -66,7 +66,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
      * To prevent explosion of refresh metadata files, we replace refresh files for the given primary term and generation
      * This is achieved by uploading refresh metadata file with the same UUID suffix.
      */
-    private String metadataFileUniqueSuffix;
+    private String commonFilenameSuffix;
 
     /**
      * Keeps track of local segment filename to uploaded filename along with other attributes like checksum.
@@ -92,7 +92,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
      * @throws IOException if there were any failures in reading the metadata file
      */
     public void init() throws IOException {
-        this.metadataFileUniqueSuffix = UUIDs.base64UUID();
+        this.commonFilenameSuffix = UUIDs.base64UUID();
         this.segmentsUploadedToRemoteStore = new ConcurrentHashMap<>(readLatestMetadataFile());
     }
 
@@ -293,17 +293,26 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
         }
     }
 
+    public void copyFrom(Directory from, String src, String dest, IOContext context, boolean useCommonSuffix) throws IOException {
+        String remoteFilename;
+        if (useCommonSuffix) {
+            remoteFilename = dest + SEGMENT_NAME_UUID_SEPARATOR + this.commonFilenameSuffix;
+        } else {
+            remoteFilename = getNewRemoteSegmentFilename(dest);
+        }
+        remoteDataDirectory.copyFrom(from, src, remoteFilename, context);
+        String checksum = getChecksumOfLocalFile(from, src);
+        UploadedSegmentMetadata segmentMetadata = new UploadedSegmentMetadata(src, remoteFilename, checksum);
+        segmentsUploadedToRemoteStore.put(src, segmentMetadata);
+    }
+
     /**
      * Copies an existing src file from directory from to a non-existent file dest in this directory.
      * Once the segment is uploaded to remote segment store, update the cache accordingly.
      */
     @Override
     public void copyFrom(Directory from, String src, String dest, IOContext context) throws IOException {
-        String remoteFilename = getNewRemoteSegmentFilename(dest);
-        remoteDataDirectory.copyFrom(from, src, remoteFilename, context);
-        String checksum = getChecksumOfLocalFile(from, src);
-        UploadedSegmentMetadata segmentMetadata = new UploadedSegmentMetadata(src, remoteFilename, checksum);
-        segmentsUploadedToRemoteStore.put(src, segmentMetadata);
+        copyFrom(from, src, dest, context, false);
     }
 
     /**
@@ -330,7 +339,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
     public void uploadMetadata(Collection<String> segmentFiles, Directory storeDirectory, long primaryTerm, long generation)
         throws IOException {
         synchronized (this) {
-            String metadataFilename = MetadataFilenameUtils.getMetadataFilename(primaryTerm, generation, this.metadataFileUniqueSuffix);
+            String metadataFilename = MetadataFilenameUtils.getMetadataFilename(primaryTerm, generation, this.commonFilenameSuffix);
             IndexOutput indexOutput = storeDirectory.createOutput(metadataFilename, IOContext.DEFAULT);
             Map<String, String> uploadedSegments = new HashMap<>();
             for (String file : segmentFiles) {

@@ -34,6 +34,7 @@ package org.opensearch;
 
 import org.opensearch.action.support.replication.ReplicationOperation;
 import org.opensearch.cluster.action.shard.ShardStateAction;
+import org.opensearch.cluster.routing.UnsupportedWeightedRoutingStateException;
 import org.opensearch.cluster.service.ClusterManagerThrottlingException;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.Nullable;
@@ -70,6 +71,7 @@ import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.opensearch.Version.V_2_1_0;
 import static org.opensearch.Version.V_2_4_0;
+import static org.opensearch.Version.V_2_5_0;
 import static org.opensearch.Version.V_3_0_0;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VALUE;
 import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -1611,13 +1613,19 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
             ClusterManagerThrottlingException.class,
             ClusterManagerThrottlingException::new,
             165,
-            Version.V_2_4_0
+            Version.V_2_5_0
         ),
         SNAPSHOT_IN_USE_DELETION_EXCEPTION(
             SnapshotInUseDeletionException.class,
             SnapshotInUseDeletionException::new,
             166,
             UNKNOWN_VERSION_ADDED
+        ),
+        UNSUPPORTED_WEIGHTED_ROUTING_STATE_EXCEPTION(
+            UnsupportedWeightedRoutingStateException.class,
+            UnsupportedWeightedRoutingStateException::new,
+            167,
+            V_2_5_0
         );
 
         final Class<? extends OpenSearchException> exceptionClass;

@@ -54,9 +54,6 @@ dependencies {
   api "commons-logging:commons-logging:${versions.commonslogging}"
   api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
-  api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-  api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
-  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
   api "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
   api "joda-time:joda-time:${versions.joda}"
 
@@ -173,9 +170,9 @@ if (!s3EC2Bucket && !s3EC2BasePath && !s3ECSBucket && !s3ECSBasePath && !s3EKSBu
 processYamlRestTestResources {
   Map<String, Object> expansions = [
     'permanent_bucket': s3PermanentBucket,
-    'permanent_base_path': s3PermanentBasePath + "_integration_tests",
+    'permanent_base_path': s3PermanentBasePath + "_integration_tests_" + BuildParams.testSeed,
     'temporary_bucket': s3TemporaryBucket,
-    'temporary_base_path': s3TemporaryBasePath + "_integration_tests",
+    'temporary_base_path': s3TemporaryBasePath + "_integration_tests_" + BuildParams.testSeed,
     'ec2_bucket': s3EC2Bucket,
     'ec2_base_path': s3EC2BasePath,
     'ecs_bucket': s3ECSBucket,
