@@ -75,11 +75,9 @@ public class SnapshotUtils {
         // Move the exclusions to end of list to ensure they are processed
         // after explicitly selected indices are chosen.
         final List<String> excludesAtEndSelectedIndices = Stream.concat(
-                Arrays.stream(selectedIndices)
-                    .filter(s -> s.isEmpty() || s.charAt(0) != '-'),
-                Arrays.stream(selectedIndices)
-                    .filter(s -> !s.isEmpty() && s.charAt(0) == '-'))
-            .collect(Collectors.toUnmodifiableList());
+            Arrays.stream(selectedIndices).filter(s -> s.isEmpty() || s.charAt(0) != '-'),
+            Arrays.stream(selectedIndices).filter(s -> !s.isEmpty() && s.charAt(0) == '-')
+        ).collect(Collectors.toUnmodifiableList());
 
         Set<String> result = null;
         for (int i = 0; i < selectedIndices.length; i++) {
