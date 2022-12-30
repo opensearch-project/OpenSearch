@@ -545,7 +545,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
                 extensionRequest = new ExtensionRequest(in);
                 assertEquals(expectedRequestType, extensionRequest.getRequestType());
-                assertEquals(expectedUniqueId, Optional.of(extensionRequest.getUniqueId()));
+                assertEquals(Optional.of(expectedUniqueId), extensionRequest.getUniqueId());
             }
         }
 
@@ -561,7 +561,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
                 extensionRequest = new ExtensionRequest(in);
                 assertEquals(expectedRequestType, extensionRequest.getRequestType());
-                assertEquals(Optional.empty(), Optional.of(extensionRequest.getUniqueId()));
+                assertEquals(Optional.empty(), extensionRequest.getUniqueId());
             }
         }
     }
