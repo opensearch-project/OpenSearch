@@ -53,7 +53,7 @@ public class TranslogTransferMetadata {
 
     private static final String METADATA_CODEC = "md";
 
-    public static final MetadataFilenameComparator METADATA_FILENAME_COMPARATOR = new MetadataFilenameComparator();
+    public static final Comparator<String> METADATA_FILENAME_COMPARATOR = new MetadataFilenameComparator();
 
     public TranslogTransferMetadata(long primaryTerm, long generation, long minTranslogGeneration, int count) {
         this.primaryTerm = primaryTerm;
@@ -157,7 +157,7 @@ public class TranslogTransferMetadata {
             String[] filenameTokens2 = metadaFilename2.split(METADATA_SEPARATOR);
             for (int i = 0; i < filenameTokens1.length; i++) {
                 if (filenameTokens1[i].equals(filenameTokens2[i]) == false) {
-                    return (int) (Long.parseLong(filenameTokens1[i]) - Long.parseLong(filenameTokens2[i]));
+                    return Long.compare(Long.parseLong(filenameTokens1[i]), Long.parseLong(filenameTokens2[i]));
                 }
             }
             return 0;

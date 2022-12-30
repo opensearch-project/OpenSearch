@@ -221,7 +221,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
 
         when(transferService.downloadBlob(any(BlobPath.class), eq("12__235__56823"))).thenThrow(new IOException("Something went wrong"));
 
-        assertThrows(IOException.class, translogTransferManager::readMetadata);
+        assertNull(translogTransferManager.readMetadata());
     }
 
     public void testDownloadTranslog() throws IOException {

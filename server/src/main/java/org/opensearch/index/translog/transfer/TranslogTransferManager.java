@@ -157,18 +157,22 @@ public class TranslogTransferManager {
     }
 
     public TranslogTransferMetadata readMetadata() throws IOException {
-        List<String> metadataFilenames = new ArrayList<>(transferService.listAll(remoteMetadaTransferPath));
-        if (!metadataFilenames.isEmpty()) {
-            metadataFilenames.sort(TranslogTransferMetadata.METADATA_FILENAME_COMPARATOR);
-            try (
-                InputStreamStreamInput streamInput = new InputStreamStreamInput(
-                    transferService.downloadBlob(remoteMetadaTransferPath, metadataFilenames.get(metadataFilenames.size() - 1))
-                )
-            ) {
-                return new TranslogTransferMetadata(streamInput);
-            }
-        }
-        return null;
+        return transferService.listAll(remoteMetadaTransferPath)
+            .stream()
+            .max(TranslogTransferMetadata.METADATA_FILENAME_COMPARATOR)
+            .map(filename -> {
+                try (
+                    InputStreamStreamInput streamInput = new InputStreamStreamInput(
+                        transferService.downloadBlob(remoteMetadaTransferPath, filename)
+                    )
+                ) {
+                    return new TranslogTransferMetadata(streamInput);
+                } catch (IOException e) {
+                    logger.error(() -> new ParameterizedMessage("Exception while reading metadata file: {}", filename), e);
+                    return null;
+                }
+            })
+            .orElse(null);
     }
 
     private TransferFileSnapshot prepareMetadata(TransferSnapshot transferSnapshot) throws IOException {
