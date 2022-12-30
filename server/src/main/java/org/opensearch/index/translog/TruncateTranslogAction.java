@@ -213,7 +213,7 @@ public class TruncateTranslogAction {
                 }
             };
             try (
-                Translog translog = new Translog(
+                Translog translog = new LocalTranslog(
                     translogConfig,
                     translogUUID,
                     retainAllTranslogPolicy,

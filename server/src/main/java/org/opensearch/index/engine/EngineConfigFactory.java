@@ -156,33 +156,32 @@ public class EngineConfigFactory {
             codecServiceToUse = newCodecServiceOrDefault(indexSettings, null, null, null);
         }
 
-        return new EngineConfig(
-            shardId,
-            threadPool,
-            indexSettings,
-            warmer,
-            store,
-            mergePolicy,
-            analyzer,
-            similarity,
-            codecServiceToUse,
-            eventListener,
-            queryCache,
-            queryCachingPolicy,
-            translogConfig,
-            translogDeletionPolicyFactory,
-            flushMergesAfter,
-            externalRefreshListener,
-            internalRefreshListener,
-            indexSort,
-            circuitBreakerService,
-            globalCheckpointSupplier,
-            retentionLeasesSupplier,
-            primaryTermSupplier,
-            tombstoneDocSupplier,
-            isReadOnlyReplica,
-            translogFactory
-        );
+        return new EngineConfig.Builder().shardId(shardId)
+            .threadPool(threadPool)
+            .indexSettings(indexSettings)
+            .warmer(warmer)
+            .store(store)
+            .mergePolicy(mergePolicy)
+            .analyzer(analyzer)
+            .similarity(similarity)
+            .codecService(codecServiceToUse)
+            .eventListener(eventListener)
+            .queryCache(queryCache)
+            .queryCachingPolicy(queryCachingPolicy)
+            .translogConfig(translogConfig)
+            .translogDeletionPolicyFactory(translogDeletionPolicyFactory)
+            .flushMergesAfter(flushMergesAfter)
+            .externalRefreshListener(externalRefreshListener)
+            .internalRefreshListener(internalRefreshListener)
+            .indexSort(indexSort)
+            .circuitBreakerService(circuitBreakerService)
+            .globalCheckpointSupplier(globalCheckpointSupplier)
+            .retentionLeasesSupplier(retentionLeasesSupplier)
+            .primaryTermSupplier(primaryTermSupplier)
+            .tombstoneDocSupplier(tombstoneDocSupplier)
+            .readOnlyReplica(isReadOnlyReplica)
+            .translogFactory(translogFactory)
+            .build();
     }
 
     public CodecService newCodecServiceOrDefault(

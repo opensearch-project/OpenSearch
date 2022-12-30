@@ -8,6 +8,7 @@
 
 package org.opensearch.extensions;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.mockito.ArgumentMatchers.any;
@@ -30,7 +31,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -42,18 +42,23 @@ import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterSettingsResponse;
-import org.opensearch.cluster.LocalNodeResponse;
+import org.opensearch.env.EnvironmentSettingsResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.PathUtils;
-import org.opensearch.common.io.stream.NamedWriteable;
+import org.opensearch.common.io.stream.BytesStreamInput;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.network.NetworkService;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.WriteableSetting;
+import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.common.settings.WriteableSetting.SettingType;
+import org.opensearch.common.settings.SettingsModule;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.util.FeatureFlagTests;
 import org.opensearch.common.util.PageCacheRecycler;
@@ -61,7 +66,7 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.extensions.rest.RegisterRestActionsRequest;
-import org.opensearch.extensions.rest.RegisterRestActionsResponse;
+import org.opensearch.extensions.settings.RegisterCustomSettingsRequest;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AnalysisRegistry;
@@ -73,6 +78,7 @@ import org.opensearch.rest.RestController;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.client.NoOpNodeClient;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -86,7 +92,9 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
 
     private TransportService transportService;
     private RestController restController;
+    private SettingsModule settingsModule;
     private ClusterService clusterService;
+    private NodeClient client;
     private MockNioTransport transport;
     private Path extensionDir;
     private final ThreadPool threadPool = new TestThreadPool(ExtensionsManagerTests.class.getSimpleName());
@@ -119,8 +127,13 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         "     javaVersion: '17'",
         "     className: fakeClass2",
         "     customFolderName: fakeFolder2",
-        "     hasNativeController: true"
+        "     hasNativeController: true",
+        "     dependencies:",
+        "       - uniqueId: 'uniqueid0'",
+        "       - version: '2.0.0'"
     );
+
+    private DiscoveryExtensionNode extensionNode;
 
     @Before
     public void setup() throws Exception {
@@ -158,9 +171,33 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             new NoneCircuitBreakerService(),
             new UsageService()
         );
+        settingsModule = new SettingsModule(Settings.EMPTY, emptyList(), emptyList(), emptySet());
         clusterService = createClusterService(threadPool);
 
         extensionDir = createTempDir();
+
+        extensionNode = new DiscoveryExtensionNode(
+            "firstExtension",
+            "uniqueid1",
+            "uniqueid1",
+            "myIndependentPluginHost1",
+            "127.0.0.0",
+            new TransportAddress(InetAddress.getByName("127.0.0.0"), 9300),
+            new HashMap<String, String>(),
+            Version.fromString("3.0.0"),
+            new PluginInfo(
+                "firstExtension",
+                "Fake description 1",
+                "0.0.7",
+                Version.fromString("3.0.0"),
+                "14",
+                "fakeClass1",
+                new ArrayList<String>(),
+                false
+            ),
+            Collections.emptyList()
+        );
+        client = new NoOpNodeClient(this.getTestName());
     }
 
     @Override
@@ -168,17 +205,20 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
     public void tearDown() throws Exception {
         super.tearDown();
         transportService.close();
+        client.close();
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
     }
 
     public void testDiscover() throws Exception {
-        Path extensionDir = createTempDir();
-
         Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
 
         ExtensionsManager extensionsManager = new ExtensionsManager(settings, extensionDir);
 
         List<DiscoveryExtensionNode> expectedUninitializedExtensions = new ArrayList<DiscoveryExtensionNode>();
+
+        String expectedUniqueId = "uniqueid0";
+        Version expectedVersion = Version.fromString("2.0.0");
+        ExtensionDependency expectedDependency = new ExtensionDependency(expectedUniqueId, expectedVersion);
 
         expectedUninitializedExtensions.add(
             new DiscoveryExtensionNode(
@@ -199,7 +239,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                     "fakeClass1",
                     new ArrayList<String>(),
                     false
-                )
+                ),
+                Collections.emptyList()
             )
         );
 
@@ -222,23 +263,24 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                     "fakeClass2",
                     new ArrayList<String>(),
                     true
-                )
+                ),
+                List.of(expectedDependency)
             )
         );
         assertEquals(expectedUninitializedExtensions.size(), extensionsManager.getExtensionIdMap().values().size());
+        assertEquals(List.of(expectedDependency), expectedUninitializedExtensions.get(1).getDependencies());
         assertTrue(expectedUninitializedExtensions.containsAll(extensionsManager.getExtensionIdMap().values()));
         assertTrue(extensionsManager.getExtensionIdMap().values().containsAll(expectedUninitializedExtensions));
     }
 
     public void testNonUniqueExtensionsDiscovery() throws Exception {
-        Path extensionDir = createTempDir();
-
+        Path emptyExtensionDir = createTempDir();
         List<String> nonUniqueYmlLines = extensionsYmlLines.stream()
             .map(s -> s.replace("uniqueid2", "uniqueid1"))
             .collect(Collectors.toList());
-        Files.write(extensionDir.resolve("extensions.yml"), nonUniqueYmlLines, StandardCharsets.UTF_8);
+        Files.write(emptyExtensionDir.resolve("extensions.yml"), nonUniqueYmlLines, StandardCharsets.UTF_8);
 
-        ExtensionsManager extensionsManager = new ExtensionsManager(settings, extensionDir);
+        ExtensionsManager extensionsManager = new ExtensionsManager(settings, emptyExtensionDir);
 
         List<DiscoveryExtensionNode> expectedUninitializedExtensions = new ArrayList<DiscoveryExtensionNode>();
 
@@ -261,12 +303,74 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                     "fakeClass1",
                     new ArrayList<String>(),
                     false
-                )
+                ),
+                Collections.emptyList()
             )
         );
         assertEquals(expectedUninitializedExtensions.size(), extensionsManager.getExtensionIdMap().values().size());
         assertTrue(expectedUninitializedExtensions.containsAll(extensionsManager.getExtensionIdMap().values()));
         assertTrue(extensionsManager.getExtensionIdMap().values().containsAll(expectedUninitializedExtensions));
+        assertTrue(expectedUninitializedExtensions.containsAll(emptyList()));
+    }
+
+    public void testDiscoveryExtension() throws Exception {
+        String expectedId = "test id";
+        Version expectedVersion = Version.fromString("2.0.0");
+        ExtensionDependency expectedDependency = new ExtensionDependency(expectedId, expectedVersion);
+
+        DiscoveryExtensionNode discoveryExtensionNode = new DiscoveryExtensionNode(
+            "firstExtension",
+            "uniqueid1",
+            "uniqueid1",
+            "myIndependentPluginHost1",
+            "127.0.0.0",
+            new TransportAddress(InetAddress.getByName("127.0.0.0"), 9300),
+            new HashMap<String, String>(),
+            Version.fromString("3.0.0"),
+            new PluginInfo(
+                "firstExtension",
+                "Fake description 1",
+                "0.0.7",
+                Version.fromString("3.0.0"),
+                "14",
+                "fakeClass1",
+                new ArrayList<String>(),
+                false
+            ),
+            List.of(expectedDependency)
+        );
+
+        assertEquals(List.of(expectedDependency), discoveryExtensionNode.getDependencies());
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            discoveryExtensionNode.writeTo(out);
+            out.flush();
+            try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
+                discoveryExtensionNode = new DiscoveryExtensionNode(in);
+
+                assertEquals(List.of(expectedDependency), discoveryExtensionNode.getDependencies());
+            }
+        }
+    }
+
+    public void testExtensionDependency() throws Exception {
+        String expectedUniqueId = "Test uniqueId";
+        Version expectedVersion = Version.fromString("3.0.0");
+
+        ExtensionDependency dependency = new ExtensionDependency(expectedUniqueId, expectedVersion);
+
+        assertEquals(expectedUniqueId, dependency.getUniqueId());
+        assertEquals(expectedVersion, dependency.getVersion());
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            dependency.writeTo(out);
+            out.flush();
+            try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
+                dependency = new ExtensionDependency(in);
+                assertEquals(expectedUniqueId, dependency.getUniqueId());
+                assertEquals(expectedVersion, dependency.getVersion());
+            }
+        }
     }
 
     public void testNonAccessibleDirectory() throws Exception {
@@ -299,26 +403,21 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
     }
 
     public void testEmptyExtensionsFile() throws Exception {
-        Path extensionDir = createTempDir();
+        Path emptyExtensionDir = createTempDir();
 
         List<String> emptyExtensionsYmlLines = Arrays.asList();
-        Files.write(extensionDir.resolve("extensions.yml"), emptyExtensionsYmlLines, StandardCharsets.UTF_8);
+        Files.write(emptyExtensionDir.resolve("extensions.yml"), emptyExtensionsYmlLines, StandardCharsets.UTF_8);
 
         Settings settings = Settings.builder().build();
 
-        expectThrows(IOException.class, () -> new ExtensionsManager(settings, extensionDir));
+        expectThrows(IOException.class, () -> new ExtensionsManager(settings, emptyExtensionDir));
     }
 
     public void testInitialize() throws Exception {
-        Path extensionDir = createTempDir();
-
         Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
-
         ExtensionsManager extensionsManager = new ExtensionsManager(settings, extensionDir);
 
-        transportService.start();
-        transportService.acceptIncomingRequests();
-        extensionsManager.initializeServicesAndRestHandler(restController, transportService, clusterService);
+        initialize(extensionsManager);
 
         try (MockLogAppender mockLogAppender = MockLogAppender.createForLoggers(LogManager.getLogger(ExtensionsManager.class))) {
 
@@ -350,31 +449,41 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
     }
 
     public void testHandleRegisterRestActionsRequest() throws Exception {
-
-        Path extensionDir = createTempDir();
-
         Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
 
         ExtensionsManager extensionsManager = new ExtensionsManager(settings, extensionDir);
+        initialize(extensionsManager);
 
-        extensionsManager.initializeServicesAndRestHandler(restController, transportService, clusterService);
         String uniqueIdStr = "uniqueid1";
         List<String> actionsList = List.of("GET /foo", "PUT /bar", "POST /baz");
         RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(uniqueIdStr, actionsList);
         TransportResponse response = extensionsManager.getRestActionsRequestHandler()
             .handleRegisterRestActionsRequest(registerActionsRequest);
-        assertEquals(RegisterRestActionsResponse.class, response.getClass());
-        assertTrue(((RegisterRestActionsResponse) response).getResponse().contains(uniqueIdStr));
-        assertTrue(((RegisterRestActionsResponse) response).getResponse().contains(actionsList.toString()));
+        assertEquals(AcknowledgedResponse.class, response.getClass());
+        assertTrue(((AcknowledgedResponse) response).getStatus());
+    }
+
+    public void testHandleRegisterSettingsRequest() throws Exception {
+        Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
+        ExtensionsManager extensionsManager = new ExtensionsManager(settings, extensionDir);
+        initialize(extensionsManager);
+
+        String uniqueIdStr = "uniqueid1";
+        List<Setting<?>> settingsList = List.of(
+            Setting.boolSetting("index.falseSetting", false, Property.IndexScope, Property.Dynamic),
+            Setting.simpleString("fooSetting", "foo", Property.NodeScope, Property.Final)
+        );
+        RegisterCustomSettingsRequest registerCustomSettingsRequest = new RegisterCustomSettingsRequest(uniqueIdStr, settingsList);
+        TransportResponse response = extensionsManager.getCustomSettingsRequestHandler()
+            .handleRegisterCustomSettingsRequest(registerCustomSettingsRequest);
+        assertEquals(AcknowledgedResponse.class, response.getClass());
+        assertTrue(((AcknowledgedResponse) response).getStatus());
     }
 
     public void testHandleRegisterRestActionsRequestWithInvalidMethod() throws Exception {
-
-        Path extensionDir = createTempDir();
-
         ExtensionsManager extensionsManager = new ExtensionsManager(settings, extensionDir);
+        initialize(extensionsManager);
 
-        extensionsManager.initializeServicesAndRestHandler(restController, transportService, clusterService);
         String uniqueIdStr = "uniqueid1";
         List<String> actionsList = List.of("FOO /foo", "PUT /bar", "POST /baz");
         RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(uniqueIdStr, actionsList);
@@ -385,12 +494,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
     }
 
     public void testHandleRegisterRestActionsRequestWithInvalidUri() throws Exception {
-
-        Path extensionDir = createTempDir();
-
         ExtensionsManager extensionsManager = new ExtensionsManager(settings, extensionDir);
-
-        extensionsManager.initializeServicesAndRestHandler(restController, transportService, clusterService);
+        initialize(extensionsManager);
         String uniqueIdStr = "uniqueid1";
         List<String> actionsList = List.of("GET", "PUT /bar", "POST /baz");
         RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(uniqueIdStr, actionsList);
@@ -401,22 +506,186 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
     }
 
     public void testHandleExtensionRequest() throws Exception {
-
         ExtensionsManager extensionsManager = new ExtensionsManager(settings, extensionDir);
+        initialize(extensionsManager);
 
-        extensionsManager.initializeServicesAndRestHandler(restController, transportService, clusterService);
         ExtensionRequest clusterStateRequest = new ExtensionRequest(ExtensionsManager.RequestType.REQUEST_EXTENSION_CLUSTER_STATE);
         assertEquals(ClusterStateResponse.class, extensionsManager.handleExtensionRequest(clusterStateRequest).getClass());
 
         ExtensionRequest clusterSettingRequest = new ExtensionRequest(ExtensionsManager.RequestType.REQUEST_EXTENSION_CLUSTER_SETTINGS);
         assertEquals(ClusterSettingsResponse.class, extensionsManager.handleExtensionRequest(clusterSettingRequest).getClass());
 
-        ExtensionRequest localNodeRequest = new ExtensionRequest(ExtensionsManager.RequestType.REQUEST_EXTENSION_LOCAL_NODE);
-        assertEquals(LocalNodeResponse.class, extensionsManager.handleExtensionRequest(localNodeRequest).getClass());
+        ExtensionRequest environmentSettingsRequest = new ExtensionRequest(
+            ExtensionsManager.RequestType.REQUEST_EXTENSION_ENVIRONMENT_SETTINGS
+        );
+        assertEquals(EnvironmentSettingsResponse.class, extensionsManager.handleExtensionRequest(environmentSettingsRequest).getClass());
 
         ExtensionRequest exceptionRequest = new ExtensionRequest(ExtensionsManager.RequestType.GET_SETTINGS);
-        Exception exception = expectThrows(IllegalStateException.class, () -> extensionsManager.handleExtensionRequest(exceptionRequest));
+        Exception exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> extensionsManager.handleExtensionRequest(exceptionRequest)
+        );
         assertEquals("Handler not present for the provided request", exception.getMessage());
+    }
+
+    public void testEnvironmentSettingsResponse() throws Exception {
+
+        // Test EnvironmentSettingsResponse arg constructor
+        EnvironmentSettingsResponse environmentSettingsResponse = new EnvironmentSettingsResponse(settings);
+        assertEquals(settings, environmentSettingsResponse.getEnvironmentSettings());
+
+        // Test EnvironmentSettingsResponse StreamInput constructor
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            environmentSettingsResponse.writeTo(out);
+            out.flush();
+            try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
+                environmentSettingsResponse = new EnvironmentSettingsResponse(in);
+                assertEquals(settings, environmentSettingsResponse.getEnvironmentSettings());
+            }
+        }
+
+    }
+
+    public void testEnvironmentSettingsRegisteredValue() throws Exception {
+        // Create setting with value false
+        Setting<Boolean> boolSetting = Setting.boolSetting("boolSetting", false, Property.Dynamic);
+
+        // Create Settings with registered bool setting with value true
+        Settings environmentSettings = Settings.builder().put("boolSetting", "true").build();
+
+        EnvironmentSettingsResponse environmentSettingsResponse = new EnvironmentSettingsResponse(environmentSettings);
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            environmentSettingsResponse.writeTo(out);
+            out.flush();
+            try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
+
+                environmentSettingsResponse = new EnvironmentSettingsResponse(in);
+                assertEquals(environmentSettings, environmentSettingsResponse.getEnvironmentSettings());
+
+                // bool setting is registered in Settings object, thus the expected return value is the registered setting value
+                assertEquals(true, boolSetting.get(environmentSettingsResponse.getEnvironmentSettings()));
+            }
+        }
+    }
+
+    public void testEnvironmentSettingsDefaultValue() throws Exception {
+        // Create setting with value false
+        Setting<Boolean> boolSetting = Setting.boolSetting("boolSetting", false, Property.Dynamic);
+
+        // Create settings object without registered bool setting
+        Settings environmentSettings = Settings.builder().put("testSetting", "true").build();
+
+        EnvironmentSettingsResponse environmentSettingsResponse = new EnvironmentSettingsResponse(environmentSettings);
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            environmentSettingsResponse.writeTo(out);
+            out.flush();
+            try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
+
+                environmentSettingsResponse = new EnvironmentSettingsResponse(in);
+                assertEquals(environmentSettings, environmentSettingsResponse.getEnvironmentSettings());
+                // bool setting is not registered in Settings object, thus the expected return value is the default setting value
+                assertEquals(false, boolSetting.get(environmentSettingsResponse.getEnvironmentSettings()));
+            }
+        }
+    }
+
+    public void testAddSettingsUpdateConsumerRequest() throws Exception {
+        Path extensionDir = createTempDir();
+        Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
+        ExtensionsManager extensionsManager = new ExtensionsManager(settings, extensionDir);
+        initialize(extensionsManager);
+
+        List<Setting<?>> componentSettings = List.of(
+            Setting.boolSetting("falseSetting", false, Property.IndexScope, Property.NodeScope),
+            Setting.simpleString("fooSetting", "foo", Property.Dynamic)
+        );
+
+        // Test AddSettingsUpdateConsumerRequest arg constructor
+        AddSettingsUpdateConsumerRequest addSettingsUpdateConsumerRequest = new AddSettingsUpdateConsumerRequest(
+            extensionNode,
+            componentSettings
+        );
+        assertEquals(extensionNode, addSettingsUpdateConsumerRequest.getExtensionNode());
+        assertEquals(componentSettings.size(), addSettingsUpdateConsumerRequest.getComponentSettings().size());
+
+        List<Setting<?>> requestComponentSettings = new ArrayList<>();
+        for (WriteableSetting writeableSetting : addSettingsUpdateConsumerRequest.getComponentSettings()) {
+            requestComponentSettings.add(writeableSetting.getSetting());
+        }
+        assertTrue(requestComponentSettings.containsAll(componentSettings));
+        assertTrue(componentSettings.containsAll(requestComponentSettings));
+
+        // Test AddSettingsUpdateConsumerRequest StreamInput constructor
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            addSettingsUpdateConsumerRequest.writeTo(out);
+            out.flush();
+            try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
+                addSettingsUpdateConsumerRequest = new AddSettingsUpdateConsumerRequest(in);
+                assertEquals(extensionNode, addSettingsUpdateConsumerRequest.getExtensionNode());
+                assertEquals(componentSettings.size(), addSettingsUpdateConsumerRequest.getComponentSettings().size());
+
+                requestComponentSettings = new ArrayList<>();
+                for (WriteableSetting writeableSetting : addSettingsUpdateConsumerRequest.getComponentSettings()) {
+                    requestComponentSettings.add(writeableSetting.getSetting());
+                }
+                assertTrue(requestComponentSettings.containsAll(componentSettings));
+                assertTrue(componentSettings.containsAll(requestComponentSettings));
+            }
+        }
+
+    }
+
+    public void testHandleAddSettingsUpdateConsumerRequest() throws Exception {
+
+        Path extensionDir = createTempDir();
+        Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
+        ExtensionsManager extensionsManager = new ExtensionsManager(settings, extensionDir);
+        initialize(extensionsManager);
+
+        List<Setting<?>> componentSettings = List.of(
+            Setting.boolSetting("falseSetting", false, Property.Dynamic),
+            Setting.boolSetting("trueSetting", true, Property.Dynamic)
+        );
+
+        AddSettingsUpdateConsumerRequest addSettingsUpdateConsumerRequest = new AddSettingsUpdateConsumerRequest(
+            extensionNode,
+            componentSettings
+        );
+        TransportResponse response = extensionsManager.getAddSettingsUpdateConsumerRequestHandler()
+            .handleAddSettingsUpdateConsumerRequest(addSettingsUpdateConsumerRequest);
+        assertEquals(AcknowledgedResponse.class, response.getClass());
+        // Should fail as component settings are not registered within cluster settings
+        assertEquals(false, ((AcknowledgedResponse) response).getStatus());
+    }
+
+    public void testUpdateSettingsRequest() throws Exception {
+        Path extensionDir = createTempDir();
+        Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
+        ExtensionsManager extensionsManager = new ExtensionsManager(settings, extensionDir);
+        initialize(extensionsManager);
+
+        Setting<?> componentSetting = Setting.boolSetting("falseSetting", false, Property.Dynamic);
+        SettingType settingType = SettingType.Boolean;
+        boolean data = true;
+
+        // Test UpdateSettingRequest arg constructor
+        UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(settingType, componentSetting, data);
+        assertEquals(componentSetting, updateSettingsRequest.getComponentSetting());
+        assertEquals(settingType, updateSettingsRequest.getSettingType());
+        assertEquals(data, updateSettingsRequest.getData());
+
+        // Test UpdateSettingRequest StreamInput constructor
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            updateSettingsRequest.writeTo(out);
+            out.flush();
+            try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
+                updateSettingsRequest = new UpdateSettingsRequest(in);
+                assertEquals(componentSetting, updateSettingsRequest.getComponentSetting());
+                assertEquals(settingType, updateSettingsRequest.getSettingType());
+                assertEquals(data, updateSettingsRequest.getData());
+            }
+        }
+
     }
 
     public void testRegisterHandler() throws Exception {
@@ -434,58 +703,22 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                 Collections.emptySet()
             )
         );
+        extensionsManager.initializeServicesAndRestHandler(
+            restController,
+            settingsModule,
+            mockTransportService,
+            clusterService,
+            settings,
+            client
+        );
+        verify(mockTransportService, times(8)).registerRequestHandler(anyString(), anyString(), anyBoolean(), anyBoolean(), any(), any());
 
-        extensionsManager.initializeServicesAndRestHandler(restController, mockTransportService, clusterService);
-        verify(mockTransportService, times(5)).registerRequestHandler(anyString(), anyString(), anyBoolean(), anyBoolean(), any(), any());
-
-    }
-
-    private static class Example implements NamedWriteable {
-        public static final String INVALID_NAME = "invalid_name";
-        public static final String NAME = "example";
-        private final String message;
-
-        Example(String message) {
-            this.message = message;
-        }
-
-        Example(StreamInput in) throws IOException {
-            this.message = in.readString();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(message);
-        }
-
-        @Override
-        public String getWriteableName() {
-            return NAME;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            Example that = (Example) o;
-            return Objects.equals(message, that.message);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(message);
-        }
     }
 
     public void testOnIndexModule() throws Exception {
         Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
-
         ExtensionsManager extensionsManager = new ExtensionsManager(settings, extensionDir);
-
-        transportService.start();
-        transportService.acceptIncomingRequests();
-        extensionsManager.initializeServicesAndRestHandler(restController, transportService, clusterService);
+        initialize(extensionsManager);
 
         Environment environment = TestEnvironment.newEnvironment(settings);
         AnalysisRegistry emptyAnalysisRegistry = new AnalysisRegistry(
@@ -529,4 +762,16 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         }
     }
 
+    private void initialize(ExtensionsManager extensionsManager) {
+        transportService.start();
+        transportService.acceptIncomingRequests();
+        extensionsManager.initializeServicesAndRestHandler(
+            restController,
+            settingsModule,
+            transportService,
+            clusterService,
+            settings,
+            client
+        );
+    }
 }

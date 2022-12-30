@@ -117,7 +117,7 @@ dependencies {
   api 'de.thetaphi:forbiddenapis:3.4'
   api 'com.avast.gradle:gradle-docker-compose-plugin:0.15.2'
   api "org.yaml:snakeyaml:${props.getProperty('snakeyaml')}"
-  api 'org.apache.maven:maven-model:3.6.2'
+  api 'org.apache.maven:maven-model:3.8.6'
   api 'com.networknt:json-schema-validator:1.0.73'
   api "com.fasterxml.jackson.core:jackson-databind:${props.getProperty('jackson_databind')}"
 

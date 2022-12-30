@@ -943,4 +943,56 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         );
         assertEquals("Setting index.remote_store.repository should be provided with non-empty repository ID", iae.getMessage());
     }
+
+    public void testRemoteTranslogRepoDefaultSetting() {
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build()
+        );
+        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertNull(settings.getRemoteStoreRepository());
+    }
+
+    public void testRemoteTranslogExplicitSetting() {
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, true)
+                .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "tlog-store")
+                .build()
+        );
+        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertNull(settings.getRemoteStoreRepository());
+        assertEquals("tlog-store", settings.getRemoteStoreTranslogRepository());
+    }
+
+    public void testSetRemoteTranslogRepositoryFailsWhenRemoteTranslogIsNotEnabled() {
+        Settings indexSettings = Settings.builder()
+            .put("index.replication.type", ReplicationType.SEGMENT)
+            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, false)
+            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "repo1")
+            .build();
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING.get(indexSettings)
+        );
+        assertEquals(
+            "Settings index.remote_store.translog.repository can only be set/enabled when index.remote_store.translog.enabled is set to true",
+            iae.getMessage()
+        );
+    }
+
+    public void testSetRemoteTranslogRepositoryFailsWhenEmptyString() {
+        Settings indexSettings = Settings.builder()
+            .put("index.replication.type", ReplicationType.SEGMENT)
+            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, true)
+            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "")
+            .build();
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING.get(indexSettings)
+        );
+        assertEquals("Setting index.remote_store.translog.repository should be provided with non-empty repository ID", iae.getMessage());
+    }
 }
