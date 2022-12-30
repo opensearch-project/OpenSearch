@@ -84,7 +84,6 @@ public class ClusterAwarenessAttributesHealthTests extends OpenSearchTestCase {
     }
 
     public void testClusterAwarenessAttributeHealth() {
-
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .nodes(
                 DiscoveryNodes.builder(clusterService.state().nodes())
@@ -121,8 +120,7 @@ public class ClusterAwarenessAttributesHealthTests extends OpenSearchTestCase {
         ClusterAwarenessAttributesHealth clusterAwarenessAttributesHealth = new ClusterAwarenessAttributesHealth(
             "zone",
             true,
-            clusterState,
-            12
+            clusterState
         );
 
         assertEquals("zone", clusterAwarenessAttributesHealth.getAwarenessAttributeName());
@@ -132,7 +130,6 @@ public class ClusterAwarenessAttributesHealthTests extends OpenSearchTestCase {
     }
 
     public void testClusterAwarenessAttributeHealthNodeAttributeDoesNotExists() {
-
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .nodes(
                 DiscoveryNodes.builder(clusterService.state().nodes())
@@ -169,8 +166,7 @@ public class ClusterAwarenessAttributesHealthTests extends OpenSearchTestCase {
         ClusterAwarenessAttributesHealth clusterAwarenessAttributesHealth = new ClusterAwarenessAttributesHealth(
             "rack",
             true,
-            clusterState,
-            12
+            clusterState
         );
 
         assertEquals("rack", clusterAwarenessAttributesHealth.getAwarenessAttributeName());
@@ -180,7 +176,6 @@ public class ClusterAwarenessAttributesHealthTests extends OpenSearchTestCase {
     }
 
     public void testClusterAwarenessAttributeHealthNoReplicaEnforcement() {
-
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .nodes(
                 DiscoveryNodes.builder(clusterService.state().nodes())
@@ -217,8 +212,7 @@ public class ClusterAwarenessAttributesHealthTests extends OpenSearchTestCase {
         ClusterAwarenessAttributesHealth clusterAwarenessAttributesHealth = new ClusterAwarenessAttributesHealth(
             "zone",
             false,
-            clusterState,
-            12
+            clusterState
         );
 
         assertEquals("zone", clusterAwarenessAttributesHealth.getAwarenessAttributeName());

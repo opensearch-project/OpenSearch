@@ -256,20 +256,17 @@ public class ClusterAwarenessAttributeValueHealth implements Writeable, ToXConte
         boolean displayUnassignedShardLevelInfo,
         int shardsPerAttributeValue
     ) {
-
         // computing nodes info
-        setNodes(nodeList.size());
+        nodes = nodeList.size();
 
         // computing shards into
         setShardLevelInfo(clusterState, displayUnassignedShardLevelInfo, shardsPerAttributeValue);
 
         // compute weight info
         setWeightInfo(clusterState);
-
     }
 
     private void setShardLevelInfo(ClusterState clusterState, boolean displayUnassignedShardLevelInfo, int shardsPerAttributeValue) {
-
         String nodeId;
 
         // computing active, relocating and initializing shards info
@@ -308,7 +305,6 @@ public class ClusterAwarenessAttributeValueHealth implements Writeable, ToXConte
     }
 
     private void setWeightInfo(ClusterState clusterState) {
-
         WeightedRoutingMetadata weightedRoutingMetadata = clusterState.getMetadata().weightedRoutingMetadata();
         double attributeWeight = 1.0;
         if (weightedRoutingMetadata != null) {
@@ -341,5 +337,4 @@ public class ClusterAwarenessAttributeValueHealth implements Writeable, ToXConte
     public int hashCode() {
         return Objects.hash(name, activeShards, relocatingShards, initializingShards, unassignedShards, nodes, weight);
     }
-
 }

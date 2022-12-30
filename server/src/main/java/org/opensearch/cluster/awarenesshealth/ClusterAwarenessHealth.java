@@ -23,7 +23,6 @@ import java.util.Objects;
 
 /**
  * Cluster state Awareness health information
- *
  */
 public class ClusterAwarenessHealth implements Writeable {
 
@@ -32,30 +31,29 @@ public class ClusterAwarenessHealth implements Writeable {
     /**
      * Creates cluster awareness health from cluster state.
      *
-     * @param clusterState The current cluster state. Must not be null.
-     * @param clusterSettings the current cluster settings.
+     * @param clusterState           The current cluster state. Must not be null.
+     * @param clusterSettings        the current cluster settings.
      * @param awarenessAttributeName Name of awareness attribute for which we need to see the health
      */
-    public ClusterAwarenessHealth(
-        ClusterState clusterState,
-        ClusterSettings clusterSettings,
-        String awarenessAttributeName,
-        int totalShards
-    ) {
-
+    public ClusterAwarenessHealth(ClusterState clusterState, ClusterSettings clusterSettings, String awarenessAttributeName) {
         // This property will govern if we need to show unassigned shard info or not
         boolean displayUnassignedShardLevelInfo = canCalcUnassignedShards(clusterSettings, awarenessAttributeName);
-
         clusterAwarenessAttributesHealth = new ClusterAwarenessAttributesHealth(
             awarenessAttributeName,
             displayUnassignedShardLevelInfo,
-            clusterState,
-            totalShards
+            clusterState
         );
     }
 
-    private boolean canCalcUnassignedShards(ClusterSettings clusterSettings, String awarenessAttributeName) {
+    public ClusterAwarenessHealth(final StreamInput in) throws IOException {
+        clusterAwarenessAttributesHealth = new ClusterAwarenessAttributesHealth(in);
+    }
 
+    public ClusterAwarenessHealth(String awarenessAttribute) {
+        this.clusterAwarenessAttributesHealth = new ClusterAwarenessAttributesHealth(awarenessAttribute, Collections.emptyMap());
+    }
+
+    private boolean canCalcUnassignedShards(ClusterSettings clusterSettings, String awarenessAttributeName) {
         // Getting the replicaEnforcement settings as both are necessary for replica enforcement.
         boolean allocationAwarenessBalance = clusterSettings.get(
             AwarenessReplicaBalance.CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING
@@ -72,17 +70,7 @@ public class ClusterAwarenessHealth implements Writeable {
                 forcedZoneSettingsExists = true;
             }
         }
-
         return allocationAwarenessBalance && forcedZoneSettingsExists;
-    }
-
-    public ClusterAwarenessHealth(final StreamInput in) throws IOException {
-        clusterAwarenessAttributesHealth = new ClusterAwarenessAttributesHealth(in);
-    }
-
-    public ClusterAwarenessHealth(String awarenessAttribute) {
-
-        this.clusterAwarenessAttributesHealth = new ClusterAwarenessAttributesHealth(awarenessAttribute, Collections.emptyMap());
     }
 
     public ClusterAwarenessAttributesHealth getAwarenessAttributeHealth() {

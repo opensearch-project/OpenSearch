@@ -128,7 +128,7 @@ public class ClusterAwarenessHealthTests extends OpenSearchTestCase {
 
         indexNameExpressionResolver.concreteIndexNames(clusterState, IndicesOptions.strictExpand(), (String[]) null);
 
-        ClusterAwarenessHealth clusterAwarenessHealth = new ClusterAwarenessHealth(clusterState, clusterSettings, "zone", 10);
+        ClusterAwarenessHealth clusterAwarenessHealth = new ClusterAwarenessHealth(clusterState, clusterSettings, "zone");
         clusterAwarenessHealth = serializeResponse(clusterAwarenessHealth);
         ClusterAwarenessAttributesHealth attributeHealth = clusterAwarenessHealth.getAwarenessAttributeHealth();
         assertEquals(0, attributeHealth.getAwarenessAttributeHealthMap().size());
@@ -176,7 +176,7 @@ public class ClusterAwarenessHealthTests extends OpenSearchTestCase {
 
         indexNameExpressionResolver.concreteIndexNames(clusterState, IndicesOptions.strictExpand(), (String[]) null);
 
-        ClusterAwarenessHealth clusterAwarenessHealth = new ClusterAwarenessHealth(clusterState, clusterSettings, "zone", 10);
+        ClusterAwarenessHealth clusterAwarenessHealth = new ClusterAwarenessHealth(clusterState, clusterSettings, "zone");
         clusterAwarenessHealth = serializeResponse(clusterAwarenessHealth);
         ClusterAwarenessAttributesHealth attributeHealth = clusterAwarenessHealth.getAwarenessAttributeHealth();
         assertEquals(0, attributeHealth.getAwarenessAttributeHealthMap().size());
@@ -244,7 +244,7 @@ public class ClusterAwarenessHealthTests extends OpenSearchTestCase {
 
         indexNameExpressionResolver.concreteIndexNames(clusterState, IndicesOptions.strictExpand(), (String[]) null);
 
-        ClusterAwarenessHealth clusterAwarenessHealth = new ClusterAwarenessHealth(clusterState, clusterSettings, "zone", 10);
+        ClusterAwarenessHealth clusterAwarenessHealth = new ClusterAwarenessHealth(clusterState, clusterSettings, "zone");
         clusterAwarenessHealth = serializeResponse(clusterAwarenessHealth);
         ClusterAwarenessAttributesHealth attributeHealth = clusterAwarenessHealth.getAwarenessAttributeHealth();
         assertEquals("zone", attributeHealth.getAwarenessAttributeName());
@@ -318,7 +318,7 @@ public class ClusterAwarenessHealthTests extends OpenSearchTestCase {
 
         indexNameExpressionResolver.concreteIndexNames(clusterState, IndicesOptions.strictExpand(), (String[]) null);
 
-        ClusterAwarenessHealth clusterAwarenessHealth = new ClusterAwarenessHealth(clusterState, clusterSettings, "zone", 10);
+        ClusterAwarenessHealth clusterAwarenessHealth = new ClusterAwarenessHealth(clusterState, clusterSettings, "zone");
         clusterAwarenessHealth = serializeResponse(clusterAwarenessHealth);
         ClusterAwarenessAttributesHealth attributeHealth = clusterAwarenessHealth.getAwarenessAttributeHealth();
         assertEquals("zone", attributeHealth.getAwarenessAttributeName());
@@ -391,7 +391,7 @@ public class ClusterAwarenessHealthTests extends OpenSearchTestCase {
 
         indexNameExpressionResolver.concreteIndexNames(clusterState, IndicesOptions.strictExpand(), (String[]) null);
 
-        ClusterAwarenessHealth clusterAwarenessHealth = new ClusterAwarenessHealth(clusterState, clusterSettings, "zone", 10);
+        ClusterAwarenessHealth clusterAwarenessHealth = new ClusterAwarenessHealth(clusterState, clusterSettings, "zone");
         clusterAwarenessHealth = serializeResponse(clusterAwarenessHealth);
         ClusterAwarenessAttributesHealth attributeHealth = clusterAwarenessHealth.getAwarenessAttributeHealth();
         assertEquals(3, attributeHealth.getAwarenessAttributeHealthMap().size());

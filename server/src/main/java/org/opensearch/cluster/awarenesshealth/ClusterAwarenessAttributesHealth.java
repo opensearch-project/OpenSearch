@@ -44,15 +44,12 @@ public class ClusterAwarenessAttributesHealth implements Iterable<ClusterAwarene
      * @param awarenessAttributeValue Awareness Attribute value ie zone, rack etc
      * @param displayUnassignedShardLevelInfo Governs if unassigned info should be visible or not
      * @param clusterState cluster state
-     * @param totalShards Total shards currently in cluster
      */
     public ClusterAwarenessAttributesHealth(
         String awarenessAttributeValue,
         boolean displayUnassignedShardLevelInfo,
-        ClusterState clusterState,
-        int totalShards
+        ClusterState clusterState
     ) {
-
         awarenessAttributeName = awarenessAttributeValue;
 
         // This is the Map which is storing the per attribute value health stats.
@@ -93,30 +90,27 @@ public class ClusterAwarenessAttributesHealth implements Iterable<ClusterAwarene
             }
         }
 
-        setClusterAwarenessAttributeValue(attributesHealth, totalShards, displayUnassignedShardLevelInfo, clusterState);
+        setClusterAwarenessAttributeValue(attributesHealth, displayUnassignedShardLevelInfo, clusterState);
     }
 
     private void setClusterAwarenessAttributeValue(
         Map<String, ClusterAwarenessAttributeValueHealth> perAttributeValueHealthMap,
-        int totalShards,
         boolean displayUnassignedShardLevelInfo,
         ClusterState clusterState
     ) {
-
         int numAttributes = perAttributeValueHealthMap.size();
         int shardsPerAttributeValue = 0;
 
         // Can happen customer has defined weights as well as awareness attribute but no node level attribute was there
         // So to avoid divide-by-zero error checking this
         if (numAttributes != 0) {
-            shardsPerAttributeValue = totalShards / numAttributes;
+            shardsPerAttributeValue = clusterState.getMetadata().getTotalNumberOfShards() / numAttributes;
         }
 
         for (ClusterAwarenessAttributeValueHealth attributeValueKey : perAttributeValueHealthMap.values()) {
             // computing attribute info
             attributeValueKey.computeAttributeValueLevelInfo(clusterState, displayUnassignedShardLevelInfo, shardsPerAttributeValue);
         }
-
         awarenessAttributeValueHealthMap = perAttributeValueHealthMap;
     }
 
