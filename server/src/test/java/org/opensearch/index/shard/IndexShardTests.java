@@ -2261,7 +2261,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 @Override
                 public void onFailure(Exception e) {
                     assertTrue(ExceptionsHelper.unwrapCause(e) instanceof ReplicationFailedException);
-                    assertEquals(e.getMessage(), "segrep failed");
+                    assertEquals(e.getMessage(), "Segment replication failed");
                 }
             }
         );
