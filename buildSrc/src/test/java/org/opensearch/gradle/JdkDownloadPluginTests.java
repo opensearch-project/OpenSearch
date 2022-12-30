@@ -33,6 +33,9 @@
 package org.opensearch.gradle;
 
 import org.opensearch.gradle.test.GradleUnitTestCase;
+
+import java.util.UUID;
+
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
 import org.gradle.testfixtures.ProjectBuilder;
@@ -148,7 +151,8 @@ public class JdkDownloadPluginTests extends GradleUnitTestCase {
     }
 
     private Project createProject() {
-        Project project = ProjectBuilder.builder().withParent(rootProject).build();
+        final String name = UUID.randomUUID().toString();
+        Project project = ProjectBuilder.builder().withName(name).withParent(rootProject).build();
         project.getPlugins().apply("opensearch.jdk-download");
         return project;
     }
