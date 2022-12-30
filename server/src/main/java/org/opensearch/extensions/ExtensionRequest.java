@@ -10,6 +10,7 @@ package org.opensearch.extensions;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.transport.TransportRequest;
@@ -32,12 +33,13 @@ public class ExtensionRequest extends TransportRequest {
         this(requestType, null);
     }
 
-    public ExtensionRequest(ExtensionsManager.RequestType requestType, Optional<String> uniqueId) {
+    public ExtensionRequest(ExtensionsManager.RequestType requestType, @Nullable String uniqueId) {
         this.requestType = requestType;
-        this.uniqueId = uniqueId;
+        this.uniqueId = uniqueId == null ? Optional.empty() : Optional.of(uniqueId);
     }
 
     public ExtensionRequest(StreamInput in) throws IOException {
+        super(in);
         this.requestType = in.readEnum(ExtensionsManager.RequestType.class);
         String id = in.readOptionalString();
         this.uniqueId = id == null ? Optional.empty() : Optional.of(id);
@@ -67,7 +69,7 @@ public class ExtensionRequest extends TransportRequest {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ExtensionRequest that = (ExtensionRequest) o;
-        return Objects.equals(requestType, that.requestType) && uniqueId.equals(that.uniqueId);
+        return Objects.equals(requestType, that.requestType) && Objects.equals(uniqueId, that.uniqueId);
     }
 
     @Override

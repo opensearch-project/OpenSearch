@@ -528,6 +528,44 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         assertEquals("Handler not present for the provided request", exception.getMessage());
     }
 
+    public void testExtensionRequest() throws Exception {
+        ExtensionsManager.RequestType expectedRequestType = ExtensionsManager.RequestType.REQUEST_EXTENSION_DEPENDENCY_INFORMATION;
+
+        // Test ExtensionRequest 2 arg constructor
+        String expectedUniqueId = "test uniqueid";
+        ExtensionRequest extensionRequest = new ExtensionRequest(expectedRequestType, expectedUniqueId);
+        assertEquals(expectedRequestType, extensionRequest.getRequestType());
+        assertEquals(expectedUniqueId, extensionRequest.getUniqueId());
+
+        // Test ExtensionRequest StreamInput constructor
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            extensionRequest.writeTo(out);
+            out.flush();
+            try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
+                extensionRequest = new ExtensionRequest(in);
+                assertEquals(expectedRequestType, extensionRequest.getRequestType());
+                assertEquals(expectedUniqueId, extensionRequest.getUniqueId());
+            }
+        }
+
+        // Test ExtensionRequest 1 arg constructor
+        expectedUniqueId = null;
+        extensionRequest = new ExtensionRequest(expectedRequestType, expectedUniqueId);
+        assertEquals(expectedRequestType, extensionRequest.getRequestType());
+        assertEquals(expectedUniqueId, extensionRequest.getUniqueId());
+
+        // Test ExtensionRequest StreamInput constructor
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            extensionRequest.writeTo(out);
+            out.flush();
+            try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
+                extensionRequest = new ExtensionRequest(in);
+                assertEquals(expectedRequestType, extensionRequest.getRequestType());
+                assertEquals(expectedUniqueId, extensionRequest.getUniqueId());
+            }
+        }
+    }
+
     public void testExtensionDependencyResponse() throws Exception {
         String expectedUniqueId = "test uniqueid";
         List<DiscoveryExtensionNode> expectedExtensionsList = new ArrayList<DiscoveryExtensionNode>();
