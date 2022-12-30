@@ -533,10 +533,10 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         ExtensionsManager.RequestType expectedRequestType = ExtensionsManager.RequestType.REQUEST_EXTENSION_DEPENDENCY_INFORMATION;
 
         // Test ExtensionRequest 2 arg constructor
-        Optional<String> expectedUniqueId = Optional.of("test uniqueid");
-        ExtensionRequest extensionRequest = new ExtensionRequest(expectedRequestType, expectedUniqueId.orElse(null));
+        String expectedUniqueId = "test uniqueid";
+        ExtensionRequest extensionRequest = new ExtensionRequest(expectedRequestType, expectedUniqueId);
         assertEquals(expectedRequestType, extensionRequest.getRequestType());
-        assertEquals(expectedUniqueId, extensionRequest.getUniqueId());
+        assertEquals(Optional.of(expectedUniqueId), extensionRequest.getUniqueId());
 
         // Test ExtensionRequest StreamInput constructor
         try (BytesStreamOutput out = new BytesStreamOutput()) {
@@ -550,8 +550,9 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         }
 
         // Test ExtensionRequest 1 arg constructor
-        extensionRequest = new ExtensionRequest(expectedRequestType, null);
+        extensionRequest = new ExtensionRequest(expectedRequestType);
         assertEquals(expectedRequestType, extensionRequest.getRequestType());
+        assertEquals(Optional.empty(), extensionRequest.getUniqueId());
 
         // Test ExtensionRequest StreamInput constructor
         try (BytesStreamOutput out = new BytesStreamOutput()) {
