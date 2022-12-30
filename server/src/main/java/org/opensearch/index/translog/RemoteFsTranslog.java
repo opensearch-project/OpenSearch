@@ -47,6 +47,8 @@ public class RemoteFsTranslog extends Translog {
     private final FileTransferTracker fileTransferTracker;
     private volatile long maxRemoteTranslogGenerationUploaded;
 
+    private volatile long minSeqNoRequired;
+
     public RemoteFsTranslog(
         TranslogConfig config,
         String translogUUID,
@@ -281,5 +283,40 @@ public class RemoteFsTranslog extends Translog {
                 closeFilesIfNoPendingRetentionLocks();
             }
         }
+    }
+
+    protected long getMinReferencedGen() throws IOException {
+        assert readLock.isHeldByCurrentThread() || writeLock.isHeldByCurrentThread();
+        long minReferencedGen = Math.min(
+            Math.min(
+                deletionPolicy.minTranslogGenRequired(readers, current),
+                minGenerationForSeqNo(deletionPolicy.getLocalCheckpointOfSafeCommit() + 1, current, readers)
+            ),
+            minGenerationForSeqNo(minSeqNoRequired, current, readers)
+        );
+        assert minReferencedGen >= getMinFileGeneration() : "deletion policy requires a minReferenceGen of ["
+            + minReferencedGen
+            + "] but the lowest gen available is ["
+            + getMinFileGeneration()
+            + "]";
+        assert minReferencedGen <= currentFileGeneration() : "deletion policy requires a minReferenceGen of ["
+            + minReferencedGen
+            + "] which is higher than the current generation ["
+            + currentFileGeneration()
+            + "]";
+        return minReferencedGen;
+    }
+
+    protected void minSeqNoRequired(long seqNo) {
+        this.minSeqNoRequired = seqNo;
+    }
+
+    void deleteReaderFiles(TranslogReader reader) {
+        try {
+            translogTransferManager.deleteTranslog(primaryTermSupplier.getAsLong(), reader.generation);
+        } catch (IOException ignored) {
+
+        }
+        super.deleteReaderFiles(reader);
     }
 }

@@ -13,6 +13,7 @@ import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -41,6 +42,8 @@ public interface TransferService {
      * @throws IOException the exception while transferring the data
      */
     void uploadBlob(final TransferFileSnapshot fileSnapshot, Iterable<String> remotePath) throws IOException;
+
+    void deleteBlobs(Iterable<String> path, List<String> fileNames) throws IOException;
 
     /**
      * Lists the files

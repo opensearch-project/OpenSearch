@@ -1684,7 +1684,7 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
         }
     }
 
-    private static long minGenerationForSeqNo(long seqNo, TranslogWriter writer, List<TranslogReader> readers) {
+    static long minGenerationForSeqNo(long seqNo, TranslogWriter writer, List<TranslogReader> readers) {
         long minGen = writer.generation;
         for (final TranslogReader reader : readers) {
             if (seqNo <= reader.getCheckpoint().maxEffectiveSeqNo()) {
@@ -1781,7 +1781,7 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
         }
     }
 
-    private long getMinReferencedGen() throws IOException {
+    protected long getMinReferencedGen() throws IOException {
         assert readLock.isHeldByCurrentThread() || writeLock.isHeldByCurrentThread();
         long minReferencedGen = Math.min(
             deletionPolicy.minTranslogGenRequired(readers, current),
@@ -1799,6 +1799,8 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
             + "]";
         return minReferencedGen;
     }
+
+    protected void minSeqNoRequired(long seqNo) {}
 
     /**
      * deletes all files associated with a reader. package-private to be able to simulate node failures at this point

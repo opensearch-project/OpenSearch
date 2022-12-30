@@ -289,6 +289,11 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
         }
     }
 
+    @Override
+    public void minSeqNoRequired(long seqNo) {
+        translog.minSeqNoRequired(seqNo);
+    }
+
     /**
      * Reads operations from the translog
      * @param location location of translog

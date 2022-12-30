@@ -145,6 +145,10 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                                         .collect(Collectors.toSet())
                                         .forEach(localSegmentChecksumMap::remove);
                                 }
+                                assert indexShard.getEngine() instanceof InternalEngine : "Expected shard with InternalEngine, got: "
+                                    + indexShard.getEngine().getClass();
+                                final long lastRefreshedCheckpoint = ((InternalEngine) indexShard.getEngine()).lastRefreshedCheckpoint();
+                                indexShard.getEngine().translogManager().minSeqNoRequired(lastRefreshedCheckpoint + 1);
                             }
                         } catch (EngineException e) {
                             logger.warn("Exception while reading SegmentInfosSnapshot", e);

@@ -1124,7 +1124,7 @@ public class OpenSearchNode implements TestClusterConfiguration {
         if (nodeName != null) {
             baseConfig.put("node.name", nodeName);
         }
-        baseConfig.put("path.repo", confPathRepo.toAbsolutePath().toString());
+        baseConfig.put("path.repo", "/Users/gbbafna/git/OpenSearch/build/testclusters/repo");
         baseConfig.put("path.data", confPathData.toAbsolutePath().toString());
         baseConfig.put("path.logs", confPathLogs.toAbsolutePath().toString());
         baseConfig.put("path.shared_data", workingDir.resolve("sharedData").toString());

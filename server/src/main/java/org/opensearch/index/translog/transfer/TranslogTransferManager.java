@@ -194,4 +194,11 @@ public class TranslogTransferManager {
             translogTransferMetadata.getPrimaryTerm()
         );
     }
+
+    public void deleteTranslog(long primaryTerm, long generation) throws IOException {
+        String ckpFileName = Translog.getCommitCheckpointFileName(generation);
+        String translogFilename = Translog.getFilename(generation);
+        List<String> files = List.of(ckpFileName, translogFilename);
+        transferService.deleteBlobs(remoteBaseTransferPath.add(String.valueOf(primaryTerm)), files);
+    }
 }
