@@ -31,6 +31,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -532,8 +533,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         ExtensionsManager.RequestType expectedRequestType = ExtensionsManager.RequestType.REQUEST_EXTENSION_DEPENDENCY_INFORMATION;
 
         // Test ExtensionRequest 2 arg constructor
-        String expectedUniqueId = "test uniqueid";
-        ExtensionRequest extensionRequest = new ExtensionRequest(expectedRequestType, expectedUniqueId);
+        Optional<String> expectedUniqueId = Optional.of("test uniqueid");
+        ExtensionRequest extensionRequest = new ExtensionRequest(expectedRequestType, expectedUniqueId.orElse(null));
         assertEquals(expectedRequestType, extensionRequest.getRequestType());
         assertEquals(expectedUniqueId, extensionRequest.getUniqueId());
 
@@ -549,10 +550,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         }
 
         // Test ExtensionRequest 1 arg constructor
-        expectedUniqueId = null;
-        extensionRequest = new ExtensionRequest(expectedRequestType, expectedUniqueId);
+        extensionRequest = new ExtensionRequest(expectedRequestType, null);
         assertEquals(expectedRequestType, extensionRequest.getRequestType());
-        assertEquals(expectedUniqueId, extensionRequest.getUniqueId());
 
         // Test ExtensionRequest StreamInput constructor
         try (BytesStreamOutput out = new BytesStreamOutput()) {
@@ -561,7 +560,6 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
                 extensionRequest = new ExtensionRequest(in);
                 assertEquals(expectedRequestType, extensionRequest.getRequestType());
-                assertEquals(expectedUniqueId, extensionRequest.getUniqueId());
             }
         }
     }
