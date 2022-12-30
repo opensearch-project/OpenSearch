@@ -49,6 +49,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Snapshot utilities
@@ -70,18 +72,14 @@ public class SnapshotUtils {
             return availableIndices;
         }
 
-        selectedIndices = Arrays.stream(selectedIndices).filter(s -> !s.isEmpty()).toArray(a -> new String[a]); // Remove all empty strings
-        Arrays.sort(selectedIndices, (o1, o2) -> { // Make '-' lower priority then everything
-
-            char o1FirstChar = o1.charAt(0);
-            char o2FirstChar = o2.charAt(0);
-            if (o1FirstChar == '-' && o2FirstChar != '-') {
-                return 1;
-            } else if (o1FirstChar != '-' && o2FirstChar == '-') {
-                return -1;
-            }
-            return o1.compareTo(o2);
-        });
+        // Move the exclusions to end of list to ensure they are processed
+        // after explicitly selected indices are chosen.
+        final List<String> excludesAtEndSelectedIndices = Stream.concat(
+                Arrays.stream(selectedIndices)
+                    .filter(s -> s.isEmpty() || s.charAt(0) != '-'),
+                Arrays.stream(selectedIndices)
+                    .filter(s -> !s.isEmpty() && s.charAt(0) == '-'))
+            .collect(Collectors.toUnmodifiableList());
 
         Set<String> result = null;
         for (int i = 0; i < selectedIndices.length; i++) {
@@ -103,7 +101,9 @@ public class SnapshotUtils {
                         result = new HashSet<>();
                     }
                 } else if (indexOrPattern.charAt(0) == '-') {
-                    // if its the first index pattern, fill it with all the indices...
+                    // If the first index pattern is an exclusion, then all patterns are exclusions due to the
+                    // reordering logic above. In this case, the request is interpreted as "include all indexes except
+                    // those matching the exclusions" so we add all indices here and then remove the ones that match the exclusion patterns.
                     if (i == 0) {
                         result = new HashSet<>(availableIndices);
                     }
