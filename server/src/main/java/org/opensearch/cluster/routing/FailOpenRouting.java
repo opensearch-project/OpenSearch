@@ -141,13 +141,13 @@ public class FailOpenRouting {
      * routing weight set to zero
      */
     private boolean canFailOpen(ShardId shardId) {
-        return isInternalFailure() || hasUnassignedShards(shardId);
+        return isInternalFailure() || hasInActiveShardCopies(shardId);
     }
 
-    private boolean hasUnassignedShards(ShardId shardId) {
+    private boolean hasInActiveShardCopies(ShardId shardId) {
         List<ShardRouting> shards = clusterState.routingTable().shardRoutingTable(shardId).shards();
         for (ShardRouting shardRouting : shards) {
-            if (shardRouting.unassigned()) {
+            if (!shardRouting.active()) {
                 return true;
             }
         }
