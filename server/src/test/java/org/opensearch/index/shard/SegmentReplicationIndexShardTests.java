@@ -426,7 +426,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             // promote the replica
             shards.promoteReplicaToPrimary(nextPrimary).get();
 
-            // close and start the oldPrimary as a replica.
+            // close oldPrimary.
             oldPrimary.close("demoted", false);
             oldPrimary.store().close();
 

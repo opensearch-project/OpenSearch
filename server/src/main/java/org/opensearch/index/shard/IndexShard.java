@@ -4134,11 +4134,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 }
             };
             IOUtils.close(currentEngineReference.getAndSet(readOnlyEngine));
-            EngineConfig newEngineConfig = newEngineConfig(replicationTracker);
             if (indexSettings.isRemoteStoreEnabled()) {
                 syncSegmentsFromRemoteSegmentStore(false);
             }
-            newEngineReference.set(engineFactory.newReadWriteEngine(newEngineConfig));
+            newEngineReference.set(engineFactory.newReadWriteEngine(newEngineConfig(replicationTracker)));
             onNewEngine(newEngineReference.get());
         }
         final TranslogRecoveryRunner translogRunner = (snapshot) -> runTranslogRecovery(
@@ -4231,7 +4230,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private boolean localDirectoryContains(Directory localDirectory, String file, long checksum) {
         try (IndexInput indexInput = localDirectory.openInput(file, IOContext.DEFAULT)) {
-            return checksum == CodecUtil.retrieveChecksum(indexInput);
+            if (checksum == CodecUtil.retrieveChecksum(indexInput)) {
+                return true;
+            } else {
+                logger.warn("Checksum mismatch between local and remote segment file: {}, will override local file", file);
+            }
         } catch (IOException e) {
             logger.debug("Exception while reading checksum of file: {}, this can happen if file does not exist", file);
         }
