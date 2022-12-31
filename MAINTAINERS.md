@@ -1,6 +1,6 @@
 - [Current Maintainers](#current-maintainers)
 - [Emeritus](#emeritus)
-  
+
 ## Current Maintainers
 
 | Maintainer | GitHub ID | Affiliation |
@@ -11,6 +11,7 @@
 | Bukhtawar Khan | [Bukhtawar](https://github.com/Bukhtawar) | Amazon |
 | Charlotte Henkle | [CEHENKLE](https://github.com/CEHENKLE) | Amazon |
 | Daniel "dB." Doubrovkine | [dblock](https://github.com/dblock) | Amazon |
+| Gaurav Bafna | [gbbafna](https://github.com/gbbafna) | Amazon |
 | Himanshu Setia | [setiah](https://github.com/setiah) | Amazon |
 | Kartik Ganesh | [kartg](https://github.com/kartg) | Amazon |
 | Kunal Kotwani | [kotwanikunal](https://github.com/kotwanikunal) | Amazon |
