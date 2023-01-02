@@ -304,7 +304,7 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
      * Weighted shard routing weight is set as 0 for az-c.
      * Data nodes in zone a and b are stopped,
      * assertions are put to make sure shard search requests do not fail.
-     * @throws IOException
+     * @throws IOException throws exception
      */
     public void testShardRoutingByStoppingDataNodes_FailOpenEnabled() throws Exception {
 
@@ -363,7 +363,7 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
      * which makes data node in zone-a unresponsive.
      * Since there are two copies of a shard, there can be few shards for which copy doesn't exist in zone b.
      * Assertions are put to make sure such shard search requests are not served by data node in zone c.
-     * @throws IOException
+     * @throws IOException throws exception
      */
     public void testShardRoutingWithNetworkDisruption_FailOpenDisabled() throws Exception {
 
@@ -439,7 +439,7 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
      * which makes data node in zone-a unresponsive.
      * Since there are two copies of a shard, there can be few shards for which copy doesn't exist in zone b.
      * Assertions are put to make sure such shard search requests are served by data node in zone c.
-     * @throws IOException
+     * @throws IOException throws exception
      */
     public void testShardRoutingWithNetworkDisruption_FailOpenEnabled() throws Exception {
 
@@ -562,7 +562,7 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
      * which makes node in zone-a unresponsive.
      * Since there are two copies of a shard, there can be few shards for which copy doesn't exist in zone b.
      * Assertions are put to make sure such shard search requests are served by data node in zone c.
-     * @throws IOException
+     * @throws IOException throws exception
      */
     public void testSearchAggregationWithNetworkDisruption_FailOpenEnabled() throws Exception {
 
@@ -647,7 +647,7 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
 
     /**
      * MultiGet with fail open enabled. No request failure on network disruption
-     * @throws IOException
+     * @throws IOException throws exception
      */
     public void testMultiGetWithNetworkDisruption_FailOpenEnabled() throws Exception {
 
@@ -718,7 +718,7 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
 
     /**
      * MultiGet with fail open disabled. Assert that some requests do fail.
-     * @throws IOException
+     * @throws IOException throws exception
      */
     public void testMultiGetWithNetworkDisruption_FailOpenDisabled() throws Exception {
 

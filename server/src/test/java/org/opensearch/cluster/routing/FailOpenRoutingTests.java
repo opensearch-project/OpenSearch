@@ -117,7 +117,7 @@ public class FailOpenRoutingTests extends OpenSearchTestCase {
         indexRoutingTableBuilder.addIndexShard(indexShardRoutingBuilder.build());
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
         routingTableBuilder.add(indexRoutingTableBuilder.build());
-        clusterState = clusterState.builder(clusterState).routingTable(routingTableBuilder.build()).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTableBuilder.build()).build();
 
         List<ShardRouting> shardRoutings = new ArrayList<>();
         shardRoutings.add(shardRoutingA);
@@ -181,7 +181,7 @@ public class FailOpenRoutingTests extends OpenSearchTestCase {
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
 
         routingTableBuilder.add(indexRoutingTableBuilder.build());
-        clusterState = clusterState.builder(clusterState).routingTable(routingTableBuilder.build()).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTableBuilder.build()).build();
 
         String clusterAlias = randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10);
 
@@ -247,7 +247,7 @@ public class FailOpenRoutingTests extends OpenSearchTestCase {
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
 
         routingTableBuilder.add(indexRoutingTableBuilder.build());
-        clusterState = clusterState.builder(clusterState).routingTable(routingTableBuilder.build()).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTableBuilder.build()).build();
 
         String clusterAlias = randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10);
 
