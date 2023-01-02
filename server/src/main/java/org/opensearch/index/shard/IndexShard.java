@@ -4201,6 +4201,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     storeDirectory.copyFrom(remoteDirectory, file, file, IOContext.DEFAULT);
                     downloadedSegments.add(file);
                     if (file.startsWith(SEGMENT_INFO_SNAPSHOT_FILENAME_PREFIX)) {
+                        assert segmentInfosSnapshotFilename == null : "There should be only one SegmentInfosSnapshot file";
                         segmentInfosSnapshotFilename = file;
                     }
                 } else {
