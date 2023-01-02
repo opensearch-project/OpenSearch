@@ -198,6 +198,9 @@ public class TranslogTransferManager {
     public void deleteTranslog(long primaryTerm, long generation) throws IOException {
         String ckpFileName = Translog.getCommitCheckpointFileName(generation);
         String translogFilename = Translog.getFilename(generation);
+        // ToDo - Take care of metadata file cleanup
+        fileTransferListener.onDelete(ckpFileName);
+        fileTransferListener.onDelete(translogFilename);
         List<String> files = List.of(ckpFileName, translogFilename);
         transferService.deleteBlobs(remoteBaseTransferPath.add(String.valueOf(primaryTerm)), files);
     }

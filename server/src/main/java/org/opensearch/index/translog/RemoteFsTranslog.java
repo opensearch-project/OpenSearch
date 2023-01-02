@@ -288,11 +288,8 @@ public class RemoteFsTranslog extends Translog {
     protected long getMinReferencedGen() throws IOException {
         assert readLock.isHeldByCurrentThread() || writeLock.isHeldByCurrentThread();
         long minReferencedGen = Math.min(
-            Math.min(
-                deletionPolicy.minTranslogGenRequired(readers, current),
-                minGenerationForSeqNo(deletionPolicy.getLocalCheckpointOfSafeCommit() + 1, current, readers)
-            ),
-            minGenerationForSeqNo(minSeqNoRequired, current, readers)
+            deletionPolicy.minTranslogGenRequired(readers, current),
+            minGenerationForSeqNo(Math.min(deletionPolicy.getLocalCheckpointOfSafeCommit() + 1, minSeqNoRequired), current, readers)
         );
         assert minReferencedGen >= getMinFileGeneration() : "deletion policy requires a minReferenceGen of ["
             + minReferencedGen

@@ -448,13 +448,13 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
             assertThat(snapshot.totalOperations(), equalTo(ops.size()));
         }
 
-        assertEquals(translog.allUploaded().size(), 4);
+        assertEquals(translog.allUploaded().size(), 2);
 
         addToTranslogAndListAndUpload(translog, ops, new Translog.Index("1", 1, primaryTerm.get(), new byte[] { 1 }));
-        assertEquals(translog.allUploaded().size(), 6);
+        assertEquals(translog.allUploaded().size(), 4);
 
         translog.rollGeneration();
-        assertEquals(translog.allUploaded().size(), 6);
+        assertEquals(translog.allUploaded().size(), 4);
 
         Set<String> mdFiles = blobStoreTransferService.listAll(
             repository.basePath().add(shardId.getIndex().getUUID()).add(String.valueOf(shardId.id())).add("metadata")
@@ -495,6 +495,38 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
                 assertArrayEquals(ckp, content);
             }
         }
+
+        // expose the new checkpoint (simulating a commit), before we trim the translog
+        translog.deletionPolicy.setLocalCheckpointOfSafeCommit(0);
+        // simulating the remote segment upload .
+        translog.minSeqNoRequired(0);
+        // This should not trim anything
+        translog.trimUnreferencedReaders();
+        assertEquals(translog.allUploaded().size(), 4);
+        assertEquals(
+            blobStoreTransferService.listAll(
+                repository.basePath()
+                    .add(shardId.getIndex().getUUID())
+                    .add(String.valueOf(shardId.id()))
+                    .add(String.valueOf(primaryTerm.get()))
+            ).size(),
+            4
+        );
+
+        // This should trim tlog-2.* files as it contains seq no 0
+        translog.minSeqNoRequired(1);
+        translog.trimUnreferencedReaders();
+        assertEquals(translog.allUploaded().size(), 2);
+        assertEquals(
+            blobStoreTransferService.listAll(
+                repository.basePath()
+                    .add(shardId.getIndex().getUUID())
+                    .add(String.valueOf(shardId.id()))
+                    .add(String.valueOf(primaryTerm.get()))
+            ).size(),
+            2
+        );
+
     }
 
     private Long populateTranslogOps(boolean withMissingOps) throws IOException {
@@ -684,6 +716,7 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
                                 // expose the new checkpoint (simulating a commit), before we trim the translog
                                 lastCommittedLocalCheckpoint.set(localCheckpoint);
                                 deletionPolicy.setLocalCheckpointOfSafeCommit(localCheckpoint);
+                                translog.minSeqNoRequired(localCheckpoint + 1);
                                 translog.trimUnreferencedReaders();
                             }
                         }
