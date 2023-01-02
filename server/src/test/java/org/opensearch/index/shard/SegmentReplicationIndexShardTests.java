@@ -385,7 +385,23 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         }
     }
 
-    public void testNRTReplicaWithRemoteStorePromotedAsPrimary() throws Exception {
+    public void testNRTReplicaWithRemoteStorePromotedAsPrimaryRefreshRefresh() throws Exception {
+        testNRTReplicaWithRemoteStorePromotedAsPrimary(false, false);
+    }
+
+    public void testNRTReplicaWithRemoteStorePromotedAsPrimaryRefreshCommit() throws Exception {
+        testNRTReplicaWithRemoteStorePromotedAsPrimary(false, true);
+    }
+
+    public void testNRTReplicaWithRemoteStorePromotedAsPrimaryCommitRefresh() throws Exception {
+        testNRTReplicaWithRemoteStorePromotedAsPrimary(true, false);
+    }
+
+    public void testNRTReplicaWithRemoteStorePromotedAsPrimaryCommitCommit() throws Exception {
+        testNRTReplicaWithRemoteStorePromotedAsPrimary(true, true);
+    }
+
+    private void testNRTReplicaWithRemoteStorePromotedAsPrimary(boolean performFlushFirst, boolean performFlushSecond) throws Exception {
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
@@ -400,7 +416,11 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             final int numDocs = shards.indexDocs(randomInt(10));
 
             // refresh but do not copy the segments over.
-            oldPrimary.refresh("Test");
+            if (performFlushFirst) {
+                flushShard(oldPrimary, true);
+            } else {
+                oldPrimary.refresh("Test");
+            }
             // replicateSegments(primary, shards.getReplicas());
 
             // at this point both shards should have numDocs persisted and searchable.
@@ -415,7 +435,11 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             final int additonalDocs = shards.indexDocs(randomInt(10));
             final int totalDocs = numDocs + additonalDocs;
 
-            oldPrimary.refresh("Test");
+            if (performFlushSecond) {
+                flushShard(oldPrimary, true);
+            } else {
+                oldPrimary.refresh("Test");
+            }
             assertDocCounts(oldPrimary, totalDocs, totalDocs);
             for (IndexShard shard : shards.getReplicas()) {
                 assertDocCounts(shard, totalDocs, 0);

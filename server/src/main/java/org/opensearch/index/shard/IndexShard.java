@@ -4187,6 +4187,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final Directory storeDirectory = store.directory();
         store.incRef();
         remoteStore.incRef();
+        List<String> downloadedSegments = new ArrayList<>();
+        List<String> skippedSegments = new ArrayList<>();
         try {
             String segmentInfosSnapshotFilename = null;
             Set<String> localSegmentFiles = Sets.newHashSet(storeDirectory.listAll());
@@ -4196,13 +4198,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     if (localSegmentFiles.contains(file)) {
                         storeDirectory.deleteFile(file);
                     }
-                    logger.info("Downloading segments file: {} ", file);
                     storeDirectory.copyFrom(remoteDirectory, file, file, IOContext.DEFAULT);
+                    downloadedSegments.add(file);
                     if (file.startsWith(SEGMENT_INFO_SNAPSHOT_FILENAME_PREFIX)) {
                         segmentInfosSnapshotFilename = file;
                     }
                 } else {
-                    logger.info("Skipping file download for: {}", file);
+                    skippedSegments.add(file);
                 }
             }
             if (segmentInfosSnapshotFilename != null) {
@@ -4223,6 +4225,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } catch (IOException e) {
             throw new IndexShardRecoveryException(shardId, "Exception while copying segment files from remote segment store", e);
         } finally {
+            logger.info("Downloaded segments: {}", downloadedSegments);
+            logger.info("Skipped download for segments: {}", skippedSegments);
             store.decRef();
             remoteStore.decRef();
         }
