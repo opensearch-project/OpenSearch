@@ -794,7 +794,7 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
         });
     }
 
-    protected IndexShard getIndexShard(String node) {
+    private IndexShard getIndexShard(String node) {
         final Index index = resolveIndex(INDEX_NAME);
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
         IndexService indexService = indicesService.indexServiceSafe(index);

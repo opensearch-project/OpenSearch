@@ -45,6 +45,7 @@ import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.replication.RemoteSegmentFileChunkWriter;
+import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.transport.EmptyTransportResponseHandler;
 import org.opensearch.transport.TransportRequestOptions;
 import org.opensearch.transport.TransportResponse;
@@ -195,7 +196,7 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
      */
     @Override
     public void forceSegmentFileSync(ActionListener<Void> listener) {
-        final String action = PeerRecoveryTargetService.Actions.FORCE_SYNC;
+        final String action = SegmentReplicationTargetService.Actions.FORCE_SYNC;
         final long requestSeqNo = requestSeqNoGenerator.getAndIncrement();
         final ForceSyncRequest request = new ForceSyncRequest(requestSeqNo, recoveryId, shardId);
         final Writeable.Reader<TransportResponse.Empty> reader = in -> TransportResponse.Empty.INSTANCE;

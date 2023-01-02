@@ -97,6 +97,7 @@ import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.translog.InternalTranslogFactory;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.opensearch.indices.recovery.AsyncRecoveryTarget;
@@ -108,7 +109,6 @@ import org.opensearch.indices.recovery.RecoverySourceHandler;
 import org.opensearch.indices.recovery.RecoverySourceHandlerFactory;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
-import org.opensearch.indices.recovery.RecoveryTargetHandler;
 import org.opensearch.indices.recovery.StartRecoveryRequest;
 import org.opensearch.indices.replication.CheckpointInfoResponse;
 import org.opensearch.indices.replication.GetSegmentFilesResponse;
@@ -808,30 +808,35 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         );
     }
 
+    protected void recoverReplica(IndexShard replica, IndexShard primary, boolean startReplica) throws IOException {
+        recoverReplica(replica, primary, startReplica, (a, b) -> null);
+    }
+
+    /** recovers a replica from the given primary **/
     protected void recoverReplica(
         IndexShard replica,
         IndexShard primary,
         boolean startReplica,
-        SegmentReplicationTargetService segmentReplicationTargetService
+        BiFunction<List<IndexShard>, ActionListener<Void>, List<SegmentReplicationTarget>> replicatePrimaryFunction
     ) throws IOException {
         recoverReplica(
             replica,
             primary,
-            (r, sourceNode) -> new RecoveryTarget(r, sourceNode, recoveryListener, segmentReplicationTargetService),
+            (r, sourceNode) -> new RecoveryTarget(r, sourceNode, recoveryListener),
             true,
-            startReplica
+            startReplica,
+            replicatePrimaryFunction
         );
     }
 
-    /** recovers a replica from the given primary **/
-    protected void recoverReplica(IndexShard replica, IndexShard primary, boolean startReplica) throws IOException {
-        recoverReplica(
-            replica,
-            primary,
-            (r, sourceNode) -> new RecoveryTarget(r, sourceNode, recoveryListener, SegmentReplicationTargetService.NO_OP),
-            true,
-            startReplica
-        );
+    protected void recoverReplica(
+        final IndexShard replica,
+        final IndexShard primary,
+        final BiFunction<IndexShard, DiscoveryNode, RecoveryTarget> targetSupplier,
+        final boolean markAsRecovering,
+        final boolean markAsStarted
+    ) throws IOException {
+        recoverReplica(replica, primary, targetSupplier, markAsRecovering, markAsStarted, (a, b) -> null);
     }
 
     /** recovers a replica from the given primary **/
@@ -840,7 +845,8 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         final IndexShard primary,
         final BiFunction<IndexShard, DiscoveryNode, RecoveryTarget> targetSupplier,
         final boolean markAsRecovering,
-        final boolean markAsStarted
+        final boolean markAsStarted,
+        final BiFunction<List<IndexShard>, ActionListener<Void>, List<SegmentReplicationTarget>> replicatePrimaryFunction
     ) throws IOException {
         IndexShardRoutingTable.Builder newRoutingTable = new IndexShardRoutingTable.Builder(replica.shardId());
         newRoutingTable.addShard(primary.routingEntry());
@@ -849,33 +855,10 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         }
         final Set<String> inSyncIds = Collections.singleton(primary.routingEntry().allocationId().getId());
         final IndexShardRoutingTable routingTable = newRoutingTable.build();
-        recoverUnstartedReplica(replica, primary, targetSupplier, markAsRecovering, inSyncIds, routingTable);
+        recoverUnstartedReplica(replica, primary, targetSupplier, markAsRecovering, inSyncIds, routingTable, replicatePrimaryFunction);
         if (markAsStarted) {
             startReplicaAfterRecovery(replica, primary, inSyncIds, routingTable);
         }
-    }
-
-    private RecoveryTargetHandler getRecoveryTarget(RecoveryTarget recoveryTarget) {
-        return new AsyncRecoveryTarget(recoveryTarget, threadPool.generic());
-    }
-
-    protected final void recoverUnstartedReplica(
-        final IndexShard replica,
-        final IndexShard primary,
-        final BiFunction<IndexShard, DiscoveryNode, RecoveryTarget> targetSupplier,
-        final boolean markAsRecovering,
-        final Set<String> inSyncIds,
-        final IndexShardRoutingTable routingTable
-    ) throws IOException {
-        this.recoverUnstartedReplica(
-            replica,
-            primary,
-            targetSupplier,
-            markAsRecovering,
-            inSyncIds,
-            routingTable,
-            SegmentReplicationTargetService.NO_OP
-        );
     }
 
     /**
@@ -896,7 +879,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         final boolean markAsRecovering,
         final Set<String> inSyncIds,
         final IndexShardRoutingTable routingTable,
-        final SegmentReplicationTargetService segmentReplicationTargetService
+        final BiFunction<List<IndexShard>, ActionListener<Void>, List<SegmentReplicationTarget>> replicatePrimaryFunction
     ) throws IOException {
         final DiscoveryNode pNode = getFakeDiscoNode(primary.routingEntry().currentNodeId());
         final DiscoveryNode rNode = getFakeDiscoNode(replica.routingEntry().currentNodeId());
@@ -930,7 +913,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         recoverySettings.setChunkSize(new ByteSizeValue(fileChunkSizeInBytes));
         final RecoverySourceHandler recovery = RecoverySourceHandlerFactory.create(
             primary,
-            new AsyncRecoveryTarget(recoveryTarget, threadPool.generic(), segmentReplicationTargetService),
+            new AsyncRecoveryTarget(recoveryTarget, threadPool.generic(), primary, replica, replicatePrimaryFunction),
             request,
             recoverySettings
         );
@@ -1245,14 +1228,17 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
      * been configured to return the given primaryShard's current segments.
      *
      * @param primaryShard {@link IndexShard} - The primary shard to replicate from.
+     * @param target {@link IndexShard} - The target replica shard in segment replication.
      */
-    public final SegmentReplicationTargetService prepareForReplication(IndexShard primaryShard) {
+    public final SegmentReplicationTargetService prepareForReplication(IndexShard primaryShard, IndexShard target) {
         final SegmentReplicationSourceFactory sourceFactory = mock(SegmentReplicationSourceFactory.class);
+        final IndicesService indicesService = mock(IndicesService.class);
         final SegmentReplicationTargetService targetService = new SegmentReplicationTargetService(
             threadPool,
             new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
             mock(TransportService.class),
-            sourceFactory
+            sourceFactory,
+            indicesService
         );
         final SegmentReplicationSource replicationSource = new SegmentReplicationSource() {
             @Override
@@ -1292,6 +1278,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             }
         };
         when(sourceFactory.get(any())).thenReturn(replicationSource);
+        when(indicesService.getShardOrNull(any())).thenReturn(target);
         return targetService;
     }
 
@@ -1303,16 +1290,10 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
      * @param replicaShards - Replicas that will be updated.
      * @return {@link List} List of target components orchestrating replication.
      */
-    public final List<SegmentReplicationTarget> replicateSegments(IndexShard primaryShard, List<IndexShard> replicaShards)
-        throws IOException, InterruptedException {
-        final SegmentReplicationTargetService targetService = prepareForReplication(primaryShard);
-        return replicateSegments(targetService, primaryShard, replicaShards);
-    }
-
     public final List<SegmentReplicationTarget> replicateSegments(
-        SegmentReplicationTargetService targetService,
         IndexShard primaryShard,
-        List<IndexShard> replicaShards
+        List<IndexShard> replicaShards,
+        ActionListener<Void>... listeners
     ) throws IOException, InterruptedException {
         final CountDownLatch countDownLatch = new CountDownLatch(replicaShards.size());
         Map<String, StoreFileMetadata> primaryMetadata;
@@ -1322,6 +1303,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         }
         List<SegmentReplicationTarget> ids = new ArrayList<>();
         for (IndexShard replica : replicaShards) {
+            final SegmentReplicationTargetService targetService = prepareForReplication(primaryShard, replica);
             final SegmentReplicationTarget target = targetService.startReplication(
                 ReplicationCheckpoint.empty(replica.shardId),
                 replica,
@@ -1335,7 +1317,13 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                             assertTrue(recoveryDiff.missing.isEmpty());
                             assertTrue(recoveryDiff.different.isEmpty());
                             assertEquals(recoveryDiff.identical.size(), primaryMetadata.size());
+                            for (ActionListener<Void> listener : listeners) {
+                                listener.onResponse(null);
+                            }
                         } catch (Exception e) {
+                            for (ActionListener<Void> listener : listeners) {
+                                listener.onFailure(e);
+                            }
                             throw ExceptionsHelper.convertToRuntime(e);
                         } finally {
                             countDownLatch.countDown();

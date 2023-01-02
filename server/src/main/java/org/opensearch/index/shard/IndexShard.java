@@ -1633,7 +1633,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    public void resetEngine() throws IOException, InterruptedException, TimeoutException {
+    /**
+     * Used with segment replication during relocation handoff, this method updates current read only engine to global
+     * checkpoint followed by changing to writeable engine
+     *
+     * @throws IOException
+     * @throws InterruptedException
+     * @throws TimeoutException
+     *
+     * @opensearch.internal
+     */
+    public void resetToWriteableEngine() throws IOException, InterruptedException, TimeoutException {
         indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> { resetEngineToGlobalCheckpoint(); });
     }
 
@@ -3348,7 +3358,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
         /**
          * With segment replication enabled for primary relocation, recover replica shard initially as read only and
-         * promote to during relocation handoff post segment replication.
+         * change to a writeable engine during relocation handoff after a round of segment replication.
          */
         boolean isReadOnlyReplica = indexSettings.isSegRepEnabled()
             && (shardRouting.primary() == false

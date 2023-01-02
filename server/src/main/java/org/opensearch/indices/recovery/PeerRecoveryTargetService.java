@@ -65,7 +65,6 @@ import org.opensearch.index.shard.ShardNotFoundException;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogCorruptedException;
-import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.indices.replication.common.ReplicationCollection;
 import org.opensearch.indices.replication.common.ReplicationCollection.ReplicationRef;
 import org.opensearch.indices.replication.common.ReplicationTimer;
@@ -112,7 +111,6 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         public static final String PREPARE_TRANSLOG = "internal:index/shard/recovery/prepare_translog";
         public static final String FINALIZE = "internal:index/shard/recovery/finalize";
         public static final String HANDOFF_PRIMARY_CONTEXT = "internal:index/shard/recovery/handoff_primary_context";
-        public static final String FORCE_SYNC = "internal:index/shard/recovery/segments_sync";
     }
 
     private final ThreadPool threadPool;
@@ -124,21 +122,17 @@ public class PeerRecoveryTargetService implements IndexEventListener {
 
     private final ReplicationCollection<RecoveryTarget> onGoingRecoveries;
 
-    private final SegmentReplicationTargetService segmentReplicationTargetService;
-
     public PeerRecoveryTargetService(
         ThreadPool threadPool,
         TransportService transportService,
         RecoverySettings recoverySettings,
-        ClusterService clusterService,
-        SegmentReplicationTargetService segmentReplicationTargetService
+        ClusterService clusterService
     ) {
         this.threadPool = threadPool;
         this.transportService = transportService;
         this.recoverySettings = recoverySettings;
         this.clusterService = clusterService;
         this.onGoingRecoveries = new ReplicationCollection<>(logger, threadPool);
-        this.segmentReplicationTargetService = segmentReplicationTargetService;
 
         transportService.registerRequestHandler(
             Actions.FILES_INFO,
@@ -182,12 +176,6 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             RecoveryHandoffPrimaryContextRequest::new,
             new HandoffPrimaryContextRequestHandler()
         );
-        transportService.registerRequestHandler(
-            Actions.FORCE_SYNC,
-            ThreadPool.Names.GENERIC,
-            ForceSyncRequest::new,
-            new ForceSyncTransportRequestHandler()
-        );
     }
 
     @Override
@@ -200,7 +188,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
     public void startRecovery(final IndexShard indexShard, final DiscoveryNode sourceNode, final RecoveryListener listener) {
         // create a new recovery status, and process...
         final long recoveryId = onGoingRecoveries.start(
-            new RecoveryTarget(indexShard, sourceNode, listener, segmentReplicationTargetService),
+            new RecoveryTarget(indexShard, sourceNode, listener),
             recoverySettings.activityTimeout()
         );
         // we fork off quickly here and go async but this is called from the cluster state applier thread too and that can cause
@@ -571,20 +559,6 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                 final RecoveryTarget recoveryTarget = recoveryRef.get();
                 final ActionListener<Void> listener = recoveryTarget.createOrFinishListener(channel, Actions.FILE_CHUNK, request);
                 recoveryTarget.handleFileChunk(request, recoveryTarget, bytesSinceLastPause, recoverySettings.rateLimiter(), listener);
-            }
-        }
-    }
-
-    class ForceSyncTransportRequestHandler implements TransportRequestHandler<ForceSyncRequest> {
-        @Override
-        public void messageReceived(final ForceSyncRequest request, TransportChannel channel, Task task) throws Exception {
-            try (ReplicationRef<RecoveryTarget> recoveryRef = onGoingRecoveries.getSafe(request.getRecoveryId(), request.getShardId())) {
-                final RecoveryTarget recoveryTarget = recoveryRef.get();
-                final ActionListener<Void> listener = recoveryTarget.createOrFinishListener(channel, Actions.FORCE_SYNC, request);
-                if (listener == null) {
-                    return;
-                }
-                recoveryTarget.forceSegmentFileSync(listener);
             }
         }
     }

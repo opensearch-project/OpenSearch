@@ -131,7 +131,7 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationIT {
         createIndex();
         final String replica = internalCluster().startNode();
         ensureGreen(INDEX_NAME);
-        final int initialDocCount = scaledRandomIntBetween(0, 200);
+        final int initialDocCount = scaledRandomIntBetween(1, 100);
         ingestDocs(initialDocCount);
 
         logger.info("--> verifying count {}", initialDocCount);
@@ -183,10 +183,9 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationIT {
 
         final int finalDocCount = initialDocCount;
         ingestDocs(finalDocCount);
+        refresh(INDEX_NAME);
 
-        logger.info(
-            "Verify all documents are available on both old primary and replica i.e. older primary is still refreshing replica nodes"
-        );
+        logger.info("Verify older primary is still refreshing replica nodes");
         client().admin().indices().prepareRefresh().execute().actionGet();
         assertHitCount(
             client(old_primary).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(),

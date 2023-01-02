@@ -32,7 +32,6 @@
 
 package org.opensearch.indices.recovery;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
@@ -57,9 +56,6 @@ import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.translog.Translog;
-import org.opensearch.indices.replication.SegmentReplicationState;
-import org.opensearch.indices.replication.SegmentReplicationTargetService;
-import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.ReplicationCollection;
 import org.opensearch.indices.replication.common.ReplicationFailedException;
 import org.opensearch.indices.replication.common.ReplicationListener;
@@ -71,7 +67,6 @@ import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeoutException;
 
 import static org.opensearch.index.translog.Translog.TRANSLOG_UUID_KEY;
 
@@ -91,32 +86,8 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
     // latch that can be used to blockingly wait for RecoveryTarget to be closed
     private final CountDownLatch closedLatch = new CountDownLatch(1);
 
-    private final SegmentReplicationTargetService segmentReplicationTargetService;
-
     /**
      * Creates a new recovery target object that represents a recovery to the provided shard.
-     *
-     * @param indexShard                        local shard where we want to recover to
-     * @param sourceNode                        source node of the recovery where we recover from
-     * @param listener                          called when recovery is completed/failed
-     * @param segmentReplicationTargetService   used to force a segment replication round
-     */
-    public RecoveryTarget(
-        IndexShard indexShard,
-        DiscoveryNode sourceNode,
-        ReplicationListener listener,
-        SegmentReplicationTargetService segmentReplicationTargetService
-    ) {
-        super("recovery_status", indexShard, indexShard.recoveryState().getIndex(), listener);
-        this.sourceNode = sourceNode;
-        indexShard.recoveryStats().incCurrentAsTarget();
-        final String tempFilePrefix = getPrefix() + UUIDs.randomBase64UUID() + ".";
-        this.multiFileWriter = new MultiFileWriter(indexShard.store(), stateIndex, tempFilePrefix, logger, this::ensureRefCount);
-        this.segmentReplicationTargetService = segmentReplicationTargetService;
-    }
-
-    /**
-     * Creates a new recovery target object that represents a recovery to the provided shard. Used for tests.
      *
      * @param indexShard                        local shard where we want to recover to
      * @param sourceNode                        source node of the recovery where we recover from
@@ -128,7 +99,6 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
         indexShard.recoveryStats().incCurrentAsTarget();
         final String tempFilePrefix = getPrefix() + UUIDs.randomBase64UUID() + ".";
         this.multiFileWriter = new MultiFileWriter(indexShard.store(), stateIndex, tempFilePrefix, logger, this::ensureRefCount);
-        this.segmentReplicationTargetService = SegmentReplicationTargetService.NO_OP;
     }
 
     /**
@@ -137,7 +107,7 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
      * @return a copy of this recovery target
      */
     public RecoveryTarget retryCopy() {
-        return new RecoveryTarget(indexShard, sourceNode, listener, segmentReplicationTargetService);
+        return new RecoveryTarget(indexShard, sourceNode, listener);
     }
 
     public IndexShard indexShard() {
@@ -249,45 +219,7 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
 
     @Override
     public void forceSegmentFileSync(ActionListener<Void> listener) {
-        segmentReplicationTargetService.startReplication(
-            ReplicationCheckpoint.empty(shardId()),
-            indexShard,
-            new SegmentReplicationTargetService.SegmentReplicationListener() {
-                @Override
-                public void onReplicationDone(SegmentReplicationState state) {
-                    logger.trace(
-                        () -> new ParameterizedMessage(
-                            "[shardId {}] [replication id {}] Replication complete, timing data: {}",
-                            indexShard.shardId().getId(),
-                            state.getReplicationId(),
-                            state.getTimingData()
-                        )
-                    );
-                    try {
-                        indexShard.resetEngine();
-                        listener.onResponse(null);
-                    } catch (InterruptedException | TimeoutException | IOException e) {
-                        throw new RuntimeException(e);
-                    }
-                }
-
-                @Override
-                public void onReplicationFailure(SegmentReplicationState state, ReplicationFailedException e, boolean sendShardFailure) {
-                    logger.trace(
-                        () -> new ParameterizedMessage(
-                            "[shardId {}] [replication id {}] Replication failed, timing data: {}",
-                            indexShard.shardId().getId(),
-                            state.getReplicationId(),
-                            state.getTimingData()
-                        )
-                    );
-                    if (sendShardFailure == true) {
-                        indexShard.failShard("replication failure", e);
-                    }
-                    listener.onFailure(e);
-                }
-            }
-        );
+        throw new UnsupportedOperationException("Method not supported on target!");
     }
 
     @Override

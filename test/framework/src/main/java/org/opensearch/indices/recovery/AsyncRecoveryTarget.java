@@ -38,13 +38,15 @@ import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.index.seqno.RetentionLeases;
+import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.translog.Translog;
-import org.opensearch.indices.replication.SegmentReplicationTargetService;
+import org.opensearch.indices.replication.SegmentReplicationTarget;
 
 import java.util.List;
 import java.util.concurrent.Executor;
+import java.util.function.BiFunction;
 
 /**
  * Wraps a {@link RecoveryTarget} to make all remote calls to be executed asynchronously using the provided {@code executor}.
@@ -53,22 +55,32 @@ public class AsyncRecoveryTarget implements RecoveryTargetHandler {
     private final RecoveryTargetHandler target;
     private final Executor executor;
 
-    private final SegmentReplicationTargetService segmentReplicationTargetService;
+    private final IndexShard primary;
+
+    private final IndexShard replica;
+
+    private final BiFunction<List<IndexShard>, ActionListener<Void>, List<SegmentReplicationTarget>> replicatePrimaryFunction;
 
     public AsyncRecoveryTarget(RecoveryTargetHandler target, Executor executor) {
         this.executor = executor;
         this.target = target;
-        this.segmentReplicationTargetService = SegmentReplicationTargetService.NO_OP;
+        this.primary = null;
+        this.replica = null;
+        this.replicatePrimaryFunction = (a, b) -> null;
     }
 
     public AsyncRecoveryTarget(
         RecoveryTargetHandler target,
         Executor executor,
-        SegmentReplicationTargetService segmentReplicationTargetService
+        IndexShard primary,
+        IndexShard replica,
+        BiFunction<List<IndexShard>, ActionListener<Void>, List<SegmentReplicationTarget>> replicatePrimaryFunction
     ) {
         this.executor = executor;
         this.target = target;
-        this.segmentReplicationTargetService = segmentReplicationTargetService;
+        this.primary = primary;
+        this.replica = replica;
+        this.replicatePrimaryFunction = replicatePrimaryFunction;
     }
 
     @Override
@@ -78,7 +90,7 @@ public class AsyncRecoveryTarget implements RecoveryTargetHandler {
 
     @Override
     public void forceSegmentFileSync(ActionListener<Void> listener) {
-        executor.execute(() -> target.forceSegmentFileSync(listener));
+        executor.execute(() -> this.replicatePrimaryFunction.apply(List.of(primary, replica), listener));
     }
 
     @Override

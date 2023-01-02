@@ -809,7 +809,6 @@ public abstract class RecoverySourceHandler {
         final StepListener<Void> finalizeListener = new StepListener<>();
         cancellableThreads.checkForCancel();
         recoveryTarget.finalizeRecovery(globalCheckpoint, trimAboveSeqNo, finalizeListener);
-
         finalizeListener.whenComplete(r -> {
             RunUnderPrimaryPermit.run(
                 () -> shard.updateGlobalCheckpointForShard(request.targetAllocationId(), globalCheckpoint),
