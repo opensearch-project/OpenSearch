@@ -123,7 +123,7 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DAT
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
-import static org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance.USE_FORCE_ZONE_FOR_REPLICA_SETTING;
+import static org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance.FORCE_AWARENESS_REPLICA_SETTING;
 import static org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance.maxAwarenessAttributes;
 
 /**
@@ -863,7 +863,7 @@ public class MetadataCreateIndexService {
             indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, INDEX_NUMBER_OF_SHARDS_SETTING.get(settings));
         }
         if (INDEX_NUMBER_OF_REPLICAS_SETTING.exists(indexSettingsBuilder) == false) {
-            if (USE_FORCE_ZONE_FOR_REPLICA_SETTING.get(currentState.metadata().settings())) {
+            if (FORCE_AWARENESS_REPLICA_SETTING.get(currentState.metadata().settings())) {
                 int replicaCount = maxAwarenessAttributes(currentState.metadata().settings()) - 1;
                 indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, replicaCount);
             } else {
@@ -1195,8 +1195,7 @@ public class MetadataCreateIndexService {
             validationErrors.addAll(validatePrivateSettingsNotExplicitlySet(settings, indexScopedSettings));
         }
         if ((indexName.isEmpty() || indexName.get().charAt(0) != '.')
-            && !(INDEX_NUMBER_OF_REPLICAS_SETTING.exists(settings) == false
-                && awarenessReplicaBalance.getUseForceZoneForReplicaSetting())) {
+            && !(INDEX_NUMBER_OF_REPLICAS_SETTING.exists(settings) == false && awarenessReplicaBalance.getForceAwarenessReplicaSetting())) {
             // Apply aware replica balance only to non system indices
             int replicaCount = settings.getAsInt(
                 IndexMetadata.SETTING_NUMBER_OF_REPLICAS,

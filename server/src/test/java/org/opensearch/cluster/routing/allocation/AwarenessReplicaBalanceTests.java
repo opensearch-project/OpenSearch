@@ -156,7 +156,7 @@ public class AwarenessReplicaBalanceTests extends OpenSearchAllocationTestCase {
     }
 
     public void testSetUseForceZoneForReplicaWhenAllocationAwarenessIsDefault() {
-        Settings settings = Settings.builder().put(AwarenessReplicaBalance.USE_FORCE_ZONE_FOR_REPLICA_SETTING.getKey(), true).build();
+        Settings settings = Settings.builder().put(AwarenessReplicaBalance.FORCE_AWARENESS_REPLICA_SETTING.getKey(), true).build();
 
         IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
@@ -171,7 +171,7 @@ public class AwarenessReplicaBalanceTests extends OpenSearchAllocationTestCase {
     public void testSetUseForceZoneForReplicaWhenAllocationAwarenessIsFalse() {
         Settings settings = Settings.builder()
             .put(AwarenessReplicaBalance.CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING.getKey(), false)
-            .put(AwarenessReplicaBalance.USE_FORCE_ZONE_FOR_REPLICA_SETTING.getKey(), true)
+            .put(AwarenessReplicaBalance.FORCE_AWARENESS_REPLICA_SETTING.getKey(), true)
             .build();
 
         IllegalArgumentException iae = expectThrows(

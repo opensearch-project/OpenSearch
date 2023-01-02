@@ -1118,7 +1118,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.getKey() + "zone.values", "a, b")
             .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.getKey() + "rack.values", "c, d, e")
             .put(AwarenessReplicaBalance.CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING.getKey(), true)
-            .put(AwarenessReplicaBalance.USE_FORCE_ZONE_FOR_REPLICA_SETTING.getKey(), true)
+            .put(AwarenessReplicaBalance.FORCE_AWARENESS_REPLICA_SETTING.getKey(), true)
             .build();
 
         clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);

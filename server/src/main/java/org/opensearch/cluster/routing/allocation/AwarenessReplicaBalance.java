@@ -34,7 +34,7 @@ import static org.opensearch.cluster.routing.allocation.decider.AwarenessAllocat
  */
 public class AwarenessReplicaBalance {
     public static final String SETTING_CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE = "cluster.routing.allocation.awareness.balance";
-    public static final String SETTING_USE_FORCE_ZONE_FOR_REPLICA = "cluster.use_force_zone_for_replica";
+    public static final String SETTING_FORCE_AWARENESS_REPLICA = "cluster.force_awareness_replica";
     public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING = Setting.boolSetting(
         SETTING_CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE,
         false,
@@ -42,8 +42,8 @@ public class AwarenessReplicaBalance {
         Setting.Property.NodeScope
     );
 
-    public static final Setting<Boolean> USE_FORCE_ZONE_FOR_REPLICA_SETTING = Setting.boolSetting(
-        SETTING_USE_FORCE_ZONE_FOR_REPLICA,
+    public static final Setting<Boolean> FORCE_AWARENESS_REPLICA_SETTING = Setting.boolSetting(
+        SETTING_FORCE_AWARENESS_REPLICA,
         false,
         new Setting.Validator<>() {
 
@@ -56,7 +56,7 @@ public class AwarenessReplicaBalance {
                 if (clusterAwarenessSetting == false && value == true) {
                     throw new IllegalArgumentException(
                         "To enable "
-                            + USE_FORCE_ZONE_FOR_REPLICA_SETTING.getKey()
+                            + FORCE_AWARENESS_REPLICA_SETTING.getKey()
                             + ", "
                             + CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING.getKey()
                             + " should be enabled"
@@ -80,7 +80,7 @@ public class AwarenessReplicaBalance {
 
     private volatile Boolean awarenessBalance;
 
-    private volatile Boolean useForceZoneForReplica;
+    private volatile Boolean forceAwarenessReplica;
 
     public AwarenessReplicaBalance(Settings settings, ClusterSettings clusterSettings) {
         this.awarenessAttributes = CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.get(settings);
@@ -92,8 +92,8 @@ public class AwarenessReplicaBalance {
         );
         setAwarenessBalance(CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING.get(settings));
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING, this::setAwarenessBalance);
-        this.useForceZoneForReplica = USE_FORCE_ZONE_FOR_REPLICA_SETTING.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(USE_FORCE_ZONE_FOR_REPLICA_SETTING, this::setUseForceZoneForReplica);
+        this.forceAwarenessReplica = FORCE_AWARENESS_REPLICA_SETTING.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(FORCE_AWARENESS_REPLICA_SETTING, this::setForceAwarenessReplica);
     }
 
     private void setAwarenessBalance(Boolean awarenessBalance) {
@@ -104,8 +104,8 @@ public class AwarenessReplicaBalance {
         this.forcedAwarenessAttributes = getForcedAwarenessAttributes(forceSettings);
     }
 
-    private void setUseForceZoneForReplica(Boolean useForceZoneForReplica) {
-        this.useForceZoneForReplica = useForceZoneForReplica;
+    private void setForceAwarenessReplica(Boolean forceAwarenessReplica) {
+        this.forceAwarenessReplica = forceAwarenessReplica;
     }
 
     public static Map<String, List<String>> getForcedAwarenessAttributes(Settings forceSettings) {
@@ -124,8 +124,8 @@ public class AwarenessReplicaBalance {
         this.awarenessAttributes = awarenessAttributes;
     }
 
-    public Boolean getUseForceZoneForReplicaSetting() {
-        return this.useForceZoneForReplica;
+    public Boolean getForceAwarenessReplicaSetting() {
+        return this.forceAwarenessReplica;
     }
 
     /*
