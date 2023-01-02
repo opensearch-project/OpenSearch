@@ -74,7 +74,6 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
     public void testShardClone() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNode();
-        randomIndexTemplate();
         final String repoName = "repo-name";
         final Path repoPath = randomRepoPath();
         createRepository(repoName, "fs", repoPath);
@@ -128,7 +127,6 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
     public void testCloneSnapshotIndex() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNode();
-        randomIndexTemplate();
         final String repoName = "repo-name";
         createRepository(repoName, "fs");
 
@@ -158,7 +156,6 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
     public void testClonePreventsSnapshotDelete() throws Exception {
         final String clusterManagerName = internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNode();
-        randomIndexTemplate();
         final String repoName = "repo-name";
         createRepository(repoName, "mock");
 
@@ -197,7 +194,6 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
     public void testConcurrentCloneAndSnapshot() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
         final String dataNode = internalCluster().startDataOnlyNode();
-        randomIndexTemplate();
         final String repoName = "repo-name";
         createRepository(repoName, "mock");
 
@@ -222,7 +218,6 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         // large snapshot pool so blocked snapshot threads from cloning don't prevent concurrent snapshot finalizations
         final String clusterManagerNode = internalCluster().startClusterManagerOnlyNode(LARGE_SNAPSHOT_POOL_SETTINGS);
         internalCluster().startDataOnlyNode();
-        randomIndexTemplate();
         final String repoName = "test-repo";
         createRepository(repoName, "mock");
         final String indexSlow = "index-slow";
@@ -252,7 +247,6 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
     public void testLongRunningSnapshotAllowsConcurrentClone() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
         final String dataNode = internalCluster().startDataOnlyNode();
-        randomIndexTemplate();
         final String repoName = "test-repo";
         createRepository(repoName, "mock");
         final String indexSlow = "index-slow";
@@ -283,7 +277,6 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
     public void testDeletePreventsClone() throws Exception {
         final String clusterManagerName = internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNode();
-        randomIndexTemplate();
         final String repoName = "repo-name";
         createRepository(repoName, "mock");
 

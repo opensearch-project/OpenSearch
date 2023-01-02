@@ -140,7 +140,6 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
     public void testDeletesAreBatched() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
         final String dataNode = internalCluster().startDataOnlyNode();
-        randomIndexTemplate();
         final String repoName = "test-repo";
         createRepository(repoName, "mock");
 
@@ -207,7 +206,6 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
     public void testBlockedRepoDoesNotBlockOtherRepos() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNode();
-        randomIndexTemplate();
         final String blockedRepoName = "test-repo-blocked";
         final String otherRepoName = "test-repo";
         createRepository(blockedRepoName, "mock");

@@ -60,7 +60,7 @@ public class QuorumGatewayIT extends OpenSearchIntegTestCase {
         logger.info("--> starting 3 nodes");
         // we are shutting down nodes - make sure we don't have 2 clusters if we test network
         internalCluster().startNodes(3);
-        randomIndexTemplate();
+
         createIndex("test");
         ensureGreen();
         final NumShards test = getNumShards("test");

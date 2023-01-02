@@ -311,8 +311,6 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
         logger.info("--> wait for all nodes to join the cluster");
         ensureStableCluster(4);
 
-        randomIndexTemplate();
-
         List<String> currentClusterNodes = new ArrayList<>(clusterManagerNodes);
         currentClusterNodes.add(dataNode);
         currentClusterNodes.forEach(node -> ensureReadOnlyBlock(false, node));

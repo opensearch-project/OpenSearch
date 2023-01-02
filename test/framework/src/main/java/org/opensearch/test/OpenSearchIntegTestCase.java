@@ -734,6 +734,10 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         if (numberOfShards > 0) {
             builder.put(SETTING_NUMBER_OF_SHARDS, numberOfShards).build();
         }
+        int numberOfReplicas = numberOfReplicas();
+        if (numberOfReplicas >= 0) {
+            builder.put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas).build();
+        }
         // 30% of the time
         if (randomInt(9) < 3) {
             final String dataPath = randomAlphaOfLength(10);
