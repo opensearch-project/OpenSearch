@@ -166,7 +166,9 @@ public class TranslogTransferMetadata {
                     return Long.compare(Long.parseLong(filenameTokens1[i]), Long.parseLong(filenameTokens2[i]));
                 }
             }
-            throw new IllegalArgumentException("TranslogTransferMetadata files " + metadaFilename1 + " and " + metadaFilename2 + " have same primary term and generation");
+            throw new IllegalArgumentException(
+                "TranslogTransferMetadata files " + metadaFilename1 + " and " + metadaFilename2 + " have same primary term and generation"
+            );
         }
     }
 }
