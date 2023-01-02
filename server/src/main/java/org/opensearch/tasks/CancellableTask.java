@@ -32,12 +32,12 @@
 
 package org.opensearch.tasks;
 
+import org.apache.lucene.util.SetOnce;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.rest.RestStatus;
 
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.opensearch.search.SearchService.NO_TIMEOUT;
 
@@ -48,7 +48,7 @@ import static org.opensearch.search.SearchService.NO_TIMEOUT;
  */
 public abstract class CancellableTask extends Task {
 
-    private final AtomicReference<Reason> reasonReference = new AtomicReference<>();
+    private final SetOnce<Reason> reason = new SetOnce<>();
     private final TimeValue cancelAfterTimeInterval;
 
     public CancellableTask(long id, String type, String action, String description, TaskId parentTaskId, Map<String, String> headers) {
@@ -78,7 +78,7 @@ public abstract class CancellableTask extends Task {
 
     public void cancel(Reason reason) {
         assert reason != null;
-        if (reasonReference.compareAndSet(null, reason)) {
+        if (this.reason.trySet(reason)) {
             onCancelled();
         }
     }
@@ -97,7 +97,7 @@ public abstract class CancellableTask extends Task {
     public abstract boolean shouldCancelChildrenOnCancellation();
 
     public boolean isCancelled() {
-        return reasonReference.get() != null;
+        return reason.get() != null;
     }
 
     public TimeValue getCancellationTimeout() {
@@ -109,7 +109,7 @@ public abstract class CancellableTask extends Task {
      */
     @Nullable
     public Reason getReasonCancelled() {
-        return reasonReference.get();
+        return reason.get();
     }
 
     /**
@@ -117,7 +117,7 @@ public abstract class CancellableTask extends Task {
      */
     @Nullable
     public String getReasonCancelledMessage() {
-        Reason reason = reasonReference.get();
+        Reason reason = this.reason.get();
         return reason != null ? reason.getMessage() : null;
     }
 
