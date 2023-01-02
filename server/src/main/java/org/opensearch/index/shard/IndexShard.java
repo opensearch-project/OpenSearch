@@ -634,7 +634,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             if (indexSettings.isSegRepEnabled()) {
                                 // this Shard's engine was read only, we need to update its engine before restoring local history from xlog.
                                 assert newRouting.primary() && currentRouting.primary() == false;
-
                                 resetEngineToGlobalCheckpoint();
                             }
                             replicationTracker.activatePrimaryMode(getLocalCheckpoint());
@@ -4081,7 +4080,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         sync(); // persist the global checkpoint to disk
         final SeqNoStats seqNoStats = seqNoStats();
         final TranslogStats translogStats = translogStats();
-
         // flush to make sure the latest commit, which will be opened by the read-only engine, includes all operations.
         flush(new FlushRequest().waitIfOngoing(true));
 

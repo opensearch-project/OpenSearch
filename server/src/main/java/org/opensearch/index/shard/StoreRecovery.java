@@ -444,10 +444,8 @@ final class StoreRecovery {
                 new IllegalArgumentException()
             );
         }
-
         indexShard.preRecovery();
         indexShard.prepareForIndexRecovery();
-
         final Store store = indexShard.store();
         store.incRef();
         remoteStore.incRef();
