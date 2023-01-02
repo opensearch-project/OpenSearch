@@ -60,7 +60,7 @@ public class RemoteFsTranslog extends Translog {
         super(config, translogUUID, deletionPolicy, globalCheckpointSupplier, primaryTermSupplier, persistedSequenceNumberConsumer);
         this.blobStoreRepository = blobStoreRepository;
         fileTransferTracker = new FileTransferTracker(shardId);
-        this.translogTransferManager = buildTranlogTransferManager(blobStoreRepository, executorService, shardId, fileTransferTracker);
+        this.translogTransferManager = buildTranslogTransferManager(blobStoreRepository, executorService, shardId, fileTransferTracker);
 
         try {
             download(translogTransferManager, location);
@@ -121,7 +121,7 @@ public class RemoteFsTranslog extends Translog {
         }
     }
 
-    public static TranslogTransferManager buildTranlogTransferManager(
+    public static TranslogTransferManager buildTranslogTransferManager(
         BlobStoreRepository blobStoreRepository,
         ExecutorService executorService,
         ShardId shardId,

@@ -482,7 +482,7 @@ final class StoreRecovery {
         assert repository instanceof BlobStoreRepository : "repository should be instance of BlobStoreRepository";
         BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repository;
         FileTransferTracker fileTransferTracker = new FileTransferTracker(shardId);
-        TranslogTransferManager translogTransferManager = RemoteFsTranslog.buildTranlogTransferManager(
+        TranslogTransferManager translogTransferManager = RemoteFsTranslog.buildTranslogTransferManager(
             blobStoreRepository,
             indexShard.getThreadPool().executor(ThreadPool.Names.TRANSLOG_TRANSFER),
             shardId,
