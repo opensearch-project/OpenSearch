@@ -122,7 +122,7 @@ public interface TranslogManager {
 
     /**
      *
-     * @param seqNo : operations >= should be persisted
+     * @param seqNo : operations greater or equal to seqNo should be persisted
      */
     void minSeqNoRequired(long seqNo);
 }

@@ -55,8 +55,8 @@ public interface TransferService {
 
     /**
      *
-     * @param path
-     * @param fileName
+     * @param path  the remote path from where download should be made
+     * @param fileName the name of the file
      * @return inputstream of the remote file
      * @throws IOException the exception while reading the data
      */
