@@ -196,7 +196,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         );
 
         when(transferService.listAll(any(BlobPath.class))).thenReturn(
-            Sets.newHashSet("12__234__56789", "12__235__56823", "12__235__56700")
+            Sets.newHashSet("12__234__56789", "12__235__56823", "12__233__56700")
         );
 
         TranslogTransferMetadata metadata = createTransferSnapshot().getTranslogTransferMetadata();
@@ -216,12 +216,27 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         );
 
         when(transferService.listAll(any(BlobPath.class))).thenReturn(
-            Sets.newHashSet("12__234__56789", "12__235__56823", "12__235__56700")
+            Sets.newHashSet("12__234__56789", "12__235__56823", "12__233__56700")
         );
 
         when(transferService.downloadBlob(any(BlobPath.class), eq("12__235__56823"))).thenThrow(new IOException("Something went wrong"));
 
         assertNull(translogTransferManager.readMetadata());
+    }
+
+    public void testReadMetadataSamePrimaryTermGeneration() throws IOException {
+        TranslogTransferManager translogTransferManager = new TranslogTransferManager(
+            transferService,
+            remoteBaseTransferPath,
+            null,
+            r -> r
+        );
+
+        when(transferService.listAll(any(BlobPath.class))).thenReturn(
+            Sets.newHashSet("12__234__56789", "12__235__56823", "12__234__56700")
+        );
+
+        assertThrows(IllegalArgumentException.class, translogTransferManager::readMetadata);
     }
 
     public void testDownloadTranslog() throws IOException {

@@ -8,6 +8,8 @@
 
 package org.opensearch.index.translog.transfer;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.InputStreamDataInput;
@@ -150,17 +152,21 @@ public class TranslogTransferMetadata {
     }
 
     private static class MetadataFilenameComparator implements Comparator<String> {
+        private static final Logger logger = LogManager.getLogger(MetadataFilenameComparator.class);
+
         @Override
         public int compare(String metadaFilename1, String metadaFilename2) {
             // Format of metadata filename is <Primary Term>__<Generation>__<Timestamp>
             String[] filenameTokens1 = metadaFilename1.split(METADATA_SEPARATOR);
             String[] filenameTokens2 = metadaFilename2.split(METADATA_SEPARATOR);
-            for (int i = 0; i < filenameTokens1.length; i++) {
+            // Here, we are not comparing only primary term and generation.
+            // Timestamp is not a good measure of comparison in case primary term and generation are same.
+            for (int i = 0; i < filenameTokens1.length - 1; i++) {
                 if (filenameTokens1[i].equals(filenameTokens2[i]) == false) {
                     return Long.compare(Long.parseLong(filenameTokens1[i]), Long.parseLong(filenameTokens2[i]));
                 }
             }
-            return 0;
+            throw new IllegalArgumentException("TranslogTransferMetadata files " + metadaFilename1 + " and " + metadaFilename2 + " have same primary term and generation");
         }
     }
 }
