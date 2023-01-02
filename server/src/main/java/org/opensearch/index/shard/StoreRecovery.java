@@ -62,7 +62,6 @@ import org.opensearch.index.snapshots.IndexShardRestoreFailedException;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.RemoteFsTranslog;
 import org.opensearch.index.translog.Translog;
-import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.index.translog.transfer.FileTransferTracker;
 import org.opensearch.index.translog.transfer.TranslogTransferManager;
 import org.opensearch.indices.recovery.RecoveryState;
@@ -480,17 +479,14 @@ final class StoreRecovery {
     }
 
     private void syncTranslogFilesFromRemoteTranslog(IndexShard indexShard, Repository repository) throws IOException {
-        FileTransferTracker fileTransferTracker = new FileTransferTracker(shardId);
         assert repository instanceof BlobStoreRepository : "repository should be instance of BlobStoreRepository";
         BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repository;
-        TranslogTransferManager translogTransferManager = new TranslogTransferManager(
-            new BlobStoreTransferService(
-                blobStoreRepository.blobStore(),
-                indexShard.getThreadPool().executor(ThreadPool.Names.TRANSLOG_TRANSFER)
-            ),
-            blobStoreRepository.basePath().add(shardId.getIndex().getUUID()).add(String.valueOf(shardId.id())),
-            fileTransferTracker,
-            fileTransferTracker::exclusionFilter
+        FileTransferTracker fileTransferTracker = new FileTransferTracker(shardId);
+        TranslogTransferManager translogTransferManager = RemoteFsTranslog.buildTranlogTransferManager(
+            blobStoreRepository,
+            indexShard.getThreadPool().executor(ThreadPool.Names.TRANSLOG_TRANSFER),
+            shardId,
+            fileTransferTracker
         );
         RemoteFsTranslog.download(translogTransferManager, indexShard.shardPath().resolveTranslog());
     }

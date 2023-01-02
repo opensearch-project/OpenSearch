@@ -13,6 +13,7 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.index.translog.transfer.FileTransferTracker;
 import org.opensearch.index.translog.transfer.TransferSnapshot;
@@ -59,12 +60,7 @@ public class RemoteFsTranslog extends Translog {
         super(config, translogUUID, deletionPolicy, globalCheckpointSupplier, primaryTermSupplier, persistedSequenceNumberConsumer);
         this.blobStoreRepository = blobStoreRepository;
         fileTransferTracker = new FileTransferTracker(shardId);
-        this.translogTransferManager = new TranslogTransferManager(
-            new BlobStoreTransferService(blobStoreRepository.blobStore(), executorService),
-            blobStoreRepository.basePath().add(shardId.getIndex().getUUID()).add(String.valueOf(shardId.id())),
-            fileTransferTracker,
-            fileTransferTracker::exclusionFilter
-        );
+        this.translogTransferManager = buildTranlogTransferManager(blobStoreRepository, executorService, shardId, fileTransferTracker);
 
         try {
             download(translogTransferManager, location);
@@ -101,6 +97,7 @@ public class RemoteFsTranslog extends Translog {
     }
 
     public static void download(TranslogTransferManager translogTransferManager, Path location) throws IOException {
+
         TranslogTransferMetadata translogMetadata = translogTransferManager.readMetadata();
         if (translogMetadata != null) {
             if (Files.notExists(location)) {
@@ -122,6 +119,20 @@ public class RemoteFsTranslog extends Translog {
                 location.resolve(Translog.CHECKPOINT_FILE_NAME)
             );
         }
+    }
+
+    public static TranslogTransferManager buildTranlogTransferManager(
+        BlobStoreRepository blobStoreRepository,
+        ExecutorService executorService,
+        ShardId shardId,
+        FileTransferTracker fileTransferTracker
+    ) {
+        return new TranslogTransferManager(
+            new BlobStoreTransferService(blobStoreRepository.blobStore(), executorService),
+            blobStoreRepository.basePath().add(shardId.getIndex().getUUID()).add(String.valueOf(shardId.id())),
+            fileTransferTracker,
+            fileTransferTracker::exclusionFilter
+        );
     }
 
     @Override
