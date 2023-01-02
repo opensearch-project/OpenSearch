@@ -140,25 +140,11 @@ public class AwarenessReplicaBalance {
 
     In this case,  awareness attributes would be 3.
      */
-    public int maxAwarenessAttributes() {
-        int awarenessAttributes = 1;
-        if (this.awarenessBalance == false) {
-            return awarenessAttributes;
-        }
-        for (String awarenessAttribute : this.awarenessAttributes) {
-            if (forcedAwarenessAttributes.containsKey(awarenessAttribute)) {
-                awarenessAttributes = max(awarenessAttributes, forcedAwarenessAttributes.get(awarenessAttribute).size());
-            }
-        }
-        return awarenessAttributes;
-    }
-
-    public static int maxAwarenessAttributes(Settings settings) {
-        Boolean awarenessBalance = CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING.get(settings);
-        List<String> awarenessAttributes = CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.get(settings);
-        Map<String, List<String>> forcedAwarenessAttributes = getForcedAwarenessAttributes(
-            CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.get(settings)
-        );
+    static int getMaxAwarenessAttributes(
+        Boolean awarenessBalance,
+        List<String> awarenessAttributes,
+        Map<String, List<String>> forcedAwarenessAttributes
+    ) {
         int defaultAwarenessAttributes = 1;
         if (awarenessBalance == false) {
             return defaultAwarenessAttributes;
@@ -169,6 +155,19 @@ public class AwarenessReplicaBalance {
             }
         }
         return defaultAwarenessAttributes;
+    }
+
+    public int maxAwarenessAttributes() {
+        return getMaxAwarenessAttributes(this.awarenessBalance, this.awarenessAttributes, this.forcedAwarenessAttributes);
+    }
+
+    public static int maxAwarenessAttributes(Settings settings) {
+        Boolean awarenessBalance = CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING.get(settings);
+        List<String> awarenessAttributes = CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.get(settings);
+        Map<String, List<String>> forcedAwarenessAttributes = getForcedAwarenessAttributes(
+            CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.get(settings)
+        );
+        return getMaxAwarenessAttributes(awarenessBalance, awarenessAttributes, forcedAwarenessAttributes);
     }
 
     public Optional<String> validate(int replicaCount, AutoExpandReplicas autoExpandReplica) {

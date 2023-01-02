@@ -1194,15 +1194,14 @@ public class MetadataCreateIndexService {
         if (forbidPrivateIndexSettings) {
             validationErrors.addAll(validatePrivateSettingsNotExplicitlySet(settings, indexScopedSettings));
         }
-        if (indexName.isEmpty() || indexName.get().charAt(0) != '.') {
+        if ((indexName.isEmpty() || indexName.get().charAt(0) != '.')
+            && !(INDEX_NUMBER_OF_REPLICAS_SETTING.exists(settings) == false
+                && awarenessReplicaBalance.getUseForceZoneForReplicaSetting())) {
             // Apply aware replica balance only to non system indices
             int replicaCount = settings.getAsInt(
                 IndexMetadata.SETTING_NUMBER_OF_REPLICAS,
                 INDEX_NUMBER_OF_REPLICAS_SETTING.getDefault(Settings.EMPTY)
             );
-            if (INDEX_NUMBER_OF_REPLICAS_SETTING.exists(settings) == false && awarenessReplicaBalance.getUseForceZoneForReplicaSetting()) {
-                replicaCount = awarenessReplicaBalance.maxAwarenessAttributes() - 1;
-            }
             AutoExpandReplicas autoExpandReplica = AutoExpandReplicas.SETTING.get(settings);
             Optional<String> error = awarenessReplicaBalance.validate(replicaCount, autoExpandReplica);
             if (error.isPresent()) {
