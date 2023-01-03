@@ -19,10 +19,11 @@ opensearchplugin {
 dependencies {
 
   api project(':libs:opensearch-core')
-  implementation project( ':sandbox:libs:opensearch-authn')
+  implementation project(':sandbox:libs:opensearch-authn')
 
   testImplementation project(path: ':modules:transport-netty4') // for http
   testImplementation project(path: ':plugins:transport-nio') // for http
+}
 
 //task integTest(type: RestIntegTestTask) {
 //  systemProperty 'opensearch.set.netty.runtime.available.processors', 'false'
@@ -39,4 +40,3 @@ dependencies {
   internalClusterTest {
     systemProperty 'opensearch.set.netty.runtime.available.processors', 'false'
   }
-}

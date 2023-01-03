@@ -128,7 +128,7 @@ public class InternalRealm extends AuthenticatingRealm {
             boolean successfulAuthentication = getCredentialsMatcher().doCredentialsMatch(token, sai);
 
             if (successfulAuthentication) {
-                // Check for anything else that might prevent login expired password, locked account, etc
+                // Check for anything else that might prevent login (expired password, locked account, etc.)
                 // if (other problems) {
                 // throw new CredentialsException(); // Or something more specific
                 // }
