@@ -89,7 +89,7 @@ public class PublishTests extends GradleUnitTestCase {
             project.getTasks().size()
         );
 
-        // Tasks applied from "nebula.maven-base-publish"
+        // Tasks applied from "com.netflix.nebula.maven-base-publish"
         assertTrue(
             project.getTasks()
                 .findByName("generateMetadataFileForNebulaPublication") instanceof org.gradle.api.publish.tasks.GenerateModuleMetadata

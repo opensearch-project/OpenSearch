@@ -80,7 +80,7 @@ allprojects {
 }
 
 configure(allprojects - project(':distribution:archives:integ-test-zip')) {
-  project.pluginManager.withPlugin('nebula.maven-base-publish') {
+  project.pluginManager.withPlugin('com.netflix.nebula.maven-base-publish') {
     if (project.pluginManager.hasPlugin('opensearch.build') == false) {
       throw new GradleException("Project ${path} publishes a pom but doesn't apply the build plugin.")
     }
