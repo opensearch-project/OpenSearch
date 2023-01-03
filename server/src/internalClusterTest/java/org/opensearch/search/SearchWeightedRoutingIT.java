@@ -580,7 +580,7 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
                 .setSettings(Settings.builder().put("index" + ".number_of_shards", 10).put("index" + ".number_of_replicas", 1))
         );
 
-        int numDocs = randomIntBetween(1, 20);
+        int numDocs = 10;
         List<IndexRequestBuilder> docs = new ArrayList<>();
         for (int i = 0; i < numDocs; ++i) {
             docs.add(client().prepareIndex("index").setSource("f", Integer.toString(i / 3)));
@@ -609,17 +609,21 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
         networkDisruption.startDisrupting();
 
         Set<String> hitNodes = new HashSet<>();
-        Future<SearchResponse>[] responses = new Future[50];
+        Future<SearchResponse>[] responses = new Future[51];
         int size = 17;
         logger.info("--> making search requests");
-        for (int i = 0; i < 10; i++) {
-            responses[i] = client().prepareSearch("index").setSize(size).addAggregation(terms("f").field("f")).execute();
+        for (int i = 0; i < 50; i++) {
+            responses[i] = internalCluster().client(nodeMap.get("b").get(0))
+                .prepareSearch("index")
+                .setSize(10)
+                .addAggregation(terms("f").field("f"))
+                .execute();
         }
 
         logger.info("--> network disruption is stopped");
         networkDisruption.stopDisrupting();
 
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < 50; i++) {
             try {
                 SearchResponse searchResponse = responses[i].get();
                 Aggregations aggregations = searchResponse.getAggregations();
