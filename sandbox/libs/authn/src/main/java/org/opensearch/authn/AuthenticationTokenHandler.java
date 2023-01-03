@@ -10,6 +10,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.shiro.authc.AuthenticationToken;
 import org.apache.shiro.authc.UsernamePasswordToken;
 import org.opensearch.authn.tokens.BasicAuthToken;
+import org.opensearch.authn.tokens.BearerAuthToken;
+import org.apache.shiro.authc.BearerToken;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
@@ -33,6 +35,9 @@ public class AuthenticationTokenHandler {
 
         if (authenticationToken instanceof BasicAuthToken) {
             authToken = handleBasicAuth((BasicAuthToken) authenticationToken);
+        }
+        if (authenticationToken instanceof BearerAuthToken) {
+            authToken = handleBearerAuth((BearerAuthToken) authenticationToken);
         }
         // TODO: check for other type of HeaderTokens
         return authToken;
@@ -72,5 +77,11 @@ public class AuthenticationTokenHandler {
         logger.info("Logging in as: " + username);
 
         return new UsernamePasswordToken(username, password);
+    }
+
+    private static AuthenticationToken handleBearerAuth(final BearerAuthToken token) {
+
+        String encodedJWT = token.getHeaderValue().substring("Bearer".length()).trim();
+        return new BearerToken(encodedJWT);
     }
 }

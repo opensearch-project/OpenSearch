@@ -76,7 +76,6 @@ public class JwtVendor {
                     + JwtUtils.claimsToJson(jwt.getClaims())
             );
         }
-
         return encodedJwt;
     }
 }
