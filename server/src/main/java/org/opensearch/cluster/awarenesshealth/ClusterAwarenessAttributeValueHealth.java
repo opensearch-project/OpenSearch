@@ -266,7 +266,7 @@ public class ClusterAwarenessAttributeValueHealth implements Writeable, ToXConte
 
         for (String nodeId : nodeList) {
             RoutingNode node = clusterState.getRoutingNodes().node(nodeId);
-            activeShards += node.numberOfOwningShards();
+            activeShards += node.numberOfShardsWithState(ShardRoutingState.STARTED);
             relocatingShards += node.numberOfShardsWithState(ShardRoutingState.RELOCATING);
             initializingShards += node.numberOfShardsWithState(ShardRoutingState.INITIALIZING);
         }
