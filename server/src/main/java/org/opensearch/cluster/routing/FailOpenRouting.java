@@ -11,16 +11,13 @@ package org.opensearch.cluster.routing;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.action.NoShardAvailableActionException;
-import org.opensearch.action.UnavailableShardsException;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.search.SearchShardIterator;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.search.SearchShardTarget;
-import org.opensearch.transport.NodeDisconnectedException;
-import org.opensearch.transport.NodeNotConnectedException;
 
 import java.util.List;
 import java.util.Map;
@@ -51,10 +48,10 @@ public class FailOpenRouting {
      * @return true if exception is due to cluster availability issues
      */
     private boolean isInternalFailure() {
-        return exception instanceof NoShardAvailableActionException
-            || exception instanceof UnavailableShardsException
-            || exception instanceof NodeNotConnectedException
-            || exception instanceof NodeDisconnectedException;
+        if (exception instanceof OpenSearchException) {
+            return ((OpenSearchException) exception).status().getStatus() / 100 == 5;
+        }
+        return false;
     }
 
     /**
