@@ -888,15 +888,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 return new NRTReplicationEngineFactory();
             }
             if (idxSettings.isRemoteSnapshot()) {
-                return config -> new ReadOnlyEngine(
-                    config,
-                    new SeqNoStats(0, 0, 0),
-                    new TranslogStats(),
-                    true,
-                    Function.identity(),
-                    false,
-                    idxSettings.getExtendedCompatibilitySnapshotVersion()
-                );
+                return config -> new ReadOnlyEngine(config, new SeqNoStats(0, 0, 0), new TranslogStats(), true, Function.identity(), false);
             }
             return new InternalEngineFactory();
         } else if (engineFactories.size() == 1) {

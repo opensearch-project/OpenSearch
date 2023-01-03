@@ -98,28 +98,6 @@ public class ReadOnlyEngine extends Engine {
     protected volatile TranslogStats translogStats;
 
     /**
-     * Wrapper constructor that turns off support for reading old indices.
-     */
-    public ReadOnlyEngine(
-        EngineConfig config,
-        SeqNoStats seqNoStats,
-        TranslogStats translogStats,
-        boolean obtainLock,
-        Function<DirectoryReader, DirectoryReader> readerWrapperFunction,
-        boolean requireCompleteHistory
-    ) {
-        this(
-            config,
-            seqNoStats,
-            translogStats,
-            obtainLock,
-            readerWrapperFunction,
-            requireCompleteHistory,
-            Version.CURRENT.minimumIndexCompatibilityVersion()
-        );
-    }
-
-    /**
      * Creates a new ReadOnlyEngine. This ctor can also be used to open a read-only engine on top of an already opened
      * read-write engine. It allows to optionally obtain the writer locks for the shard which would time-out if another
      * engine is still open.
@@ -131,7 +109,6 @@ public class ReadOnlyEngine extends Engine {
      *                   the lock won't be obtained
      * @param readerWrapperFunction allows to wrap the index-reader for this engine.
      * @param requireCompleteHistory indicates whether this engine permits an incomplete history (i.e. LCP &lt; MSN)
-     * @param minimumSupportedVersion for extended backward compatibility use-cases, the minimum {@link Version} this engine is allowed to read
      */
     public ReadOnlyEngine(
         EngineConfig config,
@@ -139,12 +116,12 @@ public class ReadOnlyEngine extends Engine {
         TranslogStats translogStats,
         boolean obtainLock,
         Function<DirectoryReader, DirectoryReader> readerWrapperFunction,
-        boolean requireCompleteHistory,
-        Version minimumSupportedVersion
+        boolean requireCompleteHistory
     ) {
         super(config);
         this.requireCompleteHistory = requireCompleteHistory;
-        this.minimumSupportedVersion = minimumSupportedVersion;
+        // fetch the minimum Version for extended backward compatibility use-cases
+        this.minimumSupportedVersion = config.getIndexSettings().getExtendedCompatibilitySnapshotVersion();
         try {
             Store store = config.getStore();
             store.incRef();
@@ -263,7 +240,7 @@ public class ReadOnlyEngine extends Engine {
     }
 
     private boolean isExtendedCompatibility() {
-        return this.minimumSupportedVersion.before(Version.CURRENT.minimumIndexCompatibilityVersion());
+        return Version.CURRENT.minimumIndexCompatibilityVersion().onOrAfter(this.minimumSupportedVersion);
     }
 
     @Override

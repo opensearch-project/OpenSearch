@@ -32,21 +32,29 @@
 package org.opensearch.index.engine;
 
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.tests.util.TestUtil;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.index.IndexModule;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.TranslogStats;
+import org.opensearch.test.FeatureFlagSetter;
+import org.opensearch.test.IndexSettingsModule;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
@@ -231,7 +239,33 @@ public class ReadOnlyEngineTests extends EngineTestCase {
         }
     }
 
-    public void testReadOldIndices() throws IOException {
+    public void testReadOldIndices() throws Exception {
+        IOUtils.close(engine, store);
+        // The index has one document in it, so the checkpoint cannot be NO_OPS_PERFORMED
+        final AtomicLong globalCheckpoint = new AtomicLong(0);
+        final String pathToTestIndex = "/indices/bwc/es-6.3.0/testIndex-es-6.3.0.zip";
+        Path tmp = createTempDir();
+        TestUtil.unzip(getClass().getResourceAsStream(pathToTestIndex), tmp);
+        try (FeatureFlagSetter f = FeatureFlagSetter.set(FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY)) {
+            final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
+                "index",
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
+                    .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey())
+                    .build()
+            );
+            try (Store store = createStore(newFSDirectory(tmp))) {
+                EngineConfig config = config(indexSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
+                try (
+                    ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(config, null, new TranslogStats(), true, Function.identity(), true)
+                ) {
+                    assertVisibleCount(readOnlyEngine, 1, false);
+                }
+            }
+        }
+    }
+
+    public void testReadOldIndicesFailure() throws IOException {
         IOUtils.close(engine, store);
         // The index has one document in it, so the checkpoint cannot be NO_OPS_PERFORMED
         final AtomicLong globalCheckpoint = new AtomicLong(0);
@@ -240,18 +274,10 @@ public class ReadOnlyEngineTests extends EngineTestCase {
         TestUtil.unzip(getClass().getResourceAsStream(pathToTestIndex), tmp);
         try (Store store = createStore(newFSDirectory(tmp))) {
             EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
-            try (
-                ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(
-                    config,
-                    null,
-                    new TranslogStats(),
-                    true,
-                    Function.identity(),
-                    true,
-                    LegacyESVersion.fromId(6000099)
-                )
-            ) {
-                assertVisibleCount(readOnlyEngine, 1, false);
+            try {
+                new ReadOnlyEngine(config, null, new TranslogStats(), true, Function.identity(), true);
+            } catch (UncheckedIOException e) {
+                assertEquals(IndexFormatTooOldException.class, e.getCause().getClass());
             }
         }
     }
