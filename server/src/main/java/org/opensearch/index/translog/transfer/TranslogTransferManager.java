@@ -134,7 +134,7 @@ public class TranslogTransferManager {
     }
 
     public boolean downloadTranslog(String primaryTerm, String generation, Path location) throws IOException {
-        logger.info("Downloading translog files with: Primry Term = {}, Generation = {}, Location = {}", primaryTerm, generation, location);
+        logger.info("Downloading translog files with: Primary Term = {}, Generation = {}, Location = {}", primaryTerm, generation, location);
         // Download Checkpoint file from remote to local FS
         String ckpFileName = Translog.getCommitCheckpointFileName(Long.parseLong(generation));
         downloadToFS(ckpFileName, location, primaryTerm);

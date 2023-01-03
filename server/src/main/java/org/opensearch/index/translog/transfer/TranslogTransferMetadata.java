@@ -152,13 +152,11 @@ public class TranslogTransferMetadata {
     }
 
     private static class MetadataFilenameComparator implements Comparator<String> {
-        private static final Logger logger = LogManager.getLogger(MetadataFilenameComparator.class);
-
         @Override
-        public int compare(String metadaFilename1, String metadaFilename2) {
+        public int compare(String first, String second) {
             // Format of metadata filename is <Primary Term>__<Generation>__<Timestamp>
-            String[] filenameTokens1 = metadaFilename1.split(METADATA_SEPARATOR);
-            String[] filenameTokens2 = metadaFilename2.split(METADATA_SEPARATOR);
+            String[] filenameTokens1 = first.split(METADATA_SEPARATOR);
+            String[] filenameTokens2 = second.split(METADATA_SEPARATOR);
             // Here, we are not comparing only primary term and generation.
             // Timestamp is not a good measure of comparison in case primary term and generation are same.
             for (int i = 0; i < filenameTokens1.length - 1; i++) {
@@ -167,7 +165,7 @@ public class TranslogTransferMetadata {
                 }
             }
             throw new IllegalArgumentException(
-                "TranslogTransferMetadata files " + metadaFilename1 + " and " + metadaFilename2 + " have same primary term and generation"
+                "TranslogTransferMetadata files " + first + " and " + second + " have same primary term and generation"
             );
         }
     }
