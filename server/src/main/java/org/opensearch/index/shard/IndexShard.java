@@ -180,10 +180,12 @@ import org.opensearch.search.suggest.completion.CompletionStats;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -4238,8 +4240,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             } else {
                 logger.warn("Checksum mismatch between local and remote segment file: {}, will override local file", file);
             }
+        } catch (NoSuchFileException | FileNotFoundException e) {
+            logger.debug("File {} does not exist in local FS, downloading from remote store", file);
         } catch (IOException e) {
-            logger.debug("Exception while reading checksum of file: {}, this can happen if file does not exist", file);
+            logger.warn("Exception while reading checksum of file: {}, this can happen if file is corrupted", file);
         }
         return false;
     }
