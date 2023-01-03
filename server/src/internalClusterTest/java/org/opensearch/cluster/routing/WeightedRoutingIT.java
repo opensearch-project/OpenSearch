@@ -321,7 +321,7 @@ public class WeightedRoutingIT extends OpenSearchIntegTestCase {
         assertEquals(RestStatus.NOT_FOUND, exception.status());
     }
 
-    public void testDeleteWeightedRouting_WeightsAreSet() {
+    public void testDeleteWeightedRouting_WeightsAreSet() throws IOException {
         Settings commonSettings = Settings.builder()
             .put("cluster.routing.allocation.awareness.attributes", "zone")
             .put("cluster.routing.allocation.awareness.force.zone.values", "a,b,c")
@@ -358,7 +358,7 @@ public class WeightedRoutingIT extends OpenSearchIntegTestCase {
         assertTrue(deleteResponse.isAcknowledged());
     }
 
-    public void testPutAndDeleteWithVersioning() {
+    public void testPutAndDeleteWithVersioning() throws IOException {
         Settings commonSettings = Settings.builder()
             .put("cluster.routing.allocation.awareness.attributes", "zone")
             .put("cluster.routing.allocation.awareness.force.zone.values", "a,b,c")
@@ -439,11 +439,7 @@ public class WeightedRoutingIT extends OpenSearchIntegTestCase {
         assertTrue(deleteResponse.isAcknowledged());
 
         // sleeping for 10 sec to ensure that weighted routing weights is gc deleted ie version is reset to -1
-        try {
-            Thread.sleep(10000);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
+        Thread.sleep(10000);
 
         // update weights again and make sure that version number got updated on delete
         weights = Map.of("a", 1.0, "b", 2.0, "c", 6.0);
