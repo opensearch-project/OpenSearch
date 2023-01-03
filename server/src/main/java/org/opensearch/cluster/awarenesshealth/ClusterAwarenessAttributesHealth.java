@@ -54,9 +54,8 @@ public class ClusterAwarenessAttributesHealth implements Iterable<ClusterAwarene
     ) {
         awarenessAttributeName = awarenessAttributeValue;
 
-        // This is the Map which is storing the per attribute value health stats.
-        // The key would be the attribute value like rack-1 and the stats would be stored as value.
-        Map<String, List<String>> attributesHealth = new HashMap<>();
+        // This is the Map which is storing the per attribute node list.
+        Map<String, List<String>> attributesNodeList = new HashMap<>();
 
         // Getting the node map for cluster
         ImmutableOpenMap<String, DiscoveryNode> nodeMap = clusterState.nodes().getDataNodes();
@@ -77,11 +76,11 @@ public class ClusterAwarenessAttributesHealth implements Iterable<ClusterAwarene
                     if (nodeAttributes.containsKey(awarenessAttributeName)) {
                         attributeValue = nodeAttributes.get(awarenessAttributeName);
 
-                        if (!attributesHealth.containsKey(attributeValue)) {
+                        if (!attributesNodeList.containsKey(attributeValue)) {
                             clusterAwarenessAttributeNodeList = new ArrayList<>();
-                            attributesHealth.put(attributeValue, clusterAwarenessAttributeNodeList);
+                            attributesNodeList.put(attributeValue, clusterAwarenessAttributeNodeList);
                         } else {
-                            clusterAwarenessAttributeNodeList = attributesHealth.get(attributeValue);
+                            clusterAwarenessAttributeNodeList = attributesNodeList.get(attributeValue);
                         }
                         clusterAwarenessAttributeNodeList.add(node);
                     }
@@ -89,15 +88,15 @@ public class ClusterAwarenessAttributesHealth implements Iterable<ClusterAwarene
             }
         }
 
-        setClusterAwarenessAttributeValue(attributesHealth, displayUnassignedShardLevelInfo, clusterState);
+        setClusterAwarenessAttributeValue(attributesNodeList, displayUnassignedShardLevelInfo, clusterState);
     }
 
     private void setClusterAwarenessAttributeValue(
-        Map<String, List<String>> perAttributeValueHealthMap,
+        Map<String, List<String>> perAttributeValueNodeList,
         boolean displayUnassignedShardLevelInfo,
         ClusterState clusterState
     ) {
-        int numAttributes = perAttributeValueHealthMap.size();
+        int numAttributes = perAttributeValueNodeList.size();
         int shardsPerAttributeValue = 0;
 
         // Can happen customer has defined weights as well as awareness attribute but no node level attribute was there
@@ -108,10 +107,10 @@ public class ClusterAwarenessAttributesHealth implements Iterable<ClusterAwarene
 
         Map<String, ClusterAwarenessAttributeValueHealth> clusterAwarenessAttributeValueHealthMap = new HashMap<>();
 
-        for (String attributeValueKey : perAttributeValueHealthMap.keySet()) {
+        for (String attributeValueKey : perAttributeValueNodeList.keySet()) {
             ClusterAwarenessAttributeValueHealth clusterAwarenessAttributeValueHealth = new ClusterAwarenessAttributeValueHealth(
                 attributeValueKey,
-                perAttributeValueHealthMap.get(attributeValueKey)
+                perAttributeValueNodeList.get(attributeValueKey)
             );
             // computing attribute info
             clusterAwarenessAttributeValueHealth.computeAttributeValueLevelInfo(
