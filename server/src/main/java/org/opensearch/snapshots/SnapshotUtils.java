@@ -80,8 +80,8 @@ public class SnapshotUtils {
         ).collect(Collectors.toUnmodifiableList());
 
         Set<String> result = null;
-        for (int i = 0; i < selectedIndices.length; i++) {
-            String indexOrPattern = selectedIndices[i];
+        for (int i = 0; i < excludesAtEndSelectedIndices.size(); i++) {
+            String indexOrPattern = excludesAtEndSelectedIndices.get(i);
             boolean add = true;
             if (!indexOrPattern.isEmpty()) {
                 if (availableIndices.contains(indexOrPattern)) {
