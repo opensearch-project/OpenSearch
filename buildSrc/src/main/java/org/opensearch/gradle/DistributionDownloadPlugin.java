@@ -73,6 +73,8 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
     private static final String RELEASE_PATTERN_LAYOUT = "/core/opensearch/[revision]/[module]-min-[revision](-[classifier]).[ext]";
     private static final String SNAPSHOT_PATTERN_LAYOUT =
         "/snapshots/core/opensearch/[revision]/[module]-min-[revision](-[classifier])-latest.[ext]";
+    private static final String BUNDLE_PATTERN_LAYOUT =
+        "/ci/dbc/distribution-build-opensearch/[revision]/latest/linux/x64/tar/dist/opensearch/[module]-[revision](-[classifier]).[ext]";
 
     private NamedDomainObjectContainer<OpenSearchDistribution> distributionsContainer;
     private NamedDomainObjectContainer<DistributionResolution> distributionsResolutionStrategiesContainer;
@@ -174,20 +176,39 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             return;
         }
         Object customDistributionUrl = project.findProperty("customDistributionUrl");
-        // checks if custom Distribution Url has been passed by user from plugins
+        Object customDistributionDownloadType = project.findProperty("customDistributionDownloadType");
+        // distributionDownloadType is default min if is not specified; download the distribution from CI if is bundle
+        String distributionDownloadType = customDistributionDownloadType != null
+            && customDistributionDownloadType.toString().equals("bundle") ? "bundle" : "min";
         if (customDistributionUrl != null) {
             addIvyRepo(project, DOWNLOAD_REPO_NAME, customDistributionUrl.toString(), FAKE_IVY_GROUP, "");
             addIvyRepo(project, SNAPSHOT_REPO_NAME, customDistributionUrl.toString(), FAKE_SNAPSHOT_IVY_GROUP, "");
-        } else {
-            addIvyRepo(
-                project,
-                DOWNLOAD_REPO_NAME,
-                "https://artifacts.opensearch.org",
-                FAKE_IVY_GROUP,
-                "/releases" + RELEASE_PATTERN_LAYOUT,
-                "/release-candidates" + RELEASE_PATTERN_LAYOUT
-            );
-            addIvyRepo(project, SNAPSHOT_REPO_NAME, "https://artifacts.opensearch.org", FAKE_SNAPSHOT_IVY_GROUP, SNAPSHOT_PATTERN_LAYOUT);
+            return;
+        }
+        switch (distributionDownloadType) {
+            case "bundle":
+                addIvyRepo(project, DOWNLOAD_REPO_NAME, "https://ci.opensearch.org", FAKE_IVY_GROUP, BUNDLE_PATTERN_LAYOUT);
+                addIvyRepo(project, SNAPSHOT_REPO_NAME, "https://ci.opensearch.org", FAKE_SNAPSHOT_IVY_GROUP, BUNDLE_PATTERN_LAYOUT);
+                break;
+            case "min":
+                addIvyRepo(
+                    project,
+                    DOWNLOAD_REPO_NAME,
+                    "https://artifacts.opensearch.org",
+                    FAKE_IVY_GROUP,
+                    "/releases" + RELEASE_PATTERN_LAYOUT,
+                    "/release-candidates" + RELEASE_PATTERN_LAYOUT
+                );
+                addIvyRepo(
+                    project,
+                    SNAPSHOT_REPO_NAME,
+                    "https://artifacts.opensearch.org",
+                    FAKE_SNAPSHOT_IVY_GROUP,
+                    SNAPSHOT_PATTERN_LAYOUT
+                );
+                break;
+            default:
+                throw new IllegalArgumentException("Unsupported property argument: " + distributionDownloadType);
         }
     }
 
@@ -219,6 +240,9 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
                     break;
                 case S390X:
                     classifier = ":" + distribution.getPlatform() + "-s390x";
+                    break;
+                case PPC64LE:
+                    classifier = ":" + distribution.getPlatform() + "-ppc64le";
                     break;
                 default:
                     throw new IllegalArgumentException("Unsupported architecture: " + distribution.getArchitecture());

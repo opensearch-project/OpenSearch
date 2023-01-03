@@ -16,10 +16,13 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 /**
@@ -49,16 +52,24 @@ public class ClusterManagerTaskThrottler implements TaskBatcherListener {
     private final ConcurrentMap<String, Long> tasksThreshold;
     private final Supplier<Version> minNodeVersionSupplier;
 
+    // Once all nodes are greater than or equal 2.5.0 version, then only it will start throttling.
+    // During upgrade as well, it will wait for all older version nodes to leave the cluster before starting throttling.
+    // This is needed specifically for static setting to enable throttling.
+    private AtomicBoolean startThrottling = new AtomicBoolean();
+
     public ClusterManagerTaskThrottler(
+        final Settings settings,
         final ClusterSettings clusterSettings,
         final Supplier<Version> minNodeVersionSupplier,
         final ClusterManagerTaskThrottlerListener clusterManagerTaskThrottlerListener
     ) {
-        clusterSettings.addSettingsUpdateConsumer(THRESHOLD_SETTINGS, this::updateSetting, this::validateSetting);
-        this.minNodeVersionSupplier = minNodeVersionSupplier;
-        this.clusterManagerTaskThrottlerListener = clusterManagerTaskThrottlerListener;
         tasksCount = new ConcurrentHashMap<>(128); // setting initial capacity so each task will land in different segment
         tasksThreshold = new ConcurrentHashMap<>(128); // setting initial capacity so each task will land in different segment
+        this.minNodeVersionSupplier = minNodeVersionSupplier;
+        this.clusterManagerTaskThrottlerListener = clusterManagerTaskThrottlerListener;
+        clusterSettings.addSettingsUpdateConsumer(THRESHOLD_SETTINGS, this::updateSetting, this::validateSetting);
+        // Required for setting values as per current settings during node bootstrap
+        updateSetting(THRESHOLD_SETTINGS.get(settings));
     }
 
     /**
@@ -110,8 +121,8 @@ public class ClusterManagerTaskThrottler implements TaskBatcherListener {
     void validateSetting(final Settings settings) {
         Map<String, Settings> groups = settings.getAsGroups();
         if (groups.size() > 0) {
-            if (minNodeVersionSupplier.get().compareTo(Version.V_2_4_0) < 0) {
-                throw new IllegalArgumentException("All the nodes in cluster should be on version later than or equal to 2.4.0");
+            if (minNodeVersionSupplier.get().compareTo(Version.V_2_5_0) < 0) {
+                throw new IllegalArgumentException("All the nodes in cluster should be on version later than or equal to 2.5.0");
             }
         }
         for (String key : groups.keySet()) {
@@ -128,10 +139,16 @@ public class ClusterManagerTaskThrottler implements TaskBatcherListener {
         }
     }
 
-    void updateSetting(final Settings settings) {
-        Map<String, Settings> groups = settings.getAsGroups();
-        for (String key : groups.keySet()) {
-            updateLimit(key, groups.get(key).getAsInt("value", MIN_THRESHOLD_VALUE));
+    void updateSetting(final Settings newSettings) {
+        Map<String, Settings> groups = newSettings.getAsGroups();
+        Set<String> settingKeys = new HashSet<>();
+        // Adding keys which are present in new Setting
+        settingKeys.addAll(groups.keySet());
+        // Adding existing keys that may need to be set to a default value if that is removed in new setting.
+        settingKeys.addAll(tasksThreshold.keySet());
+        for (String key : settingKeys) {
+            Settings setting = groups.get(key);
+            updateLimit(key, setting == null ? MIN_THRESHOLD_VALUE : setting.getAsInt("value", MIN_THRESHOLD_VALUE));
         }
     }
 
@@ -157,7 +174,7 @@ public class ClusterManagerTaskThrottler implements TaskBatcherListener {
             int size = tasks.size();
             if (clusterManagerThrottlingKey.isThrottlingEnabled()) {
                 Long threshold = tasksThreshold.get(clusterManagerThrottlingKey.getTaskThrottlingKey());
-                if (threshold != null && (count + size > threshold)) {
+                if (threshold != null && shouldThrottle(threshold, count, size)) {
                     clusterManagerTaskThrottlerListener.onThrottle(clusterManagerThrottlingKey.getTaskThrottlingKey(), size);
                     logger.warn(
                         "Throwing Throttling Exception for [{}]. Trying to add [{}] tasks to queue, limit is set to [{}]",
@@ -172,6 +189,28 @@ public class ClusterManagerTaskThrottler implements TaskBatcherListener {
             }
             return count + size;
         });
+    }
+
+    /**
+     * If throttling thresholds are set via static setting, it will update the threshold map.
+     * It may start throwing throttling exception to older nodes in cluster.
+     * Older version nodes will not be equipped to handle the throttling exception and
+     * this may result in unexpected behavior where internal tasks would start failing without any retries.
+     *
+     * For every task submission request, it will validate if nodes version is greater or equal to 2.5.0 and set the startThrottling flag.
+     * Once the startThrottling flag is set, it will not perform check for next set of tasks.
+     */
+    private boolean shouldThrottle(Long threshold, Long count, int size) {
+        if (!startThrottling.get()) {
+            if (minNodeVersionSupplier.get().compareTo(Version.V_2_5_0) >= 0) {
+                startThrottling.compareAndSet(false, true);
+                logger.info("Starting cluster manager throttling as all nodes are higher than or equal to 2.5.0");
+            } else {
+                logger.info("Skipping cluster manager throttling as at least one node < 2.5.0 is present in cluster");
+                return false;
+            }
+        }
+        return count + size > threshold;
     }
 
     @Override

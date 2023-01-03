@@ -2748,7 +2748,7 @@ public class InternalEngine extends Engine {
     /**
      * Returned the last local checkpoint value has been refreshed internally.
      */
-    final long lastRefreshedCheckpoint() {
+    public final long lastRefreshedCheckpoint() {
         return lastRefreshedCheckpointListener.refreshedCheckpoint.get();
     }
 

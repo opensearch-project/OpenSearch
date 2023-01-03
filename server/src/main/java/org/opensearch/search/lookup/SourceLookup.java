@@ -137,7 +137,7 @@ public class SourceLookup implements Map {
                     // So we do a little hack here and pretend we're going to do merges in order to
                     // get better sequential access.
                     SequentialStoredFieldsLeafReader lf = (SequentialStoredFieldsLeafReader) context.reader();
-                    fieldReader = lf.getSequentialStoredFieldsReader()::visitDocument;
+                    fieldReader = lf.getSequentialStoredFieldsReader()::document;
                 } else {
                     fieldReader = context.reader()::document;
                 }

@@ -280,6 +280,8 @@ import org.opensearch.common.inject.AbstractModule;
 import org.opensearch.common.inject.TypeLiteral;
 import org.opensearch.common.inject.multibindings.MapBinder;
 import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.extensions.action.ExtensionProxyAction;
+import org.opensearch.extensions.action.ExtensionTransportAction;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
@@ -702,6 +704,11 @@ public class ActionModule extends AbstractModule {
 
         // Remote Store
         actions.register(RestoreRemoteStoreAction.INSTANCE, TransportRestoreRemoteStoreAction.class);
+
+        if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
+            // ExtensionProxyAction
+            actions.register(ExtensionProxyAction.INSTANCE, ExtensionTransportAction.class);
+        }
 
         // Decommission actions
         actions.register(DecommissionAction.INSTANCE, TransportDecommissionAction.class);

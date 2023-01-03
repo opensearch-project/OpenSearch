@@ -79,6 +79,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     public static final int DEFAULT_FUZZY_PREFIX_LENGTH = FuzzyQuery.defaultPrefixLength;
     public static final int DEFAULT_FUZZY_MAX_EXPANSIONS = FuzzyQuery.defaultMaxExpansions;
     public static final int DEFAULT_PHRASE_SLOP = 0;
+    /** Default maximum edit distance. Defaults to AUTO. */
     public static final Fuzziness DEFAULT_FUZZINESS = Fuzziness.AUTO;
     public static final Operator DEFAULT_OPERATOR = Operator.OR;
     public static final MultiMatchQueryBuilder.Type DEFAULT_TYPE = MultiMatchQueryBuilder.Type.BEST_FIELDS;
@@ -416,7 +417,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
      * Set the edit distance for fuzzy queries. Default is "AUTO".
      */
     public QueryStringQueryBuilder fuzziness(Fuzziness fuzziness) {
-        this.fuzziness = fuzziness == null ? DEFAULT_FUZZINESS : fuzziness;
+        this.fuzziness = fuzziness;
         return this;
     }
 

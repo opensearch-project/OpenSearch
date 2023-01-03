@@ -42,12 +42,15 @@ public class TranslogTransferManager {
 
     private final TransferService transferService;
     private final BlobPath remoteBaseTransferPath;
+    private final BlobPath remoteMetadaTransferPath;
     private final FileTransferListener fileTransferListener;
     private final UnaryOperator<Set<TransferFileSnapshot>> exclusionFilter;
 
     private static final long TRANSFER_TIMEOUT_IN_MILLIS = 30000;
 
     private static final Logger logger = LogManager.getLogger(TranslogTransferManager.class);
+
+    private final static String METADATA_DIR = "metadata";
 
     public TranslogTransferManager(
         TransferService transferService,
@@ -57,6 +60,7 @@ public class TranslogTransferManager {
     ) {
         this.transferService = transferService;
         this.remoteBaseTransferPath = remoteBaseTransferPath;
+        this.remoteMetadaTransferPath = remoteBaseTransferPath.add(METADATA_DIR);
         this.fileTransferListener = fileTransferListener;
         this.exclusionFilter = exclusionFilter;
     }
@@ -68,6 +72,11 @@ public class TranslogTransferManager {
         try {
             toUpload.addAll(exclusionFilter.apply(transferSnapshot.getTranslogFileSnapshots()));
             toUpload.addAll(exclusionFilter.apply(transferSnapshot.getCheckpointFileSnapshots()));
+            if (toUpload.isEmpty()) {
+                logger.trace("Nothing to upload for transfer");
+                translogTransferListener.onUploadComplete(transferSnapshot);
+                return true;
+            }
             final CountDownLatch latch = new CountDownLatch(toUpload.size());
             LatchedActionListener<TransferFileSnapshot> latchedActionListener = new LatchedActionListener<>(
                 ActionListener.wrap(fileTransferListener::onSuccess, ex -> {
@@ -104,15 +113,11 @@ public class TranslogTransferManager {
                 throw ex;
             }
             if (exceptionList.isEmpty()) {
-                final TransferFileSnapshot transferFileSnapshot = prepareMetadata(transferSnapshot);
-                transferService.uploadBlob(
-                    prepareMetadata(transferSnapshot),
-                    remoteBaseTransferPath.add(String.valueOf(transferFileSnapshot.getPrimaryTerm()))
-                );
+                transferService.uploadBlob(prepareMetadata(transferSnapshot), remoteMetadaTransferPath);
                 translogTransferListener.onUploadComplete(transferSnapshot);
                 return true;
             } else {
-                Exception ex = new RuntimeException("Failed to upload some files during transfer");
+                Exception ex = new IOException("Failed to upload " + exceptionList.size() + " files during transfer");
                 exceptionList.forEach(ex::addSuppressed);
                 throw ex;
             }

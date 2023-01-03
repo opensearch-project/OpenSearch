@@ -43,6 +43,7 @@ import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.replication.FanoutReplicationProxy;
 import org.opensearch.action.support.replication.PendingReplicationActions;
+import org.opensearch.action.support.replication.ReplicationMode;
 import org.opensearch.action.support.replication.ReplicationOperation;
 import org.opensearch.action.support.replication.ReplicationResponse;
 import org.opensearch.action.support.replication.TransportReplicationAction;
@@ -292,7 +293,7 @@ public class TransportVerifyShardBeforeCloseActionTests extends OpenSearchTestCa
                 primaryTerm,
                 TimeValue.timeValueMillis(20),
                 TimeValue.timeValueSeconds(60),
-                new FanoutReplicationProxy<>()
+                new FanoutReplicationProxy<>(proxy)
             );
         operation.execute();
 
@@ -323,6 +324,32 @@ public class TransportVerifyShardBeforeCloseActionTests extends OpenSearchTestCa
         assertThat(shardInfo.getFailed(), equalTo(0));
         assertThat(shardInfo.getFailures(), arrayWithSize(0));
         assertThat(shardInfo.getSuccessful(), equalTo(1 + nbReplicas - unavailableShards.size()));
+    }
+
+    public void testGetReplicationModeWithRemoteTranslog() {
+        TransportVerifyShardBeforeCloseAction action = createAction();
+        final IndexShard indexShard = mock(IndexShard.class);
+        when(indexShard.isRemoteTranslogEnabled()).thenReturn(true);
+        assertEquals(ReplicationMode.NO_REPLICATION, action.getReplicationMode(indexShard));
+    }
+
+    public void testGetReplicationModeWithLocalTranslog() {
+        TransportVerifyShardBeforeCloseAction action = createAction();
+        final IndexShard indexShard = mock(IndexShard.class);
+        when(indexShard.isRemoteTranslogEnabled()).thenReturn(true);
+        assertEquals(ReplicationMode.NO_REPLICATION, action.getReplicationMode(indexShard));
+    }
+
+    private TransportVerifyShardBeforeCloseAction createAction() {
+        return new TransportVerifyShardBeforeCloseAction(
+            Settings.EMPTY,
+            mock(TransportService.class),
+            clusterService,
+            mock(IndicesService.class),
+            mock(ThreadPool.class),
+            mock(ShardStateAction.class),
+            mock(ActionFilters.class)
+        );
     }
 
     private static

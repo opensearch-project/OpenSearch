@@ -96,7 +96,7 @@ public class PublishCheckpointAction extends TransportReplicationAction<
     }
 
     @Override
-    protected ReplicationMode getReplicationMode(IndexShard indexShard) {
+    public ReplicationMode getReplicationMode(IndexShard indexShard) {
         if (indexShard.isRemoteTranslogEnabled()) {
             return ReplicationMode.FULL_REPLICATION;
         }

@@ -729,7 +729,7 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
                     primaryTerm,
                     TimeValue.timeValueMillis(20),
                     TimeValue.timeValueSeconds(60),
-                    new FanoutReplicationProxy<>()
+                    new FanoutReplicationProxy<>(new ReplicasRef())
                 ).execute();
             } catch (Exception e) {
                 listener.onFailure(e);
