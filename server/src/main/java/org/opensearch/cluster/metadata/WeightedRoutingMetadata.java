@@ -146,7 +146,7 @@ public class WeightedRoutingMetadata extends AbstractNamedDiffable<Metadata.Cust
                         }
                     }
                 }
-            } else if (token == XContentParser.Token.VALUE_STRING) {
+            } else if (token == XContentParser.Token.VALUE_NUMBER) {
                 if (versionAttr != null && versionAttr.equals(VERSION)) {
                     version = Long.parseLong(parser.text());
                 }
