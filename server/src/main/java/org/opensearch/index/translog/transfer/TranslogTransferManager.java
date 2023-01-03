@@ -199,6 +199,7 @@ public class TranslogTransferManager {
         String ckpFileName = Translog.getCommitCheckpointFileName(generation);
         String translogFilename = Translog.getFilename(generation);
         // ToDo - Take care of metadata file cleanup
+        // https://github.com/opensearch-project/OpenSearch/issues/5677
         fileTransferListener.onDelete(ckpFileName);
         fileTransferListener.onDelete(translogFilename);
         List<String> files = List.of(ckpFileName, translogFilename);

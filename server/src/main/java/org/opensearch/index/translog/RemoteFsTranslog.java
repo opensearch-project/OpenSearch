@@ -304,15 +304,21 @@ public class RemoteFsTranslog extends Translog {
         return minReferencedGen;
     }
 
-    protected void minSeqNoRequired(long seqNo) {
+    protected void setMinSeqNoRequired(long seqNo) {
+        if (seqNo < this.minSeqNoRequired) {
+            throw new IllegalArgumentException(
+                "min seq number required can't go backwards: " + "current [" + this.minSeqNoRequired + "] new [" + seqNo + "]"
+            );
+        }
         this.minSeqNoRequired = seqNo;
     }
 
+    @Override
     void deleteReaderFiles(TranslogReader reader) {
         try {
             translogTransferManager.deleteTranslog(primaryTermSupplier.getAsLong(), reader.generation);
         } catch (IOException ignored) {
-
+            logger.debug("Exception {} while deleting generation {}", ignored, reader.generation);
         }
         super.deleteReaderFiles(reader);
     }

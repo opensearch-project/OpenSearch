@@ -1800,7 +1800,11 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
         return minReferencedGen;
     }
 
-    protected void minSeqNoRequired(long seqNo) {}
+    /*
+    Min Seq number required in translog to restore the complete data .
+    This might be required when segments are persisted via other mechanism than flush.
+     */
+    protected void setMinSeqNoRequired(long seqNo) {}
 
     /**
      * deletes all files associated with a reader. package-private to be able to simulate node failures at this point
