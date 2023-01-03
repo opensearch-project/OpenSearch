@@ -4164,10 +4164,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     /**
      * Downloads segments from remote segment store.
-     * @param override flag to override local segment files with those in remote store
+     * @param overrideLocal flag to override local segment files with those in remote store
      * @throws IOException if exception occurs while reading segments from remote store
      */
-    public void syncSegmentsFromRemoteSegmentStore(boolean override) throws IOException {
+    public void syncSegmentsFromRemoteSegmentStore(boolean overrideLocal) throws IOException {
         assert indexSettings.isRemoteStoreEnabled();
         logger.info("Downloading segments from remote segment store");
         assert remoteStore.directory() instanceof FilterDirectory : "Store.directory is not an instance of FilterDirectory";
@@ -4192,7 +4192,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             Set<String> localSegmentFiles = Sets.newHashSet(storeDirectory.listAll());
             for (String file : uploadedSegments.keySet()) {
                 long checksum = Long.parseLong(uploadedSegments.get(file).getChecksum());
-                if (override || localDirectoryContains(storeDirectory, file, checksum) == false) {
+                if (overrideLocal || localDirectoryContains(storeDirectory, file, checksum) == false) {
                     if (localSegmentFiles.contains(file)) {
                         storeDirectory.deleteFile(file);
                     }
