@@ -81,7 +81,7 @@ public class TestThreadInfoPatternConverter extends LogEventPatternConverter {
     static String threadInfo(String threadName) {
         Matcher m = OPENSEARCH_THREAD_NAME_PATTERN.matcher(threadName);
         if (m.matches()) {
-            // Thread looks like a node thread so use the node name
+            // Thread looks like a node thread so use the node name, thread pool and thread number
             return m.group(1) + " " + m.group(2) + " " + m.group(3);
         }
         m = TEST_THREAD_NAME_PATTERN.matcher(threadName);
