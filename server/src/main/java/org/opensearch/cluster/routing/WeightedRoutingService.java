@@ -31,7 +31,10 @@ import org.opensearch.common.Priority;
 import org.opensearch.common.inject.Inject;
 
 import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.HashMap;
@@ -41,6 +44,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
 import static org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING;
@@ -55,6 +59,22 @@ public class WeightedRoutingService {
     private volatile List<String> awarenessAttributes;
     private volatile Map<String, List<String>> forcedAwarenessAttributes;
     private static final Double DECOMMISSIONED_AWARENESS_VALUE_WEIGHT = 0.0;
+    volatile Scheduler.Cancellable cancellable;
+
+    /**
+     * setting to enable / disable weighted routing deletes garbage collection.
+     * This setting is realtime updatable
+     */
+    public static final TimeValue DEFAULT_GC_DELETES = TimeValue.timeValueSeconds(60);
+    public static final Setting<TimeValue> WEIGHTS_GC_DELETES_SETTING = Setting.timeSetting(
+        "weighted_routing.gc_deletes",
+        DEFAULT_GC_DELETES,
+        new TimeValue(-1, TimeUnit.MILLISECONDS),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    private volatile long gcDeletesInMillis = DEFAULT_GC_DELETES.millis();
 
     @Inject
     public WeightedRoutingService(
@@ -75,6 +95,17 @@ public class WeightedRoutingService {
             CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING,
             this::setForcedAwarenessAttributes
         );
+
+        this.gcDeletesInMillis = WEIGHTS_GC_DELETES_SETTING.get(settings).getMillis();
+        clusterSettings.addSettingsUpdateConsumer(WEIGHTS_GC_DELETES_SETTING, this::setGCDeletes);
+    }
+
+    private void setGCDeletes(TimeValue timeValue) {
+        this.gcDeletesInMillis = timeValue.getMillis();
+    }
+
+    public long getGcDeletesInMillis() {
+        return gcDeletesInMillis;
     }
 
     public void registerWeightedRoutingMetadata(
@@ -174,6 +205,7 @@ public class WeightedRoutingService {
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 logger.debug("cluster weighted routing metadata change is processed by all the nodes");
                 listener.onResponse(new ClusterDeleteWeightedRoutingResponse(true));
+                scheduleVersionReset();
             }
         });
     }
@@ -281,5 +313,51 @@ public class WeightedRoutingService {
                 )
             );
         }
+    }
+
+    private void scheduleVersionReset() {
+        cancellable = this.threadPool.schedule(
+            resetWeightedRoutingVersion(),
+            TimeValue.timeValueMillis(getGcDeletesInMillis()),
+            ThreadPool.Names.SAME
+        );
+
+    }
+
+    private Runnable resetWeightedRoutingVersion() {
+        clusterService.submitStateUpdateTask("reset_weighted_routing_version", new ClusterStateUpdateTask(Priority.URGENT) {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                logger.info("Resetting weighted routing weights version in cluster state metadata");
+                Metadata metadata = currentState.metadata();
+                Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
+                WeightedRoutingMetadata weightedRoutingMetadata = metadata.custom(WeightedRoutingMetadata.TYPE);
+                if (weightedRoutingMetadata != null && weightedRoutingMetadata.getWeightedRouting() != null) {
+                    weightedRoutingMetadata = new WeightedRoutingMetadata(
+                        weightedRoutingMetadata.getWeightedRouting(),
+                        WeightedRoutingMetadata.INITIAL_VERSION
+                    );
+                }
+
+                mdBuilder.putCustom(WeightedRoutingMetadata.TYPE, weightedRoutingMetadata);
+                logger.info("building cluster state after resetting weighted routing version ");
+                return ClusterState.builder(currentState).metadata(mdBuilder).build();
+            }
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                logger.error("failed to reset weighted routing weights version in cluster metadata", e);
+            }
+
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                logger.debug("cluster weighted routing version reset is processed by all the nodes");
+                if (cancellable != null) {
+                    cancellable.cancel();
+                }
+            }
+        });
+
+        return null;
     }
 }
