@@ -23,35 +23,35 @@ import org.opensearch.transport.TransportResponse;
  * @opensearch.internal
  */
 public class ExtensionDependencyResponse extends TransportResponse {
-    private List<DiscoveryExtensionNode> dependencies;
+    private List<DiscoveryExtensionNode> extensionDependencies;
 
-    public ExtensionDependencyResponse(List<DiscoveryExtensionNode> dependencies) {
-        this.dependencies = dependencies;
+    public ExtensionDependencyResponse(List<DiscoveryExtensionNode> extensionDependencies) {
+        this.extensionDependencies = extensionDependencies;
     }
 
     public ExtensionDependencyResponse(StreamInput in) throws IOException {
         int size = in.readVInt();
-        dependencies = new ArrayList<>(size);
+        extensionDependencies = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            dependencies.add(new DiscoveryExtensionNode(in));
+            extensionDependencies.add(new DiscoveryExtensionNode(in));
         }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(dependencies.size());
-        for (DiscoveryExtensionNode dependency : dependencies) {
+        out.writeVInt(extensionDependencies.size());
+        for (DiscoveryExtensionNode dependency : extensionDependencies) {
             dependency.writeTo(out);
         }
     }
 
     public List<DiscoveryExtensionNode> getExtensionDependency() {
-        return dependencies;
+        return extensionDependencies;
     }
 
     @Override
     public String toString() {
-        return "ExtensionDependencyResponse{extensiondependency=" + dependencies.toString() + '}';
+        return "ExtensionDependencyResponse{extensiondependency=" + extensionDependencies.toString() + '}';
     }
 
     @Override
@@ -59,11 +59,11 @@ public class ExtensionDependencyResponse extends TransportResponse {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ExtensionDependencyResponse that = (ExtensionDependencyResponse) o;
-        return Objects.equals(dependencies, that.dependencies);
+        return Objects.equals(extensionDependencies, that.extensionDependencies);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(dependencies);
+        return Objects.hash(extensionDependencies);
     }
 }
