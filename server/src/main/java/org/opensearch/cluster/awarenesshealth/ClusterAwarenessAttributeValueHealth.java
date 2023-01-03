@@ -11,7 +11,8 @@ package org.opensearch.cluster.awarenesshealth;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
-import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.RoutingNode;
+import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.WeightedRouting;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
@@ -22,7 +23,6 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -53,13 +53,13 @@ public class ClusterAwarenessAttributeValueHealth implements Writeable, ToXConte
      *
      * @param name name of awareness attribute
      */
-    public ClusterAwarenessAttributeValueHealth(String name) {
+    public ClusterAwarenessAttributeValueHealth(String name, List<String> nodeList) {
         this.name = name;
-        this.nodeList = new ArrayList<>();
+        this.nodeList = nodeList;
     }
 
     // Constructor use by Unit test case.
-    public ClusterAwarenessAttributeValueHealth(
+    ClusterAwarenessAttributeValueHealth(
         String name,
         int activeShards,
         int initializingShards,
@@ -263,36 +263,16 @@ public class ClusterAwarenessAttributeValueHealth implements Writeable, ToXConte
     }
 
     private void setShardLevelInfo(ClusterState clusterState, boolean displayUnassignedShardLevelInfo, int shardsPerAttributeValue) {
-        String nodeId;
 
-        // computing active, relocating and initializing shards info
-        for (ShardRouting shard : clusterState.routingTable().allShards()) {
-            if (shard.assignedToNode()) {
-                nodeId = shard.currentNodeId();
-                boolean nodeInCurrentAZ = nodeList.contains(nodeId);
-                if (shard.active()) {
-                    if (shard.started() && nodeInCurrentAZ) {
-                        activeShards += 1;
-                    } else if (shard.relocating()) {
-
-                        // On which shard is relocating i.e. destination node
-                        if (nodeList.contains(shard.relocatingNodeId())) {
-                            initializingShards += 1;
-                        }
-
-                        // On which shard is relocating from i.e. source node
-                        if (nodeInCurrentAZ) {
-                            relocatingShards += 1;
-                        }
-                    }
-                } else if (shard.initializing() && nodeInCurrentAZ) {
-                    initializingShards += 1;
-                }
-            }
+        for (String nodeId : nodeList) {
+            RoutingNode node = clusterState.getRoutingNodes().node(nodeId);
+            activeShards += node.numberOfOwningShards();
+            relocatingShards += node.numberOfShardsWithState(ShardRoutingState.RELOCATING);
+            initializingShards += node.numberOfShardsWithState(ShardRoutingState.INITIALIZING);
         }
 
         // computing unassigned shards info
-        if (displayUnassignedShardLevelInfo && shardsPerAttributeValue > 0) {
+        if (displayUnassignedShardLevelInfo) {
             int unassignedShardsPerAttribute = shardsPerAttributeValue - getActiveShards() - getInitializingShards();
             setUnassignedShards(unassignedShardsPerAttribute);
         } else {
