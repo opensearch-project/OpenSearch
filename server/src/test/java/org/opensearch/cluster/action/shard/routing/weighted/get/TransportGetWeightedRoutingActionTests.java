@@ -191,7 +191,6 @@ public class TransportGetWeightedRoutingActionTests extends OpenSearchTestCase {
         ClusterState state = clusterService.state();
 
         ClusterGetWeightedRoutingResponse response = ActionTestUtils.executeBlocking(transportGetWeightedRoutingAction, request.request());
-        assertEquals(response.getLocalNodeWeight(), null);
         assertEquals(response.weights(), null);
     }
 
@@ -231,7 +230,8 @@ public class TransportGetWeightedRoutingActionTests extends OpenSearchTestCase {
         ClusterServiceUtils.setState(clusterService, builder);
 
         ClusterGetWeightedRoutingResponse response = ActionTestUtils.executeBlocking(transportGetWeightedRoutingAction, request.request());
-        assertEquals("0.0", response.getLocalNodeWeight());
+        assertEquals(true, response.getDiscoveredMaster());
+        assertEquals(weights, response.getWeightedRouting().weights());
     }
 
     public void testGetWeightedRoutingLocalWeight_WeightsNotSetInMetadata() {
@@ -250,7 +250,7 @@ public class TransportGetWeightedRoutingActionTests extends OpenSearchTestCase {
         ClusterServiceUtils.setState(clusterService, builder);
 
         ClusterGetWeightedRoutingResponse response = ActionTestUtils.executeBlocking(transportGetWeightedRoutingAction, request.request());
-        assertEquals(null, response.getLocalNodeWeight());
+        assertEquals(null, response.getWeightedRouting());
     }
 
     @After
