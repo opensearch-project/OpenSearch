@@ -141,7 +141,12 @@ public class MasterService extends AbstractLifecycleComponent {
         );
 
         this.throttlingStats = new ClusterManagerThrottlingStats();
-        this.clusterManagerTaskThrottler = new ClusterManagerTaskThrottler(clusterSettings, this::getMinNodeVersion, throttlingStats);
+        this.clusterManagerTaskThrottler = new ClusterManagerTaskThrottler(
+            settings,
+            clusterSettings,
+            this::getMinNodeVersion,
+            throttlingStats
+        );
         this.threadPool = threadPool;
     }
 

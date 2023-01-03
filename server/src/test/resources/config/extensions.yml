@@ -7,6 +7,11 @@ extensions:
       version: '3.0.0'
     - name: "secondExtension"
       uniqueId: 'uniqueid2'
+      dependencies:
+        - name: 'uniqueid0'
+          version: '2.0.0'
+        - name: 'uniqueid1'
+          version: '3.0.0'
       hostName: 'myIndependentPluginHost2'
       hostAddress: '127.0.0.1'
       port: '9301'

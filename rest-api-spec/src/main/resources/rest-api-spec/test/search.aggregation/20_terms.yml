@@ -824,6 +824,7 @@ setup:
       indices.forcemerge:
         index: test_1
         max_num_segments: 1
+        flush: true
 
   - do:
       search:
