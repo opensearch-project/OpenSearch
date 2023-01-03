@@ -358,7 +358,7 @@ public class WeightedRoutingIT extends OpenSearchIntegTestCase {
         assertTrue(deleteResponse.isAcknowledged());
     }
 
-    public void testPutAndDeleteWithVersioning() throws IOException {
+    public void testPutAndDeleteWithVersioning() throws Exception {
         Settings commonSettings = Settings.builder()
             .put("cluster.routing.allocation.awareness.attributes", "zone")
             .put("cluster.routing.allocation.awareness.force.zone.values", "a,b,c")
