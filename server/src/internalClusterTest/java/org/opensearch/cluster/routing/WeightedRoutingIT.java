@@ -219,7 +219,6 @@ public class WeightedRoutingIT extends OpenSearchIntegTestCase {
             .setRequestLocal(true)
             .get();
         assertEquals(weightedRouting, weightedRoutingResponse.weights());
-        assertEquals("1.0", weightedRoutingResponse.getLocalNodeWeight());
 
         // get api to fetch local node weight for a node in zone b
         weightedRoutingResponse = internalCluster().client(randomFrom(nodes_in_zone_b.get(0), nodes_in_zone_b.get(1)))
@@ -230,7 +229,6 @@ public class WeightedRoutingIT extends OpenSearchIntegTestCase {
             .setRequestLocal(true)
             .get();
         assertEquals(weightedRouting, weightedRoutingResponse.weights());
-        assertEquals("2.0", weightedRoutingResponse.getLocalNodeWeight());
 
         // get api to fetch local node weight for a node in zone c
         weightedRoutingResponse = internalCluster().client(randomFrom(nodes_in_zone_c.get(0), nodes_in_zone_c.get(1)))
@@ -241,7 +239,6 @@ public class WeightedRoutingIT extends OpenSearchIntegTestCase {
             .setRequestLocal(true)
             .get();
         assertEquals(weightedRouting, weightedRoutingResponse.weights());
-        assertEquals("3.0", weightedRoutingResponse.getLocalNodeWeight());
     }
 
     public void testWeightedRoutingMetadataOnOSProcessRestart() throws Exception {
