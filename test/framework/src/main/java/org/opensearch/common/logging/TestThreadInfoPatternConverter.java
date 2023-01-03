@@ -73,7 +73,7 @@ public class TestThreadInfoPatternConverter extends LogEventPatternConverter {
         }
     }
 
-    private static final Pattern OPENSEARCH_THREAD_NAME_PATTERN = Pattern.compile("opensearch\\[(.+)\\]\\[.+\\].+");
+    private static final Pattern OPENSEARCH_THREAD_NAME_PATTERN = Pattern.compile("opensearch\\[(.+)\\]\\[(.+)\\]\\[(.+)\\].+");
     private static final Pattern TEST_THREAD_NAME_PATTERN = Pattern.compile("TEST-.+\\.(.+)-seed#\\[.+\\]");
     private static final Pattern TEST_SUITE_INIT_THREAD_NAME_PATTERN = Pattern.compile("SUITE-.+-worker");
     private static final Pattern NOT_YET_NAMED_NODE_THREAD_NAME_PATTERN = Pattern.compile("test_SUITE-CHILD_VM.+cluster\\[T#(.+)\\]");
@@ -82,7 +82,7 @@ public class TestThreadInfoPatternConverter extends LogEventPatternConverter {
         Matcher m = OPENSEARCH_THREAD_NAME_PATTERN.matcher(threadName);
         if (m.matches()) {
             // Thread looks like a node thread so use the node name
-            return m.group(1);
+            return m.group(1) + " " + m.group(2) + " " + m.group(3);
         }
         m = TEST_THREAD_NAME_PATTERN.matcher(threadName);
         if (m.matches()) {
