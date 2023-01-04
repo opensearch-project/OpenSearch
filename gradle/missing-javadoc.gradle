@@ -95,6 +95,7 @@ configure([
   project(":client:client-benchmark-noop-api-plugin"),
   project(":client:rest-high-level"),
   project(":client:test"),
+  project(":example-plugins:job-scheduler-sample-extension"),
   project(":libs:opensearch-cli"),
   project(":libs:opensearch-core"),
   project(":libs:opensearch-dissect"),
