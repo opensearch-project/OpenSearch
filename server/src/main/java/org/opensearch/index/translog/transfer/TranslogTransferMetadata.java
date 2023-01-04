@@ -10,12 +10,11 @@ package org.opensearch.index.translog.transfer;
 
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.DataOutput;
-import org.apache.lucene.store.InputStreamDataInput;
+import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.OutputStreamIndexOutput;
 import org.apache.lucene.util.SetOnce;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -63,14 +62,14 @@ public class TranslogTransferMetadata {
         this.count = count;
     }
 
-    public TranslogTransferMetadata(StreamInput in) throws IOException {
-        InputStreamDataInput inputStreamDataInput = new InputStreamDataInput(in);
-        CodecUtil.checkHeader(inputStreamDataInput, METADATA_CODEC, CURRENT_VERSION, CURRENT_VERSION);
-        this.primaryTerm = inputStreamDataInput.readLong();
-        this.generation = inputStreamDataInput.readLong();
-        this.minTranslogGeneration = inputStreamDataInput.readLong();
-        this.timeStamp = inputStreamDataInput.readLong();
-        this.generationToPrimaryTermMapper.set(inputStreamDataInput.readMapOfStrings());
+    public TranslogTransferMetadata(IndexInput indexInput) throws IOException {
+        CodecUtil.checksumEntireFile(indexInput);
+        CodecUtil.checkHeader(indexInput, METADATA_CODEC, CURRENT_VERSION, CURRENT_VERSION);
+        this.primaryTerm = indexInput.readLong();
+        this.generation = indexInput.readLong();
+        this.minTranslogGeneration = indexInput.readLong();
+        this.timeStamp = indexInput.readLong();
+        this.generationToPrimaryTermMapper.set(indexInput.readMapOfStrings());
     }
 
     public long getPrimaryTerm() {

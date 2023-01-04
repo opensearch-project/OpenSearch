@@ -11,10 +11,11 @@ package org.opensearch.index.translog.transfer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.store.IndexInput;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.common.blobstore.BlobPath;
-import org.opensearch.common.io.stream.InputStreamStreamInput;
+import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.transfer.listener.FileTransferListener;
 import org.opensearch.index.translog.transfer.listener.TranslogTransferListener;
@@ -166,12 +167,9 @@ public class TranslogTransferManager {
             .stream()
             .max(TranslogTransferMetadata.METADATA_FILENAME_COMPARATOR)
             .map(filename -> {
-                try (
-                    InputStreamStreamInput streamInput = new InputStreamStreamInput(
-                        transferService.downloadBlob(remoteMetadaTransferPath, filename)
-                    )
-                ) {
-                    return new TranslogTransferMetadata(streamInput);
+                try (InputStream inputStream = transferService.downloadBlob(remoteMetadaTransferPath, filename);) {
+                    IndexInput indexInput = new ByteArrayIndexInput("metadata file", inputStream.readAllBytes());
+                    return new TranslogTransferMetadata(indexInput);
                 } catch (IOException e) {
                     logger.error(() -> new ParameterizedMessage("Exception while reading metadata file: {}", filename), e);
                     return null;
