@@ -9,7 +9,6 @@
 package org.opensearch.snapshots;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
-import org.junit.BeforeClass;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequestBuilder;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
@@ -46,9 +45,9 @@ public class SegmentReplicationSnapshotIT extends AbstractSnapshotIntegTestCase 
     private static final String REPOSITORY_NAME = "test-segrep-repo";
     private static final String SNAPSHOT_NAME = "test-segrep-snapshot";
 
-    @BeforeClass
-    public static void assumeFeatureFlag() {
-        assumeTrue("Segment replication Feature flag is enabled", Boolean.parseBoolean(System.getProperty(FeatureFlags.REPLICATION_TYPE)));
+    @Override
+    protected Settings featureFlagSettings() {
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.REPLICATION_TYPE, "true").build();
     }
 
     public Settings segRepEnableIndexSettings() {
@@ -100,11 +99,11 @@ public class SegmentReplicationSnapshotIT extends AbstractSnapshotIntegTestCase 
     // Start cluster with provided settings and return the node names as list
     public List<String> startClusterWithSettings(Settings indexSettings, int replicaCount) throws Exception {
         // Start primary
-        final String primaryNode = internalCluster().startNode();
+        final String primaryNode = internalCluster().startNode(featureFlagSettings());
         List<String> nodeNames = new ArrayList<>();
         nodeNames.add(primaryNode);
         for (int i = 0; i < replicaCount; i++) {
-            nodeNames.add(internalCluster().startNode());
+            nodeNames.add(internalCluster().startNode(featureFlagSettings()));
         }
         createIndex(INDEX_NAME, indexSettings);
         ensureGreen(INDEX_NAME);
@@ -266,7 +265,7 @@ public class SegmentReplicationSnapshotIT extends AbstractSnapshotIntegTestCase 
 
         // Assertions
         assertThat(restoreSnapshotResponse.status(), equalTo(RestStatus.ACCEPTED));
-        internalCluster().startNode();
+        internalCluster().startNode(featureFlagSettings());
         ensureGreen(RESTORED_INDEX_NAME);
         GetSettingsResponse settingsResponse = client().admin()
             .indices()
