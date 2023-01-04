@@ -109,11 +109,11 @@ public class ClusterGetWeightedRoutingResponse extends ActionResponse implements
                 attrKey = parser.currentName();
             } else if (token == XContentParser.Token.VALUE_STRING) {
                 attrValue = parser.text();
-                if (attrKey != null && attrKey.equals(DISCOVERED_MASTER)) {
-                    discoveredMaster = Boolean.parseBoolean(attrValue);
-                } else if (attrKey != null) {
+                if (attrKey != null) {
                     weights.put(attrKey, Double.parseDouble(attrValue));
                 }
+            } else if (token == XContentParser.Token.VALUE_BOOLEAN && attrKey != null && attrKey.equals(DISCOVERED_MASTER)) {
+                discoveredMaster = Boolean.parseBoolean(parser.text());
             } else {
                 throw new OpenSearchParseException("failed to parse weighted routing response");
             }
