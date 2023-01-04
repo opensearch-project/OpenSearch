@@ -14,10 +14,8 @@ import org.apache.shiro.authc.AuthenticationException;
 import org.apache.shiro.subject.Subject;
 import org.junit.After;
 import org.junit.Before;
-import org.opensearch.authn.AuthenticationManager;
 import org.opensearch.authn.tokens.AuthenticationToken;
 import org.opensearch.authn.tokens.BasicAuthToken;
-import org.opensearch.identity.Identity;
 import org.opensearch.test.OpenSearchTestCase;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -32,8 +30,7 @@ public class InternalSubjectTests extends OpenSearchTestCase {
 
     @Before
     public void initRealm() {
-        final AuthenticationManager authManager = new InternalAuthenticationManager();
-        Identity.setAuthManager(authManager);
+        new InternalAuthenticationManager();
     }
 
     @After
