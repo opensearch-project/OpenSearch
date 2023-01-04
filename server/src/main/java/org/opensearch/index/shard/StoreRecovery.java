@@ -488,7 +488,7 @@ final class StoreRecovery {
             shardId,
             fileTransferTracker
         );
-        RemoteFsTranslog.download(translogTransferManager, indexShard.shardPath().resolveTranslog());
+        RemoteFsTranslog.download(translogTransferManager, indexShard.shardPath().resolveTranslog(), fileTransferTracker);
     }
 
     /**

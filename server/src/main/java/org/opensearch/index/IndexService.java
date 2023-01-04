@@ -117,6 +117,7 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -524,13 +525,16 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 remoteStore = new Store(shardId, this.indexSettings, remoteDirectory, lock, Store.OnClose.EMPTY);
             }
 
-            TranslogFactory translogFactory = this.indexSettings.isRemoteTranslogStoreEnabled() && routing.primary()
-                ? new RemoteBlobStoreInternalTranslogFactory(
-                    repositoriesServiceSupplier,
-                    threadPool,
-                    this.indexSettings.getRemoteStoreTranslogRepository()
-                )
-                : new InternalTranslogFactory();
+            BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier = (idxSettings, shardRouting) -> {
+                if (idxSettings.isRemoteTranslogStoreEnabled() && shardRouting.primary()) {
+                    return new RemoteBlobStoreInternalTranslogFactory(
+                        repositoriesServiceSupplier,
+                        threadPool,
+                        idxSettings.getRemoteStoreTranslogRepository()
+                    );
+                }
+                return new InternalTranslogFactory();
+            };
 
             Directory directory = directoryFactory.newDirectory(this.indexSettings, path);
             store = new Store(
@@ -562,7 +566,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 () -> globalCheckpointSyncer.accept(shardId),
                 retentionLeaseSyncer,
                 circuitBreakerService,
-                translogFactory,
+                translogFactorySupplier,
                 this.indexSettings.isSegRepEnabled() ? checkpointPublisher : null,
                 remoteStore
             );

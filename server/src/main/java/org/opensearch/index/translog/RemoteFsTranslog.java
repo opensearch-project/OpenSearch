@@ -63,7 +63,7 @@ public class RemoteFsTranslog extends Translog {
         this.translogTransferManager = buildTranslogTransferManager(blobStoreRepository, executorService, shardId, fileTransferTracker);
 
         try {
-            download(translogTransferManager, location);
+            download(translogTransferManager, location, fileTransferTracker);
             Checkpoint checkpoint = readCheckpoint(location);
             this.readers.addAll(recoverFromFiles(checkpoint));
             if (readers.isEmpty()) {
@@ -96,7 +96,8 @@ public class RemoteFsTranslog extends Translog {
         }
     }
 
-    public static void download(TranslogTransferManager translogTransferManager, Path location) throws IOException {
+    public static void download(TranslogTransferManager translogTransferManager, Path location, FileTransferTracker fileTransferTracker)
+        throws IOException {
 
         TranslogTransferMetadata translogMetadata = translogTransferManager.readMetadata();
         if (translogMetadata != null) {
@@ -118,6 +119,11 @@ public class RemoteFsTranslog extends Translog {
                 location.resolve(Translog.getCommitCheckpointFileName(translogMetadata.getGeneration())),
                 location.resolve(Translog.CHECKPOINT_FILE_NAME)
             );
+
+            // Mark in FileTransferTracker so that the same files are not uploaded at the time of translog sync
+            for (Path file : FileSystemUtils.files(location)) {
+                fileTransferTracker.add(file.getFileName().toString());
+            }
         }
     }
 

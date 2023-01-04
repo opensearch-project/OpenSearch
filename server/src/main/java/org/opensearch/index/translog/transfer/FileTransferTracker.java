@@ -41,6 +41,10 @@ public class FileTransferTracker implements FileTransferListener {
         });
     }
 
+    public void add(String file) {
+        fileTransferTracker.put(file, TransferState.SUCCESS);
+    }
+
     @Override
     public void onFailure(TransferFileSnapshot fileSnapshot, Exception e) {
         TransferState targetState = TransferState.FAILED;
