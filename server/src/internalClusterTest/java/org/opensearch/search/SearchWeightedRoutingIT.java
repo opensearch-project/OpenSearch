@@ -615,7 +615,7 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
         for (int i = 0; i < 50; i++) {
             responses[i] = internalCluster().client(nodeMap.get("b").get(0))
                 .prepareSearch("index")
-                .setSize(10)
+                .setSize(20)
                 .addAggregation(terms("f").field("f"))
                 .execute();
         }
