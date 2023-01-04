@@ -21,9 +21,9 @@ public class CreateIndexBlockIT extends OpenSearchIntegTestCase {
 
     public void testBlockCreateIndex() {
         setCreateIndexBlock("true");
-        assertBlocked(client().admin().indices().prepareCreate("diskguardrails1"), Metadata.CLUSTER_CREATE_INDEX_BLOCK);
+        assertBlocked(client().admin().indices().prepareCreate("uncreated-idx"), Metadata.CLUSTER_CREATE_INDEX_BLOCK);
         setCreateIndexBlock("false");
-        assertAcked(client().admin().indices().prepareCreate("diskguardrails2").execute().actionGet());
+        assertAcked(client().admin().indices().prepareCreate("created-idx").execute().actionGet());
     }
 
     @After

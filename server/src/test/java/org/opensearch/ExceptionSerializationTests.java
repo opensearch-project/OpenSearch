@@ -867,7 +867,7 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
         ids.put(165, ClusterManagerThrottlingException.class);
         ids.put(166, SnapshotInUseDeletionException.class);
         ids.put(167, UnsupportedWeightedRoutingStateException.class);
-        ids.put(165, IndexCreateBlockException.class);
+        ids.put(10001, IndexCreateBlockException.class);
 
         Map<Class<? extends OpenSearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends OpenSearchException>> entry : ids.entrySet()) {
