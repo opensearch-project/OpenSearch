@@ -32,7 +32,6 @@
 package org.opensearch.common.settings;
 
 import org.apache.logging.log4j.LogManager;
-import org.opensearch.cluster.routing.WeightedRoutingService;
 import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.action.search.CreatePitController;
 import org.opensearch.cluster.routing.allocation.decider.NodeLoadAwareAllocationDecider;
@@ -539,7 +538,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
                 OperationRouting.IGNORE_AWARENESS_ATTRIBUTES_SETTING,
                 OperationRouting.WEIGHTED_ROUTING_DEFAULT_WEIGHT,
-                WeightedRoutingService.WEIGHTS_GC_DELETES_SETTING,
                 IndexGraveyard.SETTING_MAX_TOMBSTONES,
                 PersistentTasksClusterService.CLUSTER_TASKS_ALLOCATION_RECHECK_INTERVAL_SETTING,
                 EnableAssignmentDecider.CLUSTER_TASKS_ALLOCATION_ENABLE_SETTING,

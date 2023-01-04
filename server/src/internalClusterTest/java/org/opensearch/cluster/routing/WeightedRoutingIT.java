@@ -20,7 +20,6 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -362,7 +361,6 @@ public class WeightedRoutingIT extends OpenSearchIntegTestCase {
         Settings commonSettings = Settings.builder()
             .put("cluster.routing.allocation.awareness.attributes", "zone")
             .put("cluster.routing.allocation.awareness.force.zone.values", "a,b,c")
-            .put("weighted_routing.gc_deletes", 10, TimeUnit.SECONDS)
             .build();
 
         logger.info("--> starting 6 nodes on different zones");
@@ -438,15 +436,16 @@ public class WeightedRoutingIT extends OpenSearchIntegTestCase {
             .get();
         assertTrue(deleteResponse.isAcknowledged());
 
-        // sleeping for 10 sec to ensure that weighted routing weights is gc deleted ie version is reset to -1
-        Thread.sleep(10000);
-
         // update weights again and make sure that version number got updated on delete
         weights = Map.of("a", 1.0, "b", 2.0, "c", 6.0);
         weightedRouting = new WeightedRouting("zone", weights);
-        response = client().admin().cluster().prepareWeightedRouting().setWeightedRouting(weightedRouting).setVersion(-1).get();
+        response = client().admin().cluster().prepareWeightedRouting().setWeightedRouting(weightedRouting).setVersion(3).get();
         assertTrue(response.isAcknowledged());
         assertNotNull(internalCluster().clusterService().state().metadata().weightedRoutingMetadata());
+
+        // delete weights
+        deleteResponse = client().admin().cluster().prepareDeleteWeightedRouting().setVersion(4).get();
+        assertTrue(deleteResponse.isAcknowledged());
 
         // delete weights call, incorrect version number
         UnsupportedWeightedRoutingStateException deleteException = expectThrows(
