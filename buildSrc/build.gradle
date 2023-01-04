@@ -107,7 +107,7 @@ dependencies {
   api 'org.apache.ant:ant:1.10.12'
   api 'com.netflix.nebula:gradle-extra-configurations-plugin:8.0.0'
   api 'com.netflix.nebula:nebula-publishing-plugin:4.6.0'
-  api 'com.netflix.nebula:gradle-info-plugin:7.1.3'
+  api 'com.netflix.nebula:gradle-info-plugin:12.0.0'
   api 'org.apache.rat:apache-rat:0.15'
   api 'commons-io:commons-io:2.7'
   api "net.java.dev.jna:jna:5.11.0"
