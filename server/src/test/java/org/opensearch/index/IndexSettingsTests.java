@@ -974,10 +974,10 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         );
         IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
         assertFalse(settings.isRemoteSnapshot());
-        assertNull(settings.getExtendedCompatibilitySnapshotVersion());
+        assertEquals(Version.CURRENT.minimumIndexCompatibilityVersion(), settings.getExtendedCompatibilitySnapshotVersion());
     }
 
-    public void testExtendedCompatibilityVersionMissingKey() {
+    public void testExtendedCompatibilityVersionWithoutFeatureFlag() {
         IndexMetadata metadata = newIndexMeta(
             "index",
             Settings.builder()
@@ -987,6 +987,6 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         );
         IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
         assertTrue(settings.isRemoteSnapshot());
-        assertNull(settings.getExtendedCompatibilitySnapshotVersion());
+        assertEquals(Version.CURRENT.minimumIndexCompatibilityVersion(), settings.getExtendedCompatibilitySnapshotVersion());
     }
 }
