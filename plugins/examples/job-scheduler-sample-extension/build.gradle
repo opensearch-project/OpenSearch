@@ -118,14 +118,8 @@ integTest {
     }
 }
 
-project.logger.info('TESTING JUST HIT THE JOB SCHEDULER SAMPLE EXTENSIONS')
-println  "Root : ${project.path}"
 Zip bundle = (Zip) project.getTasks().getByName("bundlePlugin");
 Zip rootBundle = (Zip) rootProject.findProject(':plugins:opensearch-job-scheduler').getTasks().getByName("bundlePlugin");
-println "BUNDLE : ${bundle}"
-println "ROOTBUNDLE : ${rootBundle}"
-println "Project objects : ${project.getObjects().fileProperty().value(bundle.getArchiveFile())}"
-println "JS objects : ${rootProject.findProject(':plugins:opensearch-job-scheduler').getObjects().fileProperty().value(rootBundle.getArchiveFile())}"
 integTest.dependsOn(bundle)
 integTest.getClusters().forEach{c -> {
     c.plugin(rootProject.findProject(':plugins:opensearch-job-scheduler').getObjects().fileProperty().value(rootBundle.getArchiveFile()))
@@ -188,7 +182,7 @@ String bwcDownloadUrl = "https://ci.opensearch.org/ci/dbc/distribution-build-ope
 }
 
 List<Provider<RegularFile>> plugins = []
-println "PREPARING BWC TESTS"
+
 // Ensure the artifact for the current project version is available to be used for the bwc tests
 task prepareBwcTests {
     dependsOn bundle
@@ -201,7 +195,6 @@ task prepareBwcTests {
     }
 }
 
-println "OLD VERSION CLUSTER TASK"
 // Create two test clusters with 3 nodes of the old version
 2.times {i ->
     task "${baseName}#oldVersionClusterTask$i"(type: StandaloneRestIntegTestTask) {
@@ -218,7 +211,6 @@ println "OLD VERSION CLUSTER TASK"
     }
 }
 
-println "MIXED VERSION CLUSTER TASK"
 // Upgrade one node of the old cluster to new OpenSearch version with upgraded plugin version.
 // This results in a mixed cluster with 2 nodes on the old version and 1 upgraded node.
 // This is also used as a one third upgraded cluster for a rolling upgrade.
@@ -238,7 +230,6 @@ task "${baseName}#mixedClusterTask"(type: StandaloneRestIntegTestTask) {
     nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}0".getName()}")
 }
 
-println "TWO THIRDS UPGRADED CLUSTER TASK"
 // Upgrade the second node to new OpenSearch version with upgraded plugin version after the first node is upgraded.
 // This results in a mixed cluster with 1 node on the old version and 2 upgraded nodes.
 // This is used for rolling upgrade.
@@ -258,7 +249,6 @@ task "${baseName}#twoThirdsUpgradedClusterTask"(type: StandaloneRestIntegTestTas
     nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}0".getName()}")
 }
 
-println "ROLLING UPGRADE CLUSTER TASK"
 // Upgrade the third node to new OpenSearch version with upgraded plugin version after the second node is upgraded.
 // This results in a fully upgraded cluster.
 // This is used for rolling upgrade.
@@ -279,7 +269,6 @@ task "${baseName}#rollingUpgradeClusterTask"(type: StandaloneRestIntegTestTask) 
     nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}0".getName()}")
 }
 
-println "FULL RESTART CLUSTER TASK"
 // Upgrade all the nodes of the old cluster to new OpenSearch version with upgraded plugin version
 // at the same time resulting in a fully upgraded cluster.
 task "${baseName}#fullRestartClusterTask"(type: StandaloneRestIntegTestTask) {
