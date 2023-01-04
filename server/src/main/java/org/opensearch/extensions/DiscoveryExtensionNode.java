@@ -84,8 +84,10 @@ public class DiscoveryExtensionNode extends DiscoveryNode implements Writeable, 
 
     public boolean dependenciesContain(ExtensionDependency dependency) {
         for (ExtensionDependency extensiondependency : this.dependencies) {
-            return dependency.getUniqueId().equals(extensiondependency.getUniqueId())
-                && dependency.getVersion().equals(extensiondependency.getVersion());
+            if (dependency.getUniqueId().equals(extensiondependency.getUniqueId())
+                && dependency.getVersion().equals(extensiondependency.getVersion())) {
+                return true;
+            }
         }
         return false;
     }
