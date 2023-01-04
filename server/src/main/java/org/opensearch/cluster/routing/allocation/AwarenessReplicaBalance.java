@@ -34,7 +34,7 @@ import static org.opensearch.cluster.routing.allocation.decider.AwarenessAllocat
  */
 public class AwarenessReplicaBalance {
     public static final String SETTING_CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE = "cluster.routing.allocation.awareness.balance";
-    public static final String SETTING_FORCE_AWARENESS_REPLICA = "cluster.force_awareness_replica";
+    public static final String SETTING_FORCE_AWARENESS_REPLICA = "cluster.routing.allocation.awareness.force_replica";
     public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING = Setting.boolSetting(
         SETTING_CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE,
         false,

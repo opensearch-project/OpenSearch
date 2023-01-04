@@ -163,7 +163,7 @@ public class AwarenessReplicaBalanceTests extends OpenSearchAllocationTestCase {
             () -> new AwarenessReplicaBalance(settings, EMPTY_CLUSTER_SETTINGS)
         );
         assertEquals(
-            "To enable cluster.force_awareness_replica, cluster.routing.allocation.awareness.balance should be enabled",
+            "To enable cluster.routing.allocation.awareness.force_replica, cluster.routing.allocation.awareness.balance should be enabled",
             iae.getMessage()
         );
     }
@@ -179,7 +179,7 @@ public class AwarenessReplicaBalanceTests extends OpenSearchAllocationTestCase {
             () -> new AwarenessReplicaBalance(settings, EMPTY_CLUSTER_SETTINGS)
         );
         assertEquals(
-            "To enable cluster.force_awareness_replica, cluster.routing.allocation.awareness.balance should be enabled",
+            "To enable cluster.routing.allocation.awareness.force_replica, cluster.routing.allocation.awareness.balance should be enabled",
             iae.getMessage()
         );
     }

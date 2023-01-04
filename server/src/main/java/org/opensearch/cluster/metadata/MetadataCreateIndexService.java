@@ -1196,7 +1196,8 @@ public class MetadataCreateIndexService {
         }
         if ((indexName.isEmpty() || indexName.get().charAt(0) != '.')
             && !(INDEX_NUMBER_OF_REPLICAS_SETTING.exists(settings) == false && awarenessReplicaBalance.getForceAwarenessReplicaSetting())) {
-            // Apply aware replica balance only to non system indices
+            // Apply aware replica balance validation only to non system indices and when the
+            // cluster.routing.allocation.awareness.force_replica is not truw
             int replicaCount = settings.getAsInt(
                 IndexMetadata.SETTING_NUMBER_OF_REPLICAS,
                 INDEX_NUMBER_OF_REPLICAS_SETTING.getDefault(Settings.EMPTY)
