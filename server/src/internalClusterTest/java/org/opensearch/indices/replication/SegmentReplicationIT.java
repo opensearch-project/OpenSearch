@@ -270,6 +270,7 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
         assertFalse(indicesService.hasIndex(resolveIndex(INDEX_NAME)));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/5669")
     public void testReplicationAfterPrimaryRefreshAndFlush() throws Exception {
         final String nodeA = internalCluster().startNode(featureFlagSettings());
         final String nodeB = internalCluster().startNode(featureFlagSettings());
