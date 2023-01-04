@@ -53,4 +53,14 @@ public class ClusterPutWeightedRoutingRequestTests extends OpenSearchTestCase {
         assertTrue(actionRequestValidationException.getMessage().contains("Attribute name is missing"));
     }
 
+    public void testValidate_MoreThanHalfWithZeroWeight() {
+        String reqString = "{\"us-east-1c\" : \"0\", \"us-east-1b\":\"0\",\"us-east-1a\":\"1\"}";
+        ClusterPutWeightedRoutingRequest request = new ClusterPutWeightedRoutingRequest("zone");
+        request.setWeightedRouting(new BytesArray(reqString), XContentType.JSON);
+        ActionRequestValidationException actionRequestValidationException = request.validate();
+        assertNotNull(actionRequestValidationException);
+        assertTrue(
+            actionRequestValidationException.getMessage().contains("Maximum expected number of routing weights having zero weight is [1]")
+        );
+    }
 }
