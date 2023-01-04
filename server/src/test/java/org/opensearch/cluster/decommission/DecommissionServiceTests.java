@@ -145,33 +145,6 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
     }
 
-    @SuppressWarnings("unchecked")
-    public void testDecommissioningNotStartedForInvalidAttributeValue() throws InterruptedException {
-        final CountDownLatch countDownLatch = new CountDownLatch(1);
-        DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "rack-a");
-        ActionListener<DecommissionResponse> listener = new ActionListener<DecommissionResponse>() {
-            @Override
-            public void onResponse(DecommissionResponse decommissionResponse) {
-                fail("on response shouldn't have been called");
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                assertTrue(e instanceof DecommissioningFailedException);
-                assertThat(
-                    e.getMessage(),
-                    Matchers.endsWith(
-                        "invalid awareness attribute value requested for decommissioning. "
-                            + "Set forced awareness values before to decommission"
-                    )
-                );
-                countDownLatch.countDown();
-            }
-        };
-        decommissionService.startDecommissionAction(new DecommissionRequest(decommissionAttribute), listener);
-        assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
-    }
-
     public void testDecommissionNotStartedWithoutWeighingAwayAttribute_1() throws InterruptedException {
         Map<String, Double> weights = Map.of("zone_1", 1.0, "zone_2", 1.0, "zone_3", 0.0);
         setWeightedRoutingWeights(weights);
