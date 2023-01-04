@@ -31,6 +31,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bumps `json-schema-validator` from 1.0.69 to 1.0.73 ([#5316](https://github.com/opensearch-project/OpenSearch/pull/5316))
 - Bumps `proto-google-common-protos` from 2.8.0 to 2.10.0 ([#5318](https://github.com/opensearch-project/OpenSearch/pull/5318))
 - Bumps `protobuf-java` from 3.21.7 to 3.21.9 ([#5319](https://github.com/opensearch-project/OpenSearch/pull/5319))
+- Bumps `reactor-netty` from 1.0.18 to 1.1.1 ([#5685](https://github.com/opensearch-project/OpenSearch/pull/5685))
 - Bumps `apache-rat` from 0.13 to 0.15 ([#5686](https://github.com/opensearch-project/OpenSearch/pull/5686))
 
 ### Changed
