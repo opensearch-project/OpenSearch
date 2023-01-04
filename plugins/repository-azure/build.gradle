@@ -57,7 +57,7 @@ dependencies {
   api 'com.azure:azure-storage-blob:12.15.0'
   api 'org.reactivestreams:reactive-streams:1.0.3'
   api 'io.projectreactor:reactor-core:3.4.18'
-  api 'io.projectreactor.netty:reactor-netty:1.0.18'
+  api 'io.projectreactor.netty:reactor-netty:1.1.1'
   api 'io.projectreactor.netty:reactor-netty-core:1.0.24'
   api 'io.projectreactor.netty:reactor-netty-http:1.0.24'
   api "org.slf4j:slf4j-api:${versions.slf4j}"
@@ -135,7 +135,7 @@ thirdPartyAudit {
     'javax.xml.bind.annotation.XmlAccessOrder',
     'javax.xml.bind.annotation.XmlAccessType',
     'javax.xml.bind.annotation.XmlAccessorOrder',
-    'javax.xml.bind.annotation.XmlAccessorType', 
+    'javax.xml.bind.annotation.XmlAccessorType',
     'javax.xml.bind.annotation.XmlAttribute',
     'javax.xml.bind.annotation.XmlElement',
     'javax.xml.bind.annotation.XmlElement$DEFAULT',
