@@ -8,19 +8,25 @@
 
 package org.opensearch.index.translog;
 
+import org.opensearch.common.io.FileSystemUtils;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.index.translog.transfer.FileTransferTracker;
 import org.opensearch.index.translog.transfer.TransferSnapshot;
 import org.opensearch.index.translog.transfer.TranslogCheckpointTransferSnapshot;
 import org.opensearch.index.translog.transfer.TranslogTransferManager;
+import org.opensearch.index.translog.transfer.TranslogTransferMetadata;
 import org.opensearch.index.translog.transfer.listener.TranslogTransferListener;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.function.LongConsumer;
@@ -54,15 +60,11 @@ public class RemoteFsTranslog extends Translog {
         super(config, translogUUID, deletionPolicy, globalCheckpointSupplier, primaryTermSupplier, persistedSequenceNumberConsumer);
         this.blobStoreRepository = blobStoreRepository;
         fileTransferTracker = new FileTransferTracker(shardId);
-        this.translogTransferManager = new TranslogTransferManager(
-            new BlobStoreTransferService(blobStoreRepository.blobStore(), executorService),
-            blobStoreRepository.basePath().add(shardId.getIndex().getUUID()).add(String.valueOf(shardId.id())),
-            fileTransferTracker,
-            fileTransferTracker::exclusionFilter
-        );
+        this.translogTransferManager = buildTranslogTransferManager(blobStoreRepository, executorService, shardId, fileTransferTracker);
 
         try {
-            final Checkpoint checkpoint = readCheckpoint(location);
+            download(translogTransferManager, location);
+            Checkpoint checkpoint = readCheckpoint(location);
             this.readers.addAll(recoverFromFiles(checkpoint));
             if (readers.isEmpty()) {
                 throw new IllegalStateException("at least one reader must be recovered");
@@ -92,6 +94,45 @@ public class RemoteFsTranslog extends Translog {
             IOUtils.closeWhileHandlingException(readers);
             throw e;
         }
+    }
+
+    public static void download(TranslogTransferManager translogTransferManager, Path location) throws IOException {
+
+        TranslogTransferMetadata translogMetadata = translogTransferManager.readMetadata();
+        if (translogMetadata != null) {
+            if (Files.notExists(location)) {
+                Files.createDirectories(location);
+            }
+            // Delete translog files on local before downloading from remote
+            for (Path file : FileSystemUtils.files(location)) {
+                Files.delete(file);
+            }
+            Map<String, String> generationToPrimaryTermMapper = translogMetadata.getGenerationToPrimaryTermMapper();
+            for (long i = translogMetadata.getGeneration(); i >= translogMetadata.getMinTranslogGeneration(); i--) {
+                String generation = Long.toString(i);
+                translogTransferManager.downloadTranslog(generationToPrimaryTermMapper.get(generation), generation, location);
+            }
+            // We copy the latest generation .ckp file to translog.ckp so that flows that depend on
+            // existence of translog.ckp file work in the same way
+            Files.copy(
+                location.resolve(Translog.getCommitCheckpointFileName(translogMetadata.getGeneration())),
+                location.resolve(Translog.CHECKPOINT_FILE_NAME)
+            );
+        }
+    }
+
+    public static TranslogTransferManager buildTranslogTransferManager(
+        BlobStoreRepository blobStoreRepository,
+        ExecutorService executorService,
+        ShardId shardId,
+        FileTransferTracker fileTransferTracker
+    ) {
+        return new TranslogTransferManager(
+            new BlobStoreTransferService(blobStoreRepository.blobStore(), executorService),
+            blobStoreRepository.basePath().add(shardId.getIndex().getUUID()).add(String.valueOf(shardId.id())),
+            fileTransferTracker,
+            fileTransferTracker::exclusionFilter
+        );
     }
 
     @Override
