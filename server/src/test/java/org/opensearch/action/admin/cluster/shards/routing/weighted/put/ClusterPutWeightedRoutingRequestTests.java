@@ -56,7 +56,8 @@ public class ClusterPutWeightedRoutingRequestTests extends OpenSearchTestCase {
     }
 
     public void testValidate_MoreThanHalfWithZeroWeight() {
-        String reqString = "{\"us-east-1c\" : \"0\", \"us-east-1b\":\"0\",\"us-east-1a\":\"1\"}";
+        String reqString = "{\"weights\":{\"us-east-1c\":\"0\",\"us-east-1b\":\"0\",\"us-east-1a\": \"1\"}," +
+            "\"_version\":1}";
         ClusterPutWeightedRoutingRequest request = new ClusterPutWeightedRoutingRequest("zone");
         request.setWeightedRouting(new BytesArray(reqString), XContentType.JSON);
         ActionRequestValidationException actionRequestValidationException = request.validate();
