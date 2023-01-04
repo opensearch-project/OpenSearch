@@ -227,7 +227,7 @@ public class WeightedRoutingIT extends OpenSearchIntegTestCase {
         assertEquals(weightedRouting, weightedRoutingResponse.weights());
         assertTrue(weightedRoutingResponse.getDiscoveredClusterManager());
 
-        // get api to fetch local node weight for a node in zone a
+        // get api to fetch local weighted routing for a node in zone a
         weightedRoutingResponse = internalCluster().client(randomFrom(nodes_in_zone_a.get(0), nodes_in_zone_a.get(1)))
             .admin()
             .cluster()
@@ -238,7 +238,7 @@ public class WeightedRoutingIT extends OpenSearchIntegTestCase {
         assertEquals(weightedRouting, weightedRoutingResponse.weights());
         assertTrue(weightedRoutingResponse.getDiscoveredClusterManager());
 
-        // get api to fetch local node weight for a node in zone b
+        // get api to fetch local weighted routing for a node in zone b
         weightedRoutingResponse = internalCluster().client(randomFrom(nodes_in_zone_b.get(0), nodes_in_zone_b.get(1)))
             .admin()
             .cluster()
@@ -249,7 +249,7 @@ public class WeightedRoutingIT extends OpenSearchIntegTestCase {
         assertEquals(weightedRouting, weightedRoutingResponse.weights());
         assertTrue(weightedRoutingResponse.getDiscoveredClusterManager());
 
-        // get api to fetch local node weight for a node in zone c
+        // get api to fetch local weighted routing for a node in zone c
         weightedRoutingResponse = internalCluster().client(randomFrom(nodes_in_zone_c.get(0), nodes_in_zone_c.get(1)))
             .admin()
             .cluster()
@@ -323,7 +323,7 @@ public class WeightedRoutingIT extends OpenSearchIntegTestCase {
         // wait for leader checker to fail
         Thread.sleep(13000);
 
-        // get api to fetch local node weight for a node in zone a
+        // get api to fetch local weighted routing for a node in zone a or b
         ClusterGetWeightedRoutingResponse weightedRoutingResponse = internalCluster().client(
             randomFrom(nodes_in_zone_a.get(0), nodes_in_zone_b.get(0))
         ).admin().cluster().prepareGetWeightedRouting().setAwarenessAttribute("zone").setRequestLocal(true).get();
