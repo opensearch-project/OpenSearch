@@ -20,7 +20,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Add CI bundle pattern to distribution download ([#5348](https://github.com/opensearch-project/OpenSearch/pull/5348))
 - Add support for ppc64le architecture ([#5459](https://github.com/opensearch-project/OpenSearch/pull/5459))
 - Added @gbbafna as an OpenSearch maintainer ([#5668](https://github.com/opensearch-project/OpenSearch/pull/5668))
-- Add support for discovered master and remove local weights ([#5680](https://github.com/opensearch-project/OpenSearch/pull/5680))
+- Add support for discovered cluster manager and remove local weights ([#5680](https://github.
+com/opensearch-project/OpenSearch/pull/5680))
 
 
 ### Dependencies

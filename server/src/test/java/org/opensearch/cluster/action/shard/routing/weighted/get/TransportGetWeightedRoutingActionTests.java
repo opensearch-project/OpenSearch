@@ -230,7 +230,7 @@ public class TransportGetWeightedRoutingActionTests extends OpenSearchTestCase {
         ClusterServiceUtils.setState(clusterService, builder);
 
         ClusterGetWeightedRoutingResponse response = ActionTestUtils.executeBlocking(transportGetWeightedRoutingAction, request.request());
-        assertEquals(true, response.getDiscoveredMaster());
+        assertEquals(true, response.getDiscoveredClusterManager());
         assertEquals(weights, response.getWeightedRouting().weights());
     }
 
