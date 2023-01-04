@@ -50,4 +50,3 @@ For any given Permission, the terminology of the specific operation can be broke
 returning to the above `_bulk` request example, the Permission associated with `User_1` deleting data from `test-index` would be: `User_1.test-index.delete.<Token_Hash>`.
 The Token Hash is an identifier associated with the current authorization token which allows the Permissions authorization methods to quickly check the appropriate token field of the Subject.
 This new nomenclature pattern has the benefit of being easy to understand in logs and translating across both cluster-scale and index-scale permissions.
-
