@@ -79,7 +79,9 @@ public class ClusterGetWeightedRoutingResponse extends ActionResponse implements
         if (weightedRouting != null) {
             weightedRouting.writeTo(out);
         }
-        out.writeOptionalBoolean(discoveredMaster);
+        if (discoveredMaster != null) {
+            out.writeOptionalBoolean(discoveredMaster);
+        }
     }
 
     @Override
