@@ -6,7 +6,7 @@
 package org.opensearch.example.jobschedulersampleextension.bwc;
 
 import org.junit.Assert;
-import org.opensearch.jobscheduler.sampleextension.SampleExtensionIntegTestCase;
+import org.opensearch.example.jobschedulersampleextension.SampleExtensionIntegTestCase;
 import org.opensearch.test.rest.OpenSearchRestTestCase;
 
 import java.time.Instant;

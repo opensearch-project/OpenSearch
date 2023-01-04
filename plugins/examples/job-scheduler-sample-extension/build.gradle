@@ -113,7 +113,7 @@ integTest {
     }
     if (System.getProperty("tests.rest.bwcsuite") == null) {
         filter {
-            excludeTestsMatching "org.opensearch.jobscheduler.sampleextension.bwc.*IT"
+            excludeTestsMatching "org.opensearch.example.jobschedulersampleextension.bwc.*IT"
         }
     }
 }
