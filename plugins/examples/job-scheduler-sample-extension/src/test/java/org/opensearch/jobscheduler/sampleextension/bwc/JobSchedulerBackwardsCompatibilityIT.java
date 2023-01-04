@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-package org.opensearch.jobscheduler.sampleextension.bwc;
+package org.opensearch.example.jobschedulersampleextension.bwc;
 
 import org.junit.Assert;
 import org.opensearch.jobscheduler.sampleextension.SampleExtensionIntegTestCase;
