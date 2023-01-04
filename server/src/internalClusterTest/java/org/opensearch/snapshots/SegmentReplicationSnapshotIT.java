@@ -166,6 +166,7 @@ public class SegmentReplicationSnapshotIT extends AbstractSnapshotIntegTestCase 
         assertHitCount(resp, DOC_COUNT);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/5669")
     public void testSnapshotOnSegRep_RestoreOnSegRepDuringIngestion() throws Exception {
         startClusterWithSettings(segRepEnableIndexSettings(), 1);
         createSnapshot();
