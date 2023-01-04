@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-package org.opensearch.jobscheduler.sampleextension;
+package org.opensearch.example.jobschedulersampleextension;
 
 import org.junit.Assert;
 import org.opensearch.jobscheduler.spi.schedule.IntervalSchedule;

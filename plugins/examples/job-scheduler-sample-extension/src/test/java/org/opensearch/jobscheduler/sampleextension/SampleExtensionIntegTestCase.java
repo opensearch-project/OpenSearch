@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-package org.opensearch.jobscheduler.sampleextension;
+package org.opensearch.example.jobschedulersampleextension;
 
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpEntity;
