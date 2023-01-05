@@ -171,6 +171,7 @@ import org.opensearch.indices.recovery.RecoveryFailedException;
 import org.opensearch.indices.recovery.RecoveryListener;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
+import org.opensearch.indices.replication.SegmentReplicationStatsState;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.repositories.RepositoriesService;
@@ -277,6 +278,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     @Nullable
     private volatile RecoveryState recoveryState;
 
+    @Nullable
+    private volatile SegmentReplicationStatsState segmentReplicationStatsState;
+
     private final RecoveryStats recoveryStats = new RecoveryStats();
     private final MeanMetric refreshMetric = new MeanMetric();
     private final MeanMetric externalRefreshMetric = new MeanMetric();
@@ -344,6 +348,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final CircuitBreakerService circuitBreakerService,
         final TranslogFactory translogFactory,
         @Nullable final SegmentReplicationCheckpointPublisher checkpointPublisher,
+        @Nullable final SegmentReplicationStatsState segmentReplicationStatsState,
         @Nullable final Store remoteStore
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
@@ -428,6 +433,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.useRetentionLeasesInPeerRecovery = replicationTracker.hasAllPeerRecoveryRetentionLeases();
         this.refreshPendingLocationListener = new RefreshPendingLocationListener();
         this.checkpointPublisher = checkpointPublisher;
+        this.segmentReplicationStatsState = segmentReplicationStatsState;
         this.remoteStore = remoteStore;
         this.translogFactory = translogFactory;
     }
@@ -1475,6 +1481,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return false;
         }
         return true;
+    }
+
+    public SegmentReplicationStatsState getSegmentReplicationStatsState(){
+        return this.segmentReplicationStatsState;
     }
 
     /**

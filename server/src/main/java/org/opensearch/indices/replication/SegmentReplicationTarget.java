@@ -68,6 +68,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         this.source = source;
         this.state = new SegmentReplicationState(stateIndex, getId());
         this.multiFileWriter = new MultiFileWriter(indexShard.store(), stateIndex, getPrefix(), logger, this::ensureRefCount);
+        indexShard.getSegmentReplicationStatsState().setSegmentReplicationState(state);
     }
 
     @Override

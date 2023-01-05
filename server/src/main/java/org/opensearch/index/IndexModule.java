@@ -76,6 +76,7 @@ import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.indices.replication.SegmentReplicationStatsState;
 import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
@@ -122,6 +123,8 @@ public final class IndexModule {
     private static final FsDirectoryFactory DEFAULT_DIRECTORY_FACTORY = new FsDirectoryFactory();
 
     private static final IndexStorePlugin.RecoveryStateFactory DEFAULT_RECOVERY_STATE_FACTORY = RecoveryState::new;
+
+    private static final IndexStorePlugin.SegmentReplicationStatsStateFactory DEFAULT_SEGMENT_REPLICATION_STATS_STATE_FACTORY = SegmentReplicationStatsState::new;
 
     public static final Setting<String> INDEX_STORE_TYPE_SETTING = new Setting<>(
         "index.store.type",
@@ -197,6 +200,8 @@ public final class IndexModule {
     private final BooleanSupplier allowExpensiveQueries;
     private final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories;
 
+    private final Map<String, IndexStorePlugin.SegmentReplicationStatsStateFactory> segmentReplicationStatsStateFactories;
+
     /**
      * Construct the index module for the index with the specified index settings. The index module contains extension points for plugins
      * via {@link org.opensearch.plugins.PluginsService#onIndexModule(IndexModule)}.
@@ -214,7 +219,8 @@ public final class IndexModule {
         final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories,
         final BooleanSupplier allowExpensiveQueries,
         final IndexNameExpressionResolver expressionResolver,
-        final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories
+        final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
+        final Map<String, IndexStorePlugin.SegmentReplicationStatsStateFactory> segmentReplicationStatsStateFactories
     ) {
         this.indexSettings = indexSettings;
         this.analysisRegistry = analysisRegistry;
@@ -226,6 +232,7 @@ public final class IndexModule {
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.expressionResolver = expressionResolver;
         this.recoveryStateFactories = recoveryStateFactories;
+        this.segmentReplicationStatsStateFactories = segmentReplicationStatsStateFactories;
     }
 
     /**
@@ -501,6 +508,7 @@ public final class IndexModule {
         eventListener.beforeIndexCreated(indexSettings.getIndex(), indexSettings.getSettings());
         final IndexStorePlugin.DirectoryFactory directoryFactory = getDirectoryFactory(indexSettings, directoryFactories);
         final IndexStorePlugin.RecoveryStateFactory recoveryStateFactory = getRecoveryStateFactory(indexSettings, recoveryStateFactories);
+        final IndexStorePlugin.SegmentReplicationStatsStateFactory segmentReplicationStatsStateFactory = getSegmentReplicationStateFactory(indexSettings, segmentReplicationStatsStateFactories);
         QueryCache queryCache = null;
         IndexAnalyzers indexAnalyzers = null;
         boolean success = false;
@@ -549,6 +557,7 @@ public final class IndexModule {
                 expressionResolver,
                 valuesSourceRegistry,
                 recoveryStateFactory,
+                segmentReplicationStatsStateFactory,
                 repositoriesServiceSupplier
             );
             success = true;
@@ -607,6 +616,13 @@ public final class IndexModule {
         }
 
         return factory;
+    }
+
+    private static IndexStorePlugin.SegmentReplicationStatsStateFactory getSegmentReplicationStateFactory(
+        final IndexSettings indexSettings,
+        final Map<String, IndexStorePlugin.SegmentReplicationStatsStateFactory> segmentReplicationStateFactories
+    ) {
+        return DEFAULT_SEGMENT_REPLICATION_STATS_STATE_FACTORY;
     }
 
     /**

@@ -39,6 +39,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.indices.replication.SegmentReplicationStatsState;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -103,6 +104,15 @@ public interface IndexStorePlugin {
         RecoveryState newRecoveryState(ShardRouting shardRouting, DiscoveryNode targetNode, @Nullable DiscoveryNode sourceNode);
     }
 
+    @FunctionalInterface
+    interface SegmentReplicationStatsStateFactory {
+        /**
+         * Creates a new {@link RecoveryState} per shard. This method is called once per shard on shard creation.
+         * @return a new RecoveryState instance
+         */
+        SegmentReplicationStatsState newSegmentReplicationStatsState(ShardRouting shardRouting);
+    }
+
     /**
      * The {@link RecoveryStateFactory} mappings for this plugin. When an index is created the recovery type setting
      * {@link org.opensearch.index.IndexModule#INDEX_RECOVERY_TYPE_SETTING} on the index will be examined and either use the default
@@ -113,4 +123,6 @@ public interface IndexStorePlugin {
     default Map<String, RecoveryStateFactory> getRecoveryStateFactories() {
         return Collections.emptyMap();
     }
+
+    default Map<String, SegmentReplicationStatsStateFactory> getSegmentReplicationStatsStateFactory() { return Collections.emptyMap(); }
 }

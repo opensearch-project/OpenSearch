@@ -176,6 +176,8 @@ import org.opensearch.action.admin.indices.refresh.TransportRefreshAction;
 import org.opensearch.action.admin.indices.resolve.ResolveIndexAction;
 import org.opensearch.action.admin.indices.rollover.RolloverAction;
 import org.opensearch.action.admin.indices.rollover.TransportRolloverAction;
+import org.opensearch.action.admin.indices.segment_replication.SegmentReplicationAction;
+import org.opensearch.action.admin.indices.segment_replication.TransportSegmentReplicationAction;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentsAction;
 import org.opensearch.action.admin.indices.segments.PitSegmentsAction;
 import org.opensearch.action.admin.indices.segments.TransportIndicesSegmentsAction;
@@ -397,6 +399,7 @@ import org.opensearch.rest.action.cat.RestAliasAction;
 import org.opensearch.rest.action.cat.RestAllocationAction;
 import org.opensearch.rest.action.cat.RestCatAction;
 import org.opensearch.rest.action.cat.RestCatRecoveryAction;
+import org.opensearch.rest.action.cat.RestCatSegmentReplicationAction;
 import org.opensearch.rest.action.cat.RestFielddataAction;
 import org.opensearch.rest.action.cat.RestHealthAction;
 import org.opensearch.rest.action.cat.RestIndicesAction;
@@ -649,6 +652,7 @@ public class ActionModule extends AbstractModule {
         actions.register(ExplainAction.INSTANCE, TransportExplainAction.class);
         actions.register(ClearScrollAction.INSTANCE, TransportClearScrollAction.class);
         actions.register(RecoveryAction.INSTANCE, TransportRecoveryAction.class);
+        actions.register(SegmentReplicationAction.INSTANCE, TransportSegmentReplicationAction.class);
         actions.register(NodesReloadSecureSettingsAction.INSTANCE, TransportNodesReloadSecureSettingsAction.class);
         actions.register(AutoCreateAction.INSTANCE, AutoCreateAction.TransportAction.class);
 
@@ -870,6 +874,7 @@ public class ActionModule extends AbstractModule {
 
         // CAT API
         registerHandler.accept(new RestAllocationAction());
+        registerHandler.accept(new RestCatSegmentReplicationAction());
         registerHandler.accept(new RestShardsAction());
         registerHandler.accept(new RestClusterManagerAction());
         registerHandler.accept(new RestNodesAction());

@@ -8,20 +8,26 @@
 
 package org.opensearch.indices.replication;
 
-import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.ToXContentFragment;
+import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.indices.replication.common.ReplicationState;
 import org.opensearch.indices.replication.common.ReplicationTimer;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * ReplicationState implementation to track Segment Replication events.
  *
  * @opensearch.internal
  */
-public class SegmentReplicationState implements ReplicationState {
+public class SegmentReplicationState implements ReplicationState, ToXContentFragment, Writeable {
 
     /**
      * The stage of the recovery state
@@ -69,7 +75,7 @@ public class SegmentReplicationState implements ReplicationState {
     private final ReplicationLuceneIndex index;
     private final ReplicationTimer overallTimer;
     private final ReplicationTimer stageTimer;
-    private final List<Tuple<String, Long>> timingData;
+    private final Map<String, Long> timingData;
     private long replicationId;
 
     public SegmentReplicationState(ReplicationLuceneIndex index) {
@@ -77,7 +83,8 @@ public class SegmentReplicationState implements ReplicationState {
         this.index = index;
         // Timing data will have as many entries as stages, plus one
         // additional entry for the overall timer
-        timingData = new ArrayList<>(Stage.values().length + 1);
+        timingData = new HashMap<>(Stage.values().length + 1);
+
         overallTimer = new ReplicationTimer();
         stageTimer = new ReplicationTimer();
         stageTimer.start();
@@ -88,6 +95,16 @@ public class SegmentReplicationState implements ReplicationState {
     public SegmentReplicationState(ReplicationLuceneIndex index, long replicationId) {
         this(index);
         this.replicationId = replicationId;
+    }
+
+    public SegmentReplicationState(StreamInput in) throws IOException {
+        this(new ReplicationLuceneIndex(in));
+        replicationId = in.readLong();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeLong(replicationId);
     }
 
     @Override
@@ -104,7 +121,7 @@ public class SegmentReplicationState implements ReplicationState {
         return overallTimer;
     }
 
-    public List<Tuple<String, Long>> getTimingData() {
+    public Map<String, Long> getTimingData() {
         return timingData;
     }
 
@@ -125,7 +142,7 @@ public class SegmentReplicationState implements ReplicationState {
     private void stopTimersAndSetStage(Stage next) {
         // save the timing data for the current step
         stageTimer.stop();
-        timingData.add(new Tuple<>(stage.name(), stageTimer.time()));
+        timingData.put(stage.name().toString(), stageTimer.time());
         // restart the step timer
         stageTimer.reset();
         stageTimer.start();
@@ -158,7 +175,7 @@ public class SegmentReplicationState implements ReplicationState {
                 validateAndSetStage(Stage.FINALIZE_REPLICATION, stage);
                 // add the overall timing data
                 overallTimer.stop();
-                timingData.add(new Tuple<>("OVERALL", overallTimer.time()));
+                timingData.put("OVERALL", overallTimer.time());
                 break;
             case CANCELLED:
                 if (this.stage == Stage.DONE) {
@@ -166,10 +183,20 @@ public class SegmentReplicationState implements ReplicationState {
                 }
                 stopTimersAndSetStage(Stage.CANCELLED);
                 overallTimer.stop();
-                timingData.add(new Tuple<>("OVERALL", overallTimer.time()));
+                timingData.put("OVERALL", overallTimer.time());
                 break;
             default:
                 throw new IllegalArgumentException("unknown SegmentReplicationState.Stage [" + stage + "]");
         }
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+
+        builder.field("REPLICATION_ID", replicationId);
+        builder.field("OVERALL TIMER", getTimer());
+        builder.field("STAGE", stage.toString());
+
+        return builder;
     }
 }
