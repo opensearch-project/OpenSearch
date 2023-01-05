@@ -63,7 +63,7 @@ public class RemoteFsTranslog extends Translog {
         this.translogTransferManager = buildTranslogTransferManager(blobStoreRepository, executorService, shardId, fileTransferTracker);
 
         try {
-            download(translogTransferManager, location, fileTransferTracker);
+            download(translogTransferManager, location);
             Checkpoint checkpoint = readCheckpoint(location);
             this.readers.addAll(recoverFromFiles(checkpoint));
             if (readers.isEmpty()) {
@@ -96,8 +96,7 @@ public class RemoteFsTranslog extends Translog {
         }
     }
 
-    public static void download(TranslogTransferManager translogTransferManager, Path location, FileTransferTracker fileTransferTracker)
-        throws IOException {
+    public static void download(TranslogTransferManager translogTransferManager, Path location) throws IOException {
 
         TranslogTransferMetadata translogMetadata = translogTransferManager.readMetadata();
         if (translogMetadata != null) {
