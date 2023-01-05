@@ -78,6 +78,3 @@ ${error.file}
 
 # Explicitly allow security manager (https://bugs.openjdk.java.net/browse/JDK-8270380)
 18-:-Djava.security.manager=allow
-
-# Allow mmap to use new JDK-19 preview APIs in Apache Lucene 9.4 (https://github.com/opensearch-project/OpenSearch/issues/4637)
-19-:--enable-preview
