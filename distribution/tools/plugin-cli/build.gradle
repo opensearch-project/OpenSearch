@@ -33,15 +33,11 @@ apply plugin: 'opensearch.build'
 archivesBaseName = 'opensearch-plugin-cli'
 
 dependencies {
-  compileOnly(project(":server")) {
-    exclude group: 'org.bouncycastle', module: 'bcprov-jdk15on'
-  }
+  compileOnly project(":server")
   compileOnly project(":libs:opensearch-cli")
   api "org.bouncycastle:bcpg-fips:1.0.7.1"
   api "org.bouncycastle:bc-fips:1.0.2.3"
-  testImplementation(project(":test:framework")) {
-    exclude group: 'org.bouncycastle', module: 'bcprov-jdk15on'
-  }
+  testImplementation project(":test:framework")
   testImplementation 'com.google.jimfs:jimfs:1.2'
   testRuntimeOnly 'com.google.guava:guava:31.1-jre'
 }
@@ -82,5 +78,3 @@ thirdPartyAudit.ignoreViolations(
   'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSExtendedMasterSecretGenerator',
   'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSExtendedMasterSecretGenerator$2'
 )
-
-jarHell.enabled = false

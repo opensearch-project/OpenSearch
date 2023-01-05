@@ -12,10 +12,10 @@
 [List any issues this PR will resolve]
 
 ### Check List
-- [ ] ~New functionality includes testing.~ *Not Required*
-  - [ ] ~All tests pass~ *Not Required*
-- [ ] ~New functionality has been documented.~ *Not Required*
-  - [ ] ~New functionality has javadoc added~ *Not Required*
+- [ ] New functionality includes testing.
+    - [ ] All tests pass
+- [ ] New functionality has been documented.
+    - [ ] New functionality has javadoc added
 - [ ] Commits are signed per the DCO using --signoff
 - [ ] Commit changes are listed out in CHANGELOG.md file (See: [Changelog](../blob/main/CONTRIBUTING.md#changelog))
 
