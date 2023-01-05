@@ -36,10 +36,14 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
+import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexingPressureService;
+import org.opensearch.index.translog.InternalTranslogFactory;
+import org.opensearch.index.translog.RemoteBlobStoreInternalTranslogFactory;
+import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.indices.replication.SegmentReplicationSourceFactory;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.indices.replication.SegmentReplicationSourceService;
@@ -228,6 +232,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
@@ -665,6 +670,17 @@ public class Node implements Closeable {
                 repositoriesServiceReference::get
             );
 
+            final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier = (indexSettings, shardRouting) -> {
+                if (indexSettings.isRemoteTranslogStoreEnabled() && shardRouting.primary()) {
+                    return new RemoteBlobStoreInternalTranslogFactory(
+                        repositoriesServiceReference::get,
+                        threadPool,
+                        indexSettings.getRemoteStoreTranslogRepository()
+                    );
+                }
+                return new InternalTranslogFactory();
+            };
+
             final IndicesService indicesService;
             if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
                 indicesService = new IndicesService(
@@ -690,7 +706,7 @@ public class Node implements Closeable {
                     searchModule.getValuesSourceRegistry(),
                     recoveryStateFactories,
                     remoteDirectoryFactory,
-                    repositoriesServiceReference::get
+                    translogFactorySupplier
                 );
             } else {
                 indicesService = new IndicesService(
@@ -715,7 +731,7 @@ public class Node implements Closeable {
                     searchModule.getValuesSourceRegistry(),
                     recoveryStateFactories,
                     remoteDirectoryFactory,
-                    repositoriesServiceReference::get
+                    translogFactorySupplier
                 );
             }
 
