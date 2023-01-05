@@ -13,11 +13,9 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Collections;
 import java.util.HashMap;
 
 import static java.lang.Math.max;
@@ -34,42 +32,9 @@ import static org.opensearch.cluster.routing.allocation.decider.AwarenessAllocat
  */
 public class AwarenessReplicaBalance {
     public static final String SETTING_CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE = "cluster.routing.allocation.awareness.balance";
-    public static final String SETTING_FORCE_AWARENESS_REPLICA = "cluster.routing.allocation.awareness.force_replica";
     public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING = Setting.boolSetting(
         SETTING_CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE,
         false,
-        Setting.Property.Dynamic,
-        Setting.Property.NodeScope
-    );
-
-    public static final Setting<Boolean> FORCE_AWARENESS_REPLICA_SETTING = Setting.boolSetting(
-        SETTING_FORCE_AWARENESS_REPLICA,
-        false,
-        new Setting.Validator<>() {
-
-            @Override
-            public void validate(final Boolean value) {}
-
-            @Override
-            public void validate(final Boolean value, final Map<Setting<?>, Object> settings) {
-                final Boolean clusterAwarenessSetting = (Boolean) settings.get(CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING);
-                if (clusterAwarenessSetting == false && value == true) {
-                    throw new IllegalArgumentException(
-                        "To enable "
-                            + FORCE_AWARENESS_REPLICA_SETTING.getKey()
-                            + ", "
-                            + CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING.getKey()
-                            + " should be enabled"
-                    );
-                }
-            }
-
-            @Override
-            public Iterator<Setting<?>> settings() {
-                final List<Setting<?>> settings = Collections.singletonList(CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING);
-                return settings.iterator();
-            }
-        },
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -79,8 +44,6 @@ public class AwarenessReplicaBalance {
     private volatile Map<String, List<String>> forcedAwarenessAttributes;
 
     private volatile Boolean awarenessBalance;
-
-    private volatile Boolean forceAwarenessReplica;
 
     public AwarenessReplicaBalance(Settings settings, ClusterSettings clusterSettings) {
         this.awarenessAttributes = CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.get(settings);
@@ -92,8 +55,6 @@ public class AwarenessReplicaBalance {
         );
         setAwarenessBalance(CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING.get(settings));
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING, this::setAwarenessBalance);
-        this.forceAwarenessReplica = FORCE_AWARENESS_REPLICA_SETTING.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(FORCE_AWARENESS_REPLICA_SETTING, this::setForceAwarenessReplica);
     }
 
     private void setAwarenessBalance(Boolean awarenessBalance) {
@@ -102,10 +63,6 @@ public class AwarenessReplicaBalance {
 
     private void setForcedAwarenessAttributes(Settings forceSettings) {
         this.forcedAwarenessAttributes = getForcedAwarenessAttributes(forceSettings);
-    }
-
-    private void setForceAwarenessReplica(Boolean forceAwarenessReplica) {
-        this.forceAwarenessReplica = forceAwarenessReplica;
     }
 
     public static Map<String, List<String>> getForcedAwarenessAttributes(Settings forceSettings) {
@@ -124,10 +81,6 @@ public class AwarenessReplicaBalance {
         this.awarenessAttributes = awarenessAttributes;
     }
 
-    public Boolean getForceAwarenessReplicaSetting() {
-        return this.forceAwarenessReplica;
-    }
-
     /*
     For a cluster having zone as awareness attribute , it will return the size of zones if set it forced awareness attributes
 
@@ -140,34 +93,17 @@ public class AwarenessReplicaBalance {
 
     In this case,  awareness attributes would be 3.
      */
-    static int getMaxAwarenessAttributes(
-        Boolean awarenessBalance,
-        List<String> awarenessAttributes,
-        Map<String, List<String>> forcedAwarenessAttributes
-    ) {
-        int defaultAwarenessAttributes = 1;
-        if (awarenessBalance == false) {
-            return defaultAwarenessAttributes;
+    public int maxAwarenessAttributes() {
+        int awarenessAttributes = 1;
+        if (this.awarenessBalance == false) {
+            return awarenessAttributes;
         }
-        for (String awarenessAttribute : awarenessAttributes) {
+        for (String awarenessAttribute : this.awarenessAttributes) {
             if (forcedAwarenessAttributes.containsKey(awarenessAttribute)) {
-                defaultAwarenessAttributes = max(defaultAwarenessAttributes, forcedAwarenessAttributes.get(awarenessAttribute).size());
+                awarenessAttributes = max(awarenessAttributes, forcedAwarenessAttributes.get(awarenessAttribute).size());
             }
         }
-        return defaultAwarenessAttributes;
-    }
-
-    public int maxAwarenessAttributes() {
-        return getMaxAwarenessAttributes(this.awarenessBalance, this.awarenessAttributes, this.forcedAwarenessAttributes);
-    }
-
-    public static int maxAwarenessAttributes(Settings settings) {
-        Boolean awarenessBalance = CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING.get(settings);
-        List<String> awarenessAttributes = CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.get(settings);
-        Map<String, List<String>> forcedAwarenessAttributes = getForcedAwarenessAttributes(
-            CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.get(settings)
-        );
-        return getMaxAwarenessAttributes(awarenessBalance, awarenessAttributes, forcedAwarenessAttributes);
+        return awarenessAttributes;
     }
 
     public Optional<String> validate(int replicaCount, AutoExpandReplicas autoExpandReplica) {
