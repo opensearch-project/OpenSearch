@@ -105,11 +105,11 @@ jobs:
         with:
           issue-number: ${{ env.pr_number }}
           body: |
-              ### Gradle Check (Jenkins) Run Completed with:
-              * **RESULT:** ${{ env.result }} :grey_exclamation: ${{ env.test_failures }}
-              * **URL:** ${{ env.workflow_url }}
-              * **CommitID:** ${{ env.pr_from_sha }}
-              Please review all [flaky tests](https://github.com/opensearch-project/OpenSearch/blob/main/DEVELOPER_GUIDE.md#flaky-tests) that succeeded after retry and create an issue if one does not already exist to track the flaky failure.
+            ### Gradle Check (Jenkins) Run Completed with:
+            * **RESULT:** ${{ env.result }} :grey_exclamation: ${{ env.test_failures }}
+            * **URL:** ${{ env.workflow_url }}
+            * **CommitID:** ${{ env.pr_from_sha }}
+            Please review all [flaky tests](https://github.com/opensearch-project/OpenSearch/blob/main/DEVELOPER_GUIDE.md#flaky-tests) that succeeded after retry and create an issue if one does not already exist to track the flaky failure.
 
       - name: Create Comment Failure
         if: ${{ github.event_name == 'pull_request_target' && failure() }}
