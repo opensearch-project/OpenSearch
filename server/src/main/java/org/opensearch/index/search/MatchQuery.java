@@ -759,14 +759,19 @@ public class MatchQuery {
                 lastState = end;
                 final Query queryPos;
                 boolean usePrefix = isPrefix && end == -1;
-                boolean graphHasSidePath = false;
-                try {
-                    graphHasSidePath = graph.hasSidePath(start);
-                } catch (AssertionError e) {
-                    logger.info("GraphTokenStreamFiniteStrings has no path. Catch assertion error: \n" + e);
-                    return zeroTermsQuery();
-                }
-                if (graphHasSidePath) {
+                /**
+                 * comment out the fix and mimic the error in unit test from MatchQueryBuilderTests.java
+                 */
+
+                // boolean graphHasSidePath = false;
+                // try {
+                // graphHasSidePath = graph.hasSidePath(start);
+                // } catch (AssertionError e) {
+                // logger.info("GraphTokenStreamFiniteStrings has no path. Catch assertion error: \n" + e);
+                // return zeroTermsQuery();
+                // }
+                // if (graphHasSidePath) {
+                if (graph.hasSidePath(start)) {
                     final Iterator<TokenStream> it = graph.getFiniteStrings(start, end);
                     Iterator<Query> queries = new Iterator<Query>() {
                         @Override

@@ -52,6 +52,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.graph.GraphTokenStreamFiniteStrings;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.Strings;
@@ -326,6 +327,17 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         query.toQuery(context); // no exception
     }
 
+    public void testMatchQueryWithNoSidePath() throws Exception {
+        QueryShardContext testContext = createShardContext();
+        final MatchQuery testMatchQuery = new MatchQuery(testContext);
+        MockGraphAnalyzer mockAnalyzer = new MockGraphAnalyzer(createGiantGraphWithNoSide());
+        testMatchQuery.setAnalyzer(mockAnalyzer);
+        testMatchQuery.setAutoGenerateSynonymsPhraseQuery(true);
+        GraphTokenStreamFiniteStrings graph = new GraphTokenStreamFiniteStrings(mockAnalyzer.getTokenStream());
+        AssertionError e = expectThrows(AssertionError.class, () -> graph.hasSidePath(0));
+        assertEquals("state=0 nextState=0", e.getMessage());
+    }
+
     public void testDefaultFuzziness() {
         MatchQueryBuilder matchQueryBuilder = new MatchQueryBuilder("text", TEXT_FIELD_NAME).fuzziness(null);
         assertNull(matchQueryBuilder.fuzziness());
@@ -542,12 +554,18 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
 
         MockGraphAnalyzer(CannedBinaryTokenStream.BinaryToken[] tokens) {
             this.tokenStream = new CannedBinaryTokenStream(tokens);
+
         }
 
         @Override
         protected TokenStreamComponents createComponents(String fieldName) {
             return new TokenStreamComponents(r -> {}, tokenStream);
         }
+
+        public CannedBinaryTokenStream getTokenStream() {
+            return this.tokenStream;
+        }
+
     }
 
     /**
@@ -567,6 +585,14 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
                 i++;
             }
         }
+        return tokens.toArray(new CannedBinaryTokenStream.BinaryToken[0]);
+    }
+
+    /**
+     * Creates a graph token stream with no side path.
+     **/
+    private static CannedBinaryTokenStream.BinaryToken[] createGiantGraphWithNoSide() {
+        List<CannedBinaryTokenStream.BinaryToken> tokens = new ArrayList<>();
         return tokens.toArray(new CannedBinaryTokenStream.BinaryToken[0]);
     }
 
