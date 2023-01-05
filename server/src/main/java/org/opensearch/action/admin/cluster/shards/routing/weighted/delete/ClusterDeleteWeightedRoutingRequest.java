@@ -44,7 +44,7 @@ public class ClusterDeleteWeightedRoutingRequest extends ClusterManagerNodeReque
         this.version = version;
     }
 
-    public ClusterDeleteWeightedRoutingRequest() {
+    ClusterDeleteWeightedRoutingRequest() {
         this.version = WeightedRoutingMetadata.VERSION_UNSET_VALUE;
     }
 

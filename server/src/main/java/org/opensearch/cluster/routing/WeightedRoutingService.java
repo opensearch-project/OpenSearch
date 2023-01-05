@@ -103,7 +103,7 @@ public class WeightedRoutingService {
                     logger.info("add weighted routing weights in metadata [{}]", newWeightedRouting);
                     weightedRoutingMetadata = new WeightedRoutingMetadata(newWeightedRouting, requestVersion + 1);
                 } else {
-                    if (!checkIfSameWeightsInMetadata(newWeightedRouting, weightedRoutingMetadata.getWeightedRouting())) {
+                    if (!newWeightedRouting.equals(weightedRoutingMetadata.getWeightedRouting())) {
                         logger.info("updated weighted routing weights [{}] in metadata", newWeightedRouting);
                         weightedRoutingMetadata = new WeightedRoutingMetadata(newWeightedRouting, requestVersion + 1);
                     } else {
@@ -128,10 +128,6 @@ public class WeightedRoutingService {
                 listener.onResponse(new ClusterStateUpdateResponse(true));
             }
         });
-    }
-
-    private boolean checkIfSameWeightsInMetadata(WeightedRouting newWeights, WeightedRouting oldWeights) {
-        return newWeights.equals(oldWeights);
     }
 
     public void deleteWeightedRoutingMetadata(

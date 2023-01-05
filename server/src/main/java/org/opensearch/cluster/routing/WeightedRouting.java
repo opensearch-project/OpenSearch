@@ -28,7 +28,7 @@ public class WeightedRouting implements Writeable {
 
     public WeightedRouting() {
         this.attributeName = "";
-        this.weights = new HashMap<>();
+        this.weights = new HashMap<>(3);
     }
 
     public WeightedRouting(String attributeName, Map<String, Double> weights) {
