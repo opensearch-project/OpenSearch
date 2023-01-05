@@ -119,11 +119,6 @@ public class RemoteFsTranslog extends Translog {
                 location.resolve(Translog.getCommitCheckpointFileName(translogMetadata.getGeneration())),
                 location.resolve(Translog.CHECKPOINT_FILE_NAME)
             );
-
-            // Mark in FileTransferTracker so that the same files are not uploaded at the time of translog sync
-            for (Path file : FileSystemUtils.files(location)) {
-                fileTransferTracker.add(file.getFileName().toString());
-            }
         }
     }
 
@@ -136,8 +131,7 @@ public class RemoteFsTranslog extends Translog {
         return new TranslogTransferManager(
             new BlobStoreTransferService(blobStoreRepository.blobStore(), executorService),
             blobStoreRepository.basePath().add(shardId.getIndex().getUUID()).add(String.valueOf(shardId.id())),
-            fileTransferTracker,
-            fileTransferTracker::exclusionFilter
+            fileTransferTracker
         );
     }
 

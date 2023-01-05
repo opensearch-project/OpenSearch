@@ -13,6 +13,7 @@ import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
 import org.opensearch.index.translog.transfer.listener.FileTransferListener;
 
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -32,28 +33,26 @@ public class FileTransferTracker implements FileTransferListener {
 
     @Override
     public void onSuccess(TransferFileSnapshot fileSnapshot) {
-        TransferState targetState = TransferState.SUCCESS;
-        fileTransferTracker.compute(fileSnapshot.getName(), (k, v) -> {
+        add(fileSnapshot.getName(), TransferState.SUCCESS);
+    }
+
+    void add(String file, boolean success) {
+        TransferState targetState = success ? TransferState.SUCCESS : TransferState.FAILED;
+        add(file, targetState);
+    }
+
+    private void add(String file, TransferState targetState) {
+        fileTransferTracker.compute(file, (k, v) -> {
             if (v == null || v.validateNextState(targetState)) {
                 return targetState;
             }
             throw new IllegalStateException("Unexpected transfer state " + v + "while setting target to" + targetState);
         });
-    }
-
-    public void add(String file) {
-        fileTransferTracker.put(file, TransferState.SUCCESS);
     }
 
     @Override
     public void onFailure(TransferFileSnapshot fileSnapshot, Exception e) {
-        TransferState targetState = TransferState.FAILED;
-        fileTransferTracker.compute(fileSnapshot.getName(), (k, v) -> {
-            if (v == null || v.validateNextState(targetState)) {
-                return targetState;
-            }
-            throw new IllegalStateException("Unexpected transfer state " + v + "while setting target to" + targetState);
-        });
+        add(fileSnapshot.getName(), TransferState.FAILED);
     }
 
     public Set<TransferFileSnapshot> exclusionFilter(Set<TransferFileSnapshot> original) {
@@ -84,7 +83,7 @@ public class FileTransferTracker implements FileTransferListener {
                 case FAILED:
                     return true;
                 case SUCCESS:
-                    return Set.of(SUCCESS).contains(target);
+                    return Objects.equals(SUCCESS, target);
             }
             return false;
         }
