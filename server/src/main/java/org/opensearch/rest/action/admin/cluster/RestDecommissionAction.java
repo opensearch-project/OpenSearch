@@ -59,10 +59,14 @@ public class RestDecommissionAction extends BaseRestHandler {
             TimeValue delayTimeout = request.paramAsTime("delay_timeout", DecommissionRequest.DEFAULT_NODE_DRAINING_TIMEOUT);
             decommissionRequest.setDelayTimeout(delayTimeout);
         }
-        return decommissionRequest.setDecommissionAttribute(new DecommissionAttribute(attributeName, attributeValue))
-            .setRetryOnClusterManagerSwitch(false)
-            .setTimeout(
-                TimeValue.parseTimeValue(request.param("timeout"), DEFAULT_REQUEST_TIMEOUT, getClass().getSimpleName() + ".timeout")
-            );
+
+        if (request.hasParam("timeout")) {
+            TimeValue requestTimeout = request.paramAsTime("timeout", DEFAULT_REQUEST_TIMEOUT);
+            if (requestTimeout.getMillis() < DEFAULT_REQUEST_TIMEOUT.getMillis()) {
+                throw new IllegalArgumentException(String.format("default request timeout has to be at least [%s]", DEFAULT_REQUEST_TIMEOUT));
+            }
+            decommissionRequest.setTimeout(requestTimeout);
+        }
+        return decommissionRequest.setDecommissionAttribute(new DecommissionAttribute(attributeName, attributeValue)).setRetryOnClusterManagerSwitch(false);
     }
 }

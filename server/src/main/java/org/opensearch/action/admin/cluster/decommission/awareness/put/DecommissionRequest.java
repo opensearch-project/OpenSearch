@@ -164,9 +164,6 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
                 + "] Seconds";
             validationException = addValidationError(validationMessage, validationException);
         }
-        if (timeout.getMillis() < DEFAULT_REQUEST_TIMEOUT.getMillis()) {
-            validationException = addValidationError("request timeout should be at least 2 minutes", validationException);
-        }
         return validationException;
     }
 
