@@ -22,6 +22,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoTimeout;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
@@ -108,6 +109,6 @@ public class UserPersistenceIT extends HttpSmokeTestCaseWithIdentity {
         );
 
         ClusterIndexHealth identityIndexHealth = clusterHealthResponse.getIndices().get(ConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX);
-        assertEquals(ClusterHealthStatus.GREEN, identityIndexHealth.getStatus());
+        assertThat(identityIndexHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
     }
 }

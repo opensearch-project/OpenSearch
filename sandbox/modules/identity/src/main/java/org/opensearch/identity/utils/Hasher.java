@@ -16,6 +16,7 @@ import java.util.Objects;
 
 public class Hasher {
 
+    // TODO Review/Certify usage of SecureRandom, allow customizability of hashing method
     public static String hash(final char[] clearTextPassword) {
         final byte[] salt = new byte[16];
         new SecureRandom().nextBytes(salt);

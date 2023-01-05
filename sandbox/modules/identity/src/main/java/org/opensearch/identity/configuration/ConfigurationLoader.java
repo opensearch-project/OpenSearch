@@ -39,7 +39,6 @@ import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.identity.ConfigConstants;
-import org.opensearch.identity.utils.SecurityUtils;
 import org.opensearch.threadpool.ThreadPool;
 
 import static org.opensearch.common.xcontent.DeprecationHandler.THROW_UNSUPPORTED_OPERATION;
@@ -224,7 +223,7 @@ public class ConfigurationLoader {
 
             parser.nextToken();
 
-            final String jsonAsString = SecurityUtils.replaceEnvVars(new String(parser.binaryValue(), StandardCharsets.UTF_8), settings);
+            final String jsonAsString = new String(parser.binaryValue(), StandardCharsets.UTF_8);
             final JsonNode jsonNode = DefaultObjectMapper.readTree(jsonAsString);
             int configVersion = 1;
 
