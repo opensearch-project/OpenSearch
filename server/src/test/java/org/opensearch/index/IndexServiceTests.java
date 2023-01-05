@@ -421,7 +421,7 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
         final String indexName = "test";
         IndexService indexService = createIndex(
             indexName,
-            Settings.builder().put(TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING.getKey(), "100ms").build()
+            Settings.builder().put(TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING.getKey(), "200ms").build()
         );
 
         Translog translog = IndexShardTestCase.getTranslog(indexService.getShard(0));
