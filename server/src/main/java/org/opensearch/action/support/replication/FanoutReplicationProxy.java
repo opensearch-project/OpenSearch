@@ -8,10 +8,6 @@
 
 package org.opensearch.action.support.replication;
 
-<<<<<<< HEAD
-import org.opensearch.cluster.routing.ShardRouting;
-
-=======
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.replication.ReplicationOperation.ReplicaResponse;
 import org.opensearch.action.support.replication.ReplicationOperation.Replicas;
@@ -20,16 +16,12 @@ import org.opensearch.cluster.routing.ShardRouting;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
->>>>>>> main
 /**
  * This implementation of {@link ReplicationProxy} fans out the replication request to current shard routing if
  * it is not the primary and has replication mode as {@link ReplicationMode#FULL_REPLICATION}.
  *
  * @opensearch.internal
  */
-<<<<<<< HEAD
-public class FanoutReplicationProxy<ReplicaRequest> extends ReplicationProxy<ReplicaRequest> {
-=======
 public class FanoutReplicationProxy<ReplicaRequest extends ReplicationRequest<ReplicaRequest>> extends ReplicationProxy<ReplicaRequest> {
 
     public FanoutReplicationProxy(Replicas<ReplicaRequest> replicasProxy) {
@@ -45,7 +37,6 @@ public class FanoutReplicationProxy<ReplicaRequest extends ReplicationRequest<Re
         assert replicationMode == ReplicationMode.FULL_REPLICATION : "FanoutReplicationProxy allows only full replication mode";
         performOnReplicaConsumer.accept(getReplicasProxyConsumer(fullReplicationProxy, proxyRequest), proxyRequest);
     }
->>>>>>> main
 
     @Override
     ReplicationMode determineReplicationMode(ShardRouting shardRouting, ShardRouting primaryRouting) {

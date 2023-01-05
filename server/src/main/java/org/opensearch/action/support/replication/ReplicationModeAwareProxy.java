@@ -8,11 +8,6 @@
 
 package org.opensearch.action.support.replication;
 
-<<<<<<< HEAD
-import org.opensearch.cluster.routing.ShardRouting;
-
-import java.util.Objects;
-=======
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.replication.ReplicationOperation.ReplicaResponse;
 import org.opensearch.cluster.routing.ShardRouting;
@@ -20,7 +15,6 @@ import org.opensearch.cluster.routing.ShardRouting;
 import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
->>>>>>> main
 
 /**
  * This implementation of {@link ReplicationProxy} fans out the replication request to current shard routing basis
@@ -28,15 +22,6 @@ import java.util.function.Consumer;
  *
  * @opensearch.internal
  */
-<<<<<<< HEAD
-public class ReplicationModeAwareProxy<ReplicaRequest> extends ReplicationProxy<ReplicaRequest> {
-
-    private final ReplicationMode replicationModeOverride;
-
-    public ReplicationModeAwareProxy(ReplicationMode replicationModeOverride) {
-        assert Objects.nonNull(replicationModeOverride);
-        this.replicationModeOverride = replicationModeOverride;
-=======
 public class ReplicationModeAwareProxy<ReplicaRequest extends ReplicationRequest<ReplicaRequest>> extends ReplicationProxy<ReplicaRequest> {
 
     private final ReplicationMode replicationModeOverride;
@@ -71,7 +56,6 @@ public class ReplicationModeAwareProxy<ReplicaRequest extends ReplicationRequest
             replicasProxyConsumer = getReplicasProxyConsumer(primaryTermValidationProxy, proxyRequest);
         }
         performOnReplicaConsumer.accept(replicasProxyConsumer, proxyRequest);
->>>>>>> main
     }
 
     @Override
