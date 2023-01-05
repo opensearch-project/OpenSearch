@@ -27,12 +27,12 @@ import java.util.Objects;
 /**
  * Stats related to cancelled search shard tasks.
  */
-public class SearchShardTaskStats implements ToXContentObject, Writeable {
+public class SearchBackpressureTaskStats implements ToXContentObject, Writeable {
     private final long cancellationCount;
     private final long limitReachedCount;
     private final Map<TaskResourceUsageTrackerType, TaskResourceUsageTracker.Stats> resourceUsageTrackerStats;
 
-    public SearchShardTaskStats(
+    public SearchBackpressureTaskStats(
         long cancellationCount,
         long limitReachedCount,
         Map<TaskResourceUsageTrackerType, TaskResourceUsageTracker.Stats> resourceUsageTrackerStats
@@ -42,7 +42,7 @@ public class SearchShardTaskStats implements ToXContentObject, Writeable {
         this.resourceUsageTrackerStats = resourceUsageTrackerStats;
     }
 
-    public SearchShardTaskStats(StreamInput in) throws IOException {
+    public SearchBackpressureTaskStats(StreamInput in) throws IOException {
         this.cancellationCount = in.readVLong();
         this.limitReachedCount = in.readVLong();
 
@@ -85,10 +85,25 @@ public class SearchShardTaskStats implements ToXContentObject, Writeable {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        SearchShardTaskStats that = (SearchShardTaskStats) o;
+        SearchBackpressureTaskStats that = (SearchBackpressureTaskStats) o;
         return cancellationCount == that.cancellationCount
             && limitReachedCount == that.limitReachedCount
-            && resourceUsageTrackerStats.equals(that.resourceUsageTrackerStats);
+            && compareMaps(resourceUsageTrackerStats, that.resourceUsageTrackerStats);
+    }
+
+    private boolean compareMaps(
+        Map<TaskResourceUsageTrackerType, TaskResourceUsageTracker.Stats> trackers1,
+        Map<TaskResourceUsageTrackerType, TaskResourceUsageTracker.Stats> trackers2
+    ) {
+        if (trackers1.size() != trackers2.size()) {
+            return false;
+        }
+        for (Map.Entry<TaskResourceUsageTrackerType, TaskResourceUsageTracker.Stats> e1 : trackers1.entrySet()) {
+            if (trackers2.containsKey(e1.getKey()) == false || trackers2.get(e1.getKey()).equals(e1.getValue()) == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @Override

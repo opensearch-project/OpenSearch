@@ -23,13 +23,13 @@ import java.util.Objects;
  * Stats related to search backpressure.
  */
 public class SearchBackpressureStats implements ToXContentFragment, Writeable {
-    private final SearchTaskStats searchTaskStats;
-    private final SearchShardTaskStats searchShardTaskStats;
+    private final SearchBackpressureTaskStats searchTaskStats;
+    private final SearchBackpressureTaskStats searchShardTaskStats;
     private final SearchBackpressureMode mode;
 
     public SearchBackpressureStats(
-        SearchTaskStats searchTaskStats,
-        SearchShardTaskStats searchShardTaskStats,
+        SearchBackpressureTaskStats searchTaskStats,
+        SearchBackpressureTaskStats searchShardTaskStats,
         SearchBackpressureMode mode
     ) {
         this.searchTaskStats = searchTaskStats;
@@ -38,10 +38,10 @@ public class SearchBackpressureStats implements ToXContentFragment, Writeable {
     }
 
     public SearchBackpressureStats(StreamInput in) throws IOException {
-        searchShardTaskStats = new SearchShardTaskStats(in);
+        searchShardTaskStats = new SearchBackpressureTaskStats(in);
         mode = SearchBackpressureMode.fromName(in.readString());
         if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
-            searchTaskStats = new SearchTaskStats(in);
+            searchTaskStats = new SearchBackpressureTaskStats(in);
         } else {
             searchTaskStats = null;
         }
@@ -60,7 +60,7 @@ public class SearchBackpressureStats implements ToXContentFragment, Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         searchShardTaskStats.writeTo(out);
         out.writeString(mode.getName());
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (Version.CURRENT.onOrAfter(Version.V_3_0_0) && out.getVersion().onOrAfter(Version.V_3_0_0)) {
             searchTaskStats.writeTo(out);
         }
     }
@@ -70,7 +70,9 @@ public class SearchBackpressureStats implements ToXContentFragment, Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SearchBackpressureStats that = (SearchBackpressureStats) o;
-        return searchTaskStats.equals(that.searchTaskStats) && searchShardTaskStats.equals(that.searchShardTaskStats) && mode == that.mode;
+        return (Version.CURRENT.onOrAfter(Version.V_3_0_0)
+            && searchTaskStats.equals(that.searchTaskStats)
+            && searchShardTaskStats.equals(that.searchShardTaskStats)) && mode == that.mode;
     }
 
     @Override
