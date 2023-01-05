@@ -105,7 +105,7 @@ public class WeightedRoutingService {
                 } else {
                     if (!checkIfSameWeightsInMetadata(newWeightedRouting, weightedRoutingMetadata.getWeightedRouting())) {
                         logger.info("updated weighted routing weights [{}] in metadata", newWeightedRouting);
-                        weightedRoutingMetadata = new WeightedRoutingMetadata(newWeightedRouting, weightedRoutingMetadata.getVersion() + 1);
+                        weightedRoutingMetadata = new WeightedRoutingMetadata(newWeightedRouting, requestVersion + 1);
                     } else {
                         logger.info("weights are same, not updating weighted routing weights [{}] in metadata", newWeightedRouting);
                         return currentState;

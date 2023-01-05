@@ -47,8 +47,7 @@ public class WeightedRouting implements Writeable {
     }
 
     public boolean isSet() {
-        if (this.attributeName.isEmpty() || this.weights.isEmpty()) return false;
-        return true;
+        return (!this.attributeName.isEmpty() && !this.weights.isEmpty());
     }
 
     @Override
