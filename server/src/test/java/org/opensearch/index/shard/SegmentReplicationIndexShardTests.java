@@ -27,6 +27,7 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.DocIdSeqNoAndSource;
 import org.opensearch.index.engine.InternalEngine;
+import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.engine.NRTReplicationEngine;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.mapper.MapperService;
@@ -94,6 +95,12 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         final IndexShard indexShard = newStartedShard(randomBoolean(), settings, new NRTReplicationEngineFactory());
         final ReplicationCheckpoint replicationCheckpoint = indexShard.getLatestReplicationCheckpoint();
         assertNotNull(replicationCheckpoint);
+        closeShards(indexShard);
+    }
+
+    public void testIsSegmentReplicationAllowed_WrongEngineType() throws IOException {
+        final IndexShard indexShard = newShard(false, settings, new InternalEngineFactory());
+        assertFalse(indexShard.isSegmentReplicationAllowed());
         closeShards(indexShard);
     }
 
