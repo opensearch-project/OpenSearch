@@ -162,7 +162,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     }
 
     public static final Setting<Integer> DEFAULT_REPLICA_COUNT_SETTING = Setting.intSetting(
-        "cluster.default_replica_count",
+        "cluster.default_number_of_replicas",
         1,
         Property.Dynamic,
         Property.NodeScope

@@ -1072,6 +1072,13 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
     public void testvalidateIndexSettings() {
         ClusterService clusterService = mock(ClusterService.class);
+        Metadata metadata = Metadata.builder()
+            .transientSettings(Settings.builder().put(Metadata.DEFAULT_REPLICA_COUNT_SETTING.getKey(), 1).build())
+            .build();
+        ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .build();
+
         ThreadPool threadPool = new TestThreadPool(getTestName());
         Settings settings = Settings.builder()
             .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(), "zone, rack")
@@ -1082,6 +1089,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         when(clusterService.getSettings()).thenReturn(settings);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        when(clusterService.state()).thenReturn(clusterState);
+
         MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
             settings,
             clusterService,
@@ -1109,37 +1118,6 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             .put(AwarenessReplicaBalance.CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING.getKey(), true)
             .put(SETTING_NUMBER_OF_REPLICAS, 2)
             .build();
-
-        validationErrors = checkerService.getIndexSettingsValidationErrors(settings, false, Optional.empty());
-        assertThat(validationErrors.size(), is(0));
-
-        settings = Settings.builder()
-            .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(), "zone, rack")
-            .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.getKey() + "zone.values", "a, b")
-            .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.getKey() + "rack.values", "c, d, e")
-            .put(AwarenessReplicaBalance.CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING.getKey(), true)
-            .put(AwarenessReplicaBalance.FORCE_AWARENESS_REPLICA_SETTING.getKey(), true)
-            .build();
-
-        clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        when(clusterService.getSettings()).thenReturn(settings);
-        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
-
-        checkerService = new MetadataCreateIndexService(
-            settings,
-            clusterService,
-            null,
-            null,
-            null,
-            createTestShardLimitService(randomIntBetween(1, 1000), false, clusterService),
-            new Environment(Settings.builder().put("path.home", "dummy").build(), null),
-            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
-            threadPool,
-            null,
-            new SystemIndices(Collections.emptyMap()),
-            true,
-            new AwarenessReplicaBalance(settings, clusterService.getClusterSettings())
-        );
 
         validationErrors = checkerService.getIndexSettingsValidationErrors(settings, false, Optional.empty());
         assertThat(validationErrors.size(), is(0));

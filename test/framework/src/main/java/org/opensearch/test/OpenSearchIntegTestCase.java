@@ -2413,14 +2413,14 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                     "a, b, c"
                 )
                 .put(AwarenessReplicaBalance.CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING.getKey(), true)
-                .put(AwarenessReplicaBalance.FORCE_AWARENESS_REPLICA_SETTING.getKey(), true)
+                .put(Metadata.DEFAULT_REPLICA_COUNT_SETTING.getKey(), 2)
                 .build();
         } else {
             settings = Settings.builder()
                 .putNull(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey())
                 .putNull(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.getKey() + "zone.values")
                 .putNull(AwarenessReplicaBalance.CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING.getKey())
-                .putNull(AwarenessReplicaBalance.FORCE_AWARENESS_REPLICA_SETTING.getKey())
+                .putNull(Metadata.DEFAULT_REPLICA_COUNT_SETTING.getKey())
                 .build();
         }
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
