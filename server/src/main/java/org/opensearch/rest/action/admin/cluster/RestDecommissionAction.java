@@ -63,10 +63,13 @@ public class RestDecommissionAction extends BaseRestHandler {
         if (request.hasParam("timeout")) {
             TimeValue requestTimeout = request.paramAsTime("timeout", DEFAULT_REQUEST_TIMEOUT);
             if (requestTimeout.getMillis() < DEFAULT_REQUEST_TIMEOUT.getMillis()) {
-                throw new IllegalArgumentException(String.format("default request timeout has to be at least [%s]", DEFAULT_REQUEST_TIMEOUT));
+                throw new IllegalArgumentException(
+                    String.format("default request timeout has to be at least [%s]", DEFAULT_REQUEST_TIMEOUT)
+                );
             }
             decommissionRequest.setTimeout(requestTimeout);
         }
-        return decommissionRequest.setDecommissionAttribute(new DecommissionAttribute(attributeName, attributeValue)).setRetryOnClusterManagerSwitch(false);
+        return decommissionRequest.setDecommissionAttribute(new DecommissionAttribute(attributeName, attributeValue))
+            .setRetryOnClusterManagerSwitch(false);
     }
 }
