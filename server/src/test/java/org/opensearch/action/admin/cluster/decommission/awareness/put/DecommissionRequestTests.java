@@ -83,5 +83,16 @@ public class DecommissionRequestTests extends OpenSearchTestCase {
             assertNotNull(e);
             assertTrue(e.getMessage().contains("Invalid decommission request"));
         }
+        {
+            String attributeName = "zone";
+            String attributeValue = "test";
+            DecommissionAttribute decommissionAttribute = new DecommissionAttribute(attributeName, attributeValue);
+
+            final DecommissionRequest request = new DecommissionRequest(decommissionAttribute);
+            request.setTimeout(TimeValue.timeValueMinutes(1));
+            ActionRequestValidationException e = request.validate();
+            assertNotNull(e);
+            assertTrue(e.getMessage().contains("request timeout should be at least 2 minutes"));
+        }
     }
 }

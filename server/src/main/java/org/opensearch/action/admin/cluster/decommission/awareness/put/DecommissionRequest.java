@@ -27,7 +27,7 @@ import static org.opensearch.action.ValidateActions.addValidationError;
  */
 public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionRequest> {
 
-    public static final TimeValue DEFAULT_REQUEST_TIMEOUT = TimeValue.timeValueMinutes(2L);
+    public static final TimeValue DEFAULT_REQUEST_TIMEOUT = TimeValue.timeValueSeconds(120);
     public static final TimeValue DEFAULT_NODE_DRAINING_TIMEOUT = TimeValue.timeValueSeconds(120);
 
     private DecommissionAttribute decommissionAttribute;
@@ -164,8 +164,8 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
                 + "] Seconds";
             validationException = addValidationError(validationMessage, validationException);
         }
-        if (timeout.getMillis() < 0) {
-            validationException = addValidationError("request timeout is negative", validationException);
+        if (timeout.getMillis() < DEFAULT_REQUEST_TIMEOUT.getMillis()) {
+            validationException = addValidationError("request timeout should be at least 2 minutes", validationException);
         }
         return validationException;
     }
