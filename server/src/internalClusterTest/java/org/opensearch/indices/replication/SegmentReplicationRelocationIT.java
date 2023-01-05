@@ -56,20 +56,20 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationIT {
      * This test verifies happy path when primary shard is relocated newly added node (target) in the cluster. Before
      * relocation and after relocation documents are indexed and documents are verified
      */
-    public void testSimplePrimaryRelocationWithoutFlushBeforeRelocation() throws Exception {
-        final String old_primary = internalCluster().startNode();
+    public void testPrimaryRelocation() throws Exception {
+        final String oldPrimary = internalCluster().startNode(featureFlagSettings());
         createIndex();
-        final String replica = internalCluster().startNode();
+        final String replica = internalCluster().startNode(featureFlagSettings());
         ensureGreen(INDEX_NAME);
         final int initialDocCount = scaledRandomIntBetween(0, 200);
         ingestDocs(initialDocCount);
 
         logger.info("--> verifying count {}", initialDocCount);
-        assertHitCount(client(old_primary).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), initialDocCount);
+        assertHitCount(client(oldPrimary).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), initialDocCount);
         assertHitCount(client(replica).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), initialDocCount);
 
         logger.info("--> start another node");
-        final String new_primary = internalCluster().startNode();
+        final String newPrimary = internalCluster().startNode(featureFlagSettings());
         ClusterHealthResponse clusterHealthResponse = client().admin()
             .cluster()
             .prepareHealth()
@@ -77,13 +77,13 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationIT {
             .setWaitForNodes("3")
             .execute()
             .actionGet();
-        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
+        assertEquals(clusterHealthResponse.isTimedOut(), false);
 
         logger.info("--> relocate the shard");
         client().admin()
             .cluster()
             .prepareReroute()
-            .add(new MoveAllocationCommand(INDEX_NAME, 0, old_primary, new_primary))
+            .add(new MoveAllocationCommand(INDEX_NAME, 0, oldPrimary, newPrimary))
             .execute()
             .actionGet();
         clusterHealthResponse = client().admin()
@@ -94,25 +94,26 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationIT {
             .setTimeout(ACCEPTABLE_RELOCATION_TIME)
             .execute()
             .actionGet();
-        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
+        assertEquals(clusterHealthResponse.isTimedOut(), false);
 
         logger.info("--> get the state, verify shard 1 primary moved from node1 to node2");
         ClusterState state = client().admin().cluster().prepareState().execute().actionGet().getState();
 
         logger.info("--> state {}", state);
 
-        assertThat(
-            state.getRoutingNodes().node(state.nodes().resolveNode(new_primary).getId()).iterator().next().state(),
-            equalTo(ShardRoutingState.STARTED)
+        assertEquals(
+            state.getRoutingNodes().node(state.nodes().resolveNode(newPrimary).getId()).iterator().next().state(),
+            ShardRoutingState.STARTED
         );
 
         final int finalDocCount = initialDocCount;
         ingestDocs(finalDocCount);
+        refresh(INDEX_NAME);
 
         logger.info("--> verifying count again {}", initialDocCount + finalDocCount);
         client().admin().indices().prepareRefresh().execute().actionGet();
         assertHitCount(
-            client(new_primary).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(),
+            client(newPrimary).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(),
             initialDocCount + finalDocCount
         );
         assertHitCount(
@@ -122,24 +123,24 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationIT {
     }
 
     /**
-     * This test verifies the primary to primary relocation behavior when segment replication round fails on new primary.
-     * Post failure, more documents are ingested and verified on replica which confirms replica still getting refresh from
-     * older primary.
+     * This test verifies the primary relocation behavior when segment replication round fails during recovery. Post
+     * failure, more documents are ingested and verified on replica; which confirms older primary still refreshing the
+     * replicas.
      */
     public void testPrimaryRelocationWithSegRepFailure() throws Exception {
-        final String old_primary = internalCluster().startNode();
+        final String oldPrimary = internalCluster().startNode(featureFlagSettings());
         createIndex();
-        final String replica = internalCluster().startNode();
+        final String replica = internalCluster().startNode(featureFlagSettings());
         ensureGreen(INDEX_NAME);
         final int initialDocCount = scaledRandomIntBetween(1, 100);
         ingestDocs(initialDocCount);
 
         logger.info("--> verifying count {}", initialDocCount);
-        assertHitCount(client(old_primary).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), initialDocCount);
+        assertHitCount(client(oldPrimary).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), initialDocCount);
         assertHitCount(client(replica).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), initialDocCount);
 
         logger.info("--> start another node");
-        final String new_primary = internalCluster().startNode();
+        final String newPrimary = internalCluster().startNode(featureFlagSettings());
         ClusterHealthResponse clusterHealthResponse = client().admin()
             .cluster()
             .prepareHealth()
@@ -147,15 +148,15 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationIT {
             .setWaitForNodes("3")
             .execute()
             .actionGet();
-        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
+        assertEquals(clusterHealthResponse.isTimedOut(), false);
 
         // Mock transport service to add behaviour of throwing corruption exception during segment replication process.
         MockTransportService mockTransportService = ((MockTransportService) internalCluster().getInstance(
             TransportService.class,
-            old_primary
+            oldPrimary
         ));
         mockTransportService.addSendBehavior(
-            internalCluster().getInstance(TransportService.class, new_primary),
+            internalCluster().getInstance(TransportService.class, newPrimary),
             (connection, requestId, action, request, options) -> {
                 if (action.equals(SegmentReplicationTargetService.Actions.FILE_CHUNK)) {
                     throw new OpenSearchCorruptionException("expected");
@@ -168,7 +169,7 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationIT {
         client().admin()
             .cluster()
             .prepareReroute()
-            .add(new MoveAllocationCommand(INDEX_NAME, 0, old_primary, new_primary))
+            .add(new MoveAllocationCommand(INDEX_NAME, 0, oldPrimary, newPrimary))
             .execute()
             .actionGet();
         clusterHealthResponse = client().admin()
@@ -179,7 +180,7 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationIT {
             .setTimeout(ACCEPTABLE_RELOCATION_TIME)
             .execute()
             .actionGet();
-        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
+        assertEquals(clusterHealthResponse.isTimedOut(), false);
 
         final int finalDocCount = initialDocCount;
         ingestDocs(finalDocCount);
@@ -188,7 +189,7 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationIT {
         logger.info("Verify older primary is still refreshing replica nodes");
         client().admin().indices().prepareRefresh().execute().actionGet();
         assertHitCount(
-            client(old_primary).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(),
+            client(oldPrimary).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(),
             initialDocCount + finalDocCount
         );
         assertHitCount(
@@ -197,8 +198,12 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationIT {
         );
     }
 
+    /**
+     * This test verifies primary recovery behavior with continuous ingestion
+     *
+     */
     public void testRelocateWhileContinuouslyIndexingAndWaitingForRefresh() throws Exception {
-        final String primary = internalCluster().startNode();
+        final String primary = internalCluster().startNode(featureFlagSettings());
         prepareCreate(
             INDEX_NAME,
             Settings.builder()
@@ -227,7 +232,7 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationIT {
             );
         }
 
-        final String replica = internalCluster().startNode();
+        final String replica = internalCluster().startNode(featureFlagSettings());
         ClusterHealthResponse clusterHealthResponse = client().admin()
             .cluster()
             .prepareHealth()
@@ -235,7 +240,7 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationIT {
             .setWaitForNodes("2")
             .execute()
             .actionGet();
-        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
+        assertEquals(clusterHealthResponse.isTimedOut(), false);
 
         logger.info("--> relocate the shard from primary to replica");
         ActionFuture<ClusterRerouteResponse> relocationListener = client().admin()
@@ -261,13 +266,13 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationIT {
             .setTimeout(ACCEPTABLE_RELOCATION_TIME)
             .execute()
             .actionGet();
-        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
+        assertEquals(clusterHealthResponse.isTimedOut(), false);
 
         logger.info("--> verifying count");
         assertBusy(() -> {
             client().admin().indices().prepareRefresh().execute().actionGet();
             assertTrue(pendingIndexResponses.stream().allMatch(ActionFuture::isDone));
         }, 1, TimeUnit.MINUTES);
-        assertThat(client().prepareSearch(INDEX_NAME).setSize(0).execute().actionGet().getHits().getTotalHits().value, equalTo(120L));
+        assertEquals(client().prepareSearch(INDEX_NAME).setSize(0).execute().actionGet().getHits().getTotalHits().value, 120L);
     }
 }

@@ -90,6 +90,11 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
         return false;
     }
 
+    @Override
+    protected Settings featureFlagSettings() {
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.REPLICATION_TYPE, "true").build();
+    }
+
     public void ingestDocs(int docCount) throws Exception {
         try (
             BackgroundIndexer indexer = new BackgroundIndexer(
