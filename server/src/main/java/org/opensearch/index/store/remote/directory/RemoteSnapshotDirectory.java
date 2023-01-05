@@ -22,6 +22,8 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.NoLockFactory;
+import org.opensearch.LegacyESVersion;
+import org.opensearch.Version;
 import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.opensearch.index.store.remote.file.OnDemandBlockSnapshotIndexInput;
 import org.opensearch.index.store.remote.file.OnDemandVirtualFileSnapshotIndexInput;
@@ -35,6 +37,9 @@ import org.opensearch.repositories.blobstore.BlobStoreRepository;
  * @opensearch.internal
  */
 public final class RemoteSnapshotDirectory extends Directory {
+
+    public static final Version SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION = LegacyESVersion.fromId(6000099);
+
     private static final String VIRTUAL_FILE_PREFIX = BlobStoreRepository.VIRTUAL_DATA_BLOB_PREFIX;
 
     private final Map<String, BlobStoreIndexShardSnapshot.FileInfo> fileInfoMap;

@@ -93,6 +93,7 @@ public class ReadOnlyEngine extends Engine {
     private final CompletionStatsCache completionStatsCache;
     private final boolean requireCompleteHistory;
     private final TranslogManager translogManager;
+    private final Version minimumSupportedVersion;
 
     protected volatile TranslogStats translogStats;
 
@@ -119,6 +120,8 @@ public class ReadOnlyEngine extends Engine {
     ) {
         super(config);
         this.requireCompleteHistory = requireCompleteHistory;
+        // fetch the minimum Version for extended backward compatibility use-cases
+        this.minimumSupportedVersion = config.getIndexSettings().getExtendedCompatibilitySnapshotVersion();
         try {
             Store store = config.getStore();
             store.incRef();
@@ -130,7 +133,11 @@ public class ReadOnlyEngine extends Engine {
                 // we obtain the IW lock even though we never modify the index.
                 // yet this makes sure nobody else does. including some testing tools that try to be messy
                 indexWriterLock = obtainLock ? directory.obtainLock(IndexWriter.WRITE_LOCK_NAME) : null;
-                this.lastCommittedSegmentInfos = Lucene.readSegmentInfos(directory);
+                if (isExtendedCompatibility()) {
+                    this.lastCommittedSegmentInfos = Lucene.readSegmentInfosExtendedCompatibility(directory, this.minimumSupportedVersion);
+                } else {
+                    this.lastCommittedSegmentInfos = Lucene.readSegmentInfos(directory);
+                }
                 if (seqNoStats == null) {
                     seqNoStats = buildSeqNoStats(config, lastCommittedSegmentInfos);
                     ensureMaxSeqNoEqualsToGlobalCheckpoint(seqNoStats);
@@ -223,7 +230,17 @@ public class ReadOnlyEngine extends Engine {
 
     protected DirectoryReader open(IndexCommit commit) throws IOException {
         assert Transports.assertNotTransportThread("opening index commit of a read-only engine");
-        return new SoftDeletesDirectoryReaderWrapper(DirectoryReader.open(commit), Lucene.SOFT_DELETES_FIELD);
+        DirectoryReader reader;
+        if (isExtendedCompatibility()) {
+            reader = DirectoryReader.open(commit, this.minimumSupportedVersion.luceneVersion.major, null);
+        } else {
+            reader = DirectoryReader.open(commit);
+        }
+        return new SoftDeletesDirectoryReaderWrapper(reader, Lucene.SOFT_DELETES_FIELD);
+    }
+
+    private boolean isExtendedCompatibility() {
+        return Version.CURRENT.minimumIndexCompatibilityVersion().onOrAfter(this.minimumSupportedVersion);
     }
 
     @Override
