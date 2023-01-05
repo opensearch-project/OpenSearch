@@ -135,6 +135,25 @@ public class Lucene {
     }
 
     /**
+     * A variant of {@link #readSegmentInfos(Directory)} that supports reading indices written by
+     * older major versions of Lucene. The underlying implementation is a workaround since the
+     * "expert" readLatestCommit API is currently package-private in Lucene. First, all commits in
+     * the given {@link Directory} are listed - this result includes older Lucene commits. Then,
+     * the latest index commit is opened via {@link DirectoryReader} by including a minimum supported
+     * Lucene major version based on the minimum compatibility of the given {@link org.opensearch.Version}.
+     */
+    public static SegmentInfos readSegmentInfosExtendedCompatibility(Directory directory, org.opensearch.Version minimumVersion)
+        throws IOException {
+        // This list is sorted from oldest to latest
+        List<IndexCommit> indexCommits = DirectoryReader.listCommits(directory);
+        IndexCommit latestCommit = indexCommits.get(indexCommits.size() - 1);
+        final int minSupportedLuceneMajor = minimumVersion.minimumIndexCompatibilityVersion().luceneVersion.major;
+        try (StandardDirectoryReader reader = (StandardDirectoryReader) DirectoryReader.open(latestCommit, minSupportedLuceneMajor, null)) {
+            return reader.getSegmentInfos();
+        }
+    }
+
+    /**
      * Returns an iterable that allows to iterate over all files in this segments info
      */
     public static Iterable<String> files(SegmentInfos infos) throws IOException {

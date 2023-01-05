@@ -31,6 +31,10 @@
 
 package org.opensearch.common.lucene;
 
+import org.apache.lucene.document.LatLonPoint;
+import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexFormatTooOldException;
+import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.document.Document;
@@ -71,8 +75,11 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
+import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.LegacyESVersion;
+import org.opensearch.Version;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.internal.io.IOUtils;
@@ -87,6 +94,7 @@ import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.io.StringReader;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -314,6 +322,92 @@ public class LuceneTests extends OpenSearchTestCase {
         writer.commit();
         segmentCommitInfos = Lucene.readSegmentInfos(dir);
         assertEquals(2 + deleteTerms.size(), Lucene.getNumDocs(segmentCommitInfos));
+        writer.close();
+        dir.close();
+    }
+
+    /**
+     * Tests whether old segments are readable and queryable based on the data documented
+     * in the README <a href="file:../../../../../resources/indices/bwc/es-6.3.0/README.md">here</a>.
+     *
+     * @throws IOException
+     */
+    public void testReadSegmentInfosExtendedCompatibility() throws IOException {
+        final String pathToTestIndex = "/indices/bwc/es-6.3.0/testIndex-es-6.3.0.zip";
+        final Version minVersion = LegacyESVersion.fromId(6000099);
+        Path tmp = createTempDir();
+        TestUtil.unzip(getClass().getResourceAsStream(pathToTestIndex), tmp);
+        try (MockDirectoryWrapper dir = newMockFSDirectory(tmp)) {
+            // The standard API will throw an exception
+            expectThrows(IndexFormatTooOldException.class, () -> Lucene.readSegmentInfos(dir));
+            SegmentInfos si = Lucene.readSegmentInfosExtendedCompatibility(dir, minVersion);
+            assertEquals(1, Lucene.getNumDocs(si));
+            IndexCommit indexCommit = Lucene.getIndexCommit(si, dir);
+            // uses the "expert" Lucene API
+            try (
+                StandardDirectoryReader reader = (StandardDirectoryReader) DirectoryReader.open(
+                    indexCommit,
+                    minVersion.minimumIndexCompatibilityVersion().luceneVersion.major,
+                    null
+                )
+            ) {
+                IndexSearcher searcher = newSearcher(reader);
+                // radius too small, should get no results
+                assertFalse(Lucene.exists(searcher, LatLonPoint.newDistanceQuery("testLocation", 48.57532, -112.87695, 2)));
+                assertTrue(Lucene.exists(searcher, LatLonPoint.newDistanceQuery("testLocation", 48.57532, -112.87695, 20000)));
+            }
+        }
+    }
+
+    /**
+     * Since the implementation in {@link Lucene#readSegmentInfosExtendedCompatibility(Directory, Version)}
+     * is a workaround, this test verifies that the response from this method is equivalent to
+     * {@link Lucene#readSegmentInfos(Directory)} if the version is N-1
+     */
+    public void testReadSegmentInfosExtendedCompatibilityBaseCase() throws IOException {
+        MockDirectoryWrapper dir = newMockDirectory();
+        IndexWriterConfig iwc = newIndexWriterConfig();
+        IndexWriter writer = new IndexWriter(dir, iwc);
+        Document doc = new Document();
+        doc.add(new TextField("id", "1", random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
+        writer.addDocument(doc);
+        writer.commit();
+        SegmentInfos expectedSI = Lucene.readSegmentInfos(dir);
+        SegmentInfos actualSI = Lucene.readSegmentInfosExtendedCompatibility(dir, Version.CURRENT);
+        assertEquals(Lucene.getNumDocs(expectedSI), Lucene.getNumDocs(actualSI));
+        assertEquals(expectedSI.getGeneration(), actualSI.getGeneration());
+        assertEquals(expectedSI.getSegmentsFileName(), actualSI.getSegmentsFileName());
+        assertEquals(expectedSI.getVersion(), actualSI.getVersion());
+        assertEquals(expectedSI.getCommitLuceneVersion(), actualSI.getCommitLuceneVersion());
+        assertEquals(expectedSI.getMinSegmentLuceneVersion(), actualSI.getMinSegmentLuceneVersion());
+        assertEquals(expectedSI.getIndexCreatedVersionMajor(), actualSI.getIndexCreatedVersionMajor());
+        assertEquals(expectedSI.getUserData(), actualSI.getUserData());
+
+        int numDocsToIndex = randomIntBetween(10, 50);
+        List<Term> deleteTerms = new ArrayList<>();
+        for (int i = 0; i < numDocsToIndex; i++) {
+            doc = new Document();
+            doc.add(new TextField("id", "doc_" + i, random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
+            deleteTerms.add(new Term("id", "doc_" + i));
+            writer.addDocument(doc);
+        }
+        int numDocsToDelete = randomIntBetween(0, numDocsToIndex);
+        Collections.shuffle(deleteTerms, random());
+        for (int i = 0; i < numDocsToDelete; i++) {
+            Term remove = deleteTerms.remove(0);
+            writer.deleteDocuments(remove);
+        }
+        writer.commit();
+        expectedSI = Lucene.readSegmentInfos(dir);
+        actualSI = Lucene.readSegmentInfosExtendedCompatibility(dir, Version.CURRENT);
+        assertEquals(Lucene.getNumDocs(expectedSI), Lucene.getNumDocs(actualSI));
+        assertEquals(expectedSI.getGeneration(), actualSI.getGeneration());
+        assertEquals(expectedSI.getSegmentsFileName(), actualSI.getSegmentsFileName());
+        assertEquals(expectedSI.getVersion(), actualSI.getVersion());
+        assertEquals(expectedSI.getCommitLuceneVersion(), actualSI.getCommitLuceneVersion());
+        assertEquals(expectedSI.getMinSegmentLuceneVersion(), actualSI.getMinSegmentLuceneVersion());
+        assertEquals(expectedSI.getIndexCreatedVersionMajor(), actualSI.getIndexCreatedVersionMajor());
+        assertEquals(expectedSI.getUserData(), actualSI.getUserData());
         writer.close();
         dir.close();
     }

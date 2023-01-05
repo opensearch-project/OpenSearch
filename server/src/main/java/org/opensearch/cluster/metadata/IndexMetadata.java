@@ -1840,10 +1840,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     throw new IllegalArgumentException("Unexpected token " + token);
                 }
             }
-            if (Assertions.ENABLED) {
+            // Reference:
+            // https://github.com/opensearch-project/OpenSearch/blob/4dde0f2a3b445b2fc61dab29c5a2178967f4a3e3/server/src/main/java/org/opensearch/cluster/metadata/IndexMetadata.java#L1620-L1628
+            Version legacyVersion = LegacyESVersion.fromId(6050099);
+            if (Assertions.ENABLED && Version.indexCreated(builder.settings).onOrAfter(legacyVersion)) {
                 assert mappingVersion : "mapping version should be present for indices";
-            }
-            if (Assertions.ENABLED) {
                 assert settingsVersion : "settings version should be present for indices";
             }
             if (Assertions.ENABLED) {
