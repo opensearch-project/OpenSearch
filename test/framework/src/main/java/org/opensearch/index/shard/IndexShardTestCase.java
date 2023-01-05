@@ -545,14 +545,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 clusterSettings
             );
             if (remoteStore == null && indexSettings.isRemoteStoreEnabled()) {
-                ShardId shardId = shardPath.getShardId();
-                NodeEnvironment.NodePath remoteNodePath = new NodeEnvironment.NodePath(createTempDir());
-                ShardPath remoteShardPath = new ShardPath(false, remoteNodePath.resolve(shardId), remoteNodePath.resolve(shardId), shardId);
-                RemoteDirectory dataDirectory = newRemoteDirectory(remoteShardPath.resolveIndex());
-                RemoteDirectory metadataDirectory = newRemoteDirectory(remoteShardPath.resolveIndex());
-                RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = new RemoteSegmentStoreDirectory(dataDirectory, metadataDirectory);
-                storeProvider = is -> createStore(shardId, is, remoteSegmentStoreDirectory);
-                remoteStore = storeProvider.apply(indexSettings);
+                remoteStore = createRemoteStore(createTempDir(), routing, indexMetadata);
             }
             indexShard = new IndexShard(
                 routing,
@@ -587,6 +580,18 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             }
         }
         return indexShard;
+    }
+
+    protected Store createRemoteStore(Path path, ShardRouting shardRouting, IndexMetadata metadata) throws IOException {
+        Settings nodeSettings = Settings.builder().put("node.name", shardRouting.currentNodeId()).build();
+
+        ShardId shardId = new ShardId("index", "_na_", 0);
+        NodeEnvironment.NodePath remoteNodePath = new NodeEnvironment.NodePath(path);
+        ShardPath remoteShardPath = new ShardPath(false, remoteNodePath.resolve(shardId), remoteNodePath.resolve(shardId), shardId);
+        RemoteDirectory dataDirectory = newRemoteDirectory(remoteShardPath.resolveIndex());
+        RemoteDirectory metadataDirectory = newRemoteDirectory(remoteShardPath.resolveIndex());
+        RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = new RemoteSegmentStoreDirectory(dataDirectory, metadataDirectory);
+        return createStore(shardId, new IndexSettings(metadata, nodeSettings), remoteSegmentStoreDirectory);
     }
 
     private RemoteDirectory newRemoteDirectory(Path f) throws IOException {
