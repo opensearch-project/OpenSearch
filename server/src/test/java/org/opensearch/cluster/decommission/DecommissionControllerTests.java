@@ -22,8 +22,6 @@ import org.opensearch.action.admin.cluster.decommission.awareness.put.TransportD
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.ClusterStateObserver;
-import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.coordination.CoordinationMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
@@ -59,7 +57,6 @@ import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.sameInstance;
 import static org.opensearch.cluster.ClusterState.builder;
 import static org.opensearch.cluster.OpenSearchAllocationTestCase.createAllocationService;
 import static org.opensearch.test.ClusterServiceUtils.createClusterService;
@@ -135,7 +132,8 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
             ),
             threadPool,
             new ActionFilters(emptySet()),
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY))); //registers action
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY))
+        ); // registers action
 
         transportService.start();
         transportService.acceptIncomingRequests();

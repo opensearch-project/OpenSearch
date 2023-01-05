@@ -479,7 +479,9 @@ public class DecommissionService {
                 switch (decommissionAttributeMetadata.status()) {
                     // for INIT - check if it is eligible internal retry
                     case INIT:
-                        msg = (decommissionRequest.retryOnClusterManagerSwitch() == false) ? "concurrent request received to decommission attribute" : null;
+                        msg = (decommissionRequest.retryOnClusterManagerSwitch() == false)
+                            ? "concurrent request received to decommission attribute"
+                            : null;
                         break;
                     // for FAILED - we are good to process it again
                     case FAILED:

@@ -61,6 +61,8 @@ public class RestDecommissionAction extends BaseRestHandler {
         }
         return decommissionRequest.setDecommissionAttribute(new DecommissionAttribute(attributeName, attributeValue))
             .setRetryOnClusterManagerSwitch(false)
-            .setTimeout(TimeValue.parseTimeValue(request.param("timeout"), DEFAULT_REQUEST_TIMEOUT, getClass().getSimpleName() + ".timeout"));
+            .setTimeout(
+                TimeValue.parseTimeValue(request.param("timeout"), DEFAULT_REQUEST_TIMEOUT, getClass().getSimpleName() + ".timeout")
+            );
     }
 }

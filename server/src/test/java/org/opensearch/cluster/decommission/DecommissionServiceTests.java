@@ -38,7 +38,6 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransport;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.RemoteTransportException;
 import org.opensearch.transport.TransportService;
 
 import java.util.Collections;
@@ -231,7 +230,10 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
         MatcherAssert.assertThat("Expected onFailure to be called", exceptionReference.get(), notNullValue());
         MatcherAssert.assertThat(exceptionReference.get(), instanceOf(DecommissioningFailedException.class));
-        MatcherAssert.assertThat(exceptionReference.get().getMessage(), containsString("concurrent request received to decommission attribute"));
+        MatcherAssert.assertThat(
+            exceptionReference.get().getMessage(),
+            containsString("concurrent request received to decommission attribute")
+        );
     }
 
     @SuppressWarnings("unchecked")
