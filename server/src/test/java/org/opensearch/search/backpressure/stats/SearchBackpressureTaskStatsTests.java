@@ -18,8 +18,18 @@ import org.opensearch.test.AbstractWireSerializingTestCase;
 
 import java.util.Map;
 
-public class SearchTaskStatsTests extends AbstractWireSerializingTestCase<SearchTaskStats> {
-    public static SearchTaskStats randomInstance() {
+public class SearchBackpressureTaskStatsTests extends AbstractWireSerializingTestCase<SearchBackpressureTaskStats> {
+    @Override
+    protected Writeable.Reader<SearchBackpressureTaskStats> instanceReader() {
+        return SearchBackpressureTaskStats::new;
+    }
+
+    @Override
+    protected SearchBackpressureTaskStats createTestInstance() {
+        return randomInstance();
+    }
+
+    public static SearchBackpressureTaskStats randomInstance() {
         Map<TaskResourceUsageTrackerType, TaskResourceUsageTracker.Stats> resourceUsageTrackerStats = Map.of(
             TaskResourceUsageTrackerType.CPU_USAGE_TRACKER,
             new CpuUsageTracker.Stats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()),
@@ -29,16 +39,6 @@ public class SearchTaskStatsTests extends AbstractWireSerializingTestCase<Search
             new ElapsedTimeTracker.Stats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong())
         );
 
-        return new SearchTaskStats(randomNonNegativeLong(), randomNonNegativeLong(), resourceUsageTrackerStats);
-    }
-
-    @Override
-    protected Writeable.Reader<SearchTaskStats> instanceReader() {
-        return SearchTaskStats::new;
-    }
-
-    @Override
-    protected SearchTaskStats createTestInstance() {
-        return randomInstance();
+        return new SearchBackpressureTaskStats(randomNonNegativeLong(), randomNonNegativeLong(), resourceUsageTrackerStats);
     }
 }

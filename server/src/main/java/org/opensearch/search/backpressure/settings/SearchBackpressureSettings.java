@@ -29,9 +29,13 @@ public class SearchBackpressureSettings {
         private static final long INTERVAL_MILLIS = 1000;
         private static final String MODE = "monitor_only";
 
-        private static final double CANCELLATION_RATIO = 0.1;
-        private static final double CANCELLATION_RATE = 0.003;
-        private static final double CANCELLATION_BURST = 10.0;
+        // TODO: decide on default settings for SearchTask
+        private static final double CANCELLATION_RATIO_SEARCH_TASK = 0.1;
+        private static final double CANCELLATION_RATE_SEARCH_TASK = 0.003;
+        private static final double CANCELLATION_BURST_SEARCH_TASK = 10.0;
+        private static final double CANCELLATION_RATIO_SEARCH_SHARD_TASK = 0.1;
+        private static final double CANCELLATION_RATE_SEARCH_SHARD_TASK = 0.003;
+        private static final double CANCELLATION_BURST_SEARCH_SHARD_TASK = 10.0;
     }
 
     /**
@@ -57,13 +61,13 @@ public class SearchBackpressureSettings {
     );
 
     /**
-     * Defines the percentage of tasks to cancel relative to the number of successful task completions.
-     * In other words, it is the number of tokens added to the bucket on each successful task completion.
+     * Defines the percentage of SearchTasks to cancel relative to the number of successful SearchTask completions.
+     * In other words, it is the number of tokens added to the bucket on each successful SearchTask completion.
      */
-    private volatile double cancellationRatio;
-    public static final Setting<Double> SETTING_CANCELLATION_RATIO = Setting.doubleSetting(
-        "search_backpressure.cancellation_ratio",
-        Defaults.CANCELLATION_RATIO,
+    private volatile double cancellationRatioSearchTask;
+    public static final Setting<Double> SETTING_CANCELLATION_RATIO_SEARCH_TASK = Setting.doubleSetting(
+        "search_backpressure.cancellation_ratio_search_task",
+        Defaults.CANCELLATION_RATIO_SEARCH_TASK,
         0.0,
         1.0,
         Setting.Property.Dynamic,
@@ -74,10 +78,10 @@ public class SearchBackpressureSettings {
      * Defines the number of tasks to cancel per unit time (in millis).
      * In other words, it is the number of tokens added to the bucket each millisecond.
      */
-    private volatile double cancellationRate;
-    public static final Setting<Double> SETTING_CANCELLATION_RATE = Setting.doubleSetting(
-        "search_backpressure.cancellation_rate",
-        Defaults.CANCELLATION_RATE,
+    private volatile double cancellationRateSearchTask;
+    public static final Setting<Double> SETTING_CANCELLATION_RATE_SEARCH_TASK = Setting.doubleSetting(
+        "search_backpressure.cancellation_rate_search_task",
+        Defaults.CANCELLATION_RATE_SEARCH_TASK,
         0.0,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
@@ -86,10 +90,49 @@ public class SearchBackpressureSettings {
     /**
      * Defines the maximum number of tasks that can be cancelled before being rate-limited.
      */
-    private volatile double cancellationBurst;
-    public static final Setting<Double> SETTING_CANCELLATION_BURST = Setting.doubleSetting(
-        "search_backpressure.cancellation_burst",
-        Defaults.CANCELLATION_BURST,
+    private volatile double cancellationBurstSearchTask;
+    public static final Setting<Double> SETTING_CANCELLATION_BURST_SEARCH_TASK = Setting.doubleSetting(
+        "search_backpressure.cancellation_burst_search_task",
+        Defaults.CANCELLATION_BURST_SEARCH_TASK,
+        1.0,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Defines the percentage of tasks to cancel relative to the number of successful task completions.
+     * In other words, it is the number of tokens added to the bucket on each successful task completion.
+     */
+    private volatile double cancellationRatioSearchShardTask;
+    public static final Setting<Double> SETTING_CANCELLATION_RATIO_SEARCH_SHARD_TASK = Setting.doubleSetting(
+        "search_backpressure.cancellation_ratio_search_shard_task",
+        Defaults.CANCELLATION_RATIO_SEARCH_SHARD_TASK,
+        0.0,
+        1.0,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Defines the number of tasks to cancel per unit time (in millis).
+     * In other words, it is the number of tokens added to the bucket each millisecond.
+     */
+    private volatile double cancellationRateSearchShardTask;
+    public static final Setting<Double> SETTING_CANCELLATION_RATE_SEARCH_SHARD_TASK = Setting.doubleSetting(
+        "search_backpressure.cancellation_rate_search_shard_task",
+        Defaults.CANCELLATION_RATE_SEARCH_SHARD_TASK,
+        0.0,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Defines the maximum number of tasks that can be cancelled before being rate-limited.
+     */
+    private volatile double cancellationBurstSearchShardTask;
+    public static final Setting<Double> SETTING_CANCELLATION_BURST_SEARCH_SHARD_TASK = Setting.doubleSetting(
+        "search_backpressure.cancellation_burst_search_shard_task",
+        Defaults.CANCELLATION_BURST_SEARCH_SHARD_TASK,
         1.0,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
@@ -99,11 +142,17 @@ public class SearchBackpressureSettings {
      * Callback listeners.
      */
     public interface Listener {
-        void onCancellationRatioChanged();
+        void onCancellationRatioSearchTaskChanged();
 
-        void onCancellationRateChanged();
+        void onCancellationRateSearchTaskChanged();
 
-        void onCancellationBurstChanged();
+        void onCancellationBurstSearchTaskChanged();
+
+        void onCancellationRatioSearchShardTaskChanged();
+
+        void onCancellationRateSearchShardTaskChanged();
+
+        void onCancellationBurstSearchShardTaskChanged();
     }
 
     private final List<Listener> listeners = new ArrayList<>();
@@ -125,14 +174,23 @@ public class SearchBackpressureSettings {
         mode = SearchBackpressureMode.fromName(SETTING_MODE.get(settings));
         clusterSettings.addSettingsUpdateConsumer(SETTING_MODE, s -> this.setMode(SearchBackpressureMode.fromName(s)));
 
-        cancellationRatio = SETTING_CANCELLATION_RATIO.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(SETTING_CANCELLATION_RATIO, this::setCancellationRatio);
+        cancellationRatioSearchTask = SETTING_CANCELLATION_RATIO_SEARCH_TASK.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(SETTING_CANCELLATION_RATIO_SEARCH_TASK, this::setCancellationRatioSearchTask);
 
-        cancellationRate = SETTING_CANCELLATION_RATE.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(SETTING_CANCELLATION_RATE, this::setCancellationRate);
+        cancellationRateSearchTask = SETTING_CANCELLATION_RATE_SEARCH_TASK.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(SETTING_CANCELLATION_RATE_SEARCH_TASK, this::setCancellationRateSearchTask);
 
-        cancellationBurst = SETTING_CANCELLATION_BURST.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(SETTING_CANCELLATION_BURST, this::setCancellationBurst);
+        cancellationBurstSearchTask = SETTING_CANCELLATION_BURST_SEARCH_TASK.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(SETTING_CANCELLATION_BURST_SEARCH_TASK, this::setCancellationBurstSearchTask);
+
+        cancellationRatioSearchShardTask = SETTING_CANCELLATION_RATIO_SEARCH_SHARD_TASK.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(SETTING_CANCELLATION_RATIO_SEARCH_SHARD_TASK, this::setCancellationRatioSearchShardTask);
+
+        cancellationRateSearchShardTask = SETTING_CANCELLATION_RATE_SEARCH_SHARD_TASK.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(SETTING_CANCELLATION_RATE_SEARCH_SHARD_TASK, this::setCancellationRateSearchShardTask);
+
+        cancellationBurstSearchShardTask = SETTING_CANCELLATION_BURST_SEARCH_SHARD_TASK.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(SETTING_CANCELLATION_BURST_SEARCH_SHARD_TASK, this::setCancellationBurstSearchShardTask);
     }
 
     public void addListener(Listener listener) {
@@ -171,35 +229,66 @@ public class SearchBackpressureSettings {
         this.mode = mode;
     }
 
-    public double getCancellationRatio() {
-        return cancellationRatio;
+    public double getCancellationRatioSearchTask() {
+        return cancellationRatioSearchTask;
     }
 
-    private void setCancellationRatio(double cancellationRatio) {
-        this.cancellationRatio = cancellationRatio;
-        notifyListeners(Listener::onCancellationRatioChanged);
+    private void setCancellationRatioSearchTask(double cancellationRatioSearchTask) {
+        this.cancellationRatioSearchTask = cancellationRatioSearchTask;
+        notifyListeners(Listener::onCancellationRatioSearchTaskChanged);
     }
 
-    public double getCancellationRate() {
-        return cancellationRate;
+    public double getCancellationRateSearchTask() {
+        return cancellationRateSearchTask;
     }
 
-    public double getCancellationRateNanos() {
-        return getCancellationRate() / TimeUnit.MILLISECONDS.toNanos(1); // rate per nanoseconds
+    public double getCancellationRateSearchTaskNanos() {
+        return getCancellationRateSearchTask() / TimeUnit.MILLISECONDS.toNanos(1); // rate per nanoseconds
     }
 
-    private void setCancellationRate(double cancellationRate) {
-        this.cancellationRate = cancellationRate;
-        notifyListeners(Listener::onCancellationRateChanged);
+    private void setCancellationRateSearchTask(double cancellationRateSearchTask) {
+        this.cancellationRateSearchTask = cancellationRateSearchTask;
+        notifyListeners(Listener::onCancellationRateSearchTaskChanged);
     }
 
-    public double getCancellationBurst() {
-        return cancellationBurst;
+    public double getCancellationBurstSearchTask() {
+        return cancellationBurstSearchTask;
     }
 
-    private void setCancellationBurst(double cancellationBurst) {
-        this.cancellationBurst = cancellationBurst;
-        notifyListeners(Listener::onCancellationBurstChanged);
+    private void setCancellationBurstSearchTask(double cancellationBurstSearchTask) {
+        this.cancellationBurstSearchTask = cancellationBurstSearchTask;
+        notifyListeners(Listener::onCancellationBurstSearchTaskChanged);
+    }
+
+    public double getCancellationRatioSearchShardTask() {
+        return cancellationRatioSearchShardTask;
+    }
+
+    private void setCancellationRatioSearchShardTask(double cancellationRatioSearchShardTask) {
+        this.cancellationRatioSearchShardTask = cancellationRatioSearchShardTask;
+        notifyListeners(Listener::onCancellationRatioSearchShardTaskChanged);
+    }
+
+    public double getCancellationRateSearchShardTask() {
+        return cancellationRateSearchShardTask;
+    }
+
+    public double getCancellationRateSearchShardTaskNanos() {
+        return getCancellationRateSearchShardTask() / TimeUnit.MILLISECONDS.toNanos(1); // rate per nanoseconds
+    }
+
+    private void setCancellationRateSearchShardTask(double cancellationRateSearchShardTask) {
+        this.cancellationRateSearchShardTask = cancellationRateSearchShardTask;
+        notifyListeners(Listener::onCancellationRateSearchShardTaskChanged);
+    }
+
+    public double getCancellationBurstSearchShardTask() {
+        return cancellationBurstSearchShardTask;
+    }
+
+    private void setCancellationBurstSearchShardTask(double cancellationBurstSearchShardTask) {
+        this.cancellationBurstSearchShardTask = cancellationBurstSearchShardTask;
+        notifyListeners(Listener::onCancellationBurstSearchShardTaskChanged);
     }
 
     private void notifyListeners(Consumer<Listener> consumer) {

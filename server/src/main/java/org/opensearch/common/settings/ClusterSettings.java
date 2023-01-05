@@ -45,9 +45,6 @@ import org.opensearch.search.backpressure.settings.NodeDuressSettings;
 import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
 import org.opensearch.search.backpressure.settings.SearchShardTaskSettings;
 import org.opensearch.search.backpressure.settings.SearchTaskSettings;
-import org.opensearch.search.backpressure.trackers.CpuUsageTracker;
-import org.opensearch.search.backpressure.trackers.ElapsedTimeTracker;
-import org.opensearch.search.backpressure.trackers.HeapUsageTracker;
 import org.opensearch.tasks.TaskManager;
 import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.watcher.ResourceWatcherService;
@@ -599,24 +596,27 @@ public final class ClusterSettings extends AbstractScopedSettings {
 
                 // Settings related to search backpressure
                 SearchBackpressureSettings.SETTING_MODE,
-                SearchBackpressureSettings.SETTING_CANCELLATION_RATIO,
-                SearchBackpressureSettings.SETTING_CANCELLATION_RATE,
-                SearchBackpressureSettings.SETTING_CANCELLATION_BURST,
+                SearchBackpressureSettings.SETTING_CANCELLATION_RATIO_SEARCH_TASK,
+                SearchBackpressureSettings.SETTING_CANCELLATION_RATE_SEARCH_TASK,
+                SearchBackpressureSettings.SETTING_CANCELLATION_BURST_SEARCH_TASK,
+                SearchBackpressureSettings.SETTING_CANCELLATION_RATIO_SEARCH_SHARD_TASK,
+                SearchBackpressureSettings.SETTING_CANCELLATION_RATE_SEARCH_SHARD_TASK,
+                SearchBackpressureSettings.SETTING_CANCELLATION_BURST_SEARCH_SHARD_TASK,
                 NodeDuressSettings.SETTING_NUM_SUCCESSIVE_BREACHES,
                 NodeDuressSettings.SETTING_CPU_THRESHOLD,
                 NodeDuressSettings.SETTING_HEAP_THRESHOLD,
                 SearchShardTaskSettings.SETTING_TOTAL_HEAP_PERCENT_THRESHOLD,
-                HeapUsageTracker.SETTING_HEAP_PERCENT_THRESHOLD_FOR_SEARCH_QUERY,
-                HeapUsageTracker.SETTING_HEAP_PERCENT_THRESHOLD,
-                HeapUsageTracker.SETTING_HEAP_VARIANCE_THRESHOLD_FOR_SEARCH_QUERY,
-                HeapUsageTracker.SETTING_HEAP_VARIANCE_THRESHOLD,
-                HeapUsageTracker.SETTING_HEAP_MOVING_AVERAGE_WINDOW_SIZE_FOR_SEARCH_QUERY,
-                HeapUsageTracker.SETTING_HEAP_MOVING_AVERAGE_WINDOW_SIZE,
-                CpuUsageTracker.SETTING_CPU_TIME_MILLIS_THRESHOLD_FOR_SEARCH_QUERY,
-                CpuUsageTracker.SETTING_CPU_TIME_MILLIS_THRESHOLD,
-                ElapsedTimeTracker.SETTING_ELAPSED_TIME_MILLIS_THRESHOLD_FOR_SEARCH_QUERY,
-                ElapsedTimeTracker.SETTING_ELAPSED_TIME_MILLIS_THRESHOLD,
-                SearchTaskSettings.SETTING_TOTAL_HEAP_PERCENT_THRESHOLD_FOR_SEARCH_QUERY
+                SearchTaskSettings.SETTING_HEAP_PERCENT_THRESHOLD,
+                SearchShardTaskSettings.SETTING_HEAP_PERCENT_THRESHOLD,
+                SearchTaskSettings.SETTING_HEAP_VARIANCE_THRESHOLD,
+                SearchShardTaskSettings.SETTING_HEAP_VARIANCE_THRESHOLD,
+                SearchTaskSettings.SETTING_HEAP_MOVING_AVERAGE_WINDOW_SIZE,
+                SearchShardTaskSettings.SETTING_HEAP_MOVING_AVERAGE_WINDOW_SIZE,
+                SearchTaskSettings.SETTING_CPU_TIME_MILLIS_THRESHOLD,
+                SearchShardTaskSettings.SETTING_CPU_TIME_MILLIS_THRESHOLD,
+                SearchTaskSettings.SETTING_ELAPSED_TIME_MILLIS_THRESHOLD,
+                SearchShardTaskSettings.SETTING_ELAPSED_TIME_MILLIS_THRESHOLD,
+                SearchTaskSettings.SETTING_TOTAL_HEAP_PERCENT_THRESHOLD
             )
         )
     );
