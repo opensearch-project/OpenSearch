@@ -168,12 +168,16 @@ import org.opensearch.env.TestEnvironment;
 import org.opensearch.gateway.MetaStateService;
 import org.opensearch.gateway.TransportNodesListGatewayStartedShards;
 import org.opensearch.index.Index;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.index.seqno.GlobalCheckpointSyncAction;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.shard.PrimaryReplicaSyncer;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
+import org.opensearch.index.translog.InternalTranslogFactory;
+import org.opensearch.index.translog.RemoteBlobStoreInternalTranslogFactory;
+import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.ShardLimitValidator;
@@ -235,6 +239,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiFunction;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -1799,6 +1804,16 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                 final MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
                 final SetOnce<RepositoriesService> repositoriesServiceReference = new SetOnce<>();
                 repositoriesServiceReference.set(repositoriesService);
+                BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier = (indexSettings, shardRouting) -> {
+                    if (indexSettings.isRemoteTranslogStoreEnabled() && shardRouting.primary()) {
+                        return new RemoteBlobStoreInternalTranslogFactory(
+                            repositoriesServiceReference::get,
+                            threadPool,
+                            indexSettings.getRemoteStoreTranslogRepository()
+                        );
+                    }
+                    return new InternalTranslogFactory();
+                };
                 if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
                     indicesService = new IndicesService(
                         settings,
@@ -1834,7 +1849,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         null,
                         emptyMap(),
                         new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService),
-                        repositoriesServiceReference::get
+                        translogFactorySupplier
                     );
                 } else {
                     indicesService = new IndicesService(
@@ -1870,7 +1885,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         null,
                         emptyMap(),
                         new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService),
-                        repositoriesServiceReference::get
+                        translogFactorySupplier
                     );
                 }
                 final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
