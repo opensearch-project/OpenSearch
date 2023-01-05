@@ -247,26 +247,7 @@ public class DecommissionService {
                             logger.info(
                                 "local node is not eligible to process the request, retrying the transport action until it times out"
                             );
-                            decommissionController.retryDecommissionAction(
-                                decommissionRequest,
-                                startTime,
-                                ActionListener.delegateResponse(listener, (delegatedListener, t) -> {
-                                    logger.debug(
-                                        () -> new ParameterizedMessage(
-                                            "failed to retry decommission action for attribute [{}]",
-                                            decommissionRequest.getDecommissionAttribute()
-                                        ),
-                                        t
-                                    );
-                                    // since the request failed to retry, we will attempt to mark it failed which will also ensure cleaning
-                                    // up the exclusion set for the to-be-decommissioned nodes
-                                    decommissionController.updateMetadataWithDecommissionStatus(
-                                        DecommissionStatus.FAILED,
-                                        statusUpdateListener()
-                                    );
-                                    delegatedListener.onFailure(t);
-                                })
-                            );
+                            decommissionController.retryDecommissionAction(decommissionRequest, startTime, listener);
                         }
                     }
 
