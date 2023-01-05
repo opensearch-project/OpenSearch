@@ -31,9 +31,8 @@ import static org.opensearch.cluster.routing.allocation.decider.AwarenessAllocat
  * Helps in balancing shards across all awareness attributes and ensuring high availability of data.
  */
 public class AwarenessReplicaBalance {
-    public static final String SETTING_CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE = "cluster.routing.allocation.awareness.balance";
     public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING = Setting.boolSetting(
-        SETTING_CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE,
+        "cluster.routing.allocation.awareness.balance",
         false,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
@@ -62,10 +61,6 @@ public class AwarenessReplicaBalance {
     }
 
     private void setForcedAwarenessAttributes(Settings forceSettings) {
-        this.forcedAwarenessAttributes = getForcedAwarenessAttributes(forceSettings);
-    }
-
-    public static Map<String, List<String>> getForcedAwarenessAttributes(Settings forceSettings) {
         Map<String, List<String>> forcedAwarenessAttributes = new HashMap<>();
         Map<String, Settings> forceGroups = forceSettings.getAsGroups();
         for (Map.Entry<String, Settings> entry : forceGroups.entrySet()) {
@@ -74,7 +69,7 @@ public class AwarenessReplicaBalance {
                 forcedAwarenessAttributes.put(entry.getKey(), aValues);
             }
         }
-        return forcedAwarenessAttributes;
+        this.forcedAwarenessAttributes = forcedAwarenessAttributes;
     }
 
     private void setAwarenessAttributes(List<String> awarenessAttributes) {
