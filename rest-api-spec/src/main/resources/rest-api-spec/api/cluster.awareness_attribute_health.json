@@ -1,0 +1,25 @@
+{
+  "cluster.awareness_attribute_health": {
+    "documentation": {
+      "url": "https://opensearch.org/docs/latest/opensearch/rest-api/awareness_attribute_health/",
+      "description": "Returns basic information about the health of the cluster aggregated per awareness attribute."
+    },
+    "stability": "experimental",
+    "url": {
+      "paths": [
+        {
+          "path": "/_cluster/awareness/{awareness_attribute_name}/health",
+          "methods": [
+            "GET"
+          ],
+          "parts":{
+            "awareness_attribute_name":{
+              "type":"string",
+              "description":"Awareness attribute name"
+            }
+          }
+        }
+      ]
+    }
+  }
+}
