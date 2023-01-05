@@ -32,7 +32,7 @@
 package org.opensearch.gradle.testclusters;
 
 import org.apache.commons.io.FileUtils;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.opensearch.gradle.Architecture;
 import org.opensearch.gradle.DistributionDownloadPlugin;
 import org.opensearch.gradle.OpenSearchDistribution;

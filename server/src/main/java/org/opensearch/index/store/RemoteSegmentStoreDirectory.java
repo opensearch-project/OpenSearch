@@ -154,6 +154,10 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
             return String.join(SEPARATOR, originalFilename, uploadedFilename, checksum);
         }
 
+        public String getChecksum() {
+            return this.checksum;
+        }
+
         public static UploadedSegmentMetadata fromString(String uploadedFilename) {
             String[] values = uploadedFilename.split(SEPARATOR);
             return new UploadedSegmentMetadata(values[0], values[1], values[2]);

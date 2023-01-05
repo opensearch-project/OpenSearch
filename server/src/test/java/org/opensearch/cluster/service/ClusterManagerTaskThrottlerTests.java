@@ -83,7 +83,7 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
     }
 
     public void testValidateSettingsForDifferentVersion() {
-        DiscoveryNode clusterManagerNode = getClusterManagerNode(Version.V_2_4_0);
+        DiscoveryNode clusterManagerNode = getClusterManagerNode(Version.V_2_5_0);
         DiscoveryNode dataNode = getDataNode(Version.V_2_0_0);
         setState(
             clusterService,
@@ -116,8 +116,8 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
     }
 
     public void testValidateSettingsForTaskWihtoutRetryOnDataNode() {
-        DiscoveryNode clusterManagerNode = getClusterManagerNode(Version.V_2_4_0);
-        DiscoveryNode dataNode = getDataNode(Version.V_2_4_0);
+        DiscoveryNode clusterManagerNode = getClusterManagerNode(Version.V_2_5_0);
+        DiscoveryNode dataNode = getDataNode(Version.V_2_5_0);
         setState(
             clusterService,
             ClusterStateCreationUtils.state(clusterManagerNode, clusterManagerNode, new DiscoveryNode[] { clusterManagerNode, dataNode })
@@ -140,8 +140,8 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
     }
 
     public void testUpdateSettingsForNullValue() {
-        DiscoveryNode clusterManagerNode = getClusterManagerNode(Version.V_2_4_0);
-        DiscoveryNode dataNode = getDataNode(Version.V_2_4_0);
+        DiscoveryNode clusterManagerNode = getClusterManagerNode(Version.V_2_5_0);
+        DiscoveryNode dataNode = getDataNode(Version.V_2_5_0);
         setState(
             clusterService,
             ClusterStateCreationUtils.state(clusterManagerNode, clusterManagerNode, new DiscoveryNode[] { clusterManagerNode, dataNode })
@@ -169,8 +169,8 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
     }
 
     public void testSettingsOnBootstrap() {
-        DiscoveryNode clusterManagerNode = getClusterManagerNode(Version.V_2_4_0);
-        DiscoveryNode dataNode = getDataNode(Version.V_2_4_0);
+        DiscoveryNode clusterManagerNode = getClusterManagerNode(Version.V_2_5_0);
+        DiscoveryNode dataNode = getDataNode(Version.V_2_5_0);
         setState(
             clusterService,
             ClusterStateCreationUtils.state(clusterManagerNode, clusterManagerNode, new DiscoveryNode[] { clusterManagerNode, dataNode })
@@ -194,8 +194,8 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
     }
 
     public void testValidateSettingsForUnknownTask() {
-        DiscoveryNode clusterManagerNode = getClusterManagerNode(Version.V_2_4_0);
-        DiscoveryNode dataNode = getDataNode(Version.V_2_4_0);
+        DiscoveryNode clusterManagerNode = getClusterManagerNode(Version.V_2_5_0);
+        DiscoveryNode dataNode = getDataNode(Version.V_2_5_0);
         setState(
             clusterService,
             ClusterStateCreationUtils.state(clusterManagerNode, clusterManagerNode, new DiscoveryNode[] { clusterManagerNode, dataNode })
@@ -216,8 +216,8 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
     }
 
     public void testUpdateThrottlingLimitForBasicSanity() {
-        DiscoveryNode clusterManagerNode = getClusterManagerNode(Version.V_2_4_0);
-        DiscoveryNode dataNode = getDataNode(Version.V_2_4_0);
+        DiscoveryNode clusterManagerNode = getClusterManagerNode(Version.V_2_5_0);
+        DiscoveryNode dataNode = getDataNode(Version.V_2_5_0);
         setState(
             clusterService,
             ClusterStateCreationUtils.state(clusterManagerNode, clusterManagerNode, new DiscoveryNode[] { clusterManagerNode, dataNode })
@@ -246,8 +246,8 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
     }
 
     public void testValidateSettingForLimit() {
-        DiscoveryNode clusterManagerNode = getClusterManagerNode(Version.V_2_4_0);
-        DiscoveryNode dataNode = getDataNode(Version.V_2_4_0);
+        DiscoveryNode clusterManagerNode = getClusterManagerNode(Version.V_2_5_0);
+        DiscoveryNode dataNode = getDataNode(Version.V_2_5_0);
         setState(
             clusterService,
             ClusterStateCreationUtils.state(clusterManagerNode, clusterManagerNode, new DiscoveryNode[] { clusterManagerNode, dataNode })
@@ -322,6 +322,48 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
 
         // Asserting that there was not any throttling for it
         assertEquals(0L, throttlingStats.getThrottlingCount(taskKey));
+    }
+
+    public void testThrottlingForInitialStaticSettingAndVersionCheck() {
+        ClusterManagerThrottlingStats throttlingStats = new ClusterManagerThrottlingStats();
+        DiscoveryNode clusterManagerNode = getClusterManagerNode(Version.V_2_5_0);
+        DiscoveryNode dataNode = getDataNode(Version.V_2_4_0);
+        setState(
+            clusterService,
+            ClusterStateCreationUtils.state(clusterManagerNode, clusterManagerNode, new DiscoveryNode[] { clusterManagerNode, dataNode })
+        );
+
+        // setting threshold in initial settings
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        int put_mapping_threshold_value = randomIntBetween(1, 10);
+        Settings initialSettings = Settings.builder()
+            .put("cluster_manager.throttling.thresholds.put-mapping.value", put_mapping_threshold_value)
+            .build();
+        ClusterManagerTaskThrottler throttler = new ClusterManagerTaskThrottler(
+            initialSettings,
+            clusterSettings,
+            () -> { return clusterService.getMasterService().getMinNodeVersion(); },
+            throttlingStats
+        );
+        ClusterManagerTaskThrottler.ThrottlingKey throttlingKey = throttler.registerClusterManagerTask("put-mapping", true);
+
+        // verifying adding more tasks then threshold passes
+        throttler.onBeginSubmit(getMockUpdateTaskList("put-mapping", throttlingKey, put_mapping_threshold_value + 5));
+        assertEquals(0L, throttlingStats.getThrottlingCount("put-mapping"));
+
+        // Removing older version node from cluster
+        setState(
+            clusterService,
+            ClusterStateCreationUtils.state(clusterManagerNode, clusterManagerNode, new DiscoveryNode[] { clusterManagerNode })
+        );
+
+        // adding more tasks, these tasks should be throttled
+        // As queue already have more tasks than threshold from previous call.
+        assertThrows(
+            ClusterManagerThrottlingException.class,
+            () -> throttler.onBeginSubmit(getMockUpdateTaskList("put-mapping", throttlingKey, 3))
+        );
+        assertEquals(3L, throttlingStats.getThrottlingCount("put-mapping"));
     }
 
     public void testThrottling() {

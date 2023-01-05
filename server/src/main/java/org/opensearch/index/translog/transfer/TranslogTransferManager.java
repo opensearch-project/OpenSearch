@@ -11,13 +11,19 @@ package org.opensearch.index.translog.transfer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.store.IndexInput;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.lucene.store.ByteArrayIndexInput;
+import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.transfer.listener.FileTransferListener;
 import org.opensearch.index.translog.transfer.listener.TranslogTransferListener;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -42,12 +48,15 @@ public class TranslogTransferManager {
 
     private final TransferService transferService;
     private final BlobPath remoteBaseTransferPath;
+    private final BlobPath remoteMetadaTransferPath;
     private final FileTransferListener fileTransferListener;
     private final UnaryOperator<Set<TransferFileSnapshot>> exclusionFilter;
 
     private static final long TRANSFER_TIMEOUT_IN_MILLIS = 30000;
 
     private static final Logger logger = LogManager.getLogger(TranslogTransferManager.class);
+
+    private final static String METADATA_DIR = "metadata";
 
     public TranslogTransferManager(
         TransferService transferService,
@@ -57,6 +66,7 @@ public class TranslogTransferManager {
     ) {
         this.transferService = transferService;
         this.remoteBaseTransferPath = remoteBaseTransferPath;
+        this.remoteMetadaTransferPath = remoteBaseTransferPath.add(METADATA_DIR);
         this.fileTransferListener = fileTransferListener;
         this.exclusionFilter = exclusionFilter;
     }
@@ -68,6 +78,11 @@ public class TranslogTransferManager {
         try {
             toUpload.addAll(exclusionFilter.apply(transferSnapshot.getTranslogFileSnapshots()));
             toUpload.addAll(exclusionFilter.apply(transferSnapshot.getCheckpointFileSnapshots()));
+            if (toUpload.isEmpty()) {
+                logger.trace("Nothing to upload for transfer");
+                translogTransferListener.onUploadComplete(transferSnapshot);
+                return true;
+            }
             final CountDownLatch latch = new CountDownLatch(toUpload.size());
             LatchedActionListener<TransferFileSnapshot> latchedActionListener = new LatchedActionListener<>(
                 ActionListener.wrap(fileTransferListener::onSuccess, ex -> {
@@ -104,15 +119,11 @@ public class TranslogTransferManager {
                 throw ex;
             }
             if (exceptionList.isEmpty()) {
-                final TransferFileSnapshot transferFileSnapshot = prepareMetadata(transferSnapshot);
-                transferService.uploadBlob(
-                    prepareMetadata(transferSnapshot),
-                    remoteBaseTransferPath.add(String.valueOf(transferFileSnapshot.getPrimaryTerm()))
-                );
+                transferService.uploadBlob(prepareMetadata(transferSnapshot), remoteMetadaTransferPath);
                 translogTransferListener.onUploadComplete(transferSnapshot);
                 return true;
             } else {
-                Exception ex = new RuntimeException("Failed to upload some files during transfer");
+                Exception ex = new IOException("Failed to upload " + exceptionList.size() + " files during transfer");
                 exceptionList.forEach(ex::addSuppressed);
                 throw ex;
             }
@@ -121,6 +132,50 @@ public class TranslogTransferManager {
             translogTransferListener.onUploadFailed(transferSnapshot, ex);
             return false;
         }
+    }
+
+    public boolean downloadTranslog(String primaryTerm, String generation, Path location) throws IOException {
+        logger.info(
+            "Downloading translog files with: Primary Term = {}, Generation = {}, Location = {}",
+            primaryTerm,
+            generation,
+            location
+        );
+        // Download Checkpoint file from remote to local FS
+        String ckpFileName = Translog.getCommitCheckpointFileName(Long.parseLong(generation));
+        downloadToFS(ckpFileName, location, primaryTerm);
+        // Download translog file from remote to local FS
+        String translogFilename = Translog.getFilename(Long.parseLong(generation));
+        downloadToFS(translogFilename, location, primaryTerm);
+        return true;
+    }
+
+    private void downloadToFS(String fileName, Path location, String primaryTerm) throws IOException {
+        Path filePath = location.resolve(fileName);
+        // Here, we always override the existing file if present.
+        // We need to change this logic when we introduce incremental download
+        if (Files.exists(filePath)) {
+            Files.delete(filePath);
+        }
+        try (InputStream inputStream = transferService.downloadBlob(remoteBaseTransferPath.add(primaryTerm), fileName)) {
+            Files.copy(inputStream, filePath);
+        }
+    }
+
+    public TranslogTransferMetadata readMetadata() throws IOException {
+        return transferService.listAll(remoteMetadaTransferPath)
+            .stream()
+            .max(TranslogTransferMetadata.METADATA_FILENAME_COMPARATOR)
+            .map(filename -> {
+                try (InputStream inputStream = transferService.downloadBlob(remoteMetadaTransferPath, filename);) {
+                    IndexInput indexInput = new ByteArrayIndexInput("metadata file", inputStream.readAllBytes());
+                    return new TranslogTransferMetadata(indexInput);
+                } catch (IOException e) {
+                    logger.error(() -> new ParameterizedMessage("Exception while reading metadata file: {}", filename), e);
+                    return null;
+                }
+            })
+            .orElse(null);
     }
 
     private TransferFileSnapshot prepareMetadata(TransferSnapshot transferSnapshot) throws IOException {

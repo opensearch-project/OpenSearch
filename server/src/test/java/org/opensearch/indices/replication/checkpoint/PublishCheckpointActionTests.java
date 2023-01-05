@@ -12,6 +12,7 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.ActionTestUtils;
 import org.opensearch.action.support.PlainActionFuture;
+import org.opensearch.action.support.replication.ReplicationMode;
 import org.opensearch.action.support.replication.TransportReplicationAction;
 import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.service.ClusterService;
@@ -156,6 +157,33 @@ public class PublishCheckpointActionTests extends OpenSearchTestCase {
         result.runPostReplicaActions(ActionListener.wrap(r -> success.set(true), e -> fail(e.toString())));
         assertTrue(success.get());
 
+    }
+
+    public void testGetReplicationModeWithRemoteTranslog() {
+        final PublishCheckpointAction action = createAction();
+        final IndexShard indexShard = mock(IndexShard.class);
+        when(indexShard.isRemoteTranslogEnabled()).thenReturn(true);
+        assertEquals(ReplicationMode.FULL_REPLICATION, action.getReplicationMode(indexShard));
+    }
+
+    public void testGetReplicationModeWithLocalTranslog() {
+        final PublishCheckpointAction action = createAction();
+        final IndexShard indexShard = mock(IndexShard.class);
+        when(indexShard.isRemoteTranslogEnabled()).thenReturn(false);
+        assertEquals(ReplicationMode.FULL_REPLICATION, action.getReplicationMode(indexShard));
+    }
+
+    private PublishCheckpointAction createAction() {
+        return new PublishCheckpointAction(
+            Settings.EMPTY,
+            transportService,
+            clusterService,
+            mock(IndicesService.class),
+            threadPool,
+            shardStateAction,
+            new ActionFilters(Collections.emptySet()),
+            mock(SegmentReplicationTargetService.class)
+        );
     }
 
 }

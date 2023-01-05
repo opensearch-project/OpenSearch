@@ -102,6 +102,7 @@ import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.regex.Regex;
+import org.opensearch.common.settings.FeatureFlagSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
@@ -761,6 +762,20 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             );
         }
         return builder.build();
+    }
+
+    /**
+     * Setting all feature flag settings at base IT, which can be overridden later by individual
+     * IT classes.
+     *
+     * @return Feature flag settings.
+     */
+    protected Settings featureFlagSettings() {
+        Settings.Builder featureSettings = Settings.builder();
+        for (Setting builtInFlag : FeatureFlagSettings.BUILT_IN_FEATURE_FLAGS) {
+            featureSettings.put(builtInFlag.getKey(), builtInFlag.getDefaultRaw(Settings.EMPTY));
+        }
+        return featureSettings.build();
     }
 
     /**
