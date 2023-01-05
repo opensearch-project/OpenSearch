@@ -19,6 +19,7 @@ import org.opensearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 
 import static java.util.Collections.singletonList;
 import static org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionRequest.DEFAULT_REQUEST_TIMEOUT;
@@ -64,7 +65,7 @@ public class RestDecommissionAction extends BaseRestHandler {
             TimeValue requestTimeout = request.paramAsTime("timeout", DEFAULT_REQUEST_TIMEOUT);
             if (requestTimeout.getMillis() < DEFAULT_REQUEST_TIMEOUT.getMillis()) {
                 throw new IllegalArgumentException(
-                    String.format("default request timeout has to be at least [%s]", DEFAULT_REQUEST_TIMEOUT)
+                    String.format(Locale.ROOT, "default request timeout has to be at least [%s]", DEFAULT_REQUEST_TIMEOUT)
                 );
             }
             decommissionRequest.setTimeout(requestTimeout);
