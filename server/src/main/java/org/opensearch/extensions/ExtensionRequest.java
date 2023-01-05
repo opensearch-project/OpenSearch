@@ -51,7 +51,10 @@ public class ExtensionRequest extends TransportRequest {
 
     @Override
     public boolean equals(Object o) {
+<<<<<<< HEAD
 
+=======
+>>>>>>> main
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ExtensionRequest that = (ExtensionRequest) o;
@@ -62,5 +65,8 @@ public class ExtensionRequest extends TransportRequest {
     public int hashCode() {
         return Objects.hash(requestType);
     }
+<<<<<<< HEAD
 
+=======
+>>>>>>> main
 }

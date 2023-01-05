@@ -137,6 +137,22 @@ public class ClusterPutWeightedRoutingRequest extends ClusterManagerNodeRequest<
         } catch (NumberFormatException e) {
             validationException = addValidationError(("Weight is not a number"), validationException);
         }
+        // Returning validation exception here itself if it is not null, so we can have a descriptive message for the count check
+        if (validationException != null) {
+            return validationException;
+        }
+        if (countValueWithZeroWeights > weightedRouting.weights().size() / 2) {
+            validationException = addValidationError(
+                (String.format(
+                    Locale.ROOT,
+                    "There are too many attribute values [%s] given zero weight [%d]. Maximum expected number of routing weights having zero weight is [%d]",
+                    weightedRouting.weights().toString(),
+                    countValueWithZeroWeights,
+                    weightedRouting.weights().size() / 2
+                )),
+                null
+            );
+        }
         return validationException;
     }
 

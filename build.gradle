@@ -413,9 +413,6 @@ gradle.projectsEvaluated {
         if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_17) {
           task.jvmArgs += ["-Djava.security.manager=allow"]
         }
-        if (BuildParams.runtimeJavaVersion >= JavaVersion.VERSION_19) {
-          task.jvmArgs += ["--enable-preview"]
-        }
       }
     }
 

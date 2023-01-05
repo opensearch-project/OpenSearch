@@ -20,6 +20,12 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.plugins.PluginInfo;
 
 import java.io.IOException;
+<<<<<<< HEAD
+=======
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+>>>>>>> main
 import java.util.Map;
 
 /**
@@ -30,6 +36,10 @@ import java.util.Map;
 public class DiscoveryExtensionNode extends DiscoveryNode implements Writeable, ToXContentFragment {
 
     private final PluginInfo pluginInfo;
+<<<<<<< HEAD
+=======
+    private List<ExtensionDependency> dependencies = Collections.emptyList();
+>>>>>>> main
 
     public DiscoveryExtensionNode(
         String name,
@@ -40,16 +50,32 @@ public class DiscoveryExtensionNode extends DiscoveryNode implements Writeable, 
         TransportAddress address,
         Map<String, String> attributes,
         Version version,
+<<<<<<< HEAD
         PluginInfo pluginInfo
     ) {
         super(name, id, ephemeralId, hostName, hostAddress, address, attributes, DiscoveryNodeRole.BUILT_IN_ROLES, version);
         this.pluginInfo = pluginInfo;
+=======
+        PluginInfo pluginInfo,
+        List<ExtensionDependency> dependencies
+    ) {
+        super(name, id, ephemeralId, hostName, hostAddress, address, attributes, DiscoveryNodeRole.BUILT_IN_ROLES, version);
+        this.pluginInfo = pluginInfo;
+        this.dependencies = dependencies;
+>>>>>>> main
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         pluginInfo.writeTo(out);
+<<<<<<< HEAD
+=======
+        out.writeVInt(dependencies.size());
+        for (ExtensionDependency dependency : dependencies) {
+            dependency.writeTo(out);
+        }
+>>>>>>> main
     }
 
     /**
@@ -61,6 +87,18 @@ public class DiscoveryExtensionNode extends DiscoveryNode implements Writeable, 
     public DiscoveryExtensionNode(final StreamInput in) throws IOException {
         super(in);
         this.pluginInfo = new PluginInfo(in);
+<<<<<<< HEAD
+=======
+        int size = in.readVInt();
+        dependencies = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            dependencies.add(new ExtensionDependency(in));
+        }
+    }
+
+    public List<ExtensionDependency> getDependencies() {
+        return dependencies;
+>>>>>>> main
     }
 
     @Override

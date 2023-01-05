@@ -34,6 +34,7 @@ package org.opensearch.index.seqno;
 
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.ActionTestUtils;
+import org.opensearch.action.support.replication.ReplicationMode;
 import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
@@ -150,6 +151,33 @@ public class GlobalCheckpointSyncActionTests extends OpenSearchTestCase {
         } else {
             verify(indexShard).sync();
         }
+    }
+
+    public void testGetReplicationModeWithRemoteTranslog() {
+        final GlobalCheckpointSyncAction action = createAction();
+        final IndexShard indexShard = mock(IndexShard.class);
+        when(indexShard.isRemoteTranslogEnabled()).thenReturn(true);
+        assertEquals(ReplicationMode.NO_REPLICATION, action.getReplicationMode(indexShard));
+    }
+
+    public void testGetReplicationModeWithLocalTranslog() {
+        final GlobalCheckpointSyncAction action = createAction();
+        final IndexShard indexShard = mock(IndexShard.class);
+        when(indexShard.isRemoteTranslogEnabled()).thenReturn(false);
+        assertEquals(ReplicationMode.FULL_REPLICATION, action.getReplicationMode(indexShard));
+    }
+
+    private GlobalCheckpointSyncAction createAction() {
+        final IndicesService indicesService = mock(IndicesService.class);
+        return new GlobalCheckpointSyncAction(
+            Settings.EMPTY,
+            transportService,
+            clusterService,
+            indicesService,
+            threadPool,
+            shardStateAction,
+            new ActionFilters(Collections.emptySet())
+        );
     }
 
 }

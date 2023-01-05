@@ -31,13 +31,23 @@ public class ReplicationProxyRequest<ReplicaRequest> {
 
     private final ReplicaRequest replicaRequest;
 
+<<<<<<< HEAD
+=======
+    private final long primaryTerm;
+
+>>>>>>> main
     private ReplicationProxyRequest(
         ShardRouting shardRouting,
         ShardRouting primaryRouting,
         long globalCheckpoint,
         long maxSeqNoOfUpdatesOrDeletes,
         PendingReplicationActions pendingReplicationActions,
+<<<<<<< HEAD
         ReplicaRequest replicaRequest
+=======
+        ReplicaRequest replicaRequest,
+        long primaryTerm
+>>>>>>> main
     ) {
         this.shardRouting = Objects.requireNonNull(shardRouting);
         this.primaryRouting = Objects.requireNonNull(primaryRouting);
@@ -45,6 +55,10 @@ public class ReplicationProxyRequest<ReplicaRequest> {
         this.maxSeqNoOfUpdatesOrDeletes = maxSeqNoOfUpdatesOrDeletes;
         this.pendingReplicationActions = Objects.requireNonNull(pendingReplicationActions);
         this.replicaRequest = Objects.requireNonNull(replicaRequest);
+<<<<<<< HEAD
+=======
+        this.primaryTerm = primaryTerm;
+>>>>>>> main
     }
 
     public ShardRouting getShardRouting() {
@@ -71,6 +85,13 @@ public class ReplicationProxyRequest<ReplicaRequest> {
         return replicaRequest;
     }
 
+<<<<<<< HEAD
+=======
+    public long getPrimaryTerm() {
+        return primaryTerm;
+    }
+
+>>>>>>> main
     /**
      * Builder of ReplicationProxyRequest.
      *
@@ -84,6 +105,10 @@ public class ReplicationProxyRequest<ReplicaRequest> {
         private final long maxSeqNoOfUpdatesOrDeletes;
         private final PendingReplicationActions pendingReplicationActions;
         private final ReplicaRequest replicaRequest;
+<<<<<<< HEAD
+=======
+        private final long primaryTerm;
+>>>>>>> main
 
         public Builder(
             ShardRouting shardRouting,
@@ -91,7 +116,12 @@ public class ReplicationProxyRequest<ReplicaRequest> {
             long globalCheckpoint,
             long maxSeqNoOfUpdatesOrDeletes,
             PendingReplicationActions pendingReplicationActions,
+<<<<<<< HEAD
             ReplicaRequest replicaRequest
+=======
+            ReplicaRequest replicaRequest,
+            long primaryTerm
+>>>>>>> main
         ) {
             this.shardRouting = shardRouting;
             this.primaryRouting = primaryRouting;
@@ -99,6 +129,10 @@ public class ReplicationProxyRequest<ReplicaRequest> {
             this.maxSeqNoOfUpdatesOrDeletes = maxSeqNoOfUpdatesOrDeletes;
             this.pendingReplicationActions = pendingReplicationActions;
             this.replicaRequest = replicaRequest;
+<<<<<<< HEAD
+=======
+            this.primaryTerm = primaryTerm;
+>>>>>>> main
         }
 
         public ReplicationProxyRequest<ReplicaRequest> build() {
@@ -108,7 +142,12 @@ public class ReplicationProxyRequest<ReplicaRequest> {
                 globalCheckpoint,
                 maxSeqNoOfUpdatesOrDeletes,
                 pendingReplicationActions,
+<<<<<<< HEAD
                 replicaRequest
+=======
+                replicaRequest,
+                primaryTerm
+>>>>>>> main
             );
         }
 

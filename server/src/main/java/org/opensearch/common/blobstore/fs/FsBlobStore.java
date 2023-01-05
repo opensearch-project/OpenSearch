@@ -90,7 +90,7 @@ public class FsBlobStore implements BlobStore {
         // nothing to do here...
     }
 
-    private synchronized Path buildAndCreate(BlobPath path) throws IOException {
+    protected synchronized Path buildAndCreate(BlobPath path) throws IOException {
         Path f = buildPath(path);
         if (readOnly == false) {
             Files.createDirectories(f);
