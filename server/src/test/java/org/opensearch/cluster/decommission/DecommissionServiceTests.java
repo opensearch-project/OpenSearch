@@ -8,6 +8,7 @@
 
 package org.opensearch.cluster.decommission;
 
+import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
@@ -37,6 +38,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransport;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.RemoteTransportException;
 import org.opensearch.transport.TransportService;
 
 import java.util.Collections;
@@ -49,6 +51,9 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonMap;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.opensearch.cluster.ClusterState.builder;
 import static org.opensearch.cluster.OpenSearchAllocationTestCase.createAllocationService;
 import static org.opensearch.test.ClusterServiceUtils.createClusterService;
@@ -193,6 +198,40 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
         };
         decommissionService.startDecommissionAction(new DecommissionRequest(decommissionAttribute), listener);
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
+    }
+
+    public void testExternalDecommissionRetryNotAllowed() throws InterruptedException {
+        final CountDownLatch countDownLatch = new CountDownLatch(1);
+        DecommissionStatus oldStatus = DecommissionStatus.INIT;
+        DecommissionAttributeMetadata oldMetadata = new DecommissionAttributeMetadata(
+            new DecommissionAttribute("zone", "zone_1"),
+            oldStatus
+        );
+        final ClusterState.Builder builder = builder(clusterService.state());
+        setState(
+            clusterService,
+            builder.metadata(Metadata.builder(clusterService.state().metadata()).decommissionAttributeMetadata(oldMetadata).build())
+        );
+        AtomicReference<Exception> exceptionReference = new AtomicReference<>();
+        ActionListener<DecommissionResponse> listener = new ActionListener<DecommissionResponse>() {
+            @Override
+            public void onResponse(DecommissionResponse decommissionResponse) {
+                fail("on response shouldn't have been called");
+                countDownLatch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                exceptionReference.set(e);
+                countDownLatch.countDown();
+            }
+        };
+        DecommissionRequest request = new DecommissionRequest(new DecommissionAttribute("zone", "zone_1"));
+        decommissionService.startDecommissionAction(request, listener);
+        assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
+        MatcherAssert.assertThat("Expected onFailure to be called", exceptionReference.get(), notNullValue());
+        MatcherAssert.assertThat(exceptionReference.get(), instanceOf(DecommissioningFailedException.class));
+        MatcherAssert.assertThat(exceptionReference.get().getMessage(), containsString("concurrent request received to decommission attribute"));
     }
 
     @SuppressWarnings("unchecked")

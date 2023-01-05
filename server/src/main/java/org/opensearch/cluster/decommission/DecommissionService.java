@@ -477,8 +477,11 @@ public class DecommissionService {
             // check if the same attribute is registered and handle it accordingly
             if (decommissionAttributeMetadata.decommissionAttribute().equals(requestedDecommissionAttribute)) {
                 switch (decommissionAttributeMetadata.status()) {
-                    // for INIT and FAILED - we are good to process it again
+                    // for INIT - check if it is eligible internal retry
                     case INIT:
+                        msg = (decommissionRequest.retryOnClusterManagerSwitch() == false) ? "concurrent request received to decommission attribute" : null;
+                        break;
+                    // for FAILED - we are good to process it again
                     case FAILED:
                         break;
                     case DRAINING:
@@ -519,23 +522,6 @@ public class DecommissionService {
 
         if (msg != null) {
             throw new DecommissioningFailedException(requestedDecommissionAttribute, msg);
-        }
-        ensureEligibleRetry(decommissionAttributeMetadata, decommissionRequest);
-    }
-
-    private static void ensureEligibleRetry(
-        DecommissionAttributeMetadata decommissionAttributeMetadata,
-        DecommissionRequest decommissionRequest
-    ) {
-        if (decommissionAttributeMetadata != null) {
-            // we just need to check for INIT status as for other transient statuses we already handle it separately
-            if (decommissionAttributeMetadata.status().equals(DecommissionStatus.INIT)
-                && decommissionRequest.retryOnClusterManagerSwitch() == false) {
-                throw new DecommissioningFailedException(
-                    decommissionRequest.getDecommissionAttribute(),
-                    "concurrent request received to decommission attribute"
-                );
-            }
         }
     }
 
