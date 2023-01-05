@@ -13,9 +13,9 @@
 
 ### Check List
 - [ ] New functionality includes testing.
-    - [ ] All tests pass
+  - [ ] All tests pass
 - [ ] New functionality has been documented.
-    - [ ] New functionality has javadoc added
+  - [ ] New functionality has javadoc added
 - [ ] Commits are signed per the DCO using --signoff
 - [ ] Commit changes are listed out in CHANGELOG.md file (See: [Changelog](../blob/main/CONTRIBUTING.md#changelog))
 
