@@ -1597,4 +1597,45 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertNotNull(update); // dynamic mapping update
 
     }
+
+    // Test nesting upto max allowed depth with combination of nesting in object and array
+    // object -> array -> object -> array ....
+    public void testDocumentDeepNestedObjectAndArrayCombination() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
+        long depth_limit = MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING.getDefault(Settings.EMPTY);
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> {
+            for (int i = 1; i < depth_limit; i++) {
+                b.startArray("foo" + 1);
+                b.startObject();
+            }
+            b.startArray("bar");
+            b.startArray().value(0).value(0).endArray();
+            b.endArray();
+            for (int i = 1; i < depth_limit; i++) {
+                b.endObject();
+                b.endArray();
+            }
+        })));
+
+        // check parsing success for nested array within allowed depth limit
+        ParsedDocument doc = mapper.parse(source(b -> {
+            for (int i = 1; i < depth_limit - 1; i++) {
+                b.startArray("foo" + 1);
+                b.startObject();
+            }
+            b.startArray("bar");
+            b.startArray().value(0).value(0).endArray();
+            b.endArray();
+            for (int i = 1; i < depth_limit - 1; i++) {
+                b.endObject();
+                b.endArray();
+            }
+        }
+
+        ));
+        Mapping update = doc.dynamicMappingsUpdate();
+        assertNotNull(update); // dynamic mapping update
+
+    }
+
 }
