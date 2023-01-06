@@ -757,7 +757,7 @@ public class MatchQuery {
                  * return empty BooleanQuery result
                  */
                 Iterator<TokenStream> graphIt = graph.getFiniteStrings();
-                if(!graphIt.hasNext()){
+                if (!graphIt.hasNext()) {
                     return builder.build();
                 }
                 if (graph.hasSidePath(start)) {

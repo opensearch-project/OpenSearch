@@ -69,7 +69,6 @@ import org.opensearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
-import java.util.*;
 
 import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -330,13 +329,12 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         MockGraphAnalyzer mockAnalyzer = new MockGraphAnalyzer(createGiantGraphWithNoSide());
         testMatchQuery.setAnalyzer(mockAnalyzer);
         testMatchQuery.setAutoGenerateSynonymsPhraseQuery(true);
-        testMatchQuery.setZeroTermsQuery(ZeroTermsQuery.NONE);
         GraphTokenStreamFiniteStrings graph = new GraphTokenStreamFiniteStrings(mockAnalyzer.getTokenStream());
         Iterator<TokenStream> graphIt = graph.getFiniteStrings();
-        assertEquals(graphIt.hasNext(),false);
+        assertEquals(graphIt.hasNext(), false);
         String testField = "Gas Lift Storage Bed Frame with Arched Bed Head in King";
         String testValue = "head board, bed head, bedhead, headboard";
-        testMatchQuery.parse(Type.BOOLEAN,testField,testValue); // no exception
+        testMatchQuery.parse(Type.BOOLEAN, testField, testValue); // no exception
     }
 
     public void testDefaultFuzziness() {
@@ -503,7 +501,6 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
             assertThat(query, equalTo(expectedQuery));
         }
     }
-
 
     public void testMultiWordSynonymsPhrase() throws Exception {
         final MatchQuery matchQuery = new MatchQuery(createShardContext());
