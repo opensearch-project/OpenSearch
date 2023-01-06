@@ -36,6 +36,7 @@ import org.opensearch.action.ActionFuture;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.opensearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.opensearch.action.admin.indices.template.delete.DeleteIndexTemplateRequestBuilder;
 import org.opensearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.client.Client;
@@ -977,6 +978,9 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
     public void testRestoreBalancedReplica() {
         try {
             createRepository("test-repo", "fs");
+            DeleteIndexTemplateRequestBuilder deleteTemplate = client().admin().indices().prepareDeleteTemplate("random_index_template");
+            assertAcked(deleteTemplate.execute().actionGet());
+
             createIndex("test-index", Settings.builder().put("index.number_of_replicas", 0).build());
             createIndex(".system-index", Settings.builder().put("index.number_of_replicas", 0).build());
             ensureGreen();
@@ -984,7 +988,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
                 .setIndices("test-index", ".system-index")
                 .setWaitForCompletion(true)
                 .get();
-            manageReplicaBalanceSetting(true);
+            manageReplicaSettingForDefaultReplica(true);
 
             final IllegalArgumentException restoreError = expectThrows(
                 IllegalArgumentException.class,
@@ -996,7 +1000,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             );
             assertThat(
                 restoreError.getMessage(),
-                containsString("expected total copies needs to be a multiple of total awareness attributes [2]")
+                containsString("expected total copies needs to be a multiple of total awareness attributes [3]")
             );
 
             final IllegalArgumentException restoreError2 = expectThrows(
@@ -1005,14 +1009,14 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
                     .setRenamePattern("test-index")
                     .setRenameReplacement("new-index-2")
                     .setIndexSettings(
-                        Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, 1).put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-2").build()
+                        Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, 1).put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1").build()
                     )
                     .setIndices("test-index")
                     .get()
             );
             assertThat(
                 restoreError2.getMessage(),
-                containsString("expected max cap on auto expand to be a multiple of total awareness attributes [2]")
+                containsString("expected max cap on auto expand to be a multiple of total awareness attributes [3]")
             );
 
             RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot("test-repo", "snapshot-0")
@@ -1028,7 +1032,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot("test-repo", "snapshot-0")
                 .setRenamePattern("test-index")
                 .setRenameReplacement("new-index")
-                .setIndexSettings(Settings.builder().put("index.number_of_replicas", 1).build())
+                .setIndexSettings(Settings.builder().put("index.number_of_replicas", 2).build())
                 .setWaitForCompletion(true)
                 .setIndices("test-index")
                 .execute()
@@ -1038,7 +1042,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
                 .setRenamePattern("test-index")
                 .setRenameReplacement("new-index-3")
                 .setIndexSettings(
-                    Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, 0).put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1").build()
+                    Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, 0).put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-2").build()
                 )
                 .setWaitForCompletion(true)
                 .setIndices("test-index")
@@ -1047,7 +1051,9 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
 
             assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
         } finally {
-            manageReplicaBalanceSetting(false);
+            manageReplicaSettingForDefaultReplica(false);
+            randomIndexTemplate();
         }
     }
+
 }
