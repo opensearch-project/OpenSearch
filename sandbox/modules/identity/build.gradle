@@ -21,7 +21,7 @@ dependencies {
   api project(':libs:opensearch-core')
   implementation project(':sandbox:libs:opensearch-authn')
 
-  implementation 'org.greenrobot:eventbus:3.2.0'
+  implementation 'org.greenrobot:eventbus-java:3.3.1'
 
   testImplementation project(path: ':modules:transport-netty4') // for http
   testImplementation project(path: ':plugins:transport-nio') // for http
