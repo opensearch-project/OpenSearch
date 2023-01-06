@@ -8,4 +8,9 @@
 
 package org.opensearch.tasks;
 
+/**
+ * A task related to search backpressure
+ *
+ * @opensearch.internal
+ */
 public interface SearchBackpressureTask {}
