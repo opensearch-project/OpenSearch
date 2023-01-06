@@ -246,7 +246,7 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
      * Weighted shard routing weight is set as 0 for az-c.
      * Data nodes in zone a and b are stopped,
      * assertions are put to check that search requests fail.
-     * @throws IOException
+     * @throws Exception throws Exception
      */
     public void testShardRoutingByStoppingDataNodes_FailOpenDisabled() throws Exception {
 
