@@ -114,6 +114,7 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/5669")
     public void testPrimaryStopped_ReplicaPromoted() throws Exception {
         final String primary = internalCluster().startNode(featureFlagSettings());
         createIndex(INDEX_NAME);
@@ -623,6 +624,7 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/5669")
     public void testUpdateOperations() throws Exception {
         final String primary = internalCluster().startNode(featureFlagSettings());
         createIndex(INDEX_NAME);

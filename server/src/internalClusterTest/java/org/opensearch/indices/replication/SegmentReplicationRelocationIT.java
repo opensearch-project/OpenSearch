@@ -126,6 +126,7 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationIT {
      * failure, more documents are ingested and verified on replica; which confirms older primary still refreshing the
      * replicas.
      */
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/5669")
     public void testPrimaryRelocationWithSegRepFailure() throws Exception {
         final String oldPrimary = internalCluster().startNode(featureFlagSettings());
         createIndex();
