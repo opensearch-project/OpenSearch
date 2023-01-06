@@ -104,7 +104,7 @@ public class TransportClusterAwarenessHealthAction extends TransportClusterManag
         int numberOfInflightFetches = allocationService.getNumberOfInFlightFetches();
         int delayedUnassignedShards = UnassignedInfo.getNumberOfDelayedUnassigned(state);
         listener.onResponse(
-            getResponse(
+            new ClusterAwarenessHealthResponse(
                 state,
                 currentSettings,
                 awarenessAttributeName,
@@ -113,26 +113,6 @@ public class TransportClusterAwarenessHealthAction extends TransportClusterManag
                 numberOfInflightFetches,
                 delayedUnassignedShards
             )
-        );
-    }
-
-    private ClusterAwarenessHealthResponse getResponse(
-        ClusterState clusterState,
-        ClusterSettings clusterSettings,
-        String awarenessAttributeName,
-        int numberOfPendingTasks,
-        TimeValue maxWeightTime,
-        int numberOfInflightFetches,
-        int delayedUnassignedShards
-    ) {
-        return new ClusterAwarenessHealthResponse(
-            clusterState,
-            clusterSettings,
-            awarenessAttributeName,
-            numberOfPendingTasks,
-            maxWeightTime,
-            numberOfInflightFetches,
-            delayedUnassignedShards
         );
     }
 }
