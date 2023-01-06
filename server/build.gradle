@@ -37,7 +37,7 @@ apply plugin: 'opensearch.internal-cluster-test'
 
 publishing {
   publications {
-    nebula {
+    nebula(MavenPublication) {
       artifactId 'opensearch'
     }
   }

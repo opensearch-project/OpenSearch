@@ -34,6 +34,7 @@ apply plugin: 'opensearch.rest-test'
 
 // The integ-test-distribution is published to maven
 apply plugin: 'opensearch.publish'
+apply plugin: 'com.netflix.nebula.maven-publish'
 
 group = "org.opensearch.distribution.integ-test-zip"
 
