@@ -1455,7 +1455,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Checks if this shard is able to perform segment replication.
+     * Checks if this target shard should start a round of segment replication.
      * @return - True if the shard is able to perform segment replication.
      */
     public boolean isSegmentReplicationAllowed() {
