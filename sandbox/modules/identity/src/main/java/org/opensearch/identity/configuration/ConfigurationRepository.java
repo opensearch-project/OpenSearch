@@ -46,10 +46,13 @@ import org.opensearch.common.util.concurrent.ThreadContext.StoredContext;
 import org.opensearch.env.Environment;
 import org.opensearch.threadpool.ThreadPool;
 
+/**
+ * This class loads identity configuration on startup and initializes the identity system index if it does not exist
+ */
 public class ConfigurationRepository {
     private static final Logger LOGGER = LogManager.getLogger(ConfigurationRepository.class);
 
-    private final String securityIndex;
+    private final String identityIndex;
     private final Client client;
     private final Map<CType, SecurityDynamicConfiguration<?>> configCache = new HashMap<>();
     private final List<ConfigurationChangeListener> configurationChangedListener;
@@ -69,7 +72,7 @@ public class ConfigurationRepository {
         Client client,
         ClusterService clusterService
     ) {
-        this.securityIndex = settings.get(ConfigConstants.IDENTITY_CONFIG_INDEX_NAME, ConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX);
+        this.identityIndex = settings.get(ConfigConstants.IDENTITY_CONFIG_INDEX_NAME, ConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX);
         this.settings = settings;
         this.client = client;
         this.threadPool = threadPool;
@@ -102,7 +105,7 @@ public class ConfigurationRepository {
                                     ConfigHelper.uploadFile(
                                         client,
                                         cd + "internal_users.yml",
-                                        securityIndex,
+                                        identityIndex,
                                         CType.INTERNALUSERS,
                                         DEFAULT_CONFIG_VERSION
                                     );
@@ -145,12 +148,12 @@ public class ConfigurationRepository {
     private boolean createSecurityIndexIfAbsent() {
         try {
             final Map<String, Object> indexSettings = Map.of("index.number_of_shards", 1, "index.auto_expand_replicas", "0-all");
-            final CreateIndexRequest createIndexRequest = new CreateIndexRequest(securityIndex).settings(indexSettings);
+            final CreateIndexRequest createIndexRequest = new CreateIndexRequest(identityIndex).settings(indexSettings);
             final boolean ok = client.admin().indices().create(createIndexRequest).actionGet().isAcknowledged();
-            LOGGER.info("Index {} created?: {}", securityIndex, ok);
+            LOGGER.info("Index {} created?: {}", identityIndex, ok);
             return ok;
         } catch (ResourceAlreadyExistsException resourceAlreadyExistsException) {
-            LOGGER.info("Index {} already exists", securityIndex);
+            LOGGER.info("Index {} already exists", identityIndex);
             return false;
         }
     }
@@ -161,7 +164,7 @@ public class ConfigurationRepository {
         try {
             response = client.admin()
                 .cluster()
-                .health(new ClusterHealthRequest(securityIndex).waitForActiveShards(1).waitForYellowStatus())
+                .health(new ClusterHealthRequest(identityIndex).waitForActiveShards(1).waitForYellowStatus())
                 .actionGet();
         } catch (Exception e) {
             LOGGER.debug("Caught a {} but we just try again ...", e.toString());
@@ -170,7 +173,7 @@ public class ConfigurationRepository {
         while (response == null || response.isTimedOut() || response.getStatus() == ClusterHealthStatus.RED) {
             LOGGER.debug(
                 "index '{}' not healthy yet, we try again ... (Reason: {})",
-                securityIndex,
+                identityIndex,
                 response == null ? "no response" : (response.isTimedOut() ? "timeout" : "other, maybe red cluster")
             );
             try {
@@ -180,7 +183,7 @@ public class ConfigurationRepository {
                 Thread.currentThread().interrupt();
             }
             try {
-                response = client.admin().cluster().health(new ClusterHealthRequest(securityIndex).waitForYellowStatus()).actionGet();
+                response = client.admin().cluster().health(new ClusterHealthRequest(identityIndex).waitForYellowStatus()).actionGet();
             } catch (Exception e) {
                 LOGGER.debug("Caught again a {} but we just try again ...", e.toString());
             }
@@ -190,13 +193,13 @@ public class ConfigurationRepository {
     public void initOnNodeStart() {
         try {
             if (settings.getAsBoolean(ConfigConstants.IDENTITY_ALLOW_DEFAULT_INIT_SECURITYINDEX, true)) {
-                LOGGER.info("Will attempt to create index {} and default configs if they are absent", securityIndex);
+                LOGGER.info("Will attempt to create index {} and default configs if they are absent", identityIndex);
                 installDefaultConfig.set(true);
                 bgThread.start();
             } else {
                 LOGGER.info(
                     "Will not attempt to create index {} and default configs if they are absent. Will not perform background initialization",
-                    securityIndex
+                    identityIndex
                 );
             }
         } catch (Throwable e2) {
@@ -278,7 +281,7 @@ public class ConfigurationRepository {
         try (StoredContext ctx = threadContext.stashContext()) {
             threadContext.putHeader(ConfigConstants.IDENTITY_CONF_REQUEST_HEADER, "true");
 
-            IndexMetadata securityMetadata = clusterService.state().metadata().index(this.securityIndex);
+            IndexMetadata securityMetadata = clusterService.state().metadata().index(this.identityIndex);
             MappingMetadata mappingMetadata = securityMetadata == null ? null : securityMetadata.mapping();
 
             if (securityMetadata != null && mappingMetadata != null) {
@@ -306,9 +309,5 @@ public class ConfigurationRepository {
         }
 
         return conf;
-    }
-
-    public static int getDefaultConfigVersion() {
-        return ConfigurationRepository.DEFAULT_CONFIG_VERSION;
     }
 }

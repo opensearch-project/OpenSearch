@@ -43,6 +43,9 @@ import org.opensearch.threadpool.ThreadPool;
 
 import static org.opensearch.common.xcontent.DeprecationHandler.THROW_UNSUPPORTED_OPERATION;
 
+/**
+ * This class loads the identity configuration from the identity configuration system index
+ */
 public class ConfigurationLoader {
 
     protected final Logger log = LogManager.getLogger(this.getClass());
