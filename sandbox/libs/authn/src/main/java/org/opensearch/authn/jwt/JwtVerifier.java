@@ -86,7 +86,7 @@ public class JwtVerifier {
         }
     }
 
-    private static void validateClaims(JwtToken jwt) throws BadCredentialsException, JwtException {
+    private static void validateClaims(JwtToken jwt) {
         JwtClaims claims = jwt.getClaims();
 
         if (claims != null) {

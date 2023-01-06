@@ -32,9 +32,6 @@
 
 package org.opensearch.rest;
 
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
-import org.junit.After;
-import org.junit.Before;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.bytes.BytesArray;
@@ -61,6 +58,8 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.client.NoOpNodeClient;
 import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.usage.UsageService;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -79,14 +78,13 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@ThreadLeakScope(ThreadLeakScope.Scope.NONE) /* otherwise {@code testRestRequestAuthentication} cause thread to be leaked */
 public class RestControllerTests extends OpenSearchTestCase {
 
     private static final ByteSizeValue BREAKER_LIMIT = new ByteSizeValue(20);

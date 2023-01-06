@@ -38,6 +38,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.MessageSupplier;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionListener;
+import org.opensearch.action.ActionListenerResponseHandler;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.DocWriteResponse;
@@ -46,25 +47,36 @@ import org.opensearch.action.delete.DeleteResponse;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.ChannelActionListener;
+import org.opensearch.action.support.replication.ReplicationMode;
+import org.opensearch.action.support.replication.ReplicationOperation;
+import org.opensearch.action.support.replication.ReplicationTask;
 import org.opensearch.action.support.replication.TransportReplicationAction;
 import org.opensearch.action.support.replication.TransportWriteAction;
 import org.opensearch.action.update.UpdateHelper;
 import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.action.update.UpdateResponse;
+import org.opensearch.client.transport.NoNodeAvailableException;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.action.index.MappingUpdatedAction;
 import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.routing.AllocationId;
+import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
@@ -78,23 +90,28 @@ import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
+import org.opensearch.index.shard.ShardNotFoundException;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.node.NodeClosedException;
+import org.opensearch.tasks.Task;
+import org.opensearch.tasks.TaskId;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPool.Names;
+import org.opensearch.transport.TransportChannel;
+import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestOptions;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
-
-import org.opensearch.action.support.replication.ReplicationMode;
 
 /**
  * Performs shard-level bulk (index, delete or update) operations
@@ -116,6 +133,15 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     private final UpdateHelper updateHelper;
     private final MappingUpdatedAction mappingUpdatedAction;
+
+    /**
+     * This action is used for performing primary term validation. With remote translog enabled, the translogs would
+     * be durably persisted in remote store. Without remote translog, current transport replication calls does primary
+     * term validation as well as logically replicate the data. With remote translog, the primary would make calls to
+     * replicas to perform primary term validation. This make sures an isolated primary fails to ack after primary
+     * term validation in presence of a new primary.
+     */
+    private final String transportPrimaryTermValidationAction;
 
     @Inject
     public TransportShardBulkAction(
@@ -149,6 +175,212 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         );
         this.updateHelper = updateHelper;
         this.mappingUpdatedAction = mappingUpdatedAction;
+
+        this.transportPrimaryTermValidationAction = ACTION_NAME + "[validate_primary_term]";
+
+        transportService.registerRequestHandler(
+            transportPrimaryTermValidationAction,
+            executor,
+            true,
+            true,
+            PrimaryTermValidationRequest::new,
+            this::handlePrimaryTermValidationRequest
+        );
+    }
+
+    protected void handlePrimaryTermValidationRequest(
+        final PrimaryTermValidationRequest request,
+        final TransportChannel channel,
+        final Task task
+    ) {
+        ActionListener<ReplicaResponse> listener = new ChannelActionListener<>(channel, transportPrimaryTermValidationAction, request);
+        final ShardId shardId = request.getShardId();
+        assert shardId != null : "request shardId must be set";
+        IndexShard replica = getIndexShard(shardId);
+        try {
+            new PrimaryTermValidationReplicaAction(listener, replica, (ReplicationTask) task, request).run();
+        } catch (RuntimeException e) {
+            listener.onFailure(e);
+        }
+    }
+
+    /**
+     * This action is the primary term validation action which is used for doing primary term validation with replicas.
+     * This is only applicable for TransportShardBulkAction because all writes (delete/update/single write/bulk)
+     * ultimately boils down to TransportShardBulkAction and isolated primary could continue to acknowledge if it is not
+     * aware that the primary has changed. This helps achieve the same. More details in java doc of
+     * {@link TransportShardBulkAction#transportPrimaryTermValidationAction}.
+     *
+     * @opensearch.internal
+     */
+    private static final class PrimaryTermValidationReplicaAction extends AbstractRunnable implements ActionListener<Releasable> {
+
+        private final ActionListener<ReplicaResponse> onCompletionListener;
+        private final IndexShard replica;
+        private final ReplicationTask task;
+        private final PrimaryTermValidationRequest request;
+
+        public PrimaryTermValidationReplicaAction(
+            ActionListener<ReplicaResponse> onCompletionListener,
+            IndexShard replica,
+            ReplicationTask task,
+            PrimaryTermValidationRequest request
+        ) {
+            this.onCompletionListener = onCompletionListener;
+            this.replica = replica;
+            this.task = task;
+            this.request = request;
+        }
+
+        @Override
+        public void onResponse(Releasable releasable) {
+            setPhase(task, "finished");
+            onCompletionListener.onResponse(new ReplicaResponse(SequenceNumbers.NO_OPS_PERFORMED, SequenceNumbers.NO_OPS_PERFORMED));
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            setPhase(task, "failed");
+            onCompletionListener.onFailure(e);
+        }
+
+        @Override
+        protected void doRun() throws Exception {
+            setPhase(task, "primary-term-validation");
+            final String actualAllocationId = this.replica.routingEntry().allocationId().getId();
+            if (actualAllocationId.equals(request.getTargetAllocationID()) == false) {
+                throw new ShardNotFoundException(
+                    this.replica.shardId(),
+                    "expected allocation id [{}] but found [{}]",
+                    request.getTargetAllocationID(),
+                    actualAllocationId
+                );
+            }
+            // Check operation primary term against the incoming primary term
+            // If the request primary term is low, then trigger lister failure
+            if (request.getPrimaryTerm() < replica.getOperationPrimaryTerm()) {
+                final String message = String.format(
+                    Locale.ROOT,
+                    "%s operation primary term [%d] is too old (current [%d])",
+                    request.getShardId(),
+                    request.getPrimaryTerm(),
+                    replica.getOperationPrimaryTerm()
+                );
+                onFailure(new IllegalStateException(message));
+            } else {
+                onResponse(null);
+            }
+        }
+    }
+
+    /**
+     * Primary term validation request sent to a specific allocation id
+     *
+     * @opensearch.internal
+     */
+    protected static final class PrimaryTermValidationRequest extends TransportRequest {
+
+        /**
+         * {@link AllocationId#getId()} of the shard this request is sent to
+         **/
+        private final String targetAllocationID;
+        private final long primaryTerm;
+        private final ShardId shardId;
+
+        public PrimaryTermValidationRequest(String targetAllocationID, long primaryTerm, ShardId shardId) {
+            this.targetAllocationID = Objects.requireNonNull(targetAllocationID);
+            this.primaryTerm = primaryTerm;
+            this.shardId = Objects.requireNonNull(shardId);
+        }
+
+        public PrimaryTermValidationRequest(StreamInput in) throws IOException {
+            super(in);
+            targetAllocationID = in.readString();
+            primaryTerm = in.readVLong();
+            shardId = new ShardId(in);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeString(targetAllocationID);
+            out.writeVLong(primaryTerm);
+            shardId.writeTo(out);
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new ReplicationTask(id, type, action, getDescription(), parentTaskId, headers);
+        }
+
+        public String getTargetAllocationID() {
+            return targetAllocationID;
+        }
+
+        public long getPrimaryTerm() {
+            return primaryTerm;
+        }
+
+        public ShardId getShardId() {
+            return shardId;
+        }
+
+        @Override
+        public String getDescription() {
+            return toString();
+        }
+
+        @Override
+        public String toString() {
+            return "PrimaryTermValidationRequest ["
+                + shardId
+                + "] for targetAllocationID ["
+                + targetAllocationID
+                + "] with primaryTerm ["
+                + primaryTerm
+                + "]";
+        }
+    }
+
+    @Override
+    protected ReplicationOperation.Replicas<BulkShardRequest> primaryTermValidationReplicasProxy() {
+        return new PrimaryTermValidationProxy();
+    }
+
+    /**
+     * This {@link org.opensearch.action.support.replication.TransportReplicationAction.ReplicasProxy} implementation is
+     * used for primary term validation and is only relevant for TransportShardBulkAction replication action.
+     *
+     * @opensearch.internal
+     */
+    private final class PrimaryTermValidationProxy extends WriteActionReplicasProxy {
+
+        @Override
+        public void performOn(
+            ShardRouting replica,
+            BulkShardRequest request,
+            long primaryTerm,
+            long globalCheckpoint,
+            long maxSeqNoOfUpdatesOrDeletes,
+            ActionListener<ReplicationOperation.ReplicaResponse> listener
+        ) {
+            String nodeId = replica.currentNodeId();
+            final DiscoveryNode node = clusterService.state().nodes().get(nodeId);
+            if (node == null) {
+                listener.onFailure(new NoNodeAvailableException("unknown node [" + nodeId + "]"));
+                return;
+            }
+            final PrimaryTermValidationRequest validationRequest = new PrimaryTermValidationRequest(
+                replica.allocationId().getId(),
+                primaryTerm,
+                replica.shardId()
+            );
+            final ActionListenerResponseHandler<ReplicaResponse> handler = new ActionListenerResponseHandler<>(
+                listener,
+                ReplicaResponse::new
+            );
+            transportService.sendRequest(node, transportPrimaryTermValidationAction, validationRequest, transportOptions, handler);
+        }
     }
 
     @Override
@@ -196,7 +428,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     @Override
-    protected ReplicationMode getReplicationMode(IndexShard indexShard) {
+    public ReplicationMode getReplicationMode(IndexShard indexShard) {
         if (indexShard.isRemoteTranslogEnabled()) {
             return ReplicationMode.PRIMARY_TERM_VALIDATION;
         }

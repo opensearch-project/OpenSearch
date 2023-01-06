@@ -54,6 +54,16 @@ public class BlobStoreTransferServiceTests extends OpenSearchTestCase {
         transferService.uploadBlob(transferFileSnapshot, repository.basePath());
     }
 
+    public void testUploadBlobFromByteArray() throws IOException {
+        FileSnapshot.TransferFileSnapshot transferFileSnapshot = new FileSnapshot.TransferFileSnapshot(
+            "dummy_name",
+            randomByteArrayOfLength(128),
+            1
+        );
+        TransferService transferService = new BlobStoreTransferService(repository.blobStore(), executorService);
+        transferService.uploadBlob(transferFileSnapshot, repository.basePath());
+    }
+
     public void testUploadBlobAsync() throws IOException, InterruptedException {
         Path testFile = createTempFile();
         Files.write(testFile, randomByteArrayOfLength(128), StandardOpenOption.APPEND);

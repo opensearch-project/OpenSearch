@@ -8,9 +8,13 @@
 
 package org.opensearch.action.support.replication;
 
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.support.replication.ReplicationOperation.ReplicaResponse;
 import org.opensearch.cluster.routing.ShardRouting;
 
 import java.util.Objects;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 /**
  * This implementation of {@link ReplicationProxy} fans out the replication request to current shard routing basis
@@ -18,13 +22,40 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
-public class ReplicationModeAwareProxy<ReplicaRequest> extends ReplicationProxy<ReplicaRequest> {
+public class ReplicationModeAwareProxy<ReplicaRequest extends ReplicationRequest<ReplicaRequest>> extends ReplicationProxy<ReplicaRequest> {
 
     private final ReplicationMode replicationModeOverride;
 
-    public ReplicationModeAwareProxy(ReplicationMode replicationModeOverride) {
-        assert Objects.nonNull(replicationModeOverride);
-        this.replicationModeOverride = replicationModeOverride;
+    /**
+     * This ReplicasProxy is used for performing primary term validation.
+     */
+    private final ReplicationOperation.Replicas<ReplicaRequest> primaryTermValidationProxy;
+
+    public ReplicationModeAwareProxy(
+        ReplicationMode replicationModeOverride,
+        ReplicationOperation.Replicas<ReplicaRequest> replicasProxy,
+        ReplicationOperation.Replicas<ReplicaRequest> primaryTermValidationProxy
+    ) {
+        super(replicasProxy);
+        this.replicationModeOverride = Objects.requireNonNull(replicationModeOverride);
+        this.primaryTermValidationProxy = Objects.requireNonNull(primaryTermValidationProxy);
+    }
+
+    @Override
+    protected void performOnReplicaProxy(
+        ReplicationProxyRequest<ReplicaRequest> proxyRequest,
+        ReplicationMode replicationMode,
+        BiConsumer<Consumer<ActionListener<ReplicaResponse>>, ReplicationProxyRequest<ReplicaRequest>> performOnReplicaConsumer
+    ) {
+        assert replicationMode == ReplicationMode.FULL_REPLICATION || replicationMode == ReplicationMode.PRIMARY_TERM_VALIDATION;
+
+        Consumer<ActionListener<ReplicaResponse>> replicasProxyConsumer;
+        if (replicationMode == ReplicationMode.FULL_REPLICATION) {
+            replicasProxyConsumer = getReplicasProxyConsumer(fullReplicationProxy, proxyRequest);
+        } else {
+            replicasProxyConsumer = getReplicasProxyConsumer(primaryTermValidationProxy, proxyRequest);
+        }
+        performOnReplicaConsumer.accept(replicasProxyConsumer, proxyRequest);
     }
 
     @Override

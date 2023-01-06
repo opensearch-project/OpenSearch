@@ -192,9 +192,6 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
                 }
             }
         );
-        MatcherAssert.assertThat("Expected onFailure to be called", exceptionReference.get(), notNullValue());
-        MatcherAssert.assertThat(exceptionReference.get(), instanceOf(OpenSearchTimeoutException.class));
-        MatcherAssert.assertThat(exceptionReference.get().getMessage(), containsString("waiting for removal of decommissioned nodes"));
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
         MatcherAssert.assertThat("Expected onFailure to be called", exceptionReference.get(), notNullValue());
         MatcherAssert.assertThat(exceptionReference.get(), instanceOf(OpenSearchTimeoutException.class));

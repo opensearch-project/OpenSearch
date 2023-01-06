@@ -7,10 +7,6 @@ on:
       - 'dependabot/**'
   pull_request_target:
     types: [opened, synchronize, reopened]
-  workflow_run:
-    workflows: ["Gradle Precommit"]
-    types:
-      - completed
 
 permissions:
   contents: read # to fetch code (actions/checkout)

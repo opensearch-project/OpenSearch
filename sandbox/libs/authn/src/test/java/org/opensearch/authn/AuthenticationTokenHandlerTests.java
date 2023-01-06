@@ -19,7 +19,6 @@ public class AuthenticationTokenHandlerTests extends OpenSearchTestCase {
 
     public void testShouldExtractBasicAuthTokenSuccessfully() {
 
-        // The auth header that is part of the request
         String authHeader = "Basic YWRtaW46YWRtaW4="; // admin:admin
 
         AuthenticationToken authToken = new BasicAuthToken(authHeader);

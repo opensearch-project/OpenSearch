@@ -102,7 +102,7 @@ grant {
 
   permission java.lang.RuntimePermission "accessDeclaredMembers";
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
-
+  
   // Allow read access to all system properties
   permission java.util.PropertyPermission "*", "read";
 

@@ -154,158 +154,24 @@ public final class EngineConfig {
 
     private final TranslogFactory translogFactory;
 
-    public EngineConfig(
-        ShardId shardId,
-        ThreadPool threadPool,
-        IndexSettings indexSettings,
-        Engine.Warmer warmer,
-        Store store,
-        MergePolicy mergePolicy,
-        Analyzer analyzer,
-        Similarity similarity,
-        CodecService codecService,
-        Engine.EventListener eventListener,
-        QueryCache queryCache,
-        QueryCachingPolicy queryCachingPolicy,
-        TranslogConfig translogConfig,
-        TimeValue flushMergesAfter,
-        List<ReferenceManager.RefreshListener> externalRefreshListener,
-        List<ReferenceManager.RefreshListener> internalRefreshListener,
-        Sort indexSort,
-        CircuitBreakerService circuitBreakerService,
-        LongSupplier globalCheckpointSupplier,
-        Supplier<RetentionLeases> retentionLeasesSupplier,
-        LongSupplier primaryTermSupplier,
-        TombstoneDocSupplier tombstoneDocSupplier
-    ) {
-        this(
-            shardId,
-            threadPool,
-            indexSettings,
-            warmer,
-            store,
-            mergePolicy,
-            analyzer,
-            similarity,
-            codecService,
-            eventListener,
-            queryCache,
-            queryCachingPolicy,
-            translogConfig,
-            null,
-            flushMergesAfter,
-            externalRefreshListener,
-            internalRefreshListener,
-            indexSort,
-            circuitBreakerService,
-            globalCheckpointSupplier,
-            retentionLeasesSupplier,
-            primaryTermSupplier,
-            tombstoneDocSupplier
-        );
-    }
-
     /**
      * Creates a new {@link org.opensearch.index.engine.EngineConfig}
      */
-    EngineConfig(
-        ShardId shardId,
-        ThreadPool threadPool,
-        IndexSettings indexSettings,
-        Engine.Warmer warmer,
-        Store store,
-        MergePolicy mergePolicy,
-        Analyzer analyzer,
-        Similarity similarity,
-        CodecService codecService,
-        Engine.EventListener eventListener,
-        QueryCache queryCache,
-        QueryCachingPolicy queryCachingPolicy,
-        TranslogConfig translogConfig,
-        TranslogDeletionPolicyFactory translogDeletionPolicyFactory,
-        TimeValue flushMergesAfter,
-        List<ReferenceManager.RefreshListener> externalRefreshListener,
-        List<ReferenceManager.RefreshListener> internalRefreshListener,
-        Sort indexSort,
-        CircuitBreakerService circuitBreakerService,
-        LongSupplier globalCheckpointSupplier,
-        Supplier<RetentionLeases> retentionLeasesSupplier,
-        LongSupplier primaryTermSupplier,
-        TombstoneDocSupplier tombstoneDocSupplier
-    ) {
-        this(
-            shardId,
-            threadPool,
-            indexSettings,
-            warmer,
-            store,
-            mergePolicy,
-            analyzer,
-            similarity,
-            codecService,
-            eventListener,
-            queryCache,
-            queryCachingPolicy,
-            translogConfig,
-            translogDeletionPolicyFactory,
-            flushMergesAfter,
-            externalRefreshListener,
-            internalRefreshListener,
-            indexSort,
-            circuitBreakerService,
-            globalCheckpointSupplier,
-            retentionLeasesSupplier,
-            primaryTermSupplier,
-            tombstoneDocSupplier,
-            false,
-            new InternalTranslogFactory()
-        );
-    }
-
-    /**
-     * Creates a new {@link org.opensearch.index.engine.EngineConfig}
-     */
-    EngineConfig(
-        ShardId shardId,
-        ThreadPool threadPool,
-        IndexSettings indexSettings,
-        Engine.Warmer warmer,
-        Store store,
-        MergePolicy mergePolicy,
-        Analyzer analyzer,
-        Similarity similarity,
-        CodecService codecService,
-        Engine.EventListener eventListener,
-        QueryCache queryCache,
-        QueryCachingPolicy queryCachingPolicy,
-        TranslogConfig translogConfig,
-        TranslogDeletionPolicyFactory translogDeletionPolicyFactory,
-        TimeValue flushMergesAfter,
-        List<ReferenceManager.RefreshListener> externalRefreshListener,
-        List<ReferenceManager.RefreshListener> internalRefreshListener,
-        Sort indexSort,
-        CircuitBreakerService circuitBreakerService,
-        LongSupplier globalCheckpointSupplier,
-        Supplier<RetentionLeases> retentionLeasesSupplier,
-        LongSupplier primaryTermSupplier,
-        TombstoneDocSupplier tombstoneDocSupplier,
-        boolean isReadOnlyReplica,
-        TranslogFactory translogFactory
-    ) {
-        if (isReadOnlyReplica && indexSettings.isSegRepEnabled() == false) {
+    private EngineConfig(Builder builder) {
+        if (builder.isReadOnlyReplica && builder.indexSettings.isSegRepEnabled() == false) {
             throw new IllegalArgumentException("Shard can only be wired as a read only replica with Segment Replication enabled");
         }
-        this.shardId = shardId;
-        this.indexSettings = indexSettings;
-        this.threadPool = threadPool;
-        this.warmer = warmer == null ? (a) -> {} : warmer;
-        this.store = store;
-        this.mergePolicy = mergePolicy;
-        this.analyzer = analyzer;
-        this.similarity = similarity;
-        this.codecService = codecService;
-        this.eventListener = eventListener;
-        codecName = indexSettings.getValue(INDEX_CODEC_SETTING);
+        this.shardId = builder.shardId;
+        this.indexSettings = builder.indexSettings;
+        this.threadPool = builder.threadPool;
+        this.warmer = builder.warmer == null ? (a) -> {} : builder.warmer;
+        this.store = builder.store;
+        this.mergePolicy = builder.mergePolicy;
+        this.analyzer = builder.analyzer;
+        this.similarity = builder.similarity;
+        this.codecService = builder.codecService;
+        this.eventListener = builder.eventListener;
+        codecName = builder.indexSettings.getValue(INDEX_CODEC_SETTING);
         // We need to make the indexing buffer for this shard at least as large
         // as the amount of memory that is available for all engines on the
         // local node so that decisions to flush segments to disk are made by
@@ -318,23 +184,23 @@ public final class EngineConfig {
         if (maxBufferSize != null) {
             indexingBufferSize = MemorySizeValue.parseBytesSizeValueOrHeapRatio(maxBufferSize, escapeHatchProperty);
         } else {
-            indexingBufferSize = IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING.get(indexSettings.getNodeSettings());
+            indexingBufferSize = IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING.get(builder.indexSettings.getNodeSettings());
         }
-        this.queryCache = queryCache;
-        this.queryCachingPolicy = queryCachingPolicy;
-        this.translogConfig = translogConfig;
-        this.translogDeletionPolicyFactory = translogDeletionPolicyFactory;
-        this.flushMergesAfter = flushMergesAfter;
-        this.externalRefreshListener = externalRefreshListener;
-        this.internalRefreshListener = internalRefreshListener;
-        this.indexSort = indexSort;
-        this.circuitBreakerService = circuitBreakerService;
-        this.globalCheckpointSupplier = globalCheckpointSupplier;
-        this.retentionLeasesSupplier = Objects.requireNonNull(retentionLeasesSupplier);
-        this.primaryTermSupplier = primaryTermSupplier;
-        this.tombstoneDocSupplier = tombstoneDocSupplier;
-        this.isReadOnlyReplica = isReadOnlyReplica;
-        this.translogFactory = translogFactory;
+        this.queryCache = builder.queryCache;
+        this.queryCachingPolicy = builder.queryCachingPolicy;
+        this.translogConfig = builder.translogConfig;
+        this.translogDeletionPolicyFactory = builder.translogDeletionPolicyFactory;
+        this.flushMergesAfter = builder.flushMergesAfter;
+        this.externalRefreshListener = builder.externalRefreshListener;
+        this.internalRefreshListener = builder.internalRefreshListener;
+        this.indexSort = builder.indexSort;
+        this.circuitBreakerService = builder.circuitBreakerService;
+        this.globalCheckpointSupplier = builder.globalCheckpointSupplier;
+        this.retentionLeasesSupplier = Objects.requireNonNull(builder.retentionLeasesSupplier);
+        this.primaryTermSupplier = builder.primaryTermSupplier;
+        this.tombstoneDocSupplier = builder.tombstoneDocSupplier;
+        this.isReadOnlyReplica = builder.isReadOnlyReplica;
+        this.translogFactory = builder.translogFactory;
     }
 
     /**
@@ -572,5 +438,167 @@ public final class EngineConfig {
 
     public TranslogDeletionPolicyFactory getCustomTranslogDeletionPolicyFactory() {
         return translogDeletionPolicyFactory;
+    }
+
+    /**
+     * Builder for EngineConfig class
+     *
+     * @opensearch.internal
+     */
+    public static class Builder {
+        private ShardId shardId;
+        private ThreadPool threadPool;
+        private IndexSettings indexSettings;
+        private Engine.Warmer warmer;
+        private Store store;
+        private MergePolicy mergePolicy;
+        private Analyzer analyzer;
+        private Similarity similarity;
+        private CodecService codecService;
+        private Engine.EventListener eventListener;
+        private QueryCache queryCache;
+        private QueryCachingPolicy queryCachingPolicy;
+        private TranslogConfig translogConfig;
+        private TimeValue flushMergesAfter;
+        private List<ReferenceManager.RefreshListener> externalRefreshListener;
+        private List<ReferenceManager.RefreshListener> internalRefreshListener;
+        private Sort indexSort;
+        private CircuitBreakerService circuitBreakerService;
+        private LongSupplier globalCheckpointSupplier;
+        private Supplier<RetentionLeases> retentionLeasesSupplier;
+        private LongSupplier primaryTermSupplier;
+        private TombstoneDocSupplier tombstoneDocSupplier;
+        private TranslogDeletionPolicyFactory translogDeletionPolicyFactory;
+        private boolean isReadOnlyReplica;
+        private TranslogFactory translogFactory = new InternalTranslogFactory();
+
+        public Builder shardId(ShardId shardId) {
+            this.shardId = shardId;
+            return this;
+        }
+
+        public Builder threadPool(ThreadPool threadPool) {
+            this.threadPool = threadPool;
+            return this;
+        }
+
+        public Builder indexSettings(IndexSettings indexSettings) {
+            this.indexSettings = indexSettings;
+            return this;
+        }
+
+        public Builder warmer(Engine.Warmer warmer) {
+            this.warmer = warmer;
+            return this;
+        }
+
+        public Builder store(Store store) {
+            this.store = store;
+            return this;
+        }
+
+        public Builder mergePolicy(MergePolicy mergePolicy) {
+            this.mergePolicy = mergePolicy;
+            return this;
+        }
+
+        public Builder analyzer(Analyzer analyzer) {
+            this.analyzer = analyzer;
+            return this;
+        }
+
+        public Builder similarity(Similarity similarity) {
+            this.similarity = similarity;
+            return this;
+        }
+
+        public Builder codecService(CodecService codecService) {
+            this.codecService = codecService;
+            return this;
+        }
+
+        public Builder eventListener(Engine.EventListener eventListener) {
+            this.eventListener = eventListener;
+            return this;
+        }
+
+        public Builder queryCache(QueryCache queryCache) {
+            this.queryCache = queryCache;
+            return this;
+        }
+
+        public Builder queryCachingPolicy(QueryCachingPolicy queryCachingPolicy) {
+            this.queryCachingPolicy = queryCachingPolicy;
+            return this;
+        }
+
+        public Builder translogConfig(TranslogConfig translogConfig) {
+            this.translogConfig = translogConfig;
+            return this;
+        }
+
+        public Builder flushMergesAfter(TimeValue flushMergesAfter) {
+            this.flushMergesAfter = flushMergesAfter;
+            return this;
+        }
+
+        public Builder externalRefreshListener(List<ReferenceManager.RefreshListener> externalRefreshListener) {
+            this.externalRefreshListener = externalRefreshListener;
+            return this;
+        }
+
+        public Builder internalRefreshListener(List<ReferenceManager.RefreshListener> internalRefreshListener) {
+            this.internalRefreshListener = internalRefreshListener;
+            return this;
+        }
+
+        public Builder indexSort(Sort indexSort) {
+            this.indexSort = indexSort;
+            return this;
+        }
+
+        public Builder circuitBreakerService(CircuitBreakerService circuitBreakerService) {
+            this.circuitBreakerService = circuitBreakerService;
+            return this;
+        }
+
+        public Builder globalCheckpointSupplier(LongSupplier globalCheckpointSupplier) {
+            this.globalCheckpointSupplier = globalCheckpointSupplier;
+            return this;
+        }
+
+        public Builder retentionLeasesSupplier(Supplier<RetentionLeases> retentionLeasesSupplier) {
+            this.retentionLeasesSupplier = retentionLeasesSupplier;
+            return this;
+        }
+
+        public Builder primaryTermSupplier(LongSupplier primaryTermSupplier) {
+            this.primaryTermSupplier = primaryTermSupplier;
+            return this;
+        }
+
+        public Builder tombstoneDocSupplier(TombstoneDocSupplier tombstoneDocSupplier) {
+            this.tombstoneDocSupplier = tombstoneDocSupplier;
+            return this;
+        }
+
+        public Builder translogDeletionPolicyFactory(TranslogDeletionPolicyFactory translogDeletionPolicyFactory) {
+            this.translogDeletionPolicyFactory = translogDeletionPolicyFactory;
+            return this;
+        }
+
+        public Builder readOnlyReplica(boolean isReadOnlyReplica) {
+            this.isReadOnlyReplica = isReadOnlyReplica;
+            return this;
+        }
+
+        public Builder translogFactory(TranslogFactory translogFactory) {
+            this.translogFactory = translogFactory;
+            return this;
+        }
+
+        public EngineConfig build() {
+            return new EngineConfig(this);
+        }
     }
 }

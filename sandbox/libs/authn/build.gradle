@@ -12,6 +12,7 @@
 apply plugin: 'opensearch.build'
 apply plugin: 'opensearch.publish'
 
+
 dependencies {
   // Needed to import SpecialPermission
   compileOnly(project(":server"))
@@ -30,13 +31,13 @@ dependencies {
   implementation 'commons-logging:commons-logging:1.2'
   implementation 'commons-lang:commons-lang:2.6'
 
-  implementation('org.apache.cxf:cxf-rt-rs-security-jose:3.4.5') {
+  api ('org.apache.cxf:cxf-rt-rs-security-jose:3.4.5') {
     exclude(group: 'jakarta.activation', module: 'jakarta.activation-api')
   }
 
-  runtimeOnly 'org.apache.cxf:cxf-core:3.4.5'
-  implementation 'org.apache.cxf:cxf-rt-rs-json-basic:3.4.5'
-  runtimeOnly 'org.apache.cxf:cxf-rt-security:3.4.5'
+  api 'org.apache.cxf:cxf-core:3.4.5'
+  api 'org.apache.cxf:cxf-rt-rs-json-basic:3.4.5'
+  api 'org.apache.cxf:cxf-rt-security:3.4.5'
 
   // logging
   implementation "org.apache.logging.log4j:log4j-api:${versions.log4j}"

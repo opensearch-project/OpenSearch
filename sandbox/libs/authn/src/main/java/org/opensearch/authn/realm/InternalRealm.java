@@ -8,9 +8,11 @@
 
 package org.opensearch.authn.realm;
 
+import org.apache.cxf.rs.security.jose.jwt.JwtToken;
 import org.apache.shiro.authc.AuthenticationException;
 import org.apache.shiro.authc.AuthenticationInfo;
 import org.apache.shiro.authc.AuthenticationToken;
+import org.apache.shiro.authc.BearerToken;
 import org.apache.shiro.authc.CredentialsException;
 import org.apache.shiro.authc.IncorrectCredentialsException;
 import org.apache.shiro.authc.SimpleAuthenticationInfo;
@@ -20,6 +22,8 @@ import org.apache.shiro.realm.AuthenticatingRealm;
 
 import org.opensearch.authn.StringPrincipal;
 import org.opensearch.authn.User;
+import org.opensearch.authn.jwt.BadCredentialsException;
+import org.opensearch.authn.jwt.JwtVerifier;
 
 import java.util.Objects;
 import java.util.concurrent.ConcurrentMap;
@@ -89,11 +93,28 @@ public class InternalRealm extends AuthenticatingRealm {
         return userRecord;
     }
 
+    // TODO: Revisit this
+    // This was overridden to support all kinds of AuthTokens
+    @Override
+    public boolean supports(AuthenticationToken token) {
+        return true;
+    }
+
+    @Override
+    protected void assertCredentialsMatch(AuthenticationToken token, AuthenticationInfo info) throws AuthenticationException {
+        if (token instanceof BearerToken) {
+            // TODO: Check if this is correct
+            // Token has previously been verified at doGetAuthenticationInfo
+            // no auth required as bearer token is assumed to have correct credentials
+        } else if (token instanceof UsernamePasswordToken) {
+            super.assertCredentialsMatch(token, info); // continue as normal for basic-auth token
+        }
+    }
+
     @Override
     protected AuthenticationInfo doGetAuthenticationInfo(AuthenticationToken token) throws AuthenticationException {
         if (token instanceof UsernamePasswordToken) {
             String username = ((UsernamePasswordToken) token).getUsername();
-            final char[] password = ((UsernamePasswordToken) token).getPassword();
             // Look up the user by the provide username
             User userRecord = getInternalUser(username);
             // Check for other things, like a locked account, expired password, etc.
@@ -103,7 +124,7 @@ public class InternalRealm extends AuthenticatingRealm {
             boolean successfulAuthentication = getCredentialsMatcher().doCredentialsMatch(token, sai);
 
             if (successfulAuthentication) {
-                // Check for anything else that might prevent login (expired password, locked account, etc
+                // Check for anything else that might prevent login (expired password, locked account, etc.)
                 // if (other problems) {
                 // throw new CredentialsException(); // Or something more specific
                 // }
@@ -113,6 +134,20 @@ public class InternalRealm extends AuthenticatingRealm {
                 // Bad password
                 throw new IncorrectCredentialsException(INCORRECT_CREDENTIALS_MESSAGE);
             }
+        } else if (token instanceof BearerToken) {
+            JwtToken jwtToken;
+
+            // Verify the validity of JWT token
+            try {
+                jwtToken = JwtVerifier.getVerifiedJwtToken(((BearerToken) token).getToken());
+            } catch (BadCredentialsException e) {
+                throw new IncorrectCredentialsException(e.getMessage()); // Invalid Token
+            }
+
+            String subject = jwtToken.getClaims().getSubject();
+
+            // We need to extract the subject here to create an identity subject that can be utilized across the realm
+            return new SimpleAuthenticationInfo(subject, null, realmName);
         }
         // Don't know what to do with this token
         throw new CredentialsException();
