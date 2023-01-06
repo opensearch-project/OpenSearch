@@ -511,7 +511,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.translogFactorySupplier = getTranslogFactorySupplier(repositoriesServiceSupplier, threadPool);
     }
 
-    private BiFunction<IndexSettings, ShardRouting, TranslogFactory> getTranslogFactorySupplier(
+    private static BiFunction<IndexSettings, ShardRouting, TranslogFactory> getTranslogFactorySupplier(
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         ThreadPool threadPool
     ) {
