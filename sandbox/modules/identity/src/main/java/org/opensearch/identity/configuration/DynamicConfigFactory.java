@@ -22,7 +22,7 @@ import org.opensearch.threadpool.ThreadPool;
 import org.greenrobot.eventbus.EventBus;
 import org.greenrobot.eventbus.EventBusBuilder;
 
-public class DynamicConfigFactory implements Initializable, ConfigurationChangeListener {
+public class DynamicConfigFactory implements ConfigurationChangeListener {
 
     public static final EventBusBuilder EVENT_BUS_BUILDER = EventBus.builder();
 
@@ -79,7 +79,6 @@ public class DynamicConfigFactory implements Initializable, ConfigurationChangeL
 
     }
 
-    @Override
     public final boolean isInitialized() {
         return initialized.get();
     }
