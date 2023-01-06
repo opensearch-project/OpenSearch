@@ -101,7 +101,6 @@ public class LocalStorePeerRecoverySourceHandler extends RecoverySourceHandler {
         final StepListener<SendFileResult> sendFileStep = new StepListener<>();
         final StepListener<TimeValue> prepareEngineStep = new StepListener<>();
         final StepListener<SendSnapshotResult> sendSnapshotStep = new StepListener<>();
-        final StepListener<Void> finalizeStep = new StepListener<>();
 
         if (isSequenceNumberBasedRecovery) {
             logger.trace("performing sequence numbers based recovery. starting at [{}]", request.startingSeqNo());

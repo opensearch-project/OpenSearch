@@ -1900,7 +1900,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         threadPool,
                         recoverySettings,
                         transportService,
-                        new SegmentReplicationSourceFactory(transportService, recoverySettings, clusterService)
+                        new SegmentReplicationSourceFactory(transportService, recoverySettings, clusterService),
+                        indicesService
                     ),
                     SegmentReplicationSourceService.NO_OP,
                     shardStateAction,

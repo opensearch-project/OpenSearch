@@ -21,7 +21,9 @@ import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
+import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.recovery.FileChunkRequest;
+import org.opensearch.indices.recovery.ForceSyncRequest;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.ReplicationCollection;
@@ -33,9 +35,12 @@ import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportRequestHandler;
+import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.Map;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -55,6 +60,8 @@ public class SegmentReplicationTargetService implements IndexEventListener {
     private final SegmentReplicationSourceFactory sourceFactory;
 
     private final Map<ShardId, ReplicationCheckpoint> latestReceivedCheckpoint = ConcurrentCollections.newConcurrentMap();
+
+    private final IndicesService indicesService;
 
     // Empty Implementation, only required while Segment Replication is under feature flag.
     public static final SegmentReplicationTargetService NO_OP = new SegmentReplicationTargetService() {
@@ -80,6 +87,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
         recoverySettings = null;
         onGoingReplications = null;
         sourceFactory = null;
+        indicesService = null;
     }
 
     public ReplicationRef<SegmentReplicationTarget> get(long replicationId) {
@@ -93,24 +101,33 @@ public class SegmentReplicationTargetService implements IndexEventListener {
      */
     public static class Actions {
         public static final String FILE_CHUNK = "internal:index/shard/replication/file_chunk";
+        public static final String FORCE_SYNC = "internal:index/shard/replication/segments_sync";
     }
 
     public SegmentReplicationTargetService(
         final ThreadPool threadPool,
         final RecoverySettings recoverySettings,
         final TransportService transportService,
-        final SegmentReplicationSourceFactory sourceFactory
+        final SegmentReplicationSourceFactory sourceFactory,
+        final IndicesService indicesService
     ) {
         this.threadPool = threadPool;
         this.recoverySettings = recoverySettings;
         this.onGoingReplications = new ReplicationCollection<>(logger, threadPool);
         this.sourceFactory = sourceFactory;
+        this.indicesService = indicesService;
 
         transportService.registerRequestHandler(
             Actions.FILE_CHUNK,
             ThreadPool.Names.GENERIC,
             FileChunkRequest::new,
             new FileChunkTransportRequestHandler()
+        );
+        transportService.registerRequestHandler(
+            Actions.FORCE_SYNC,
+            ThreadPool.Names.GENERIC,
+            ForceSyncRequest::new,
+            new ForceSyncTransportRequestHandler()
         );
     }
 
@@ -321,4 +338,60 @@ public class SegmentReplicationTargetService implements IndexEventListener {
             }
         }
     }
+
+    class ForceSyncTransportRequestHandler implements TransportRequestHandler<ForceSyncRequest> {
+        @Override
+        public void messageReceived(final ForceSyncRequest request, TransportChannel channel, Task task) throws Exception {
+            assert indicesService != null;
+            final IndexShard indexShard = indicesService.getShardOrNull(request.getShardId());
+            startReplication(
+                ReplicationCheckpoint.empty(request.getShardId()),
+                indexShard,
+                new SegmentReplicationTargetService.SegmentReplicationListener() {
+                    @Override
+                    public void onReplicationDone(SegmentReplicationState state) {
+                        logger.trace(
+                            () -> new ParameterizedMessage(
+                                "[shardId {}] [replication id {}] Replication complete, timing data: {}",
+                                indexShard.shardId().getId(),
+                                state.getReplicationId(),
+                                state.getTimingData()
+                            )
+                        );
+                        try {
+                            indexShard.resetToWriteableEngine();
+                            channel.sendResponse(TransportResponse.Empty.INSTANCE);
+                        } catch (InterruptedException | TimeoutException | IOException e) {
+                            throw new RuntimeException(e);
+                        }
+                    }
+
+                    @Override
+                    public void onReplicationFailure(
+                        SegmentReplicationState state,
+                        ReplicationFailedException e,
+                        boolean sendShardFailure
+                    ) {
+                        logger.trace(
+                            () -> new ParameterizedMessage(
+                                "[shardId {}] [replication id {}] Replication failed, timing data: {}",
+                                indexShard.shardId().getId(),
+                                state.getReplicationId(),
+                                state.getTimingData()
+                            )
+                        );
+                        if (sendShardFailure == true) {
+                            indexShard.failShard("replication failure", e);
+                        }
+                        try {
+                            channel.sendResponse(e);
+                        } catch (IOException ex) {
+                            throw new RuntimeException(ex);
+                        }
+                    }
+                }
+            );
+        }
+    }
+
 }

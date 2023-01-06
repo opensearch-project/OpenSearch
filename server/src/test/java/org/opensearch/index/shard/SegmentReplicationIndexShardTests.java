@@ -11,6 +11,7 @@ package org.opensearch.index.shard;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.SegmentInfos;
 import org.junit.Assert;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.delete.DeleteRequest;
 import org.opensearch.action.index.IndexRequest;
@@ -33,6 +34,7 @@ import org.opensearch.index.replication.OpenSearchIndexLevelReplicationTestCase;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.indices.recovery.RecoveryTarget;
 import org.opensearch.indices.replication.CheckpointInfoResponse;
 import org.opensearch.indices.replication.GetSegmentFilesResponse;
 import org.opensearch.indices.replication.SegmentReplicationSource;
@@ -44,6 +46,8 @@ import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpoin
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.CopyState;
 import org.opensearch.indices.replication.common.ReplicationFailedException;
+import org.opensearch.indices.replication.common.ReplicationListener;
+import org.opensearch.indices.replication.common.ReplicationState;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
@@ -54,9 +58,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiFunction;
 
 import static java.util.Arrays.asList;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -215,7 +222,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
     public void testRejectCheckpointOnShardRoutingPrimary() throws IOException {
         IndexShard primaryShard = newStartedShard(true);
         SegmentReplicationTargetService sut;
-        sut = prepareForReplication(primaryShard);
+        sut = prepareForReplication(primaryShard, null);
         SegmentReplicationTargetService spy = spy(sut);
 
         // Starting a new shard in PrimaryMode and shard routing primary.
@@ -277,6 +284,91 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             assertEquals(0, primary.translogStats().getUncommittedOperations());
             assertEquals(0, replica.translogStats().getUncommittedOperations());
         }
+    }
+
+    public void testPrimaryRelocation() throws Exception {
+        final IndexShard primarySource = newStartedShard(true, settings);
+        int totalOps = randomInt(10);
+        for (int i = 0; i < totalOps; i++) {
+            indexDoc(primarySource, "_doc", Integer.toString(i));
+        }
+        IndexShardTestCase.updateRoutingEntry(primarySource, primarySource.routingEntry().relocate(randomAlphaOfLength(10), -1));
+        final IndexShard primaryTarget = newShard(
+            primarySource.routingEntry().getTargetRelocatingShard(),
+            settings,
+            new NRTReplicationEngineFactory()
+        );
+        updateMappings(primaryTarget, primarySource.indexSettings().getIndexMetadata());
+
+        BiFunction<List<IndexShard>, ActionListener<Void>, List<SegmentReplicationTarget>> replicatePrimaryFunction = (
+            shardList,
+            listener) -> {
+            try {
+                assert shardList.size() >= 2;
+                final IndexShard primary = shardList.get(0);
+                return replicateSegments(primary, shardList.subList(1, shardList.size()), listener);
+            } catch (IOException | InterruptedException e) {
+                listener.onFailure(e);
+                throw new RuntimeException(e);
+            }
+        };
+        recoverReplica(primaryTarget, primarySource, true, replicatePrimaryFunction);
+
+        // check that local checkpoint of new primary is properly tracked after primary relocation
+        assertThat(primaryTarget.getLocalCheckpoint(), equalTo(totalOps - 1L));
+        assertThat(
+            primaryTarget.getReplicationTracker()
+                .getTrackedLocalCheckpointForShard(primaryTarget.routingEntry().allocationId().getId())
+                .getLocalCheckpoint(),
+            equalTo(totalOps - 1L)
+        );
+        assertDocCount(primaryTarget, totalOps);
+        closeShards(primarySource, primaryTarget);
+    }
+
+    public void testPrimaryRelocationWithSegRepFailure() throws Exception {
+        final IndexShard primarySource = newStartedShard(true, settings);
+        int totalOps = randomInt(10);
+        for (int i = 0; i < totalOps; i++) {
+            indexDoc(primarySource, "_doc", Integer.toString(i));
+        }
+        IndexShardTestCase.updateRoutingEntry(primarySource, primarySource.routingEntry().relocate(randomAlphaOfLength(10), -1));
+        final IndexShard primaryTarget = newShard(
+            primarySource.routingEntry().getTargetRelocatingShard(),
+            settings,
+            new NRTReplicationEngineFactory()
+        );
+        updateMappings(primaryTarget, primarySource.indexSettings().getIndexMetadata());
+
+        BiFunction<List<IndexShard>, ActionListener<Void>, List<SegmentReplicationTarget>> replicatePrimaryFunction = (
+            shardList,
+            listener) -> {
+            listener.onFailure(new IOException("Expected failure"));
+            return null;
+        };
+        Exception e = expectThrows(
+            Exception.class,
+            () -> recoverReplica(
+                primaryTarget,
+                primarySource,
+                (primary, sourceNode) -> new RecoveryTarget(primary, sourceNode, new ReplicationListener() {
+                    @Override
+                    public void onDone(ReplicationState state) {
+                        throw new AssertionError("recovery must fail");
+                    }
+
+                    @Override
+                    public void onFailure(ReplicationState state, ReplicationFailedException e, boolean sendShardFailure) {
+                        assertThat(ExceptionsHelper.unwrap(e, IOException.class).getMessage(), equalTo("Expected failure"));
+                    }
+                }),
+                true,
+                true,
+                replicatePrimaryFunction
+            )
+        );
+        assertThat(e, hasToString(containsString("Expected failure")));
+        closeShards(primarySource, primaryTarget);
     }
 
     public void testReplicaReceivesLowerGeneration() throws Exception {
@@ -741,7 +833,8 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             threadPool,
             new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
             mock(TransportService.class),
-            sourceFactory
+            sourceFactory,
+            null
         );
     }
 
