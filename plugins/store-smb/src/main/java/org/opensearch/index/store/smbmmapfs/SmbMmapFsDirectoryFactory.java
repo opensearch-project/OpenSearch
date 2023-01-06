@@ -43,11 +43,18 @@ import org.opensearch.index.store.SmbDirectoryWrapper;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 
 public final class SmbMmapFsDirectoryFactory extends FsDirectoryFactory {
 
     @Override
-    protected Directory newFSDirectory(Path location, LockFactory lockFactory, IndexSettings indexSettings) throws IOException {
+    protected Directory newFSDirectory(
+        Path location,
+        LockFactory lockFactory,
+        IndexSettings indexSettings,
+        Map<String, List<String>> additionalSettingProviders
+    ) throws IOException {
         return new SmbDirectoryWrapper(
             setPreload(
                 new MMapDirectory(location, lockFactory),

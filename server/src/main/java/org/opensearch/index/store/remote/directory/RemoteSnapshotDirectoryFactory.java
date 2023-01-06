@@ -11,6 +11,8 @@ package org.opensearch.index.store.remote.directory;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.function.Supplier;
@@ -48,7 +50,11 @@ public final class RemoteSnapshotDirectoryFactory implements IndexStorePlugin.Di
     }
 
     @Override
-    public Directory newDirectory(IndexSettings indexSettings, ShardPath localShardPath) throws IOException {
+    public Directory newDirectory(
+        IndexSettings indexSettings,
+        ShardPath localShardPath,
+        Map<String, List<String>> additionalSettingProviders
+    ) throws IOException {
         final String repositoryName = IndexSettings.SEARCHABLE_SNAPSHOT_REPOSITORY.get(indexSettings.getSettings());
         final Repository repository = repositoriesService.get().repository(repositoryName);
         assert repository instanceof BlobStoreRepository : "repository should be instance of BlobStoreRepository";

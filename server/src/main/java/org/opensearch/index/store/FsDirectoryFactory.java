@@ -55,6 +55,9 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -76,14 +79,20 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
     }, Property.IndexScope, Property.NodeScope);
 
     @Override
-    public Directory newDirectory(IndexSettings indexSettings, ShardPath path) throws IOException {
+    public Directory newDirectory(IndexSettings indexSettings, ShardPath path, Map<String, List<String>> additionalSettingProviders)
+        throws IOException {
         final Path location = path.resolveIndex();
         final LockFactory lockFactory = indexSettings.getValue(INDEX_LOCK_FACTOR_SETTING);
         Files.createDirectories(location);
-        return newFSDirectory(location, lockFactory, indexSettings);
+        return newFSDirectory(location, lockFactory, indexSettings, additionalSettingProviders);
     }
 
-    protected Directory newFSDirectory(Path location, LockFactory lockFactory, IndexSettings indexSettings) throws IOException {
+    protected Directory newFSDirectory(
+        Path location,
+        LockFactory lockFactory,
+        IndexSettings indexSettings,
+        Map<String, List<String>> additionalSettingProviders
+    ) throws IOException {
         final String storeType = indexSettings.getSettings()
             .get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.FS.getSettingsKey());
         IndexModule.Type type;
@@ -98,6 +107,10 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
                 // Use Lucene defaults
                 final FSDirectory primaryDirectory = FSDirectory.open(location, lockFactory);
                 final Set<String> mmapExtensions = new HashSet<>(indexSettings.getValue(IndexModule.INDEX_STORE_HYBRID_MMAP_EXTENSIONS));
+                Objects.requireNonNull(additionalSettingProviders);
+                if (additionalSettingProviders.containsKey(IndexModule.INDEX_STORE_HYBRID_MMAP_EXTENSIONS.getKey())) {
+                    mmapExtensions.addAll(additionalSettingProviders.get(IndexModule.INDEX_STORE_HYBRID_MMAP_EXTENSIONS.getKey()));
+                }
                 if (primaryDirectory instanceof MMapDirectory) {
                     MMapDirectory mMapDirectory = (MMapDirectory) primaryDirectory;
                     return new HybridDirectory(lockFactory, setPreload(mMapDirectory, lockFactory, preLoadExtensions), mmapExtensions);

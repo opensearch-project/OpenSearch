@@ -198,6 +198,7 @@ public final class IndexModule {
     private final AtomicBoolean frozen = new AtomicBoolean(false);
     private final BooleanSupplier allowExpensiveQueries;
     private final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories;
+    private final List<Map<Type, Set<String>>> fsExtensions = new ArrayList<>();
 
     /**
      * Construct the index module for the index with the specified index settings. The index module contains extension points for plugins
@@ -495,7 +496,7 @@ public final class IndexModule {
         BooleanSupplier idFieldDataEnabled,
         ValuesSourceRegistry valuesSourceRegistry,
         IndexStorePlugin.RemoteDirectoryFactory remoteDirectoryFactory,
-        BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier
+        Supplier<RepositoriesService> repositoriesServiceSupplier
     ) throws IOException {
         final IndexEventListener eventListener = freeze();
         Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> readerWrapperFactory = indexReaderWrapper
@@ -520,6 +521,14 @@ public final class IndexModule {
             if (IndexService.needsMapperService(indexSettings, indexCreationContext)) {
                 indexAnalyzers = analysisRegistry.build(indexSettings);
             }
+            final Map<Type, Set<String>> fsExtensionsByType = new HashMap<>();
+            for (Type type : Type.values()) {
+                fsExtensionsByType.put(type, new HashSet<>());
+            }
+            for (Map<Type, Set<String>> extensions : fsExtensions) {
+                extensions.forEach((key, value) -> fsExtensionsByType.get(key).addAll(value));
+            }
+
             final IndexService indexService = new IndexService(
                 indexSettings,
                 indexCreationContext,
@@ -551,7 +560,8 @@ public final class IndexModule {
                 expressionResolver,
                 valuesSourceRegistry,
                 recoveryStateFactory,
-                translogFactorySupplier
+                translogFactorySupplier,
+                fsExtensionsByType
             );
             success = true;
             return indexService;
@@ -673,5 +683,24 @@ public final class IndexModule {
             }
         }
         return factories;
+    }
+
+    /**
+     * Adds a supplier of extension's list. All listeners added here are maintained for the entire index lifecycle on
+     * this node. Once an index is closed or deleted these listeners go out of scope.
+     * <p>
+     * Note: an index might be created on a node multiple times. For instance if the last shard from an index is
+     * relocated to another node the internal representation will be destroyed which includes the registered listeners.
+     * Once the node holds at least one shard of an index all modules are reloaded and listeners are registered again.
+     * Listeners can't be unregistered they will stay alive for the entire time the index is allocated on a node.
+     * </p>
+     */
+    public void addFSTypeFileExtensions(final Map<Type, Set<String>> extensionsByType) {
+        ensureNotFrozen();
+        if (extensionsByType == null) {
+            throw new IllegalArgumentException("supplier must not be null");
+        }
+
+        this.fsExtensions.add(extensionsByType);
     }
 }

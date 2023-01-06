@@ -52,6 +52,8 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.ShardRoutingState;
+import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.CheckedFunction;
@@ -82,6 +84,7 @@ import org.opensearch.index.engine.InternalEngineTests;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
 import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.index.mapper.Uid;
+import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexingOperationListener;
 import org.opensearch.index.shard.SearchOperationListener;
@@ -103,6 +106,7 @@ import org.opensearch.indices.cluster.IndicesClusterStateService.AllocatedIndice
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
@@ -120,6 +124,7 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -128,6 +133,11 @@ import java.util.function.BiFunction;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.opensearch.index.IndexService.IndexCreationContext.CREATE_INDEX;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -632,6 +642,60 @@ public class IndexModuleTests extends OpenSearchTestCase {
         indexService.close("closing", false);
     }
 
+    public void testHybridFSExtensionsList() throws IOException {
+        final IndexStorePlugin.DirectoryFactory directoryFactory = spy(new FsDirectoryFactory());
+
+        final Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+            .put("index.store.type", IndexModule.Type.HYBRIDFS.getSettingsKey())
+            .build();
+
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, settings);
+        final Map<String, IndexStorePlugin.DirectoryFactory> indexStoreFactories = singletonMap(
+            IndexModule.Type.HYBRIDFS.getSettingsKey(),
+            directoryFactory
+        );
+        final IndexModule module = new IndexModule(
+            indexSettings,
+            emptyAnalysisRegistry,
+            new InternalEngineFactory(),
+            new EngineConfigFactory(indexSettings),
+            indexStoreFactories,
+            () -> true,
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+            Collections.emptyMap()
+        );
+
+        try {
+            module.addHybridFSExtensions(() -> List.of("vec", "vem"));
+            module.addHybridFSExtensions(() -> List.of("txt", "vem"));
+        } catch (Exception ex) {
+            fail("not registered");
+        }
+
+        final IndexService indexService = newIndexService(module);
+
+        final Index index = new Index("test", UUIDs.randomBase64UUID());
+        final ShardId shardId = new ShardId(index, 0);
+        final ShardRouting shardRouting = TestShardRouting.newShardRouting(
+            shardId,
+            UUIDs.randomBase64UUID(),
+            false,
+            ShardRoutingState.INITIALIZING
+        );
+
+        indexService.createShard(shardRouting, s -> {}, RetentionLeaseSyncer.EMPTY, SegmentReplicationCheckpointPublisher.EMPTY);
+
+        List<String> expectedListOfExtensions = List.of("vec", "vem", "txt");
+        verify(directoryFactory, times(1)).newDirectory(
+            any(),
+            any(),
+            eq(Map.of("index.store.hybrid.mmap.extensions", expectedListOfExtensions))
+        );
+
+        indexService.close("simon says", false);
+    }
+
     private ShardRouting createInitializedShardRouting() {
         ShardRouting shard = ShardRouting.newUnassigned(
             new ShardId("test", "_na_", 0),
@@ -708,8 +772,12 @@ public class IndexModuleTests extends OpenSearchTestCase {
     public static final class FooFunction implements IndexStorePlugin.DirectoryFactory {
 
         @Override
-        public Directory newDirectory(IndexSettings indexSettings, ShardPath shardPath) throws IOException {
-            return new FsDirectoryFactory().newDirectory(indexSettings, shardPath);
+        public Directory newDirectory(
+            IndexSettings indexSettings,
+            ShardPath shardPath,
+            Map<String, List<String>> additionalSettingProviders
+        ) throws IOException {
+            return newDirectory(indexSettings, shardPath, additionalSettingProviders);
         }
     }
 

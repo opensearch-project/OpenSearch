@@ -175,6 +175,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final Supplier<Sort> indexSortSupplier;
     private final ValuesSourceRegistry valuesSourceRegistry;
     private final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier;
+    private final Map<IndexModule.Type, Set<String>> fsExtensions;
 
     public IndexService(
         IndexSettings indexSettings,
@@ -207,7 +208,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         IndexNameExpressionResolver expressionResolver,
         ValuesSourceRegistry valuesSourceRegistry,
         IndexStorePlugin.RecoveryStateFactory recoveryStateFactory,
-        BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier
+        BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
+        Map<IndexModule.Type, Set<String>> fsExtensions
     ) {
         super(indexSettings);
         this.allowExpensiveQueries = allowExpensiveQueries;
@@ -280,6 +282,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.globalCheckpointTask = new AsyncGlobalCheckpointTask(this);
         this.retentionLeaseSyncTask = new AsyncRetentionLeaseSyncTask(this);
         this.translogFactorySupplier = translogFactorySupplier;
+        this.fsExtensions = Objects.requireNonNull(fsExtensions);
         updateFsyncTaskIfNecessary();
     }
 
@@ -522,7 +525,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 remoteStore = new Store(shardId, this.indexSettings, remoteDirectory, lock, Store.OnClose.EMPTY);
             }
 
-            Directory directory = directoryFactory.newDirectory(this.indexSettings, path);
+            Directory directory = directoryFactory.newDirectory(this.indexSettings, path, this.fsExtensions);
             store = new Store(
                 shardId,
                 this.indexSettings,
@@ -554,7 +557,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 circuitBreakerService,
                 translogFactorySupplier,
                 this.indexSettings.isSegRepEnabled() ? checkpointPublisher : null,
-                remoteStore
+                remoteStore,
+                fsExtensions
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);

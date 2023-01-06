@@ -42,6 +42,7 @@ import org.opensearch.indices.recovery.RecoveryState;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -58,12 +59,14 @@ public interface IndexStorePlugin {
     interface DirectoryFactory {
         /**
          * Creates a new directory per shard. This method is called once per shard on shard creation.
+         *
          * @param indexSettings the shards index settings
-         * @param shardPath the path the shard is using
+         * @param shardPath     the path the shard is using
          * @return a new lucene directory instance
          * @throws IOException if an IOException occurs while opening the directory
          */
-        Directory newDirectory(IndexSettings indexSettings, ShardPath shardPath) throws IOException;
+        Directory newDirectory(IndexSettings indexSettings, ShardPath shardPath, Map<String, List<String>> additionalSettingProviders)
+            throws IOException;
     }
 
     /**
