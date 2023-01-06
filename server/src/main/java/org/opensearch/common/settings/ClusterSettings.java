@@ -259,6 +259,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 MappingUpdatedAction.INDICES_MAX_IN_FLIGHT_UPDATES_SETTING,
                 Metadata.SETTING_READ_ONLY_SETTING,
                 Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING,
+                Metadata.DEFAULT_REPLICA_COUNT_SETTING,
                 ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE,
                 ShardLimitValidator.SETTING_CLUSTER_IGNORE_DOT_INDEXES,
                 RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING,

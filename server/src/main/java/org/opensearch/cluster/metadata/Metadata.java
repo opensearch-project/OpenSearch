@@ -162,6 +162,13 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         EnumSet<XContentContext> context();
     }
 
+    public static final Setting<Integer> DEFAULT_REPLICA_COUNT_SETTING = Setting.intSetting(
+        "cluster.default_number_of_replicas",
+        1,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
     public static final Setting<Boolean> SETTING_READ_ONLY_SETTING = Setting.boolSetting(
         "cluster.blocks.read_only",
         false,
