@@ -146,7 +146,7 @@ testClusters.integTest {
 String baseName = "jobSchedulerBwcCluster"
 String bwcOpenSearchVersion = "2.5.0"
 String bwcPluginVersion = bwcOpenSearchVersion + ".0"
-String bwcFilePath = "src/test/resources/bwc/job-scheduler/"
+String bwcFilePath = "/src/test/resources/bwc/job-scheduler/"
 String bwcFileName = "opensearch-job-scheduler-" + bwcPluginVersion + ".zip"
 String bwcDownloadUrl = "https://ci.opensearch.org/ci/dbc/distribution-build-opensearch/" + bwcOpenSearchVersion + "/latest/linux/x64/tar/builds/opensearch/plugins/" + bwcFileName
 
