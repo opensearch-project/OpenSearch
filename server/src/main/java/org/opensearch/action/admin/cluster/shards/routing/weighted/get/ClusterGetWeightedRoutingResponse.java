@@ -11,6 +11,7 @@ package org.opensearch.action.admin.cluster.shards.routing.weighted.get;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.ActionResponse;
 
+import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
 import org.opensearch.cluster.routing.WeightedRouting;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -34,6 +35,12 @@ public class ClusterGetWeightedRoutingResponse extends ActionResponse implements
     private WeightedRouting weightedRouting;
     private String localNodeWeight;
     private static final String NODE_WEIGHT = "node_weight";
+    private static final String WEIGHTS = "weights";
+    private long version;
+
+    public long getVersion() {
+        return version;
+    }
 
     public String getLocalNodeWeight() {
         return localNodeWeight;
@@ -43,14 +50,16 @@ public class ClusterGetWeightedRoutingResponse extends ActionResponse implements
         this.weightedRouting = null;
     }
 
-    public ClusterGetWeightedRoutingResponse(String localNodeWeight, WeightedRouting weightedRouting) {
+    public ClusterGetWeightedRoutingResponse(String localNodeWeight, WeightedRouting weightedRouting, long version) {
         this.localNodeWeight = localNodeWeight;
         this.weightedRouting = weightedRouting;
+        this.version = version;
     }
 
     ClusterGetWeightedRoutingResponse(StreamInput in) throws IOException {
         if (in.available() != 0) {
             this.weightedRouting = new WeightedRouting(in);
+            this.version = in.readLong();
         }
     }
 
@@ -67,6 +76,7 @@ public class ClusterGetWeightedRoutingResponse extends ActionResponse implements
     public void writeTo(StreamOutput out) throws IOException {
         if (weightedRouting != null) {
             weightedRouting.writeTo(out);
+            out.writeLong(version);
         }
     }
 
@@ -74,12 +84,15 @@ public class ClusterGetWeightedRoutingResponse extends ActionResponse implements
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         if (this.weightedRouting != null) {
+            builder.startObject(WEIGHTS);
             for (Map.Entry<String, Double> entry : weightedRouting.weights().entrySet()) {
                 builder.field(entry.getKey(), entry.getValue().toString());
             }
             if (localNodeWeight != null) {
                 builder.field(NODE_WEIGHT, localNodeWeight);
             }
+            builder.endObject();
+            builder.field(WeightedRoutingMetadata.VERSION, version);
         }
         builder.endObject();
         return builder;
@@ -88,26 +101,58 @@ public class ClusterGetWeightedRoutingResponse extends ActionResponse implements
     public static ClusterGetWeightedRoutingResponse fromXContent(XContentParser parser) throws IOException {
         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
         XContentParser.Token token;
-        String attrKey = null, attrValue = null;
+        String attrKey = null, attrValue;
         String localNodeWeight = null;
         Map<String, Double> weights = new HashMap<>();
+        long version = WeightedRoutingMetadata.VERSION_UNSET_VALUE;
+        String versionAttr = null;
+        String weightsAttr;
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
-                attrKey = parser.currentName();
-            } else if (token == XContentParser.Token.VALUE_STRING) {
-                attrValue = parser.text();
-                if (attrKey != null && attrKey.equals(NODE_WEIGHT)) {
-                    localNodeWeight = attrValue;
-                } else if (attrKey != null) {
-                    weights.put(attrKey, Double.parseDouble(attrValue));
+                String fieldName = parser.currentName();
+                if (fieldName != null && fieldName.equals(WeightedRoutingMetadata.VERSION)) {
+                    versionAttr = parser.currentName();
+                    continue;
+                } else if (fieldName != null && fieldName.equals(WEIGHTS)) {
+                    weightsAttr = parser.currentName();
+                } else {
+                    throw new OpenSearchParseException("failed to parse weighted routing request object", fieldName);
+                }
+                if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
+                    throw new OpenSearchParseException(
+                        "failed to parse weighted routing request object [{}], expected object",
+                        weightsAttr
+                    );
+                }
+
+                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    if (token == XContentParser.Token.FIELD_NAME) {
+                        attrKey = parser.currentName();
+                    } else if (token == XContentParser.Token.VALUE_STRING) {
+                        attrValue = parser.text();
+                        if (attrKey != null && attrKey.equals(NODE_WEIGHT)) {
+                            localNodeWeight = attrValue;
+                        } else if (attrKey != null && attrKey.equals(WeightedRoutingMetadata.VERSION)) {
+                            version = Long.parseLong(attrValue);
+                        } else if (attrKey != null) {
+                            weights.put(attrKey, Double.parseDouble(attrValue));
+                        }
+                    } else {
+                        throw new OpenSearchParseException("failed to parse weighted routing request attribute [{}]", attrKey);
+                    }
+                }
+            } else if (token == XContentParser.Token.VALUE_NUMBER) {
+                if (versionAttr != null && versionAttr.equals(WeightedRoutingMetadata.VERSION)) {
+                    version = parser.longValue();
                 }
             } else {
-                throw new OpenSearchParseException("failed to parse weighted routing response");
+                throw new OpenSearchParseException("failed to parse weighted routing request");
             }
         }
+
         WeightedRouting weightedRouting = new WeightedRouting("", weights);
-        return new ClusterGetWeightedRoutingResponse(localNodeWeight, weightedRouting);
+        return new ClusterGetWeightedRoutingResponse(localNodeWeight, weightedRouting, version);
     }
 
     @Override
@@ -115,7 +160,7 @@ public class ClusterGetWeightedRoutingResponse extends ActionResponse implements
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ClusterGetWeightedRoutingResponse that = (ClusterGetWeightedRoutingResponse) o;
-        return weightedRouting.equals(that.weightedRouting) && localNodeWeight.equals(that.localNodeWeight);
+        return weightedRouting.equals(that.weightedRouting) && localNodeWeight.equals(that.localNodeWeight) && version == that.version;
     }
 
     @Override

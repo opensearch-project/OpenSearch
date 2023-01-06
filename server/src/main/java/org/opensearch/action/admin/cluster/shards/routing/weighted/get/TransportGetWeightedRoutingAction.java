@@ -100,8 +100,13 @@ public class TransportGetWeightedRoutingAction extends TransportClusterManagerNo
                             weight = weightedRouting.weights().get(attrVal).toString();
                         }
                     }
+
                 }
-                clusterGetWeightedRoutingResponse = new ClusterGetWeightedRoutingResponse(weight, weightedRouting);
+                clusterGetWeightedRoutingResponse = new ClusterGetWeightedRoutingResponse(
+                    weight,
+                    weightedRouting,
+                    weightedRoutingMetadata.getVersion()
+                );
             }
             listener.onResponse(clusterGetWeightedRoutingResponse);
         } catch (Exception ex) {

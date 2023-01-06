@@ -91,6 +91,7 @@ public class AwarenessAttributeDecommissionRestIT extends HttpSmokeTestCase{
             .cluster()
             .prepareWeightedRouting()
             .setWeightedRouting(weightedRouting)
+            .setVersion(-1)
             .get();
         assertTrue(weightedRoutingResponse.isAcknowledged());
 

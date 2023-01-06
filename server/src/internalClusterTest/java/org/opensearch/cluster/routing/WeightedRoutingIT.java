@@ -8,11 +8,13 @@
 
 package org.opensearch.cluster.routing;
 
+import org.opensearch.ResourceNotFoundException;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.delete.ClusterDeleteWeightedRoutingResponse;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.get.ClusterGetWeightedRoutingResponse;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingResponse;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.rest.RestStatus;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
@@ -64,6 +66,7 @@ public class WeightedRoutingIT extends OpenSearchIntegTestCase {
             .cluster()
             .prepareWeightedRouting()
             .setWeightedRouting(weightedRouting)
+            .setVersion(-1)
             .get();
         assertEquals(response.isAcknowledged(), true);
 
@@ -73,6 +76,7 @@ public class WeightedRoutingIT extends OpenSearchIntegTestCase {
             .cluster()
             .prepareWeightedRouting()
             .setWeightedRouting(weightedRouting)
+            .setVersion(0)
             .get();
         assertEquals(response.isAcknowledged(), true);
     }
@@ -199,6 +203,7 @@ public class WeightedRoutingIT extends OpenSearchIntegTestCase {
             .cluster()
             .prepareWeightedRouting()
             .setWeightedRouting(weightedRouting)
+            .setVersion(-1)
             .get();
         assertEquals(response.isAcknowledged(), true);
 
@@ -270,6 +275,7 @@ public class WeightedRoutingIT extends OpenSearchIntegTestCase {
             .cluster()
             .prepareWeightedRouting()
             .setWeightedRouting(weightedRouting)
+            .setVersion(-1)
             .get();
         assertEquals(response.isAcknowledged(), true);
 
@@ -307,12 +313,14 @@ public class WeightedRoutingIT extends OpenSearchIntegTestCase {
         assertNull(internalCluster().clusterService().state().metadata().weightedRoutingMetadata());
 
         // delete weighted routing metadata
-        ClusterDeleteWeightedRoutingResponse deleteResponse = client().admin().cluster().prepareDeleteWeightedRouting().get();
-        assertTrue(deleteResponse.isAcknowledged());
-        assertNull(internalCluster().clusterService().state().metadata().weightedRoutingMetadata());
+        ResourceNotFoundException exception = expectThrows(
+            ResourceNotFoundException.class,
+            () -> client().admin().cluster().prepareDeleteWeightedRouting().setVersion(-1).get()
+        );
+        assertEquals(RestStatus.NOT_FOUND, exception.status());
     }
 
-    public void testDeleteWeightedRouting_WeightsAreSet() {
+    public void testDeleteWeightedRouting_WeightsAreSet() throws IOException {
         Settings commonSettings = Settings.builder()
             .put("cluster.routing.allocation.awareness.attributes", "zone")
             .put("cluster.routing.allocation.awareness.force.zone.values", "a,b,c")
@@ -339,13 +347,111 @@ public class WeightedRoutingIT extends OpenSearchIntegTestCase {
             .cluster()
             .prepareWeightedRouting()
             .setWeightedRouting(weightedRouting)
+            .setVersion(-1)
             .get();
-        assertEquals(response.isAcknowledged(), true);
+        assertTrue(response.isAcknowledged());
         assertNotNull(internalCluster().clusterService().state().metadata().weightedRoutingMetadata());
 
         // delete weighted routing metadata
-        ClusterDeleteWeightedRoutingResponse deleteResponse = client().admin().cluster().prepareDeleteWeightedRouting().get();
+        ClusterDeleteWeightedRoutingResponse deleteResponse = client().admin().cluster().prepareDeleteWeightedRouting().setVersion(0).get();
         assertTrue(deleteResponse.isAcknowledged());
-        assertNull(internalCluster().clusterService().state().metadata().weightedRoutingMetadata());
+    }
+
+    public void testPutAndDeleteWithVersioning() throws Exception {
+        Settings commonSettings = Settings.builder()
+            .put("cluster.routing.allocation.awareness.attributes", "zone")
+            .put("cluster.routing.allocation.awareness.force.zone.values", "a,b,c")
+            .build();
+
+        logger.info("--> starting 6 nodes on different zones");
+        int nodeCountPerAZ = 2;
+
+        logger.info("--> starting a dedicated cluster manager node");
+        internalCluster().startClusterManagerOnlyNode(Settings.builder().put(commonSettings).build());
+
+        logger.info("--> starting 1 nodes on zones 'a' & 'b' & 'c'");
+        internalCluster().startDataOnlyNodes(nodeCountPerAZ, Settings.builder().put(commonSettings).put("node.attr.zone", "a").build());
+        internalCluster().startDataOnlyNodes(nodeCountPerAZ, Settings.builder().put(commonSettings).put("node.attr.zone", "b").build());
+        internalCluster().startDataOnlyNodes(nodeCountPerAZ, Settings.builder().put(commonSettings).put("node.attr.zone", "c").build());
+
+        logger.info("--> waiting for nodes to form a cluster");
+        ClusterHealthResponse health = client().admin().cluster().prepareHealth().setWaitForNodes("7").execute().actionGet();
+        assertThat(health.isTimedOut(), equalTo(false));
+
+        ensureGreen();
+
+        logger.info("--> setting shard routing weights for weighted round robin");
+
+        Map<String, Double> weights = Map.of("a", 1.0, "b", 2.0, "c", 3.0);
+        WeightedRouting weightedRouting = new WeightedRouting("zone", weights);
+        ClusterPutWeightedRoutingResponse response = client().admin()
+            .cluster()
+            .prepareWeightedRouting()
+            .setWeightedRouting(weightedRouting)
+            .setVersion(-1)
+            .get();
+        assertTrue(response.isAcknowledged());
+        assertNotNull(internalCluster().clusterService().state().metadata().weightedRoutingMetadata());
+
+        // update weights api call with correct version number
+        weights = Map.of("a", 1.0, "b", 2.0, "c", 4.0);
+        weightedRouting = new WeightedRouting("zone", weights);
+        response = client().admin().cluster().prepareWeightedRouting().setWeightedRouting(weightedRouting).setVersion(0).get();
+        assertTrue(response.isAcknowledged());
+
+        // update weights api call with incorrect version number
+        weights = Map.of("a", 1.0, "b", 2.0, "c", 4.0);
+        WeightedRouting weightedRouting1 = new WeightedRouting("zone", weights);
+        UnsupportedWeightedRoutingStateException exception = expectThrows(
+            UnsupportedWeightedRoutingStateException.class,
+            () -> client().admin().cluster().prepareWeightedRouting().setWeightedRouting(weightedRouting1).setVersion(100).get()
+        );
+        assertEquals(exception.status(), RestStatus.CONFLICT);
+
+        // get weights call
+        ClusterGetWeightedRoutingResponse weightedRoutingResponse = client().admin()
+            .cluster()
+            .prepareGetWeightedRouting()
+            .setAwarenessAttribute("zone")
+            .get();
+
+        // update weights call using version returned by get api call
+        weights = Map.of("a", 1.0, "b", 2.0, "c", 5.0);
+        weightedRouting = new WeightedRouting("zone", weights);
+        response = client().admin()
+            .cluster()
+            .prepareWeightedRouting()
+            .setWeightedRouting(weightedRouting)
+            .setVersion(weightedRoutingResponse.getVersion())
+            .get();
+        assertTrue(response.isAcknowledged());
+        assertNotNull(internalCluster().clusterService().state().metadata().weightedRoutingMetadata());
+
+        // delete weights by awareness attribute
+        ClusterDeleteWeightedRoutingResponse deleteResponse = client().admin()
+            .cluster()
+            .prepareDeleteWeightedRouting()
+            .setAwarenessAttribute("zone")
+            .setVersion(2)
+            .get();
+        assertTrue(deleteResponse.isAcknowledged());
+
+        // update weights again and make sure that version number got updated on delete
+        weights = Map.of("a", 1.0, "b", 2.0, "c", 6.0);
+        weightedRouting = new WeightedRouting("zone", weights);
+        response = client().admin().cluster().prepareWeightedRouting().setWeightedRouting(weightedRouting).setVersion(3).get();
+        assertTrue(response.isAcknowledged());
+        assertNotNull(internalCluster().clusterService().state().metadata().weightedRoutingMetadata());
+
+        // delete weights
+        deleteResponse = client().admin().cluster().prepareDeleteWeightedRouting().setVersion(4).get();
+        assertTrue(deleteResponse.isAcknowledged());
+
+        // delete weights call, incorrect version number
+        UnsupportedWeightedRoutingStateException deleteException = expectThrows(
+            UnsupportedWeightedRoutingStateException.class,
+            () -> client().admin().cluster().prepareDeleteWeightedRouting().setVersion(7).get()
+        );
+        assertEquals(RestStatus.CONFLICT, deleteException.status());
     }
 }
