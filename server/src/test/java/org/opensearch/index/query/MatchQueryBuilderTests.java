@@ -33,6 +33,7 @@
 package org.opensearch.index.query;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.tests.analysis.CannedBinaryTokenStream;
 import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.index.Term;
@@ -68,11 +69,7 @@ import org.opensearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 
 import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -333,9 +330,13 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         MockGraphAnalyzer mockAnalyzer = new MockGraphAnalyzer(createGiantGraphWithNoSide());
         testMatchQuery.setAnalyzer(mockAnalyzer);
         testMatchQuery.setAutoGenerateSynonymsPhraseQuery(true);
+        testMatchQuery.setZeroTermsQuery(ZeroTermsQuery.NONE);
         GraphTokenStreamFiniteStrings graph = new GraphTokenStreamFiniteStrings(mockAnalyzer.getTokenStream());
-        AssertionError e = expectThrows(AssertionError.class, () -> graph.hasSidePath(0));
-        assertEquals("state=0 nextState=0", e.getMessage());
+        Iterator<TokenStream> graphIt = graph.getFiniteStrings();
+        assertEquals(graphIt.hasNext(),false);
+        String testField = "Gas Lift Storage Bed Frame with Arched Bed Head in King";
+        String testValue = "head board, bed head, bedhead, headboard";
+        testMatchQuery.parse(Type.BOOLEAN,testField,testValue); // no exception
     }
 
     public void testDefaultFuzziness() {
@@ -502,6 +503,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
             assertThat(query, equalTo(expectedQuery));
         }
     }
+
 
     public void testMultiWordSynonymsPhrase() throws Exception {
         final MatchQuery matchQuery = new MatchQuery(createShardContext());

@@ -81,8 +81,6 @@ import java.util.function.Supplier;
 import static org.opensearch.common.lucene.search.Queries.newLenientFieldQuery;
 import static org.opensearch.common.lucene.search.Queries.newUnmappedFieldQuery;
 
-import java.util.logging.Logger;
-
 /**
  * Foundation match query
  *
@@ -134,11 +132,6 @@ public class MatchQuery {
             out.writeVInt(this.ordinal);
         }
     }
-
-    /**
-     * logging function
-     */
-    private static final Logger logger = Logger.getLogger((MatchQuery.class.getName()));
 
     /**
      * Query with zero terms
@@ -760,17 +753,13 @@ public class MatchQuery {
                 final Query queryPos;
                 boolean usePrefix = isPrefix && end == -1;
                 /**
-                 * comment out the fix and mimic the error in unit test from MatchQueryBuilderTests.java
+                 * check if the GraphTokenStreamFiniteStrings graph is empty
+                 * return empty BooleanQuery result
                  */
-
-                // boolean graphHasSidePath = false;
-                // try {
-                // graphHasSidePath = graph.hasSidePath(start);
-                // } catch (AssertionError e) {
-                // logger.info("GraphTokenStreamFiniteStrings has no path. Catch assertion error: \n" + e);
-                // return zeroTermsQuery();
-                // }
-                // if (graphHasSidePath) {
+                Iterator<TokenStream> graphIt = graph.getFiniteStrings();
+                if(!graphIt.hasNext()){
+                    return builder.build();
+                }
                 if (graph.hasSidePath(start)) {
                     final Iterator<TokenStream> it = graph.getFiniteStrings(start, end);
                     Iterator<Query> queries = new Iterator<Query>() {

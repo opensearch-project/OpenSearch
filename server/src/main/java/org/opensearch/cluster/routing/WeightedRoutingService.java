@@ -8,6 +8,8 @@
 
 package org.opensearch.cluster.routing;
 
+import com.carrotsearch.hppc.ObjectIntHashMap;
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -40,6 +42,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
 import static org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING;
@@ -189,12 +192,12 @@ public class WeightedRoutingService {
 
     private void ensureWeightsSetForAllDiscoveredAndForcedAwarenessValues(ClusterState state, ClusterPutWeightedRoutingRequest request) {
         String attributeName = request.getWeightedRouting().attributeName();
+        // build attr_value -> nodes map
+        ObjectIntHashMap<String> nodesPerAttribute = state.getRoutingNodes().nodesPerAttributesCounts(attributeName);
         Set<String> discoveredAwarenessValues = new HashSet<>();
-        state.nodes().forEach(node -> {
-            if (node.getAttributes().containsKey(attributeName)) {
-                discoveredAwarenessValues.add(node.getAttributes().get(attributeName));
-            }
-        });
+        for (ObjectCursor<String> stringObjectCursor : nodesPerAttribute.keys()) {
+            if (stringObjectCursor.value != null) discoveredAwarenessValues.add(stringObjectCursor.value);
+        }
         Set<String> allAwarenessValues;
         if (forcedAwarenessAttributes.get(attributeName) == null) {
             allAwarenessValues = new HashSet<>();
@@ -202,13 +205,34 @@ public class WeightedRoutingService {
             allAwarenessValues = new HashSet<>(forcedAwarenessAttributes.get(attributeName));
         }
         allAwarenessValues.addAll(discoveredAwarenessValues);
+        AtomicInteger countWithZeroWeight = new AtomicInteger();
         allAwarenessValues.forEach(awarenessValue -> {
             if (request.getWeightedRouting().weights().containsKey(awarenessValue) == false) {
                 throw new UnsupportedWeightedRoutingStateException(
-                    "weight for [" + awarenessValue + "] is not set and it is part of forced awareness value or a node has this attribute."
+                    "weight for ["
+                        + awarenessValue
+                        + "] is not set and it is part of forced awareness value or a routing node has this attribute."
                 );
             }
+            if (request.getWeightedRouting().weights().get(awarenessValue) == 0) {
+                countWithZeroWeight.addAndGet(1);
+            }
         });
+        // We have validations in place to check that not more than half of the values weights are set to 0 in the request object
+        // Adding this check again here on allAwarenessValues such that in no case we land up in a situation where more than half of
+        // discovered awareness values has weight zero
+        if (countWithZeroWeight.get() > allAwarenessValues.size() / 2) {
+            throw addValidationError(
+                (String.format(
+                    Locale.ROOT,
+                    "There are too many discovered attribute values [%s] given zero weight [%d]. Maximum expected number of routing weights having zero weight is [%d]",
+                    request.getWeightedRouting().weights().toString(),
+                    countWithZeroWeight.get(),
+                    allAwarenessValues.size() / 2
+                )),
+                null
+            );
+        }
     }
 
     private void ensureDecommissionedAttributeHasZeroWeight(ClusterState state, ClusterPutWeightedRoutingRequest request) {

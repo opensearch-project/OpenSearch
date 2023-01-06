@@ -65,6 +65,9 @@ public class SnapshotUtilsTests extends OpenSearchTestCase {
         assertIndexNameFiltering(new String[] { "foo", "bar", "baz" }, new String[] { "-ba*" }, new String[] { "foo" });
         assertIndexNameFiltering(new String[] { "foo", "bar", "baz" }, new String[] { "+ba*" }, new String[] { "bar", "baz" });
         assertIndexNameFiltering(new String[] { "foo", "bar", "baz" }, new String[] { "+bar", "+foo" }, new String[] { "bar", "foo" });
+        assertIndexNameFiltering(new String[] { "foo", "bar", "baz" }, new String[] { "-bar", "b*" }, new String[] { "baz" });
+        assertIndexNameFiltering(new String[] { "foo", "bar", "baz" }, new String[] { "b*", "-bar" }, new String[] { "baz" });
+        assertIndexNameFiltering(new String[] { "foo", "bar", "baz" }, new String[] { "-bar", "-baz" }, new String[] { "foo" });
         assertIndexNameFiltering(
             new String[] { "foo", "bar", "baz" },
             new String[] { "zzz", "bar" },

@@ -138,6 +138,13 @@ final class SettingsUpdater {
             } else {
                 blocks.removeGlobalBlock(Metadata.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK);
             }
+            boolean createIndexBlocked = Metadata.SETTING_CREATE_INDEX_BLOCK_SETTING.get(metadata.persistentSettings())
+                || Metadata.SETTING_CREATE_INDEX_BLOCK_SETTING.get(metadata.transientSettings());
+            if (createIndexBlocked) {
+                blocks.addGlobalBlock(Metadata.CLUSTER_CREATE_INDEX_BLOCK);
+            } else {
+                blocks.removeGlobalBlock(Metadata.CLUSTER_CREATE_INDEX_BLOCK);
+            }
             clusterState = builder(currentState).metadata(metadata).blocks(blocks).build();
         } else {
             clusterState = currentState;
