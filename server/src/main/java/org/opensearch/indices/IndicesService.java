@@ -132,6 +132,8 @@ import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.shard.IndexingOperationListener;
 import org.opensearch.index.shard.IndexingStats;
 import org.opensearch.index.shard.ShardId;
+import org.opensearch.index.translog.InternalTranslogFactory;
+import org.opensearch.index.translog.RemoteBlobStoreInternalTranslogFactory;
 import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.index.translog.TranslogStats;
 import org.opensearch.indices.breaker.CircuitBreakerService;
@@ -183,6 +185,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
@@ -301,7 +304,7 @@ public class IndicesService extends AbstractLifecycleComponent
         ValuesSourceRegistry valuesSourceRegistry,
         Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
         IndexStorePlugin.RemoteDirectoryFactory remoteDirectoryFactory,
-        BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier
+        Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -390,7 +393,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.allowExpensiveQueries = ALLOW_EXPENSIVE_QUERIES.get(clusterService.getSettings());
         clusterService.getClusterSettings().addSettingsUpdateConsumer(ALLOW_EXPENSIVE_QUERIES, this::setAllowExpensiveQueries);
         this.remoteDirectoryFactory = remoteDirectoryFactory;
-        this.translogFactorySupplier = translogFactorySupplier;
+        this.translogFactorySupplier = getTranslogFactorySupplier(repositoriesServiceSupplier, threadPool);
     }
 
     public IndicesService(
@@ -416,7 +419,7 @@ public class IndicesService extends AbstractLifecycleComponent
         ValuesSourceRegistry valuesSourceRegistry,
         Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
         IndexStorePlugin.RemoteDirectoryFactory remoteDirectoryFactory,
-        BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier
+        Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -505,7 +508,23 @@ public class IndicesService extends AbstractLifecycleComponent
         this.allowExpensiveQueries = ALLOW_EXPENSIVE_QUERIES.get(clusterService.getSettings());
         clusterService.getClusterSettings().addSettingsUpdateConsumer(ALLOW_EXPENSIVE_QUERIES, this::setAllowExpensiveQueries);
         this.remoteDirectoryFactory = remoteDirectoryFactory;
-        this.translogFactorySupplier = translogFactorySupplier;
+        this.translogFactorySupplier = getTranslogFactorySupplier(repositoriesServiceSupplier, threadPool);
+    }
+
+    private BiFunction<IndexSettings, ShardRouting, TranslogFactory> getTranslogFactorySupplier(
+        Supplier<RepositoriesService> repositoriesServiceSupplier,
+        ThreadPool threadPool
+    ) {
+        return (indexSettings, shardRouting) -> {
+            if (indexSettings.isRemoteTranslogStoreEnabled() && shardRouting.primary()) {
+                return new RemoteBlobStoreInternalTranslogFactory(
+                    repositoriesServiceSupplier,
+                    threadPool,
+                    indexSettings.getRemoteStoreTranslogRepository()
+                );
+            }
+            return new InternalTranslogFactory();
+        };
     }
 
     private static final String DANGLING_INDICES_UPDATE_THREAD_NAME = "DanglingIndices#updateTask";
