@@ -310,7 +310,7 @@ public class RolloverIT extends OpenSearchIntegTestCase {
             testAlias.writeIndex(true);
         }
         assertAcked(prepareCreate("test_index-2").addAlias(testAlias).get());
-        manageUseZoneForReplicaSetting(true);
+        manageReplicaSettingForDefaultReplica(true);
         index("test_index-2", "type1", "1", "field", "value");
         flush("test_index-2");
 
@@ -321,7 +321,7 @@ public class RolloverIT extends OpenSearchIntegTestCase {
         final IndexMetadata newIndex = state.metadata().index("test_index-000003");
         assertThat(newIndex.getNumberOfShards(), equalTo(3));
         assertThat(newIndex.getNumberOfReplicas(), equalTo(2));
-        manageUseZoneForReplicaSetting(false);
+        manageReplicaSettingForDefaultReplica(false);
         randomIndexTemplate();
     }
 

@@ -2418,7 +2418,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
     }
 
-    public void manageUseZoneForReplicaSetting(boolean apply) {
+    public void manageReplicaSettingForDefaultReplica(boolean apply) {
         Settings settings;
         if (apply) {
             settings = Settings.builder()

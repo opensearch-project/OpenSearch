@@ -670,7 +670,7 @@ public class UpdateNumberOfReplicasIT extends OpenSearchIntegTestCase {
         createIndex(".system-index", Settings.builder().put("index.number_of_replicas", 0).build());
         DeleteIndexTemplateRequestBuilder deleteTemplate = client().admin().indices().prepareDeleteTemplate("random_index_template");
         assertAcked(deleteTemplate.execute().actionGet());
-        manageUseZoneForReplicaSetting(true);
+        manageReplicaSettingForDefaultReplica(true);
         int updated = 0;
 
         try {
@@ -734,7 +734,7 @@ public class UpdateNumberOfReplicasIT extends OpenSearchIntegTestCase {
             );
             assertEquals(4, updated);
         } finally {
-            manageUseZoneForReplicaSetting(false);
+            manageReplicaSettingForDefaultReplica(false);
             randomIndexTemplate();
         }
     }

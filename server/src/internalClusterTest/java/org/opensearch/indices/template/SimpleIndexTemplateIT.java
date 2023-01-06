@@ -1031,7 +1031,7 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
     }
 
     public void testAwarenessReplicaBalance() throws IOException {
-        manageUseZoneForReplicaSetting(true);
+        manageReplicaSettingForDefaultReplica(true);
         int updated = 0;
         try {
             client().admin()
@@ -1073,7 +1073,7 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
             );
             assertEquals(3, updated);
         } finally {
-            manageUseZoneForReplicaSetting(false);
+            manageReplicaSettingForDefaultReplica(false);
         }
     }
 

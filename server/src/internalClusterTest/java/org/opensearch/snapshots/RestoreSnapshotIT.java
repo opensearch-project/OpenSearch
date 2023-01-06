@@ -988,7 +988,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
                 .setIndices("test-index", ".system-index")
                 .setWaitForCompletion(true)
                 .get();
-            manageUseZoneForReplicaSetting(true);
+            manageReplicaSettingForDefaultReplica(true);
 
             final IllegalArgumentException restoreError = expectThrows(
                 IllegalArgumentException.class,
@@ -1051,7 +1051,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
 
             assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
         } finally {
-            manageUseZoneForReplicaSetting(false);
+            manageReplicaSettingForDefaultReplica(false);
             randomIndexTemplate();
         }
     }
