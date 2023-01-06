@@ -67,7 +67,8 @@ public class PublishPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        project.getPluginManager().apply("nebula.maven-base-publish");
+        project.getPluginManager().apply("com.netflix.nebula.maven-base-publish");
+        project.getPluginManager().apply("com.netflix.nebula.maven-nebula-publish");
         project.getPluginManager().apply(PomValidationPrecommitPlugin.class);
 
         configureJavadocJar(project);
@@ -108,8 +109,12 @@ public class PublishPlugin implements Plugin<Project> {
             // Here we manually add any project dependencies in the "shadow" configuration to our generated POM
             publication.getPom().withXml(xml -> {
                 Node root = xml.asNode();
-                root.appendNode("name", project.getName());
-                root.appendNode("description", project.getDescription());
+                if (((NodeList) root.get("name")).isEmpty()) {
+                    root.appendNode("name", project.getName());
+                }
+                if (((NodeList) root.get("description")).isEmpty()) {
+                    root.appendNode("description", project.getDescription());
+                }
                 Node dependenciesNode = (Node) ((NodeList) root.get("dependencies")).get(0);
                 project.getConfigurations().getByName(ShadowBasePlugin.CONFIGURATION_NAME).getAllDependencies().all(dependency -> {
                     if (dependency instanceof ProjectDependency) {

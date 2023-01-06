@@ -149,7 +149,7 @@ class PluginBuildPlugin implements Plugin<Project> {
     private void configurePublishing(Project project, PluginPropertiesExtension extension) {
         // Only configure publishing if applied externally
         if (extension.hasClientJar) {
-            project.pluginManager.apply('nebula.maven-base-publish')
+            project.pluginManager.apply('com.netflix.nebula.maven-base-publish')
             // Only change Jar tasks, we don't want a -client zip so we can't change archivesBaseName
             project.tasks.withType(Jar) {
                 archiveBaseName = archiveBaseName.get() +  "-client"
