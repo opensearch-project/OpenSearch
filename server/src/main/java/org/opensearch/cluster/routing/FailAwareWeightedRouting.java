@@ -17,6 +17,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.index.shard.ShardId;
+import org.opensearch.rest.RestStatus;
 import org.opensearch.search.SearchShardTarget;
 
 import java.util.List;
@@ -29,16 +30,16 @@ import java.util.stream.Stream;
  * nodes whose attribute value weight for weighted shard routing is set to zero.
  */
 
-public class FailOpenRouting {
+public class FailAwareWeightedRouting {
 
-    private static final Logger logger = LogManager.getLogger(FailOpenRouting.class);
+    private static final Logger logger = LogManager.getLogger(FailAwareWeightedRouting.class);
 
     /* exception causing failure for previous shard copy */
     private Exception exception;
 
     private ClusterState clusterState;
 
-    public FailOpenRouting(Exception e, ClusterState clusterState) {
+    public FailAwareWeightedRouting(Exception e, ClusterState clusterState) {
         this.exception = e;
         this.clusterState = clusterState;
     }
@@ -49,7 +50,8 @@ public class FailOpenRouting {
      */
     private boolean isInternalFailure() {
         if (exception instanceof OpenSearchException) {
-            return ((OpenSearchException) exception).status().getStatus() / 100 == 5;
+            // checking for 5xx failures
+            return (((OpenSearchException) exception).status().getStatus() / 100) * 100 == RestStatus.INTERNAL_SERVER_ERROR.getStatus();
         }
         return false;
     }
@@ -62,7 +64,7 @@ public class FailOpenRouting {
      * @param nodeId the node with the shard copy
      * @return true if the node has attribute value with shard routing weight set to zero, else false
      */
-    private boolean shardInNodeWithZeroWeightedRouting(String nodeId) {
+    private boolean isWeighedAway(String nodeId) {
         DiscoveryNode node = clusterState.nodes().get(nodeId);
         WeightedRoutingMetadata weightedRoutingMetadata = clusterState.metadata().weightedRoutingMetadata();
         if (weightedRoutingMetadata != null) {
@@ -96,8 +98,7 @@ public class FailOpenRouting {
      */
     public SearchShardTarget findNext(final SearchShardIterator shardIt) {
         SearchShardTarget next = shardIt.nextOrNull();
-        while (next != null && shardInNodeWithZeroWeightedRouting(next.getNodeId())) {
-
+        while (next != null && isWeighedAway(next.getNodeId())) {
             if (canFailOpen(next.getShardId())) {
                 logFailOpen(next.getShardId());
                 break;
@@ -118,7 +119,7 @@ public class FailOpenRouting {
     public ShardRouting findNext(final ShardsIterator shardsIt) {
         ShardRouting next = shardsIt.nextOrNull();
 
-        while (next != null && shardInNodeWithZeroWeightedRouting(next.currentNodeId())) {
+        while (next != null && isWeighedAway(next.currentNodeId())) {
             if (canFailOpen(next.shardId())) {
                 logFailOpen(next.shardId());
                 break;

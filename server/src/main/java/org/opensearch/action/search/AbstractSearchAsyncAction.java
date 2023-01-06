@@ -43,7 +43,7 @@ import org.opensearch.action.NoShardAvailableActionException;
 import org.opensearch.action.ShardOperationFailedException;
 import org.opensearch.action.support.TransportActions;
 import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.routing.FailOpenRouting;
+import org.opensearch.cluster.routing.FailAwareWeightedRouting;
 import org.opensearch.cluster.routing.GroupShardsIterator;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.lease.Releasable;
@@ -450,7 +450,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         // we always add the shard failure for a specific shard instance
         // we do make sure to clean it on a successful response from a shard
         onShardFailure(shardIndex, shard, e);
-        SearchShardTarget nextShard = new FailOpenRouting(e, clusterState).findNext(shardIt);
+        SearchShardTarget nextShard = new FailAwareWeightedRouting(e, clusterState).findNext(shardIt);
 
         final boolean lastShard = nextShard == null;
         logger.debug(

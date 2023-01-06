@@ -47,7 +47,7 @@ import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
-import org.opensearch.cluster.routing.FailOpenRouting;
+import org.opensearch.cluster.routing.FailAwareWeightedRouting;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardsIterator;
 import org.opensearch.cluster.service.ClusterService;
@@ -245,7 +245,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                 lastFailure = currentFailure;
                 this.lastFailure = currentFailure;
             }
-            ShardRouting shardRouting = new FailOpenRouting(currentFailure, clusterService.state()).findNext(shardIt);
+            ShardRouting shardRouting = new FailAwareWeightedRouting(currentFailure, clusterService.state()).findNext(shardIt);
 
             if (shardRouting == null) {
                 Exception failure = lastFailure;

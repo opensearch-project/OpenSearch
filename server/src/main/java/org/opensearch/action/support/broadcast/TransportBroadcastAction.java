@@ -44,7 +44,7 @@ import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
-import org.opensearch.cluster.routing.FailOpenRouting;
+import org.opensearch.cluster.routing.FailAwareWeightedRouting;
 import org.opensearch.cluster.routing.GroupShardsIterator;
 import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.routing.ShardRouting;
@@ -251,7 +251,7 @@ public abstract class TransportBroadcastAction<
             // we set the shard failure always, even if its the first in the replication group, and the next one
             // will work (it will just override it...)
             setFailure(shardIt, shardIndex, e);
-            ShardRouting nextShard = new FailOpenRouting(e, clusterService.state()).findNext(shardIt);
+            ShardRouting nextShard = new FailAwareWeightedRouting(e, clusterService.state()).findNext(shardIt);
 
             if (nextShard != null) {
                 if (e != null) {
