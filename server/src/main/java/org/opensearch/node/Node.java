@@ -1058,7 +1058,8 @@ public class Node implements Closeable {
                                     threadPool,
                                     recoverySettings,
                                     transportService,
-                                    new SegmentReplicationSourceFactory(transportService, recoverySettings, clusterService)
+                                    new SegmentReplicationSourceFactory(transportService, recoverySettings, clusterService),
+                                    indicesService
                                 )
                             );
                         b.bind(SegmentReplicationSourceService.class)

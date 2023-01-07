@@ -31,6 +31,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -528,6 +529,88 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         assertEquals("Handler not present for the provided request", exception.getMessage());
     }
 
+    public void testExtensionRequest() throws Exception {
+        ExtensionsManager.RequestType expectedRequestType = ExtensionsManager.RequestType.REQUEST_EXTENSION_DEPENDENCY_INFORMATION;
+
+        // Test ExtensionRequest 2 arg constructor
+        String expectedUniqueId = "test uniqueid";
+        ExtensionRequest extensionRequest = new ExtensionRequest(expectedRequestType, expectedUniqueId);
+        assertEquals(expectedRequestType, extensionRequest.getRequestType());
+        assertEquals(Optional.of(expectedUniqueId), extensionRequest.getUniqueId());
+
+        // Test ExtensionRequest StreamInput constructor
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            extensionRequest.writeTo(out);
+            out.flush();
+            try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
+                extensionRequest = new ExtensionRequest(in);
+                assertEquals(expectedRequestType, extensionRequest.getRequestType());
+                assertEquals(Optional.of(expectedUniqueId), extensionRequest.getUniqueId());
+            }
+        }
+
+        // Test ExtensionRequest 1 arg constructor
+        extensionRequest = new ExtensionRequest(expectedRequestType);
+        assertEquals(expectedRequestType, extensionRequest.getRequestType());
+        assertEquals(Optional.empty(), extensionRequest.getUniqueId());
+
+        // Test ExtensionRequest StreamInput constructor
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            extensionRequest.writeTo(out);
+            out.flush();
+            try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
+                extensionRequest = new ExtensionRequest(in);
+                assertEquals(expectedRequestType, extensionRequest.getRequestType());
+                assertEquals(Optional.empty(), extensionRequest.getUniqueId());
+            }
+        }
+    }
+
+    public void testExtensionDependencyResponse() throws Exception {
+        String expectedUniqueId = "test uniqueid";
+        List<DiscoveryExtensionNode> expectedExtensionsList = new ArrayList<DiscoveryExtensionNode>();
+        Version expectedVersion = Version.fromString("2.0.0");
+        ExtensionDependency expectedDependency = new ExtensionDependency(expectedUniqueId, expectedVersion);
+
+        expectedExtensionsList.add(
+            new DiscoveryExtensionNode(
+                "firstExtension",
+                "uniqueid1",
+                "uniqueid1",
+                "myIndependentPluginHost1",
+                "127.0.0.0",
+                new TransportAddress(InetAddress.getByName("127.0.0.0"), 9300),
+                new HashMap<String, String>(),
+                Version.fromString("3.0.0"),
+                new PluginInfo(
+                    "firstExtension",
+                    "Fake description 1",
+                    "0.0.7",
+                    Version.fromString("3.0.0"),
+                    "14",
+                    "fakeClass1",
+                    new ArrayList<String>(),
+                    false
+                ),
+                List.of(expectedDependency)
+            )
+        );
+
+        // Test ExtensionDependencyResponse arg constructor
+        ExtensionDependencyResponse extensionDependencyResponse = new ExtensionDependencyResponse(expectedExtensionsList);
+        assertEquals(expectedExtensionsList, extensionDependencyResponse.getExtensionDependency());
+
+        // Test ExtensionDependencyResponse StreamInput constructor
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            extensionDependencyResponse.writeTo(out);
+            out.flush();
+            try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
+                extensionDependencyResponse = new ExtensionDependencyResponse(in);
+                assertEquals(expectedExtensionsList, extensionDependencyResponse.getExtensionDependency());
+            }
+        }
+    }
+
     public void testEnvironmentSettingsResponse() throws Exception {
 
         // Test EnvironmentSettingsResponse arg constructor
@@ -711,7 +794,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             settings,
             client
         );
-        verify(mockTransportService, times(8)).registerRequestHandler(anyString(), anyString(), anyBoolean(), anyBoolean(), any(), any());
+        verify(mockTransportService, times(9)).registerRequestHandler(anyString(), anyString(), anyBoolean(), anyBoolean(), any(), any());
 
     }
 
