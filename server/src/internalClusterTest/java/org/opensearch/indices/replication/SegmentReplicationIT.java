@@ -156,6 +156,7 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
         assertSegmentStats(REPLICA_COUNT);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/5669")
     public void testRestartPrimary() throws Exception {
         final String primary = internalCluster().startNode(featureFlagSettings());
         createIndex(INDEX_NAME);
