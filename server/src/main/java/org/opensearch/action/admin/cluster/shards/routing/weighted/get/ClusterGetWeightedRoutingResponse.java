@@ -31,26 +31,37 @@ import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedT
  * @opensearch.internal
  */
 public class ClusterGetWeightedRoutingResponse extends ActionResponse implements ToXContentObject {
-    private WeightedRouting weightedRouting;
-    private String localNodeWeight;
-    private static final String NODE_WEIGHT = "node_weight";
-
-    public String getLocalNodeWeight() {
-        return localNodeWeight;
+    public WeightedRouting getWeightedRouting() {
+        return weightedRouting;
     }
+
+    private final WeightedRouting weightedRouting;
+
+    public Boolean getDiscoveredClusterManager() {
+        return discoveredClusterManager;
+    }
+
+    private final Boolean discoveredClusterManager;
+
+    private static final String DISCOVERED_CLUSTER_MANAGER = "discovered_cluster_manager";
 
     ClusterGetWeightedRoutingResponse() {
         this.weightedRouting = null;
+        this.discoveredClusterManager = null;
     }
 
-    public ClusterGetWeightedRoutingResponse(String localNodeWeight, WeightedRouting weightedRouting) {
-        this.localNodeWeight = localNodeWeight;
+    public ClusterGetWeightedRoutingResponse(WeightedRouting weightedRouting, Boolean discoveredClusterManager) {
+        this.discoveredClusterManager = discoveredClusterManager;
         this.weightedRouting = weightedRouting;
     }
 
     ClusterGetWeightedRoutingResponse(StreamInput in) throws IOException {
         if (in.available() != 0) {
             this.weightedRouting = new WeightedRouting(in);
+            this.discoveredClusterManager = in.readOptionalBoolean();
+        } else {
+            this.weightedRouting = null;
+            this.discoveredClusterManager = null;
         }
     }
 
@@ -68,6 +79,9 @@ public class ClusterGetWeightedRoutingResponse extends ActionResponse implements
         if (weightedRouting != null) {
             weightedRouting.writeTo(out);
         }
+        if (discoveredClusterManager != null) {
+            out.writeOptionalBoolean(discoveredClusterManager);
+        }
     }
 
     @Override
@@ -77,8 +91,8 @@ public class ClusterGetWeightedRoutingResponse extends ActionResponse implements
             for (Map.Entry<String, Double> entry : weightedRouting.weights().entrySet()) {
                 builder.field(entry.getKey(), entry.getValue().toString());
             }
-            if (localNodeWeight != null) {
-                builder.field(NODE_WEIGHT, localNodeWeight);
+            if (discoveredClusterManager != null) {
+                builder.field(DISCOVERED_CLUSTER_MANAGER, discoveredClusterManager);
             }
         }
         builder.endObject();
@@ -89,7 +103,7 @@ public class ClusterGetWeightedRoutingResponse extends ActionResponse implements
         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
         XContentParser.Token token;
         String attrKey = null, attrValue = null;
-        String localNodeWeight = null;
+        Boolean discoveredClusterManager = null;
         Map<String, Double> weights = new HashMap<>();
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -97,17 +111,17 @@ public class ClusterGetWeightedRoutingResponse extends ActionResponse implements
                 attrKey = parser.currentName();
             } else if (token == XContentParser.Token.VALUE_STRING) {
                 attrValue = parser.text();
-                if (attrKey != null && attrKey.equals(NODE_WEIGHT)) {
-                    localNodeWeight = attrValue;
-                } else if (attrKey != null) {
+                if (attrKey != null) {
                     weights.put(attrKey, Double.parseDouble(attrValue));
                 }
+            } else if (token == XContentParser.Token.VALUE_BOOLEAN && attrKey != null && attrKey.equals(DISCOVERED_CLUSTER_MANAGER)) {
+                discoveredClusterManager = Boolean.parseBoolean(parser.text());
             } else {
                 throw new OpenSearchParseException("failed to parse weighted routing response");
             }
         }
         WeightedRouting weightedRouting = new WeightedRouting("", weights);
-        return new ClusterGetWeightedRoutingResponse(localNodeWeight, weightedRouting);
+        return new ClusterGetWeightedRoutingResponse(weightedRouting, discoveredClusterManager);
     }
 
     @Override
@@ -115,11 +129,11 @@ public class ClusterGetWeightedRoutingResponse extends ActionResponse implements
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ClusterGetWeightedRoutingResponse that = (ClusterGetWeightedRoutingResponse) o;
-        return weightedRouting.equals(that.weightedRouting) && localNodeWeight.equals(that.localNodeWeight);
+        return weightedRouting.equals(that.weightedRouting) && discoveredClusterManager.equals(that.discoveredClusterManager);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(weightedRouting, localNodeWeight);
+        return Objects.hash(weightedRouting, discoveredClusterManager);
     }
 }
