@@ -55,6 +55,7 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationIT {
      * This test verifies happy path when primary shard is relocated newly added node (target) in the cluster. Before
      * relocation and after relocation documents are indexed and documents are verified
      */
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/5669")
     public void testPrimaryRelocation() throws Exception {
         final String oldPrimary = internalCluster().startNode(featureFlagSettings());
         createIndex();
