@@ -223,6 +223,7 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
             .cluster()
             .prepareWeightedRouting()
             .setWeightedRouting(weightedRouting)
+            .setVersion(-1)
             .get();
         assertTrue(weightedRoutingResponse.isAcknowledged());
 
@@ -453,6 +454,7 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
             .cluster()
             .prepareWeightedRouting()
             .setWeightedRouting(weightedRouting)
+            .setVersion(-1)
             .get();
         assertTrue(weightedRoutingResponse.isAcknowledged());
 
@@ -565,6 +567,7 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
             .cluster()
             .prepareWeightedRouting()
             .setWeightedRouting(weightedRouting)
+            .setVersion(-1)
             .get();
         assertTrue(weightedRoutingResponse.isAcknowledged());
 
@@ -649,6 +652,7 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
             .cluster()
             .prepareWeightedRouting()
             .setWeightedRouting(weightedRouting)
+            .setVersion(-1)
             .get();
         assertTrue(weightedRoutingResponse.isAcknowledged());
 
@@ -769,6 +773,7 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
             .cluster()
             .prepareWeightedRouting()
             .setWeightedRouting(weightedRouting)
+            .setVersion(-1)
             .get();
         assertTrue(weightedRoutingResponse.isAcknowledged());
 
@@ -809,6 +814,7 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
             .cluster()
             .prepareWeightedRouting()
             .setWeightedRouting(weightedRouting)
+            .setVersion(-1)
             .get();
         assertTrue(weightedRoutingResponse.isAcknowledged());
 
@@ -922,6 +928,7 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
             .cluster()
             .prepareWeightedRouting()
             .setWeightedRouting(weightedRouting)
+            .setVersion(-1)
             .get();
         assertTrue(weightedRoutingResponse.isAcknowledged());
 
