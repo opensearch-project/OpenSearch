@@ -86,6 +86,7 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
             .cluster()
             .prepareWeightedRouting()
             .setWeightedRouting(weightedRouting)
+            .setVersion(-1)
             .get();
         assertEquals(response.isAcknowledged(), true);
 
@@ -129,7 +130,7 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
 
         logger.info("--> deleted shard routing weights for weighted round robin");
 
-        ClusterDeleteWeightedRoutingResponse deleteResponse = client().admin().cluster().prepareDeleteWeightedRouting().get();
+        ClusterDeleteWeightedRoutingResponse deleteResponse = client().admin().cluster().prepareDeleteWeightedRouting().setVersion(0).get();
         assertEquals(deleteResponse.isAcknowledged(), true);
 
         hitNodes = new HashSet<>();
