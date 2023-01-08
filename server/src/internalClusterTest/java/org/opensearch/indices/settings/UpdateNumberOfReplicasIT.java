@@ -33,9 +33,11 @@
 package org.opensearch.indices.settings;
 
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.opensearch.action.admin.indices.template.delete.DeleteIndexTemplateRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Priority;
@@ -660,6 +662,80 @@ public class UpdateNumberOfReplicasIT extends OpenSearchIntegTestCase {
             assertEquals(3, updated);
         } finally {
             manageReplicaBalanceSetting(false);
+        }
+    }
+
+    public void testAwarenessReplicaBalanceWithUseZoneForDefaultReplicaCount() {
+        createIndex("aware-replica", Settings.builder().put("index.number_of_replicas", 0).build());
+        createIndex(".system-index", Settings.builder().put("index.number_of_replicas", 0).build());
+        DeleteIndexTemplateRequestBuilder deleteTemplate = client().admin().indices().prepareDeleteTemplate("random_index_template");
+        assertAcked(deleteTemplate.execute().actionGet());
+        manageReplicaSettingForDefaultReplica(true);
+        int updated = 0;
+
+        try {
+
+            // replica count should not be changed and we should see the original replica count
+            client().admin()
+                .indices()
+                .prepareUpdateSettings("aware-replica")
+                .setSettings(Settings.builder().put("refresh_interval", "1s"))
+                .execute()
+                .actionGet();
+            updated++;
+
+            final ClusterState state = client().admin().cluster().prepareState().get().getState();
+            final IndexMetadata newIndex = state.metadata().index("aware-replica");
+            assertThat(newIndex.getNumberOfReplicas(), equalTo(0));
+
+            // replica count of 2 is ideal
+            client().admin()
+                .indices()
+                .prepareUpdateSettings("aware-replica")
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2))
+                .execute()
+                .actionGet();
+            updated++;
+
+            // Since auto expand replica setting take precedence, this should pass
+            client().admin()
+                .indices()
+                .prepareUpdateSettings("aware-replica")
+                .setSettings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                        .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-2")
+                )
+                .execute()
+                .actionGet();
+            updated++;
+
+            // system index - should be able to update
+            client().admin()
+                .indices()
+                .prepareUpdateSettings(".system-index")
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 3))
+                .execute()
+                .actionGet();
+            updated++;
+
+            client().admin()
+                .indices()
+                .prepareUpdateSettings("aware-replica")
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
+                .execute()
+                .actionGet();
+            fail("should have thrown an exception about the replica count");
+
+        } catch (IllegalArgumentException e) {
+            assertEquals(
+                "Validation Failed: 1: expected total copies needs to be a multiple of total awareness attributes [3];",
+                e.getMessage()
+            );
+            assertEquals(4, updated);
+        } finally {
+            manageReplicaSettingForDefaultReplica(false);
+            randomIndexTemplate();
         }
     }
 
