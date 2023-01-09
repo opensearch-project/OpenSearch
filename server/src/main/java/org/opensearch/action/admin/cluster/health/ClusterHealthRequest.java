@@ -58,7 +58,7 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 public class ClusterHealthRequest extends ClusterManagerNodeReadRequest<ClusterHealthRequest> implements IndicesRequest.Replaceable {
 
     private String[] indices;
-    private String awarenessAttribute = "";
+    private String awarenessAttribute;
     private IndicesOptions indicesOptions = IndicesOptions.lenientExpandHidden();
     private TimeValue timeout = new TimeValue(30, TimeUnit.SECONDS);
     private ClusterHealthStatus waitForStatus;
@@ -94,8 +94,10 @@ public class ClusterHealthRequest extends ClusterManagerNodeReadRequest<ClusterH
         }
         waitForNoInitializingShards = in.readBoolean();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        if (in.getVersion().onOrAfter(Version.CURRENT)) {
-            awarenessAttribute = in.readString();
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            if (in.readBoolean()) {
+                awarenessAttribute = in.readString();
+            }
             level = in.readEnum(Level.class);
         }
     }
@@ -126,8 +128,13 @@ public class ClusterHealthRequest extends ClusterManagerNodeReadRequest<ClusterH
         }
         out.writeBoolean(waitForNoInitializingShards);
         indicesOptions.writeIndicesOptions(out);
-        if (out.getVersion().onOrAfter(Version.CURRENT)) {
-            out.writeString(awarenessAttribute);
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            if (awarenessAttribute == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                out.writeString(awarenessAttribute);
+            }
             out.writeEnum(level);
         }
     }
@@ -295,14 +302,14 @@ public class ClusterHealthRequest extends ClusterManagerNodeReadRequest<ClusterH
     }
 
     public String getAwarenessAttribute() {
-        return Objects.requireNonNullElse(awarenessAttribute, "");
+        return awarenessAttribute;
     }
 
     @Override
     public ActionRequestValidationException validate() {
         if (level.equals(Level.AWARENESS_ATTRIBUTE) && indices.length > 0) {
             return addValidationError("awareness_attribute is not a supported parameter with index health", null);
-        } else if (!level.equals(Level.AWARENESS_ATTRIBUTE) && !awarenessAttribute.isBlank()) {
+        } else if (!level.equals(Level.AWARENESS_ATTRIBUTE) && awarenessAttribute != null) {
             return addValidationError("level=awareness_attribute is required with awareness_attribute parameter", null);
         }
         return null;

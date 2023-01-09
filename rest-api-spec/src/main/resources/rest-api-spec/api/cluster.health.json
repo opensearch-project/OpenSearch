@@ -110,7 +110,7 @@
       },
       "awareness_attribute":{
         "type":"string",
-        "description":"The awareness attribute for which teh health is required"
+        "description":"The awareness attribute for which the health is required"
       }
     }
   }

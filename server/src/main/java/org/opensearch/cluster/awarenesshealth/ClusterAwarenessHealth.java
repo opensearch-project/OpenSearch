@@ -47,7 +47,7 @@ public class ClusterAwarenessHealth implements Writeable, ToXContentFragment, It
         boolean displayUnassignedShardLevelInfo;
         ClusterAwarenessAttributesHealth clusterAwarenessAttributesHealth;
         clusterAwarenessAttributesHealthMap = new HashMap<>();
-        // Helper function to get check ig we need for all or for one.
+        // Helper function to check if we need health for all or for one awareness attribute.
         boolean displayAllAwarenessAttribute = shouldDisplayAllAwarenessAttributeHealth(awarenessAttributeName);
         if (!displayAllAwarenessAttribute) {
             displayUnassignedShardLevelInfo = canCalcUnassignedShards(clusterSettings, awarenessAttributeName);
