@@ -44,6 +44,7 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.SetOnce;
 import org.apache.lucene.util.SetOnce.AlreadySetException;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -90,6 +91,9 @@ import org.opensearch.index.similarity.NonNegativeScoresSimilarity;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.index.store.FsDirectoryFactory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
+import org.opensearch.index.translog.InternalTranslogFactory;
+import org.opensearch.index.translog.RemoteBlobStoreInternalTranslogFactory;
+import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.indices.IndicesQueryCache;
 import org.opensearch.indices.analysis.AnalysisModule;
@@ -120,6 +124,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiFunction;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
@@ -217,6 +222,18 @@ public class IndexModuleTests extends OpenSearchTestCase {
     }
 
     private IndexService newIndexService(IndexModule module) throws IOException {
+        final SetOnce<RepositoriesService> repositoriesServiceReference = new SetOnce<>();
+        repositoriesServiceReference.set(repositoriesService);
+        BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier = (indexSettings, shardRouting) -> {
+            if (indexSettings.isRemoteTranslogStoreEnabled() && shardRouting.primary()) {
+                return new RemoteBlobStoreInternalTranslogFactory(
+                    repositoriesServiceReference::get,
+                    threadPool,
+                    indexSettings.getRemoteStoreTranslogRepository()
+                );
+            }
+            return new InternalTranslogFactory();
+        };
         return module.newIndexService(
             CREATE_INDEX,
             nodeEnvironment,
@@ -234,7 +251,8 @@ public class IndexModuleTests extends OpenSearchTestCase {
             writableRegistry(),
             () -> false,
             null,
-            new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService)
+            new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService),
+            translogFactorySupplier
         );
     }
 
