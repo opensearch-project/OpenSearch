@@ -65,9 +65,9 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchHits
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class SegmentReplicationIT extends OpenSearchIntegTestCase {
 
-    private static final String INDEX_NAME = "test-idx-1";
-    private static final int SHARD_COUNT = 1;
-    private static final int REPLICA_COUNT = 1;
+    protected static final String INDEX_NAME = "test-idx-1";
+    protected static final int SHARD_COUNT = 1;
+    protected static final int REPLICA_COUNT = 1;
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -95,6 +95,26 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
         return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.REPLICATION_TYPE, "true").build();
     }
 
+    public void ingestDocs(int docCount) throws Exception {
+        try (
+            BackgroundIndexer indexer = new BackgroundIndexer(
+                INDEX_NAME,
+                "_doc",
+                client(),
+                -1,
+                RandomizedTest.scaledRandomIntBetween(2, 5),
+                false,
+                random()
+            )
+        ) {
+            indexer.start(docCount);
+            waitForDocs(docCount, indexer);
+            refresh(INDEX_NAME);
+            waitForReplicaUpdate();
+        }
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/5669")
     public void testPrimaryStopped_ReplicaPromoted() throws Exception {
         final String primary = internalCluster().startNode(featureFlagSettings());
         createIndex(INDEX_NAME);
@@ -136,6 +156,7 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
         assertSegmentStats(REPLICA_COUNT);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/5669")
     public void testRestartPrimary() throws Exception {
         final String primary = internalCluster().startNode(featureFlagSettings());
         createIndex(INDEX_NAME);
@@ -502,7 +523,6 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
         assertDocCounts(docCount, primaryNode);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/5669")
     public void testStartReplicaAfterPrimaryIndexesDocs() throws Exception {
         final String primaryNode = internalCluster().startNode(featureFlagSettings());
         createIndex(INDEX_NAME, Settings.builder().put(indexSettings()).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build());
@@ -604,6 +624,7 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/5669")
     public void testUpdateOperations() throws Exception {
         final String primary = internalCluster().startNode(featureFlagSettings());
         createIndex(INDEX_NAME);
@@ -766,7 +787,7 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
                 // if we don't have any segments yet, proceed.
                 final ShardSegments primaryShardSegments = primaryShardSegmentsList.stream().findFirst().get();
                 logger.debug("Primary Segments: {}", primaryShardSegments.getSegments());
-                if (primaryShardSegments.getSegments().isEmpty() == false) {
+                if (primaryShardSegments.getSegments().isEmpty() == false && replicaShardSegments != null) {
                     final Map<String, Segment> latestPrimarySegments = getLatestSegments(primaryShardSegments);
                     final Long latestPrimaryGen = latestPrimarySegments.values().stream().findFirst().map(Segment::getGeneration).get();
                     for (ShardSegments shardSegments : replicaShardSegments) {

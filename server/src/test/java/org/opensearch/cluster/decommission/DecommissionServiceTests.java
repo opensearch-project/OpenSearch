@@ -332,7 +332,7 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
     private void setWeightedRoutingWeights(Map<String, Double> weights) {
         ClusterState clusterState = clusterService.state();
         WeightedRouting weightedRouting = new WeightedRouting("zone", weights);
-        WeightedRoutingMetadata weightedRoutingMetadata = new WeightedRoutingMetadata(weightedRouting);
+        WeightedRoutingMetadata weightedRoutingMetadata = new WeightedRoutingMetadata(weightedRouting, 0);
         Metadata.Builder metadataBuilder = Metadata.builder(clusterState.metadata());
         metadataBuilder.putCustom(WeightedRoutingMetadata.TYPE, weightedRoutingMetadata);
         clusterState = ClusterState.builder(clusterState).metadata(metadataBuilder).build();

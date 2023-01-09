@@ -218,6 +218,11 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
     }
 
     @Override
+    public void forceSegmentFileSync(ActionListener<Void> listener) {
+        throw new UnsupportedOperationException("Method not supported on target!");
+    }
+
+    @Override
     public void finalizeRecovery(final long globalCheckpoint, final long trimAboveSeqNo, ActionListener<Void> listener) {
         ActionListener.completeWith(listener, () -> {
             indexShard.updateGlobalCheckpointOnReplica(globalCheckpoint, "finalizing recovery");

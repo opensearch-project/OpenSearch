@@ -71,7 +71,7 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         replicationSource = mock(SegmentReplicationSource.class);
         when(replicationSourceFactory.get(replicaShard)).thenReturn(replicationSource);
 
-        sut = prepareForReplication(primaryShard);
+        sut = prepareForReplication(primaryShard, null);
         initialCheckpoint = replicaShard.getLatestReplicationCheckpoint();
         aheadCheckpoint = new ReplicationCheckpoint(
             initialCheckpoint.getShardId(),

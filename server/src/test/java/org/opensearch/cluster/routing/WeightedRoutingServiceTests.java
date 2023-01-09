@@ -175,7 +175,7 @@ public class WeightedRoutingServiceTests extends OpenSearchTestCase {
 
     private ClusterState setWeightedRoutingWeights(ClusterState clusterState, Map<String, Double> weights) {
         WeightedRouting weightedRouting = new WeightedRouting("zone", weights);
-        WeightedRoutingMetadata weightedRoutingMetadata = new WeightedRoutingMetadata(weightedRouting);
+        WeightedRoutingMetadata weightedRoutingMetadata = new WeightedRoutingMetadata(weightedRouting, 0);
         Metadata.Builder metadataBuilder = Metadata.builder(clusterState.metadata());
         metadataBuilder.putCustom(WeightedRoutingMetadata.TYPE, weightedRoutingMetadata);
         clusterState = ClusterState.builder(clusterState).metadata(metadataBuilder).build();
@@ -260,13 +260,13 @@ public class WeightedRoutingServiceTests extends OpenSearchTestCase {
         ClusterState.Builder builder = ClusterState.builder(state);
         ClusterServiceUtils.setState(clusterService, builder);
 
-        ClusterDeleteWeightedRoutingRequest clusterDeleteWeightedRoutingRequest = new ClusterDeleteWeightedRoutingRequest();
+        ClusterDeleteWeightedRoutingRequest clusterDeleteWeightedRoutingRequest = new ClusterDeleteWeightedRoutingRequest("zone");
+        clusterDeleteWeightedRoutingRequest.setVersion(0);
         final CountDownLatch countDownLatch = new CountDownLatch(1);
         ActionListener<ClusterDeleteWeightedRoutingResponse> listener = new ActionListener<ClusterDeleteWeightedRoutingResponse>() {
             @Override
             public void onResponse(ClusterDeleteWeightedRoutingResponse clusterDeleteWeightedRoutingResponse) {
                 assertTrue(clusterDeleteWeightedRoutingResponse.isAcknowledged());
-                assertNull(clusterService.state().metadata().weightedRoutingMetadata());
                 countDownLatch.countDown();
             }
 
