@@ -47,7 +47,7 @@ public class RemoteFsTranslog extends Translog {
     private final FileTransferTracker fileTransferTracker;
     private volatile long maxRemoteTranslogGenerationUploaded;
 
-    private volatile long minSeqNoRequired;
+    private volatile long minSeqNoToKeep;
 
     public RemoteFsTranslog(
         TranslogConfig config,
@@ -289,7 +289,7 @@ public class RemoteFsTranslog extends Translog {
         assert readLock.isHeldByCurrentThread() || writeLock.isHeldByCurrentThread();
         long minReferencedGen = Math.min(
             deletionPolicy.minTranslogGenRequired(readers, current),
-            minGenerationForSeqNo(Math.min(deletionPolicy.getLocalCheckpointOfSafeCommit() + 1, minSeqNoRequired), current, readers)
+            minGenerationForSeqNo(Math.min(deletionPolicy.getLocalCheckpointOfSafeCommit() + 1, minSeqNoToKeep), current, readers)
         );
         assert minReferencedGen >= getMinFileGeneration() : "deletion policy requires a minReferenceGen of ["
             + minReferencedGen
@@ -304,13 +304,13 @@ public class RemoteFsTranslog extends Translog {
         return minReferencedGen;
     }
 
-    protected void setMinSeqNoRequired(long seqNo) {
-        if (seqNo < this.minSeqNoRequired) {
+    protected void setMinSeqNoToKeep(long seqNo) {
+        if (seqNo < this.minSeqNoToKeep) {
             throw new IllegalArgumentException(
-                "min seq number required can't go backwards: " + "current [" + this.minSeqNoRequired + "] new [" + seqNo + "]"
+                "min seq number required can't go backwards: " + "current [" + this.minSeqNoToKeep + "] new [" + seqNo + "]"
             );
         }
-        this.minSeqNoRequired = seqNo;
+        this.minSeqNoToKeep = seqNo;
     }
 
     @Override

@@ -290,8 +290,8 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
     }
 
     @Override
-    public void minSeqNoRequired(long seqNo) {
-        translog.setMinSeqNoRequired(seqNo);
+    public void setMinSeqNoToKeep(long seqNo) {
+        translog.setMinSeqNoToKeep(seqNo);
     }
 
     /**

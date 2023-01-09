@@ -228,7 +228,7 @@ public final class NoOpEngine extends ReadOnlyEngine {
                 }
 
                 @Override
-                public void minSeqNoRequired(long seqNo) {}
+                public void setMinSeqNoToKeep(long seqNo) {}
             };
         } catch (IOException ex) {
             throw new RuntimeException(ex);

@@ -125,5 +125,5 @@ public interface TranslogManager {
      * @param seqNo : operations greater or equal to seqNo should be persisted
      * This might be required when segments are persisted via other mechanism than flush.
      */
-    void minSeqNoRequired(long seqNo);
+    void setMinSeqNoToKeep(long seqNo);
 }

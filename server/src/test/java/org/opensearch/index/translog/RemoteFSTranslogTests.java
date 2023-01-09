@@ -499,7 +499,7 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
         // expose the new checkpoint (simulating a commit), before we trim the translog
         translog.deletionPolicy.setLocalCheckpointOfSafeCommit(0);
         // simulating the remote segment upload .
-        translog.setMinSeqNoRequired(0);
+        translog.setMinSeqNoToKeep(0);
         // This should not trim anything
         translog.trimUnreferencedReaders();
         assertEquals(translog.allUploaded().size(), 4);
@@ -514,7 +514,7 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
         );
 
         // This should trim tlog-2.* files as it contains seq no 0
-        translog.setMinSeqNoRequired(1);
+        translog.setMinSeqNoToKeep(1);
         translog.trimUnreferencedReaders();
         assertEquals(translog.allUploaded().size(), 2);
         assertEquals(
@@ -716,7 +716,7 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
                                 // expose the new checkpoint (simulating a commit), before we trim the translog
                                 lastCommittedLocalCheckpoint.set(localCheckpoint);
                                 deletionPolicy.setLocalCheckpointOfSafeCommit(localCheckpoint);
-                                translog.setMinSeqNoRequired(localCheckpoint + 1);
+                                translog.setMinSeqNoToKeep(localCheckpoint + 1);
                                 translog.trimUnreferencedReaders();
                             }
                         }

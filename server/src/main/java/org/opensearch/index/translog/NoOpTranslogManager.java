@@ -96,7 +96,7 @@ public class NoOpTranslogManager implements TranslogManager {
     public void ensureCanFlush() {}
 
     @Override
-    public void minSeqNoRequired(long seqNo) {}
+    public void setMinSeqNoToKeep(long seqNo) {}
 
     @Override
     public int restoreLocalHistoryFromTranslog(long processedCheckpoint, TranslogRecoveryRunner translogRecoveryRunner) throws IOException {
