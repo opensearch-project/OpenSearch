@@ -237,6 +237,7 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
             .cluster()
             .prepareWeightedRouting()
             .setWeightedRouting(weightedRouting)
+            .setVersion(-1)
             .get();
         assertEquals(response.isAcknowledged(), true);
     }

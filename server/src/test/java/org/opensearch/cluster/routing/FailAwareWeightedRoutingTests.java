@@ -76,7 +76,7 @@ public class FailAwareWeightedRoutingTests extends OpenSearchTestCase {
         // set up weighted routing weights
         Map<String, Double> weights = Map.of("a", 1.0, "b", 1.0, "c", 0.0);
         WeightedRouting weightedRouting = new WeightedRouting("zone", weights);
-        WeightedRoutingMetadata weightedRoutingMetadata = new WeightedRoutingMetadata(weightedRouting);
+        WeightedRoutingMetadata weightedRoutingMetadata = new WeightedRoutingMetadata(weightedRouting, 0);
         Metadata.Builder metadataBuilder = Metadata.builder(clusterState.metadata());
         metadataBuilder.putCustom(WeightedRoutingMetadata.TYPE, weightedRoutingMetadata);
         clusterState = ClusterState.builder(clusterState).metadata(metadataBuilder).build();
