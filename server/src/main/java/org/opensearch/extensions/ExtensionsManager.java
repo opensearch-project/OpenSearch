@@ -556,34 +556,35 @@ public class ExtensionsManager {
 
     private ExtensionsSettings readFromExtensionsYml(Path filePath) throws IOException {
         Yaml yaml = new Yaml();
-        InputStream inputStream = Files.newInputStream(filePath);
-        Map<String, Object> obj = yaml.load(inputStream);
-        if (obj == null) {
+        try (InputStream inputStream = Files.newInputStream(filePath)) {
+            Map<String, Object> obj = yaml.load(inputStream);
+            if (obj == null) {
+                inputStream.close();
+                throw new IOException("extensions.yml is empty");
+            }
+            List<HashMap<String, ?>> unreadExtensions = new ArrayList<>((Collection<HashMap<String, ?>>) obj.get("extensions"));
+            List<Extension> readExtensions = new ArrayList<Extension>();
+            for (HashMap<String, ?> extensionMap : unreadExtensions) {
+                readExtensions.add(
+                    new Extension(
+                        extensionMap.get("name").toString(),
+                        extensionMap.get("uniqueId").toString(),
+                        extensionMap.get("hostName").toString(),
+                        extensionMap.get("hostAddress").toString(),
+                        extensionMap.get("port").toString(),
+                        extensionMap.get("version").toString(),
+                        extensionMap.get("description").toString(),
+                        extensionMap.get("opensearchVersion").toString(),
+                        extensionMap.get("javaVersion").toString(),
+                        extensionMap.get("className").toString(),
+                        extensionMap.get("customFolderName").toString(),
+                        extensionMap.get("hasNativeController").toString()
+                    )
+                );
+            }
             inputStream.close();
-            throw new IOException("extensions.yml is empty");
+            return new ExtensionsSettings(readExtensions);
         }
-        List<HashMap<String, ?>> unreadExtensions = new ArrayList<>((Collection<HashMap<String, ?>>) obj.get("extensions"));
-        List<Extension> readExtensions = new ArrayList<Extension>();
-        for (HashMap<String, ?> extensionMap : unreadExtensions) {
-            readExtensions.add(
-                new Extension(
-                    extensionMap.get("name").toString(),
-                    extensionMap.get("uniqueId").toString(),
-                    extensionMap.get("hostName").toString(),
-                    extensionMap.get("hostAddress").toString(),
-                    extensionMap.get("port").toString(),
-                    extensionMap.get("version").toString(),
-                    extensionMap.get("description").toString(),
-                    extensionMap.get("opensearchVersion").toString(),
-                    extensionMap.get("javaVersion").toString(),
-                    extensionMap.get("className").toString(),
-                    extensionMap.get("customFolderName").toString(),
-                    extensionMap.get("hasNativeController").toString()
-                )
-            );
-        }
-        inputStream.close();
-        return new ExtensionsSettings(readExtensions);
     }
 
     public static String getRequestExtensionActionName() {
