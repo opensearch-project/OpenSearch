@@ -79,6 +79,12 @@ grant codeBase "${codebase.jna}" {
   permission java.lang.RuntimePermission "accessDeclaredMembers";
 };
 
+grant codeBase "${codebase.jackson-databind}" {
+  // Jackson Databind needs access to declared members and makes them visible
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+};
+
 //// Everything else:
 
 grant {
@@ -100,9 +106,6 @@ grant {
   permission jdk.net.NetworkPermission "getOption.TCP_KEEPCOUNT";
   permission jdk.net.NetworkPermission "setOption.TCP_KEEPCOUNT";
 
-  permission java.lang.RuntimePermission "accessDeclaredMembers";
-  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
-  
   // Allow read access to all system properties
   permission java.util.PropertyPermission "*", "read";
 
