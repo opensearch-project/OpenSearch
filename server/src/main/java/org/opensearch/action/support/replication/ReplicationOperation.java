@@ -35,13 +35,14 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.Assertions;
-import org.opensearch.OpenSearchException;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.UnavailableShardsException;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.RetryableAction;
 import org.opensearch.action.support.TransportActions;
+import org.opensearch.action.support.replication.ReplicationProxyRequest.Builder;
 import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
@@ -65,6 +66,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 
 /**
@@ -99,6 +101,7 @@ public class ReplicationOperation<
     private final TimeValue initialRetryBackoffBound;
     private final TimeValue retryTimeout;
     private final long primaryTerm;
+    private final ReplicationProxy<ReplicaRequest> replicationProxy;
 
     // exposed for tests
     private final ActionListener<PrimaryResultT> resultListener;
@@ -117,7 +120,8 @@ public class ReplicationOperation<
         String opType,
         long primaryTerm,
         TimeValue initialRetryBackoffBound,
-        TimeValue retryTimeout
+        TimeValue retryTimeout,
+        ReplicationProxy<ReplicaRequest> replicationProxy
     ) {
         this.replicasProxy = replicas;
         this.primary = primary;
@@ -129,6 +133,7 @@ public class ReplicationOperation<
         this.primaryTerm = primaryTerm;
         this.initialRetryBackoffBound = initialRetryBackoffBound;
         this.retryTimeout = retryTimeout;
+        this.replicationProxy = replicationProxy;
     }
 
     public void execute() throws Exception {
@@ -226,20 +231,28 @@ public class ReplicationOperation<
 
         final ShardRouting primaryRouting = primary.routingEntry();
 
-        for (final ShardRouting shard : replicationGroup.getReplicationTargets()) {
-            if (shard.isSameAllocation(primaryRouting) == false) {
-                performOnReplica(shard, replicaRequest, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, pendingReplicationActions);
-            }
+        for (final ShardRouting shardRouting : replicationGroup.getReplicationTargets()) {
+            ReplicationProxyRequest<ReplicaRequest> proxyRequest = new Builder<ReplicaRequest>(
+                shardRouting,
+                primaryRouting,
+                globalCheckpoint,
+                maxSeqNoOfUpdatesOrDeletes,
+                pendingReplicationActions,
+                replicaRequest,
+                primaryTerm
+            ).build();
+            replicationProxy.performOnReplicaProxy(proxyRequest, this::performOnReplica);
         }
     }
 
     private void performOnReplica(
-        final ShardRouting shard,
-        final ReplicaRequest replicaRequest,
-        final long globalCheckpoint,
-        final long maxSeqNoOfUpdatesOrDeletes,
-        final PendingReplicationActions pendingReplicationActions
+        final Consumer<ActionListener<ReplicaResponse>> replicasProxyConsumer,
+        final ReplicationProxyRequest<ReplicaRequest> replicationProxyRequest
     ) {
+        final ShardRouting shard = replicationProxyRequest.getShardRouting();
+        final ReplicaRequest replicaRequest = replicationProxyRequest.getReplicaRequest();
+        final PendingReplicationActions pendingReplicationActions = replicationProxyRequest.getPendingReplicationActions();
+
         if (logger.isTraceEnabled()) {
             logger.trace("[{}] sending op [{}] to replica {} for request [{}]", shard.shardId(), opType, shard, replicaRequest);
         }
@@ -309,7 +322,7 @@ public class ReplicationOperation<
 
             @Override
             public void tryAction(ActionListener<ReplicaResponse> listener) {
-                replicasProxy.performOn(shard, replicaRequest, primaryTerm, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, listener);
+                replicasProxyConsumer.accept(listener);
             }
 
             @Override

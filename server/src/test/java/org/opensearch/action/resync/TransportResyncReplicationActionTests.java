@@ -31,10 +31,14 @@
 
 package org.opensearch.action.resync;
 
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.PlainActionFuture;
+import org.opensearch.action.support.replication.PendingReplicationActions;
+import org.opensearch.action.support.replication.ReplicationMode;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.block.ClusterBlocks;
@@ -47,6 +51,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.network.NetworkService;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.index.Index;
@@ -65,31 +70,31 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TransportService;
 import org.opensearch.transport.nio.MockNioTransport;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
 
 import java.nio.charset.Charset;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
-import static org.opensearch.action.support.replication.ClusterStateCreationUtils.state;
-import static org.opensearch.test.ClusterServiceUtils.createClusterService;
-import static org.opensearch.test.ClusterServiceUtils.setState;
-import static org.opensearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyString;
-import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.opensearch.action.support.replication.ClusterStateCreationUtils.state;
+import static org.opensearch.test.ClusterServiceUtils.createClusterService;
+import static org.opensearch.test.ClusterServiceUtils.setState;
+import static org.opensearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
 
 public class TransportResyncReplicationActionTests extends OpenSearchTestCase {
 
@@ -156,23 +161,26 @@ public class TransportResyncReplicationActionTests extends OpenSearchTestCase {
 
                 final AtomicInteger acquiredPermits = new AtomicInteger();
                 final IndexShard indexShard = mock(IndexShard.class);
+                final PendingReplicationActions replicationActions = new PendingReplicationActions(shardId, threadPool);
                 when(indexShard.indexSettings()).thenReturn(new IndexSettings(indexMetadata, Settings.EMPTY));
                 when(indexShard.shardId()).thenReturn(shardId);
                 when(indexShard.routingEntry()).thenReturn(primaryShardRouting);
                 when(indexShard.getPendingPrimaryTerm()).thenReturn(primaryTerm);
                 when(indexShard.getOperationPrimaryTerm()).thenReturn(primaryTerm);
                 when(indexShard.getActiveOperationsCount()).then(i -> acquiredPermits.get());
+                when(indexShard.getPendingReplicationActions()).thenReturn(replicationActions);
                 doAnswer(invocation -> {
                     ActionListener<Releasable> callback = (ActionListener<Releasable>) invocation.getArguments()[0];
                     acquiredPermits.incrementAndGet();
                     callback.onResponse(acquiredPermits::decrementAndGet);
                     return null;
                 }).when(indexShard).acquirePrimaryOperationPermit(any(ActionListener.class), anyString(), any(), eq(true));
+                Set<String> trackedAllocationIds = shardRoutingTable.getAllAllocationIds();
                 when(indexShard.getReplicationGroup()).thenReturn(
                     new ReplicationGroup(
                         shardRoutingTable,
                         clusterService.state().metadata().index(index).inSyncAllocationIds(shardId.id()),
-                        shardRoutingTable.getAllAllocationIds(),
+                        trackedAllocationIds,
                         0
                     )
                 );
@@ -216,5 +224,36 @@ public class TransportResyncReplicationActionTests extends OpenSearchTestCase {
                 assertThat(listener.isDone(), is(true));
             }
         }
+    }
+
+    public void testGetReplicationModeWithRemoteTranslog() {
+        final TransportResyncReplicationAction action = createAction();
+        final IndexShard indexShard = mock(IndexShard.class);
+        when(indexShard.isRemoteTranslogEnabled()).thenReturn(true);
+        assertEquals(ReplicationMode.NO_REPLICATION, action.getReplicationMode(indexShard));
+    }
+
+    public void testGetReplicationModeWithLocalTranslog() {
+        final TransportResyncReplicationAction action = createAction();
+        final IndexShard indexShard = mock(IndexShard.class);
+        when(indexShard.isRemoteTranslogEnabled()).thenReturn(false);
+        assertEquals(ReplicationMode.FULL_REPLICATION, action.getReplicationMode(indexShard));
+    }
+
+    private TransportResyncReplicationAction createAction() {
+        ClusterService clusterService = mock(ClusterService.class);
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        return new TransportResyncReplicationAction(
+            Settings.EMPTY,
+            mock(TransportService.class),
+            clusterService,
+            mock(IndicesService.class),
+            threadPool,
+            mock(ShardStateAction.class),
+            new ActionFilters(new HashSet<>()),
+            mock(IndexingPressureService.class),
+            new SystemIndices(emptyMap())
+        );
     }
 }
