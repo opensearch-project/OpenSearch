@@ -334,7 +334,7 @@ public class LuceneTests extends OpenSearchTestCase {
      */
     public void testReadSegmentInfosExtendedCompatibility() throws IOException {
         final String pathToTestIndex = "/indices/bwc/es-6.3.0/testIndex-es-6.3.0.zip";
-        final Version minVersion = LegacyESVersion.fromId(6000099);
+        final Version minVersion = LegacyESVersion.V_6_0_0;
         Path tmp = createTempDir();
         TestUtil.unzip(getClass().getResourceAsStream(pathToTestIndex), tmp);
         try (MockDirectoryWrapper dir = newMockFSDirectory(tmp)) {

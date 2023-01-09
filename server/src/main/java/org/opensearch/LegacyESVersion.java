@@ -48,6 +48,8 @@ import java.lang.reflect.Field;
  */
 public class LegacyESVersion extends Version {
 
+    public static final LegacyESVersion V_6_0_0 = new LegacyESVersion(6000099, org.apache.lucene.util.Version.fromBits(7, 0, 0));
+
     // todo move back to Version.java if retiring legacy version support
     protected static final ImmutableOpenIntMap<Version> idToVersion;
     protected static final ImmutableOpenMap<String, Version> stringToVersion;
@@ -236,5 +238,23 @@ public class LegacyESVersion extends Version {
             sb.append(build - 50);
         }
         return sb.toString();
+    }
+
+    @Override
+    protected Version computeMinIndexCompatVersion() {
+        final int prevLuceneVersionMajor = this.luceneVersion.major - 1;
+        final int bwcMajor;
+        if (major == 5) {
+            bwcMajor = 2; // we jumped from 2 to 5
+        } else if (major == 7) {
+            return LegacyESVersion.fromId(6000026);
+        } else {
+            bwcMajor = major - 1;
+        }
+        final int bwcMinor = 0;
+        return new LegacyESVersion(
+            bwcMajor * 1000000 + bwcMinor * 10000 + 99,
+            org.apache.lucene.util.Version.fromBits(prevLuceneVersionMajor, 0, 0)
+        );
     }
 }

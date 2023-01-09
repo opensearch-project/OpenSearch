@@ -38,7 +38,7 @@ import org.opensearch.repositories.blobstore.BlobStoreRepository;
  */
 public final class RemoteSnapshotDirectory extends Directory {
 
-    public static final Version SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION = LegacyESVersion.fromId(6000099);
+    public static final Version SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION = LegacyESVersion.V_6_0_0;
 
     private static final String VIRTUAL_FILE_PREFIX = BlobStoreRepository.VIRTUAL_DATA_BLOB_PREFIX;
 
