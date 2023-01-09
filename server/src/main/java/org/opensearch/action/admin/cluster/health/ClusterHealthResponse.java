@@ -32,6 +32,7 @@
 
 package org.opensearch.action.admin.cluster.health;
 
+import org.opensearch.Version;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.awarenesshealth.ClusterAwarenessHealth;
@@ -52,7 +53,6 @@ import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -204,7 +204,11 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         numberOfInFlightFetch = in.readInt();
         delayedUnassignedShards = in.readInt();
         taskMaxWaitingTime = in.readTimeValue();
-        clusterAwarenessHealth = new ClusterAwarenessHealth(in);
+        if (in.getVersion().onOrAfter(Version.V_2_5_0) && in.readBoolean()) {
+            clusterAwarenessHealth = new ClusterAwarenessHealth(in);
+        } else {
+            clusterAwarenessHealth = null;
+        }
     }
 
     /** needed for plugins BWC */
@@ -397,7 +401,14 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         out.writeInt(numberOfInFlightFetch);
         out.writeInt(delayedUnassignedShards);
         out.writeTimeValue(taskMaxWaitingTime);
-        Objects.requireNonNullElseGet(clusterAwarenessHealth, () -> new ClusterAwarenessHealth(Collections.emptyMap())).writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_2_5_0)) {
+            if (clusterAwarenessHealth != null) {
+                out.writeBoolean(true);
+                clusterAwarenessHealth.writeTo(out);
+            } else {
+                out.writeBoolean(false);
+            }
+        }
     }
 
     @Override
@@ -443,7 +454,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
             builder.endObject();
         }
 
-        if (outputAwarenessHealth) {
+        if (outputAwarenessHealth && clusterAwarenessHealth != null) {
             clusterAwarenessHealth.toXContent(builder, params);
         }
 

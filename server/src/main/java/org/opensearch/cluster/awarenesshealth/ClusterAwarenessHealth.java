@@ -89,10 +89,6 @@ public class ClusterAwarenessHealth implements Writeable, ToXContentFragment, It
         }
     }
 
-    public ClusterAwarenessHealth(Map<String, ClusterAwarenessAttributesHealth> clusterAwarenessAttributesHealthMap) {
-        this.clusterAwarenessAttributesHealthMap = clusterAwarenessAttributesHealthMap;
-    }
-
     private boolean shouldDisplayAllAwarenessAttributeHealth(String awarenessAttribute) {
         if (awarenessAttribute == null) {
             return true;
