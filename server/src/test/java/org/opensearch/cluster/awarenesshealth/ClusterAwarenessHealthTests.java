@@ -43,6 +43,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
@@ -130,9 +131,11 @@ public class ClusterAwarenessHealthTests extends OpenSearchTestCase {
 
         ClusterAwarenessHealth clusterAwarenessHealth = new ClusterAwarenessHealth(clusterState, clusterSettings, "zone");
         clusterAwarenessHealth = serializeResponse(clusterAwarenessHealth);
-        ClusterAwarenessAttributesHealth attributeHealth = clusterAwarenessHealth.getAwarenessAttributeHealth();
-        assertEquals(0, attributeHealth.getAwarenessAttributeHealthMap().size());
-        assertEquals("zone", attributeHealth.getAwarenessAttributeName());
+        Map<String, ClusterAwarenessAttributesHealth> attributeHealthMap = clusterAwarenessHealth.getClusterAwarenessAttributesHealthMap();
+        for (String attributesName : attributeHealthMap.keySet()) {
+            assertEquals("zone", attributesName);
+            assertEquals(0, attributeHealthMap.get(attributesName).getAwarenessAttributeHealthMap().size());
+        }
     }
 
     ClusterAwarenessHealth serializeResponse(ClusterAwarenessHealth clusterAwarenessHealth) throws IOException {
@@ -178,9 +181,11 @@ public class ClusterAwarenessHealthTests extends OpenSearchTestCase {
 
         ClusterAwarenessHealth clusterAwarenessHealth = new ClusterAwarenessHealth(clusterState, clusterSettings, "zone");
         clusterAwarenessHealth = serializeResponse(clusterAwarenessHealth);
-        ClusterAwarenessAttributesHealth attributeHealth = clusterAwarenessHealth.getAwarenessAttributeHealth();
-        assertEquals(0, attributeHealth.getAwarenessAttributeHealthMap().size());
-        assertEquals("zone", attributeHealth.getAwarenessAttributeName());
+        Map<String, ClusterAwarenessAttributesHealth> attributeHealthMap = clusterAwarenessHealth.getClusterAwarenessAttributesHealthMap();
+        for (String attributesName : attributeHealthMap.keySet()) {
+            assertEquals("zone", attributesName);
+            assertEquals(0, attributeHealthMap.get(attributesName).getAwarenessAttributeHealthMap().size());
+        }
     }
 
     public void testClusterHealthWithAwarenessAttributeAndNodeAttribute() throws IOException {
@@ -246,12 +251,15 @@ public class ClusterAwarenessHealthTests extends OpenSearchTestCase {
 
         ClusterAwarenessHealth clusterAwarenessHealth = new ClusterAwarenessHealth(clusterState, clusterSettings, "zone");
         clusterAwarenessHealth = serializeResponse(clusterAwarenessHealth);
-        ClusterAwarenessAttributesHealth attributeHealth = clusterAwarenessHealth.getAwarenessAttributeHealth();
-        assertEquals("zone", attributeHealth.getAwarenessAttributeName());
-        assertEquals(3, attributeHealth.getAwarenessAttributeHealthMap().size());
-        for (ClusterAwarenessAttributeValueHealth clusterAwarenessAttributeValueHealth : attributeHealth.getAwarenessAttributeHealthMap()
-            .values()) {
-            assertEquals(-1, clusterAwarenessAttributeValueHealth.getUnassignedShards());
+        Map<String, ClusterAwarenessAttributesHealth> attributeHealthMap = clusterAwarenessHealth.getClusterAwarenessAttributesHealthMap();
+        for (String attributesName : attributeHealthMap.keySet()) {
+            assertEquals("zone", attributesName);
+            assertEquals(3, attributeHealthMap.get(attributesName).getAwarenessAttributeHealthMap().size());
+            for (ClusterAwarenessAttributeValueHealth clusterAwarenessAttributeValueHealth : attributeHealthMap.get(attributesName)
+                .getAwarenessAttributeHealthMap()
+                .values()) {
+                assertEquals(-1, clusterAwarenessAttributeValueHealth.getUnassignedShards());
+            }
         }
     }
 
@@ -320,12 +328,15 @@ public class ClusterAwarenessHealthTests extends OpenSearchTestCase {
 
         ClusterAwarenessHealth clusterAwarenessHealth = new ClusterAwarenessHealth(clusterState, clusterSettings, "zone");
         clusterAwarenessHealth = serializeResponse(clusterAwarenessHealth);
-        ClusterAwarenessAttributesHealth attributeHealth = clusterAwarenessHealth.getAwarenessAttributeHealth();
-        assertEquals("zone", attributeHealth.getAwarenessAttributeName());
-        assertEquals(3, attributeHealth.getAwarenessAttributeHealthMap().size());
-        for (ClusterAwarenessAttributeValueHealth clusterAwarenessAttributeValueHealth : attributeHealth.getAwarenessAttributeHealthMap()
-            .values()) {
-            assertEquals("1.0", String.valueOf(clusterAwarenessAttributeValueHealth.getWeight()));
+        Map<String, ClusterAwarenessAttributesHealth> attributeHealthMap = clusterAwarenessHealth.getClusterAwarenessAttributesHealthMap();
+        for (String attributesName : attributeHealthMap.keySet()) {
+            assertEquals("zone", attributesName);
+            assertEquals(3, attributeHealthMap.get(attributesName).getAwarenessAttributeHealthMap().size());
+            for (ClusterAwarenessAttributeValueHealth clusterAwarenessAttributeValueHealth : attributeHealthMap.get(attributesName)
+                .getAwarenessAttributeHealthMap()
+                .values()) {
+                assertEquals(1.0, clusterAwarenessAttributeValueHealth.getWeight(), 0.0);
+            }
         }
     }
 
@@ -393,12 +404,16 @@ public class ClusterAwarenessHealthTests extends OpenSearchTestCase {
 
         ClusterAwarenessHealth clusterAwarenessHealth = new ClusterAwarenessHealth(clusterState, clusterSettings, "zone");
         clusterAwarenessHealth = serializeResponse(clusterAwarenessHealth);
-        ClusterAwarenessAttributesHealth attributeHealth = clusterAwarenessHealth.getAwarenessAttributeHealth();
-        assertEquals(3, attributeHealth.getAwarenessAttributeHealthMap().size());
-        for (ClusterAwarenessAttributeValueHealth clusterAwarenessAttributeValueHealth : attributeHealth.getAwarenessAttributeHealthMap()
-            .values()) {
-            assertEquals(-1, clusterAwarenessAttributeValueHealth.getUnassignedShards());
-            assertEquals("1.0", String.valueOf(clusterAwarenessAttributeValueHealth.getWeight()));
+        Map<String, ClusterAwarenessAttributesHealth> attributeHealthMap = clusterAwarenessHealth.getClusterAwarenessAttributesHealthMap();
+        for (String attributesName : attributeHealthMap.keySet()) {
+            assertEquals("zone", attributesName);
+            assertEquals(3, attributeHealthMap.get(attributesName).getAwarenessAttributeHealthMap().size());
+            for (ClusterAwarenessAttributeValueHealth clusterAwarenessAttributeValueHealth : attributeHealthMap.get(attributesName)
+                .getAwarenessAttributeHealthMap()
+                .values()) {
+                assertEquals(-1, clusterAwarenessAttributeValueHealth.getUnassignedShards());
+                assertEquals(1.0, clusterAwarenessAttributeValueHealth.getWeight(), 0.0);
+            }
         }
     }
 }

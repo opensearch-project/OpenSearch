@@ -35,6 +35,7 @@ package org.opensearch.action.admin.cluster.health;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.ActiveShardCount;
@@ -454,6 +455,26 @@ public class TransportClusterHealthAction extends TransportClusterManagerNodeRea
     ) {
         if (logger.isTraceEnabled()) {
             logger.trace("Calculating health based on state version [{}]", clusterState.version());
+        }
+
+        if (request.level().equals(ClusterHealthRequest.Level.AWARENESS_ATTRIBUTE)) {
+            Version minimumNodeVersion = clusterState.getNodes().getMinNodeVersion();
+            if (minimumNodeVersion.before(Version.V_2_5_0)) {
+                throw new IllegalArgumentException(
+                    "All the nodes in cluster should be on version later than or equal to 2.5.0. level=awareness_attribute is not a supported parameter for lower versions."
+                );
+            }
+            String awarenessAttribute = request.getAwarenessAttribute();
+            return new ClusterHealthResponse(
+                clusterState.getClusterName().value(),
+                clusterState,
+                clusterService.getClusterSettings(),
+                awarenessAttribute,
+                numberOfPendingTasks,
+                numberOfInFlightFetch,
+                UnassignedInfo.getNumberOfDelayedUnassigned(clusterState),
+                pendingTaskTimeInQueue
+            );
         }
 
         String[] concreteIndices;

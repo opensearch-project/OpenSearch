@@ -47,6 +47,8 @@ import java.io.IOException;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
+import static org.opensearch.action.ValidateActions.addValidationError;
+
 /**
  * Transport request for requesting cluster health
  *
@@ -55,6 +57,7 @@ import java.util.concurrent.TimeUnit;
 public class ClusterHealthRequest extends ClusterManagerNodeReadRequest<ClusterHealthRequest> implements IndicesRequest.Replaceable {
 
     private String[] indices;
+    private String awarenessAttribute = "";
     private IndicesOptions indicesOptions = IndicesOptions.lenientExpandHidden();
     private TimeValue timeout = new TimeValue(30, TimeUnit.SECONDS);
     private ClusterHealthStatus waitForStatus;
@@ -78,6 +81,8 @@ public class ClusterHealthRequest extends ClusterManagerNodeReadRequest<ClusterH
     public ClusterHealthRequest(StreamInput in) throws IOException {
         super(in);
         indices = in.readStringArray();
+        awarenessAttribute = in.readString();
+        level = in.readEnum(Level.class);
         timeout = in.readTimeValue();
         if (in.readBoolean()) {
             waitForStatus = ClusterHealthStatus.fromValue(in.readByte());
@@ -100,6 +105,8 @@ public class ClusterHealthRequest extends ClusterManagerNodeReadRequest<ClusterH
         } else {
             out.writeStringArray(indices);
         }
+        out.writeString(awarenessAttribute);
+        out.writeEnum(level);
         out.writeTimeValue(timeout);
         if (waitForStatus == null) {
             out.writeBoolean(false);
@@ -277,8 +284,22 @@ public class ClusterHealthRequest extends ClusterManagerNodeReadRequest<ClusterH
         return level;
     }
 
+    public ClusterHealthRequest setAwarenessAttribute(String awarenessAttribute) {
+        this.awarenessAttribute = awarenessAttribute;
+        return this;
+    }
+
+    public String getAwarenessAttribute() {
+        return Objects.requireNonNullElse(awarenessAttribute, "");
+    }
+
     @Override
     public ActionRequestValidationException validate() {
+        if (level.equals(Level.AWARENESS_ATTRIBUTE) && indices.length > 0) {
+            return addValidationError("awareness_attribute is not a supported parameter with index health", null);
+        } else if (!level.equals(Level.AWARENESS_ATTRIBUTE) && !awarenessAttribute.isBlank()) {
+            return addValidationError("level=awareness_attribute is required with awareness_attribute parameter", null);
+        }
         return null;
     }
 
@@ -290,6 +311,7 @@ public class ClusterHealthRequest extends ClusterManagerNodeReadRequest<ClusterH
     public enum Level {
         CLUSTER,
         INDICES,
-        SHARDS
+        SHARDS,
+        AWARENESS_ATTRIBUTE
     }
 }
