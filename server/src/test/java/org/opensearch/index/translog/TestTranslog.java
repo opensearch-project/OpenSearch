@@ -38,6 +38,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.common.io.stream.InputStreamStreamInput;
 import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -281,6 +282,90 @@ public class TestTranslog {
             return version == TranslogHeader.VERSION_CHECKPOINTS;
         } catch (IllegalStateException | TranslogCorruptedException | IOException e) {
             return false;
+        }
+    }
+
+    static class LocationOperation implements Comparable<LocationOperation> {
+        final Translog.Operation operation;
+        final Translog.Location location;
+
+        LocationOperation(Translog.Operation operation, Translog.Location location) {
+            this.operation = operation;
+            this.location = location;
+        }
+
+        @Override
+        public int compareTo(LocationOperation o) {
+            return location.compareTo(o.location);
+        }
+    }
+
+    static class FailSwitch {
+        private volatile int failRate;
+        private volatile boolean onceFailedFailAlways = false;
+
+        public boolean fail() {
+            final int rnd = OpenSearchTestCase.randomIntBetween(1, 100);
+            boolean fail = rnd <= failRate;
+            if (fail && onceFailedFailAlways) {
+                failAlways();
+            }
+            return fail;
+        }
+
+        public void failNever() {
+            failRate = 0;
+        }
+
+        public void failAlways() {
+            failRate = 100;
+        }
+
+        public void failRandomly() {
+            failRate = OpenSearchTestCase.randomIntBetween(1, 100);
+        }
+
+        public void failRate(int rate) {
+            failRate = rate;
+        }
+
+        public void onceFailedFailAlways() {
+            onceFailedFailAlways = true;
+        }
+    }
+
+    static class SortedSnapshot implements Translog.Snapshot {
+        private final Translog.Snapshot snapshot;
+        private List<Translog.Operation> operations = null;
+
+        SortedSnapshot(Translog.Snapshot snapshot) {
+            this.snapshot = snapshot;
+        }
+
+        @Override
+        public int totalOperations() {
+            return snapshot.totalOperations();
+        }
+
+        @Override
+        public Translog.Operation next() throws IOException {
+            if (operations == null) {
+                operations = new ArrayList<>();
+                Translog.Operation op;
+                while ((op = snapshot.next()) != null) {
+                    operations.add(op);
+                }
+                operations.sort(Comparator.comparing(Translog.Operation::seqNo));
+            }
+            if (operations.isEmpty()) {
+                return null;
+            }
+            return operations.remove(0);
+        }
+
+        @Override
+        public void close() throws IOException {
+            snapshot.close();
         }
     }
 }

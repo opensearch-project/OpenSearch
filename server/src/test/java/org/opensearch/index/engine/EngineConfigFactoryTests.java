@@ -16,6 +16,7 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.codec.CodecServiceFactory;
 import org.opensearch.index.seqno.RetentionLeases;
+import org.opensearch.index.translog.InternalTranslogFactory;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
 import org.opensearch.index.translog.TranslogDeletionPolicyFactory;
 import org.opensearch.index.translog.TranslogReader;
@@ -66,7 +67,8 @@ public class EngineConfigFactoryTests extends OpenSearchTestCase {
             () -> new RetentionLeases(0, 0, Collections.emptyList()),
             null,
             null,
-            false
+            false,
+            new InternalTranslogFactory()
         );
 
         assertNotNull(config.getCodec());
@@ -143,7 +145,8 @@ public class EngineConfigFactoryTests extends OpenSearchTestCase {
             () -> new RetentionLeases(0, 0, Collections.emptyList()),
             null,
             null,
-            false
+            false,
+            new InternalTranslogFactory()
         );
         assertNotNull(config.getCodec());
     }
