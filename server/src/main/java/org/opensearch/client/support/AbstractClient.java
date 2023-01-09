@@ -55,9 +55,6 @@ import org.opensearch.action.admin.cluster.decommission.awareness.put.Decommissi
 import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionRequest;
 import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionRequestBuilder;
 import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionResponse;
-import org.opensearch.action.admin.cluster.awarenesshealth.ClusterAwarenessHealthAction;
-import org.opensearch.action.admin.cluster.awarenesshealth.ClusterAwarenessHealthRequest;
-import org.opensearch.action.admin.cluster.awarenesshealth.ClusterAwarenessHealthResponse;
 import org.opensearch.action.admin.cluster.health.ClusterHealthAction;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
@@ -794,11 +791,6 @@ public abstract class AbstractClient implements Client {
         @Override
         public ClusterHealthRequestBuilder prepareHealth(String... indices) {
             return new ClusterHealthRequestBuilder(this, ClusterHealthAction.INSTANCE).setIndices(indices);
-        }
-
-        @Override
-        public void awarenessHealth(ClusterAwarenessHealthRequest request, ActionListener<ClusterAwarenessHealthResponse> listener) {
-            execute(ClusterAwarenessHealthAction.INSTANCE, request, listener);
         }
 
         @Override

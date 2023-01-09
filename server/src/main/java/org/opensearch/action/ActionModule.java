@@ -36,8 +36,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainAction;
 import org.opensearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction;
-import org.opensearch.action.admin.cluster.awarenesshealth.ClusterAwarenessHealthAction;
-import org.opensearch.action.admin.cluster.awarenesshealth.TransportClusterAwarenessHealthAction;
 import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
 import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
 import org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
@@ -308,7 +306,6 @@ import org.opensearch.rest.action.admin.cluster.RestCleanupRepositoryAction;
 import org.opensearch.rest.action.admin.cluster.RestClearVotingConfigExclusionsAction;
 import org.opensearch.rest.action.admin.cluster.RestCloneSnapshotAction;
 import org.opensearch.rest.action.admin.cluster.RestClusterAllocationExplainAction;
-import org.opensearch.rest.action.admin.cluster.RestClusterAwarenessHealthAction;
 import org.opensearch.rest.action.admin.cluster.RestClusterDeleteWeightedRoutingAction;
 import org.opensearch.rest.action.admin.cluster.RestClusterGetSettingsAction;
 import org.opensearch.rest.action.admin.cluster.RestClusterGetWeightedRoutingAction;
@@ -570,7 +567,6 @@ public class ActionModule extends AbstractModule {
         actions.register(ClusterStatsAction.INSTANCE, TransportClusterStatsAction.class);
         actions.register(ClusterStateAction.INSTANCE, TransportClusterStateAction.class);
         actions.register(ClusterHealthAction.INSTANCE, TransportClusterHealthAction.class);
-        actions.register(ClusterAwarenessHealthAction.INSTANCE, TransportClusterAwarenessHealthAction.class);
         actions.register(ClusterUpdateSettingsAction.INSTANCE, TransportClusterUpdateSettingsAction.class);
         actions.register(ClusterRerouteAction.INSTANCE, TransportClusterRerouteAction.class);
         actions.register(ClusterSearchShardsAction.INSTANCE, TransportClusterSearchShardsAction.class);
@@ -901,9 +897,6 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestGetAllPitsAction(nodesInCluster));
         registerHandler.accept(new RestPitSegmentsAction(nodesInCluster));
         registerHandler.accept(new RestDeleteDecommissionStateAction());
-
-        // Awareness health API
-        registerHandler.accept(new RestClusterAwarenessHealthAction());
 
         for (ActionPlugin plugin : actionPlugins) {
             for (RestHandler handler : plugin.getRestHandlers(
