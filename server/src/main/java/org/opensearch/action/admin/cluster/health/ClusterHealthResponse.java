@@ -204,7 +204,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         numberOfInFlightFetch = in.readInt();
         delayedUnassignedShards = in.readInt();
         taskMaxWaitingTime = in.readTimeValue();
-        if (in.getVersion().onOrAfter(Version.V_2_6_0) && in.readBoolean()) {
+        if (in.getVersion().onOrAfter(Version.CURRENT) && in.readBoolean()) {
             clusterAwarenessHealth = new ClusterAwarenessHealth(in);
         } else {
             clusterAwarenessHealth = null;
@@ -401,7 +401,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         out.writeInt(numberOfInFlightFetch);
         out.writeInt(delayedUnassignedShards);
         out.writeTimeValue(taskMaxWaitingTime);
-        if (out.getVersion().onOrAfter(Version.V_2_6_0)) {
+        if (out.getVersion().onOrAfter(Version.CURRENT)) {
             if (clusterAwarenessHealth != null) {
                 out.writeBoolean(true);
                 clusterAwarenessHealth.writeTo(out);

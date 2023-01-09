@@ -94,7 +94,7 @@ public class ClusterHealthRequest extends ClusterManagerNodeReadRequest<ClusterH
         }
         waitForNoInitializingShards = in.readBoolean();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        if (in.getVersion().onOrAfter(Version.V_2_6_0)) {
+        if (in.getVersion().onOrAfter(Version.CURRENT)) {
             awarenessAttribute = in.readString();
             level = in.readEnum(Level.class);
         }
@@ -126,7 +126,7 @@ public class ClusterHealthRequest extends ClusterManagerNodeReadRequest<ClusterH
         }
         out.writeBoolean(waitForNoInitializingShards);
         indicesOptions.writeIndicesOptions(out);
-        if (out.getVersion().onOrAfter(Version.V_2_6_0)) {
+        if (out.getVersion().onOrAfter(Version.CURRENT)) {
             out.writeString(awarenessAttribute);
             out.writeEnum(level);
         }
