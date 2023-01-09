@@ -38,6 +38,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.junit.Assert;
+import org.mockito.Mockito;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
@@ -60,6 +61,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.fs.FsBlobContainer;
 import org.opensearch.common.blobstore.fs.FsBlobStore;
 import org.opensearch.common.bytes.BytesArray;
@@ -96,8 +98,10 @@ import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.translog.InternalTranslogFactory;
+import org.opensearch.index.translog.RemoteBlobStoreInternalTranslogFactory;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.opensearch.indices.recovery.AsyncRecoveryTarget;
@@ -125,7 +129,9 @@ import org.opensearch.indices.replication.common.ReplicationFailedException;
 import org.opensearch.indices.replication.common.ReplicationListener;
 import org.opensearch.indices.replication.common.ReplicationState;
 import org.opensearch.repositories.IndexId;
+import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
+import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.blobstore.OpenSearchBlobStoreRepositoryIntegTestCase;
 import org.opensearch.snapshots.Snapshot;
 import org.opensearch.test.DummyShardLock;
@@ -550,6 +556,17 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             if (remoteStore == null && indexSettings.isRemoteStoreEnabled()) {
                 remoteStore = createRemoteStore(createTempDir(), routing, indexMetadata);
             }
+
+            final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier = (settings, shardRouting) -> {
+                if (settings.isRemoteTranslogStoreEnabled() && shardRouting.primary()) {
+                    return new RemoteBlobStoreInternalTranslogFactory(
+                        this::createRepositoriesService,
+                        threadPool,
+                        settings.getRemoteStoreTranslogRepository()
+                    );
+                }
+                return new InternalTranslogFactory();
+            };
             indexShard = new IndexShard(
                 routing,
                 indexSettings,
@@ -571,7 +588,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 globalCheckpointSyncer,
                 retentionLeaseSyncer,
                 breakerService,
-                new InternalTranslogFactory(),
+                translogFactorySupplier,
                 checkpointPublisher,
                 remoteStore
             );
@@ -583,6 +600,18 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             }
         }
         return indexShard;
+    }
+
+    protected RepositoriesService createRepositoriesService() {
+        RepositoriesService repositoriesService = Mockito.mock(RepositoriesService.class);
+        BlobStoreRepository repository = Mockito.mock(BlobStoreRepository.class);
+        when(repository.basePath()).thenReturn(new BlobPath());
+        BlobStore blobStore = Mockito.mock(BlobStore.class);
+        BlobContainer blobContainer = Mockito.mock(BlobContainer.class);
+        when(blobStore.blobContainer(any())).thenReturn(blobContainer);
+        when(repository.blobStore()).thenReturn(blobStore);
+        when(repositoriesService.repository(any(String.class))).thenReturn(repository);
+        return repositoriesService;
     }
 
     protected Store createRemoteStore(Path path, ShardRouting shardRouting, IndexMetadata metadata) throws IOException {
