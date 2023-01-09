@@ -590,7 +590,7 @@ public final class IndexSettings {
     private final String remoteStoreRepository;
     private final boolean isRemoteSnapshot;
     private Version extendedCompatibilitySnapshotVersion;
-    
+
     // volatile fields are updated via #updateIndexMetadata(IndexMetadata) under lock
     private volatile Settings settings;
     private volatile IndexMetadata indexMetadata;
