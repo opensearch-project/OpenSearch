@@ -68,9 +68,8 @@ public class RestDecommissionAction extends BaseRestHandler {
                     String.format(Locale.ROOT, "default request timeout has to be at least [%s]", DEFAULT_REQUEST_TIMEOUT)
                 );
             }
-            decommissionRequest.setTimeout(requestTimeout);
         }
         return decommissionRequest.setDecommissionAttribute(new DecommissionAttribute(attributeName, attributeValue))
-            .setRetryOnClusterManagerSwitch(false);
+            .originalRequest(false);
     }
 }

@@ -20,6 +20,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.ClusterStateObserver.Listener;
 import org.opensearch.cluster.ClusterStateUpdateTask;
+import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.coordination.CoordinationMetadata;
 import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -146,6 +147,9 @@ public class DecommissionService {
                 // validates if correct awareness attributes and forced awareness attribute set to the cluster before starting action
                 validateAwarenessAttribute(decommissionAttribute, awarenessAttributes, forcedAwarenessAttributes);
                 DecommissionAttributeMetadata decommissionAttributeMetadata = currentState.metadata().decommissionAttributeMetadata();
+                if (decommissionAttributeMetadata == null) {
+                    decommissionRequest.originalRequest(true);
+                }
                 // check that request is eligible to proceed and attribute is weighed away
                 ensureEligibleRequest(decommissionAttributeMetadata, decommissionRequest);
                 ensureToBeDecommissionedAttributeWeighedAway(currentState, decommissionAttribute);
@@ -242,12 +246,19 @@ public class DecommissionService {
                                 drainNodesWithDecommissionedAttribute(decommissionRequest);
                             }
                         } else {
-                            // since the local node is no longer cluster manager which could've happened due to leader abdication,
-                            // hence retrying the decommission action until it times out
+                            // explicitly calling listener.onFailure with NotClusterManagerException as the local node is not leader
+                            // this will ensures that request is retried until cluster manager times out
                             logger.info(
-                                "local node is not eligible to process the request, retrying the transport action until it times out"
+                                "local node is not eligible to process the request, "
+                                    + "throwing NotClusterManagerException to attempt a retry on an eligible node"
                             );
-                            decommissionController.retryDecommissionAction(decommissionRequest, startTime, listener);
+                            listener.onFailure(
+                                new NotClusterManagerException(
+                                    "node ["
+                                        + transportService.getLocalNode().toString()
+                                        + "] not eligible to execute decommission request. Will retry until timeout."
+                                )
+                            );
                         }
                     }
 
@@ -460,7 +471,7 @@ public class DecommissionService {
                 switch (decommissionAttributeMetadata.status()) {
                     // for INIT - check if it is eligible internal retry
                     case INIT:
-                        msg = (decommissionRequest.retryOnClusterManagerSwitch() == false)
+                        msg = (decommissionRequest.originalRequest() == false)
                             ? "concurrent request received to decommission attribute"
                             : null;
                         break;

@@ -31,8 +31,7 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
     public static final TimeValue DEFAULT_NODE_DRAINING_TIMEOUT = TimeValue.timeValueSeconds(120);
 
     private DecommissionAttribute decommissionAttribute;
-    private boolean retryOnClusterManagerSwitch = false;
-    private TimeValue timeout = DEFAULT_REQUEST_TIMEOUT;
+    private boolean originalRequest = false;
     private TimeValue delayTimeout = DEFAULT_NODE_DRAINING_TIMEOUT;
 
     // holder for no_delay param. To avoid draining time timeout.
@@ -40,10 +39,9 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
 
     public DecommissionRequest() {}
 
-    public DecommissionRequest(DecommissionAttribute decommissionAttribute, boolean retryOnClusterManagerSwitch, TimeValue timeout) {
+    public DecommissionRequest(DecommissionAttribute decommissionAttribute, boolean originalRequest, TimeValue timeout) {
         this.decommissionAttribute = decommissionAttribute;
-        this.retryOnClusterManagerSwitch = retryOnClusterManagerSwitch;
-        this.timeout = timeout;
+        this.originalRequest = originalRequest;
     }
 
     public DecommissionRequest(DecommissionAttribute decommissionAttribute) {
@@ -55,8 +53,7 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
         decommissionAttribute = new DecommissionAttribute(in);
         this.delayTimeout = in.readTimeValue();
         this.noDelay = in.readBoolean();
-        this.retryOnClusterManagerSwitch = in.readBoolean();
-        this.timeout = in.readTimeValue();
+        this.originalRequest = in.readBoolean();
 
     }
 
@@ -66,8 +63,7 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
         decommissionAttribute.writeTo(out);
         out.writeTimeValue(delayTimeout);
         out.writeBoolean(noDelay);
-        out.writeBoolean(retryOnClusterManagerSwitch);
-        out.writeTimeValue(timeout);
+        out.writeBoolean(originalRequest);
     }
 
     /**
@@ -110,39 +106,21 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
     }
 
     /**
-     * Sets retryOnClusterManagerChange for decommission request
+     * Sets originalRequest for decommission request
      *
-     * @param retryOnClusterManagerSwitch boolean for request to retry decommission action on cluster manager switch
+     * @param originalRequest boolean to identify if it is the first and original request
      * @return this request
      */
-    public DecommissionRequest setRetryOnClusterManagerSwitch(boolean retryOnClusterManagerSwitch) {
-        this.retryOnClusterManagerSwitch = retryOnClusterManagerSwitch;
+    public DecommissionRequest originalRequest(boolean originalRequest) {
+        this.originalRequest = originalRequest;
         return this;
     }
 
     /**
-     * @return Returns whether decommission is retry eligible on cluster manager switch
+     * @return Returns whether decommission request is first and original request
      */
-    public boolean retryOnClusterManagerSwitch() {
-        return this.retryOnClusterManagerSwitch;
-    }
-
-    /**
-     * Sets the timeout for the request
-     *
-     * @param timeout time out for the request
-     * @return this request
-     */
-    public DecommissionRequest setTimeout(TimeValue timeout) {
-        this.timeout = timeout;
-        return this;
-    }
-
-    /**
-     * @return timeout
-     */
-    public TimeValue timeout() {
-        return this.timeout;
+    public boolean originalRequest() {
+        return this.originalRequest;
     }
 
     @Override
@@ -174,10 +152,8 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
         return "DecommissionRequest{"
             + "decommissionAttribute="
             + decommissionAttribute
-            + ", retryOnClusterManagerChange="
-            + retryOnClusterManagerSwitch
-            + ", timeout="
-            + timeout
+            + ", originalRequest="
+            + originalRequest
             + ", delayTimeout="
             + delayTimeout
             + ", noDelay="

@@ -146,56 +146,6 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
         threadPool.shutdown();
     }
 
-    public void testRetryDecommissionActionTimedOut() throws InterruptedException {
-        DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "zone_1");
-        DecommissionRequest decommissionRequest = new DecommissionRequest(decommissionAttribute);
-        long startTime = threadPool.relativeTimeInMillis() - 125000;
-        final CountDownLatch countDownLatch = new CountDownLatch(1);
-        final AtomicReference<Exception> exceptionReference = new AtomicReference<>();
-        decommissionController.retryDecommissionAction(decommissionRequest, startTime, new ActionListener<DecommissionResponse>() {
-            @Override
-            public void onResponse(DecommissionResponse decommissionResponse) {
-                fail("onResponse shouldn't have been called");
-                countDownLatch.countDown();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                exceptionReference.set(e);
-                countDownLatch.countDown();
-            }
-        });
-        assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
-        MatcherAssert.assertThat("Expected onFailure to be called", exceptionReference.get(), notNullValue());
-        MatcherAssert.assertThat(exceptionReference.get(), instanceOf(OpenSearchTimeoutException.class));
-        MatcherAssert.assertThat(exceptionReference.get().getMessage(), containsString("node timed out before retrying"));
-    }
-
-    public void testRetryDecommissionAction() throws InterruptedException {
-        DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "zone_1");
-        DecommissionRequest decommissionRequest = new DecommissionRequest(decommissionAttribute);
-        long startTime = threadPool.relativeTimeInMillis();
-        final CountDownLatch countDownLatch = new CountDownLatch(1);
-        final AtomicReference<Exception> exceptionReference = new AtomicReference<>();
-        decommissionController.retryDecommissionAction(decommissionRequest, startTime, new ActionListener<DecommissionResponse>() {
-            @Override
-            public void onResponse(DecommissionResponse decommissionResponse) {
-                fail("onResponse shouldn't have been called");
-                countDownLatch.countDown();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                exceptionReference.set(e);
-                countDownLatch.countDown();
-            }
-        });
-        assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
-        MatcherAssert.assertThat("Expected onFailure to be called", exceptionReference.get(), notNullValue());
-        MatcherAssert.assertThat(exceptionReference.get(), instanceOf(RemoteTransportException.class));
-        MatcherAssert.assertThat(exceptionReference.get().getCause(), instanceOf(DecommissioningFailedException.class));
-    }
-
     public void testNodesRemovedForDecommissionRequestSuccessfulResponse() throws InterruptedException {
         final CountDownLatch countDownLatch = new CountDownLatch(1);
         Set<DiscoveryNode> nodesToBeRemoved = new HashSet<>();
