@@ -14,6 +14,7 @@ import org.opensearch.OpenSearchGenerationException;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
+import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
 import org.opensearch.cluster.routing.WeightedRouting;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.StreamInput;
@@ -43,6 +44,15 @@ public class ClusterPutWeightedRoutingRequest extends ClusterManagerNodeRequest<
 
     private WeightedRouting weightedRouting;
     private String attributeName;
+    private long version;
+
+    public void version(long version) {
+        this.version = version;
+    }
+
+    public long getVersion() {
+        return this.version;
+    }
 
     public ClusterPutWeightedRoutingRequest() {}
 
@@ -62,13 +72,14 @@ public class ClusterPutWeightedRoutingRequest extends ClusterManagerNodeRequest<
     public ClusterPutWeightedRoutingRequest(StreamInput in) throws IOException {
         super(in);
         weightedRouting = new WeightedRouting(in);
+        version = in.readLong();
     }
 
     public ClusterPutWeightedRoutingRequest(String attributeName) {
         this.attributeName = attributeName;
     }
 
-    public void setWeightedRouting(Map<String, String> source) {
+    public void setWeightedRouting(Map<String, Object> source) {
         try {
             if (source.isEmpty()) {
                 throw new OpenSearchParseException(("Empty request body"));
@@ -96,22 +107,56 @@ public class ClusterPutWeightedRoutingRequest extends ClusterManagerNodeRequest<
             XContentParser.Token token;
             // move to the first alias
             parser.nextToken();
+            String versionAttr = null;
+            String weightsAttr;
+            long version = WeightedRoutingMetadata.VERSION_UNSET_VALUE;
+
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
-                    attrValue = parser.currentName();
-                } else if (token == XContentParser.Token.VALUE_STRING) {
-                    attrWeight = Double.parseDouble(parser.text());
-                    weights.put(attrValue, attrWeight);
+                    String fieldName = parser.currentName();
+                    if (fieldName != null && fieldName.equals(WeightedRoutingMetadata.VERSION)) {
+                        versionAttr = parser.currentName();
+                        continue;
+                    } else if (fieldName != null && fieldName.equals("weights")) {
+                        weightsAttr = parser.currentName();
+                    } else {
+                        throw new OpenSearchParseException("failed to parse weighted routing request object [{}]", fieldName);
+                    }
+                    if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
+                        throw new OpenSearchParseException(
+                            "failed to parse weighted routing request object  [{}], expected object",
+                            weightsAttr
+                        );
+                    }
+
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                        if (token == XContentParser.Token.FIELD_NAME) {
+                            attrValue = parser.currentName();
+                        } else if (token == XContentParser.Token.VALUE_STRING) {
+                            attrWeight = Double.parseDouble(parser.text());
+                            weights.put(attrValue, attrWeight);
+                        } else {
+                            throw new OpenSearchParseException(
+                                "failed to parse weighted routing request attribute [{}], " + "unknown type",
+                                attrWeight
+                            );
+                        }
+                    }
+                } else if (token == XContentParser.Token.VALUE_NUMBER) {
+                    if (versionAttr != null && versionAttr.equals(WeightedRoutingMetadata.VERSION)) {
+                        version = parser.longValue();
+                    }
                 } else {
                     throw new OpenSearchParseException(
-                        "failed to parse weighted routing request attribute [{}], " + "unknown type",
-                        attrWeight
+                        "failed to parse weighted routing request " + "[{}], unknown " + "type",
+                        attributeName
                     );
                 }
             }
             this.weightedRouting = new WeightedRouting(this.attributeName, weights);
+            this.version = version;
         } catch (IOException e) {
-            logger.error("error while parsing put for weighted routing request object", e);
+            logger.error("error while parsing put weighted routing request object", e);
         }
     }
 
@@ -126,6 +171,9 @@ public class ClusterPutWeightedRoutingRequest extends ClusterManagerNodeRequest<
         }
         if (weightedRouting.weights() == null || weightedRouting.weights().isEmpty()) {
             validationException = addValidationError("Weights are missing", validationException);
+        }
+        if (version == WeightedRoutingMetadata.VERSION_UNSET_VALUE) {
+            validationException = addValidationError("Version is missing", validationException);
         }
         int countValueWithZeroWeights = 0;
         double weight;
@@ -164,7 +212,7 @@ public class ClusterPutWeightedRoutingRequest extends ClusterManagerNodeRequest<
      * @param source weights definition from request body
      * @return this request
      */
-    public ClusterPutWeightedRoutingRequest source(Map<String, String> source) {
+    public ClusterPutWeightedRoutingRequest source(Map<String, Object> source) {
         setWeightedRouting(source);
         return this;
     }
@@ -173,11 +221,12 @@ public class ClusterPutWeightedRoutingRequest extends ClusterManagerNodeRequest<
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         weightedRouting.writeTo(out);
+        out.writeLong(version);
     }
 
     @Override
     public String toString() {
-        return "ClusterPutWeightedRoutingRequest{" + "weightedRouting= " + weightedRouting.toString() + "}";
+        return "ClusterPutWeightedRoutingRequest{" + "weightedRouting= " + weightedRouting.toString() + "version= " + version + "}";
     }
 
 }
