@@ -54,6 +54,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -325,6 +326,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         final int seed = shuffler.nextSeed();
         List<ShardRouting> ordered = new ArrayList<>();
         List<ShardRouting> orderedActiveShards = getActiveShardsByWeight(weightedRouting, nodes, defaultWeight);
+        List<ShardRouting> orderedListWithDistinctShards;
         ordered.addAll(shuffler.shuffle(orderedActiveShards, seed));
         if (!allInitializingShards.isEmpty()) {
             List<ShardRouting> orderedInitializingShards = getInitializingShardsByWeight(weightedRouting, nodes, defaultWeight);
@@ -352,8 +354,8 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
                 logger.debug("no shard copies found for shard id [{}] for node attribute with weight zero", shardId);
             }
         }
-
-        return new PlainShardIterator(shardId, ordered);
+        orderedListWithDistinctShards = new ArrayList<>(new LinkedHashSet<>(ordered));
+        return new PlainShardIterator(shardId, orderedListWithDistinctShards);
     }
 
     /**
