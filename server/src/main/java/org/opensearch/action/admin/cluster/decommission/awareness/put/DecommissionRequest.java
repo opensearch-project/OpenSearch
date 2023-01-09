@@ -27,7 +27,6 @@ import static org.opensearch.action.ValidateActions.addValidationError;
  */
 public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionRequest> {
 
-    public static final TimeValue DEFAULT_REQUEST_TIMEOUT = TimeValue.timeValueSeconds(120);
     public static final TimeValue DEFAULT_NODE_DRAINING_TIMEOUT = TimeValue.timeValueSeconds(120);
 
     private DecommissionAttribute decommissionAttribute;

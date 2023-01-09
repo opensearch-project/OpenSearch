@@ -16,7 +16,6 @@ import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.opensearch.action.admin.cluster.configuration.TransportClearVotingConfigExclusionsAction;
-import org.opensearch.action.admin.cluster.decommission.awareness.put.TransportDecommissionAction;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
@@ -111,22 +110,6 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
         new TransportClearVotingConfigExclusionsAction(
             transportService,
             clusterService,
-            threadPool,
-            new ActionFilters(emptySet()),
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY))
-        ); // registers action
-
-        new TransportDecommissionAction(
-            transportService,
-            clusterService,
-            new DecommissionService(
-                nodeSettingsBuilder.build(),
-                clusterSettings,
-                clusterService,
-                transportService,
-                threadPool,
-                allocationService
-            ),
             threadPool,
             new ActionFilters(emptySet()),
             new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY))

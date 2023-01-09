@@ -87,17 +87,6 @@ public class RestDecommissionActionTests extends RestActionTestCase {
         assertEquals(deprecatedRequest.getHttpRequest().method(), RestRequest.Method.PUT);
     }
 
-    public void testCreateRequestWithInvalidTimeout() throws IOException {
-        Map<String, String> params = new HashMap<>();
-        params.put("awareness_attribute_name", "zone");
-        params.put("awareness_attribute_value", "zone-1");
-        params.put("timeout", "1m");
-
-        RestRequest request = buildRestRequest(params);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> action.createRequest(request));
-        assertEquals("default request timeout has to be at least [2m]", e.getMessage());
-    }
-
     private FakeRestRequest buildRestRequest(Map<String, String> params) {
         return new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.PUT)
             .withPath("/_cluster/decommission/awareness/{awareness_attribute_name}/{awareness_attribute_value}")
