@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.search;
+package org.opensearch.search.pit;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.junit.After;
@@ -61,7 +61,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
  * Multi node integration tests for PIT creation and search operation with PIT ID.
  */
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, numDataNodes = 2)
-public class PitMultiNodeTests extends OpenSearchIntegTestCase {
+public class PitMultiNodeIT extends OpenSearchIntegTestCase {
 
     @Before
     public void setupIndex() throws ExecutionException, InterruptedException {
@@ -246,7 +246,7 @@ public class PitMultiNodeTests extends OpenSearchIntegTestCase {
         AtomicInteger numSuccess = new AtomicInteger();
         TestThreadPool testThreadPool = null;
         try {
-            testThreadPool = new TestThreadPool(DeletePitMultiNodeTests.class.getName());
+            testThreadPool = new TestThreadPool(PitMultiNodeIT.class.getName());
             List<Runnable> operationThreads = new ArrayList<>();
             CountDownLatch countDownLatch = new CountDownLatch(concurrentRuns);
             Set<String> createSet = new HashSet<>();
@@ -288,7 +288,7 @@ public class PitMultiNodeTests extends OpenSearchIntegTestCase {
         AtomicInteger numSuccess = new AtomicInteger();
         TestThreadPool testThreadPool = null;
         try {
-            testThreadPool = new TestThreadPool(PitMultiNodeTests.class.getName());
+            testThreadPool = new TestThreadPool(PitMultiNodeIT.class.getName());
             int concurrentRuns = randomIntBetween(20, 50);
 
             List<Runnable> operationThreads = new ArrayList<>();
@@ -431,7 +431,7 @@ public class PitMultiNodeTests extends OpenSearchIntegTestCase {
         AtomicInteger numSuccess = new AtomicInteger();
         TestThreadPool testThreadPool = null;
         try {
-            testThreadPool = new TestThreadPool(PitMultiNodeTests.class.getName());
+            testThreadPool = new TestThreadPool(PitMultiNodeIT.class.getName());
             int concurrentRuns = randomIntBetween(20, 50);
 
             List<Runnable> operationThreads = new ArrayList<>();
