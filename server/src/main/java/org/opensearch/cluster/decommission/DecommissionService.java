@@ -75,7 +75,6 @@ public class DecommissionService {
     private final TransportService transportService;
     private final ThreadPool threadPool;
     private final DecommissionController decommissionController;
-    private final long startTime;
     private volatile List<String> awarenessAttributes;
     private volatile Map<String, List<String>> forcedAwarenessAttributes;
     private volatile int maxVotingConfigExclusions;
@@ -93,7 +92,6 @@ public class DecommissionService {
         this.transportService = transportService;
         this.threadPool = threadPool;
         this.decommissionController = new DecommissionController(clusterService, transportService, allocationService, threadPool);
-        this.startTime = threadPool.relativeTimeInMillis();
         this.awarenessAttributes = CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING, this::setAwarenessAttributes);
 
