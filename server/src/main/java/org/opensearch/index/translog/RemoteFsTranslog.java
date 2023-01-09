@@ -130,8 +130,7 @@ public class RemoteFsTranslog extends Translog {
         return new TranslogTransferManager(
             new BlobStoreTransferService(blobStoreRepository.blobStore(), executorService),
             blobStoreRepository.basePath().add(shardId.getIndex().getUUID()).add(String.valueOf(shardId.id())),
-            fileTransferTracker,
-            fileTransferTracker::exclusionFilter
+            fileTransferTracker
         );
     }
 

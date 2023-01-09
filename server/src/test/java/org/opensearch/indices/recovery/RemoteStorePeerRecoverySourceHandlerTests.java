@@ -22,6 +22,7 @@ public class RemoteStorePeerRecoverySourceHandlerTests extends OpenSearchIndexLe
         .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
         .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, "true")
         .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, "true")
+        .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "translog-repo")
         .build();
 
     public void testReplicaShardRecoveryUptoLastFlushedCommit() throws Exception {
