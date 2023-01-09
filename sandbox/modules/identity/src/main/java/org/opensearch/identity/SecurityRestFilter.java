@@ -86,7 +86,7 @@ public class SecurityRestFilter {
                 "(nodeName=%s, requestId=%s, path=%s, jwtClaims=%s checkAndAuthenticateRequest)",
                 client.getLocalNodeId(),
                 request.getRequestId(),
-                request.getRequestId(),
+                request.path(),
                 jwtClaims
             );
             if (log.isDebugEnabled()) {
