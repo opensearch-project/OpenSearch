@@ -317,6 +317,33 @@ public class RemoteSegmentStoreDirectoryTests extends OpenSearchTestCase {
         storeDirectory.close();
     }
 
+    public void testCopyFromOverride() throws IOException {
+        String filename = "_100.si";
+        populateMetadata();
+        remoteSegmentStoreDirectory.init();
+
+        Directory storeDirectory = LuceneTestCase.newDirectory();
+        IndexOutput indexOutput = storeDirectory.createOutput(filename, IOContext.DEFAULT);
+        indexOutput.writeString("Hello World!");
+        CodecUtil.writeFooter(indexOutput);
+        indexOutput.close();
+        storeDirectory.sync(List.of(filename));
+
+        assertFalse(remoteSegmentStoreDirectory.getSegmentsUploadedToRemoteStore().containsKey(filename));
+        remoteSegmentStoreDirectory.copyFrom(storeDirectory, filename, filename, IOContext.DEFAULT, true);
+        RemoteSegmentStoreDirectory.UploadedSegmentMetadata uploadedSegmentMetadata = remoteSegmentStoreDirectory
+            .getSegmentsUploadedToRemoteStore()
+            .get(filename);
+        assertNotNull(uploadedSegmentMetadata);
+        remoteSegmentStoreDirectory.copyFrom(storeDirectory, filename, filename, IOContext.DEFAULT, true);
+        assertEquals(
+            uploadedSegmentMetadata.toString(),
+            remoteSegmentStoreDirectory.getSegmentsUploadedToRemoteStore().get(filename).toString()
+        );
+
+        storeDirectory.close();
+    }
+
     public void testContainsFile() throws IOException {
         List<String> metadataFiles = List.of("metadata__1__5__abc");
         when(remoteMetadataDirectory.listFilesByPrefix(RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX)).thenReturn(
