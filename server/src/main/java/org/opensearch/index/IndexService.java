@@ -97,7 +97,7 @@ import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.indices.recovery.RecoveryState;
-import org.opensearch.indices.replication.SegmentReplicationStatsState;
+import org.opensearch.indices.replication.SegmentReplicationState;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.repositories.RepositoriesService;
@@ -144,7 +144,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final IndexStorePlugin.RemoteDirectoryFactory remoteDirectoryFactory;
     private final IndexStorePlugin.RecoveryStateFactory recoveryStateFactory;
 
-    private final IndexStorePlugin.SegmentReplicationStatsStateFactory segmentReplicationStatsStateFactory;
+    private final IndexStorePlugin.SegmentReplicationStateFactory segmentReplicationStateFactory;
     private final CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper;
     private final IndexCache indexCache;
     private final MapperService mapperService;
@@ -212,7 +212,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         IndexNameExpressionResolver expressionResolver,
         ValuesSourceRegistry valuesSourceRegistry,
         IndexStorePlugin.RecoveryStateFactory recoveryStateFactory,
-        IndexStorePlugin.SegmentReplicationStatsStateFactory segmentReplicationStatsStateFactory,
+        IndexStorePlugin.SegmentReplicationStateFactory segmentReplicationStateFactory,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
         super(indexSettings);
@@ -274,7 +274,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.directoryFactory = directoryFactory;
         this.remoteDirectoryFactory = remoteDirectoryFactory;
         this.recoveryStateFactory = recoveryStateFactory;
-        this.segmentReplicationStatsStateFactory = segmentReplicationStatsStateFactory;
+        this.segmentReplicationStateFactory = segmentReplicationStateFactory;
         this.engineFactory = Objects.requireNonNull(engineFactory);
         this.engineConfigFactory = Objects.requireNonNull(engineConfigFactory);
         // initialize this last -- otherwise if the wrapper requires any other member to be non-null we fail with an NPE
@@ -546,7 +546,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 new StoreCloseListener(shardId, () -> eventListener.onStoreClosed(shardId))
             );
             eventListener.onStoreCreated(shardId);
-            SegmentReplicationStatsState segmentReplicationStatsState = createSegmentReplicationStatsState(routing);
             indexShard = new IndexShard(
                 routing,
                 this.indexSettings,
@@ -570,7 +569,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 circuitBreakerService,
                 translogFactory,
                 this.indexSettings.isSegRepEnabled() ? checkpointPublisher : null,
-                segmentReplicationStatsState,
                 remoteStore
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
@@ -669,8 +667,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         return recoveryStateFactory.newRecoveryState(shardRouting, targetNode, sourceNode);
     }
 
-    public SegmentReplicationStatsState createSegmentReplicationStatsState(ShardRouting shardRouting){
-        return segmentReplicationStatsStateFactory.newSegmentReplicationStatsState(shardRouting);
+    public SegmentReplicationState createSegmentReplicationState(ShardRouting shardRouting, DiscoveryNode node){
+        return segmentReplicationStateFactory.newSegmentReplicationState(shardRouting, node);
     }
 
     @Override

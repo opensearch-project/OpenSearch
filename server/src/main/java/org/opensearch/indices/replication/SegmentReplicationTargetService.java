@@ -179,10 +179,9 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                             "[shardId {}] [replication id {}] Replication complete, timing data: {}",
                             replicaShard.shardId().getId(),
                             state.getReplicationId(),
-                            state.getTimingData()
+                            state.getOverallTimer()
                         )
                     );
-                    replicaShard.getSegmentReplicationStatsState().incrementCountOfSegmentReplicationEvents();
                     // if we received a checkpoint during the copy event that is ahead of this
                     // try and process it.
                     if (latestReceivedCheckpoint.get(replicaShard.shardId()).isAheadOf(replicaShard.getLatestReplicationCheckpoint())) {
@@ -203,10 +202,9 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                             "[shardId {}] [replication id {}] Replication failed, timing data: {}",
                             replicaShard.shardId().getId(),
                             state.getReplicationId(),
-                            state.getTimingData()
+                            state.getOverallTimer()
                         )
                     );
-                    replicaShard.getSegmentReplicationStatsState().incrementCountOfSegmentReplicationEvents();
                     if (sendShardFailure == true) {
                         logger.error("replication failure", e);
                         replicaShard.failShard("replication failure", e);

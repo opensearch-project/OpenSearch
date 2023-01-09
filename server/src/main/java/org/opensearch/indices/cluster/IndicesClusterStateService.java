@@ -827,7 +827,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                                 "[shardId {}] [replication id {}] Replication complete, timing data: {}",
                                 indexShard.shardId().getId(),
                                 state.getReplicationId(),
-                                state.getTimingData()
+                                state.getOverallTimer()
                             )
                         );
                         forceSegRepListener.onResponse(null);
@@ -844,7 +844,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                                 "[shardId {}] [replication id {}] Replication failed, timing data: {}",
                                 indexShard.shardId().getId(),
                                 state.getReplicationId(),
-                                state.getTimingData()
+                                state.getOverallTimer()
                             )
                         );
                         if (sendShardFailure == true) {

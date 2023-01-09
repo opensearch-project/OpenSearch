@@ -23,7 +23,7 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
-import org.opensearch.indices.replication.SegmentReplicationStatsState;
+import org.opensearch.indices.replication.SegmentReplicationState;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -33,7 +33,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class TransportSegmentReplicationAction extends TransportBroadcastByNodeAction<SegmentReplicationRequest, SegmentReplicationResponse, SegmentReplicationStatsState>  {
+public class TransportSegmentReplicationAction extends TransportBroadcastByNodeAction<SegmentReplicationRequest, SegmentReplicationResponse, SegmentReplicationState>  {
 
     private final IndicesService indicesService;
 
@@ -58,8 +58,8 @@ public class TransportSegmentReplicationAction extends TransportBroadcastByNodeA
     }
 
     @Override
-    protected SegmentReplicationStatsState readShardResult(StreamInput in) throws IOException {
-        return new SegmentReplicationStatsState(in);
+    protected SegmentReplicationState readShardResult(StreamInput in) throws IOException {
+        return new SegmentReplicationState(in);
     }
 
     @Override
@@ -68,23 +68,23 @@ public class TransportSegmentReplicationAction extends TransportBroadcastByNodeA
         int totalShards,
         int successfulShards,
         int failedShards,
-        List<SegmentReplicationStatsState> responses,
+        List<SegmentReplicationState> responses,
         List<DefaultShardOperationFailedException> shardFailures,
         ClusterState clusterState
     ) {
-        Map<String, List<SegmentReplicationStatsState>> shardResponses = new HashMap<>();
-        for (SegmentReplicationStatsState segmentReplicationStatsState : responses) {
-            if (segmentReplicationStatsState == null) {
+        Map<String, List<SegmentReplicationState>> shardResponses = new HashMap<>();
+        for (SegmentReplicationState segmentReplicationState : responses) {
+            if (segmentReplicationState == null) {
                 continue;
             }
-            String indexName = segmentReplicationStatsState.getShardRouting().getIndexName();
+            String indexName = segmentReplicationState.getShardRouting().getIndexName();
             if (!shardResponses.containsKey(indexName)) {
                 shardResponses.put(indexName, new ArrayList<>());
             }
             if (request.activeOnly()) {
-                shardResponses.get(indexName).add(segmentReplicationStatsState);
+                shardResponses.get(indexName).add(segmentReplicationState);
             } else {
-                shardResponses.get(indexName).add(segmentReplicationStatsState);
+                shardResponses.get(indexName).add(segmentReplicationState);
             }
         }
         return new SegmentReplicationResponse(totalShards, successfulShards, failedShards, shardResponses, shardFailures);
@@ -96,10 +96,10 @@ public class TransportSegmentReplicationAction extends TransportBroadcastByNodeA
     }
 
     @Override
-    protected SegmentReplicationStatsState shardOperation(SegmentReplicationRequest request, ShardRouting shardRouting) {
+    protected SegmentReplicationState shardOperation(SegmentReplicationRequest request, ShardRouting shardRouting) {
         IndexService indexService = indicesService.indexServiceSafe(shardRouting.shardId().getIndex());
         IndexShard indexShard = indexService.getShard(shardRouting.shardId().id());
-        return indexShard.getSegmentReplicationStatsState();
+        return indexShard.getSegmentReplicationState();
     }
 
     @Override
