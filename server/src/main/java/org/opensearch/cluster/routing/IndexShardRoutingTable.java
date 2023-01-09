@@ -34,6 +34,7 @@ package org.opensearch.cluster.routing;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.Nullable;
@@ -337,7 +338,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
                 Stream<String> keys = weightedRouting.weights()
                     .entrySet()
                     .stream()
-                    .filter(entry -> entry.getValue().intValue() == 0)
+                    .filter(entry -> entry.getValue().intValue() == WeightedRoutingMetadata.WEIGHED_AWAY_WEIGHT)
                     .map(Map.Entry::getKey);
                 keys.forEach(key -> {
                     ShardIterator iterator = onlyNodeSelectorActiveInitializingShardsIt(weightedRouting.attributeName() + ":" + key, nodes);

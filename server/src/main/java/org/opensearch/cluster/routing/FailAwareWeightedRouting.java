@@ -39,6 +39,16 @@ public class FailAwareWeightedRouting {
 
     private ClusterState clusterState;
 
+    private final static List<RestStatus> internalErrorRestStatusList = List.of(
+        RestStatus.INTERNAL_SERVER_ERROR,
+        RestStatus.NOT_IMPLEMENTED,
+        RestStatus.BAD_GATEWAY,
+        RestStatus.SERVICE_UNAVAILABLE,
+        RestStatus.GATEWAY_TIMEOUT,
+        RestStatus.HTTP_VERSION_NOT_SUPPORTED,
+        RestStatus.INSUFFICIENT_STORAGE
+    );
+
     public FailAwareWeightedRouting(Exception e, ClusterState clusterState) {
         this.exception = e;
         this.clusterState = clusterState;
@@ -51,7 +61,7 @@ public class FailAwareWeightedRouting {
     private boolean isInternalFailure() {
         if (exception instanceof OpenSearchException) {
             // checking for 5xx failures
-            return (((OpenSearchException) exception).status().getStatus() / 100) * 100 == RestStatus.INTERNAL_SERVER_ERROR.getStatus();
+            return internalErrorRestStatusList.contains(((OpenSearchException) exception).status());
         }
         return false;
     }
@@ -75,7 +85,7 @@ public class FailAwareWeightedRouting {
                 Stream<String> keys = weightedRouting.weights()
                     .entrySet()
                     .stream()
-                    .filter(entry -> entry.getValue().intValue() == 0)
+                    .filter(entry -> entry.getValue().intValue() == WeightedRoutingMetadata.WEIGHED_AWAY_WEIGHT)
                     .map(Map.Entry::getKey);
 
                 for (Object key : keys.toArray()) {
