@@ -32,6 +32,7 @@
 
 package org.opensearch.action.admin.cluster.health;
 
+import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.ActiveShardCount;
@@ -81,8 +82,6 @@ public class ClusterHealthRequest extends ClusterManagerNodeReadRequest<ClusterH
     public ClusterHealthRequest(StreamInput in) throws IOException {
         super(in);
         indices = in.readStringArray();
-        awarenessAttribute = in.readString();
-        level = in.readEnum(Level.class);
         timeout = in.readTimeValue();
         if (in.readBoolean()) {
             waitForStatus = ClusterHealthStatus.fromValue(in.readByte());
@@ -95,6 +94,10 @@ public class ClusterHealthRequest extends ClusterManagerNodeReadRequest<ClusterH
         }
         waitForNoInitializingShards = in.readBoolean();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
+        if (in.getVersion().onOrAfter(Version.V_2_5_0)) {
+            awarenessAttribute = in.readString();
+            level = in.readEnum(Level.class);
+        }
     }
 
     @Override
@@ -105,8 +108,6 @@ public class ClusterHealthRequest extends ClusterManagerNodeReadRequest<ClusterH
         } else {
             out.writeStringArray(indices);
         }
-        out.writeString(awarenessAttribute);
-        out.writeEnum(level);
         out.writeTimeValue(timeout);
         if (waitForStatus == null) {
             out.writeBoolean(false);
@@ -125,6 +126,10 @@ public class ClusterHealthRequest extends ClusterManagerNodeReadRequest<ClusterH
         }
         out.writeBoolean(waitForNoInitializingShards);
         indicesOptions.writeIndicesOptions(out);
+        if (out.getVersion().onOrAfter(Version.V_2_5_0)) {
+            out.writeString(awarenessAttribute);
+            out.writeEnum(level);
+        }
     }
 
     @Override
