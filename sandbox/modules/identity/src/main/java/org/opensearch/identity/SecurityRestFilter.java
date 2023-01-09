@@ -33,6 +33,7 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
@@ -80,16 +81,19 @@ public class SecurityRestFilter {
             jwtClaims.put("sub", "subject");
             jwtClaims.put("iat", Instant.now().toString());
             String encodedJwt = JwtVendor.createJwt(jwtClaims);
-            String prefix = "(nodeName="
-                + client.getLocalNodeId()
-                + ", requestId="
-                + request.getRequestId()
-                + ", path="
-                + request.path()
-                + ", jwtClaims="
-                + jwtClaims
-                + " checkAndAuthenticateRequest)";
-            log.info(prefix + " Created internal access token " + encodedJwt);
+            String requestInfo = String.format(
+                Locale.ROOT,
+                "(nodeName=%s, requestId=%s, path=%s, jwtClaims=%s checkAndAuthenticateRequest)",
+                client.getLocalNodeId(),
+                request.getRequestId(),
+                request.getRequestId(),
+                jwtClaims
+            );
+            if (log.isDebugEnabled()) {
+                log.debug(requestInfo);
+                String logMsg = String.format(Locale.ROOT, "Created internal access token %s", encodedJwt);
+                log.debug("{} {}", requestInfo, logMsg);
+            }
             threadContext.putHeader(ThreadContextConstants.OPENSEARCH_AUTHENTICATION_TOKEN_HEADER, encodedJwt);
         }
         return true;

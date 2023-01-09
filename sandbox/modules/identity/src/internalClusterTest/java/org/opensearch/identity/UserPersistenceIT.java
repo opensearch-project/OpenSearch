@@ -8,16 +8,20 @@
 
 package org.opensearch.identity;
 
+import org.junit.rules.TemporaryFolder;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.node.info.NodeInfo;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.health.ClusterIndexHealth;
 import org.opensearch.common.SuppressForbidden;
-import org.opensearch.common.io.PathUtils;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -67,21 +71,70 @@ public class UserPersistenceIT extends HttpSmokeTestCaseWithIdentity {
 
     @SuppressForbidden(reason = "manipulates system properties for testing")
     public void testUserPersistence() throws Exception {
-        // TODO see if possible to do this without relative paths
-        final String defaultInitDirectory = PathUtils.get("../../resources/internalClusterTest/persistence").toAbsolutePath().toString();
-        System.setProperty("identity.default_init.dir", defaultInitDirectory);
+        try {
+            TemporaryFolder folder = new TemporaryFolder();
+            folder.create();
+            File internalUsersYml = folder.newFile("internal_users.yml");
+            FileWriter fw1 = new FileWriter(internalUsersYml);
+            BufferedWriter bw1 = new BufferedWriter(fw1);
+            bw1.write(
+                "# This is the internal user database\n"
+                    + "# The hash value is a bcrypt hash and can be generated with plugin/tools/hash.sh\n"
+                    + "\n"
+                    + "# Define your internal users here\n"
+                    + "new-user:\n"
+                    + "  hash: \"$2y$12$88IFVl6IfIwCFh5aQYfOmuXVL9j2hz/GusQb35o.4sdTDAEMTOD.K\"\n"
+                    + "  attributes:\n"
+                    + "    attribute1: \"value1\"\n"
+                    + "\n"
+                    + "## Demo users\n"
+                    + "\n"
+                    + "admin:\n"
+                    + "  hash: \"$2a$12$VcCDgh2NDk07JGN0rjGbM.Ad41qVR/YFJcgHp0UGns5JDymv..TOG\"\n"
+                    + "\n"
+                    + "kibanaserver:\n"
+                    + "  hash: \"$2a$12$4AcgAt3xwOWadA5s5blL6ev39OXDNhmOesEoo33eZtrq2N0YrU3H.\"\n"
+                    + "\n"
+                    + "kibanaro:\n"
+                    + "  hash: \"$2a$12$JJSXNfTowz7Uu5ttXfeYpeYE0arACvcwlPBStB1F.MI7f0U9Z4DGC\"\n"
+                    + "  attributes:\n"
+                    + "    attribute1: \"value1\"\n"
+                    + "    attribute2: \"value2\"\n"
+                    + "    attribute3: \"value3\"\n"
+                    + "\n"
+                    + "logstash:\n"
+                    + "  hash: \"$2a$12$u1ShR4l4uBS3Uv59Pa2y5.1uQuZBrZtmNfqB3iM/.jL0XoV9sghS2\"\n"
+                    + "\n"
+                    + "readall:\n"
+                    + "  hash: \"$2a$12$ae4ycwzwvLtZxwZ82RmiEunBbIPiAmGZduBAjKN0TXdwQFtCwARz2\"\n"
+                    + "\n"
+                    + "snapshotrestore:\n"
+                    + "  hash: \"$2y$12$DpwmetHKwgYnorbgdvORCenv4NAK8cPUg8AI6pxLCuWf/ALc0.v7W\"\n"
+                    + "\n"
+            );
+            bw1.close();
+            // TODO see if possible to do this without relative paths
+            final String defaultInitDirectory = folder.getRoot().getAbsolutePath();
+            System.setProperty("identity.default_init.dir", defaultInitDirectory);
 
-        startNodes();
+            startNodes();
 
-        ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setClusterManagerNodeTimeout("1s").get();
+            ClusterHealthResponse clusterHealthResponse = client().admin()
+                .cluster()
+                .prepareHealth()
+                .setClusterManagerNodeTimeout("1s")
+                .get();
 
-        assertTrue(
-            ConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX + " index exists",
-            clusterHealthResponse.getIndices().containsKey(ConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX)
-        );
+            assertTrue(
+                ConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX + " index exists",
+                clusterHealthResponse.getIndices().containsKey(ConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX)
+            );
 
-        ClusterIndexHealth identityIndexHealth = clusterHealthResponse.getIndices().get(ConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX);
-        assertEquals(ClusterHealthStatus.GREEN, identityIndexHealth.getStatus());
+            ClusterIndexHealth identityIndexHealth = clusterHealthResponse.getIndices().get(ConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX);
+            assertEquals(ClusterHealthStatus.GREEN, identityIndexHealth.getStatus());
+        } catch (IOException ioe) {
+            fail("error creating temporary test file in " + this.getClass().getSimpleName());
+        }
     }
 
     /**
@@ -96,19 +149,41 @@ public class UserPersistenceIT extends HttpSmokeTestCaseWithIdentity {
      */
     @SuppressForbidden(reason = "manipulates system properties for testing")
     public void testUserPersistenceInvalidYml() throws Exception {
-        final String defaultInitDirectory = PathUtils.get("../../resources/internalClusterTest/invalid").toAbsolutePath().toString();
-        System.setProperty("identity.default_init.dir", defaultInitDirectory);
+        try {
+            TemporaryFolder folder = new TemporaryFolder();
+            folder.create();
+            File internalUsersYml = folder.newFile("internal_users.yml");
+            FileWriter fw1 = new FileWriter(internalUsersYml);
+            BufferedWriter bw1 = new BufferedWriter(fw1);
+            bw1.write(
+                "# Invalid internal_users.yml, hash is required\n"
+                    + "new-user:\n"
+                    + "  attributes:\n"
+                    + "    attribute1: \"value1\"\n"
+                    + "\n"
+            );
+            bw1.close();
+            // TODO see if possible to do this without relative paths
+            final String defaultInitDirectory = folder.getRoot().getAbsolutePath();
+            System.setProperty("identity.default_init.dir", defaultInitDirectory);
 
-        startNodes();
+            startNodes();
 
-        ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setClusterManagerNodeTimeout("1s").get();
+            ClusterHealthResponse clusterHealthResponse = client().admin()
+                .cluster()
+                .prepareHealth()
+                .setClusterManagerNodeTimeout("1s")
+                .get();
 
-        assertTrue(
-            ConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX + " index exists",
-            clusterHealthResponse.getIndices().containsKey(ConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX)
-        );
+            assertTrue(
+                ConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX + " index exists",
+                clusterHealthResponse.getIndices().containsKey(ConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX)
+            );
 
-        ClusterIndexHealth identityIndexHealth = clusterHealthResponse.getIndices().get(ConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX);
-        assertThat(identityIndexHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+            ClusterIndexHealth identityIndexHealth = clusterHealthResponse.getIndices().get(ConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX);
+            assertThat(identityIndexHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+        } catch (IOException ioe) {
+            fail("error creating temporary test file in " + this.getClass().getSimpleName());
+        }
     }
 }

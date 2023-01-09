@@ -1,4 +1,0 @@
-# Invalid internal_users.yml, hash is required
-new-user:
-  attributes:
-    attribute1: "value1"
