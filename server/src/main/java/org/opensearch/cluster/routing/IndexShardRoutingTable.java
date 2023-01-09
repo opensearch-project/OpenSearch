@@ -54,13 +54,13 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
@@ -354,7 +354,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
                 logger.debug("no shard copies found for shard id [{}] for node attribute with weight zero", shardId);
             }
         }
-        orderedListWithDistinctShards = new ArrayList<>(new LinkedHashSet<>(ordered));
+        orderedListWithDistinctShards = ordered.stream().distinct().collect(Collectors.toList());
         return new PlainShardIterator(shardId, orderedListWithDistinctShards);
     }
 

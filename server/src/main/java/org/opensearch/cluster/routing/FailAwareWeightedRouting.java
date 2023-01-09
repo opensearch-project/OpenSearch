@@ -41,12 +41,9 @@ public class FailAwareWeightedRouting {
 
     private final static List<RestStatus> internalErrorRestStatusList = List.of(
         RestStatus.INTERNAL_SERVER_ERROR,
-        RestStatus.NOT_IMPLEMENTED,
         RestStatus.BAD_GATEWAY,
         RestStatus.SERVICE_UNAVAILABLE,
-        RestStatus.GATEWAY_TIMEOUT,
-        RestStatus.HTTP_VERSION_NOT_SUPPORTED,
-        RestStatus.INSUFFICIENT_STORAGE
+        RestStatus.GATEWAY_TIMEOUT
     );
 
     public FailAwareWeightedRouting(Exception e, ClusterState clusterState) {
@@ -79,8 +76,7 @@ public class FailAwareWeightedRouting {
         WeightedRoutingMetadata weightedRoutingMetadata = clusterState.metadata().weightedRoutingMetadata();
         if (weightedRoutingMetadata != null) {
             WeightedRouting weightedRouting = weightedRoutingMetadata.getWeightedRouting();
-            // TODO: check weighted routing has weights set after merging versioning changes
-            if (weightedRouting != null) {
+            if (weightedRouting != null && weightedRouting.isSet()) {
                 // Fetch weighted routing attributes with weight set as zero
                 Stream<String> keys = weightedRouting.weights()
                     .entrySet()
@@ -109,8 +105,9 @@ public class FailAwareWeightedRouting {
     public SearchShardTarget findNext(final SearchShardIterator shardIt) {
         SearchShardTarget next = shardIt.nextOrNull();
         while (next != null && isWeighedAway(next.getNodeId())) {
-            if (canFailOpen(next.getShardId())) {
-                logFailOpen(next.getShardId());
+            SearchShardTarget nextShard = next;
+            if (canFailOpen(nextShard.getShardId())) {
+                logger.info(() -> new ParameterizedMessage("{}: Fail open executed", nextShard.getShardId()));
                 break;
             }
             next = shardIt.nextOrNull();
@@ -130,17 +127,14 @@ public class FailAwareWeightedRouting {
         ShardRouting next = shardsIt.nextOrNull();
 
         while (next != null && isWeighedAway(next.currentNodeId())) {
-            if (canFailOpen(next.shardId())) {
-                logFailOpen(next.shardId());
+            ShardRouting nextShard = next;
+            if (canFailOpen(nextShard.shardId())) {
+                logger.info(() -> new ParameterizedMessage("{}: Fail open executed", nextShard.shardId()));
                 break;
             }
             next = shardsIt.nextOrNull();
         }
         return next;
-    }
-
-    private void logFailOpen(ShardId shardID) {
-        logger.info(() -> new ParameterizedMessage("{}: Fail open executed", shardID));
     }
 
     /**
