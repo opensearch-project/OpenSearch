@@ -46,6 +46,8 @@ import org.opensearch.action.admin.cluster.decommission.awareness.get.GetDecommi
 import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionRequest;
 import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionRequestBuilder;
 import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionResponse;
+import org.opensearch.action.admin.cluster.awarenesshealth.ClusterAwarenessHealthRequest;
+import org.opensearch.action.admin.cluster.awarenesshealth.ClusterAwarenessHealthResponse;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -204,6 +206,15 @@ public interface ClusterAdminClient extends OpenSearchClient {
      * @see Requests#clusterStateRequest()
      */
     void state(ClusterStateRequest request, ActionListener<ClusterStateResponse> listener);
+
+    /**
+     * The awareness_health of the cluster.
+     *
+     * @param request  The cluster state request
+     * @param listener A listener to be notified with a result
+     * @see Requests#clusterAwarenessHealthRequest()
+     */
+    void awarenessHealth(ClusterAwarenessHealthRequest request, ActionListener<ClusterAwarenessHealthResponse> listener);
 
     /**
      * The state of the cluster.

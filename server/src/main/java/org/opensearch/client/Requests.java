@@ -35,6 +35,7 @@ package org.opensearch.client;
 import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionStateRequest;
 import org.opensearch.action.admin.cluster.decommission.awareness.get.GetDecommissionStateRequest;
 import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionRequest;
+import org.opensearch.action.admin.cluster.awarenesshealth.ClusterAwarenessHealthRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
@@ -351,6 +352,15 @@ public class Requests {
      */
     public static ClusterHealthRequest clusterHealthRequest(String... indices) {
         return new ClusterHealthRequest(indices);
+    }
+
+    /**
+     * Creates a cluster Awareness health request.
+     *
+     * @return The cluster awareness health request
+     */
+    public static ClusterAwarenessHealthRequest clusterAwarenessHealthRequest() {
+        return new ClusterAwarenessHealthRequest();
     }
 
     /**
