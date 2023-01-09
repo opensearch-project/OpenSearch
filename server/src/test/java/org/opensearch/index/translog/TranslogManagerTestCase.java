@@ -81,7 +81,7 @@ public abstract class TranslogManagerTestCase extends OpenSearchTestCase {
             shardId,
             primaryTermSupplier.getAsLong()
         );
-        return new Translog(
+        return new LocalTranslog(
             translogConfig,
             translogUUID,
             createTranslogDeletionPolicy(INDEX_SETTINGS),

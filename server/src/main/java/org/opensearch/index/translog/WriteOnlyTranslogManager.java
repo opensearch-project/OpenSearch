@@ -35,7 +35,8 @@ public class WriteOnlyTranslogManager extends InternalTranslogManager {
         Supplier<LocalCheckpointTracker> localCheckpointTrackerSupplier,
         String translogUUID,
         TranslogEventListener translogEventListener,
-        LifecycleAware engineLifecycleAware
+        LifecycleAware engineLifecycleAware,
+        TranslogFactory translogFactory
     ) throws IOException {
         super(
             translogConfig,
@@ -47,7 +48,8 @@ public class WriteOnlyTranslogManager extends InternalTranslogManager {
             localCheckpointTrackerSupplier,
             translogUUID,
             translogEventListener,
-            engineLifecycleAware
+            engineLifecycleAware,
+            translogFactory
         );
     }
 
