@@ -446,26 +446,13 @@ final class StoreRecovery {
         }
         indexShard.preRecovery();
         indexShard.prepareForIndexRecovery();
-        assert remoteStore.directory() instanceof FilterDirectory : "Store.directory is not an instance of FilterDirectory";
-        FilterDirectory remoteStoreDirectory = (FilterDirectory) remoteStore.directory();
-        assert remoteStoreDirectory.getDelegate() instanceof FilterDirectory
-            : "Store.directory is not enclosing an instance of FilterDirectory";
-        FilterDirectory byteSizeCachingStoreDirectory = (FilterDirectory) remoteStoreDirectory.getDelegate();
-        final Directory remoteDirectory = byteSizeCachingStoreDirectory.getDelegate();
         final Store store = indexShard.store();
-        final Directory storeDirectory = store.directory();
         store.incRef();
         remoteStore.incRef();
         try {
-            // Cleaning up local directory before copying file from remote directory.
-            // This is done to make sure we start with clean slate.
-            // ToDo: Check if we can copy only missing files
-            for (String file : storeDirectory.listAll()) {
-                storeDirectory.deleteFile(file);
-            }
-            for (String file : remoteDirectory.listAll()) {
-                storeDirectory.copyFrom(remoteDirectory, file, file, IOContext.DEFAULT);
-            }
+            // Download segments from remote segment store
+            indexShard.syncSegmentsFromRemoteSegmentStore(true);
+
             // This creates empty trans-log for now
             // ToDo: Add code to restore from remote trans-log
             bootstrap(indexShard, store);
@@ -475,7 +462,7 @@ final class StoreRecovery {
             indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
             indexShard.finalizeRecovery();
             indexShard.postRecovery("post recovery from remote_store");
-        } catch (IOException e) {
+        } catch (IOException | IndexShardRecoveryException e) {
             throw new IndexShardRecoveryException(indexShard.shardId, "Exception while recovering from remote store", e);
         } finally {
             store.decRef();
