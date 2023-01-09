@@ -700,7 +700,7 @@ public class RoutingIteratorTests extends OpenSearchAllocationTestCase {
     }
 
     /**
-     * Test to validate that shard routing state is persistent across requests
+     * Test to validate that shard routing state is maintained across requests
      */
     public void testWeightedRoutingShardState() {
         TestThreadPool threadPool = null;
