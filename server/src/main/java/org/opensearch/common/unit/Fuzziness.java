@@ -195,7 +195,6 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
                     } catch (NumberFormatException e){
                         throw new IllegalArgumentException("Invalid fuzziness value: " + fuzziness);
                     }
-//                    return build(fuzziness);
                 }
 
             default:
