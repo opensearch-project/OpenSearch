@@ -478,7 +478,7 @@ public class DecommissionService {
                             );
                         }
                         break;
-                        // for FAILED - we are good to process it again
+                    // for FAILED - we are good to process it again
                     case FAILED:
                         break;
                     case DRAINING:
