@@ -204,6 +204,7 @@ public class TransportReplicationActionTests extends OpenSearchTestCase {
         Metadata metadata = Metadata.builder().build();
         ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .metadata(metadata)
+            .nodes(clusterService.state().nodes())
             .build();
         setState(clusterService, clusterState);
     }
