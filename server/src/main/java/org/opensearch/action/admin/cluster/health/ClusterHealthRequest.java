@@ -32,6 +32,7 @@
 
 package org.opensearch.action.admin.cluster.health;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
@@ -93,7 +94,11 @@ public class ClusterHealthRequest extends ClusterManagerNodeReadRequest<ClusterH
             waitForEvents = Priority.readFrom(in);
         }
         waitForNoInitializingShards = in.readBoolean();
-        indicesOptions = IndicesOptions.readIndicesOptions(in);
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
+            indicesOptions = IndicesOptions.readIndicesOptions(in);
+        } else {
+            indicesOptions = IndicesOptions.lenientExpandOpen();
+        }
         if (in.getVersion().onOrAfter(Version.V_2_5_0)) {
             awarenessAttribute = in.readOptionalString();
             level = in.readEnum(Level.class);
@@ -125,7 +130,9 @@ public class ClusterHealthRequest extends ClusterManagerNodeReadRequest<ClusterH
             Priority.writeTo(waitForEvents, out);
         }
         out.writeBoolean(waitForNoInitializingShards);
-        indicesOptions.writeIndicesOptions(out);
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
+            indicesOptions.writeIndicesOptions(out);
+        }
         if (out.getVersion().onOrAfter(Version.V_2_5_0)) {
             out.writeOptionalString(awarenessAttribute);
             out.writeEnum(level);
