@@ -139,6 +139,7 @@ public class ClusterHealthRequestTests extends OpenSearchTestCase {
             // Deserialize and check the cluster health request
             final StreamInput in = out.bytes().streamInput();
             in.setVersion(out.getVersion());
+            System.out.println(out.getVersion());
             final ClusterHealthRequest actual = new ClusterHealthRequest(in);
 
             assertThat(actual.waitForStatus(), equalTo(expected.waitForStatus()));
