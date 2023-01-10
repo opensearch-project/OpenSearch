@@ -170,7 +170,8 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
             primaryTerm::get,
             getPersistedSeqNoConsumer(),
             repository,
-            threadPool.executor(ThreadPool.Names.TRANSLOG_TRANSFER)
+            threadPool.executor(ThreadPool.Names.TRANSLOG_TRANSFER),
+            () -> Boolean.TRUE
         );
 
     }
@@ -1120,7 +1121,8 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
                 primaryTerm::get,
                 persistedSeqNos::add,
                 repository,
-                threadPool.executor(ThreadPool.Names.TRANSLOG_TRANSFER)
+                threadPool.executor(ThreadPool.Names.TRANSLOG_TRANSFER),
+                () -> Boolean.TRUE
             ) {
                 @Override
                 ChannelFactory getChannelFactory() {
