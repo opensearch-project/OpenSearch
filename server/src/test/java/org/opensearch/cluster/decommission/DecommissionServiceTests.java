@@ -232,7 +232,7 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
         MatcherAssert.assertThat(exceptionReference.get(), instanceOf(DecommissioningFailedException.class));
         MatcherAssert.assertThat(
             exceptionReference.get().getMessage(),
-            containsString("concurrent request received to decommission attribute")
+            containsString("same request is already in status [INIT]")
         );
     }
 

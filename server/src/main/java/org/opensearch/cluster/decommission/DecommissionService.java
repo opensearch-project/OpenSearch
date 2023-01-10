@@ -470,9 +470,9 @@ public class DecommissionService {
                     // for INIT - check if it is eligible internal retry
                     case INIT:
                         msg = (decommissionRequest.originalRequest() == false)
-                            ? "concurrent request received to decommission attribute"
+                            ? "same request is already in status [INIT]"
                             : null;
-                        break;
+                        throw new DecommissioningFailedException(requestedDecommissionAttribute, msg);
                     // for FAILED - we are good to process it again
                     case FAILED:
                         break;
@@ -480,7 +480,7 @@ public class DecommissionService {
                     case IN_PROGRESS:
                     case SUCCESSFUL:
                         msg = "same request is already in status [" + decommissionAttributeMetadata.status() + "]";
-                        break;
+                        throw new DecommissioningFailedException(requestedDecommissionAttribute, msg);
                     default:
                         throw new IllegalStateException(
                             "unknown status [" + decommissionAttributeMetadata.status() + "] currently registered in metadata"
@@ -493,7 +493,7 @@ public class DecommissionService {
                         msg = "one awareness attribute ["
                             + decommissionAttributeMetadata.decommissionAttribute().toString()
                             + "] already successfully decommissioned, recommission before triggering another decommission";
-                        break;
+                        throw new DecommissioningFailedException(requestedDecommissionAttribute, msg);
                     case DRAINING:
                     case IN_PROGRESS:
                     case INIT:
@@ -501,7 +501,7 @@ public class DecommissionService {
                         msg = "there's an inflight decommission request for attribute ["
                             + decommissionAttributeMetadata.decommissionAttribute().toString()
                             + "] is in progress, cannot process this request";
-                        break;
+                        throw new DecommissioningFailedException(requestedDecommissionAttribute, msg);
                     case FAILED:
                         break;
                     default:
@@ -510,10 +510,6 @@ public class DecommissionService {
                         );
                 }
             }
-        }
-
-        if (msg != null) {
-            throw new DecommissioningFailedException(requestedDecommissionAttribute, msg);
         }
     }
 
