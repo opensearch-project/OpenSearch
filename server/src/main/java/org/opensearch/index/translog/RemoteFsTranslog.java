@@ -318,7 +318,7 @@ public class RemoteFsTranslog extends Translog {
         try {
             translogTransferManager.deleteTranslog(primaryTermSupplier.getAsLong(), reader.generation);
         } catch (IOException ignored) {
-            logger.debug("Exception {} while deleting generation {}", ignored, reader.generation);
+            logger.error("Exception {} while deleting generation {}", ignored, reader.generation);
         }
         super.deleteReaderFiles(reader);
     }
