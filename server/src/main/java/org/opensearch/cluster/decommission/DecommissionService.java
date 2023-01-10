@@ -477,6 +477,7 @@ public class DecommissionService {
                                 "same request is already in status [INIT]"
                             );
                         }
+                        break;
                         // for FAILED - we are good to process it again
                     case FAILED:
                         break;
