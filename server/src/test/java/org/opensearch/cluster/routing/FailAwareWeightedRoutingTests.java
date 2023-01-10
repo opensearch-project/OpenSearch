@@ -135,13 +135,9 @@ public class FailAwareWeightedRoutingTests extends OpenSearchTestCase {
         searchShardIterator.nextOrNull();
         searchShardIterator.nextOrNull();
 
-        FailAwareWeightedRouting failAwareWeightedRouting = new FailAwareWeightedRouting(
-            new OpenSearchRejectedExecutionException(),
-            clusterState
-        );
-
         // fail open is not executed since fail open conditions don't met
-        SearchShardTarget next = failAwareWeightedRouting.findNext(searchShardIterator);
+        SearchShardTarget next = FailAwareWeightedRouting.getInstance()
+            .findNext(searchShardIterator, clusterState, new OpenSearchRejectedExecutionException());
         assertNull(next);
     }
 
@@ -200,13 +196,9 @@ public class FailAwareWeightedRoutingTests extends OpenSearchTestCase {
 
         // Node in zone b is disconnected
         DiscoveryNode node = clusterState.nodes().get("node_zone_b");
-        FailAwareWeightedRouting failAwareWeightedRouting = new FailAwareWeightedRouting(
-            new NodeNotConnectedException(node, "Node is not " + "connected"),
-            clusterState
-        );
-
         // fail open is executed and shard present in node with weighted routing weight zero is returned
-        SearchShardTarget next = failAwareWeightedRouting.findNext(searchShardIterator);
+        SearchShardTarget next = FailAwareWeightedRouting.getInstance()
+            .findNext(searchShardIterator, clusterState, new NodeNotConnectedException(node, "Node is not " + "connected"));
         assertNotNull(next);
         assertEquals("node_zone_c", next.getNodeId());
     }
@@ -264,14 +256,10 @@ public class FailAwareWeightedRoutingTests extends OpenSearchTestCase {
         searchShardIterator.nextOrNull();
         searchShardIterator.nextOrNull();
 
-        FailAwareWeightedRouting failAwareWeightedRouting = new FailAwareWeightedRouting(
-            new OpenSearchRejectedExecutionException(),
-            clusterState
-        );
-
         // since there is an unassigned shard in the cluster, fail open is executed and shard present in node with
         // weighted routing weight zero is returned
-        SearchShardTarget next = failAwareWeightedRouting.findNext(searchShardIterator);
+        SearchShardTarget next = FailAwareWeightedRouting.getInstance()
+            .findNext(searchShardIterator, clusterState, new OpenSearchRejectedExecutionException());
         assertNotNull(next);
         assertEquals("node_zone_c", next.getNodeId());
     }

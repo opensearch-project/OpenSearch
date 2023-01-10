@@ -450,7 +450,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         // we always add the shard failure for a specific shard instance
         // we do make sure to clean it on a successful response from a shard
         onShardFailure(shardIndex, shard, e);
-        SearchShardTarget nextShard = new FailAwareWeightedRouting(e, clusterState).findNext(shardIt);
+        SearchShardTarget nextShard = FailAwareWeightedRouting.getInstance().findNext(shardIt, clusterState, e);
 
         final boolean lastShard = nextShard == null;
         logger.debug(
