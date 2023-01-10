@@ -79,7 +79,7 @@ public class UserPersistenceIT extends HttpSmokeTestCaseWithIdentity {
             BufferedWriter bw1 = new BufferedWriter(fw1);
             bw1.write(
                 "# This is the internal user database\n"
-                    + "# The hash value is a bcrypt hash and can be generated with plugin/tools/hash.sh\n"
+                    + "# The hash value is a bcrypt hash\n"
                     + "\n"
                     + "# Define your internal users here\n"
                     + "new-user:\n"
