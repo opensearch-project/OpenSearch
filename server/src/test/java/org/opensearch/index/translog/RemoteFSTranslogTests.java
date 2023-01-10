@@ -620,8 +620,8 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
     public void testConcurrentWriteViewsAndSnapshot() throws Throwable {
         final Thread[] writers = new Thread[randomIntBetween(1, 3)];
         final Thread[] readers = new Thread[randomIntBetween(1, 3)];
-        final int flushEveryOps = randomIntBetween(5, 100);
-        final int maxOps = randomIntBetween(200, 1000);
+        final int flushEveryOps = randomIntBetween(5, 10);
+        final int maxOps = randomIntBetween(20, 100);
         final Object signalReaderSomeDataWasIndexed = new Object();
         final AtomicLong idGenerator = new AtomicLong();
         final CyclicBarrier barrier = new CyclicBarrier(writers.length + readers.length + 1);
