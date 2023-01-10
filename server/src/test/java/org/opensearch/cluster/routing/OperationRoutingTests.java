@@ -904,6 +904,7 @@ public class OperationRoutingTests extends OpenSearchTestCase {
             Settings setting = Settings.builder()
                 .put("cluster.routing.allocation.awareness.attributes", "zone")
                 .put("cluster.routing.allocation.awareness.force.zone.values", "a,b,c")
+                .put("cluster.routing.weighted.fail_open", false)
                 .build();
 
             threadPool = new TestThreadPool("testThatOnlyNodesSupport");
