@@ -11,7 +11,7 @@ package org.opensearch.index.translog.transfer.listener;
 import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
 
 /**
- * The listener to be invoked on the completion or failure of a {@link TransferFileSnapshot}
+ * The listener to be invoked on the completion or failure of a {@link TransferFileSnapshot} or deletion of file
  *
  * @opensearch.internal
  */
@@ -29,4 +29,6 @@ public interface FileTransferListener {
      * @param e the exception while processing the {@link TransferFileSnapshot}
      */
     void onFailure(TransferFileSnapshot fileSnapshot, Exception e);
+
+    void onDelete(String name);
 }

@@ -84,6 +84,9 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
                 public void onFailure(TransferFileSnapshot fileSnapshot, Exception e) {
                     fileTransferFailed.incrementAndGet();
                 }
+
+                @Override
+                public void onDelete(String name) {}
             }
         );
 
