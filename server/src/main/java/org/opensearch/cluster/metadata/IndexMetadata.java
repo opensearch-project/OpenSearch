@@ -1844,11 +1844,15 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             // Reference:
             // https://github.com/opensearch-project/OpenSearch/blob/4dde0f2a3b445b2fc61dab29c5a2178967f4a3e3/server/src/main/java/org/opensearch/cluster/metadata/IndexMetadata.java#L1620-L1628
             Version legacyVersion = LegacyESVersion.fromId(6050099);
-            if (Assertions.ENABLED && Version.indexCreated(builder.settings).onOrAfter(legacyVersion)) {
+            Version indexCreatedVersion = Version.indexCreated(builder.settings);
+            if (Assertions.ENABLED && indexCreatedVersion.onOrAfter(legacyVersion)) {
                 assert mappingVersion : "mapping version should be present for indices";
                 assert settingsVersion : "settings version should be present for indices";
             }
-            if (Assertions.ENABLED) {
+            // Reference:
+            // https://github.com/opensearch-project/OpenSearch/blob/2e4b27b243d8bd2c515f66cf86c6d1d6a601307f/server/src/main/java/org/opensearch/cluster/metadata/IndexMetadata.java#L1824
+            legacyVersion = LegacyESVersion.fromId(7020099);
+            if (Assertions.ENABLED && indexCreatedVersion.onOrAfter(legacyVersion)) {
                 assert aliasesVersion : "aliases version should be present for indices";
             }
             return builder.build();
