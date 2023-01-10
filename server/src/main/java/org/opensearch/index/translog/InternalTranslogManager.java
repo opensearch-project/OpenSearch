@@ -288,6 +288,11 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
         }
     }
 
+    @Override
+    public void setMinSeqNoToKeep(long seqNo) {
+        translog.setMinSeqNoToKeep(seqNo);
+    }
+
     /**
      * Reads operations from the translog
      * @param location

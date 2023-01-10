@@ -55,6 +55,11 @@ public class FileTransferTracker implements FileTransferListener {
         add(fileSnapshot.getName(), TransferState.FAILED);
     }
 
+    @Override
+    public void onDelete(String name) {
+        fileTransferTracker.remove(name);
+    }
+
     public Set<TransferFileSnapshot> exclusionFilter(Set<TransferFileSnapshot> original) {
         return original.stream()
             .filter(fileSnapshot -> fileTransferTracker.get(fileSnapshot.getName()) != TransferState.SUCCESS)
