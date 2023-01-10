@@ -30,7 +30,7 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
     public static final TimeValue DEFAULT_NODE_DRAINING_TIMEOUT = TimeValue.timeValueSeconds(120);
 
     private DecommissionAttribute decommissionAttribute;
-    private String id;
+    private String requestID;
     private TimeValue delayTimeout = DEFAULT_NODE_DRAINING_TIMEOUT;
 
     // holder for no_delay param. To avoid draining time timeout.
@@ -47,7 +47,7 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
         decommissionAttribute = new DecommissionAttribute(in);
         this.delayTimeout = in.readTimeValue();
         this.noDelay = in.readBoolean();
-        this.id = in.readOptionalString();
+        this.requestID = in.readOptionalString();
     }
 
     @Override
@@ -56,7 +56,7 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
         decommissionAttribute.writeTo(out);
         out.writeTimeValue(delayTimeout);
         out.writeBoolean(noDelay);
-        out.writeOptionalString(id);
+        out.writeOptionalString(requestID);
     }
 
     /**
@@ -101,19 +101,19 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
     /**
      * Sets id for decommission request
      *
-     * @param id uuid for request
+     * @param requestID uuid for request
      * @return this request
      */
-    public DecommissionRequest setID(String id) {
-        this.id = id;
+    public DecommissionRequest setRequestID(String requestID) {
+        this.requestID = requestID;
         return this;
     }
 
     /**
      * @return Returns id of decommission request
      */
-    public String id() {
-        return id;
+    public String requestID() {
+        return requestID;
     }
 
     @Override

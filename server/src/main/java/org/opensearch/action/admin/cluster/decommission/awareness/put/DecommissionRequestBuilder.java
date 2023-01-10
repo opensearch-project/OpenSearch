@@ -48,13 +48,13 @@ public class DecommissionRequestBuilder extends ClusterManagerNodeOperationReque
     }
 
     /**
-     * Sets id for decommission request
+     * Sets request id for decommission request
      *
-     * @param id for decommission request
+     * @param requestID for decommission request
      * @return current object
      */
-    public DecommissionRequestBuilder id(String id) {
-        request.setID(id);
+    public DecommissionRequestBuilder requestID(String requestID) {
+        request.setRequestID(requestID);
         return this;
     }
 }
