@@ -192,7 +192,7 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
                     try {
                         final float minimumSimilarity = Float.parseFloat(fuzziness);
                         return build(fuzziness);
-                    } catch (NumberFormatException e){
+                    } catch (NumberFormatException e) {
                         throw new IllegalArgumentException("Invalid fuzziness value: " + fuzziness);
                     }
                 }
