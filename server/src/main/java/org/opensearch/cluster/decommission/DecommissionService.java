@@ -469,9 +469,7 @@ public class DecommissionService {
                 switch (decommissionAttributeMetadata.status()) {
                     // for INIT - check if it is eligible internal retry
                     case INIT:
-                        msg = (decommissionRequest.originalRequest() == false)
-                            ? "same request is already in status [INIT]"
-                            : null;
+                        msg = (decommissionRequest.originalRequest() == false) ? "same request is already in status [INIT]" : null;
                         throw new DecommissioningFailedException(requestedDecommissionAttribute, msg);
                     // for FAILED - we are good to process it again
                     case FAILED:

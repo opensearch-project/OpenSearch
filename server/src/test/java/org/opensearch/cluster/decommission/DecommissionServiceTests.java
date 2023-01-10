@@ -230,10 +230,7 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
         MatcherAssert.assertThat("Expected onFailure to be called", exceptionReference.get(), notNullValue());
         MatcherAssert.assertThat(exceptionReference.get(), instanceOf(DecommissioningFailedException.class));
-        MatcherAssert.assertThat(
-            exceptionReference.get().getMessage(),
-            containsString("same request is already in status [INIT]")
-        );
+        MatcherAssert.assertThat(exceptionReference.get().getMessage(), containsString("same request is already in status [INIT]"));
     }
 
     @SuppressWarnings("unchecked")
