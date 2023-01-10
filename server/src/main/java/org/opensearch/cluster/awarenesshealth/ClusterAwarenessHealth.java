@@ -50,7 +50,8 @@ public class ClusterAwarenessHealth implements Writeable, ToXContentFragment, It
         clusterAwarenessAttributesHealthMap = new HashMap<>();
         List<String> awarenessAttributeList = getAwarenessAttributeList(awarenessAttributeName, clusterSettings);
         for (String awarenessAttribute : awarenessAttributeList) {
-            displayUnassignedShardLevelInfo = canCalcUnassignedShards(clusterSettings, awarenessAttributeName);
+            displayUnassignedShardLevelInfo = canCalcUnassignedShards(clusterSettings, awarenessAttribute);
+            System.out.println(displayUnassignedShardLevelInfo);
             clusterAwarenessAttributesHealth = new ClusterAwarenessAttributesHealth(
                 awarenessAttribute,
                 displayUnassignedShardLevelInfo,
