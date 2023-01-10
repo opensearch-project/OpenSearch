@@ -145,7 +145,7 @@ public class DecommissionService {
                 // validates if correct awareness attributes and forced awareness attribute set to the cluster before starting action
                 validateAwarenessAttribute(decommissionAttribute, awarenessAttributes, forcedAwarenessAttributes);
                 DecommissionAttributeMetadata decommissionAttributeMetadata = currentState.metadata().decommissionAttributeMetadata();
-                if (decommissionAttributeMetadata == null) {
+                if (decommissionAttributeMetadata == null || decommissionAttributeMetadata.status().equals(DecommissionStatus.FAILED)) {
                     decommissionRequest.originalRequest(true);
                 }
                 // check that request is eligible to proceed and attribute is weighed away
