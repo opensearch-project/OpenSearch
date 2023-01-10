@@ -97,4 +97,5 @@
 - Fix error handling while reading analyzer mapping rules ([6d20423](https://github.com/opensearch-project/OpenSearch/commit/6d20423f5920745463b1abc5f1daf6a786c41aa0))
 
 ### Security
+- Fixes CVE-2022-41917 ([#5141](https://github.com/opensearch-project/OpenSearch/pull/5141))
 - CVE-2022-25857 org.yaml:snakeyaml DOS vulnerability ([#4341](https://github.com/opensearch-project/OpenSearch/pull/4341))
