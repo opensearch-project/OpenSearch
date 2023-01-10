@@ -86,8 +86,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
                 }
 
                 @Override
-                public void onDelete(String name) {
-                }
+                public void onDelete(String name) {}
             }
         );
 
