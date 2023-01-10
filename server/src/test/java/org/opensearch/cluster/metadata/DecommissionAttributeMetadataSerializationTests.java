@@ -33,7 +33,7 @@ public class DecommissionAttributeMetadataSerializationTests extends AbstractDif
         String attributeValue = randomAlphaOfLength(6);
         DecommissionAttribute decommissionAttribute = new DecommissionAttribute(attributeName, attributeValue);
         DecommissionStatus decommissionStatus = randomFrom(DecommissionStatus.values());
-        return new DecommissionAttributeMetadata(decommissionAttribute, decommissionStatus);
+        return new DecommissionAttributeMetadata(decommissionAttribute, decommissionStatus, randomAlphaOfLength(10));
     }
 
     @Override
@@ -57,7 +57,11 @@ public class DecommissionAttributeMetadataSerializationTests extends AbstractDif
         if (randomBoolean()) {
             attributeValue = randomAlphaOfLength(6);
         }
-        return new DecommissionAttributeMetadata(new DecommissionAttribute(attributeName, attributeValue), decommissionStatus);
+        return new DecommissionAttributeMetadata(
+            new DecommissionAttribute(attributeName, attributeValue),
+            decommissionStatus,
+            randomAlphaOfLength(10)
+        );
     }
 
     @Override
@@ -77,7 +81,8 @@ public class DecommissionAttributeMetadataSerializationTests extends AbstractDif
         assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
         return new DecommissionAttributeMetadata(
             decommissionAttributeMetadata.decommissionAttribute(),
-            decommissionAttributeMetadata.status()
+            decommissionAttributeMetadata.status(),
+            decommissionAttributeMetadata.requestID()
         );
     }
 }
