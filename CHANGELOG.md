@@ -39,6 +39,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bumps `gradle-info-plugin` from 7.1.3 to 12.0.0 ([#5684](https://github.com/opensearch-project/OpenSearch/pull/5684))
 - Bumps `reactor-netty` from 1.0.18 to 1.1.1 ([#5685](https://github.com/opensearch-project/OpenSearch/pull/5685))
 - Bumps `apache-rat` from 0.13 to 0.15 ([#5686](https://github.com/opensearch-project/OpenSearch/pull/5686))
+- Update nebula-publishing-plugin to 19.2.0 ([#5704](https://github.com/opensearch-project/OpenSearch/pull/5704))
 
 ### Changed
 - Change http code for DecommissioningFailedException from 500 to 400 ([#5283](https://github.com/opensearch-project/OpenSearch/pull/5283))
