@@ -151,4 +151,14 @@ public class ClusterHealthRequestBuilder extends ClusterManagerNodeReadOperation
         request.waitForEvents(waitForEvents);
         return this;
     }
+
+    public ClusterHealthRequestBuilder setAwarenessAttribute(String awarenessAttribute) {
+        request.setAwarenessAttribute(awarenessAttribute);
+        return this;
+    }
+
+    public ClusterHealthRequestBuilder setLevel(String level) {
+        request.setLevel(level);
+        return this;
+    }
 }
