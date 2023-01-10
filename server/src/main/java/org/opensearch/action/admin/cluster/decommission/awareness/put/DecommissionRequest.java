@@ -38,11 +38,6 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
 
     public DecommissionRequest() {}
 
-    public DecommissionRequest(DecommissionAttribute decommissionAttribute, boolean originalRequest) {
-        this.decommissionAttribute = decommissionAttribute;
-        this.originalRequest = originalRequest;
-    }
-
     public DecommissionRequest(DecommissionAttribute decommissionAttribute) {
         this.decommissionAttribute = decommissionAttribute;
     }
