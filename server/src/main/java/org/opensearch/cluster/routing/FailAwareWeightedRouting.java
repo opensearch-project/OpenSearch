@@ -30,9 +30,9 @@ import java.util.stream.Stream;
  * nodes whose attribute value weight for weighted shard routing is set to zero.
  */
 
-public enum FailAwareWeightedRouting {
-    INSTANCE;
+public class FailAwareWeightedRouting {
 
+    public static final FailAwareWeightedRouting INSTANCE = new FailAwareWeightedRouting();
     private static final Logger logger = LogManager.getLogger(FailAwareWeightedRouting.class);
 
     private final static List<RestStatus> internalErrorRestStatusList = List.of(
@@ -44,7 +44,6 @@ public enum FailAwareWeightedRouting {
 
     public static FailAwareWeightedRouting getInstance() {
         return INSTANCE;
-
     }
 
     /**
@@ -103,9 +102,7 @@ public enum FailAwareWeightedRouting {
         while (next != null && isWeighedAway(next.getNodeId(), clusterState)) {
             SearchShardTarget nextShard = next;
             if (canFailOpen(nextShard.getShardId(), exception, clusterState)) {
-                logger.info(
-                    () -> new ParameterizedMessage("{}: Fail open executed due to exception {}", nextShard.getShardId(), exception)
-                );
+                logger.info(() -> new ParameterizedMessage("{}: Fail open executed due to exception", nextShard.getShardId()), exception);
                 break;
             }
             next = shardIt.nextOrNull();
@@ -127,7 +124,7 @@ public enum FailAwareWeightedRouting {
         while (next != null && isWeighedAway(next.currentNodeId(), clusterState)) {
             ShardRouting nextShard = next;
             if (canFailOpen(nextShard.shardId(), exception, clusterState)) {
-                logger.info(() -> new ParameterizedMessage("{}: Fail open executed due to exception {}", nextShard.shardId(), exception));
+                logger.info(() -> new ParameterizedMessage("{}: Fail open executed due to exception", nextShard.shardId()), exception);
                 break;
             }
             next = shardsIt.nextOrNull();
