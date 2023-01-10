@@ -343,10 +343,11 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
 
     public void testDrainNodesWithDecommissionedAttributeWithNoDelay() {
         DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "zone-2");
+        String requestID = randomAlphaOfLength(10);
         DecommissionAttributeMetadata decommissionAttributeMetadata = new DecommissionAttributeMetadata(
             decommissionAttribute,
             DecommissionStatus.INIT,
-            randomAlphaOfLength(10)
+            requestID
         );
 
         Metadata metadata = Metadata.builder().putCustom(DecommissionAttributeMetadata.TYPE, decommissionAttributeMetadata).build();
@@ -354,6 +355,7 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
 
         DecommissionRequest request = new DecommissionRequest(decommissionAttribute);
         request.setNoDelay(true);
+        request.setRequestID(requestID);
 
         setState(clusterService, state);
         decommissionService.drainNodesWithDecommissionedAttribute(request);
