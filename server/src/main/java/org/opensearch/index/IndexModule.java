@@ -496,7 +496,7 @@ public final class IndexModule {
         BooleanSupplier idFieldDataEnabled,
         ValuesSourceRegistry valuesSourceRegistry,
         IndexStorePlugin.RemoteDirectoryFactory remoteDirectoryFactory,
-        Supplier<RepositoriesService> repositoriesServiceSupplier
+        BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier
     ) throws IOException {
         final IndexEventListener eventListener = freeze();
         Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> readerWrapperFactory = indexReaderWrapper

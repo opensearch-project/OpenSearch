@@ -46,6 +46,7 @@ import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.SetOnce;
 import org.apache.lucene.util.SetOnce.AlreadySetException;
+import org.mockito.ArgumentCaptor;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
@@ -124,7 +125,6 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -134,7 +134,6 @@ import java.util.function.BiFunction;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -667,8 +666,8 @@ public class IndexModuleTests extends OpenSearchTestCase {
         );
 
         try {
-            module.addHybridFSExtensions(() -> List.of("vec", "vem"));
-            module.addHybridFSExtensions(() -> List.of("txt", "vem"));
+            module.addFSTypeFileExtensions(Map.of(IndexModule.Type.HYBRIDFS, Set.of("vec", "vem")));
+            module.addFSTypeFileExtensions(Map.of(IndexModule.Type.HYBRIDFS, Set.of("txt", "vem")));
         } catch (Exception ex) {
             fail("not registered");
         }
@@ -685,13 +684,12 @@ public class IndexModuleTests extends OpenSearchTestCase {
         );
 
         indexService.createShard(shardRouting, s -> {}, RetentionLeaseSyncer.EMPTY, SegmentReplicationCheckpointPublisher.EMPTY);
-
-        List<String> expectedListOfExtensions = List.of("vec", "vem", "txt");
-        verify(directoryFactory, times(1)).newDirectory(
-            any(),
-            any(),
-            eq(Map.of("index.store.hybrid.mmap.extensions", expectedListOfExtensions))
-        );
+        ArgumentCaptor<Map<IndexModule.Type, Set<String>>> extensionsCaptor = ArgumentCaptor.forClass(Map.class);
+        Set<String> expectedListOfExtensions = Set.of("vec", "vem", "txt");
+        verify(directoryFactory, times(1)).newDirectory(any(), any(), extensionsCaptor.capture());
+        assertNotNull(extensionsCaptor.getValue());
+        assertTrue(extensionsCaptor.getValue().containsKey(IndexModule.Type.HYBRIDFS));
+        assertEquals(expectedListOfExtensions, extensionsCaptor.getValue().get(IndexModule.Type.HYBRIDFS));
 
         indexService.close("simon says", false);
     }
@@ -772,12 +770,8 @@ public class IndexModuleTests extends OpenSearchTestCase {
     public static final class FooFunction implements IndexStorePlugin.DirectoryFactory {
 
         @Override
-        public Directory newDirectory(
-            IndexSettings indexSettings,
-            ShardPath shardPath,
-            Map<String, List<String>> additionalSettingProviders
-        ) throws IOException {
-            return newDirectory(indexSettings, shardPath, additionalSettingProviders);
+        public Directory newDirectory(IndexSettings indexSettings, ShardPath shardPath) throws IOException {
+            return newDirectory(indexSettings, shardPath);
         }
     }
 

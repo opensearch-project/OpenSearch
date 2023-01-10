@@ -55,9 +55,9 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import static org.opensearch.test.store.MockFSDirectoryFactory.FILE_SYSTEM_BASED_STORE_TYPES;
 
@@ -71,7 +71,7 @@ public class FsDirectoryFactoryTests extends OpenSearchTestCase {
             .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.HYBRIDFS.name().toLowerCase(Locale.ROOT))
             .putList(IndexModule.INDEX_STORE_PRE_LOAD_SETTING.getKey(), "dvd", "bar")
             .build();
-        try (Directory directory = newDirectory(build, List.of())) {
+        try (Directory directory = newDirectory(build, Set.of())) {
             assertTrue(FsDirectoryFactory.isHybridFs(directory));
             FsDirectoryFactory.HybridDirectory hybridDirectory = (FsDirectoryFactory.HybridDirectory) directory;
             // test default hybrid mmap extensions
@@ -98,7 +98,7 @@ public class FsDirectoryFactoryTests extends OpenSearchTestCase {
             .putList(IndexModule.INDEX_STORE_PRE_LOAD_SETTING.getKey(), "nvd", "dvd", "cfs")
             .putList(IndexModule.INDEX_STORE_HYBRID_MMAP_EXTENSIONS.getKey(), "nvd", "dvd", "tim", "pos", "pay")
             .build();
-        try (Directory directory = newDirectory(build, List.of())) {
+        try (Directory directory = newDirectory(build, Set.of())) {
             assertTrue(FsDirectoryFactory.isHybridFs(directory));
             FsDirectoryFactory.HybridDirectory hybridDirectory = (FsDirectoryFactory.HybridDirectory) directory;
             // test custom hybrid mmap extensions
@@ -123,16 +123,12 @@ public class FsDirectoryFactoryTests extends OpenSearchTestCase {
         }
     }
 
-    private Directory newDirectory(Settings settings, List<String> additionalExtensions) throws IOException {
+    private Directory newDirectory(Settings settings, Set<String> additionalExtensions) throws IOException {
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("foo", settings);
         Path tempDir = createTempDir().resolve(idxSettings.getUUID()).resolve("0");
         Files.createDirectories(tempDir);
         ShardPath path = new ShardPath(false, tempDir, tempDir, new ShardId(idxSettings.getIndex(), 0));
-        return new FsDirectoryFactory().newDirectory(
-            idxSettings,
-            path,
-            Map.of(IndexModule.INDEX_STORE_HYBRID_MMAP_EXTENSIONS.getKey(), additionalExtensions)
-        );
+        return new FsDirectoryFactory().newDirectory(idxSettings, path, Map.of(IndexModule.Type.HYBRIDFS, additionalExtensions));
     }
 
     private void doTestPreload(String... preload) throws IOException {
@@ -140,7 +136,7 @@ public class FsDirectoryFactoryTests extends OpenSearchTestCase {
             .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), "mmapfs")
             .putList(IndexModule.INDEX_STORE_PRE_LOAD_SETTING.getKey(), preload)
             .build();
-        Directory directory = newDirectory(build, List.of());
+        Directory directory = newDirectory(build, Set.of());
         try (Directory dir = directory) {
             assertSame(dir, directory); // prevent warnings
             assertFalse(directory instanceof SleepingLockWrapper);
@@ -222,7 +218,7 @@ public class FsDirectoryFactoryTests extends OpenSearchTestCase {
             .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.HYBRIDFS.name().toLowerCase(Locale.ROOT))
             .putList(IndexModule.INDEX_STORE_PRE_LOAD_SETTING.getKey(), "dvd", "bar")
             .build();
-        try (Directory directory = newDirectory(build, List.of("vec", "vex"))) {
+        try (Directory directory = newDirectory(build, Set.of("vec", "vex"))) {
             assertTrue(FsDirectoryFactory.isHybridFs(directory));
             FsDirectoryFactory.HybridDirectory hybridDirectory = (FsDirectoryFactory.HybridDirectory) directory;
             // test default hybrid mmap extensions
@@ -251,7 +247,7 @@ public class FsDirectoryFactoryTests extends OpenSearchTestCase {
             .putList(IndexModule.INDEX_STORE_PRE_LOAD_SETTING.getKey(), "nvd", "dvd", "cfs")
             .putList(IndexModule.INDEX_STORE_HYBRID_MMAP_EXTENSIONS.getKey(), "nvd", "dvd", "tim", "pos", "pay")
             .build();
-        try (Directory directory = newDirectory(build, List.of("nvd", "vec", "vex"))) {
+        try (Directory directory = newDirectory(build, Set.of("nvd", "vec", "vex"))) {
             assertTrue(FsDirectoryFactory.isHybridFs(directory));
             FsDirectoryFactory.HybridDirectory hybridDirectory = (FsDirectoryFactory.HybridDirectory) directory;
             // test custom hybrid mmap extensions

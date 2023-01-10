@@ -64,7 +64,6 @@ import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -96,8 +95,7 @@ public class MockFSDirectoryFactory implements IndexStorePlugin.DirectoryFactory
     );
 
     @Override
-    public Directory newDirectory(IndexSettings idxSettings, ShardPath path, Map<String, List<String>> additionalSettingProviders)
-        throws IOException {
+    public Directory newDirectory(IndexSettings idxSettings, ShardPath path) throws IOException {
         Settings indexSettings = idxSettings.getSettings();
         Random random = new Random(idxSettings.getValue(OpenSearchIntegTestCase.INDEX_TEST_SEED_SETTING));
         return wrap(randomDirectoryService(random, idxSettings, path), random, indexSettings, path.getShardId());
@@ -180,7 +178,7 @@ public class MockFSDirectoryFactory implements IndexStorePlugin.DirectoryFactory
             )
             .build();
         final IndexSettings newIndexSettings = new IndexSettings(build, indexSettings.getNodeSettings());
-        return new FsDirectoryFactory().newDirectory(newIndexSettings, path, Map.of());
+        return new FsDirectoryFactory().newDirectory(newIndexSettings, path);
     }
 
     public static final class OpenSearchMockDirectoryWrapper extends MockDirectoryWrapper {

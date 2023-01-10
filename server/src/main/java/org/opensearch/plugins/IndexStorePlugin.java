@@ -36,14 +36,15 @@ import org.apache.lucene.store.Directory;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.Nullable;
+import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.indices.recovery.RecoveryState;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * A plugin that provides alternative directory implementations.
@@ -59,14 +60,25 @@ public interface IndexStorePlugin {
     interface DirectoryFactory {
         /**
          * Creates a new directory per shard. This method is called once per shard on shard creation.
-         *
          * @param indexSettings the shards index settings
-         * @param shardPath     the path the shard is using
+         * @param shardPath the path the shard is using
          * @return a new lucene directory instance
          * @throws IOException if an IOException occurs while opening the directory
          */
-        Directory newDirectory(IndexSettings indexSettings, ShardPath shardPath, Map<String, List<String>> additionalSettingProviders)
-            throws IOException;
+        Directory newDirectory(IndexSettings indexSettings, ShardPath shardPath) throws IOException;
+
+        /**
+         * Creates a new directory per shard. This method is called once per shard on shard creation.
+         * @param indexSettings the shards index settings
+         * @param shardPath the path the shard is using
+         * @param extensions map of providers for additional settings where key is a setting name
+         * @return a new lucene directory instance
+         * @throws IOException if an IOException occurs while opening the directory
+         */
+        default Directory newDirectory(IndexSettings indexSettings, ShardPath shardPath, Map<IndexModule.Type, Set<String>> extensions)
+            throws IOException {
+            return newDirectory(indexSettings, shardPath);
+        }
     }
 
     /**

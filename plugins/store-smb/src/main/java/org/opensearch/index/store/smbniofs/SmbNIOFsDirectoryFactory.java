@@ -11,14 +11,15 @@ package org.opensearch.index.store.smbniofs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockFactory;
 import org.apache.lucene.store.NIOFSDirectory;
+import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.store.FsDirectoryFactory;
 import org.opensearch.index.store.SmbDirectoryWrapper;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Factory to create a new NIO File System type directory accessible as a SMB share
@@ -30,7 +31,7 @@ public final class SmbNIOFsDirectoryFactory extends FsDirectoryFactory {
         Path location,
         LockFactory lockFactory,
         IndexSettings indexSettings,
-        Map<String, List<String>> additionalSettingProviders
+        Map<IndexModule.Type, Set<String>> additionalExtensions
     ) throws IOException {
         return new SmbDirectoryWrapper(new NIOFSDirectory(location, lockFactory));
     }
