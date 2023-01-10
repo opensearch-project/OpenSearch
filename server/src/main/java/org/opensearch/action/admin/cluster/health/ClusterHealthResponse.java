@@ -204,7 +204,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         numberOfInFlightFetch = in.readInt();
         delayedUnassignedShards = in.readInt();
         taskMaxWaitingTime = in.readTimeValue();
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_5_0)) {
             if (in.readBoolean()) {
                 clusterAwarenessHealth = new ClusterAwarenessHealth(in);
             }
@@ -239,20 +239,23 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         String clusterName,
         ClusterState clusterState,
         ClusterSettings clusterSettings,
+        String[] concreteIndices,
         String awarenessAttributeName,
         int numberOfPendingTasks,
         int numberOfInFlightFetch,
         int delayedUnassignedShards,
         TimeValue taskMaxWaitingTime
     ) {
-        this.clusterName = clusterName;
-        this.numberOfPendingTasks = numberOfPendingTasks;
-        this.numberOfInFlightFetch = numberOfInFlightFetch;
-        this.delayedUnassignedShards = delayedUnassignedShards;
-        this.taskMaxWaitingTime = taskMaxWaitingTime;
-        this.clusterStateHealth = new ClusterStateHealth(clusterState);
+        this(
+            clusterName,
+            concreteIndices,
+            clusterState,
+            numberOfPendingTasks,
+            numberOfInFlightFetch,
+            delayedUnassignedShards,
+            taskMaxWaitingTime
+        );
         this.clusterAwarenessHealth = new ClusterAwarenessHealth(clusterState, clusterSettings, awarenessAttributeName);
-        this.clusterHealthStatus = clusterStateHealth.getStatus();
     }
 
     /**
@@ -401,7 +404,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         out.writeInt(numberOfInFlightFetch);
         out.writeInt(delayedUnassignedShards);
         out.writeTimeValue(taskMaxWaitingTime);
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_5_0)) {
             if (clusterAwarenessHealth != null) {
                 out.writeBoolean(true);
                 clusterAwarenessHealth.writeTo(out);
@@ -444,7 +447,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
 
         String level = params.param("level", "cluster");
         boolean outputIndices = "indices".equals(level) || "shards".equals(level);
-        boolean outputAwarenessHealth = "awareness_attribute".equals(level);
+        boolean outputAwarenessHealth = "awareness_attributes".equals(level);
 
         if (outputIndices) {
             builder.startObject(INDICES);

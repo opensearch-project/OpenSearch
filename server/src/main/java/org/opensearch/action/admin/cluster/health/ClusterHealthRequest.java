@@ -94,7 +94,7 @@ public class ClusterHealthRequest extends ClusterManagerNodeReadRequest<ClusterH
         }
         waitForNoInitializingShards = in.readBoolean();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_5_0)) {
             awarenessAttribute = in.readOptionalString();
             level = in.readEnum(Level.class);
         }
@@ -126,7 +126,7 @@ public class ClusterHealthRequest extends ClusterManagerNodeReadRequest<ClusterH
         }
         out.writeBoolean(waitForNoInitializingShards);
         indicesOptions.writeIndicesOptions(out);
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_5_0)) {
             out.writeOptionalString(awarenessAttribute);
             out.writeEnum(level);
         }
@@ -284,16 +284,16 @@ public class ClusterHealthRequest extends ClusterManagerNodeReadRequest<ClusterH
     public void setLevel(String level) {
         switch (level) {
             case "indices":
-                this.level = ClusterHealthRequest.Level.INDICES;
+                level(ClusterHealthRequest.Level.INDICES);
                 break;
             case "shards":
-                this.level = ClusterHealthRequest.Level.SHARDS;
+                level(ClusterHealthRequest.Level.SHARDS);
                 break;
-            case "awareness_attribute":
-                this.level = ClusterHealthRequest.Level.AWARENESS_ATTRIBUTE;
+            case "awareness_attributes":
+                level(ClusterHealthRequest.Level.AWARENESS_ATTRIBUTES);
                 break;
             default:
-                this.level = ClusterHealthRequest.Level.CLUSTER;
+                level(ClusterHealthRequest.Level.CLUSTER);
         }
     }
 
@@ -316,10 +316,10 @@ public class ClusterHealthRequest extends ClusterManagerNodeReadRequest<ClusterH
 
     @Override
     public ActionRequestValidationException validate() {
-        if (level.equals(Level.AWARENESS_ATTRIBUTE) && indices.length > 0) {
+        if (level.equals(Level.AWARENESS_ATTRIBUTES) && indices.length > 0) {
             return addValidationError("awareness_attribute is not a supported parameter with index health", null);
-        } else if (!level.equals(Level.AWARENESS_ATTRIBUTE) && awarenessAttribute != null) {
-            return addValidationError("level=awareness_attribute is required with awareness_attribute parameter", null);
+        } else if (!level.equals(Level.AWARENESS_ATTRIBUTES) && awarenessAttribute != null) {
+            return addValidationError("level=awareness_attributes is required with awareness_attribute parameter", null);
         }
         return null;
     }
@@ -333,6 +333,6 @@ public class ClusterHealthRequest extends ClusterManagerNodeReadRequest<ClusterH
         CLUSTER,
         INDICES,
         SHARDS,
-        AWARENESS_ATTRIBUTE
+        AWARENESS_ATTRIBUTES
     }
 }

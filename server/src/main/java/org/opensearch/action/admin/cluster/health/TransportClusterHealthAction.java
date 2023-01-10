@@ -456,12 +456,15 @@ public class TransportClusterHealthAction extends TransportClusterManagerNodeRea
             logger.trace("Calculating health based on state version [{}]", clusterState.version());
         }
 
-        if (request.level().equals(ClusterHealthRequest.Level.AWARENESS_ATTRIBUTE)) {
+        String[] concreteIndices;
+        if (request.level().equals(ClusterHealthRequest.Level.AWARENESS_ATTRIBUTES)) {
             String awarenessAttribute = request.getAwarenessAttribute();
+            concreteIndices = clusterState.getMetadata().getConcreteAllIndices();
             return new ClusterHealthResponse(
                 clusterState.getClusterName().value(),
                 clusterState,
                 clusterService.getClusterSettings(),
+                concreteIndices,
                 awarenessAttribute,
                 numberOfPendingTasks,
                 numberOfInFlightFetch,
@@ -470,7 +473,6 @@ public class TransportClusterHealthAction extends TransportClusterManagerNodeRea
             );
         }
 
-        String[] concreteIndices;
         try {
             concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, request);
         } catch (IndexNotFoundException e) {
