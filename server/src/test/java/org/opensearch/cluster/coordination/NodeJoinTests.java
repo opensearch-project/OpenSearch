@@ -847,7 +847,8 @@ public class NodeJoinTests extends OpenSearchTestCase {
     ) {
         DecommissionAttributeMetadata decommissionAttributeMetadata = new DecommissionAttributeMetadata(
             decommissionAttribute,
-            DecommissionStatus.SUCCESSFUL
+            DecommissionStatus.SUCCESSFUL,
+            randomAlphaOfLength(10)
         );
         return ClusterState.builder(clusterState)
             .metadata(Metadata.builder(clusterState.metadata()).decommissionAttributeMetadata(decommissionAttributeMetadata))
