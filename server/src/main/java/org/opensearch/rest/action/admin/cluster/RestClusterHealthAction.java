@@ -100,19 +100,7 @@ public class RestClusterHealthAction extends BaseRestHandler {
         }
         String level = request.param("level");
         if (level != null) {
-            switch (level) {
-                case "indices":
-                    clusterHealthRequest.level(ClusterHealthRequest.Level.INDICES);
-                    break;
-                case "shards":
-                    clusterHealthRequest.level(ClusterHealthRequest.Level.SHARDS);
-                    break;
-                case "awareness_attribute":
-                    clusterHealthRequest.level(ClusterHealthRequest.Level.AWARENESS_ATTRIBUTE);
-                    break;
-                default:
-                    clusterHealthRequest.level(ClusterHealthRequest.Level.CLUSTER);
-            }
+            clusterHealthRequest.setLevel(level);
         }
         String waitForStatus = request.param("wait_for_status");
         if (waitForStatus != null) {

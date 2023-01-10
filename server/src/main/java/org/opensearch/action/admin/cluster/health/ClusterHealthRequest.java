@@ -95,9 +95,7 @@ public class ClusterHealthRequest extends ClusterManagerNodeReadRequest<ClusterH
         waitForNoInitializingShards = in.readBoolean();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
-            if (in.readBoolean()) {
-                awarenessAttribute = in.readString();
-            }
+            awarenessAttribute = in.readOptionalString();
             level = in.readEnum(Level.class);
         }
     }
@@ -129,12 +127,7 @@ public class ClusterHealthRequest extends ClusterManagerNodeReadRequest<ClusterH
         out.writeBoolean(waitForNoInitializingShards);
         indicesOptions.writeIndicesOptions(out);
         if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
-            if (awarenessAttribute == null) {
-                out.writeBoolean(false);
-            } else {
-                out.writeBoolean(true);
-                out.writeString(awarenessAttribute);
-            }
+            out.writeOptionalString(awarenessAttribute);
             out.writeEnum(level);
         }
     }
@@ -286,6 +279,22 @@ public class ClusterHealthRequest extends ClusterManagerNodeReadRequest<ClusterH
      */
     public void level(Level level) {
         this.level = Objects.requireNonNull(level, "level must not be null");
+    }
+
+    public void setLevel(String level) {
+        switch (level) {
+            case "indices":
+                this.level = ClusterHealthRequest.Level.INDICES;
+                break;
+            case "shards":
+                this.level = ClusterHealthRequest.Level.SHARDS;
+                break;
+            case "awareness_attribute":
+                this.level = ClusterHealthRequest.Level.AWARENESS_ATTRIBUTE;
+                break;
+            default:
+                this.level = ClusterHealthRequest.Level.CLUSTER;
+        }
     }
 
     /**

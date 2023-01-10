@@ -20,6 +20,7 @@ import org.opensearch.common.xcontent.ToXContentFragment;
 import org.opensearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -47,29 +48,15 @@ public class ClusterAwarenessHealth implements Writeable, ToXContentFragment, It
         boolean displayUnassignedShardLevelInfo;
         ClusterAwarenessAttributesHealth clusterAwarenessAttributesHealth;
         clusterAwarenessAttributesHealthMap = new HashMap<>();
-        // Helper function to check if we need health for all or for one awareness attribute.
-        boolean displayAllAwarenessAttribute = shouldDisplayAllAwarenessAttributeHealth(awarenessAttributeName);
-        if (!displayAllAwarenessAttribute) {
+        List<String> awarenessAttributeList = getAwarenessAttributeList(awarenessAttributeName, clusterSettings);
+        for (String awarenessAttribute : awarenessAttributeList) {
             displayUnassignedShardLevelInfo = canCalcUnassignedShards(clusterSettings, awarenessAttributeName);
             clusterAwarenessAttributesHealth = new ClusterAwarenessAttributesHealth(
-                awarenessAttributeName,
+                awarenessAttribute,
                 displayUnassignedShardLevelInfo,
                 clusterState
             );
-            clusterAwarenessAttributesHealthMap.put(awarenessAttributeName, clusterAwarenessAttributesHealth);
-        } else {
-            List<String> awarenessAttributeList = clusterSettings.get(
-                AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING
-            );
-            for (String awarenessAttribute : awarenessAttributeList) {
-                displayUnassignedShardLevelInfo = canCalcUnassignedShards(clusterSettings, awarenessAttributeName);
-                clusterAwarenessAttributesHealth = new ClusterAwarenessAttributesHealth(
-                    awarenessAttribute,
-                    displayUnassignedShardLevelInfo,
-                    clusterState
-                );
-                clusterAwarenessAttributesHealthMap.put(awarenessAttribute, clusterAwarenessAttributesHealth);
-            }
+            clusterAwarenessAttributesHealthMap.put(awarenessAttribute, clusterAwarenessAttributesHealth);
         }
     }
 
@@ -89,10 +76,16 @@ public class ClusterAwarenessHealth implements Writeable, ToXContentFragment, It
         }
     }
 
-    private boolean shouldDisplayAllAwarenessAttributeHealth(String awarenessAttribute) {
-        if (awarenessAttribute == null) {
-            return true;
-        } else return awarenessAttribute.isBlank();
+    private List<String> getAwarenessAttributeList(String awarenessAttributeName, ClusterSettings clusterSettings) {
+        // Helper function to check if we need health for all or for one awareness attribute.
+        boolean displayAllAwarenessAttribute = awarenessAttributeName == null || awarenessAttributeName.isBlank();
+        List<String> awarenessAttributeList = new ArrayList<>();
+        if (!displayAllAwarenessAttribute) {
+            awarenessAttributeList.add(awarenessAttributeName);
+        } else {
+            awarenessAttributeList = clusterSettings.get(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING);
+        }
+        return awarenessAttributeList;
     }
 
     private boolean canCalcUnassignedShards(ClusterSettings clusterSettings, String awarenessAttributeName) {
