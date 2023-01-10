@@ -61,6 +61,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix backward compatibility for static cluster manager throttling threshold setting ([#5633](https://github.com/opensearch-project/OpenSearch/pull/5633))
 - Fix index exclusion behavior in snapshot restore and clone APIs ([#5626](https://github.com/opensearch-project/OpenSearch/pull/5626))
 - Fix graph filter error in search ([#5665](https://github.com/opensearch-project/OpenSearch/pull/5665))
+- [Test] Renaming PIT tests to IT to fix intermittent test failures ([#5750](https://github.com/opensearch-project/OpenSearch/pull/5750))
 ### Security
 
 [Unreleased 2.x]: https://github.com/opensearch-project/OpenSearch/compare/2.4...2.x
