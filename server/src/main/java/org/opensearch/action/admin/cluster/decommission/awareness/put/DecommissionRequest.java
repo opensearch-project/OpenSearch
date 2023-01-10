@@ -30,7 +30,7 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
     public static final TimeValue DEFAULT_NODE_DRAINING_TIMEOUT = TimeValue.timeValueSeconds(120);
 
     private DecommissionAttribute decommissionAttribute;
-    private boolean originalRequest = false;
+    private String id;
     private TimeValue delayTimeout = DEFAULT_NODE_DRAINING_TIMEOUT;
 
     // holder for no_delay param. To avoid draining time timeout.
@@ -47,8 +47,7 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
         decommissionAttribute = new DecommissionAttribute(in);
         this.delayTimeout = in.readTimeValue();
         this.noDelay = in.readBoolean();
-        this.originalRequest = in.readBoolean();
-
+        this.id = in.readOptionalString();
     }
 
     @Override
@@ -57,7 +56,7 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
         decommissionAttribute.writeTo(out);
         out.writeTimeValue(delayTimeout);
         out.writeBoolean(noDelay);
-        out.writeBoolean(originalRequest);
+        out.writeOptionalString(id);
     }
 
     /**
@@ -100,21 +99,21 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
     }
 
     /**
-     * Sets originalRequest for decommission request
+     * Sets id for decommission request
      *
-     * @param originalRequest boolean to identify if it is the first and original request
+     * @param id uuid for request
      * @return this request
      */
-    public DecommissionRequest originalRequest(boolean originalRequest) {
-        this.originalRequest = originalRequest;
+    public DecommissionRequest setID(String id) {
+        this.id = id;
         return this;
     }
 
     /**
-     * @return Returns whether decommission request is first and original request
+     * @return Returns id of decommission request
      */
-    public boolean originalRequest() {
-        return this.originalRequest;
+    public String id() {
+        return id;
     }
 
     @Override
@@ -146,8 +145,6 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
         return "DecommissionRequest{"
             + "decommissionAttribute="
             + decommissionAttribute
-            + ", originalRequest="
-            + originalRequest
             + ", delayTimeout="
             + delayTimeout
             + ", noDelay="

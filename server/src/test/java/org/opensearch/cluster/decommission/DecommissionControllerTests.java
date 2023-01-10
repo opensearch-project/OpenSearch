@@ -234,7 +234,8 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
         final CountDownLatch countDownLatch = new CountDownLatch(1);
         DecommissionAttributeMetadata oldMetadata = new DecommissionAttributeMetadata(
             new DecommissionAttribute("zone", "zone-1"),
-            currentStatus
+            currentStatus,
+            randomAlphaOfLength(10)
         );
         ClusterState state = clusterService.state();
         Metadata metadata = state.metadata();

@@ -145,14 +145,15 @@ public class DecommissionService {
                 // validates if correct awareness attributes and forced awareness attribute set to the cluster before starting action
                 validateAwarenessAttribute(decommissionAttribute, awarenessAttributes, forcedAwarenessAttributes);
                 DecommissionAttributeMetadata decommissionAttributeMetadata = currentState.metadata().decommissionAttributeMetadata();
-                if (decommissionAttributeMetadata == null || decommissionAttributeMetadata.status().equals(DecommissionStatus.FAILED)) {
-                    decommissionRequest.originalRequest(true);
-                }
                 // check that request is eligible to proceed and attribute is weighed away
                 ensureEligibleRequest(decommissionAttributeMetadata, decommissionRequest);
                 ensureToBeDecommissionedAttributeWeighedAway(currentState, decommissionAttribute);
 
-                ClusterState newState = registerDecommissionAttributeInClusterState(currentState, decommissionAttribute);
+                ClusterState newState = registerDecommissionAttributeInClusterState(
+                    currentState,
+                    decommissionAttribute,
+                    decommissionRequest.id()
+                );
                 // add all 'to-be-decommissioned' cluster manager eligible nodes to voting config exclusion
                 nodeIdsToBeExcluded = filterNodesWithDecommissionAttribute(currentState, decommissionAttribute, true).stream()
                     .map(DiscoveryNode::getId)
@@ -191,6 +192,7 @@ public class DecommissionService {
                 DecommissionAttributeMetadata decommissionAttributeMetadata = newState.metadata().decommissionAttributeMetadata();
                 assert decommissionAttribute.equals(decommissionAttributeMetadata.decommissionAttribute());
                 assert decommissionAttributeMetadata.status().equals(DecommissionStatus.INIT);
+                assert decommissionAttributeMetadata.requestID().equals(decommissionRequest.id());
                 assert newState.getVotingConfigExclusions()
                     .stream()
                     .map(CoordinationMetadata.VotingConfigExclusion::getNodeId)
@@ -461,7 +463,7 @@ public class DecommissionService {
         DecommissionAttributeMetadata decommissionAttributeMetadata,
         DecommissionRequest decommissionRequest
     ) {
-        String msg = null;
+        String msg;
         DecommissionAttribute requestedDecommissionAttribute = decommissionRequest.getDecommissionAttribute();
         if (decommissionAttributeMetadata != null) {
             // check if the same attribute is registered and handle it accordingly
@@ -469,9 +471,13 @@ public class DecommissionService {
                 switch (decommissionAttributeMetadata.status()) {
                     // for INIT - check if it is eligible internal retry
                     case INIT:
-                        msg = (decommissionRequest.originalRequest() == false) ? "same request is already in status [INIT]" : null;
-                        throw new DecommissioningFailedException(requestedDecommissionAttribute, msg);
-                    // for FAILED - we are good to process it again
+                        if (decommissionRequest.id().equals(decommissionAttributeMetadata.requestID()) == false) {
+                            throw new DecommissioningFailedException(
+                                requestedDecommissionAttribute,
+                                "same request is already in status [INIT]"
+                            );
+                        }
+                        // for FAILED - we are good to process it again
                     case FAILED:
                         break;
                     case DRAINING:

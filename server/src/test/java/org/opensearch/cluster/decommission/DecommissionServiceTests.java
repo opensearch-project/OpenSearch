@@ -204,7 +204,8 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
         DecommissionStatus oldStatus = DecommissionStatus.INIT;
         DecommissionAttributeMetadata oldMetadata = new DecommissionAttributeMetadata(
             new DecommissionAttribute("zone", "zone_1"),
-            oldStatus
+            oldStatus,
+            randomAlphaOfLength(10)
         );
         final ClusterState.Builder builder = builder(clusterService.state());
         setState(
@@ -239,7 +240,8 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
         DecommissionStatus oldStatus = randomFrom(DecommissionStatus.SUCCESSFUL, DecommissionStatus.IN_PROGRESS, DecommissionStatus.INIT);
         DecommissionAttributeMetadata oldMetadata = new DecommissionAttributeMetadata(
             new DecommissionAttribute("zone", "zone_1"),
-            oldStatus
+            oldStatus,
+            randomAlphaOfLength(10)
         );
         final ClusterState.Builder builder = builder(clusterService.state());
         setState(
@@ -287,7 +289,8 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
         DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "zone-2");
         DecommissionAttributeMetadata decommissionAttributeMetadata = new DecommissionAttributeMetadata(
             decommissionAttribute,
-            DecommissionStatus.DRAINING
+            DecommissionStatus.DRAINING,
+            randomAlphaOfLength(10)
         );
         Metadata metadata = Metadata.builder().putCustom(DecommissionAttributeMetadata.TYPE, decommissionAttributeMetadata).build();
         ClusterState state = ClusterState.builder(new ClusterName("test")).metadata(metadata).build();
@@ -308,7 +311,8 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
         DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "zone-2");
         DecommissionAttributeMetadata decommissionAttributeMetadata = new DecommissionAttributeMetadata(
             decommissionAttribute,
-            DecommissionStatus.INIT
+            DecommissionStatus.INIT,
+            randomAlphaOfLength(10)
         );
 
         Metadata metadata = Metadata.builder().putCustom(DecommissionAttributeMetadata.TYPE, decommissionAttributeMetadata).build();
@@ -327,7 +331,8 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
         DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "zone-2");
         DecommissionAttributeMetadata decommissionAttributeMetadata = new DecommissionAttributeMetadata(
             decommissionAttribute,
-            DecommissionStatus.SUCCESSFUL
+            DecommissionStatus.SUCCESSFUL,
+            randomAlphaOfLength(10)
         );
         final ClusterState.Builder builder = builder(clusterService.state());
         setState(

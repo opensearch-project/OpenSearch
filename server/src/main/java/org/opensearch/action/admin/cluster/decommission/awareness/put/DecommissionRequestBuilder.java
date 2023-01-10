@@ -48,13 +48,13 @@ public class DecommissionRequestBuilder extends ClusterManagerNodeOperationReque
     }
 
     /**
-     * Sets originalRequest for decommission request
+     * Sets id for decommission request
      *
-     * @param originalRequest boolean to identify if it is the first and original request
+     * @param id for decommission request
      * @return current object
      */
-    public DecommissionRequestBuilder originalRequest(boolean originalRequest) {
-        request.originalRequest(originalRequest);
+    public DecommissionRequestBuilder id(String id) {
+        request.setID(id);
         return this;
     }
 }
