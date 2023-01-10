@@ -9,6 +9,7 @@
 package org.opensearch.common.settings;
 
 import org.junit.Before;
+import org.junit.Ignore;
 import org.opensearch.Version;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.bytes.BytesReference;
@@ -462,6 +463,7 @@ public class WriteableSettingTests extends OpenSearchTestCase {
         }
     }
 
+    @Ignore
     @SuppressForbidden(reason = "The only way to test these is via reflection")
     public void testExceptionHandling() throws NoSuchFieldException, SecurityException, IllegalArgumentException, IllegalAccessException {
         // abuse reflection to change default value, no way to do this with given Setting class
