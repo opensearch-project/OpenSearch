@@ -83,10 +83,18 @@ public class OperationRouting {
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
+
+    public static final Setting<Boolean> WEIGHTED_ROUTING_FAILOPEN_ENABLED = Setting.boolSetting(
+        "cluster.routing.weighted.fail_open",
+        true,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
     private volatile List<String> awarenessAttributes;
     private volatile boolean useAdaptiveReplicaSelection;
     private volatile boolean ignoreAwarenessAttr;
     private volatile double weightedRoutingDefaultWeight;
+    private volatile boolean isFailOpenEnabled;
 
     public OperationRouting(Settings settings, ClusterSettings clusterSettings) {
         // whether to ignore awareness attributes when routing requests
@@ -98,9 +106,11 @@ public class OperationRouting {
         );
         this.useAdaptiveReplicaSelection = USE_ADAPTIVE_REPLICA_SELECTION_SETTING.get(settings);
         this.weightedRoutingDefaultWeight = WEIGHTED_ROUTING_DEFAULT_WEIGHT.get(settings);
+        this.isFailOpenEnabled = WEIGHTED_ROUTING_FAILOPEN_ENABLED.get(settings);
         clusterSettings.addSettingsUpdateConsumer(USE_ADAPTIVE_REPLICA_SELECTION_SETTING, this::setUseAdaptiveReplicaSelection);
         clusterSettings.addSettingsUpdateConsumer(IGNORE_AWARENESS_ATTRIBUTES_SETTING, this::setIgnoreAwarenessAttributes);
         clusterSettings.addSettingsUpdateConsumer(WEIGHTED_ROUTING_DEFAULT_WEIGHT, this::setWeightedRoutingDefaultWeight);
+        clusterSettings.addSettingsUpdateConsumer(WEIGHTED_ROUTING_FAILOPEN_ENABLED, this::setFailOpenEnabled);
     }
 
     void setUseAdaptiveReplicaSelection(boolean useAdaptiveReplicaSelection) {
@@ -113,6 +123,10 @@ public class OperationRouting {
 
     void setWeightedRoutingDefaultWeight(double weightedRoutingDefaultWeight) {
         this.weightedRoutingDefaultWeight = weightedRoutingDefaultWeight;
+    }
+
+    void setFailOpenEnabled(boolean isFailOpenEnabled) {
+        this.isFailOpenEnabled = isFailOpenEnabled;
     }
 
     public boolean isIgnoreAwarenessAttr() {
@@ -324,11 +338,12 @@ public class OperationRouting {
         @Nullable Map<String, Long> nodeCounts,
         @Nullable WeightedRoutingMetadata weightedRoutingMetadata
     ) {
-        if (weightedRoutingMetadata != null) {
+        if (weightedRoutingMetadata != null && weightedRoutingMetadata.getWeightedRouting().isSet()) {
             return indexShard.activeInitializingShardsWeightedIt(
                 weightedRoutingMetadata.getWeightedRouting(),
                 nodes,
-                getWeightedRoutingDefaultWeight()
+                getWeightedRoutingDefaultWeight(),
+                isFailOpenEnabled
             );
         } else if (ignoreAwarenessAttributes()) {
             if (useAdaptiveReplicaSelection) {
