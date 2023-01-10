@@ -49,6 +49,8 @@ import java.lang.reflect.Field;
 public class LegacyESVersion extends Version {
 
     public static final LegacyESVersion V_6_0_0 = new LegacyESVersion(6000099, org.apache.lucene.util.Version.fromBits(7, 0, 0));
+    public static final LegacyESVersion V_6_5_0 = new LegacyESVersion(6050099, org.apache.lucene.util.Version.fromBits(7, 0, 0));
+    public static final LegacyESVersion V_7_2_0 = new LegacyESVersion(7020099, org.apache.lucene.util.Version.LUCENE_8_0_0);
 
     // todo move back to Version.java if retiring legacy version support
     protected static final ImmutableOpenIntMap<Version> idToVersion;

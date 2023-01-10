@@ -1041,7 +1041,8 @@ public final class IndexSettings {
     /**
      * If this is a remote snapshot and the extended compatibility
      * feature flag is enabled, this returns the minimum {@link Version}
-     * supported. In all other cases, the return value is null.
+     * supported. In all other cases, the return value is the
+     * {@link Version#minimumIndexCompatibilityVersion()} of {@link Version#CURRENT}.
      */
     public Version getExtendedCompatibilitySnapshotVersion() {
         return extendedCompatibilitySnapshotVersion;
