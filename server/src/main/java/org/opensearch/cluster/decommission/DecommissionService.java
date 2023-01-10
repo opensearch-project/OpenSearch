@@ -28,6 +28,7 @@ import org.opensearch.cluster.routing.WeightedRouting;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
+import org.opensearch.common.UUIDs;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
@@ -144,6 +145,9 @@ public class DecommissionService {
             public ClusterState execute(ClusterState currentState) {
                 // validates if correct awareness attributes and forced awareness attribute set to the cluster before starting action
                 validateAwarenessAttribute(decommissionAttribute, awarenessAttributes, forcedAwarenessAttributes);
+                if (decommissionRequest.id() == null) {
+                    decommissionRequest.setID(UUIDs.base64UUID());
+                }
                 DecommissionAttributeMetadata decommissionAttributeMetadata = currentState.metadata().decommissionAttributeMetadata();
                 // check that request is eligible to proceed and attribute is weighed away
                 ensureEligibleRequest(decommissionAttributeMetadata, decommissionRequest);

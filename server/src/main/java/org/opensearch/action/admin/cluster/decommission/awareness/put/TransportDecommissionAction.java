@@ -19,7 +19,6 @@ import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.decommission.DecommissionService;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.UUIDs;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.threadpool.ThreadPool;
@@ -77,9 +76,6 @@ public class TransportDecommissionAction extends TransportClusterManagerNodeActi
     protected void clusterManagerOperation(DecommissionRequest request, ClusterState state, ActionListener<DecommissionResponse> listener)
         throws Exception {
         logger.info("starting awareness attribute [{}] decommissioning", request.getDecommissionAttribute().toString());
-        if (request.id() == null) {
-            request.setID(UUIDs.base64UUID());
-        }
         decommissionService.startDecommissionAction(request, listener);
     }
 }

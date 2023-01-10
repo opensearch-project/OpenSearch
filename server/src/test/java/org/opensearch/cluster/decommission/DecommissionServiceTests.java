@@ -273,6 +273,40 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
     }
 
+    public void testDecommissioningFailedWhenAnotherRequestForSameAttributeIsExecuted() throws InterruptedException {
+        final CountDownLatch countDownLatch = new CountDownLatch(1);
+        DecommissionStatus oldStatus = DecommissionStatus.INIT;
+        DecommissionAttributeMetadata oldMetadata = new DecommissionAttributeMetadata(
+            new DecommissionAttribute("zone", "zone_1"),
+            oldStatus,
+            randomAlphaOfLength(10)
+        );
+        final ClusterState.Builder builder = builder(clusterService.state());
+        setState(
+            clusterService,
+            builder.metadata(Metadata.builder(clusterService.state().metadata()).decommissionAttributeMetadata(oldMetadata).build())
+        );
+        AtomicReference<Exception> exceptionReference = new AtomicReference<>();
+        ActionListener<DecommissionResponse> listener = new ActionListener<DecommissionResponse>() {
+            @Override
+            public void onResponse(DecommissionResponse decommissionResponse) {
+                fail("on response shouldn't have been called");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assertTrue(e instanceof DecommissioningFailedException);
+                exceptionReference.set(e);
+                countDownLatch.countDown();
+            }
+        };
+        DecommissionRequest request = new DecommissionRequest(new DecommissionAttribute("zone", "zone_1"));
+        decommissionService.startDecommissionAction(request, listener);
+        assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
+        assertTrue(exceptionReference.get() instanceof DecommissioningFailedException);
+        assertThat(exceptionReference.get().getMessage(), Matchers.endsWith("same request is already in status [INIT]"));
+    }
+
     public void testScheduleNodesDecommissionOnTimeout() {
         TransportService mockTransportService = Mockito.mock(TransportService.class);
         ThreadPool mockThreadPool = Mockito.mock(ThreadPool.class);
