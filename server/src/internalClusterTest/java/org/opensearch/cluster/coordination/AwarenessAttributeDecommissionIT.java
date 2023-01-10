@@ -44,6 +44,8 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
+import org.opensearch.threadpool.TestThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.RemoteTransportException;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportService;
@@ -59,6 +61,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 
 import static org.opensearch.test.NodeRoles.onlyRole;
@@ -959,6 +962,114 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
 
         // will wait for cluster to stabilise with a timeout of 2 min as by then all nodes should have joined the cluster
         ensureStableCluster(6, TimeValue.timeValueMinutes(2));
+    }
+
+    public void testConcurrentDecommissionAction() throws Exception {
+        Settings commonSettings = Settings.builder()
+            .put("cluster.routing.allocation.awareness.attributes", "zone")
+            .put("cluster.routing.allocation.awareness.force.zone.values", "a,b,c")
+            .build();
+
+        logger.info("--> start 3 cluster manager nodes on zones 'a' & 'b' & 'c'");
+        internalCluster().startNodes(
+            Settings.builder()
+                .put(commonSettings)
+                .put("node.attr.zone", "a")
+                .put(onlyRole(commonSettings, DiscoveryNodeRole.CLUSTER_MANAGER_ROLE))
+                .build(),
+            Settings.builder()
+                .put(commonSettings)
+                .put("node.attr.zone", "b")
+                .put(onlyRole(commonSettings, DiscoveryNodeRole.CLUSTER_MANAGER_ROLE))
+                .build(),
+            Settings.builder()
+                .put(commonSettings)
+                .put("node.attr.zone", "c")
+                .put(onlyRole(commonSettings, DiscoveryNodeRole.CLUSTER_MANAGER_ROLE))
+                .build()
+        );
+        logger.info("--> start 3 data nodes on zones 'a' & 'b' & 'c'");
+        internalCluster().startNodes(
+            Settings.builder()
+                .put(commonSettings)
+                .put("node.attr.zone", "a")
+                .put(onlyRole(commonSettings, DiscoveryNodeRole.DATA_ROLE))
+                .build(),
+            Settings.builder()
+                .put(commonSettings)
+                .put("node.attr.zone", "b")
+                .put(onlyRole(commonSettings, DiscoveryNodeRole.DATA_ROLE))
+                .build(),
+            Settings.builder()
+                .put(commonSettings)
+                .put("node.attr.zone", "c")
+                .put(onlyRole(commonSettings, DiscoveryNodeRole.DATA_ROLE))
+                .build()
+        );
+
+        ensureStableCluster(6);
+        ClusterHealthResponse health = client().admin()
+            .cluster()
+            .prepareHealth()
+            .setWaitForEvents(Priority.LANGUID)
+            .setWaitForGreenStatus()
+            .setWaitForNodes(Integer.toString(6))
+            .execute()
+            .actionGet();
+        assertFalse(health.isTimedOut());
+
+        logger.info("--> setting shard routing weights for weighted round robin");
+        Map<String, Double> weights = Map.of("a", 0.0, "b", 1.0, "c", 1.0);
+        WeightedRouting weightedRouting = new WeightedRouting("zone", weights);
+
+        ClusterPutWeightedRoutingResponse weightedRoutingResponse = client().admin()
+            .cluster()
+            .prepareWeightedRouting()
+            .setWeightedRouting(weightedRouting)
+            .setVersion(-1)
+            .get();
+        assertTrue(weightedRoutingResponse.isAcknowledged());
+
+        AtomicInteger numRequestAcknowledged = new AtomicInteger();
+        AtomicInteger numRequestUnAcknowledged = new AtomicInteger();
+        AtomicInteger numRequestFailed = new AtomicInteger();
+        int concurrentRuns = randomIntBetween(5, 10);
+        TestThreadPool testThreadPool = null;
+        logger.info("--> starting {} concurrent decommission action in zone {}", concurrentRuns, 'a');
+        try {
+            testThreadPool = new TestThreadPool(AwarenessAttributeDecommissionIT.class.getName());
+            List<Runnable> operationThreads = new ArrayList<>();
+            CountDownLatch countDownLatch = new CountDownLatch(concurrentRuns);
+            for (int i = 0; i < concurrentRuns; i++) {
+                Runnable thread = () -> {
+                    logger.info("Triggering decommission action");
+                    DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "a");
+                    DecommissionRequest decommissionRequest = new DecommissionRequest(decommissionAttribute);
+                    decommissionRequest.setNoDelay(true);
+                    try {
+                        DecommissionResponse decommissionResponse = client().execute(DecommissionAction.INSTANCE, decommissionRequest)
+                            .get();
+                        if (decommissionResponse.isAcknowledged()) {
+                            numRequestAcknowledged.incrementAndGet();
+                        } else {
+                            numRequestUnAcknowledged.incrementAndGet();
+                        }
+                    } catch (Exception e) {
+                        numRequestFailed.incrementAndGet();
+                    }
+                    countDownLatch.countDown();
+                };
+                operationThreads.add(thread);
+            }
+            TestThreadPool finalTestThreadPool = testThreadPool;
+            operationThreads.forEach(runnable -> finalTestThreadPool.executor("generic").execute(runnable));
+            countDownLatch.await();
+        } finally {
+            ThreadPool.terminate(testThreadPool, 500, TimeUnit.MILLISECONDS);
+        }
+        assertEquals(concurrentRuns, numRequestAcknowledged.get() + numRequestUnAcknowledged.get() + numRequestFailed.get());
+        assertEquals(concurrentRuns - 1, numRequestFailed.get());
+        assertEquals(1, numRequestAcknowledged.get() + numRequestUnAcknowledged.get());
     }
 
     private static class WaitForFailedDecommissionState implements ClusterStateObserver.Listener {
