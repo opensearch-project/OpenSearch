@@ -82,7 +82,7 @@ public class DecommissionAttributeMetadataSerializationTests extends AbstractDif
         return new DecommissionAttributeMetadata(
             decommissionAttributeMetadata.decommissionAttribute(),
             decommissionAttributeMetadata.status(),
-            randomAlphaOfLength(10)
+            decommissionAttributeMetadata.requestID()
         );
     }
 }
