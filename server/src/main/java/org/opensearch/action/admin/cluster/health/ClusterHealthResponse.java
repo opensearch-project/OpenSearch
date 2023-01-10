@@ -390,6 +390,10 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         return clusterStateHealth.getActiveShardsPercent();
     }
 
+    public ClusterAwarenessHealth getClusterAwarenessHealth() {
+        return clusterAwarenessHealth;
+    }
+
     public static ClusterHealthResponse readResponseFrom(StreamInput in) throws IOException {
         return new ClusterHealthResponse(in);
     }

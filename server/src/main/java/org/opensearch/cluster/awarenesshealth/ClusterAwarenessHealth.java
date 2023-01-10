@@ -33,7 +33,7 @@ import java.util.Objects;
  */
 public class ClusterAwarenessHealth implements Writeable, ToXContentFragment, Iterable<ClusterAwarenessAttributesHealth> {
 
-    private static final String AWARENESS_ATTRIBUTE = "awareness_attribute";
+    private static final String AWARENESS_ATTRIBUTE = "awareness_attributes";
     private final Map<String, ClusterAwarenessAttributesHealth> clusterAwarenessAttributesHealthMap;
 
     /**

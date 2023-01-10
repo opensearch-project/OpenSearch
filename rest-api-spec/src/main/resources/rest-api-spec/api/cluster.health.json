@@ -46,7 +46,7 @@
           "cluster",
           "indices",
           "shards",
-          "awareness_attribute"
+          "awareness_attributes"
         ],
         "default":"cluster",
         "description":"Specify the level of detail for returned information"
