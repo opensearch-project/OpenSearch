@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.search;
+package org.opensearch.search.pit;
 
 import org.junit.After;
 import org.junit.Before;
@@ -47,7 +47,7 @@ import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE
  * Multi node integration tests for delete PIT use cases
  */
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, numDataNodes = 2)
-public class DeletePitMultiNodeTests extends OpenSearchIntegTestCase {
+public class DeletePitMultiNodeIT extends OpenSearchIntegTestCase {
 
     @Before
     public void setupIndex() throws ExecutionException, InterruptedException {
@@ -306,7 +306,7 @@ public class DeletePitMultiNodeTests extends OpenSearchIntegTestCase {
         AtomicInteger numDeleteAcknowledged = new AtomicInteger();
         TestThreadPool testThreadPool = null;
         try {
-            testThreadPool = new TestThreadPool(DeletePitMultiNodeTests.class.getName());
+            testThreadPool = new TestThreadPool(DeletePitMultiNodeIT.class.getName());
             List<Runnable> operationThreads = new ArrayList<>();
             CountDownLatch countDownLatch = new CountDownLatch(concurrentRuns);
             for (int i = 0; i < concurrentRuns; i++) {
