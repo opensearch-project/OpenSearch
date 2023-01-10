@@ -38,7 +38,11 @@ public class DecommissionHelperTests extends OpenSearchTestCase {
 
     public void testRegisterAndDeleteDecommissionAttributeInClusterState() {
         DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "zone2");
-        ClusterState updatedState = registerDecommissionAttributeInClusterState(initialClusterState, decommissionAttribute);
+        ClusterState updatedState = registerDecommissionAttributeInClusterState(
+            initialClusterState,
+            decommissionAttribute,
+            randomAlphaOfLength(10)
+        );
         assertEquals(decommissionAttribute, updatedState.metadata().decommissionAttributeMetadata().decommissionAttribute());
         updatedState = deleteDecommissionAttributeInClusterState(updatedState);
         assertNull(updatedState.metadata().decommissionAttributeMetadata());
@@ -79,13 +83,14 @@ public class DecommissionHelperTests extends OpenSearchTestCase {
         );
         DecommissionAttributeMetadata decommissionAttributeMetadata = new DecommissionAttributeMetadata(
             decommissionAttribute,
-            decommissionStatus
+            decommissionStatus,
+            randomAlphaOfLength(10)
         );
         Metadata metadata = Metadata.builder().putCustom(DecommissionAttributeMetadata.TYPE, decommissionAttributeMetadata).build();
         assertTrue(nodeCommissioned(node2, metadata));
         assertFalse(nodeCommissioned(node1, metadata));
         DecommissionStatus commissionStatus = randomFrom(DecommissionStatus.FAILED, DecommissionStatus.INIT);
-        decommissionAttributeMetadata = new DecommissionAttributeMetadata(decommissionAttribute, commissionStatus);
+        decommissionAttributeMetadata = new DecommissionAttributeMetadata(decommissionAttribute, commissionStatus, randomAlphaOfLength(10));
         metadata = Metadata.builder().putCustom(DecommissionAttributeMetadata.TYPE, decommissionAttributeMetadata).build();
         assertTrue(nodeCommissioned(node2, metadata));
         assertTrue(nodeCommissioned(node1, metadata));
