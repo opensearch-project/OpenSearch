@@ -46,6 +46,7 @@ import java.util.IdentityHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -61,7 +62,7 @@ public abstract class TaskBatcher {
     private final Logger logger;
     private final PrioritizedOpenSearchThreadPoolExecutor threadExecutor;
     // package visible for tests
-    final Map<Object, LinkedHashSet<BatchedTask>> tasksPerBatchingKey = new HashMap<>();
+    final Map<Object, LinkedHashSet<BatchedTask>> tasksPerBatchingKey = new ConcurrentHashMap<>();
     private final TaskBatcherListener taskBatcherListener;
 
     public TaskBatcher(Logger logger, PrioritizedOpenSearchThreadPoolExecutor threadExecutor, TaskBatcherListener taskBatcherListener) {
@@ -94,11 +95,12 @@ public abstract class TaskBatcher {
                     )
                 );
 
-            synchronized (tasksPerBatchingKey) {
-                LinkedHashSet<BatchedTask> existingTasks = tasksPerBatchingKey.computeIfAbsent(
-                    firstTask.batchingKey,
-                    k -> new LinkedHashSet<>(tasks.size())
-                );
+            LinkedHashSet<BatchedTask> existingTasks = tasksPerBatchingKey.computeIfAbsent(
+                firstTask.batchingKey,
+                k -> new LinkedHashSet<>(tasks.size())
+            );
+            // Locking on LinkedHashSet is necessary as it is being modified in concurrent manner.
+            synchronized (existingTasks) {
                 for (BatchedTask existing : existingTasks) {
                     // check that there won't be two tasks with the same identity for the same batching key
                     BatchedTask duplicateTask = tasksIdentity.get(existing.getTask());
@@ -114,6 +116,7 @@ public abstract class TaskBatcher {
                 }
                 existingTasks.addAll(tasks);
             }
+
         } catch (Exception e) {
             taskBatcherListener.onSubmitFailure(tasks);
             throw e;
@@ -139,13 +142,13 @@ public abstract class TaskBatcher {
             Object batchingKey = firstTask.batchingKey;
             assert tasks.stream().allMatch(t -> t.batchingKey == batchingKey)
                 : "tasks submitted in a batch should share the same batching key: " + tasks;
-            synchronized (tasksPerBatchingKey) {
-                LinkedHashSet<BatchedTask> existingTasks = tasksPerBatchingKey.get(batchingKey);
-                if (existingTasks != null) {
+            LinkedHashSet<BatchedTask> existingTasks = tasksPerBatchingKey.get(batchingKey);
+            if (existingTasks != null) {
+                synchronized (existingTasks) {
                     existingTasks.removeAll(toRemove);
-                    if (existingTasks.isEmpty()) {
-                        tasksPerBatchingKey.remove(batchingKey);
-                    }
+                }
+                if (existingTasks.isEmpty()) {
+                    tasksPerBatchingKey.remove(batchingKey);
                 }
             }
             taskBatcherListener.onTimeout(toRemove);
@@ -165,9 +168,9 @@ public abstract class TaskBatcher {
         if (updateTask.processed.get() == false) {
             final List<BatchedTask> toExecute = new ArrayList<>();
             final Map<String, List<BatchedTask>> processTasksBySource = new HashMap<>();
-            synchronized (tasksPerBatchingKey) {
-                LinkedHashSet<BatchedTask> pending = tasksPerBatchingKey.remove(updateTask.batchingKey);
-                if (pending != null) {
+            LinkedHashSet<BatchedTask> pending = tasksPerBatchingKey.remove(updateTask.batchingKey);
+            if (pending != null) {
+                synchronized (pending) {
                     for (BatchedTask task : pending) {
                         if (task.processed.getAndSet(true) == false) {
                             logger.trace("will process {}", task);
