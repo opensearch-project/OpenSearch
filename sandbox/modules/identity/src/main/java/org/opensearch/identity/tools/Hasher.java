@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.identity.utils;
+package org.opensearch.identity.tools;
 
 import org.bouncycastle.crypto.generators.OpenBSDBCrypt;
 
