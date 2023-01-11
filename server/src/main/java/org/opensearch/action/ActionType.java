@@ -32,8 +32,6 @@
 
 package org.opensearch.action;
 
-import java.util.List;
-
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.transport.TransportRequestOptions;

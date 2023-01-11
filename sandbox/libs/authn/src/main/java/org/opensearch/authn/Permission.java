@@ -9,10 +9,15 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class Permission {
+    private final static String PERMISSION_DELIMITER = "\\.";  
     private final String[] permissionChunks; 
 
     public Permission(final String permission) {
-        this.permissionChunks = permission.split("\\.");
+        try {
+            this.permissionChunks = permission.split(PERMISSION_DELIMITER);
+        } catch (Exception) {
+            throw new InvalidPermissionName(permission);
+        }
     }
 
     public boolean matches(final String permissionRequired) {
@@ -25,5 +30,15 @@ public class Permission {
             }
         }
         return true;
+    }
+
+    public static void checkIsValid(final String permission) {
+        new Permission(permission);
+    }
+
+    public static class InvalidPermissionName extends RuntimeException {
+        public InvalidPermissionName(final String name) {
+            super("The name '" + name + "' is not a valid permission name");
+        }
     }
 }

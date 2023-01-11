@@ -272,6 +272,7 @@ import org.opensearch.action.termvectors.TransportShardMultiTermsVectorAction;
 import org.opensearch.action.termvectors.TransportTermVectorsAction;
 import org.opensearch.action.update.TransportUpdateAction;
 import org.opensearch.action.update.UpdateAction;
+import org.opensearch.authn.Permission;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -441,6 +442,7 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.usage.UsageService;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -540,6 +542,12 @@ public class ActionModule extends AbstractModule {
             }
 
             public void register(ActionHandler<?, ?> handler) {
+                // Ensure all permissions are valid
+                handler.getTransportAction().requiredPermissions()
+                    .stream()
+                    .flatMap(Collection::stream)
+                    .forEach(Permission::checkIsValid);
+                // TODO: AuthenticationManager gets a list of permission for permission validity / error messaging
                 register(handler.getAction().name(), handler);
             }
 
