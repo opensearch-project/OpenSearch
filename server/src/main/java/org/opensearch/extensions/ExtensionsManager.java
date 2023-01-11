@@ -394,13 +394,12 @@ public class ExtensionsManager {
                 initializeExtensionResponseHandler
             );
             inProgressFuture.orTimeout(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS).join();
-        } catch (CompletionException e) {
-            if (e.getCause() instanceof TimeoutException) {
-                logger.info("No response from extension to request.");
-            }
-            throw e;
         } catch (Exception e) {
-            throw e;
+            if (e.getCause() instanceof TimeoutException) {
+                logger.info("Timed out awaiting for the response from the extension {}", extension);
+            } else {
+                logger.info(e.getCause());
+            }
         }
     }
 
@@ -527,13 +526,12 @@ public class ExtensionsManager {
             );
             inProgressFuture.orTimeout(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS).join();
             logger.info("Received response from Extension");
-        } catch (CompletionException e) {
+        } catch (Exception e) {
             if (e.getCause() instanceof TimeoutException) {
                 logger.info("No response from extension to request.");
+            } else {
+                logger.info(e.getCause());
             }
-            throw e;
-        } catch (Exception e) {
-            throw e;
         }
     }
 
