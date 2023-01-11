@@ -436,6 +436,9 @@ public class Node implements Closeable {
 
             final Settings settings = pluginsService.updatedSettings();
 
+            // Ensure to initialize Feature Flags via the settings from opensearch.yml
+            FeatureFlags.initializeFeatureFlags(settings);
+
             final Set<DiscoveryNodeRole> additionalRoles = pluginsService.filterPlugins(Plugin.class)
                 .stream()
                 .map(Plugin::getRoles)
@@ -663,7 +666,6 @@ public class Node implements Closeable {
             );
 
             final IndicesService indicesService;
-
             if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
                 indicesService = new IndicesService(
                     settings,
@@ -687,7 +689,8 @@ public class Node implements Closeable {
                     Map.copyOf(directoryFactories),
                     searchModule.getValuesSourceRegistry(),
                     recoveryStateFactories,
-                    remoteDirectoryFactory
+                    remoteDirectoryFactory,
+                    repositoriesServiceReference::get
                 );
             } else {
                 indicesService = new IndicesService(
@@ -711,7 +714,8 @@ public class Node implements Closeable {
                     Map.copyOf(directoryFactories),
                     searchModule.getValuesSourceRegistry(),
                     recoveryStateFactories,
-                    remoteDirectoryFactory
+                    remoteDirectoryFactory,
+                    repositoriesServiceReference::get
                 );
             }
 
@@ -1054,7 +1058,8 @@ public class Node implements Closeable {
                                     threadPool,
                                     recoverySettings,
                                     transportService,
-                                    new SegmentReplicationSourceFactory(transportService, recoverySettings, clusterService)
+                                    new SegmentReplicationSourceFactory(transportService, recoverySettings, clusterService),
+                                    indicesService
                                 )
                             );
                         b.bind(SegmentReplicationSourceService.class)

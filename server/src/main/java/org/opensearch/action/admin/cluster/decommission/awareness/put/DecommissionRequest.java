@@ -21,8 +21,6 @@ import java.io.IOException;
 import static org.opensearch.action.ValidateActions.addValidationError;
 
 /**
- * Register decommission request.
- * <p>
  * Registers a decommission request with decommission attribute and timeout
  *
  * @opensearch.internal
@@ -32,7 +30,7 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
     public static final TimeValue DEFAULT_NODE_DRAINING_TIMEOUT = TimeValue.timeValueSeconds(120);
 
     private DecommissionAttribute decommissionAttribute;
-
+    private String requestID;
     private TimeValue delayTimeout = DEFAULT_NODE_DRAINING_TIMEOUT;
 
     // holder for no_delay param. To avoid draining time timeout.
@@ -49,6 +47,7 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
         decommissionAttribute = new DecommissionAttribute(in);
         this.delayTimeout = in.readTimeValue();
         this.noDelay = in.readBoolean();
+        this.requestID = in.readOptionalString();
     }
 
     @Override
@@ -57,6 +56,7 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
         decommissionAttribute.writeTo(out);
         out.writeTimeValue(delayTimeout);
         out.writeBoolean(noDelay);
+        out.writeOptionalString(requestID);
     }
 
     /**
@@ -77,23 +77,43 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
         return this.decommissionAttribute;
     }
 
-    public void setDelayTimeout(TimeValue delayTimeout) {
+    public DecommissionRequest setDelayTimeout(TimeValue delayTimeout) {
         this.delayTimeout = delayTimeout;
+        return this;
     }
 
     public TimeValue getDelayTimeout() {
         return this.delayTimeout;
     }
 
-    public void setNoDelay(boolean noDelay) {
+    public DecommissionRequest setNoDelay(boolean noDelay) {
         if (noDelay) {
             this.delayTimeout = TimeValue.ZERO;
         }
         this.noDelay = noDelay;
+        return this;
     }
 
     public boolean isNoDelay() {
         return noDelay;
+    }
+
+    /**
+     * Sets id for decommission request
+     *
+     * @param requestID uuid for request
+     * @return this request
+     */
+    public DecommissionRequest setRequestID(String requestID) {
+        this.requestID = requestID;
+        return this;
+    }
+
+    /**
+     * @return Returns id of decommission request
+     */
+    public String requestID() {
+        return requestID;
     }
 
     @Override
@@ -122,6 +142,13 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
 
     @Override
     public String toString() {
-        return "DecommissionRequest{" + "decommissionAttribute=" + decommissionAttribute + '}';
+        return "DecommissionRequest{"
+            + "decommissionAttribute="
+            + decommissionAttribute
+            + ", delayTimeout="
+            + delayTimeout
+            + ", noDelay="
+            + noDelay
+            + '}';
     }
 }

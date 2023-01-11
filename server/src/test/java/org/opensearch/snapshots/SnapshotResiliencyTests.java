@@ -1797,6 +1797,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                 );
                 final BigArrays bigArrays = new BigArrays(new PageCacheRecycler(settings), null, "test");
                 final MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
+                final SetOnce<RepositoriesService> repositoriesServiceReference = new SetOnce<>();
+                repositoriesServiceReference.set(repositoriesService);
                 if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
                     indicesService = new IndicesService(
                         settings,
@@ -1831,7 +1833,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         emptyMap(),
                         null,
                         emptyMap(),
-                        new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService)
+                        new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService),
+                        repositoriesServiceReference::get
                     );
                 } else {
                     indicesService = new IndicesService(
@@ -1866,10 +1869,10 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         emptyMap(),
                         null,
                         emptyMap(),
-                        new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService)
+                        new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService),
+                        repositoriesServiceReference::get
                     );
                 }
-
                 final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
                 snapshotShardsService = new SnapshotShardsService(
                     settings,
@@ -1897,7 +1900,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         threadPool,
                         recoverySettings,
                         transportService,
-                        new SegmentReplicationSourceFactory(transportService, recoverySettings, clusterService)
+                        new SegmentReplicationSourceFactory(transportService, recoverySettings, clusterService),
+                        indicesService
                     ),
                     SegmentReplicationSourceService.NO_OP,
                     shardStateAction,

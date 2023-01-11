@@ -28,6 +28,7 @@ import org.opensearch.cluster.routing.WeightedRouting;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
+import org.opensearch.common.UUIDs;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
@@ -128,7 +129,7 @@ public class DecommissionService {
      * Starts the new decommission request and registers the metadata with status as {@link DecommissionStatus#INIT}
      * Once the status is updated, it tries to exclude to-be-decommissioned cluster manager eligible nodes from Voting Configuration
      *
-     * @param decommissionRequest decommission request Object
+     * @param decommissionRequest request for decommission action
      * @param listener register decommission listener
      */
     public void startDecommissionAction(
@@ -144,12 +145,19 @@ public class DecommissionService {
             public ClusterState execute(ClusterState currentState) {
                 // validates if correct awareness attributes and forced awareness attribute set to the cluster before starting action
                 validateAwarenessAttribute(decommissionAttribute, awarenessAttributes, forcedAwarenessAttributes);
+                if (decommissionRequest.requestID() == null) {
+                    decommissionRequest.setRequestID(UUIDs.randomBase64UUID());
+                }
                 DecommissionAttributeMetadata decommissionAttributeMetadata = currentState.metadata().decommissionAttributeMetadata();
                 // check that request is eligible to proceed and attribute is weighed away
-                ensureEligibleRequest(decommissionAttributeMetadata, decommissionAttribute);
+                ensureEligibleRequest(decommissionAttributeMetadata, decommissionRequest);
                 ensureToBeDecommissionedAttributeWeighedAway(currentState, decommissionAttribute);
 
-                ClusterState newState = registerDecommissionAttributeInClusterState(currentState, decommissionAttribute);
+                ClusterState newState = registerDecommissionAttributeInClusterState(
+                    currentState,
+                    decommissionAttribute,
+                    decommissionRequest.requestID()
+                );
                 // add all 'to-be-decommissioned' cluster manager eligible nodes to voting config exclusion
                 nodeIdsToBeExcluded = filterNodesWithDecommissionAttribute(currentState, decommissionAttribute, true).stream()
                     .map(DiscoveryNode::getId)
@@ -188,6 +196,7 @@ public class DecommissionService {
                 DecommissionAttributeMetadata decommissionAttributeMetadata = newState.metadata().decommissionAttributeMetadata();
                 assert decommissionAttribute.equals(decommissionAttributeMetadata.decommissionAttribute());
                 assert decommissionAttributeMetadata.status().equals(DecommissionStatus.INIT);
+                assert decommissionAttributeMetadata.requestID().equals(decommissionRequest.requestID());
                 assert newState.getVotingConfigExclusions()
                     .stream()
                     .map(CoordinationMetadata.VotingConfigExclusion::getNodeId)
@@ -294,6 +303,7 @@ public class DecommissionService {
     // the action again (retry)
     void drainNodesWithDecommissionedAttribute(DecommissionRequest decommissionRequest) {
         ClusterState state = clusterService.getClusterApplierService().state();
+        assert state.metadata().decommissionAttributeMetadata().requestID().equals(decommissionRequest.requestID());
         Set<DiscoveryNode> decommissionedNodes = filterNodesWithDecommissionAttribute(
             state,
             decommissionRequest.getDecommissionAttribute(),
@@ -415,10 +425,12 @@ public class DecommissionService {
             msg = "invalid awareness attribute requested for decommissioning";
         } else if (forcedAwarenessAttributes.containsKey(decommissionAttribute.attributeName()) == false) {
             msg = "forced awareness attribute [" + forcedAwarenessAttributes.toString() + "] doesn't have the decommissioning attribute";
-        } else if (forcedAwarenessAttributes.get(decommissionAttribute.attributeName())
-            .contains(decommissionAttribute.attributeValue()) == false) {
-                msg = "invalid awareness attribute value requested for decommissioning. Set forced awareness values before to decommission";
-            }
+        }
+        // we don't need to check for attributes presence in forced awareness attribute because, weights API ensures that weights are set
+        // for all discovered routing attributes and forced attributes.
+        // So, if the weight is not present for the attribute it could mean its a non routing node (eg. cluster manager)
+        // And in that case, we are ok to proceed with the decommission. A routing node's attribute absence in forced awareness attribute is
+        // a problem elsewhere
 
         if (msg != null) {
             throw new DecommissioningFailedException(decommissionAttribute, msg);
@@ -440,8 +452,11 @@ public class DecommissionService {
                 "no weights are specified to attribute [" + decommissionAttribute.attributeName() + "]"
             );
         }
+        // in case the weight is not set for the attribute value, then we know that attribute values was not part of discovered routing node
+        // attribute or forced awareness attribute and in that case, we are ok if the attribute's value weight is not set. But if it's set,
+        // its weight has to be zero
         Double attributeValueWeight = weightedRouting.weights().get(decommissionAttribute.attributeValue());
-        if (attributeValueWeight == null || attributeValueWeight.equals(0.0) == false) {
+        if (attributeValueWeight != null && attributeValueWeight.equals(0.0) == false) {
             throw new DecommissioningFailedException(
                 decommissionAttribute,
                 "weight for decommissioned attribute is expected to be [0.0] but found [" + attributeValueWeight + "]"
@@ -451,22 +466,31 @@ public class DecommissionService {
 
     private static void ensureEligibleRequest(
         DecommissionAttributeMetadata decommissionAttributeMetadata,
-        DecommissionAttribute requestedDecommissionAttribute
+        DecommissionRequest decommissionRequest
     ) {
-        String msg = null;
+        String msg;
+        DecommissionAttribute requestedDecommissionAttribute = decommissionRequest.getDecommissionAttribute();
         if (decommissionAttributeMetadata != null) {
             // check if the same attribute is registered and handle it accordingly
             if (decommissionAttributeMetadata.decommissionAttribute().equals(requestedDecommissionAttribute)) {
                 switch (decommissionAttributeMetadata.status()) {
-                    // for INIT and FAILED - we are good to process it again
+                    // for INIT - check if it is eligible internal retry
                     case INIT:
+                        if (decommissionRequest.requestID().equals(decommissionAttributeMetadata.requestID()) == false) {
+                            throw new DecommissioningFailedException(
+                                requestedDecommissionAttribute,
+                                "same request is already in status [INIT]"
+                            );
+                        }
+                        break;
+                    // for FAILED - we are good to process it again
                     case FAILED:
                         break;
                     case DRAINING:
                     case IN_PROGRESS:
                     case SUCCESSFUL:
                         msg = "same request is already in status [" + decommissionAttributeMetadata.status() + "]";
-                        break;
+                        throw new DecommissioningFailedException(requestedDecommissionAttribute, msg);
                     default:
                         throw new IllegalStateException(
                             "unknown status [" + decommissionAttributeMetadata.status() + "] currently registered in metadata"
@@ -479,7 +503,7 @@ public class DecommissionService {
                         msg = "one awareness attribute ["
                             + decommissionAttributeMetadata.decommissionAttribute().toString()
                             + "] already successfully decommissioned, recommission before triggering another decommission";
-                        break;
+                        throw new DecommissioningFailedException(requestedDecommissionAttribute, msg);
                     case DRAINING:
                     case IN_PROGRESS:
                     case INIT:
@@ -487,7 +511,7 @@ public class DecommissionService {
                         msg = "there's an inflight decommission request for attribute ["
                             + decommissionAttributeMetadata.decommissionAttribute().toString()
                             + "] is in progress, cannot process this request";
-                        break;
+                        throw new DecommissioningFailedException(requestedDecommissionAttribute, msg);
                     case FAILED:
                         break;
                     default:
@@ -496,10 +520,6 @@ public class DecommissionService {
                         );
                 }
             }
-        }
-
-        if (msg != null) {
-            throw new DecommissioningFailedException(requestedDecommissionAttribute, msg);
         }
     }
 

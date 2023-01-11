@@ -32,6 +32,9 @@
 
 package org.opensearch.cluster.routing;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.Nullable;
@@ -57,6 +60,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
 
@@ -88,6 +93,8 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     private final Object shardsByWeightMutex = new Object();
     private volatile Map<WeightedRoutingKey, List<ShardRouting>> activeShardsByWeight = emptyMap();
     private volatile Map<WeightedRoutingKey, List<ShardRouting>> initializingShardsByWeight = emptyMap();
+
+    private static final Logger logger = LogManager.getLogger(IndexShardRoutingTable.class);
 
     /**
      * The initializing list, including ones that are initializing on a target node because of relocation.
@@ -305,19 +312,50 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
      *
      * @param weightedRouting entity
      * @param nodes           discovered nodes in the cluster
+     * @param isFailOpenEnabled if true, shards search requests in case of failures are tried on shard copies present
+     *                          in node attribute value with weight zero
      * @return an iterator over active and initializing shards, ordered by weighted round-robin
      * scheduling policy. Making sure that initializing shards are the last to iterate through.
      */
-    public ShardIterator activeInitializingShardsWeightedIt(WeightedRouting weightedRouting, DiscoveryNodes nodes, double defaultWeight) {
+    public ShardIterator activeInitializingShardsWeightedIt(
+        WeightedRouting weightedRouting,
+        DiscoveryNodes nodes,
+        double defaultWeight,
+        boolean isFailOpenEnabled
+    ) {
         final int seed = shuffler.nextSeed();
         List<ShardRouting> ordered = new ArrayList<>();
         List<ShardRouting> orderedActiveShards = getActiveShardsByWeight(weightedRouting, nodes, defaultWeight);
+        List<ShardRouting> orderedListWithDistinctShards;
         ordered.addAll(shuffler.shuffle(orderedActiveShards, seed));
         if (!allInitializingShards.isEmpty()) {
             List<ShardRouting> orderedInitializingShards = getInitializingShardsByWeight(weightedRouting, nodes, defaultWeight);
             ordered.addAll(orderedInitializingShards);
         }
-        return new PlainShardIterator(shardId, ordered);
+
+        // append shards for attribute value with weight zero, so that shard search requests can be tried on
+        // shard copies in case of request failure from other attribute values.
+        if (isFailOpenEnabled) {
+            try {
+                Stream<String> keys = weightedRouting.weights()
+                    .entrySet()
+                    .stream()
+                    .filter(entry -> entry.getValue().intValue() == WeightedRoutingMetadata.WEIGHED_AWAY_WEIGHT)
+                    .map(Map.Entry::getKey);
+                keys.forEach(key -> {
+                    ShardIterator iterator = onlyNodeSelectorActiveInitializingShardsIt(weightedRouting.attributeName() + ":" + key, nodes);
+                    while (iterator.remaining() > 0) {
+                        ordered.add(iterator.nextOrNull());
+                    }
+                });
+            } catch (IllegalArgumentException e) {
+                // this exception is thrown by {@link onlyNodeSelectorActiveInitializingShardsIt} in case count of shard
+                // copies found is zero
+                logger.debug("no shard copies found for shard id [{}] for node attribute with weight zero", shardId);
+            }
+        }
+        orderedListWithDistinctShards = ordered.stream().distinct().collect(Collectors.toList());
+        return new PlainShardIterator(shardId, orderedListWithDistinctShards);
     }
 
     /**
