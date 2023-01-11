@@ -21,6 +21,10 @@ public class ExtensionsSettings {
 
     private List<Extension> extensions;
 
+    public ExtensionsSettings(List<Extension> extensions) {
+        this.extensions = extensions;
+    }
+
     public ExtensionsSettings() {
         extensions = new ArrayList<Extension>();
     }
@@ -45,6 +49,34 @@ public class ExtensionsSettings {
         private String customFolderName;
         private String hasNativeController;
         private List<ExtensionDependency> dependencies = Collections.emptyList();
+
+        public Extension(
+            String name,
+            String uniqueId,
+            String hostName,
+            String hostAddress,
+            String port,
+            String version,
+            String description,
+            String opensearchVersion,
+            String jvmVersion,
+            String className,
+            String customFolderName,
+            String hasNativeController
+        ) {
+            this.name = name;
+            this.uniqueId = uniqueId;
+            this.hostName = hostName;
+            this.hostAddress = hostAddress;
+            this.port = port;
+            this.version = version;
+            this.description = description;
+            this.opensearchVersion = opensearchVersion;
+            this.jvmVersion = jvmVersion;
+            this.className = className;
+            this.customFolderName = customFolderName;
+            this.hasNativeController = hasNativeController;
+        }
 
         public Extension() {
             name = "";
