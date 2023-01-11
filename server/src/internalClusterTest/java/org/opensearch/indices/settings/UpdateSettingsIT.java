@@ -175,7 +175,7 @@ public class UpdateSettingsIT extends OpenSearchIntegTestCase {
     }
 
     public void testUpdateDependentClusterSettings() {
-        SettingsException iae = expectThrows(
+        SettingsException e = expectThrows(
             SettingsException.class,
             () -> client().admin()
                 .cluster()
@@ -183,9 +183,9 @@ public class UpdateSettingsIT extends OpenSearchIntegTestCase {
                 .setPersistentSettings(Settings.builder().put("cluster.acc.test.pw", "asdf"))
                 .get()
         );
-        assertEquals("missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", iae.getMessage());
+        assertEquals("missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", e.getMessage());
 
-        iae = expectThrows(
+        e = expectThrows(
             SettingsException.class,
             () -> client().admin()
                 .cluster()
@@ -193,9 +193,9 @@ public class UpdateSettingsIT extends OpenSearchIntegTestCase {
                 .setTransientSettings(Settings.builder().put("cluster.acc.test.pw", "asdf"))
                 .get()
         );
-        assertEquals("missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", iae.getMessage());
+        assertEquals("missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", e.getMessage());
 
-        iae = expectThrows(
+        e = expectThrows(
             SettingsException.class,
             () -> client().admin()
                 .cluster()
@@ -204,7 +204,7 @@ public class UpdateSettingsIT extends OpenSearchIntegTestCase {
                 .setPersistentSettings(Settings.builder().put("cluster.acc.test.user", "asdf"))
                 .get()
         );
-        assertEquals("missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", iae.getMessage());
+        assertEquals("missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", e.getMessage());
 
         if (randomBoolean()) {
             client().admin()
@@ -212,7 +212,7 @@ public class UpdateSettingsIT extends OpenSearchIntegTestCase {
                 .prepareUpdateSettings()
                 .setTransientSettings(Settings.builder().put("cluster.acc.test.pw", "asdf").put("cluster.acc.test.user", "asdf"))
                 .get();
-            iae = expectThrows(
+            e = expectThrows(
                 SettingsException.class,
                 () -> client().admin()
                     .cluster()
@@ -220,7 +220,7 @@ public class UpdateSettingsIT extends OpenSearchIntegTestCase {
                     .setTransientSettings(Settings.builder().putNull("cluster.acc.test.user"))
                     .get()
             );
-            assertEquals("missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", iae.getMessage());
+            assertEquals("missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", e.getMessage());
             client().admin()
                 .cluster()
                 .prepareUpdateSettings()
@@ -233,7 +233,7 @@ public class UpdateSettingsIT extends OpenSearchIntegTestCase {
                 .setPersistentSettings(Settings.builder().put("cluster.acc.test.pw", "asdf").put("cluster.acc.test.user", "asdf"))
                 .get();
 
-            iae = expectThrows(
+            e = expectThrows(
                 SettingsException.class,
                 () -> client().admin()
                     .cluster()
@@ -241,7 +241,7 @@ public class UpdateSettingsIT extends OpenSearchIntegTestCase {
                     .setPersistentSettings(Settings.builder().putNull("cluster.acc.test.user"))
                     .get()
             );
-            assertEquals("missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", iae.getMessage());
+            assertEquals("missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", e.getMessage());
 
             client().admin()
                 .cluster()
@@ -253,11 +253,11 @@ public class UpdateSettingsIT extends OpenSearchIntegTestCase {
     }
 
     public void testUpdateDependentIndexSettings() {
-        SettingsException iae = expectThrows(
+        SettingsException e = expectThrows(
             SettingsException.class,
             () -> prepareCreate("test", Settings.builder().put("index.acc.test.pw", "asdf")).get()
         );
-        assertEquals("missing required setting [index.acc.test.user] for setting [index.acc.test.pw]", iae.getMessage());
+        assertEquals("missing required setting [index.acc.test.user] for setting [index.acc.test.pw]", e.getMessage());
 
         createIndex("test");
         for (int i = 0; i < 2; i++) {
@@ -266,7 +266,7 @@ public class UpdateSettingsIT extends OpenSearchIntegTestCase {
                 client().admin().indices().prepareClose("test").get();
             }
 
-            iae = expectThrows(
+            e = expectThrows(
                 SettingsException.class,
                 () -> client().admin()
                     .indices()
@@ -275,7 +275,7 @@ public class UpdateSettingsIT extends OpenSearchIntegTestCase {
                     .execute()
                     .actionGet()
             );
-            assertEquals("missing required setting [index.acc.test.user] for setting [index.acc.test.pw]", iae.getMessage());
+            assertEquals("missing required setting [index.acc.test.user] for setting [index.acc.test.pw]", e.getMessage());
 
             // user has no dependency
             client().admin()
@@ -294,7 +294,7 @@ public class UpdateSettingsIT extends OpenSearchIntegTestCase {
                 .actionGet();
 
             // now try to remove it and make sure it fails
-            iae = expectThrows(
+            e = expectThrows(
                 SettingsException.class,
                 () -> client().admin()
                     .indices()
@@ -303,7 +303,7 @@ public class UpdateSettingsIT extends OpenSearchIntegTestCase {
                     .execute()
                     .actionGet()
             );
-            assertEquals("missing required setting [index.acc.test.user] for setting [index.acc.test.pw]", iae.getMessage());
+            assertEquals("missing required setting [index.acc.test.user] for setting [index.acc.test.pw]", e.getMessage());
 
             // now we are consistent
             client().admin()

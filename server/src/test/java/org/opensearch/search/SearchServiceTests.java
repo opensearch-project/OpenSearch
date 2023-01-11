@@ -1072,7 +1072,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
             )
         ).actionGet();
 
-        SettingsException iae = expectThrows(
+        SettingsException se = expectThrows(
             SettingsException.class,
             () -> client().admin()
                 .indices()
@@ -1080,7 +1080,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
                 .setSettings(Settings.builder().put(IndexSettings.INDEX_SEARCH_THROTTLED.getKey(), false))
                 .get()
         );
-        assertEquals("can not update private setting [index.search.throttled]; this setting is managed by OpenSearch", iae.getMessage());
+        assertEquals("can not update private setting [index.search.throttled]; this setting is managed by OpenSearch", se.getMessage());
         assertFalse(service.getIndicesService().indexServiceSafe(index).getIndexSettings().isSearchThrottled());
         SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(false);
         ShardSearchRequest req = new ShardSearchRequest(

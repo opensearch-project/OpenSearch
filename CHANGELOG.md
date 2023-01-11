@@ -75,6 +75,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Change http code for DecommissioningFailedException from 500 to 400 ([#5283](https://github.com/opensearch-project/OpenSearch/pull/5283))
 - Pre conditions check before updating weighted routing metadata ([#4955](https://github.com/opensearch-project/OpenSearch/pull/4955))
 - Gracefully handle concurrent zone decommission action ([#5542](https://github.com/opensearch-project/OpenSearch/pull/5542))
+- Mapping IllegalArgumentException to SettingsException extend OpenSearchException in AbstractScopedSettings class ([#4792](https://github.com/opensearch-project/OpenSearch/pull/4792))
 
 ### Deprecated
 

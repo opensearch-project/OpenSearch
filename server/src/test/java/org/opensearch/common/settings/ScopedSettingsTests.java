@@ -208,11 +208,11 @@ public class ScopedSettingsTests extends OpenSearchTestCase {
 
         AbstractScopedSettings service = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(intSetting, stringSetting)));
 
-        SettingsException iae = expectThrows(
+        SettingsException e = expectThrows(
             SettingsException.class,
             () -> service.validate(Settings.builder().put("foo.test.bar", 7).build(), true)
         );
-        assertEquals("missing required setting [foo.test.name] for setting [foo.test.bar]", iae.getMessage());
+        assertEquals("missing required setting [foo.test.name] for setting [foo.test.bar]", e.getMessage());
 
         service.validate(Settings.builder().put("foo.test.name", "test").put("foo.test.bar", 7).build(), true);
 
@@ -247,11 +247,11 @@ public class ScopedSettingsTests extends OpenSearchTestCase {
 
         AbstractScopedSettings service = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(intSetting, stringSetting)));
 
-        SettingsException iae = expectThrows(
+        SettingsException e = expectThrows(
             SettingsException.class,
             () -> service.validate(Settings.builder().put("foo.test.bar", 7).put("foo.test.name", "invalid").build(), true)
         );
-        assertEquals("[foo.test.bar] is set but [name] is [invalid]", iae.getMessage());
+        assertEquals("[foo.test.bar] is set but [name] is [invalid]", e.getMessage());
 
         service.validate(Settings.builder().put("foo.test.bar", 7).put("foo.test.name", "valid").build(), true);
 
@@ -963,11 +963,11 @@ public class ScopedSettingsTests extends OpenSearchTestCase {
 
     public void testValidateWithSuggestion() {
         IndexScopedSettings settings = new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
-        SettingsException iae = expectThrows(
+        SettingsException e = expectThrows(
             SettingsException.class,
             () -> settings.validate(Settings.builder().put("index.numbe_of_replica", "1").build(), false)
         );
-        assertEquals(iae.getMessage(), "unknown setting [index.numbe_of_replica] did you mean [index.number_of_replicas]?");
+        assertEquals(e.getMessage(), "unknown setting [index.numbe_of_replica] did you mean [index.number_of_replicas]?");
     }
 
     public void testValidate() {
