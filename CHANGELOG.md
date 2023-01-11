@@ -1,5 +1,9 @@
 
 # CHANGELOG
+## [Unreleased]
+### Dependencies
+- Bumps `azure-core-http-netty` from 1.12.7 to 1.12.8
+
 
 All notable changes to this project are documented in this file.
 
