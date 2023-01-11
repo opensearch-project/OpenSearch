@@ -124,7 +124,7 @@ public abstract class HttpSmokeTestCaseWithIdentity extends OpenSearchIntegTestC
         List<NodeInfo> nodeInfos = client().admin().cluster().prepareNodesInfo().get().getNodes();
         assertEquals(2, nodeInfos.size());
 
-        Thread.sleep(3000);
+        Thread.sleep(1000);
     }
 
     protected void ensureIdentityIndexIsGreen() {
