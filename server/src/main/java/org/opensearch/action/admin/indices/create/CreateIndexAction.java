@@ -32,8 +32,6 @@
 
 package org.opensearch.action.admin.indices.create;
 
-import java.util.List;
-
 import org.opensearch.action.ActionType;
 
 /**
@@ -49,4 +47,5 @@ public class CreateIndexAction extends ActionType<CreateIndexResponse> {
     private CreateIndexAction() {
         super(NAME, CreateIndexResponse::new);
     }
+
 }
