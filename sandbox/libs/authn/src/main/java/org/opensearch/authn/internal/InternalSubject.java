@@ -20,6 +20,9 @@ import org.opensearch.authn.Subject;
  * @opensearch.internal
  */
 public class InternalSubject implements Subject {
+
+    private static final Logger LOG = LogManager.getLogger(this.getClass());
+
     private final org.apache.shiro.subject.Subject shiroSubject;
 
     public InternalSubject(org.apache.shiro.subject.Subject subject) {
@@ -68,5 +71,25 @@ public class InternalSubject implements Subject {
 
         // Login via shiro realm.
         shiroSubject.login(authToken);
+    }
+
+    @Override
+    public UnauthorizedException checkPermission(final List<String> permissions) {
+        LOG.debug("Check for permission: " + permissions.stream().collect(Collectors.joining(", ")));
+
+        final List<String> unauthorizedPermissions = permissions
+            .stream()
+            .filter(p -> !shiroSubject.isPermitted(p))
+            .collect(Collectors.toList());
+
+        if (unauthorizedPermissions.isEmpty()) {
+            return null;
+        }
+
+        return new UnauthorizedException("Missing the following permissions: " + permissionsAsString(unauthorizedPermissions));
+    }
+
+    private static String permissionsAsString(final List<String> permissions) {
+        return permissions.stream().collect(Collectors.joining(", ");
     }
 }

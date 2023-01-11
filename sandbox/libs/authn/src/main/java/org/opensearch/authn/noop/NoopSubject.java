@@ -13,6 +13,8 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.List;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.authn.tokens.AuthenticationToken;
 import org.opensearch.authn.Subject;
 import org.opensearch.authn.Principals;
@@ -27,6 +29,8 @@ import org.opensearch.authn.UnauthorizedException;
  * @opensearch.internal
  */
 public class NoopSubject implements Subject {
+
+    private static final Logger LOG = LogManager.getLogger(this.getClass());
 
     @Override
     public Principal getPrincipal() {
@@ -61,7 +65,7 @@ public class NoopSubject implements Subject {
 
     @Override
     public UnauthorizedException checkPermission(final List<String> permissions) {
-        System.err.println("Check for permission: " + permissions.stream().collect(Collectors.joining(", ")));
+        LOG.debug("Check for permission: " + permissions.stream().collect(Collectors.joining(", ")));
         return null;
     }
 }
