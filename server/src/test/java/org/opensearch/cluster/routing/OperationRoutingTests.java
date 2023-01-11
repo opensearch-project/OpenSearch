@@ -789,7 +789,7 @@ public class OperationRoutingTests extends OpenSearchTestCase {
 
     private ClusterState setWeightedRoutingWeights(ClusterState clusterState, Map<String, Double> weights) {
         WeightedRouting weightedRouting = new WeightedRouting("zone", weights);
-        WeightedRoutingMetadata weightedRoutingMetadata = new WeightedRoutingMetadata(weightedRouting);
+        WeightedRoutingMetadata weightedRoutingMetadata = new WeightedRoutingMetadata(weightedRouting, 0);
         Metadata.Builder metadataBuilder = Metadata.builder(clusterState.metadata());
         metadataBuilder.putCustom(WeightedRoutingMetadata.TYPE, weightedRoutingMetadata);
         clusterState = ClusterState.builder(clusterState).metadata(metadataBuilder).build();
@@ -901,7 +901,11 @@ public class OperationRoutingTests extends OpenSearchTestCase {
         try {
             ClusterState state = clusterStateForWeightedRouting(indexNames, numShards, numReplicas);
 
-            Settings setting = Settings.builder().put("cluster.routing.allocation.awareness.attributes", "zone").build();
+            Settings setting = Settings.builder()
+                .put("cluster.routing.allocation.awareness.attributes", "zone")
+                .put("cluster.routing.allocation.awareness.force.zone.values", "a,b,c")
+                .put("cluster.routing.weighted.fail_open", false)
+                .build();
 
             threadPool = new TestThreadPool("testThatOnlyNodesSupport");
             clusterService = ClusterServiceUtils.createClusterService(threadPool);
@@ -932,8 +936,9 @@ public class OperationRoutingTests extends OpenSearchTestCase {
             );
 
             for (ShardIterator it : groupIterator) {
-                List<ShardRouting> shardRoutings = Collections.singletonList(it.nextOrNull());
-                for (ShardRouting shardRouting : shardRoutings) {
+                while (it.remaining() > 0) {
+                    ShardRouting shardRouting = it.nextOrNull();
+                    assertNotNull(shardRouting);
                     selectedNodes.add(shardRouting.currentNodeId());
                 }
             }
@@ -950,9 +955,8 @@ public class OperationRoutingTests extends OpenSearchTestCase {
             assertFalse(weighAwayNodesInUndefinedZone);
 
             selectedNodes = new HashSet<>();
-            setting = Settings.builder().put("cluster.routing.allocation.awareness.attributes", "zone").build();
 
-            // Updating weighted round robin weights in cluster state
+            // Updating weighted round-robin weights in cluster state
             weights = Map.of("a", 0.0, "b", 1.0);
 
             state = setWeightedRoutingWeights(state, weights);
@@ -964,11 +968,13 @@ public class OperationRoutingTests extends OpenSearchTestCase {
             groupIterator = opRouting.searchShards(state, indexNames, null, null, collector, outstandingRequests);
 
             for (ShardIterator it : groupIterator) {
-                List<ShardRouting> shardRoutings = Collections.singletonList(it.nextOrNull());
-                for (ShardRouting shardRouting : shardRoutings) {
+                while (it.remaining() > 0) {
+                    ShardRouting shardRouting = it.nextOrNull();
+                    assertNotNull(shardRouting);
                     selectedNodes.add(shardRouting.currentNodeId());
                 }
             }
+
             // tests that no shards are assigned to zone with weight zero
             // tests shards are assigned to nodes in zone c
             weighAwayNodesInUndefinedZone = true;
@@ -1153,7 +1159,7 @@ public class OperationRoutingTests extends OpenSearchTestCase {
         // add weighted routing weights in metadata
         Map<String, Double> weights = Map.of("a", 1.0, "b", 1.0, "c", 0.0);
         WeightedRouting weightedRouting = new WeightedRouting("zone", weights);
-        WeightedRoutingMetadata weightedRoutingMetadata = new WeightedRoutingMetadata(weightedRouting);
+        WeightedRoutingMetadata weightedRoutingMetadata = new WeightedRoutingMetadata(weightedRouting, 0);
         metadataBuilder.putCustom(WeightedRoutingMetadata.TYPE, weightedRoutingMetadata);
         clusterState.metadata(metadataBuilder);
         clusterState.routingTable(routingTableBuilder.build());

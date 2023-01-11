@@ -16,6 +16,7 @@ import org.apache.lucene.store.LockFactory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.SimpleFSLockFactory;
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.Version;
 import org.junit.After;
 import org.junit.Before;
@@ -67,6 +68,7 @@ public class OnDemandBlockSnapshotIndexInputTests extends OpenSearchTestCase {
     }
 
     public void testVariousBlockSize() throws Exception {
+        assumeFalse("Awaiting Windows fix https://github.com/opensearch-project/OpenSearch/issues/5396", Constants.WINDOWS);
         int fileSize = 29360128;
         int blockSizeShift;
 

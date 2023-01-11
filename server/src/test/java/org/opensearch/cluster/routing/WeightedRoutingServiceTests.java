@@ -175,7 +175,7 @@ public class WeightedRoutingServiceTests extends OpenSearchTestCase {
 
     private ClusterState setWeightedRoutingWeights(ClusterState clusterState, Map<String, Double> weights) {
         WeightedRouting weightedRouting = new WeightedRouting("zone", weights);
-        WeightedRoutingMetadata weightedRoutingMetadata = new WeightedRoutingMetadata(weightedRouting);
+        WeightedRoutingMetadata weightedRoutingMetadata = new WeightedRoutingMetadata(weightedRouting, 0);
         Metadata.Builder metadataBuilder = Metadata.builder(clusterState.metadata());
         metadataBuilder.putCustom(WeightedRoutingMetadata.TYPE, weightedRoutingMetadata);
         clusterState = ClusterState.builder(clusterState).metadata(metadataBuilder).build();
@@ -184,7 +184,11 @@ public class WeightedRoutingServiceTests extends OpenSearchTestCase {
 
     private ClusterState setDecommissionAttribute(ClusterState clusterState, DecommissionStatus status) {
         DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "zone_A");
-        DecommissionAttributeMetadata decommissionAttributeMetadata = new DecommissionAttributeMetadata(decommissionAttribute, status);
+        DecommissionAttributeMetadata decommissionAttributeMetadata = new DecommissionAttributeMetadata(
+            decommissionAttribute,
+            status,
+            randomAlphaOfLength(10)
+        );
         Metadata.Builder metadataBuilder = Metadata.builder(clusterState.metadata());
         metadataBuilder.decommissionAttributeMetadata(decommissionAttributeMetadata);
         clusterState = ClusterState.builder(clusterState).metadata(metadataBuilder).build();
@@ -202,7 +206,7 @@ public class WeightedRoutingServiceTests extends OpenSearchTestCase {
             client,
             ClusterAddWeightedRoutingAction.INSTANCE
         );
-        WeightedRouting updatedWeightedRouting = new WeightedRouting("zone", Map.of("zone_A", 1.0, "zone_B", 0.0, "zone_C", 0.0));
+        WeightedRouting updatedWeightedRouting = new WeightedRouting("zone", Map.of("zone_A", 1.0, "zone_B", 1.0, "zone_C", 0.0));
         request.setWeightedRouting(updatedWeightedRouting);
         final CountDownLatch countDownLatch = new CountDownLatch(1);
         ActionListener<ClusterStateUpdateResponse> listener = new ActionListener<ClusterStateUpdateResponse>() {
@@ -260,13 +264,13 @@ public class WeightedRoutingServiceTests extends OpenSearchTestCase {
         ClusterState.Builder builder = ClusterState.builder(state);
         ClusterServiceUtils.setState(clusterService, builder);
 
-        ClusterDeleteWeightedRoutingRequest clusterDeleteWeightedRoutingRequest = new ClusterDeleteWeightedRoutingRequest();
+        ClusterDeleteWeightedRoutingRequest clusterDeleteWeightedRoutingRequest = new ClusterDeleteWeightedRoutingRequest("zone");
+        clusterDeleteWeightedRoutingRequest.setVersion(0);
         final CountDownLatch countDownLatch = new CountDownLatch(1);
         ActionListener<ClusterDeleteWeightedRoutingResponse> listener = new ActionListener<ClusterDeleteWeightedRoutingResponse>() {
             @Override
             public void onResponse(ClusterDeleteWeightedRoutingResponse clusterDeleteWeightedRoutingResponse) {
                 assertTrue(clusterDeleteWeightedRoutingResponse.isAcknowledged());
-                assertNull(clusterService.state().metadata().weightedRoutingMetadata());
                 countDownLatch.countDown();
             }
 
@@ -293,6 +297,70 @@ public class WeightedRoutingServiceTests extends OpenSearchTestCase {
         } catch (Exception e) {
             fail("verify awareness attribute should not fail");
         }
+    }
+
+    public void testAddWeightedRoutingFailsWhenWeightsNotSetForAllDiscoveredZones() throws InterruptedException {
+        ClusterPutWeightedRoutingRequestBuilder request = new ClusterPutWeightedRoutingRequestBuilder(
+            client,
+            ClusterAddWeightedRoutingAction.INSTANCE
+        );
+        Map<String, Double> weights = Map.of("zone_A", 1.0, "zone_C", 1.0);
+        WeightedRouting weightedRouting = new WeightedRouting("zone", weights);
+        request.setWeightedRouting(weightedRouting);
+        final CountDownLatch countDownLatch = new CountDownLatch(1);
+        final AtomicReference<Exception> exceptionReference = new AtomicReference<>();
+        ActionListener<ClusterStateUpdateResponse> listener = new ActionListener<ClusterStateUpdateResponse>() {
+            @Override
+            public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {
+                countDownLatch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                exceptionReference.set(e);
+                countDownLatch.countDown();
+            }
+        };
+        weightedRoutingService.registerWeightedRoutingMetadata(request.request(), listener);
+        assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
+        MatcherAssert.assertThat("Expected onFailure to be called", exceptionReference.get(), notNullValue());
+        MatcherAssert.assertThat(exceptionReference.get(), instanceOf(UnsupportedWeightedRoutingStateException.class));
+        MatcherAssert.assertThat(
+            exceptionReference.get().getMessage(),
+            containsString("weight for [zone_B] is not set and it is part of forced awareness value or a routing node has this attribute.")
+        );
+    }
+
+    public void testAddWeightedRoutingFailsWhenWeightsForMoreThanHalfIsZero() throws InterruptedException {
+        ClusterPutWeightedRoutingRequestBuilder request = new ClusterPutWeightedRoutingRequestBuilder(
+            client,
+            ClusterAddWeightedRoutingAction.INSTANCE
+        );
+        Map<String, Double> weights = Map.of("zone_A", 0.0, "zone_B", 0.0, "zone_C", 1.0, "zone_D", 1.0, "zone_E", 1.0, "zone_F", 1.0);
+        WeightedRouting weightedRouting = new WeightedRouting("zone", weights);
+        request.setWeightedRouting(weightedRouting);
+        final CountDownLatch countDownLatch = new CountDownLatch(1);
+        final AtomicReference<Exception> exceptionReference = new AtomicReference<>();
+        ActionListener<ClusterStateUpdateResponse> listener = new ActionListener<ClusterStateUpdateResponse>() {
+            @Override
+            public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {
+                countDownLatch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                exceptionReference.set(e);
+                countDownLatch.countDown();
+            }
+        };
+        weightedRoutingService.registerWeightedRoutingMetadata(request.request(), listener);
+        assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
+        MatcherAssert.assertThat("Expected onFailure to be called", exceptionReference.get(), notNullValue());
+        MatcherAssert.assertThat(exceptionReference.get(), instanceOf(ActionRequestValidationException.class));
+        MatcherAssert.assertThat(
+            exceptionReference.get().getMessage(),
+            containsString("Maximum expected number of routing weights having zero weight is [1]")
+        );
     }
 
     public void testAddWeightedRoutingFailsWhenDecommissionOngoing() throws InterruptedException {
@@ -327,8 +395,11 @@ public class WeightedRoutingServiceTests extends OpenSearchTestCase {
         weightedRoutingService.registerWeightedRoutingMetadata(request.request(), listener);
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
         MatcherAssert.assertThat("Expected onFailure to be called", exceptionReference.get(), notNullValue());
-        MatcherAssert.assertThat(exceptionReference.get(), instanceOf(IllegalStateException.class));
-        MatcherAssert.assertThat(exceptionReference.get().getMessage(), containsString("a decommission action is ongoing with status"));
+        MatcherAssert.assertThat(exceptionReference.get(), instanceOf(UnsupportedWeightedRoutingStateException.class));
+        MatcherAssert.assertThat(
+            exceptionReference.get().getMessage(),
+            containsString("weight for [zone_A] must be set to [0.0] as it is under decommission action")
+        );
     }
 
     public void testAddWeightedRoutingPassesWhenDecommissionFailed() throws InterruptedException {
@@ -361,5 +432,37 @@ public class WeightedRoutingServiceTests extends OpenSearchTestCase {
         };
         weightedRoutingService.registerWeightedRoutingMetadata(request.request(), listener);
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
+    }
+
+    public void testAddWeightedRoutingPassesWhenWeightOfDecommissionedAttributeStillZero() throws InterruptedException {
+        Map<String, Double> weights = Map.of("zone_A", 0.0, "zone_B", 1.0, "zone_C", 1.0);
+        DecommissionStatus status = DecommissionStatus.SUCCESSFUL;
+        ClusterState state = clusterService.state();
+        state = setWeightedRoutingWeights(state, weights);
+        state = setDecommissionAttribute(state, status);
+        ClusterState.Builder builder = ClusterState.builder(state);
+        ClusterServiceUtils.setState(clusterService, builder);
+
+        ClusterPutWeightedRoutingRequestBuilder request = new ClusterPutWeightedRoutingRequestBuilder(
+            client,
+            ClusterAddWeightedRoutingAction.INSTANCE
+        );
+        Map<String, Double> updatedWeights = Map.of("zone_A", 0.0, "zone_B", 2.0, "zone_C", 1.0);
+        WeightedRouting updatedWeightedRouting = new WeightedRouting("zone", updatedWeights);
+        request.setWeightedRouting(updatedWeightedRouting);
+        final CountDownLatch countDownLatch = new CountDownLatch(1);
+        ActionListener<ClusterStateUpdateResponse> listener = new ActionListener<ClusterStateUpdateResponse>() {
+            @Override
+            public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {
+                assertTrue(clusterStateUpdateResponse.isAcknowledged());
+                countDownLatch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {}
+        };
+        weightedRoutingService.registerWeightedRoutingMetadata(request.request(), listener);
+        assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
+        assertEquals(updatedWeightedRouting, clusterService.state().metadata().weightedRoutingMetadata().getWeightedRouting());
     }
 }

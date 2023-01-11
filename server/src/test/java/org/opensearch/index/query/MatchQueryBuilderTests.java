@@ -33,6 +33,7 @@
 package org.opensearch.index.query;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.tests.analysis.CannedBinaryTokenStream;
 import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.index.Term;
@@ -52,6 +53,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.graph.GraphTokenStreamFiniteStrings;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.Strings;
@@ -72,6 +74,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Iterator;
 
 import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -326,6 +329,25 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         query.toQuery(context); // no exception
     }
 
+    public void testMatchQueryWithNoSidePath() throws Exception {
+        QueryShardContext testContext = createShardContext();
+        final MatchQuery testMatchQuery = new MatchQuery(testContext);
+        MockGraphAnalyzer mockAnalyzer = new MockGraphAnalyzer(createGiantGraphWithNoSide());
+        testMatchQuery.setAnalyzer(mockAnalyzer);
+        testMatchQuery.setAutoGenerateSynonymsPhraseQuery(true);
+        GraphTokenStreamFiniteStrings graph = new GraphTokenStreamFiniteStrings(mockAnalyzer.getTokenStream());
+        Iterator<TokenStream> graphIt = graph.getFiniteStrings();
+        assertEquals(graphIt.hasNext(), false);
+        String testField = "Gas Lift Storage Bed Frame with Arched Bed Head in King";
+        String testValue = "head board, bed head, bedhead, headboard";
+        testMatchQuery.parse(Type.BOOLEAN, testField, testValue); // no exception
+    }
+
+    public void testDefaultFuzziness() {
+        MatchQueryBuilder matchQueryBuilder = new MatchQueryBuilder("text", TEXT_FIELD_NAME).fuzziness(null);
+        assertNull(matchQueryBuilder.fuzziness());
+    }
+
     public void testExactOnUnsupportedField() throws Exception {
         MatchQueryBuilder query = new MatchQueryBuilder(GEO_POINT_FIELD_NAME, "2,3");
         QueryShardContext context = createShardContext();
@@ -537,12 +559,18 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
 
         MockGraphAnalyzer(CannedBinaryTokenStream.BinaryToken[] tokens) {
             this.tokenStream = new CannedBinaryTokenStream(tokens);
+
         }
 
         @Override
         protected TokenStreamComponents createComponents(String fieldName) {
             return new TokenStreamComponents(r -> {}, tokenStream);
         }
+
+        public CannedBinaryTokenStream getTokenStream() {
+            return this.tokenStream;
+        }
+
     }
 
     /**
@@ -562,6 +590,14 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
                 i++;
             }
         }
+        return tokens.toArray(new CannedBinaryTokenStream.BinaryToken[0]);
+    }
+
+    /**
+     * Creates a graph token stream with no side path.
+     **/
+    private static CannedBinaryTokenStream.BinaryToken[] createGiantGraphWithNoSide() {
+        List<CannedBinaryTokenStream.BinaryToken> tokens = new ArrayList<>();
         return tokens.toArray(new CannedBinaryTokenStream.BinaryToken[0]);
     }
 

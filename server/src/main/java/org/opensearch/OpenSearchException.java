@@ -34,6 +34,7 @@ package org.opensearch;
 
 import org.opensearch.action.support.replication.ReplicationOperation;
 import org.opensearch.cluster.action.shard.ShardStateAction;
+import org.opensearch.cluster.routing.UnsupportedWeightedRoutingStateException;
 import org.opensearch.cluster.service.ClusterManagerThrottlingException;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.Nullable;
@@ -51,6 +52,7 @@ import org.opensearch.index.Index;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
+import org.opensearch.snapshots.SnapshotInUseDeletionException;
 import org.opensearch.transport.TcpTransport;
 
 import java.io.IOException;
@@ -69,6 +71,7 @@ import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.opensearch.Version.V_2_1_0;
 import static org.opensearch.Version.V_2_4_0;
+import static org.opensearch.Version.V_2_5_0;
 import static org.opensearch.Version.V_3_0_0;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VALUE;
 import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -82,6 +85,11 @@ import static org.opensearch.common.xcontent.XContentParserUtils.ensureFieldName
 public class OpenSearchException extends RuntimeException implements ToXContentFragment, Writeable {
 
     private static final Version UNKNOWN_VERSION_ADDED = Version.fromId(0);
+
+    /**
+     * Setting a higher base exception id to avoid conflicts.
+     */
+    private static final int CUSTOM_ELASTICSEARCH_EXCEPTIONS_BASE_ID = 10000;
 
     /**
      * Passed in the {@link Params} of {@link #generateThrowableXContent(XContentBuilder, Params, Throwable)}
@@ -655,8 +663,8 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
              * parsing exception because that is generally the most interesting
              * exception to return to the user. If that exception is caused by
              * an OpenSearchException we'd like to keep unwrapping because
-             * ElasticserachExceptions tend to contain useful information for
-             * the user.
+             * OpenSearchException instances tend to contain useful information
+             * for the user.
              */
             Throwable cause = ex.getCause();
             if (cause != null) {
@@ -1610,7 +1618,25 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
             ClusterManagerThrottlingException.class,
             ClusterManagerThrottlingException::new,
             165,
-            Version.V_2_4_0
+            Version.V_2_5_0
+        ),
+        SNAPSHOT_IN_USE_DELETION_EXCEPTION(
+            SnapshotInUseDeletionException.class,
+            SnapshotInUseDeletionException::new,
+            166,
+            UNKNOWN_VERSION_ADDED
+        ),
+        UNSUPPORTED_WEIGHTED_ROUTING_STATE_EXCEPTION(
+            UnsupportedWeightedRoutingStateException.class,
+            UnsupportedWeightedRoutingStateException::new,
+            167,
+            V_2_5_0
+        ),
+        INDEX_CREATE_BLOCK_EXCEPTION(
+            org.opensearch.cluster.block.IndexCreateBlockException.class,
+            org.opensearch.cluster.block.IndexCreateBlockException::new,
+            CUSTOM_ELASTICSEARCH_EXCEPTIONS_BASE_ID + 1,
+            V_3_0_0
         );
 
         final Class<? extends OpenSearchException> exceptionClass;

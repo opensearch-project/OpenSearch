@@ -31,10 +31,15 @@
 
 package org.opensearch.snapshots;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.regex.Regex;
+import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexNotFoundException;
+import org.opensearch.index.IndexSettings;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -42,6 +47,10 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Snapshot utilities
@@ -62,9 +71,17 @@ public class SnapshotUtils {
         if (IndexNameExpressionResolver.isAllIndices(Arrays.asList(selectedIndices))) {
             return availableIndices;
         }
+
+        // Move the exclusions to end of list to ensure they are processed
+        // after explicitly selected indices are chosen.
+        final List<String> excludesAtEndSelectedIndices = Stream.concat(
+            Arrays.stream(selectedIndices).filter(s -> s.isEmpty() || s.charAt(0) != '-'),
+            Arrays.stream(selectedIndices).filter(s -> !s.isEmpty() && s.charAt(0) == '-')
+        ).collect(Collectors.toUnmodifiableList());
+
         Set<String> result = null;
-        for (int i = 0; i < selectedIndices.length; i++) {
-            String indexOrPattern = selectedIndices[i];
+        for (int i = 0; i < excludesAtEndSelectedIndices.size(); i++) {
+            String indexOrPattern = excludesAtEndSelectedIndices.get(i);
             boolean add = true;
             if (!indexOrPattern.isEmpty()) {
                 if (availableIndices.contains(indexOrPattern)) {
@@ -82,7 +99,9 @@ public class SnapshotUtils {
                         result = new HashSet<>();
                     }
                 } else if (indexOrPattern.charAt(0) == '-') {
-                    // if its the first, fill it with all the indices...
+                    // If the first index pattern is an exclusion, then all patterns are exclusions due to the
+                    // reordering logic above. In this case, the request is interpreted as "include all indexes except
+                    // those matching the exclusions" so we add all indices here and then remove the ones that match the exclusion patterns.
                     if (i == 0) {
                         result = new HashSet<>(availableIndices);
                     }
@@ -134,5 +153,40 @@ public class SnapshotUtils {
             return Collections.unmodifiableList(new ArrayList<>(Arrays.asList(selectedIndices)));
         }
         return Collections.unmodifiableList(new ArrayList<>(result));
+    }
+
+    /**
+     * Validates if there are any remote snapshots backing an index
+     * @param metadata index metadata from cluster state
+     * @param snapshotIds list of snapshot Ids to be verified
+     * @param repoName repo name for which the verification is being done
+     */
+    public static void validateSnapshotsBackingAnyIndex(
+        ImmutableOpenMap<String, IndexMetadata> metadata,
+        List<SnapshotId> snapshotIds,
+        String repoName
+    ) {
+        final Map<String, SnapshotId> uuidToSnapshotId = new HashMap<>();
+        final Set<String> snapshotsToBeNotDeleted = new HashSet<>();
+        snapshotIds.forEach(snapshotId -> uuidToSnapshotId.put(snapshotId.getUUID(), snapshotId));
+
+        for (ObjectCursor<IndexMetadata> cursor : metadata.values()) {
+            IndexMetadata indexMetadata = cursor.value;
+            String storeType = indexMetadata.getSettings().get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey());
+            if (IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey().equals(storeType)) {
+                String snapshotId = indexMetadata.getSettings().get(IndexSettings.SEARCHABLE_SNAPSHOT_ID_UUID.getKey());
+                if (uuidToSnapshotId.get(snapshotId) != null) {
+                    snapshotsToBeNotDeleted.add(uuidToSnapshotId.get(snapshotId).getName());
+                }
+            }
+        }
+
+        if (!snapshotsToBeNotDeleted.isEmpty()) {
+            throw new SnapshotInUseDeletionException(
+                repoName,
+                snapshotsToBeNotDeleted.toString(),
+                "These remote snapshots are backing some indices and hence can't be deleted! No snapshots were deleted."
+            );
+        }
     }
 }

@@ -36,6 +36,16 @@ public class WeightedRoutingMetadata extends AbstractNamedDiffable<Metadata.Cust
     private static final Logger logger = LogManager.getLogger(WeightedRoutingMetadata.class);
     public static final String TYPE = "weighted_shard_routing";
     public static final String AWARENESS = "awareness";
+    public static final String VERSION = "_version";
+    public static final long INITIAL_VERSION = -1;
+    public static final long VERSION_UNSET_VALUE = -2;
+    public static final int WEIGHED_AWAY_WEIGHT = 0;
+
+    public long getVersion() {
+        return version;
+    }
+
+    private long version;
     private WeightedRouting weightedRouting;
 
     public WeightedRouting getWeightedRouting() {
@@ -50,11 +60,13 @@ public class WeightedRoutingMetadata extends AbstractNamedDiffable<Metadata.Cust
     public WeightedRoutingMetadata(StreamInput in) throws IOException {
         if (in.available() != 0) {
             this.weightedRouting = new WeightedRouting(in);
+            this.version = in.readLong();
         }
     }
 
-    public WeightedRoutingMetadata(WeightedRouting weightedRouting) {
+    public WeightedRoutingMetadata(WeightedRouting weightedRouting, long version) {
         this.weightedRouting = weightedRouting;
+        this.version = version;
     }
 
     @Override
@@ -76,6 +88,7 @@ public class WeightedRoutingMetadata extends AbstractNamedDiffable<Metadata.Cust
     public void writeTo(StreamOutput out) throws IOException {
         if (weightedRouting != null) {
             weightedRouting.writeTo(out);
+            out.writeLong(version);
         }
     }
 
@@ -88,33 +101,44 @@ public class WeightedRoutingMetadata extends AbstractNamedDiffable<Metadata.Cust
         Double attrValue;
         String attributeName = null;
         Map<String, Double> weights = new HashMap<>();
-        WeightedRouting weightedRouting = null;
+        WeightedRouting weightedRouting;
         XContentParser.Token token;
-        String awarenessField = null;
+        String awarenessField;
+        String versionAttr = null;
+        long version = VERSION_UNSET_VALUE;
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
-                awarenessField = parser.currentName();
+                String attr = parser.currentName();
+                if (attr != null && attr.equals(VERSION)) {
+                    versionAttr = parser.currentName();
+                    continue;
+                } else {
+                    awarenessField = parser.currentName();
+                }
                 if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
-                    throw new OpenSearchParseException(
-                        "failed to parse weighted routing metadata  [{}], expected " + "object",
-                        awarenessField
-                    );
+                    throw new OpenSearchParseException("failed to parse weighted routing metadata  [{}], expected object", awarenessField);
                 }
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     attributeName = parser.currentName();
                     if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
                         throw new OpenSearchParseException(
-                            "failed to parse weighted routing metadata  [{}], expected" + " object",
+                            "failed to parse weighted routing metadata  [{}], expected object",
                             attributeName
                         );
                     }
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             attrKey = parser.currentName();
+
                         } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                            attrValue = Double.parseDouble(parser.text());
-                            weights.put(attrKey, attrValue);
+                            if (attrKey != null && attrKey.equals(VERSION)) {
+                                version = Long.parseLong(parser.text());
+                            } else {
+                                attrValue = Double.parseDouble(parser.text());
+                                weights.put(attrKey, attrValue);
+                            }
+
                         } else {
                             throw new OpenSearchParseException(
                                 "failed to parse weighted routing metadata attribute " + "[{}], unknown type",
@@ -123,10 +147,14 @@ public class WeightedRoutingMetadata extends AbstractNamedDiffable<Metadata.Cust
                         }
                     }
                 }
+            } else if (token == XContentParser.Token.VALUE_NUMBER) {
+                if (versionAttr != null && versionAttr.equals(VERSION)) {
+                    version = Long.parseLong(parser.text());
+                }
             }
         }
         weightedRouting = new WeightedRouting(attributeName, weights);
-        return new WeightedRoutingMetadata(weightedRouting);
+        return new WeightedRoutingMetadata(weightedRouting, version);
     }
 
     @Override
@@ -144,18 +172,21 @@ public class WeightedRoutingMetadata extends AbstractNamedDiffable<Metadata.Cust
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        toXContent(weightedRouting, builder);
+        toXContent(weightedRouting, builder, version);
         return builder;
     }
 
-    public static void toXContent(WeightedRouting weightedRouting, XContentBuilder builder) throws IOException {
+    public static void toXContent(WeightedRouting weightedRouting, XContentBuilder builder, long version) throws IOException {
         builder.startObject(AWARENESS);
-        builder.startObject(weightedRouting.attributeName());
-        for (Map.Entry<String, Double> entry : weightedRouting.weights().entrySet()) {
-            builder.field(entry.getKey(), entry.getValue());
+        if (weightedRouting.isSet()) {
+            builder.startObject(weightedRouting.attributeName());
+            for (Map.Entry<String, Double> entry : weightedRouting.weights().entrySet()) {
+                builder.field(entry.getKey(), entry.getValue());
+            }
+            builder.endObject();
         }
         builder.endObject();
-        builder.endObject();
+        builder.field(VERSION, version);
     }
 
     @Override

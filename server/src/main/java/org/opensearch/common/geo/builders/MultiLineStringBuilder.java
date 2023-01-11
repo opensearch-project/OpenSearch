@@ -153,7 +153,7 @@ public class MultiLineStringBuilder extends ShapeBuilder<JtsGeometry, org.opense
             if (parts.size() == 1) {
                 geometry = parts.get(0);
             } else {
-                LineString[] lineStrings = parts.toArray(new LineString[parts.size()]);
+                LineString[] lineStrings = parts.toArray(new LineString[0]);
                 geometry = FACTORY.createMultiLineString(lineStrings);
             }
         } else {

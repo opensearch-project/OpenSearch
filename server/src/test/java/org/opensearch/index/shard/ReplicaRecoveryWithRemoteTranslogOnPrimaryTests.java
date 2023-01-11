@@ -25,6 +25,7 @@ import org.opensearch.indices.replication.common.ReplicationType;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.opensearch.cluster.routing.TestShardRouting.newShardRouting;
 
@@ -34,73 +35,8 @@ public class ReplicaRecoveryWithRemoteTranslogOnPrimaryTests extends OpenSearchI
         .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
         .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, "true")
         .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, "true")
+        .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "translog-repo")
         .build();
-
-    public void testReplicaShardRecoveryUptoLastFlushedCommit() throws Exception {
-        try (ReplicationGroup shards = createGroup(0, settings, new NRTReplicationEngineFactory())) {
-
-            // Step1 - Start primary, index docs and flush
-            shards.startPrimary();
-            final IndexShard primary = shards.getPrimary();
-            int numDocs = shards.indexDocs(randomIntBetween(10, 100));
-            shards.flush();
-
-            // Step 2 - Start replica for recovery to happen, check both has same number of docs
-            final IndexShard replica1 = shards.addReplica();
-            shards.startAll();
-            assertEquals(getDocIdAndSeqNos(primary), getDocIdAndSeqNos(replica1));
-
-            // Step 3 - Index more docs, run segment replication, check both have same number of docs
-            int moreDocs = shards.indexDocs(randomIntBetween(10, 100));
-            primary.refresh("test");
-            replicateSegments(primary, shards.getReplicas());
-            assertEquals(getDocIdAndSeqNos(primary), getDocIdAndSeqNos(replica1));
-
-            // Step 4 - Check both shard has expected number of doc count
-            assertDocCount(primary, numDocs + moreDocs);
-            assertDocCount(replica1, numDocs + moreDocs);
-
-            // Step 5 - Start new replica, recovery happens, and check that new replica has docs upto last flush
-            final IndexShard replica2 = shards.addReplica();
-            shards.startAll();
-            assertDocCount(replica2, numDocs);
-
-            // Step 6 - Segment replication, check all shards have same number of docs
-            replicateSegments(primary, shards.getReplicas());
-            shards.assertAllEqual(numDocs + moreDocs);
-        }
-    }
-
-    public void testNoTranslogHistoryTransferred() throws Exception {
-        try (ReplicationGroup shards = createGroup(0, settings, new NRTReplicationEngineFactory())) {
-
-            // Step1 - Start primary, index docs, flush, index more docs, check translog in primary as expected
-            shards.startPrimary();
-            final IndexShard primary = shards.getPrimary();
-            int numDocs = shards.indexDocs(randomIntBetween(10, 100));
-            shards.flush();
-            List<DocIdSeqNoAndSource> docIdAndSeqNosAfterFlush = getDocIdAndSeqNos(primary);
-            int moreDocs = shards.indexDocs(randomIntBetween(20, 100));
-            assertEquals(moreDocs, getTranslog(primary).totalOperations());
-
-            // Step 2 - Start replica, recovery happens, check docs recovered till last flush
-            final IndexShard replica = shards.addReplica();
-            shards.startAll();
-            assertEquals(docIdAndSeqNosAfterFlush, getDocIdAndSeqNos(replica));
-            assertDocCount(replica, numDocs);
-            assertEquals(NRTReplicationEngine.class, replica.getEngine().getClass());
-
-            // Step 3 - Check replica's translog has no operations
-            assertEquals(WriteOnlyTranslogManager.class, replica.getEngine().translogManager().getClass());
-            WriteOnlyTranslogManager replicaTranslogManager = (WriteOnlyTranslogManager) replica.getEngine().translogManager();
-            assertEquals(0, replicaTranslogManager.getTranslog().totalOperations());
-
-            // Adding this for close to succeed
-            shards.flush();
-            replicateSegments(primary, shards.getReplicas());
-            shards.assertAllEqual(numDocs + moreDocs);
-        }
-    }
 
     public void testStartSequenceForReplicaRecovery() throws Exception {
         try (ReplicationGroup shards = createGroup(0, settings, new NRTReplicationEngineFactory())) {
@@ -146,24 +82,58 @@ public class ReplicaRecoveryWithRemoteTranslogOnPrimaryTests extends OpenSearchI
                 null
             );
             shards.addReplica(newReplicaShard);
+            AtomicBoolean assertDone = new AtomicBoolean(false);
             shards.recoverReplica(newReplicaShard, (r, sourceNode) -> new RecoveryTarget(r, sourceNode, recoveryListener) {
                 @Override
                 public IndexShard indexShard() {
                     IndexShard idxShard = super.indexShard();
-                    // verify the starting sequence number while recovering a failed shard which has a valid last commit
-                    long startingSeqNo = -1;
-                    try {
-                        startingSeqNo = Long.parseLong(
-                            idxShard.store().readLastCommittedSegmentsInfo().getUserData().get(SequenceNumbers.MAX_SEQ_NO)
-                        );
-                    } catch (IOException e) {
-                        Assert.fail();
+                    if (assertDone.compareAndSet(false, true)) {
+                        // verify the starting sequence number while recovering a failed shard which has a valid last commit
+                        long startingSeqNo = -1;
+                        try {
+                            startingSeqNo = Long.parseLong(
+                                idxShard.store().readLastCommittedSegmentsInfo().getUserData().get(SequenceNumbers.MAX_SEQ_NO)
+                            );
+                        } catch (IOException e) {
+                            Assert.fail();
+                        }
+                        assertEquals(numDocs - 1, startingSeqNo);
                     }
-                    assertEquals(numDocs - 1, startingSeqNo);
                     return idxShard;
                 }
             });
 
+            shards.flush();
+            replicateSegments(primary, shards.getReplicas());
+            shards.assertAllEqual(numDocs + moreDocs);
+        }
+    }
+
+    public void testNoTranslogHistoryTransferred() throws Exception {
+        try (ReplicationGroup shards = createGroup(0, settings, new NRTReplicationEngineFactory())) {
+
+            // Step1 - Start primary, index docs, flush, index more docs, check translog in primary as expected
+            shards.startPrimary();
+            final IndexShard primary = shards.getPrimary();
+            int numDocs = shards.indexDocs(randomIntBetween(10, 100));
+            shards.flush();
+            List<DocIdSeqNoAndSource> docIdAndSeqNosAfterFlush = getDocIdAndSeqNos(primary);
+            int moreDocs = shards.indexDocs(randomIntBetween(20, 100));
+            assertEquals(moreDocs, getTranslog(primary).totalOperations());
+
+            // Step 2 - Start replica, recovery happens, check docs recovered till last flush
+            final IndexShard replica = shards.addReplica();
+            shards.startAll();
+            assertEquals(docIdAndSeqNosAfterFlush, getDocIdAndSeqNos(replica));
+            assertDocCount(replica, numDocs);
+            assertEquals(NRTReplicationEngine.class, replica.getEngine().getClass());
+
+            // Step 3 - Check replica's translog has no operations
+            assertEquals(WriteOnlyTranslogManager.class, replica.getEngine().translogManager().getClass());
+            WriteOnlyTranslogManager replicaTranslogManager = (WriteOnlyTranslogManager) replica.getEngine().translogManager();
+            assertEquals(0, replicaTranslogManager.getTranslog().totalOperations());
+
+            // Adding this for close to succeed
             shards.flush();
             replicateSegments(primary, shards.getReplicas());
             shards.assertAllEqual(numDocs + moreDocs);

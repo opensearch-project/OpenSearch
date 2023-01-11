@@ -70,7 +70,6 @@ import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.TextFieldMapper;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.support.QueryParsers;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -667,9 +666,9 @@ public class MatchQuery {
             } else {
                 // We don't apply prefix on synonyms
                 final TermAndBoost[] termAndBoosts = current.stream()
-                    .map(t -> new TermAndBoost(t, BoostAttribute.DEFAULT_BOOST))
+                    .map(t -> new TermAndBoost(t.bytes(), BoostAttribute.DEFAULT_BOOST))
                     .toArray(TermAndBoost[]::new);
-                q.add(newSynonymQuery(termAndBoosts), operator);
+                q.add(newSynonymQuery(field, termAndBoosts), operator);
             }
         }
 
@@ -753,6 +752,14 @@ public class MatchQuery {
                 lastState = end;
                 final Query queryPos;
                 boolean usePrefix = isPrefix && end == -1;
+                /**
+                 * check if the GraphTokenStreamFiniteStrings graph is empty
+                 * return empty BooleanQuery result
+                 */
+                Iterator<TokenStream> graphIt = graph.getFiniteStrings();
+                if (!graphIt.hasNext()) {
+                    return builder.build();
+                }
                 if (graph.hasSidePath(start)) {
                     final Iterator<TokenStream> it = graph.getFiniteStrings(start, end);
                     Iterator<Query> queries = new Iterator<Query>() {
@@ -782,9 +789,9 @@ public class MatchQuery {
                     } else {
                         // We don't apply prefix on synonyms
                         final TermAndBoost[] termAndBoosts = Arrays.stream(terms)
-                            .map(t -> new TermAndBoost(t, BoostAttribute.DEFAULT_BOOST))
+                            .map(t -> new TermAndBoost(t.bytes(), BoostAttribute.DEFAULT_BOOST))
                             .toArray(TermAndBoost[]::new);
-                        queryPos = newSynonymQuery(termAndBoosts);
+                        queryPos = newSynonymQuery(field, termAndBoosts);
                     }
                 }
                 if (queryPos != null) {

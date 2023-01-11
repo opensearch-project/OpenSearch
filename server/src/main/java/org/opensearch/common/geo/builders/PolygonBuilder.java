@@ -308,7 +308,7 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, org.opensearch.geo
     }
 
     protected static LinearRing linearRingS4J(GeometryFactory factory, List<Coordinate> coordinates) {
-        return factory.createLinearRing(coordinates.toArray(new Coordinate[coordinates.size()]));
+        return factory.createLinearRing(coordinates.toArray(new Coordinate[0]));
     }
 
     @Override
@@ -506,7 +506,7 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, org.opensearch.geo
             }
         }
 
-        return mainEdges.toArray(new Edge[mainEdges.size()]);
+        return mainEdges.toArray(new Edge[0]);
     }
 
     private static Coordinate[][][] compose(Edge[] edges, Edge[] holes, int numHoles) {

@@ -40,6 +40,7 @@ import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.opensearch.action.ShardOperationFailedException;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.compress.NotXContentException;
 import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.index.Index;
 import org.opensearch.rest.RestStatus;
@@ -94,6 +95,8 @@ public final class ExceptionsHelper {
                 return RestStatus.BAD_REQUEST;
             } else if (t instanceof OpenSearchRejectedExecutionException) {
                 return RestStatus.TOO_MANY_REQUESTS;
+            } else if (t instanceof NotXContentException) {
+                return RestStatus.BAD_REQUEST;
             }
         }
         return RestStatus.INTERNAL_SERVER_ERROR;

@@ -413,9 +413,6 @@ gradle.projectsEvaluated {
         if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_17) {
           task.jvmArgs += ["-Djava.security.manager=allow"]
         }
-        if (BuildParams.runtimeJavaVersion >= JavaVersion.VERSION_19) {
-          task.jvmArgs += ["--enable-preview"]
-        }
       }
     }
 
@@ -454,9 +451,11 @@ subprojects {
   apply plugin: "org.gradle.test-retry"
   tasks.withType(Test).configureEach {
     retry {
+      if (BuildParams.isCi()) {
+        maxRetries = 3
+        maxFailures = 10
+      }
       failOnPassedAfterRetry = false
-      maxRetries = 3
-      maxFailures = 10
     }
   }
 }

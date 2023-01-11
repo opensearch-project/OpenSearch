@@ -33,6 +33,12 @@
 package org.opensearch.action.support.replication;
 
 import org.apache.lucene.store.AlreadyClosedException;
+import org.hamcrest.Matcher;
+import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.BeforeClass;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
@@ -99,12 +105,6 @@ import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.nio.MockNioTransport;
-import org.hamcrest.Matcher;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -121,11 +121,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.singleton;
-import static org.opensearch.action.support.replication.ClusterStateCreationUtils.state;
-import static org.opensearch.action.support.replication.ClusterStateCreationUtils.stateWithActivePrimary;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS;
-import static org.opensearch.test.ClusterServiceUtils.createClusterService;
-import static org.opensearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
@@ -138,12 +133,17 @@ import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.anyLong;
 import static org.mockito.Mockito.anyString;
-import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.opensearch.action.support.replication.ClusterStateCreationUtils.state;
+import static org.opensearch.action.support.replication.ClusterStateCreationUtils.stateWithActivePrimary;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS;
+import static org.opensearch.test.ClusterServiceUtils.createClusterService;
+import static org.opensearch.test.ClusterServiceUtils.setState;
 
 public class TransportReplicationActionTests extends OpenSearchTestCase {
 
@@ -201,6 +201,12 @@ public class TransportReplicationActionTests extends OpenSearchTestCase {
         transportService.acceptIncomingRequests();
         shardStateAction = new ShardStateAction(clusterService, transportService, null, null, threadPool);
         action = new TestAction(Settings.EMPTY, "internal:testAction", transportService, clusterService, shardStateAction, threadPool);
+        Metadata metadata = Metadata.builder().build();
+        ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .nodes(clusterService.state().nodes())
+            .build();
+        setState(clusterService, clusterState);
     }
 
     @Override
@@ -950,7 +956,8 @@ public class TransportReplicationActionTests extends OpenSearchTestCase {
         Set<String> inSyncIds = randomBoolean()
             ? singleton(routingEntry.allocationId().getId())
             : clusterService.state().metadata().index(index).inSyncAllocationIds(0);
-        ReplicationGroup replicationGroup = new ReplicationGroup(shardRoutingTable, inSyncIds, shardRoutingTable.getAllAllocationIds(), 0);
+        Set<String> trackedAllocationIds = shardRoutingTable.getAllAllocationIds();
+        ReplicationGroup replicationGroup = new ReplicationGroup(shardRoutingTable, inSyncIds, trackedAllocationIds, 0);
         when(shard.getReplicationGroup()).thenReturn(replicationGroup);
         PendingReplicationActions replicationActions = new PendingReplicationActions(shardId, threadPool);
         replicationActions.accept(replicationGroup);

@@ -102,6 +102,7 @@ import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.regex.Regex;
+import org.opensearch.common.settings.FeatureFlagSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
@@ -408,7 +409,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      * Creates a randomized index template. This template is used to pass in randomized settings on a
      * per index basis. Allows to enable/disable the randomization for number of shards and replicas
      */
-    private void randomIndexTemplate() {
+    protected void randomIndexTemplate() {
 
         // TODO move settings for random directory etc here into the index based randomized settings.
         if (cluster().size() > 0) {
@@ -764,6 +765,20 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     }
 
     /**
+     * Setting all feature flag settings at base IT, which can be overridden later by individual
+     * IT classes.
+     *
+     * @return Feature flag settings.
+     */
+    protected Settings featureFlagSettings() {
+        Settings.Builder featureSettings = Settings.builder();
+        for (Setting builtInFlag : FeatureFlagSettings.BUILT_IN_FEATURE_FLAGS) {
+            featureSettings.put(builtInFlag.getKey(), builtInFlag.getDefaultRaw(Settings.EMPTY));
+        }
+        return featureSettings.build();
+    }
+
+    /**
      * Creates one or more indices and asserts that the indices are acknowledged. If one of the indices
      * already exists this method will fail and wipe all the indices created so far.
      */
@@ -778,7 +793,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 success = true;
             } finally {
                 if (!success && !created.isEmpty()) {
-                    cluster().wipeIndices(created.toArray(new String[created.size()]));
+                    cluster().wipeIndices(created.toArray(new String[0]));
                 }
             }
         }
@@ -2317,7 +2332,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 hosts.add(new HttpHost(protocol, NetworkAddress.format(address.getAddress()), address.getPort()));
             }
         }
-        RestClientBuilder builder = RestClient.builder(hosts.toArray(new HttpHost[hosts.size()]));
+        RestClientBuilder builder = RestClient.builder(hosts.toArray(new HttpHost[0]));
         if (httpClientConfigCallback != null) {
             builder.setHttpClientConfigCallback(httpClientConfigCallback);
         }
@@ -2396,6 +2411,31 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 .putNull(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey())
                 .putNull(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.getKey() + "zone.values")
                 .putNull(AwarenessReplicaBalance.CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING.getKey())
+                .build();
+        }
+        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+        updateSettingsRequest.persistentSettings(settings);
+        assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+    }
+
+    public void manageReplicaSettingForDefaultReplica(boolean apply) {
+        Settings settings;
+        if (apply) {
+            settings = Settings.builder()
+                .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(), "zone")
+                .put(
+                    AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.getKey() + "zone.values",
+                    "a, b, c"
+                )
+                .put(AwarenessReplicaBalance.CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING.getKey(), true)
+                .put(Metadata.DEFAULT_REPLICA_COUNT_SETTING.getKey(), 2)
+                .build();
+        } else {
+            settings = Settings.builder()
+                .putNull(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey())
+                .putNull(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.getKey() + "zone.values")
+                .putNull(AwarenessReplicaBalance.CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING.getKey())
+                .putNull(Metadata.DEFAULT_REPLICA_COUNT_SETTING.getKey())
                 .build();
         }
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();

@@ -5,7 +5,6 @@
 - Introduce point in time search feature ([#3959](https://github.com/opensearch-project/OpenSearch/issues/3959))
 - Introduce experimental searchable snapshot feature ([#2919](https://github.com/opensearch-project/OpenSearch/issues/2919))
 - Add API for decommissioning/recommissioning zone and weighted zonal search request routing policy ([#3639](https://github.com/opensearch-project/OpenSearch/issues/3639))
-- Introduce cluster manager task throttling framework [#479](https://github.com/opensearch-project/OpenSearch/issues/479)
 - Add support for s390x architecture ([#4001](https://github.com/opensearch-project/OpenSearch/pull/4001))
 - Github workflow for changelog verification ([#4085](https://github.com/opensearch-project/OpenSearch/pull/4085))
 - Add failover support with Segment Replication enabled. ([#4325](https://github.com/opensearch-project/OpenSearch/pull/4325)
@@ -95,6 +94,8 @@
 - Fix message "No OpenSearchException found" when detailed_error disabled by return meaningful messages ([#4708](https://github.com/opensearch-project/OpenSearch/pull/4708))
 - Add fix for auto expand replica validation ([#4994](https://github.com/opensearch-project/OpenSearch/pull/4994))
 - Fix build failures on the Windows platform ([#4924](https://github.com/opensearch-project/OpenSearch/issues/4924))
+- Fix error handling while reading analyzer mapping rules ([6d20423](https://github.com/opensearch-project/OpenSearch/commit/6d20423f5920745463b1abc5f1daf6a786c41aa0))
 
 ### Security
+- Fixes CVE-2022-41917 ([#5141](https://github.com/opensearch-project/OpenSearch/pull/5141))
 - CVE-2022-25857 org.yaml:snakeyaml DOS vulnerability ([#4341](https://github.com/opensearch-project/OpenSearch/pull/4341))

@@ -68,7 +68,7 @@ dependencies {
   api 'com.google.protobuf:protobuf-java-util:3.20.0'
   api 'com.google.protobuf:protobuf-java:3.21.7'
   api 'com.google.code.gson:gson:2.9.0'
-  api 'com.google.api.grpc:proto-google-common-protos:2.8.0'
+  api 'com.google.api.grpc:proto-google-common-protos:2.10.0'
   api 'com.google.api.grpc:proto-google-iam-v1:0.12.0'
   api 'com.google.cloud:google-cloud-core-http:1.93.3'
   api "com.google.auth:google-auth-library-credentials:${versions.google_auth}"
@@ -76,7 +76,7 @@ dependencies {
   api 'com.google.oauth-client:google-oauth-client:1.33.3'
   api 'com.google.api-client:google-api-client:1.34.0'
   api 'com.google.http-client:google-http-client-appengine:1.41.8'
-  api 'com.google.http-client:google-http-client-jackson2:1.35.0'
+  api 'com.google.http-client:google-http-client-jackson2:1.42.3'
   api 'com.google.http-client:google-http-client-gson:1.41.4'
   api 'com.google.api:gax-httpjson:0.103.1'
   api 'io.grpc:grpc-context:1.46.0'

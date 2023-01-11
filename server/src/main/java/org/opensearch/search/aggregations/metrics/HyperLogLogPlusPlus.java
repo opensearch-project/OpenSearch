@@ -236,10 +236,9 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         // array for holding the runlens.
         private ByteArray runLens;
 
-
         HyperLogLog(BigArrays bigArrays, long initialBucketCount, int precision) {
             super(precision);
-            this.runLens =  bigArrays.newByteArray(initialBucketCount << precision);
+            this.runLens = bigArrays.newByteArray(initialBucketCount << precision);
             this.bigArrays = bigArrays;
             this.iterator = new HyperLogLogIterator(this, precision, m);
         }
