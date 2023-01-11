@@ -42,7 +42,6 @@ import java.io.IOException;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.anyOf;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.sameInstance;
 
@@ -148,7 +147,7 @@ public class FuzzinessTests extends OpenSearchTestCase {
             assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
             assertThat(parser.nextToken(), equalTo(XContentParser.Token.VALUE_STRING));
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> Fuzziness.parse(parser));
-            assertThat(e.getMessage(), containsString("Invalid fuzziness value:"));
+            assertTrue(e.getMessage().startsWith("Invalid fuzziness value:"));
         }
         json = jsonBuilder().startObject().field(Fuzziness.X_FIELD_NAME, "AUTO:").endObject();
         try (XContentParser parser = createParser(json)) {
@@ -156,7 +155,7 @@ public class FuzzinessTests extends OpenSearchTestCase {
             assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
             assertThat(parser.nextToken(), equalTo(XContentParser.Token.VALUE_STRING));
             OpenSearchParseException e = expectThrows(OpenSearchParseException.class, () -> Fuzziness.parse(parser));
-            assertThat(e.getMessage(), containsString("failed to find low and high distance values"));
+            assertTrue(e.getMessage().startsWith("failed to find low and high distance values"));
         }
     }
 

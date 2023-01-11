@@ -189,6 +189,7 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
                             return build(fuzziness);
                     }
                 } catch (NumberFormatException ex) {
+                    // Validating if the inputted Fuzziness value is a float. If not, it is an invalid string.
                     try {
                         final float minimumSimilarity = Float.parseFloat(fuzziness);
                         return build(fuzziness);
