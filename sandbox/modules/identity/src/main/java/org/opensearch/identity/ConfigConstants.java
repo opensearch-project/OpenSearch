@@ -15,6 +15,10 @@ public class ConfigConstants {
     public static final String IDENTITY_CONFIG_INDEX_NAME = "identity.config_index_name";
     public static final String IDENTITY_AUTH_MANAGER_CLASS = "identity.auth_manager_class";
     public static final String IDENTITY_ALLOW_DEFAULT_INIT_SECURITYINDEX = "plugins.identity.allow_default_init_securityindex";
-
     public static final String IDENTITY_ENABLED = "identity.enabled";
+    public static final String IDENTITY_USER = IDENTITY_CONFIG_PREFIX + "user";
+    public static final String IDENTITY_REMOTE_ADDRESS = IDENTITY_CONFIG_PREFIX + "remote_address";
+    public static final String IDENTITY_ORIGIN = IDENTITY_CONFIG_INDEX_NAME + "origin";
+    public static final String IDENTITY_RESTAPI_PASSWORD_VALIDATION_REGEX = "plugins.identity.restapi.password_validation_regex";
+
 }
