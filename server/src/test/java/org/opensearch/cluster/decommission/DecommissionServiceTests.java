@@ -8,6 +8,7 @@
 
 package org.opensearch.cluster.decommission;
 
+import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
@@ -49,6 +50,9 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonMap;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.opensearch.cluster.ClusterState.builder;
 import static org.opensearch.cluster.OpenSearchAllocationTestCase.createAllocationService;
 import static org.opensearch.test.ClusterServiceUtils.createClusterService;
@@ -195,13 +199,49 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
     }
 
+    public void testExternalDecommissionRetryNotAllowed() throws InterruptedException {
+        final CountDownLatch countDownLatch = new CountDownLatch(1);
+        DecommissionStatus oldStatus = DecommissionStatus.INIT;
+        DecommissionAttributeMetadata oldMetadata = new DecommissionAttributeMetadata(
+            new DecommissionAttribute("zone", "zone_1"),
+            oldStatus,
+            randomAlphaOfLength(10)
+        );
+        final ClusterState.Builder builder = builder(clusterService.state());
+        setState(
+            clusterService,
+            builder.metadata(Metadata.builder(clusterService.state().metadata()).decommissionAttributeMetadata(oldMetadata).build())
+        );
+        AtomicReference<Exception> exceptionReference = new AtomicReference<>();
+        ActionListener<DecommissionResponse> listener = new ActionListener<DecommissionResponse>() {
+            @Override
+            public void onResponse(DecommissionResponse decommissionResponse) {
+                fail("on response shouldn't have been called");
+                countDownLatch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                exceptionReference.set(e);
+                countDownLatch.countDown();
+            }
+        };
+        DecommissionRequest request = new DecommissionRequest(new DecommissionAttribute("zone", "zone_1"));
+        decommissionService.startDecommissionAction(request, listener);
+        assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
+        MatcherAssert.assertThat("Expected onFailure to be called", exceptionReference.get(), notNullValue());
+        MatcherAssert.assertThat(exceptionReference.get(), instanceOf(DecommissioningFailedException.class));
+        MatcherAssert.assertThat(exceptionReference.get().getMessage(), containsString("same request is already in status [INIT]"));
+    }
+
     @SuppressWarnings("unchecked")
     public void testDecommissioningFailedWhenAnotherAttributeDecommissioningSuccessful() throws InterruptedException {
         final CountDownLatch countDownLatch = new CountDownLatch(1);
         DecommissionStatus oldStatus = randomFrom(DecommissionStatus.SUCCESSFUL, DecommissionStatus.IN_PROGRESS, DecommissionStatus.INIT);
         DecommissionAttributeMetadata oldMetadata = new DecommissionAttributeMetadata(
             new DecommissionAttribute("zone", "zone_1"),
-            oldStatus
+            oldStatus,
+            randomAlphaOfLength(10)
         );
         final ClusterState.Builder builder = builder(clusterService.state());
         setState(
@@ -233,6 +273,40 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
     }
 
+    public void testDecommissioningFailedWhenAnotherRequestForSameAttributeIsExecuted() throws InterruptedException {
+        final CountDownLatch countDownLatch = new CountDownLatch(1);
+        DecommissionStatus oldStatus = DecommissionStatus.INIT;
+        DecommissionAttributeMetadata oldMetadata = new DecommissionAttributeMetadata(
+            new DecommissionAttribute("zone", "zone_1"),
+            oldStatus,
+            randomAlphaOfLength(10)
+        );
+        final ClusterState.Builder builder = builder(clusterService.state());
+        setState(
+            clusterService,
+            builder.metadata(Metadata.builder(clusterService.state().metadata()).decommissionAttributeMetadata(oldMetadata).build())
+        );
+        AtomicReference<Exception> exceptionReference = new AtomicReference<>();
+        ActionListener<DecommissionResponse> listener = new ActionListener<DecommissionResponse>() {
+            @Override
+            public void onResponse(DecommissionResponse decommissionResponse) {
+                fail("on response shouldn't have been called");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assertTrue(e instanceof DecommissioningFailedException);
+                exceptionReference.set(e);
+                countDownLatch.countDown();
+            }
+        };
+        DecommissionRequest request = new DecommissionRequest(new DecommissionAttribute("zone", "zone_1"));
+        decommissionService.startDecommissionAction(request, listener);
+        assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
+        assertTrue(exceptionReference.get() instanceof DecommissioningFailedException);
+        assertThat(exceptionReference.get().getMessage(), Matchers.endsWith("same request is already in status [INIT]"));
+    }
+
     public void testScheduleNodesDecommissionOnTimeout() {
         TransportService mockTransportService = Mockito.mock(TransportService.class);
         ThreadPool mockThreadPool = Mockito.mock(ThreadPool.class);
@@ -249,7 +323,8 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
         DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "zone-2");
         DecommissionAttributeMetadata decommissionAttributeMetadata = new DecommissionAttributeMetadata(
             decommissionAttribute,
-            DecommissionStatus.DRAINING
+            DecommissionStatus.DRAINING,
+            randomAlphaOfLength(10)
         );
         Metadata metadata = Metadata.builder().putCustom(DecommissionAttributeMetadata.TYPE, decommissionAttributeMetadata).build();
         ClusterState state = ClusterState.builder(new ClusterName("test")).metadata(metadata).build();
@@ -268,9 +343,11 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
 
     public void testDrainNodesWithDecommissionedAttributeWithNoDelay() {
         DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "zone-2");
+        String requestID = randomAlphaOfLength(10);
         DecommissionAttributeMetadata decommissionAttributeMetadata = new DecommissionAttributeMetadata(
             decommissionAttribute,
-            DecommissionStatus.INIT
+            DecommissionStatus.INIT,
+            requestID
         );
 
         Metadata metadata = Metadata.builder().putCustom(DecommissionAttributeMetadata.TYPE, decommissionAttributeMetadata).build();
@@ -278,6 +355,7 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
 
         DecommissionRequest request = new DecommissionRequest(decommissionAttribute);
         request.setNoDelay(true);
+        request.setRequestID(requestID);
 
         setState(clusterService, state);
         decommissionService.drainNodesWithDecommissionedAttribute(request);
@@ -289,7 +367,8 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
         DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "zone-2");
         DecommissionAttributeMetadata decommissionAttributeMetadata = new DecommissionAttributeMetadata(
             decommissionAttribute,
-            DecommissionStatus.SUCCESSFUL
+            DecommissionStatus.SUCCESSFUL,
+            randomAlphaOfLength(10)
         );
         final ClusterState.Builder builder = builder(clusterService.state());
         setState(

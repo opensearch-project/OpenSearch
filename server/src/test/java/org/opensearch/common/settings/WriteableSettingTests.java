@@ -462,23 +462,4 @@ public class WriteableSettingTests extends OpenSearchTestCase {
             }
         }
     }
-
-    @Ignore
-    @SuppressForbidden(reason = "The only way to test these is via reflection")
-    public void testExceptionHandling() throws NoSuchFieldException, SecurityException, IllegalArgumentException, IllegalAccessException {
-        // abuse reflection to change default value, no way to do this with given Setting class
-        Setting<String> setting = Setting.simpleString("");
-        Field dv = setting.getClass().getDeclaredField("defaultValue");
-        dv.setAccessible(true);
-        Field p = setting.getClass().getDeclaredField("parser");
-        p.setAccessible(true);
-
-        // test default value type not in enum
-        Function<Settings, String> dvfi = s -> "";
-        dv.set(setting, dvfi);
-        Function<String, WriteableSettingTests> pfi = s -> new WriteableSettingTests();
-        p.set(setting, pfi);
-        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> new WriteableSetting(setting));
-        assertTrue(iae.getMessage().contains("generic type: WriteableSettingTests"));
-    }
 }
