@@ -38,37 +38,6 @@ public class UserPersistenceIT extends HttpSmokeTestCaseWithIdentity {
         return plugins;
     }
 
-    public void startNodes() throws Exception {
-        final String clusterManagerNode = internalCluster().startClusterManagerOnlyNode();
-
-        ClusterStateResponse clusterStateResponse = client(clusterManagerNode).admin()
-            .cluster()
-            .prepareState()
-            .setClusterManagerNodeTimeout("1s")
-            .clear()
-            .setNodes(true)
-            .get();
-        assertNotNull(clusterStateResponse.getState().nodes().getClusterManagerNodeId());
-
-        // start another node
-        final String dataNode = internalCluster().startDataOnlyNode();
-        clusterStateResponse = client(dataNode).admin()
-            .cluster()
-            .prepareState()
-            .setClusterManagerNodeTimeout("1s")
-            .clear()
-            .setNodes(true)
-            .setLocal(true)
-            .get();
-        assertNotNull(clusterStateResponse.getState().nodes().getClusterManagerNodeId());
-        // wait for the cluster to form
-        assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(2)).get());
-        List<NodeInfo> nodeInfos = client().admin().cluster().prepareNodesInfo().get().getNodes();
-        assertEquals(2, nodeInfos.size());
-
-        Thread.sleep(3000);
-    }
-
     @SuppressForbidden(reason = "manipulates system properties for testing")
     public void testUserPersistence() throws Exception {
         try {
@@ -115,19 +84,7 @@ public class UserPersistenceIT extends HttpSmokeTestCaseWithIdentity {
 
             startNodes();
 
-            ClusterHealthResponse clusterHealthResponse = client().admin()
-                .cluster()
-                .prepareHealth()
-                .setClusterManagerNodeTimeout("1s")
-                .get();
-
-            assertTrue(
-                ConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX + " index exists",
-                clusterHealthResponse.getIndices().containsKey(ConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX)
-            );
-
-            ClusterIndexHealth identityIndexHealth = clusterHealthResponse.getIndices().get(ConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX);
-            assertEquals(ClusterHealthStatus.GREEN, identityIndexHealth.getStatus());
+            ensureIdentityIndexIsGreen();
         } catch (IOException ioe) {
             fail("error creating temporary test file in " + this.getClass().getSimpleName());
         }
@@ -165,19 +122,7 @@ public class UserPersistenceIT extends HttpSmokeTestCaseWithIdentity {
 
             startNodes();
 
-            ClusterHealthResponse clusterHealthResponse = client().admin()
-                .cluster()
-                .prepareHealth()
-                .setClusterManagerNodeTimeout("1s")
-                .get();
-
-            assertTrue(
-                ConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX + " index exists",
-                clusterHealthResponse.getIndices().containsKey(ConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX)
-            );
-
-            ClusterIndexHealth identityIndexHealth = clusterHealthResponse.getIndices().get(ConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX);
-            assertThat(identityIndexHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+            ensureIdentityIndexIsGreen();
         } catch (IOException ioe) {
             fail("error creating temporary test file in " + this.getClass().getSimpleName());
         }
