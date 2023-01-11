@@ -275,10 +275,10 @@ public class RestControllerTests extends OpenSearchTestCase {
         AtomicBoolean wrapperCalled = new AtomicBoolean(false);
         final RestHandler handler = (RestRequest request, RestChannel channel, NodeClient client) -> handlerCalled.set(true);
         final HttpServerTransport httpServerTransport = new TestHttpServerTransport();
-        final RestController restController = new RestController(Collections.emptySet(), h -> {
+        final RestController restController = new RestController(Collections.emptySet(), List.of(h -> {
             assertSame(handler, h);
             return (RestRequest request, RestChannel channel, NodeClient client) -> wrapperCalled.set(true);
-        }, client, circuitBreakerService, usageService);
+        }), client, circuitBreakerService, usageService);
         restController.registerHandler(RestRequest.Method.GET, "/wrapped", handler);
         RestRequest request = testRestRequest("/wrapped", "{}", XContentType.JSON);
         AssertingChannel channel = new AssertingChannel(request, true, RestStatus.BAD_REQUEST);
