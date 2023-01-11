@@ -242,7 +242,7 @@ public class ConfigurationRepository {
                     LOCK.unlock();
                 }
             } else {
-                throw new ConfigUpdateAlreadyInProgressException("A config update is already imn progress");
+                throw new ConfigUpdateAlreadyInProgressException("A config update is already in progress");
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

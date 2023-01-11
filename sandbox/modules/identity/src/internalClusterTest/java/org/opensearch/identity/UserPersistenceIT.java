@@ -78,7 +78,7 @@ public class UserPersistenceIT extends HttpSmokeTestCaseWithIdentity {
             FileWriter fw1 = new FileWriter(internalUsersYml);
             BufferedWriter bw1 = new BufferedWriter(fw1);
             bw1.write(
-                    "new-user:\n"
+                "new-user:\n"
                     + "  hash: \"$2y$12$88IFVl6IfIwCFh5aQYfOmuXVL9j2hz/GusQb35o.4sdTDAEMTOD.K\"\n"
                     + "  attributes:\n"
                     + "    attribute1: \"value1\"\n"
