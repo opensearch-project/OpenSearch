@@ -44,7 +44,7 @@ public class SecurityPluginCompatibilityIT extends HttpSmokeTestCaseWithIdentity
     }
 
     @SuppressForbidden(reason = "manipulates system properties for testing")
-    public void testNodeStartsUpWithMultipleRestHandlerWrappers() throws Exception {
+    public void testNodeStartsUpWithTwoRestHandlerWrappers() throws Exception {
         try {
             TemporaryFolder folder = new TemporaryFolder();
             folder.create();
