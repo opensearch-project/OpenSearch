@@ -28,6 +28,7 @@ import java.security.PrivilegedExceptionAction;
  * @opensearch.experimental
  */
 
+@SuppressWarnings("removal")
 public class DefaultObjectMapper {
     public static final ObjectMapper objectMapper = new ObjectMapper();
     public final static ObjectMapper YAML_MAPPER = new ObjectMapper(new YAMLFactory());
@@ -75,6 +76,27 @@ public class DefaultObjectMapper {
                 @Override
                 public JsonNode run() throws Exception {
                     return objectMapper.readTree(string);
+                }
+            });
+        } catch (final PrivilegedActionException e) {
+            throw (IOException) e.getCause();
+        }
+    }
+
+
+    public static <T> T readTree(JsonNode node, Class<T> clazz) throws IOException {
+
+        final SecurityManager sm = System.getSecurityManager();
+
+        if (sm != null) {
+            sm.checkPermission(new SpecialPermission());
+        }
+
+        try {
+            return AccessController.doPrivileged(new PrivilegedExceptionAction<T>() {
+                @Override
+                public T run() throws Exception {
+                    return objectMapper.treeToValue(node, clazz);
                 }
             });
         } catch (final PrivilegedActionException e) {

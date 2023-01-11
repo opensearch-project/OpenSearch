@@ -20,7 +20,7 @@ import java.util.Map;
  * @opensearch.experimental
  */
 
-public class User {
+public class User implements Hashed {
 
     @JsonProperty(value = "username")
     private StringPrincipal username;
@@ -64,5 +64,20 @@ public class User {
     @Override
     public String toString() {
         return "User [username=" + username + ", bcryptHash=" + bcryptHash + ", attributes=" + attributes + "]";
+    }
+
+    @Override
+    public String getHash() {
+        return bcryptHash;
+    }
+
+    @Override
+    public void setHash(String hash) {
+        this.bcryptHash = bcryptHash;
+    }
+
+    @Override
+    public void clearHash() {
+        bcryptHash = "";
     }
 }
