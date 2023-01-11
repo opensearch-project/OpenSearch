@@ -194,9 +194,14 @@ public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<Clu
         out_gt_1_0.setVersion(new_version);
         clusterHealth.writeTo(out_gt_1_0);
 
+        int bytesStreamOutputCount = 1;
+        if (out_gt_1_0.getVersion().onOrAfter(Version.V_2_5_0)) {
+            bytesStreamOutputCount = 2;
+        }
+
         // The serialized output byte stream will not be same; and different by a boolean field "discovered_master"
         assertNotEquals(out_lt_1_0.size(), out_gt_1_0.size());
-        assertThat(out_gt_1_0.size() - out_lt_1_0.size(), Matchers.equalTo(1));
+        assertEquals(out_gt_1_0.size() - out_lt_1_0.size(), bytesStreamOutputCount);
 
         // Input stream constructed from Version 6_8 or less will not have field "discovered_master";
         // hence fallback to default as no value retained
