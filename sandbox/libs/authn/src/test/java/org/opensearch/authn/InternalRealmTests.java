@@ -61,16 +61,16 @@ public class InternalRealmTests extends OpenSearchTestCase {
 
         realm.createUser(primaryPrincipal, hash, attributes);
 
-        assertEquals(primaryPrincipal, realm.getInternalUser(primaryPrincipal).getPrimaryPrincipal().getName());
+        assertEquals(primaryPrincipal, realm.getInternalUser(primaryPrincipal).getUsername().getName());
 
         User user = new User();
         user.setAttributes(attributes);
         user.setBcryptHash(hash);
-        user.setPrimaryPrincipal(new StringPrincipal(otherPrimaryPrincipal));
+        user.setUsername(new StringPrincipal(otherPrimaryPrincipal));
 
         realm.createUser(user);
 
-        assertEquals(otherPrimaryPrincipal, realm.getInternalUser(otherPrimaryPrincipal).getPrimaryPrincipal().getName());
+        assertEquals(otherPrimaryPrincipal, realm.getInternalUser(otherPrimaryPrincipal).getUsername().getName());
     }
 
     public void testCreateUserThrowsIllegalArgumentException() {
@@ -158,7 +158,7 @@ public class InternalRealmTests extends OpenSearchTestCase {
 
     public void testRemoveUser() {
         String primaryPrincipal = "new-user";
-        assertEquals(primaryPrincipal, realm.getInternalUser(primaryPrincipal).getPrimaryPrincipal().getName());
+        assertEquals(primaryPrincipal, realm.getInternalUser(primaryPrincipal).getUsername().getName());
         realm.removeUser(primaryPrincipal);
         assertThrows(UnknownAccountException.class, () -> realm.getInternalUser(primaryPrincipal));
     }

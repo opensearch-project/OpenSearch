@@ -23,9 +23,15 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
+import org.opensearch.identity.configuration.ClusterInfoHolder;
+import org.opensearch.identity.configuration.ConfigurationRepository;
+import org.opensearch.identity.configuration.DynamicConfigFactory;
+import org.opensearch.indices.SystemIndexDescriptor;
 import org.opensearch.plugins.ActionPlugin;
+import org.opensearch.plugins.ClusterPlugin;
 import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.SystemIndexPlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.rest.RestHandler;
 import org.opensearch.script.ScriptService;
@@ -35,12 +41,13 @@ import org.opensearch.watcher.ResourceWatcherService;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
-public final class IdentityPlugin extends Plugin implements ActionPlugin, NetworkPlugin {
+public final class IdentityPlugin extends Plugin implements ActionPlugin, NetworkPlugin, SystemIndexPlugin, ClusterPlugin {
     private volatile Logger log = LogManager.getLogger(this.getClass());
 
     private volatile SecurityRestFilter securityRestHandler;
@@ -51,6 +58,8 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
     private volatile Path configPath;
     private volatile SecurityFilter sf;
     private volatile ThreadPool threadPool;
+
+    private volatile ConfigurationRepository cr;
     private volatile ClusterService cs;
     private volatile Client localClient;
     private volatile NamedXContentRegistry namedXContentRegistry = null;
@@ -98,12 +107,29 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
     }
 
     @Override
+    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+        final String indexPattern = settings.get(ConfigConstants.IDENTITY_CONFIG_INDEX_NAME, ConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX);
+        final SystemIndexDescriptor systemIndexDescriptor = new SystemIndexDescriptor(indexPattern, "Identity index");
+        return Collections.singletonList(systemIndexDescriptor);
+    }
+
     public List<Setting<?>> getSettings() {
         List<Setting<?>> settings = new ArrayList<Setting<?>>();
         settings.addAll(super.getSettings());
         settings.add(Setting.boolSetting(ConfigConstants.IDENTITY_ENABLED, false, Setting.Property.NodeScope, Setting.Property.Filtered));
+        settings.add(
+            Setting.simpleString(ConfigConstants.IDENTITY_CONFIG_INDEX_NAME, Setting.Property.NodeScope, Setting.Property.Filtered)
+        );
 
         return settings;
+    }
+
+    @Override
+    public void onNodeStarted() {
+        log.info("Node started");
+        if (enabled) {
+            cr.initOnNodeStart();
+        }
     }
 
     @Override
@@ -124,15 +150,35 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
         final AuthenticationManager authManager = new InternalAuthenticationManager();
         Identity.setAuthManager(authManager);
 
+        // TODO The constructor is not getting called in time leaving these values as null when creating the ConfigurationRepository
+        // Can the constructor be substituted by taking these from environment?
+        this.configPath = environment.configDir();
+        this.settings = environment.settings();
+
         this.threadPool = threadPool;
         this.cs = clusterService;
         this.localClient = localClient;
 
         final List<Object> components = new ArrayList<Object>();
 
+        if (!enabled) {
+            return components;
+        }
+
+        final ClusterInfoHolder cih = new ClusterInfoHolder();
+        this.cs.addListener(cih);
+
         sf = new SecurityFilter(localClient, settings, threadPool, cs);
 
         securityRestHandler = new SecurityRestFilter(threadPool, settings, configPath);
+
+        cr = ConfigurationRepository.create(settings, this.configPath, threadPool, localClient, clusterService);
+
+        final DynamicConfigFactory dcf = new DynamicConfigFactory(cr, settings, configPath, localClient, threadPool, cih);
+        // TODO Register DCF listeners to dynamically load config
+        // dcf.registerDCFListener(securityRestHandler);
+
+        cr.setDynamicConfigFactory(dcf);
 
         return components;
     }

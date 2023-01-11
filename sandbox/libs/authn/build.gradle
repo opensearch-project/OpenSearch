@@ -14,15 +14,18 @@ apply plugin: 'opensearch.publish'
 
 
 dependencies {
-  implementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-  implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.jackson}"
-  implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
-  implementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
+  // Needed to import SpecialPermission
+  compileOnly(project(":server"))
+
+  api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  api "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.jackson}"
+  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
 
   api 'org.apache.shiro:shiro-core:1.9.1'
   // Needed for shiro
   implementation "org.slf4j:slf4j-api:${versions.slf4j}"
-  implementation "org.bouncycastle:bcprov-jdk15on:${versions.bouncycastle}"
+  api "org.bouncycastle:bcprov-jdk15on:${versions.bouncycastle}"
 
   implementation 'commons-beanutils:commons-beanutils:1.9.4'
   implementation 'commons-logging:commons-logging:1.2'
@@ -265,29 +268,6 @@ thirdPartyAudit.ignoreMissingClasses(
   'org.springframework.osgi.util.BundleDelegatingClassLoader',
   'org.springframework.util.ClassUtils',
   'org.springframework.util.CollectionUtils',
-  'org.yaml.snakeyaml.LoaderOptions',
-  'org.yaml.snakeyaml.DumperOptions',
-  'org.yaml.snakeyaml.DumperOptions$FlowStyle',
-  'org.yaml.snakeyaml.DumperOptions$LineBreak',
-  'org.yaml.snakeyaml.DumperOptions$ScalarStyle',
-  'org.yaml.snakeyaml.DumperOptions$Version',
-  'org.yaml.snakeyaml.emitter.Emitter',
-  'org.yaml.snakeyaml.error.Mark',
-  'org.yaml.snakeyaml.error.MarkedYAMLException',
-  'org.yaml.snakeyaml.error.YAMLException',
-  'org.yaml.snakeyaml.events.AliasEvent',
-  'org.yaml.snakeyaml.events.CollectionStartEvent',
-  'org.yaml.snakeyaml.events.Event',
-  'org.yaml.snakeyaml.events.Event$ID',
-  'org.yaml.snakeyaml.events.ImplicitTuple',
-  'org.yaml.snakeyaml.events.MappingStartEvent',
-  'org.yaml.snakeyaml.events.NodeEvent',
-  'org.yaml.snakeyaml.events.ScalarEvent',
-  'org.yaml.snakeyaml.LoaderOptions',
-  'org.yaml.snakeyaml.nodes.NodeId',
-  'org.yaml.snakeyaml.nodes.Tag',
-  'org.yaml.snakeyaml.parser.ParserImpl',
-  'org.yaml.snakeyaml.resolver.Resolver',
 )
 
 tasks.register("integTest", Test) {

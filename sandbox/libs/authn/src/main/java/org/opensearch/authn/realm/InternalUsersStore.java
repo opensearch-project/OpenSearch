@@ -34,10 +34,10 @@ public class InternalUsersStore {
             JsonNode yamlAsNode = DefaultObjectMapper.YAML_MAPPER.readTree(resourceUrl);
             Iterator<String> subjectIterator = yamlAsNode.fieldNames();
             while (subjectIterator.hasNext()) {
-                String primaryPrincipal = subjectIterator.next();
-                JsonNode subjectNode = yamlAsNode.get(primaryPrincipal);
+                String username = subjectIterator.next();
+                JsonNode subjectNode = yamlAsNode.get(username);
                 ObjectNode o = (ObjectNode) subjectNode;
-                o.put("primary_principal", primaryPrincipal);
+                o.put("username", username);
                 String subjectNodeString = DefaultObjectMapper.writeValueAsString((JsonNode) o, false);
 
                 /**
@@ -60,7 +60,7 @@ public class InternalUsersStore {
                     }
                 });
 
-                internalUsersMap.put(primaryPrincipal, user);
+                internalUsersMap.put(username, user);
             }
         } catch (IOException e) {
             throw new RuntimeException(e);
