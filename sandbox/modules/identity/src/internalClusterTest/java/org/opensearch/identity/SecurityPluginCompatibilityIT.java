@@ -9,11 +9,6 @@
 package org.opensearch.identity;
 
 import org.junit.rules.TemporaryFolder;
-import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.opensearch.action.admin.cluster.node.info.NodeInfo;
-import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
-import org.opensearch.cluster.health.ClusterHealthStatus;
-import org.opensearch.cluster.health.ClusterIndexHealth;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.plugins.ActionPlugin;
@@ -29,8 +24,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
-
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoTimeout;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class SecurityPluginCompatibilityIT extends HttpSmokeTestCaseWithIdentity {
@@ -58,10 +51,7 @@ public class SecurityPluginCompatibilityIT extends HttpSmokeTestCaseWithIdentity
             File internalUsersYml = folder.newFile("internal_users.yml");
             FileWriter fw1 = new FileWriter(internalUsersYml);
             BufferedWriter bw1 = new BufferedWriter(fw1);
-            bw1.write("admin:\n"
-                + "  hash: \"$2a$12$VcCDgh2NDk07JGN0rjGbM.Ad41qVR/YFJcgHp0UGns5JDymv..TOG\"\n"
-                + "\n"
-            );
+            bw1.write("admin:\n  hash: \"$2a$12$VcCDgh2NDk07JGN0rjGbM.Ad41qVR/YFJcgHp0UGns5JDymv..TOG\"\n");
             bw1.close();
             final String defaultInitDirectory = folder.getRoot().getAbsolutePath();
             System.setProperty("identity.default_init.dir", defaultInitDirectory);

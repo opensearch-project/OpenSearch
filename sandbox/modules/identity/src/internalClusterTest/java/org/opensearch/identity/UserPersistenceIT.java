@@ -9,11 +9,6 @@
 package org.opensearch.identity;
 
 import org.junit.rules.TemporaryFolder;
-import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.opensearch.action.admin.cluster.node.info.NodeInfo;
-import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
-import org.opensearch.cluster.health.ClusterHealthStatus;
-import org.opensearch.cluster.health.ClusterIndexHealth;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -25,9 +20,6 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
-
-import static org.hamcrest.Matchers.equalTo;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoTimeout;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class UserPersistenceIT extends HttpSmokeTestCaseWithIdentity {

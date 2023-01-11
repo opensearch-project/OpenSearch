@@ -128,11 +128,7 @@ public abstract class HttpSmokeTestCaseWithIdentity extends OpenSearchIntegTestC
     }
 
     protected void ensureIdentityIndexIsGreen() {
-        ClusterHealthResponse clusterHealthResponse = client().admin()
-            .cluster()
-            .prepareHealth()
-            .setClusterManagerNodeTimeout("1s")
-            .get();
+        ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setClusterManagerNodeTimeout("1s").get();
 
         assertTrue(
             ConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX + " index exists",
