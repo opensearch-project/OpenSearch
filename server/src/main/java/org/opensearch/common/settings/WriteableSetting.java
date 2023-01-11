@@ -79,6 +79,10 @@ public class WriteableSetting implements Writeable {
         String key = in.readString();
         // Read the default value
         Object defaultValue = readDefaultValue(in);
+        // Read the min value
+        Object minValue = readMinValue(in);
+        // Read the max value
+        Object maxValue = readMaxValue(in);
         // Read a boolean specifying whether the fallback settings is null
         WriteableSetting fallback = null;
         boolean hasFallback = in.readBoolean();
@@ -90,7 +94,7 @@ public class WriteableSetting implements Writeable {
         // Read properties
         EnumSet<Property> propSet = in.readEnumSet(Property.class);
         // Put it all in a setting object
-        this.setting = createSetting(type, key, defaultValue, fallback, propSet.toArray(Property[]::new));
+        this.setting = createSetting(type, key, defaultValue, minValue, maxValue, fallback, propSet.toArray(Property[]::new));
     }
 
     /**
@@ -138,6 +142,8 @@ public class WriteableSetting implements Writeable {
         SettingType type,
         String key,
         Object defaultValue,
+        Object minValue,
+        Object maxValue,
         WriteableSetting fallback,
         Property[] propertyArray
     ) {
@@ -147,26 +153,113 @@ public class WriteableSetting implements Writeable {
                     ? Setting.boolSetting(key, (boolean) defaultValue, propertyArray)
                     : Setting.boolSetting(key, (Setting<Boolean>) fallback.getSetting(), propertyArray);
             case Integer:
+                if (minValue != null && maxValue != null) {
+                    return fallback == null
+                        ? Setting.intSetting(key, (int) defaultValue, (int) minValue, (int) maxValue, propertyArray)
+                        : Setting.intSetting(key, (Setting<Integer>) fallback.getSetting(), (int) minValue, (int) maxValue, propertyArray);
+                }
+                if (maxValue == null) {
+                    return fallback == null
+                        ? Setting.intSetting(key, (int) defaultValue, (int) minValue, Integer.MAX_VALUE, propertyArray)
+                        : Setting.intSetting(
+                            key,
+                            (Setting<Integer>) fallback.getSetting(),
+                            (int) minValue,
+                            Integer.MAX_VALUE,
+                            propertyArray
+                        );
+                }
                 return fallback == null
-                    ? Setting.intSetting(key, (int) defaultValue, propertyArray)
-                    : Setting.intSetting(key, (Setting<Integer>) fallback.getSetting(), propertyArray);
+                    ? Setting.intSetting(key, (int) defaultValue, Integer.MIN_VALUE, Integer.MAX_VALUE, propertyArray)
+                    : Setting.intSetting(
+                        key,
+                        (Setting<Integer>) fallback.getSetting(),
+                        Integer.MIN_VALUE,
+                        Integer.MAX_VALUE,
+                        propertyArray
+                    );
             case Long:
+                if (minValue != null && maxValue != null) {
+                    return fallback == null
+                        ? Setting.longSetting(key, (long) defaultValue, (long) minValue, (long) maxValue, propertyArray)
+                        : Setting.longSetting(key, (Setting<Long>) fallback.getSetting(), (long) minValue, (long) maxValue, propertyArray);
+                }
+                if (maxValue == null) {
+                    return fallback == null
+                        ? Setting.longSetting(key, (long) defaultValue, (long) minValue, Long.MAX_VALUE, propertyArray)
+                        : Setting.longSetting(key, (Setting<Long>) fallback.getSetting(), (long) minValue, Long.MAX_VALUE, propertyArray);
+                }
                 return fallback == null
-                    ? Setting.longSetting(key, (long) defaultValue, propertyArray)
-                    : Setting.longSetting(key, (Setting<Long>) fallback.getSetting(), propertyArray);
+                    ? Setting.longSetting(key, (long) defaultValue, Long.MIN_VALUE, Long.MAX_VALUE, propertyArray)
+                    : Setting.longSetting(key, (Setting<Long>) fallback.getSetting(), Long.MIN_VALUE, Long.MAX_VALUE, propertyArray);
             case Float:
+                if (minValue != null && maxValue != null) {
+                    return fallback == null
+                        ? Setting.floatSetting(key, (float) defaultValue, (float) minValue, (float) maxValue, propertyArray)
+                        : Setting.floatSetting(
+                            key,
+                            (Setting<Float>) fallback.getSetting(),
+                            (float) minValue,
+                            (float) maxValue,
+                            propertyArray
+                        );
+                }
+                if (maxValue == null) {
+                    return fallback == null
+                        ? Setting.floatSetting(key, (float) defaultValue, (float) minValue, Float.MAX_VALUE, propertyArray)
+                        : Setting.floatSetting(
+                            key,
+                            (Setting<Float>) fallback.getSetting(),
+                            (float) minValue,
+                            Float.MAX_VALUE,
+                            propertyArray
+                        );
+                }
                 return fallback == null
-                    ? Setting.floatSetting(key, (float) defaultValue, propertyArray)
-                    : Setting.floatSetting(key, (Setting<Float>) fallback.getSetting(), propertyArray);
+                    ? Setting.floatSetting(key, (float) defaultValue, Float.MIN_VALUE, Float.MAX_VALUE, propertyArray)
+                    : Setting.floatSetting(key, (Setting<Float>) fallback.getSetting(), Float.MIN_VALUE, Float.MAX_VALUE, propertyArray);
             case Double:
+                if (minValue != null && maxValue != null) {
+                    return fallback == null
+                        ? Setting.doubleSetting(key, (double) defaultValue, (double) minValue, (double) maxValue, propertyArray)
+                        : Setting.doubleSetting(
+                            key,
+                            (Setting<Double>) fallback.getSetting(),
+                            (double) minValue,
+                            (double) maxValue,
+                            propertyArray
+                        );
+                }
+                if (maxValue == null) {
+                    return fallback == null
+                        ? Setting.doubleSetting(key, (double) defaultValue, (double) minValue, Double.MAX_VALUE, propertyArray)
+                        : Setting.doubleSetting(
+                            key,
+                            (Setting<Double>) fallback.getSetting(),
+                            (double) minValue,
+                            Double.MAX_VALUE,
+                            propertyArray
+                        );
+                }
                 return fallback == null
-                    ? Setting.doubleSetting(key, (double) defaultValue, propertyArray)
-                    : Setting.doubleSetting(key, (Setting<Double>) fallback.getSetting(), propertyArray);
+                    ? Setting.doubleSetting(key, (double) defaultValue, Double.MIN_VALUE, Double.MAX_VALUE, propertyArray)
+                    : Setting.doubleSetting(
+                        key,
+                        (Setting<Double>) fallback.getSetting(),
+                        Double.MIN_VALUE,
+                        Double.MAX_VALUE,
+                        propertyArray
+                    );
             case String:
                 return fallback == null
                     ? Setting.simpleString(key, (String) defaultValue, propertyArray)
                     : Setting.simpleString(key, (Setting<String>) fallback.getSetting(), propertyArray);
             case TimeValue:
+                if (minValue != null) {
+                    return fallback == null
+                        ? Setting.timeSetting(key, (TimeValue) defaultValue, (TimeValue) minValue, propertyArray)
+                        : Setting.timeSetting(key, (Setting<TimeValue>) fallback.getSetting(), (TimeValue) minValue, propertyArray);
+                }
                 return fallback == null
                     ? Setting.timeSetting(key, (TimeValue) defaultValue, propertyArray)
                     : Setting.timeSetting(key, (Setting<TimeValue>) fallback.getSetting(), propertyArray);
@@ -191,6 +284,8 @@ public class WriteableSetting implements Writeable {
         out.writeString(setting.getKey());
         // Write the default value
         writeDefaultValue(out, setting.getDefault(Settings.EMPTY));
+        // not sure we need to write out the min and max value
+        // writeMinValue(out, minValue);
         // Write a boolean specifying whether the fallback settings is null
         boolean hasFallback = setting.fallbackSetting != null;
         out.writeBoolean(hasFallback);
@@ -240,6 +335,26 @@ public class WriteableSetting implements Writeable {
         }
     }
 
+    // not sure we need to write out min value
+    // private void writeMinValue(StreamOutput out, Object minValue) throws IOException {
+    // switch (type) {
+    // case Integer:
+    // out.writeInt((int) minValue);
+    // case Long:
+    // out.writeLong((long) minValue);
+    // case Float:
+    // out.writeFloat((float) minValue);
+    // case Double:
+    // out.writeDouble((double) minValue);
+    // case TimeValue:
+    // TimeValue tv = (TimeValue) minValue;
+    // out.writeLong(tv.duration());
+    // out.writeString(tv.timeUnit().name());
+    // default:
+    // throw new Exception("a");
+    // }
+    // }
+
     private Object readDefaultValue(StreamInput in) throws IOException {
         switch (type) {
             case Boolean:
@@ -265,6 +380,44 @@ public class WriteableSetting implements Writeable {
             default:
                 // This Should Never Happen (TM)
                 throw new IllegalArgumentException("A SettingType has been added to the enum and not handled here.");
+        }
+    }
+
+    private Object readMinValue(StreamInput in) throws IOException {
+        switch (type) {
+            case Integer:
+                return in.readInt();
+            case Long:
+                return in.readLong();
+            case Float:
+                return in.readFloat();
+            case Double:
+                return in.readDouble();
+            case TimeValue:
+                long duration = in.readLong();
+                TimeUnit unit = TimeUnit.valueOf(in.readString());
+                return new TimeValue(duration, unit);
+            default:
+                return new Object();
+        }
+    }
+
+    private Object readMaxValue(StreamInput in) throws IOException {
+        switch (type) {
+            case Integer:
+                return in.readInt();
+            case Long:
+                return in.readLong();
+            case Float:
+                return in.readFloat();
+            case Double:
+                return in.readDouble();
+            case TimeValue:
+                long duration = in.readLong();
+                TimeUnit unit = TimeUnit.valueOf(in.readString());
+                return new TimeValue(duration, unit);
+            default:
+                return new Object();
         }
     }
 
