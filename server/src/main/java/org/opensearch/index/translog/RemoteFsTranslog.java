@@ -47,6 +47,8 @@ public class RemoteFsTranslog extends Translog {
     private final FileTransferTracker fileTransferTracker;
     private volatile long maxRemoteTranslogGenerationUploaded;
 
+    private volatile long minSeqNoToKeep;
+
     public RemoteFsTranslog(
         TranslogConfig config,
         String translogUUID,
@@ -281,5 +283,43 @@ public class RemoteFsTranslog extends Translog {
                 closeFilesIfNoPendingRetentionLocks();
             }
         }
+    }
+
+    protected long getMinReferencedGen() throws IOException {
+        assert readLock.isHeldByCurrentThread() || writeLock.isHeldByCurrentThread();
+        long minReferencedGen = Math.min(
+            deletionPolicy.minTranslogGenRequired(readers, current),
+            minGenerationForSeqNo(Math.min(deletionPolicy.getLocalCheckpointOfSafeCommit() + 1, minSeqNoToKeep), current, readers)
+        );
+        assert minReferencedGen >= getMinFileGeneration() : "deletion policy requires a minReferenceGen of ["
+            + minReferencedGen
+            + "] but the lowest gen available is ["
+            + getMinFileGeneration()
+            + "]";
+        assert minReferencedGen <= currentFileGeneration() : "deletion policy requires a minReferenceGen of ["
+            + minReferencedGen
+            + "] which is higher than the current generation ["
+            + currentFileGeneration()
+            + "]";
+        return minReferencedGen;
+    }
+
+    protected void setMinSeqNoToKeep(long seqNo) {
+        if (seqNo < this.minSeqNoToKeep) {
+            throw new IllegalArgumentException(
+                "min seq number required can't go backwards: " + "current [" + this.minSeqNoToKeep + "] new [" + seqNo + "]"
+            );
+        }
+        this.minSeqNoToKeep = seqNo;
+    }
+
+    @Override
+    void deleteReaderFiles(TranslogReader reader) {
+        try {
+            translogTransferManager.deleteTranslog(primaryTermSupplier.getAsLong(), reader.generation);
+        } catch (IOException ignored) {
+            logger.error("Exception {} while deleting generation {}", ignored, reader.generation);
+        }
+        super.deleteReaderFiles(reader);
     }
 }
