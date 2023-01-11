@@ -9,9 +9,7 @@
 package org.opensearch.common.settings;
 
 import org.junit.Before;
-import org.junit.Ignore;
 import org.opensearch.Version;
-import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamInput;
 import org.opensearch.common.io.stream.BytesStreamOutput;
@@ -21,12 +19,10 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
 
 import static org.opensearch.common.settings.Setting.Property;
 import static org.opensearch.common.settings.WriteableSetting.SettingType;
