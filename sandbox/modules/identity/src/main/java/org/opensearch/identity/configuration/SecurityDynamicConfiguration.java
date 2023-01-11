@@ -203,4 +203,9 @@ public class SecurityDynamicConfiguration<T> implements ToXContent {
             throw ExceptionsHelper.convertToOpenSearchException(e);
         }
     }
+
+    public boolean isHidden(String resourceName) {
+        final Object o = centries.get(resourceName);
+        return o != null && o instanceof Hideable && ((Hideable) o).isHidden();
+    }
 }
