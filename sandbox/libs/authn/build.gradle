@@ -14,9 +14,6 @@ apply plugin: 'opensearch.publish'
 
 
 dependencies {
-  // Needed to import SpecialPermission
-  compileOnly(project(":server"))
-
   api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
   api "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.jackson}"
   api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"

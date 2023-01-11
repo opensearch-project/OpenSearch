@@ -7,10 +7,16 @@ package org.opensearch.authn.internal;
 
 import java.security.Principal;
 import java.util.Objects;
+import java.util.List;
+import java.util.Collection;
+import java.util.stream.Collectors;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.authn.AuthenticationTokenHandler;
 import org.opensearch.authn.tokens.AuthenticationToken;
 import org.opensearch.authn.Subject;
+import org.opensearch.authn.UnauthorizedException;
 
 /**
  * Implementation of subject that is always authenticated
@@ -21,7 +27,7 @@ import org.opensearch.authn.Subject;
  */
 public class InternalSubject implements Subject {
 
-    private static final Logger LOG = LogManager.getLogger(this.getClass());
+    private static final Logger LOG = LogManager.getLogger(InternalSubject.class);
 
     private final org.apache.shiro.subject.Subject shiroSubject;
 
@@ -90,6 +96,6 @@ public class InternalSubject implements Subject {
     }
 
     private static String permissionsAsString(final List<String> permissions) {
-        return permissions.stream().collect(Collectors.joining(", ");
+        return permissions.stream().collect(Collectors.joining(", "));
     }
 }

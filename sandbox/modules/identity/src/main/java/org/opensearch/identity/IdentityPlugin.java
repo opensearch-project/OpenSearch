@@ -146,10 +146,6 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
-        // TODO: revisit this
-        final AuthenticationManager authManager = new InternalAuthenticationManager();
-        Identity.setAuthManager(authManager);
-
         // TODO The constructor is not getting called in time leaving these values as null when creating the ConfigurationRepository
         // Can the constructor be substituted by taking these from environment?
         this.configPath = environment.configDir();

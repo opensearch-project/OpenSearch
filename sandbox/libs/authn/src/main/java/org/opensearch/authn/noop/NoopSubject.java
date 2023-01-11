@@ -30,7 +30,7 @@ import org.opensearch.authn.UnauthorizedException;
  */
 public class NoopSubject implements Subject {
 
-    private static final Logger LOG = LogManager.getLogger(this.getClass());
+    private static final Logger LOG = LogManager.getLogger(NoopSubject.class);
 
     @Override
     public Principal getPrincipal() {

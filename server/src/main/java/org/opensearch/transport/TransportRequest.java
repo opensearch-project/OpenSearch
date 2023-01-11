@@ -38,6 +38,7 @@ import org.opensearch.tasks.TaskAwareRequest;
 import org.opensearch.tasks.TaskId;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  * A transport request
@@ -90,5 +91,11 @@ public abstract class TransportRequest extends TransportMessage implements TaskA
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         parentTaskId.writeTo(out);
+    }
+
+    /** What permissions are required for this request */
+    public List<String> requiredPermissions() {
+        // Default behavior is not to require any permissions
+        return List.of();
     }
 }

@@ -37,7 +37,6 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;
-import java.util.List;
 
 /**
  * Base action request implemented by plugins.
@@ -64,12 +63,6 @@ public abstract class ActionRequest extends TransportRequest {
      */
     public boolean getShouldStoreResult() {
         return false;
-    }
-
-    /** What permissions are required for this request */
-    public List<String> requiredPermissions() {
-        // Default behavior is not to require any permissions
-        return List.of();
     }
 
     @Override

@@ -542,12 +542,6 @@ public class ActionModule extends AbstractModule {
             }
 
             public void register(ActionHandler<?, ?> handler) {
-                // Ensure all permissions are valid
-                handler.getTransportAction().requiredPermissions()
-                    .stream()
-                    .flatMap(Collection::stream)
-                    .forEach(Permission::checkIsValid);
-                // TODO: AuthenticationManager gets a list of permission for permission validity / error messaging
                 register(handler.getAction().name(), handler);
             }
 

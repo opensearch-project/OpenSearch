@@ -64,6 +64,8 @@ import org.opensearch.action.search.SearchPhaseController;
 import org.opensearch.action.search.SearchTransportService;
 import org.opensearch.action.support.TransportAction;
 import org.opensearch.action.update.UpdateHelper;
+import org.opensearch.authn.AuthenticationManager;
+import org.opensearch.authn.noop.NoopAuthenticationManager;
 import org.opensearch.bootstrap.BootstrapCheck;
 import org.opensearch.bootstrap.BootstrapContext;
 import org.opensearch.client.Client;
@@ -132,6 +134,7 @@ import org.opensearch.gateway.GatewayService;
 import org.opensearch.gateway.MetaStateService;
 import org.opensearch.gateway.PersistedClusterStateService;
 import org.opensearch.http.HttpServerTransport;
+import org.opensearch.identity.Identity;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.index.engine.EngineFactory;
@@ -433,6 +436,10 @@ public class Node implements Closeable {
             } else {
                 this.extensionsManager = new NoopExtensionsManager();
             }
+
+            final AuthenticationManager authManager = new NoopAuthenticationManager();
+            Identity.setAuthManager(authManager);
+
 
             final Settings settings = pluginsService.updatedSettings();
 
