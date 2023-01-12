@@ -8,6 +8,7 @@
 
 package org.opensearch.cluster.routing.allocation.allocator;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.IntroSorter;
@@ -63,6 +64,8 @@ public class LocalShardsBalancer extends ShardsBalancer {
     private final float threshold;
     private final Metadata metadata;
     private final float avgShardsPerNode;
+
+    private final float avgPrimaryShardsPerNode;
     private final BalancedShardsAllocator.NodeSorter sorter;
     private final Set<RoutingNode> inEligibleTargetNode;
 
@@ -81,6 +84,11 @@ public class LocalShardsBalancer extends ShardsBalancer {
         this.routingNodes = allocation.routingNodes();
         this.metadata = allocation.metadata();
         avgShardsPerNode = ((float) metadata.getTotalNumberOfShards()) / routingNodes.size();
+        int shardCount = 0;
+        for (ObjectCursor<IndexMetadata> cursor : metadata.indices().values()) {
+            shardCount += cursor.value.getNumberOfShards();
+        }
+        avgPrimaryShardsPerNode = (float) shardCount / routingNodes.size();
         nodes = Collections.unmodifiableMap(buildModelFromAssigned());
         sorter = newNodeSorter();
         inEligibleTargetNode = new HashSet<>();
@@ -99,6 +107,14 @@ public class LocalShardsBalancer extends ShardsBalancer {
     @Override
     public float avgShardsPerNode(String index) {
         return ((float) metadata.index(index).getTotalNumberOfShards()) / nodes.size();
+    }
+
+    public float avgPrimaryShardsPerNode(String index) {
+        return ((float) metadata.index(index).getNumberOfShards()) / nodes.size();
+    }
+
+    public float avgPrimaryShardsPerNode() {
+        return avgPrimaryShardsPerNode;
     }
 
     /**
@@ -120,7 +136,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
      * to sort based on an index.
      */
     private BalancedShardsAllocator.NodeSorter newNodeSorter() {
-        return new BalancedShardsAllocator.NodeSorter(nodesArray(), weight, this);
+        return new BalancedShardsAllocator.NodeSorter(nodesArray(), weight, this, metadata);
     }
 
     /**
@@ -207,7 +223,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
 
         // balance the shard, if a better node can be found
         final String idxName = shard.getIndexName();
-        final float currentWeight = weight.weight(this, currentNode, idxName);
+        final float currentWeight = weight.weight(this, currentNode, idxName, metadata);
         final AllocationDeciders deciders = allocation.deciders();
         Decision.Type rebalanceDecisionType = Decision.Type.NO;
         BalancedShardsAllocator.ModelNode assignedNode = null;
@@ -223,7 +239,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
             // this is a comparison of the number of shards on this node to the number of shards
             // that should be on each node on average (both taking the cluster as a whole into account
             // as well as shards per index)
-            final float nodeWeight = weight.weight(this, node, idxName);
+            final float nodeWeight = weight.weight(this, node, shard.getIndexName(), metadata);
             // if the node we are examining has a worse (higher) weight than the node the shard is
             // assigned to, then there is no way moving the shard to the node with the worse weight
             // can make the balance of the cluster better, so we check for that here
@@ -896,7 +912,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
             }
 
             // weight of this index currently on the node
-            float currentWeight = weight.weightWithAllocationConstraints(this, node, shard.getIndexName());
+            float currentWeight = weight.weightWithAllocationConstraints(this, node, shard.getIndexName(), metadata);
             // moving the shard would not improve the balance, and we are not in explain mode, so short circuit
             if (currentWeight > minWeight && explain == false) {
                 continue;
