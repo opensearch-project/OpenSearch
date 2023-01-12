@@ -32,7 +32,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -84,7 +83,6 @@ import org.opensearch.test.client.NoOpNodeClient;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.ConnectTransportException;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportService;
@@ -426,23 +424,21 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
 
             mockLogAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
-                    "Connect Transport Exception 1",
+                    "Node Not Connected Exception 1",
                     "org.opensearch.extensions.ExtensionsManager",
                     Level.ERROR,
-                    "ConnectTransportException[[firstExtension][127.0.0.0:9300] connect_timeout[30s]]"
+                    "[secondExtension][127.0.0.1:9301] Node not connected"
                 )
             );
 
             mockLogAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
-                    "Connect Transport Exception 2",
+                    "Node Not Connected Exception 2",
                     "org.opensearch.extensions.ExtensionsManager",
                     Level.ERROR,
-                    "ConnectTransportException[[secondExtension][127.0.0.1:9301] connect_exception]; nested: ConnectException[Connection refused];"
+                    "[firstExtension][127.0.0.0:9300] Node not connected"
                 )
             );
-
-            expectThrows(ConnectTransportException.class, () -> extensionsManager.initialize());
 
             // Test needs to be changed to mock the connection between the local node and an extension. Assert statment is commented out for
             // now.
@@ -831,7 +827,30 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             Collections.emptyMap()
         );
 
-        expectThrows(CompletionException.class, () -> extensionsManager.onIndexModule(indexModule));
+        try (MockLogAppender mockLogAppender = MockLogAppender.createForLoggers(LogManager.getLogger(ExtensionsManager.class))) {
+
+            mockLogAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "Node Not Connected Exception 1",
+                    "org.opensearch.extensions.ExtensionsManager",
+                    Level.ERROR,
+                    "[secondExtension][127.0.0.1:9301] Node not connected"
+                )
+            );
+
+            mockLogAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "Node Not Connected Exception 2",
+                    "org.opensearch.extensions.ExtensionsManager",
+                    Level.ERROR,
+                    "[firstExtension][127.0.0.0:9300] Node not connected"
+                )
+            );
+
+            extensionsManager.onIndexModule(indexModule);
+            mockLogAppender.assertAllExpectationsMatched();
+        }
+
     }
 
     private void initialize(ExtensionsManager extensionsManager) {
