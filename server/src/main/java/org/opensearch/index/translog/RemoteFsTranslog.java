@@ -203,7 +203,7 @@ public class RemoteFsTranslog extends Translog {
 
     private boolean upload(Long primaryTerm, Long generation) throws IOException {
         boolean primaryMode = primaryModeSupplier.getAsBoolean();
-        if (primaryMode) {
+        if (primaryMode == false) {
             logger.trace("skipped uploading translog for {} {}", primaryTerm, generation);
             // NO-OP
             return true;
