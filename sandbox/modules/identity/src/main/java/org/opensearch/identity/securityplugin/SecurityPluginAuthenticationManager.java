@@ -14,6 +14,9 @@ import org.opensearch.authn.Subject;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.threadpool.ThreadPool;
 
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+
 public class SecurityPluginAuthenticationManager implements AuthenticationManager {
     private final ThreadPool threadPool;
 
@@ -28,7 +31,19 @@ public class SecurityPluginAuthenticationManager implements AuthenticationManage
     @Override
     public Subject getSubject() {
         final Object userObj = getThreadContext().getTransient(SecurityPluginConstants.OPENDISTRO_SECURITY_USER);
-        return null;
+        Class<?> clazz = userObj.getClass();
+        try {
+            Method method = clazz.getMethod("getName");
+            String fieldValue = (String) method.invoke(userObj);
+            SecurityPluginSubject sub = new SecurityPluginSubject(fieldValue);
+            return sub;
+        } catch (NoSuchMethodException e) {
+            throw new RuntimeException(e);
+        } catch (InvocationTargetException e) {
+            throw new RuntimeException(e);
+        } catch (IllegalAccessException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override

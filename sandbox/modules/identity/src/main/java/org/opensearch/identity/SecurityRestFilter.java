@@ -122,7 +122,9 @@ public class SecurityRestFilter {
             try {
                 headerToken = tokenType(authHeader.get());
                 subject = Identity.getAuthManager().getSubject();
-                subject.login(headerToken);
+                if (subject != null) {
+                    subject.login(headerToken);
+                }
                 log.info("Authentication successful");
                 return true;
             } catch (final AuthenticationException ae) {
