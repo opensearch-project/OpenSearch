@@ -11,6 +11,8 @@ package org.opensearch.index.translog.transfer;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.BytesStreamInput;
 import org.opensearch.common.io.stream.InputStreamStreamInput;
+import org.opensearch.common.lucene.store.ByteArrayIndexInput;
+import org.opensearch.common.lucene.store.InputStreamIndexInput;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.index.translog.BufferedChecksumStreamInput;
 
@@ -66,11 +68,8 @@ public class FileSnapshot implements Closeable {
 
     public InputStream inputStream() throws IOException {
         return fileChannel != null
-            ? new BufferedChecksumStreamInput(
-                new InputStreamStreamInput(Channels.newInputStream(fileChannel), fileChannel.size()),
-                path.toString()
-            )
-            : new BufferedChecksumStreamInput(new BytesStreamInput(content), name);
+            ? new InputStreamIndexInput(new ByteArrayIndexInput("", Channels.newInputStream(fileChannel).readAllBytes()), fileChannel.size())
+            : new InputStreamIndexInput(new ByteArrayIndexInput("", content), content.length);
     }
 
     @Override
