@@ -51,7 +51,7 @@ public class SecurityPluginCompatibilityIT extends HttpSmokeTestCaseWithIdentity
             File internalUsersYml = folder.newFile("internal_users.yml");
             FileWriter fw1 = new FileWriter(internalUsersYml);
             BufferedWriter bw1 = new BufferedWriter(fw1);
-            // hash is bcrypt hash of 'admin'
+            // hash is a bcrypt hash of 'admin'
             bw1.write("admin:\n  hash: \"$2a$12$VcCDgh2NDk07JGN0rjGbM.Ad41qVR/YFJcgHp0UGns5JDymv..TOG\"\n");
             bw1.close();
             final String defaultInitDirectory = folder.getRoot().getAbsolutePath();
