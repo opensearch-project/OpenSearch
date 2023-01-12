@@ -109,10 +109,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
         return ((float) metadata.index(index).getTotalNumberOfShards()) / nodes.size();
     }
 
-    public float avgPrimaryShardsPerNode(String index) {
-        return ((float) metadata.index(index).getNumberOfShards()) / nodes.size();
-    }
-
+    @Override
     public float avgPrimaryShardsPerNode() {
         return avgPrimaryShardsPerNode;
     }
@@ -136,7 +133,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
      * to sort based on an index.
      */
     private BalancedShardsAllocator.NodeSorter newNodeSorter() {
-        return new BalancedShardsAllocator.NodeSorter(nodesArray(), weight, this, metadata);
+        return new BalancedShardsAllocator.NodeSorter(nodesArray(), weight, this);
     }
 
     /**
@@ -223,7 +220,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
 
         // balance the shard, if a better node can be found
         final String idxName = shard.getIndexName();
-        final float currentWeight = weight.weight(this, currentNode, idxName, metadata);
+        final float currentWeight = weight.weight(this, currentNode, idxName);
         final AllocationDeciders deciders = allocation.deciders();
         Decision.Type rebalanceDecisionType = Decision.Type.NO;
         BalancedShardsAllocator.ModelNode assignedNode = null;
@@ -239,7 +236,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
             // this is a comparison of the number of shards on this node to the number of shards
             // that should be on each node on average (both taking the cluster as a whole into account
             // as well as shards per index)
-            final float nodeWeight = weight.weight(this, node, shard.getIndexName(), metadata);
+            final float nodeWeight = weight.weight(this, node, idxName);
             // if the node we are examining has a worse (higher) weight than the node the shard is
             // assigned to, then there is no way moving the shard to the node with the worse weight
             // can make the balance of the cluster better, so we check for that here
@@ -912,7 +909,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
             }
 
             // weight of this index currently on the node
-            float currentWeight = weight.weightWithAllocationConstraints(this, node, shard.getIndexName(), metadata);
+            float currentWeight = weight.weightWithAllocationConstraints(this, node, shard.getIndexName());
             // moving the shard would not improve the balance, and we are not in explain mode, so short circuit
             if (currentWeight > minWeight && explain == false) {
                 continue;

@@ -104,7 +104,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     );
     public static final Setting<Float> THRESHOLD_SETTING = Setting.floatSetting(
         "cluster.routing.allocation.balance.threshold",
-        1.0f,
+        1.5f,
         0.0f,
         Property.Dynamic,
         Property.NodeScope
@@ -261,7 +261,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
         WeightFunction(float indexBalance, float shardBalance) {
             // Start with higher primary constants for POC
-            this.primaryShardBalance = 0.50f;
+            this.primaryShardBalance = 0.40f;
             float sum = indexBalance + shardBalance + primaryShardBalance;
             if (sum <= 0.0f) {
                 throw new IllegalArgumentException("Balance factors must sum to a value > 0 but was: " + sum);
@@ -275,21 +275,15 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             this.constraints = new AllocationConstraints();
         }
 
-        public float weightWithAllocationConstraints(ShardsBalancer balancer, ModelNode node, String index, Metadata metadata) {
-            float balancerWeight = weight(balancer, node, index, metadata);
+        public float weightWithAllocationConstraints(ShardsBalancer balancer, ModelNode node, String index) {
+            float balancerWeight = weight(balancer, node, index);
             return balancerWeight + constraints.weight(balancer, node, index);
         }
 
-        float weight(ShardsBalancer balancer, ModelNode node, String index, Metadata metadata) {
-            boolean isSegRepEnabled = metadata.index(index)
-                .getSettings()
-                .get(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey())
-                .equals(ReplicationType.SEGMENT.toString());
+        float weight(ShardsBalancer balancer, ModelNode node, String index) {
             final float weightShard = node.numShards() - balancer.avgShardsPerNode();
             final float weightIndex = node.numShards(index) - balancer.avgShardsPerNode(index);
-
-            float primaryWeightShard = node.numPrimaryShards() - balancer.avgPrimaryShardsPerNode();
-//            final float primaryWeightShard = isSegRepEnabled ? primaryShard : primaryShard / 2; // This is to move towards older weighing function
+            final float primaryWeightShard = node.numPrimaryShards() - balancer.avgPrimaryShardsPerNode();
 
             return theta0 * weightShard + theta1 * weightIndex + theta2 * primaryWeightShard;
         }
@@ -330,11 +324,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         public int numShards(String idx) {
             ModelIndex index = indices.get(idx);
             return index == null ? 0 : index.numShards();
-        }
-
-        public int numPrimaryShards(String idx) {
-            ModelIndex index = indices.get(idx);
-            return index == null ? 0 : index.numPrimaryShards();
         }
 
         public int numPrimaryShards() {
@@ -499,14 +488,12 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private String index;
         private final ShardsBalancer balancer;
 
-        private final Metadata metadata;
         private float pivotWeight;
 
-        NodeSorter(ModelNode[] modelNodes, WeightFunction function, ShardsBalancer balancer, Metadata metadata) {
+        NodeSorter(ModelNode[] modelNodes, WeightFunction function, ShardsBalancer balancer) {
             this.function = function;
             this.balancer = balancer;
             this.modelNodes = modelNodes;
-            this.metadata = metadata;
             weights = new float[modelNodes.length];
         }
 
@@ -527,7 +514,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
 
         public float weight(ModelNode node) {
-            return function.weight(balancer, node, index, metadata);
+            return function.weight(balancer, node, index);
         }
 
         @Override
