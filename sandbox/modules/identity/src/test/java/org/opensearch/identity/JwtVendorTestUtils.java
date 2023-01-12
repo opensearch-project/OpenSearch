@@ -25,7 +25,7 @@ import java.util.Map;
 import org.apache.cxf.rs.security.jose.jwt.JwtUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.authn.jwt.JwtVendor;
+import org.opensearch.identity.jwt.JwtVendor;
 
 public class JwtVendorTestUtils {
     private static final Logger logger = LogManager.getLogger(JwtVendor.class);

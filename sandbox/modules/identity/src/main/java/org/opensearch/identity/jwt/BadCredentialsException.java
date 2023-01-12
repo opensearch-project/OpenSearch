@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.authn.jwt;
+package org.opensearch.identity.jwt;
 
 public class BadCredentialsException extends Exception {
 

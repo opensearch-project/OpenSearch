@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.authn.jwt;
+package org.opensearch.identity.jwt;
 
 import org.apache.commons.lang.StringEscapeUtils;
 import org.apache.cxf.rs.security.jose.jwa.SignatureAlgorithm;

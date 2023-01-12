@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.authn.jwt;
+package org.opensearch.identity.jwt;
 
 import org.apache.cxf.jaxrs.json.basic.JsonMapObjectReaderWriter;
 import org.apache.cxf.rs.security.jose.jwk.JsonWebKey;

@@ -22,8 +22,8 @@ import org.apache.shiro.realm.AuthenticatingRealm;
 
 import org.opensearch.authn.StringPrincipal;
 import org.opensearch.identity.User;
-import org.opensearch.authn.jwt.BadCredentialsException;
-import org.opensearch.authn.jwt.JwtVerifier;
+import org.opensearch.identity.jwt.BadCredentialsException;
+import org.opensearch.identity.jwt.JwtVerifier;
 
 import java.util.Objects;
 import java.util.concurrent.ConcurrentMap;
