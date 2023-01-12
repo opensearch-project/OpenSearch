@@ -21,6 +21,13 @@ dependencies {
   api project(':libs:opensearch-core')
   implementation project(':sandbox:libs:opensearch-authn')
 
+  implementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.jackson}"
+  implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  implementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
+
+  implementation "org.bouncycastle:bcprov-jdk15on:${versions.bouncycastle}"
+
   implementation 'org.greenrobot:eventbus:3.2.0'
 
   testImplementation project(path: ':modules:transport-netty4') // for http

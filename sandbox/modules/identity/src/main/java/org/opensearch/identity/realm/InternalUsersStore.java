@@ -1,14 +1,17 @@
 /*
- * Copyright OpenSearch Contributors
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
  */
 
-package org.opensearch.authn.realm;
+package org.opensearch.identity.realm;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.opensearch.authn.DefaultObjectMapper;
-import org.opensearch.authn.User;
+import org.opensearch.identity.User;
 
 import java.io.IOException;
 import java.net.URL;
@@ -45,8 +48,8 @@ public class InternalUsersStore {
                  * Counter-part is added in security.policy to grant jackson-databind ReflectPermission
                  *
                  * {@code
-                 * com.fasterxml.jackson.databind.exc.InvalidDefinitionException: Cannot access public org.opensearch.authn.User()
-                 * (from class org.opensearch.authn.User; failed to set access: access denied
+                 * com.fasterxml.jackson.databind.exc.InvalidDefinitionException: Cannot access public org.opensearch.identity.User()
+                 * (from class org.opensearch.identity.User; failed to set access: access denied
                  * ("java.lang.reflect.ReflectPermission" "suppressAccessChecks")
                  * }
                  *

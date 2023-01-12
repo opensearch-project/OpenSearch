@@ -17,15 +17,9 @@ dependencies {
   // Needed to import SpecialPermission
   compileOnly(project(":server"))
 
-  api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-  api "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.jackson}"
-  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
-  api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
-
   api 'org.apache.shiro:shiro-core:1.9.1'
   // Needed for shiro
   implementation "org.slf4j:slf4j-api:${versions.slf4j}"
-  api "org.bouncycastle:bcprov-jdk15on:${versions.bouncycastle}"
 
   implementation 'commons-beanutils:commons-beanutils:1.9.4'
   implementation 'commons-logging:commons-logging:1.2'
@@ -181,6 +175,8 @@ thirdPartyAudit.ignoreMissingClasses(
   'org.apache.xml.resolver.CatalogManager',
   'org.apache.xml.resolver.helpers.Debug',
   'org.apache.xml.resolver.tools.CatalogResolver',
+  'org.bouncycastle.crypto.generators.PKCS5S2ParametersGenerator',
+  'org.bouncycastle.crypto.params.KeyParameter',
   'org.codehaus.stax2.XMLStreamReader2',
   'org.codehaus.stax2.XMLStreamWriter2',
   'org.codehaus.stax2.validation.ValidationProblemHandler',

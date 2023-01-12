@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.authn.realm;
+package org.opensearch.identity.realm;
 
 import org.apache.cxf.rs.security.jose.jwt.JwtToken;
 import org.apache.shiro.authc.AuthenticationException;
@@ -21,7 +21,7 @@ import org.apache.shiro.authc.UsernamePasswordToken;
 import org.apache.shiro.realm.AuthenticatingRealm;
 
 import org.opensearch.authn.StringPrincipal;
-import org.opensearch.authn.User;
+import org.opensearch.identity.User;
 import org.opensearch.authn.jwt.BadCredentialsException;
 import org.opensearch.authn.jwt.JwtVerifier;
 

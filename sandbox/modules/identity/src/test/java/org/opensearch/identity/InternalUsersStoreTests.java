@@ -6,9 +6,9 @@
  * compatible open source license.
  */
 
-package org.opensearch.authn;
+package org.opensearch.identity;
 
-import org.opensearch.authn.realm.InternalUsersStore;
+import org.opensearch.identity.realm.InternalUsersStore;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Map;
