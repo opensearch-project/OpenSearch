@@ -505,16 +505,17 @@ public class ActionModule extends AbstractModule {
             actionPlugins.stream().flatMap(p -> p.getRestHeaders().stream()),
             Stream.of(new RestHeaderDefinition(Task.X_OPAQUE_ID, false))
         ).collect(Collectors.toSet());
-        UnaryOperator<RestHandler> restWrapper = null;
+        List<UnaryOperator<RestHandler>> restWrappers = new ArrayList<>();
         // Only one plugin is allowed to have a rest wrapper. i.e. Security plugin
         for (ActionPlugin plugin : actionPlugins) {
             UnaryOperator<RestHandler> newRestWrapper = plugin.getRestHandlerWrapper(threadPool.getThreadContext());
             if (newRestWrapper != null) {
                 logger.debug("Using REST wrapper from plugin " + plugin.getClass().getName());
-                if (restWrapper != null) {
-                    throw new IllegalArgumentException("Cannot have more than one plugin implementing a REST wrapper");
+                restWrappers.add(newRestWrapper);
+                // Identity Module + one other plugin
+                if (restWrappers.size() > 2) {
+                    throw new IllegalArgumentException("Cannot have more than two plugins implementing a REST wrapper");
                 }
-                restWrapper = newRestWrapper;
             }
         }
 
@@ -525,7 +526,7 @@ public class ActionModule extends AbstractModule {
             actionPlugins.stream().flatMap(p -> p.indicesAliasesRequestValidators().stream()).collect(Collectors.toList())
         );
 
-        restController = new RestController(headers, restWrapper, nodeClient, circuitBreakerService, usageService);
+        restController = new RestController(headers, restWrappers, nodeClient, circuitBreakerService, usageService);
     }
 
     public Map<String, ActionHandler<?, ?>> getActions() {

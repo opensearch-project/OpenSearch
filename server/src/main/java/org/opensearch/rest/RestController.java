@@ -57,6 +57,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -101,7 +102,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
     private final PathTrie<MethodHandlers> handlers = new PathTrie<>(RestUtils.REST_DECODER);
 
-    private final UnaryOperator<RestHandler> handlerWrapper;
+    private final List<UnaryOperator<RestHandler>> handlerWrappers;
 
     private final NodeClient client;
 
@@ -113,17 +114,18 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
     public RestController(
         Set<RestHeaderDefinition> headersToCopy,
-        UnaryOperator<RestHandler> handlerWrapper,
+        List<UnaryOperator<RestHandler>> handlerWrappers,
         NodeClient client,
         CircuitBreakerService circuitBreakerService,
         UsageService usageService
     ) {
         this.headersToCopy = headersToCopy;
         this.usageService = usageService;
-        if (handlerWrapper == null) {
-            handlerWrapper = h -> h; // passthrough if no wrapper set
+        if (handlerWrappers == null || handlerWrappers.isEmpty()) {
+            if (handlerWrappers == null) handlerWrappers = new ArrayList<>();
+            handlerWrappers.add(UnaryOperator.identity()); // passthrough if no wrapper set
         }
-        this.handlerWrapper = handlerWrapper;
+        this.handlerWrappers = handlerWrappers;
         this.client = client;
         this.circuitBreakerService = circuitBreakerService;
         registerHandlerNoWrap(
@@ -204,7 +206,10 @@ public class RestController implements HttpServerTransport.Dispatcher {
         if (handler instanceof BaseRestHandler) {
             usageService.addRestHandler((BaseRestHandler) handler);
         }
-        registerHandlerNoWrap(method, path, handlerWrapper.apply(handler));
+        UnaryOperator<RestHandler> mergedHandlerWrapper = handlerWrappers.stream()
+            .reduce((l, r) -> (RestHandler) -> l.andThen(r).apply(RestHandler))
+            .orElseGet(UnaryOperator::identity);
+        registerHandlerNoWrap(method, path, mergedHandlerWrapper.apply(handler));
     }
 
     private void registerHandlerNoWrap(RestRequest.Method method, String path, RestHandler maybeWrappedHandler) {
