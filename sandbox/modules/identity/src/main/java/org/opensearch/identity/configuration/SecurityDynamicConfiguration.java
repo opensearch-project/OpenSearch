@@ -13,7 +13,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.authn.DefaultObjectMapper;
+import org.opensearch.identity.DefaultObjectMapper;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;

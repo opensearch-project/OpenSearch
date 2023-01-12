@@ -12,7 +12,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.support.ActionFilter;
 import org.opensearch.authn.AuthenticationManager;
-import org.opensearch.authn.internal.InternalAuthenticationManager;
+import org.opensearch.authn.Identity;
+import org.opensearch.identity.securityplugin.SecurityPluginAuthenticationManager;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
@@ -147,7 +148,8 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
         // TODO: revisit this
-        final AuthenticationManager authManager = new InternalAuthenticationManager();
+        // final AuthenticationManager authManager = new InternalAuthenticationManager();
+        final AuthenticationManager authManager = new SecurityPluginAuthenticationManager(threadPool);
         Identity.setAuthManager(authManager);
 
         // TODO The constructor is not getting called in time leaving these values as null when creating the ConfigurationRepository

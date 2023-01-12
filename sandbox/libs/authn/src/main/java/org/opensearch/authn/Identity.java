@@ -6,9 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.identity;
-
-import org.opensearch.authn.AuthenticationManager;
+package org.opensearch.authn;
 
 /**
  * Application wide access for identity systems

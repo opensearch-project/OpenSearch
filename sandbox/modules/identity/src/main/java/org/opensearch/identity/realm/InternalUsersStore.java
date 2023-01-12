@@ -10,7 +10,7 @@ package org.opensearch.identity.realm;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import org.opensearch.authn.DefaultObjectMapper;
+import org.opensearch.identity.DefaultObjectMapper;
 import org.opensearch.identity.User;
 
 import java.io.IOException;

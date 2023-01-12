@@ -6,20 +6,24 @@
  * compatible open source license.
  */
 
-package org.opensearch.authn.securityplugin;
+package org.opensearch.identity.securityplugin;
 
 import org.opensearch.authn.AccessTokenManager;
-import org.opensearch.authn.AuthenticationManager;
-import org.opensearch.authn.Subject;
+import org.opensearch.authn.tokens.AccessToken;
 
-public class SecurityPluginAuthenticationManager implements AuthenticationManager {
+public class SecurityPluginAccessTokenManager implements AccessTokenManager {
     @Override
-    public Subject getSubject() {
+    public void expireAllTokens() {
+        return;
+    }
+
+    @Override
+    public AccessToken generate() {
         return null;
     }
 
     @Override
-    public AccessTokenManager getAccessTokenManager() {
+    public AccessToken refresh(AccessToken token) {
         return null;
     }
 }

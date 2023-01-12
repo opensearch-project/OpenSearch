@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.authn.securityplugin;
+package org.opensearch.identity.securityplugin;
 
 import org.opensearch.authn.Subject;
 import org.opensearch.authn.tokens.AuthenticationToken;

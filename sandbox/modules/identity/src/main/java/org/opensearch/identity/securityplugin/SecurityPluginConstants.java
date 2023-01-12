@@ -6,9 +6,9 @@
  * compatible open source license.
  */
 
-package org.opensearch.authn.securityplugin;
+package org.opensearch.identity.securityplugin;
 
 public class SecurityPluginConstants {
     public static final String OPENDISTRO_SECURITY_CONFIG_PREFIX = "_opendistro_security_";
-    public static final String OPENDISTRO_SECURITY_USER = OPENDISTRO_SECURITY_CONFIG_PREFIX+"user";
+    public static final String OPENDISTRO_SECURITY_USER = OPENDISTRO_SECURITY_CONFIG_PREFIX + "user";
 }

@@ -17,8 +17,6 @@ opensearchplugin {
 }
 
 dependencies {
-
-  api project(':libs:opensearch-core')
   implementation project(':sandbox:libs:opensearch-authn')
 
   implementation 'commons-beanutils:commons-beanutils:1.9.4'

@@ -14,9 +14,6 @@ apply plugin: 'opensearch.publish'
 
 
 dependencies {
-  // Needed to import SpecialPermission
-  compileOnly(project(":server"))
-
   api 'org.apache.shiro:shiro-core:1.9.1'
   // Needed for shiro
   implementation "org.slf4j:slf4j-api:${versions.slf4j}"
