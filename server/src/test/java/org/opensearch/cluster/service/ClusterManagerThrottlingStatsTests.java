@@ -11,7 +11,7 @@ package org.opensearch.cluster.service;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.test.AbstractWireSerializingTestCase;
 
-public class ClusterManagerThrottlingStatsTest extends AbstractWireSerializingTestCase<ClusterManagerThrottlingStats> {
+public class ClusterManagerThrottlingStatsTests extends AbstractWireSerializingTestCase<ClusterManagerThrottlingStats> {
     @Override
     protected Writeable.Reader<ClusterManagerThrottlingStats> instanceReader() {
         return ClusterManagerThrottlingStats::new;
