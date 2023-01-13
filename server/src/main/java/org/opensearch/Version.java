@@ -316,7 +316,6 @@ public class Version implements Comparable<Version>, ToXContentFragment {
      * lazily once.
      */
     static class DeclaredVersionsHolder {
-        // use LegacyESVersion.class since it inherits Version fields
         protected static final List<Version> DECLARED_VERSIONS = Collections.unmodifiableList(getDeclaredVersions(Version.class));
     }
 
