@@ -1011,7 +1011,8 @@ public class IndexShardTests extends IndexShardTestCase {
                         public void onFailure(Exception e) {
                             fail(e.toString());
                         }
-                    }
+                    },
+                    false
                 );
                 engineClosed = false;
                 break;
@@ -2039,7 +2040,8 @@ public class IndexShardTests extends IndexShardTestCase {
                         public void onFailure(Exception e) {
                             fail(e.toString());
                         }
-                    }
+                    },
+                    false
                 );
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
@@ -2086,7 +2088,8 @@ public class IndexShardTests extends IndexShardTestCase {
                         public void onFailure(Exception e) {
                             fail(e.toString());
                         }
-                    }
+                    },
+                    false
                 );
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
@@ -2190,7 +2193,8 @@ public class IndexShardTests extends IndexShardTestCase {
                             relocated.set(false);
                             fail(e.toString());
                         }
-                    }
+                    },
+                    false
                 );
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
@@ -2239,7 +2243,8 @@ public class IndexShardTests extends IndexShardTestCase {
                 public void onFailure(Exception e) {
                     fail(e.toString());
                 }
-            }
+            },
+            false
         );
         expectThrows(IllegalIndexShardStateException.class, () -> IndexShardTestCase.updateRoutingEntry(shard, originalRouting));
         closeShards(shard);
@@ -2265,7 +2270,8 @@ public class IndexShardTests extends IndexShardTestCase {
                     assertTrue(ExceptionsHelper.unwrapCause(e) instanceof ReplicationFailedException);
                     assertEquals(e.getMessage(), "Segment replication failed");
                 }
-            }
+            },
+            false
         );
         closeShards(shard);
     }
@@ -2290,7 +2296,8 @@ public class IndexShardTests extends IndexShardTestCase {
                 public void onFailure(Exception e) {
                     assertTrue(ExceptionsHelper.unwrapCause(e) instanceof IllegalIndexShardStateException);
                 }
-            }
+            },
+            false
         );
         closeShards(shard);
     }
@@ -2325,7 +2332,8 @@ public class IndexShardTests extends IndexShardTestCase {
                         public void onFailure(Exception e) {
                             relocationException.set(e);
                         }
-                    }
+                    },
+                    false
                 );
             }
         });
@@ -2396,7 +2404,8 @@ public class IndexShardTests extends IndexShardTestCase {
                         )
                     );
                 }
-            }
+            },
+            false
         );
 
         assertFalse(relocated.get());
@@ -2414,7 +2423,8 @@ public class IndexShardTests extends IndexShardTestCase {
                 public void onFailure(Exception e) {
                     fail(e.toString());
                 }
-            }
+            },
+            false
         );
         assertTrue(relocated.get());
         closeShards(shard);
@@ -2822,7 +2832,8 @@ public class IndexShardTests extends IndexShardTestCase {
                 public void onFailure(Exception e) {
                     fail(e.toString());
                 }
-            }
+            },
+            false
         );
         assertTrue(shard.isRelocatedPrimary());
         try {

@@ -58,6 +58,7 @@ import org.opensearch.common.util.concurrent.FutureUtils;
 import org.opensearch.common.util.concurrent.ListenableFuture;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.RecoveryEngineException;
 import org.opensearch.index.seqno.RetentionLease;
 import org.opensearch.index.seqno.RetentionLeaseNotFoundException;
@@ -821,9 +822,12 @@ public abstract class RecoverySourceHandler {
             final StepListener<Void> handoffListener = new StepListener<>();
             if (request.isPrimaryRelocation()) {
                 logger.trace("performing relocation hand-off");
-                final Consumer<StepListener> forceSegRepConsumer = shard.indexSettings().isSegRepEnabled()
+                final IndexSettings indexSettings = shard.indexSettings();
+                final Consumer<StepListener> forceSegRepConsumer = indexSettings.isSegRepEnabled()
                     ? recoveryTarget::forceSegmentFileSync
                     : res -> res.onResponse(null);
+                final boolean syncTranslog = indexSettings.isRemoteTranslogStoreEnabled()
+                    && Translog.Durability.ASYNC == indexSettings.getTranslogDurability();
                 // TODO: make relocated async
                 // this acquires all IndexShard operation permits and will thus delay new recoveries until it is done
                 cancellableThreads.execute(
@@ -831,7 +835,8 @@ public abstract class RecoverySourceHandler {
                         request.targetAllocationId(),
                         recoveryTarget::handoffPrimaryContext,
                         forceSegRepConsumer,
-                        handoffListener
+                        handoffListener,
+                        syncTranslog
                     )
                 );
                 /*
