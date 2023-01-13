@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.identity.securityplugin;
+package org.opensearch.identity.authmanager.securityplugin;
 
 public class SecurityPluginConstants {
     public static final String OPENDISTRO_SECURITY_CONFIG_PREFIX = "_opendistro_security_";

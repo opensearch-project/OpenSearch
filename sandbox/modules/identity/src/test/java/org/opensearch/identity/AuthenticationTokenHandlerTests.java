@@ -1,14 +1,18 @@
 /*
- * Copyright OpenSearch Contributors
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
  */
 
-package org.opensearch.authn;
+package org.opensearch.identity;
 
 import org.apache.shiro.authc.UsernamePasswordToken;
 import org.hamcrest.MatcherAssert;
 import org.opensearch.authn.tokens.AuthenticationToken;
 import org.opensearch.authn.tokens.BasicAuthToken;
+import org.opensearch.identity.authmanager.internal.AuthenticationTokenHandler;
 import org.opensearch.test.OpenSearchTestCase;
 
 import static org.hamcrest.Matchers.equalTo;

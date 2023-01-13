@@ -19,6 +19,10 @@ opensearchplugin {
 dependencies {
   implementation project(':sandbox:libs:opensearch-authn')
 
+  implementation 'org.apache.shiro:shiro-core:1.9.1'
+  // Needed for shiro
+  implementation "org.slf4j:slf4j-api:${versions.slf4j}"
+
   implementation 'commons-beanutils:commons-beanutils:1.9.4'
   implementation 'commons-logging:commons-logging:1.2'
   implementation 'commons-lang:commons-lang:2.6'
@@ -47,6 +51,7 @@ dependencies {
 tasks.named("dependencyLicenses").configure {
   mapping from: /jackson-.*/, to: 'jackson'
   mapping from: /cxf-.*/, to: 'cxf'
+  mapping from: /log4j-.*/, to: 'log4j'
 }
 
 //task integTest(type: RestIntegTestTask) {
@@ -92,6 +97,7 @@ thirdPartyAudit.ignoreMissingClasses(
   'javax.servlet.ServletContextEvent',
   'javax.servlet.ServletContextListener',
   'org.apache.avalon.framework.logger.Logger',
+  'org.apache.commons.configuration2.interpol.ConfigurationInterpolator',
   'org.apache.commons.collections.Closure',
   'org.apache.commons.collections.FastHashMap',
   'org.apache.commons.collections.Predicate',
@@ -104,6 +110,9 @@ thirdPartyAudit.ignoreMissingClasses(
   'org.apache.log4j.Logger',
   'org.apache.log4j.Priority',
   'com.ctc.wstx.msv.W3CSchema',
+  'org.slf4j.impl.StaticLoggerBinder',
+  'org.slf4j.impl.StaticMDCBinder',
+  'org.slf4j.impl.StaticMarkerBinder',
   'com.sun.msv.grammar.xmlschema.XMLSchemaGrammar',
   'com.sun.msv.grammar.xmlschema.XMLSchemaSchema',
   'com.sun.msv.reader.GrammarReaderController',

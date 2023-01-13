@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.identity.securityplugin;
+package org.opensearch.identity.authmanager.securityplugin;
 
 import java.io.Serializable;
 
