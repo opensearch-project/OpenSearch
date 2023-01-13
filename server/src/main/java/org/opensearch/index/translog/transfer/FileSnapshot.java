@@ -68,8 +68,8 @@ public class FileSnapshot implements Closeable {
 
     public InputStream inputStream() throws IOException {
         return fileChannel != null
-            ? new InputStreamIndexInput(new ByteArrayIndexInput("", Channels.newInputStream(fileChannel).readAllBytes()), fileChannel.size())
-            : new InputStreamIndexInput(new ByteArrayIndexInput("", content), content.length);
+            ? new InputStreamIndexInput(new ByteArrayIndexInput(this.name, Channels.newInputStream(fileChannel).readAllBytes()), fileChannel.size())
+            : new InputStreamIndexInput(new ByteArrayIndexInput(this.name, content), content.length);
     }
 
     @Override
