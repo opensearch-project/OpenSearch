@@ -17,16 +17,17 @@ import org.opensearch.threadpool.ThreadPool;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
+// TODO This class is proof-of-concept - this should be moved into the Security Plugin
+// This package shows how third-party-plugins can be compliant with identity APIs to ship custom
+// implementations
 public class SecurityPluginAuthenticationManager implements AuthenticationManager {
-    private final ThreadPool threadPool;
+    private ThreadPool threadPool;
 
     /**
      * Security manager is loaded with default user set,
      * and this instantiation uses the default security manager
      */
-    public SecurityPluginAuthenticationManager(ThreadPool threadPool) {
-        this.threadPool = threadPool;
-    }
+    public SecurityPluginAuthenticationManager() {}
 
     @Override
     public Subject getSubject() {
@@ -49,6 +50,10 @@ public class SecurityPluginAuthenticationManager implements AuthenticationManage
     @Override
     public AccessTokenManager getAccessTokenManager() {
         return null;
+    }
+
+    public void setThreadPool(ThreadPool threadPool) {
+        this.threadPool = threadPool;
     }
 
     private ThreadContext getThreadContext() {

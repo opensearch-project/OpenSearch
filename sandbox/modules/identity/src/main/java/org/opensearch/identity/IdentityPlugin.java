@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.action.support.ActionFilter;
 import org.opensearch.authn.AuthenticationManager;
 import org.opensearch.authn.Identity;
-import org.opensearch.identity.authmanager.internal.InternalAuthenticationManager;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
@@ -24,6 +23,7 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
+import org.opensearch.identity.authmanager.internal.InternalAuthenticationManager;
 import org.opensearch.identity.configuration.ClusterInfoHolder;
 import org.opensearch.identity.configuration.ConfigurationRepository;
 import org.opensearch.identity.configuration.DynamicConfigFactory;
@@ -39,6 +39,8 @@ import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.watcher.ResourceWatcherService;
 
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -119,6 +121,14 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
         settings.addAll(super.getSettings());
         settings.add(Setting.boolSetting(ConfigConstants.IDENTITY_ENABLED, false, Setting.Property.NodeScope, Setting.Property.Filtered));
         settings.add(
+            Setting.simpleString(
+                ConfigConstants.IDENTITY_AUTH_MANAGER_CLASS,
+                InternalAuthenticationManager.class.getCanonicalName(),
+                Setting.Property.NodeScope,
+                Setting.Property.Filtered
+            )
+        );
+        settings.add(
             Setting.simpleString(ConfigConstants.IDENTITY_CONFIG_INDEX_NAME, Setting.Property.NodeScope, Setting.Property.Filtered)
         );
 
@@ -148,9 +158,34 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
         // TODO: revisit this
-        final AuthenticationManager authManager = new InternalAuthenticationManager();
-        // final AuthenticationManager authManager = new SecurityPluginAuthenticationManager(threadPool);
-        Identity.setAuthManager(authManager);
+        final String authManagerClassName = settings.get(
+            ConfigConstants.IDENTITY_AUTH_MANAGER_CLASS,
+            InternalAuthenticationManager.class.getCanonicalName()
+        );
+        AuthenticationManager authManager = null;
+        try {
+            Class<?> clazz = Class.forName(authManagerClassName);
+            authManager = (AuthenticationManager) clazz.getConstructor().newInstance();
+
+            try {
+                Method method = clazz.getMethod("setThreadPool", ThreadPool.class);
+                method.invoke(authManager, threadPool);
+            } catch (NoSuchMethodException e) {
+                /** ignore */
+            }
+
+            Identity.setAuthManager(authManager);
+        } catch (InstantiationException e) {
+            throw new RuntimeException(e);
+        } catch (IllegalAccessException e) {
+            throw new RuntimeException(e);
+        } catch (ClassNotFoundException e) {
+            throw new RuntimeException(e);
+        } catch (InvocationTargetException e) {
+            throw new RuntimeException(e);
+        } catch (NoSuchMethodException e) {
+            throw new RuntimeException(e);
+        }
 
         // TODO The constructor is not getting called in time leaving these values as null when creating the ConfigurationRepository
         // Can the constructor be substituted by taking these from environment?
