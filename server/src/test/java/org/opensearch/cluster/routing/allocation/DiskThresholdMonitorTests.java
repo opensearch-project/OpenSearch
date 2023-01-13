@@ -129,6 +129,11 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
                 assertTrue(readOnly);
                 listener.onResponse(null);
             }
+
+            @Override
+            protected void applyIndexCreateBlock(ActionListener<Void> listener, boolean indexCreateBlock) {
+                listener.onResponse(null);
+            }
         };
 
         ImmutableOpenMap.Builder<String, DiskUsage> builder = ImmutableOpenMap.builder();
@@ -183,6 +188,11 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
             protected void updateIndicesReadOnly(Set<String> indicesToMarkReadOnly, ActionListener<Void> listener, boolean readOnly) {
                 assertTrue(indices.compareAndSet(null, indicesToMarkReadOnly));
                 assertTrue(readOnly);
+                listener.onResponse(null);
+            }
+
+            @Override
+            protected void applyIndexCreateBlock(ActionListener<Void> listener, boolean indexCreateBlock) {
                 listener.onResponse(null);
             }
         };
@@ -372,6 +382,12 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
                 }
                 listener.onResponse(null);
             }
+
+            @Override
+            protected void applyIndexCreateBlock(ActionListener<Void> listener, boolean indexCreateBlock) {
+                listener.onResponse(null);
+            }
+
         };
         indicesToMarkReadOnly.set(null);
         indicesToRelease.set(null);
@@ -426,6 +442,11 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
                 } else {
                     assertTrue(indicesToRelease.compareAndSet(null, indicesToUpdate));
                 }
+                listener.onResponse(null);
+            }
+
+            @Override
+            protected void applyIndexCreateBlock(ActionListener<Void> listener, boolean indexCreateBlock) {
                 listener.onResponse(null);
             }
         };
@@ -535,6 +556,11 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
             @Override
             long sizeOfRelocatingShards(RoutingNode routingNode, DiskUsage diskUsage, ClusterInfo info, ClusterState reroutedClusterState) {
                 return relocatingShardSizeRef.get();
+            }
+
+            @Override
+            protected void applyIndexCreateBlock(ActionListener<Void> listener, boolean indexCreateBlock) {
+                listener.onResponse(null);
             }
         };
 
