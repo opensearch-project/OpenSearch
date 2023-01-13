@@ -16,6 +16,7 @@ import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.support.WriteRequest;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
@@ -31,6 +32,7 @@ import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.TransportService;
 
 import java.util.ArrayList;
+import java.util.Formatter;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.Map;
@@ -58,14 +60,19 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
         ).get();
     }
 
-    private void createIndex(String idxName, int shardCount, int replicaCount) {
+    private void createIndex(String idxName, int shardCount, int replicaCount, boolean isSegRep) {
+        Settings.Builder builder = Settings.builder()
+            .put("index.number_of_shards", shardCount)
+            .put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), false)
+            .put("index.number_of_replicas", replicaCount);
+        if (isSegRep) {
+            builder = builder.put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT);
+        } else {
+            builder = builder.put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT);
+        }
         prepareCreate(
             idxName,
-            Settings.builder()
-                .put("index.number_of_shards", shardCount)
-                .put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), false)
-                .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-                .put("index.number_of_replicas", replicaCount)
+            builder
         ).get();
     }
 

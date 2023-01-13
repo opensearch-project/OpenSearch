@@ -261,7 +261,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
         WeightFunction(float indexBalance, float shardBalance) {
             // Start with higher primary constants for POC
-            this.primaryShardBalance = 0.40f;
+            this.primaryShardBalance = 0.50f;
             float sum = indexBalance + shardBalance + primaryShardBalance;
             if (sum <= 0.0f) {
                 throw new IllegalArgumentException("Balance factors must sum to a value > 0 but was: " + sum);
