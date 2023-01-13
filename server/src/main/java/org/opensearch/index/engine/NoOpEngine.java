@@ -226,6 +226,9 @@ public final class NoOpEngine extends ReadOnlyEngine {
                         store.decRef();
                     }
                 }
+
+                @Override
+                public void setMinSeqNoToKeep(long seqNo) {}
             };
         } catch (IOException ex) {
             throw new RuntimeException(ex);
