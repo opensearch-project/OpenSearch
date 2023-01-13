@@ -157,7 +157,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
             searchBackpressureStats = null;
         }
 
-        if (in.getVersion().onOrAfter(Version.V_2_5_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_6_0)) {
             clusterManagerThrottlingStats = in.readOptionalWriteable(ClusterManagerThrottlingStats::new);
         } else {
             clusterManagerThrottlingStats = null;
@@ -353,7 +353,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         if (out.getVersion().onOrAfter(Version.V_2_4_0)) {
             out.writeOptionalWriteable(searchBackpressureStats);
         }
-        if (out.getVersion().onOrAfter(Version.V_2_5_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_6_0)) {
             out.writeOptionalWriteable(clusterManagerThrottlingStats);
         }
     }

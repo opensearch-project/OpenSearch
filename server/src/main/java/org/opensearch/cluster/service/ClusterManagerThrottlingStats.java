@@ -74,8 +74,8 @@ public class ClusterManagerThrottlingStats implements ClusterManagerTaskThrottle
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject("cluster_manager_throttling");
         builder.startObject("cluster_manager_stats");
-        builder.field("TotalThrottledTasks", getTotalThrottledTaskCount());
-        builder.startObject("ThrottledTasksPerTaskType");
+        builder.field("total_throttled_tasks", getTotalThrottledTaskCount());
+        builder.startObject("throttled_tasks_per_task_type");
         for (Map.Entry<String, CounterMetric> entry : throttledTasksCount.entrySet()) {
             builder.field(entry.getKey(), entry.getValue().count());
         }
