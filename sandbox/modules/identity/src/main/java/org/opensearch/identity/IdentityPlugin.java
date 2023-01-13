@@ -157,8 +157,13 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
+        // TODO The constructor is not getting called in time leaving these values as null when creating the ConfigurationRepository
+        // Can the constructor be substituted by taking these from environment?
+        this.configPath = environment.configDir();
+        this.settings = environment.settings();
+
         // TODO: revisit this
-        final String authManagerClassName = settings.get(
+        final String authManagerClassName = this.settings.get(
             ConfigConstants.IDENTITY_AUTH_MANAGER_CLASS,
             InternalAuthenticationManager.class.getCanonicalName()
         );
@@ -186,11 +191,6 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
         } catch (NoSuchMethodException e) {
             throw new RuntimeException(e);
         }
-
-        // TODO The constructor is not getting called in time leaving these values as null when creating the ConfigurationRepository
-        // Can the constructor be substituted by taking these from environment?
-        this.configPath = environment.configDir();
-        this.settings = environment.settings();
 
         this.threadPool = threadPool;
         this.cs = clusterService;
