@@ -20,6 +20,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
@@ -199,7 +200,7 @@ public class ExtensionsManager {
      *
      * @param request which was sent by an extension.
      */
-    public ExtensionActionResponse handleTransportRequest(ExtensionActionRequest request) throws InterruptedException {
+    public ExtensionActionResponse handleTransportRequest(ExtensionActionRequest request) throws Exception {
         return extensionTransportActionsHandler.sendTransportRequestToExtension(request);
     }
 
@@ -403,12 +404,11 @@ public class ExtensionsManager {
                 initializeExtensionResponseHandler
             );
             inProgressFuture.orTimeout(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS).join();
-        } catch (Exception e) {
+        } catch (CompletionException e) {
             if (e.getCause() instanceof TimeoutException) {
-                logger.error("Timed out awaiting for the response from the extension {}", extension);
-            } else {
-                logger.error(e.getCause().getMessage());
+                logger.info("No response from extension to request.");
             }
+            throw RuntimeException.class.cast(e.getCause());
         }
     }
 
@@ -545,12 +545,11 @@ public class ExtensionsManager {
             );
             inProgressFuture.orTimeout(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS).join();
             logger.info("Received response from Extension");
-        } catch (Exception e) {
+        } catch (CompletionException e) {
             if (e.getCause() instanceof TimeoutException) {
-                logger.error("No response from extension to request.");
-            } else {
-                logger.error(e.getCause().getMessage());
+                logger.info("No response from extension to request.");
             }
+            throw RuntimeException.class.cast(e.getCause());
         }
     }
 

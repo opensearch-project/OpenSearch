@@ -83,6 +83,8 @@ import org.opensearch.test.client.NoOpNodeClient;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.ConnectTransportException;
+import org.opensearch.transport.NodeNotConnectedException;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportService;
@@ -439,6 +441,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                     "[firstExtension][127.0.0.0:9300] Node not connected"
                 )
             );
+
+            expectThrows(ConnectTransportException.class, () -> extensionsManager.initialize());
 
             // Test needs to be changed to mock the connection between the local node and an extension. Assert statment is commented out for
             // now.
@@ -826,30 +830,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
             Collections.emptyMap()
         );
-
-        try (MockLogAppender mockLogAppender = MockLogAppender.createForLoggers(LogManager.getLogger(ExtensionsManager.class))) {
-
-            mockLogAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
-                    "Node Not Connected Exception 1",
-                    "org.opensearch.extensions.ExtensionsManager",
-                    Level.ERROR,
-                    "[secondExtension][127.0.0.1:9301] Node not connected"
-                )
-            );
-
-            mockLogAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
-                    "Node Not Connected Exception 2",
-                    "org.opensearch.extensions.ExtensionsManager",
-                    Level.ERROR,
-                    "[firstExtension][127.0.0.0:9300] Node not connected"
-                )
-            );
-
-            extensionsManager.onIndexModule(indexModule);
-            mockLogAppender.assertAllExpectationsMatched();
-        }
+        expectThrows(NodeNotConnectedException.class, () -> extensionsManager.onIndexModule(indexModule));
 
     }
 

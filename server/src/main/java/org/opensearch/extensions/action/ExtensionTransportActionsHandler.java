@@ -139,7 +139,7 @@ public class ExtensionTransportActionsHandler {
             if (e.getCause() instanceof TimeoutException) {
                 logger.info("No response from extension to request.");
             }
-            throw e;
+            throw Exception.class.cast(e.getCause());
         }
         return response;
     }
@@ -151,7 +151,7 @@ public class ExtensionTransportActionsHandler {
      * @return {@link ExtensionActionResponse} which encapsulates the transport response from the extension.
      * @throws InterruptedException when message transport fails.
      */
-    public ExtensionActionResponse sendTransportRequestToExtension(ExtensionActionRequest request) throws InterruptedException {
+    public ExtensionActionResponse sendTransportRequestToExtension(ExtensionActionRequest request) throws Exception {
         DiscoveryExtensionNode extension = actionsMap.get(request.getAction());
         if (extension == null) {
             throw new ActionNotFoundTransportException(request.getAction());
@@ -201,7 +201,7 @@ public class ExtensionTransportActionsHandler {
             if (e.getCause() instanceof TimeoutException) {
                 logger.info("No response from extension to request.");
             }
-            throw e;
+            throw Exception.class.cast(e.getCause());
         }
         return extensionActionResponse;
     }

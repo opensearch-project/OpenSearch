@@ -181,10 +181,10 @@ public class RestSendToExtensionAction extends BaseRestHandler {
                     new BytesRestResponse(RestStatus.REQUEST_TIMEOUT, "No response from extension to request.")
                 );
             }
-            throw e;
-        } catch (Exception e) {
-            logger.info("Failed to send REST Actions to extension " + discoveryExtensionNode.getName(), e);
-            return channel -> channel.sendResponse(new BytesRestResponse(RestStatus.INTERNAL_SERVER_ERROR, e.getMessage()));
+            throw RuntimeException.class.cast(cause);
+        } catch (Exception ex) {
+            logger.info("Failed to send REST Actions to extension " + discoveryExtensionNode.getName(), ex);
+            return channel -> channel.sendResponse(new BytesRestResponse(RestStatus.INTERNAL_SERVER_ERROR, ex.getMessage()));
         }
         BytesRestResponse restResponse = new BytesRestResponse(
             restExecuteOnExtensionResponse.getStatus(),
