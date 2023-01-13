@@ -115,6 +115,13 @@ public final class IndexSettings {
         Property.Dynamic,
         Property.IndexScope
     );
+    public static final Setting<TimeValue> INDEX_REMOTE_STORE_TRANSLOG_BUFFER_INTERVAL_SETTING = Setting.timeSetting(
+        "index.remote_store.translog.buffer_interval",
+        TimeValue.timeValueMillis(100),
+        TimeValue.timeValueMillis(1),
+        Property.Dynamic,
+        Property.IndexScope
+    );
     public static final Setting<TimeValue> INDEX_SEARCH_IDLE_AFTER = Setting.timeSetting(
         "index.search.idle.after",
         TimeValue.timeValueSeconds(30),
@@ -601,6 +608,7 @@ public final class IndexSettings {
     private final boolean defaultAllowUnmappedFields;
     private volatile Translog.Durability durability;
     private volatile TimeValue syncInterval;
+    private volatile TimeValue bufferInterval;
     private volatile TimeValue refreshInterval;
     private volatile ByteSizeValue flushThresholdSize;
     private volatile TimeValue translogRetentionAge;
@@ -770,6 +778,7 @@ public final class IndexSettings {
         this.durability = scopedSettings.get(INDEX_TRANSLOG_DURABILITY_SETTING);
         defaultFields = scopedSettings.get(DEFAULT_FIELD_SETTING);
         syncInterval = INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.get(settings);
+        bufferInterval = INDEX_REMOTE_STORE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(settings);
         refreshInterval = scopedSettings.get(INDEX_REFRESH_INTERVAL_SETTING);
         flushThresholdSize = scopedSettings.get(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING);
         generationThresholdSize = scopedSettings.get(INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING);
@@ -845,6 +854,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(MergeSchedulerConfig.AUTO_THROTTLE_SETTING, mergeSchedulerConfig::setAutoThrottle);
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_DURABILITY_SETTING, this::setTranslogDurability);
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_SYNC_INTERVAL_SETTING, this::setTranslogSyncInterval);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_REMOTE_STORE_TRANSLOG_BUFFER_INTERVAL_SETTING, this::setBufferInterval);
         scopedSettings.addSettingsUpdateConsumer(MAX_RESULT_WINDOW_SETTING, this::setMaxResultWindow);
         scopedSettings.addSettingsUpdateConsumer(MAX_INNER_RESULT_WINDOW_SETTING, this::setMaxInnerResultWindow);
         scopedSettings.addSettingsUpdateConsumer(MAX_ADJACENCY_MATRIX_FILTERS_SETTING, this::setMaxAdjacencyMatrixFilters);
@@ -1133,6 +1143,22 @@ public final class IndexSettings {
 
     public void setTranslogSyncInterval(TimeValue translogSyncInterval) {
         this.syncInterval = translogSyncInterval;
+    }
+
+    /**
+     * TODO
+     * @return
+     */
+    public TimeValue getBufferInterval() {
+        return bufferInterval;
+    }
+
+    /**
+     * TODO
+     * @param bufferInterval
+     */
+    public void setBufferInterval(TimeValue bufferInterval) {
+        this.bufferInterval = bufferInterval;
     }
 
     /**

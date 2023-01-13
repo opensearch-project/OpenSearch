@@ -95,6 +95,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.AsyncIOProcessor;
+import org.opensearch.common.util.concurrent.BufferedAsyncIOProcessor;
 import org.opensearch.common.util.concurrent.RunOnce;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.set.Sets;
@@ -364,7 +365,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.indexSortSupplier = indexSortSupplier;
         this.indexEventListener = indexEventListener;
         this.threadPool = threadPool;
-        this.translogSyncProcessor = createTranslogSyncProcessor(logger, threadPool.getThreadContext(), this::getEngine);
+        this.translogSyncProcessor = createTranslogSyncProcessor(
+            logger,
+            threadPool,
+            this::getEngine,
+            indexSettings.isRemoteTranslogStoreEnabled(),
+            indexSettings.getBufferInterval()
+        );
         this.mapperService = mapperService;
         this.indexCache = indexCache;
         this.internalIndexingStats = new InternalIndexingStats();
@@ -3808,9 +3815,29 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private static AsyncIOProcessor<Translog.Location> createTranslogSyncProcessor(
         Logger logger,
-        ThreadContext threadContext,
-        Supplier<Engine> engineSupplier
+        ThreadPool threadPool,
+        Supplier<Engine> engineSupplier,
+        boolean bufferAsyncIoProcessor,
+        TimeValue bufferInterval
     ) {
+        ThreadContext threadContext = threadPool.getThreadContext();
+        if (bufferAsyncIoProcessor) {
+            return new BufferedAsyncIOProcessor<>(logger, 102400, threadContext, threadPool, bufferInterval) {
+                @Override
+                protected void write(List<Tuple<Translog.Location, Consumer<Exception>>> candidates) throws IOException {
+                    try {
+                        engineSupplier.get().translogManager().ensureTranslogSynced(candidates.stream().map(Tuple::v1));
+                    } catch (AlreadyClosedException ex) {
+                        // that's fine since we already synced everything on engine close - this also is conform with the methods
+                        // documentation
+                    } catch (IOException ex) { // if this fails we are in deep shit - fail the request
+                        logger.debug("failed to sync translog", ex);
+                        throw ex;
+                    }
+                }
+            };
+        }
+
         return new AsyncIOProcessor<Translog.Location>(logger, 1024, threadContext) {
             @Override
             protected void write(List<Tuple<Translog.Location, Consumer<Exception>>> candidates) throws IOException {

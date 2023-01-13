@@ -53,10 +53,10 @@ import java.util.function.Supplier;
  * @opensearch.internal
  */
 public abstract class AsyncIOProcessor<Item> {
-    private final Logger logger;
-    private final ArrayBlockingQueue<Tuple<Item, Consumer<Exception>>> queue;
+    final Logger logger;
+    final ArrayBlockingQueue<Tuple<Item, Consumer<Exception>>> queue;
     private final ThreadContext threadContext;
-    private final Semaphore promiseSemaphore = new Semaphore(1);
+    final Semaphore promiseSemaphore = new Semaphore(1);
 
     protected AsyncIOProcessor(Logger logger, int queueSize, ThreadContext threadContext) {
         this.logger = logger;
@@ -67,7 +67,7 @@ public abstract class AsyncIOProcessor<Item> {
     /**
      * Adds the given item to the queue. The listener is notified once the item is processed
      */
-    public final void put(Item item, Consumer<Exception> listener) {
+    public void put(Item item, Consumer<Exception> listener) {
         Objects.requireNonNull(item, "item must not be null");
         Objects.requireNonNull(listener, "listener must not be null");
         // the algorithm here tires to reduce the load on each individual caller.
@@ -104,7 +104,7 @@ public abstract class AsyncIOProcessor<Item> {
         }
     }
 
-    private void drainAndProcessAndRelease(List<Tuple<Item, Consumer<Exception>>> candidates) {
+    void drainAndProcessAndRelease(List<Tuple<Item, Consumer<Exception>>> candidates) {
         Exception exception;
         try {
             queue.drainTo(candidates);
@@ -141,7 +141,7 @@ public abstract class AsyncIOProcessor<Item> {
         }
     }
 
-    private Consumer<Exception> preserveContext(Consumer<Exception> consumer) {
+    Consumer<Exception> preserveContext(Consumer<Exception> consumer) {
         Supplier<ThreadContext.StoredContext> restorableContext = threadContext.newRestorableContext(false);
         return e -> {
             try (ThreadContext.StoredContext ignore = restorableContext.get()) {
