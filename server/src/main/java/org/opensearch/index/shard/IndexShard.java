@@ -61,7 +61,6 @@ import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
-import org.opensearch.action.StepListener;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.opensearch.action.admin.indices.upgrade.post.UpgradeRequest;
@@ -754,7 +753,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      *
      * @param performSegRep a {@link Runnable} that is executed after operations are blocked
      * @param consumer a {@link Runnable} that is executed after performSegRep
-     * @param listener ActionListener
      * @throws IllegalIndexShardStateException if the shard is not relocating due to concurrent cancellation
      * @throws IllegalStateException           if the relocation target is no longer part of the replication group
      * @throws InterruptedException            if blocking operations is interrupted
@@ -762,8 +760,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void relocated(
         final String targetAllocationId,
         final Consumer<ReplicationTracker.PrimaryContext> consumer,
-        final Consumer<StepListener> performSegRep,
-        final ActionListener<Void> listener
+        final Runnable performSegRep
     ) throws IllegalIndexShardStateException, IllegalStateException, InterruptedException {
         assert shardRouting.primary() : "only primaries can be marked as relocated: " + shardRouting;
         try (Releasable forceRefreshes = refreshListeners.forceRefreshes()) {
@@ -781,32 +778,28 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 assert indexShardOperationPermits.getActiveOperationsCount() == OPERATIONS_BLOCKED
                     : "in-flight operations in progress while moving shard state to relocated";
 
-                final StepListener<Void> segRepSyncListener = new StepListener<>();
-                performSegRep.accept(segRepSyncListener);
-                segRepSyncListener.whenComplete(r -> {
-                    /*
-                     * We should not invoke the runnable under the mutex as the expected implementation is to handoff the primary context via a
-                     * network operation. Doing this under the mutex can implicitly block the cluster state update thread on network operations.
-                     */
-                    verifyRelocatingState();
-                    final ReplicationTracker.PrimaryContext primaryContext = replicationTracker.startRelocationHandoff(targetAllocationId);
-                    try {
-                        consumer.accept(primaryContext);
-                        synchronized (mutex) {
-                            verifyRelocatingState();
-                            replicationTracker.completeRelocationHandoff(); // make changes to primaryMode and relocated flag only under
-                                                                            // mutex
-                        }
-                    } catch (final Exception e) {
-                        try {
-                            replicationTracker.abortRelocationHandoff();
-                        } catch (final Exception inner) {
-                            e.addSuppressed(inner);
-                        }
-                        throw e;
+                performSegRep.run();
+                /*
+                 * We should not invoke the runnable under the mutex as the expected implementation is to handoff the primary context via a
+                 * network operation. Doing this under the mutex can implicitly block the cluster state update thread on network operations.
+                 */
+                verifyRelocatingState();
+                final ReplicationTracker.PrimaryContext primaryContext = replicationTracker.startRelocationHandoff(targetAllocationId);
+                try {
+                    consumer.accept(primaryContext);
+                    synchronized (mutex) {
+                        verifyRelocatingState();
+                        replicationTracker.completeRelocationHandoff(); // make changes to primaryMode and relocated flag only under
+                                                                        // mutex
                     }
-                    listener.onResponse(null);
-                }, listener::onFailure);
+                } catch (final Exception e) {
+                    try {
+                        replicationTracker.abortRelocationHandoff();
+                    } catch (final Exception inner) {
+                        e.addSuppressed(inner);
+                    }
+                    throw e;
+                }
             });
         } catch (TimeoutException e) {
             logger.warn("timed out waiting for relocation hand-off to complete");

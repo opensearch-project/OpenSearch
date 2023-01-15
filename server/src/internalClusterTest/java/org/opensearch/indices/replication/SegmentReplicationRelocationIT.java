@@ -22,13 +22,17 @@ import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.IndexModule;
+import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.TransportService;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
@@ -275,5 +279,114 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationIT {
             assertTrue(pendingIndexResponses.stream().allMatch(ActionFuture::isDone));
         }, 1, TimeUnit.MINUTES);
         assertEquals(client().prepareSearch(INDEX_NAME).setSize(0).execute().actionGet().getHits().getTotalHits().value, 120L);
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/5669")
+    public void testRelocateWithQueuedOperationsDuringHandoff() throws Exception {
+        final String primary = internalCluster().startNode(featureFlagSettings());
+        prepareCreate(
+            INDEX_NAME,
+            Settings.builder()
+                .put("index.number_of_shards", 1)
+                .put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), false)
+                .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+                .put("index.number_of_replicas", 0)
+                .put("index.refresh_interval", -1)
+        ).get();
+
+        for (int i = 0; i < 10; i++) {
+            client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
+        }
+        logger.info("--> flush to have segments on disk");
+        client().admin().indices().prepareFlush().execute().actionGet();
+
+        logger.info("--> index more docs so there are ops in the transaction log");
+        final List<ActionFuture<IndexResponse>> pendingIndexResponses = new ArrayList<>();
+        for (int i = 10; i < 20; i++) {
+            pendingIndexResponses.add(
+                client().prepareIndex(INDEX_NAME)
+                    .setId(Integer.toString(i))
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL)
+                    .setSource("field", "value" + i)
+                    .execute()
+            );
+        }
+        final String replica = internalCluster().startNode(featureFlagSettings());
+        ClusterHealthResponse clusterHealthResponse = client().admin()
+            .cluster()
+            .prepareHealth()
+            .setWaitForEvents(Priority.LANGUID)
+            .setWaitForNodes("2")
+            .execute()
+            .actionGet();
+        assertEquals(clusterHealthResponse.isTimedOut(), false);
+
+        // Mock transport service to add behaviour of throwing corruption exception during segment replication process.
+        MockTransportService mockTransportService = ((MockTransportService) internalCluster().getInstance(TransportService.class, replica));
+        // Block segment replication to allow adding operations during handoff
+        CountDownLatch latch = new CountDownLatch(1);
+        CountDownLatch relocationLatch = new CountDownLatch(1);
+        mockTransportService.addSendBehavior(
+            internalCluster().getInstance(TransportService.class, primary),
+            (connection, requestId, action, request, options) -> {
+                if (action.equals(SegmentReplicationSourceService.Actions.GET_SEGMENT_FILES)) {
+                    latch.countDown();
+                    try {
+                        relocationLatch.await();
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+                connection.sendRequest(requestId, action, request, options);
+            }
+        );
+        int totalDocCount = 2000;
+        Runnable relocationThread = () -> {
+            // Wait for relocation to halt at SegRep. Ingest docs at that point.
+            try {
+                latch.await();
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+            for (int i = 20; i < totalDocCount; i++) {
+                pendingIndexResponses.add(
+                    client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).execute()
+                );
+            }
+            IndexShard indexShard = getIndexShard(replica);
+            logger.info("--> Active operations {}", indexShard.getActiveOperationsCount());
+            assertTrue(indexShard.getActiveOperationsCount() > 0);
+            // Post ingestion, let SegRep to complete.
+            relocationLatch.countDown();
+        };
+
+        logger.info("--> relocate the shard from primary to replica");
+        ActionFuture<ClusterRerouteResponse> relocationListener = client().admin()
+            .cluster()
+            .prepareReroute()
+            .add(new MoveAllocationCommand(INDEX_NAME, 0, primary, replica))
+            .execute();
+
+        // This thread first waits for recovery to halt during segment replication. After which it ingests data to ensure
+        // have some documents queued.
+        relocationThread.run();
+
+        relocationListener.actionGet();
+        clusterHealthResponse = client().admin()
+            .cluster()
+            .prepareHealth()
+            .setWaitForEvents(Priority.LANGUID)
+            .setWaitForNoRelocatingShards(true)
+            .setTimeout(ACCEPTABLE_RELOCATION_TIME)
+            .execute()
+            .actionGet();
+        assertEquals(clusterHealthResponse.isTimedOut(), false);
+
+        logger.info("--> verifying count");
+        assertBusy(() -> {
+            client().admin().indices().prepareRefresh().execute().actionGet();
+            assertTrue(pendingIndexResponses.stream().allMatch(ActionFuture::isDone));
+        }, 1, TimeUnit.MINUTES);
+        assertEquals(totalDocCount, client().prepareSearch(INDEX_NAME).setSize(0).execute().actionGet().getHits().getTotalHits().value);
     }
 }
