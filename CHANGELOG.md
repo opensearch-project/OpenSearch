@@ -1,5 +1,8 @@
 
 # CHANGELOG
+## [Unreleased]
+### Dependencies
+- Bumps `reactor-netty` from 1.1.1 to 1.1.2 ([#5878](https://github.com/opensearch-project/OpenSearch/pull/5878))
 
 All notable changes to this project are documented in this file.
 
