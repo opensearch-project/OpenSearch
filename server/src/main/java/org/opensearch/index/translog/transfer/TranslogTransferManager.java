@@ -200,9 +200,8 @@ public class TranslogTransferManager {
         String translogFilename = Translog.getFilename(generation);
         // ToDo - Take care of metadata file cleanup
         // https://github.com/opensearch-project/OpenSearch/issues/5677
-        fileTransferTracker.onDelete(ckpFileName);
-        fileTransferTracker.onDelete(translogFilename);
         List<String> files = List.of(ckpFileName, translogFilename);
+        fileTransferTracker.delete(files);
         transferService.deleteBlobs(remoteBaseTransferPath.add(String.valueOf(primaryTerm)), files);
     }
 }
