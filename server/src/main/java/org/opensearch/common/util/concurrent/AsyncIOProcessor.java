@@ -117,7 +117,7 @@ public abstract class AsyncIOProcessor<Item> {
             exception = processList(candidates);
         } finally {
             promiseSemaphore.release();
-            logger.info("step=drainAndProcessAndRelease timeTakenInMs={}", (System.currentTimeMillis() - lastRunStartTimeInMs));
+            logger.debug("step=drainAndProcessAndRelease timeTakenInMs={}", (System.currentTimeMillis() - lastRunStartTimeInMs));
         }
         notifyList(candidates, exception);
         candidates.clear();
