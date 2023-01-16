@@ -18,6 +18,7 @@ import org.opensearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -73,7 +74,7 @@ public class ClusterManagerThrottlingStats implements ClusterManagerTaskThrottle
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject("cluster_manager_throttling");
-        builder.startObject("cluster_manager_stats");
+        builder.startObject("stats");
         builder.field("total_throttled_tasks", getTotalThrottledTaskCount());
         builder.startObject("throttled_tasks_per_task_type");
         for (Map.Entry<String, CounterMetric> entry : throttledTasksCount.entrySet()) {
@@ -84,4 +85,25 @@ public class ClusterManagerThrottlingStats implements ClusterManagerTaskThrottle
         return builder.endObject();
     }
 
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        } else if (o != null && this.getClass() == o.getClass()) {
+            ClusterManagerThrottlingStats that = (ClusterManagerThrottlingStats) o;
+
+            if (this.throttledTasksCount.size() == that.throttledTasksCount.size()) {
+                for (Map.Entry<String, CounterMetric> entry : this.throttledTasksCount.entrySet()) {
+                    if (that.throttledTasksCount.get(entry.getKey()).count() != entry.getValue().count()) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public int hashCode() {
+        return Objects.hash(new Object[] { this.throttledTasksCount });
+    }
 }
