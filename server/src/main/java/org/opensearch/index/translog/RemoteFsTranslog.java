@@ -202,6 +202,7 @@ public class RemoteFsTranslog extends Translog {
     }
 
     private boolean upload(Long primaryTerm, Long generation) throws IOException {
+        long uploadStartTime = System.currentTimeMillis();
         // During primary relocation (primary-primary peer recovery), both the old and the new primary have engine
         // created with the RemoteFsTranslog. Both primaries are equipped to upload the translogs. The primary mode check
         // below ensures that the real primary only is uploading. Before the primary mode is set as true for the new
@@ -231,11 +232,13 @@ public class RemoteFsTranslog extends Translog {
                     closeFilesIfNoPendingRetentionLocks();
                     maxRemoteTranslogGenerationUploaded = generation;
                     logger.trace("uploaded translog for {} {} ", primaryTerm, generation);
+                    logUploadStats(uploadStartTime, true);
                 }
 
                 @Override
                 public void onUploadFailed(TransferSnapshot transferSnapshot, Exception ex) throws IOException {
                     transferReleasable.close();
+                    logUploadStats(uploadStartTime, false);
                     closeFilesIfNoPendingRetentionLocks();
                     if (ex instanceof IOException) {
                         throw (IOException) ex;
@@ -245,6 +248,11 @@ public class RemoteFsTranslog extends Translog {
                 }
             });
         }
+
+    }
+
+    private void logUploadStats(long uploadStartTime, boolean uploadStatus) {
+        logger.info("Translog Upload status={} timeTaken={}", uploadStatus, (System.currentTimeMillis() - uploadStartTime));
 
     }
 

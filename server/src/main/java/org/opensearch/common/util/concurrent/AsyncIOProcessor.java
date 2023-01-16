@@ -57,6 +57,7 @@ public abstract class AsyncIOProcessor<Item> {
     final ArrayBlockingQueue<Tuple<Item, Consumer<Exception>>> queue;
     private final ThreadContext threadContext;
     final Semaphore promiseSemaphore = new Semaphore(1);
+    long lastRunStartTimeInMs;
 
     protected AsyncIOProcessor(Logger logger, int queueSize, ThreadContext threadContext) {
         this.logger = logger;
@@ -95,22 +96,28 @@ public abstract class AsyncIOProcessor<Item> {
                 // no need to preserve context for listener since it runs in current thread.
                 candidates.add(new Tuple<>(item, listener));
             }
-            // since we made the promise to process we gotta do it here at least once
+            process(candidates);
+        }
+    }
+
+    protected void process(List<Tuple<Item, Consumer<Exception>>> candidates) {
+        // since we made the promise to process we gotta do it here at least once
+        drainAndProcessAndRelease(candidates);
+        while (queue.isEmpty() == false && promiseSemaphore.tryAcquire()) {
+            // yet if the queue is not empty AND nobody else has yet made the promise to take over we continue processing
             drainAndProcessAndRelease(candidates);
-            while (queue.isEmpty() == false && promiseSemaphore.tryAcquire()) {
-                // yet if the queue is not empty AND nobody else has yet made the promise to take over we continue processing
-                drainAndProcessAndRelease(candidates);
-            }
         }
     }
 
     void drainAndProcessAndRelease(List<Tuple<Item, Consumer<Exception>>> candidates) {
+        lastRunStartTimeInMs = System.currentTimeMillis();
         Exception exception;
         try {
             queue.drainTo(candidates);
             exception = processList(candidates);
         } finally {
             promiseSemaphore.release();
+            logger.info("step=drainAndProcessAndRelease timeTakenInMs={}", (System.currentTimeMillis() - lastRunStartTimeInMs));
         }
         notifyList(candidates, exception);
         candidates.clear();

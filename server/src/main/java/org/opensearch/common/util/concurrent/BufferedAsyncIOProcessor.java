@@ -37,7 +37,6 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -45,7 +44,7 @@ import java.util.function.Consumer;
 /**
  * A variant of AsyncIOProcessor which will wait for interval before processing items
  * processing happens in another thread from same threadpool after {@link #bufferInterval}
- *
+ * <p>
  * Requests are buffered till processor thread calls @{link drainAndProcessAndRelease} after bufferInterval.
  * If more requests are enequed between invocations of drainAndProcessAndRelease, another processor thread
  * gets scheduled. Subsequent requests will get buffered till drainAndProcessAndRelease gets called in this new
@@ -95,25 +94,25 @@ public abstract class BufferedAsyncIOProcessor<Item> extends AsyncIOProcessor<It
     }
 
     private void scheduleRefresh() {
-        Runnable processor = () -> {
-            final List<Tuple<Item, Consumer<Exception>>> candidates = new ArrayList<>();
-            // since we made the promise to process we gotta do it here at least once
-            drainAndProcessAndRelease(candidates);
-            while (queue.isEmpty() == false && promiseSemaphore.tryAcquire()) {
-                // yet if the queue is not empty AND nobody else has yet made the promise to take over we continue processing
-                drainAndProcessAndRelease(candidates);
-            }
-        };
+        Runnable processor = () -> { process(new ArrayList<>()); };
 
         if (promiseSemaphore.tryAcquire()) {
             try {
-                threadpool.schedule(processor, this.bufferInterval, getBufferRefreshThreadPoolName());
+                threadpool.schedule(processor, getBufferInterval(), getBufferRefreshThreadPoolName());
             } catch (Exception e) {
                 logger.error("failed to schedule refresh");
                 promiseSemaphore.release();
                 throw e;
             }
         }
+    }
+
+    private TimeValue getBufferInterval() {
+        long timeSinceLastRunStartInMS = System.currentTimeMillis() - lastRunStartTimeInMs;
+        if (timeSinceLastRunStartInMS >= bufferInterval.getMillis()) {
+            return TimeValue.ZERO;
+        }
+        return TimeValue.timeValueMillis(bufferInterval.getMillis() - timeSinceLastRunStartInMS);
     }
 
     protected String getBufferRefreshThreadPoolName() {
