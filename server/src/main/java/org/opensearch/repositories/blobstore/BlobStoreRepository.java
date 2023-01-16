@@ -2419,7 +2419,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 newSnapshotsList.add(point);
             }
             final BlobStoreIndexShardSnapshots updatedBlobStoreIndexShardSnapshots = new BlobStoreIndexShardSnapshots(newSnapshotsList);
-            final Runnable afterWriteSnapBlob;
             // When using shard generations we can safely write the index-${uuid} blob before writing out any of the actual data
             // for this shard since the uuid named blob will simply not be referenced in case of error and thus we will never
             // reference a generation that has not had all its files fully upload.
@@ -2437,7 +2436,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     e
                 );
             }
-            afterWriteSnapBlob = () -> {};
             final StepListener<Collection<Void>> allFilesUploadedListener = new StepListener<>();
             allFilesUploadedListener.whenComplete(v -> {
                 final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.moveToFinalize(snapshotIndexCommit.getGeneration());
@@ -2462,7 +2460,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 } catch (IOException e) {
                     throw new IndexShardSnapshotFailedException(shardId, "Failed to write commit point", e);
                 }
-                afterWriteSnapBlob.run();
                 snapshotStatus.moveToDone(threadPool.absoluteTimeInMillis(), indexGeneration);
                 listener.onResponse(indexGeneration);
             }, listener::onFailure);

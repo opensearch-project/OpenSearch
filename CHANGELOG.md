@@ -3,6 +3,7 @@
 ## [Unreleased]
 ### Dependencies
 - Bumps `azure-core-http-netty` from 1.12.7 to 1.12.8
+- Bumps `reactor-netty` from 1.1.1 to 1.1.2
 
 
 All notable changes to this project are documented in this file.
