@@ -78,7 +78,7 @@ public class TranslogTransferManager {
                 translogTransferListener.onUploadComplete(transferSnapshot);
                 return true;
             }
-            final CountDownLatch latch = new CountDownLatch(toUpload.size());
+            final CountDownLatch latch = new CountDownLatch(toUpload.size() + 1);
             LatchedActionListener<TransferFileSnapshot> latchedActionListener = new LatchedActionListener<>(
                 ActionListener.wrap(fileTransferTracker::onSuccess, ex -> {
                     assert ex instanceof FileTransferException;
@@ -102,6 +102,7 @@ public class TranslogTransferManager {
                     latchedActionListener
                 )
             );
+            transferService.uploadBlobAsync(prepareMetadata(transferSnapshot), remoteMetadataTransferPath, latchedActionListener);
             try {
                 if (latch.await(TRANSFER_TIMEOUT_IN_MILLIS, TimeUnit.MILLISECONDS) == false) {
                     Exception ex = new TimeoutException("Timed out waiting for transfer of snapshot " + transferSnapshot + " to complete");
@@ -114,7 +115,7 @@ public class TranslogTransferManager {
                 throw ex;
             }
             if (exceptionList.isEmpty()) {
-                transferService.uploadBlob(prepareMetadata(transferSnapshot), remoteMetadataTransferPath);
+                // transferService.uploadBlob(prepareMetadata(transferSnapshot), remoteMetadataTransferPath);
                 translogTransferListener.onUploadComplete(transferSnapshot);
                 return true;
             } else {
