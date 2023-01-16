@@ -51,6 +51,8 @@ public class RemoteFsTranslog extends Translog {
 
     private volatile long minSeqNoToKeep;
 
+    private volatile long minRemoteGenReferenced;
+
     public RemoteFsTranslog(
         TranslogConfig config,
         String translogUUID,
@@ -230,6 +232,7 @@ public class RemoteFsTranslog extends Translog {
                     transferReleasable.close();
                     closeFilesIfNoPendingRetentionLocks();
                     maxRemoteTranslogGenerationUploaded = generation;
+                    minRemoteGenReferenced = getMinFileGeneration();
                     logger.trace("uploaded translog for {} {} ", primaryTerm, generation);
                 }
 
@@ -327,13 +330,28 @@ public class RemoteFsTranslog extends Translog {
         this.minSeqNoToKeep = seqNo;
     }
 
-    @Override
-    void deleteReaderFiles(TranslogReader reader) {
+    void deleteRemoteGeneration(long generation) {
         try {
-            translogTransferManager.deleteTranslog(primaryTermSupplier.getAsLong(), reader.generation);
+            translogTransferManager.deleteTranslog(primaryTermSupplier.getAsLong(), generation);
         } catch (IOException ignored) {
-            logger.error("Exception {} while deleting generation {}", ignored, reader.generation);
+            logger.error("Exception {} while deleting generation {}", ignored, generation);
         }
-        super.deleteReaderFiles(reader);
+    }
+
+    public void trimUnreferencedReaders() throws IOException {
+        // clean up local translog files and updates readers
+        super.trimUnreferencedReaders();
+
+        // cleans up remote translog files not referenced in latest uploaded metadata
+        // This enables us to restore translog from that metadata
+        for (long generation = minRemoteGenReferenced - 1; generation > 0; generation--) {
+            String translogFilename = Translog.getFilename(generation);
+            if (fileTransferTracker.uploaded(translogFilename)) {
+                logger.trace("delete remote translog generation file [{}], not referenced by metadata anymore", generation);
+                deleteRemoteGeneration(generation);
+            } else {
+                break;
+            }
+        }
     }
 }

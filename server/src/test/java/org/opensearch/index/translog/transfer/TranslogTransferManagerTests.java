@@ -16,27 +16,28 @@ import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.index.translog.transfer.FileSnapshot.CheckpointFileSnapshot;
+import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
+import org.opensearch.index.translog.transfer.FileSnapshot.TranslogFileSnapshot;
 import org.opensearch.index.translog.transfer.listener.TranslogTransferListener;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.index.translog.transfer.FileSnapshot.CheckpointFileSnapshot;
-import org.opensearch.index.translog.transfer.FileSnapshot.TranslogFileSnapshot;
-import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @LuceneTestCase.SuppressFileSystems("*")
 public class TranslogTransferManagerTests extends OpenSearchTestCase {
@@ -74,23 +75,25 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
             return null;
         }).when(transferService).uploadBlobAsync(any(TransferFileSnapshot.class), any(BlobPath.class), any(ActionListener.class));
 
+        FileTransferTracker fileTransferTracker = new FileTransferTracker(new ShardId("index", "indexUUid", 0)) {
+            @Override
+            public void onSuccess(TransferFileSnapshot fileSnapshot) {
+                fileTransferSucceeded.incrementAndGet();
+                super.onSuccess(fileSnapshot);
+            }
+
+            @Override
+            public void onFailure(TransferFileSnapshot fileSnapshot, Exception e) {
+                fileTransferFailed.incrementAndGet();
+                super.onFailure(fileSnapshot, e);
+            }
+
+        };
+
         TranslogTransferManager translogTransferManager = new TranslogTransferManager(
             transferService,
             remoteBaseTransferPath,
-            new FileTransferTracker(new ShardId("index", "indexUUid", 0)) {
-                @Override
-                public void onSuccess(TransferFileSnapshot fileSnapshot) {
-                    fileTransferSucceeded.incrementAndGet();
-                }
-
-                @Override
-                public void onFailure(TransferFileSnapshot fileSnapshot, Exception e) {
-                    fileTransferFailed.incrementAndGet();
-                }
-
-                @Override
-                public void onDelete(String name) {}
-            }
+            fileTransferTracker
         );
 
         assertTrue(translogTransferManager.transferSnapshot(createTransferSnapshot(), new TranslogTransferListener() {
@@ -108,6 +111,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         assertEquals(0, fileTransferFailed.get());
         assertEquals(1, translogTransferSucceeded.get());
         assertEquals(0, translogTransferFailed.get());
+        assertEquals(4, fileTransferTracker.allUploaded().size());
     }
 
     private TransferSnapshot createTransferSnapshot() {
@@ -296,5 +300,19 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         tracker.add(translogFile, true);
         tracker.add(checkpointFile, true);
 
+    }
+
+    public void testDeleteTranslog() throws IOException {
+        FileTransferTracker tracker = new FileTransferTracker(new ShardId("index", "indexUuid", 0));
+        TranslogTransferManager translogTransferManager = new TranslogTransferManager(transferService, remoteBaseTransferPath, tracker);
+        String translogFile = "translog-19.tlog", checkpointFile = "translog-19.ckp";
+        tracker.add(translogFile, true);
+        tracker.add(checkpointFile, true);
+        assertEquals(2, tracker.allUploaded().size());
+
+        List<String> files = List.of(checkpointFile, translogFile);
+        translogTransferManager.deleteTranslog(primaryTerm, 19);
+        assertEquals(0, tracker.allUploaded().size());
+        verify(transferService).deleteBlobs(any(BlobPath.class), eq(files));
     }
 }

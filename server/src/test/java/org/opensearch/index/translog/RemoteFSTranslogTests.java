@@ -477,18 +477,18 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
             assertThat(snapshot.totalOperations(), equalTo(ops.size()));
         }
 
-        assertEquals(translog.allUploaded().size(), 2);
+        assertEquals(4, translog.allUploaded().size());
 
         addToTranslogAndListAndUpload(translog, ops, new Translog.Index("1", 1, primaryTerm.get(), new byte[] { 1 }));
-        assertEquals(translog.allUploaded().size(), 4);
+        assertEquals(6, translog.allUploaded().size());
 
         translog.rollGeneration();
-        assertEquals(translog.allUploaded().size(), 4);
+        assertEquals(6, translog.allUploaded().size());
 
         Set<String> mdFiles = blobStoreTransferService.listAll(
             repository.basePath().add(shardId.getIndex().getUUID()).add(String.valueOf(shardId.id())).add("metadata")
         );
-        assertEquals(mdFiles.size(), 2);
+        assertEquals(2, mdFiles.size());
         logger.info("All md files {}", mdFiles);
 
         Set<String> tlogFiles = blobStoreTransferService.listAll(
@@ -529,33 +529,44 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
         translog.deletionPolicy.setLocalCheckpointOfSafeCommit(0);
         // simulating the remote segment upload .
         translog.setMinSeqNoToKeep(0);
-        // This should not trim anything
+        // This should not trim anything from local
         translog.trimUnreferencedReaders();
-        assertEquals(translog.allUploaded().size(), 4);
+        assertEquals(2, translog.readers.size());
+        assertEquals(4, translog.allUploaded().size());
         assertEquals(
+            4,
             blobStoreTransferService.listAll(
                 repository.basePath()
                     .add(shardId.getIndex().getUUID())
                     .add(String.valueOf(shardId.id()))
                     .add(String.valueOf(primaryTerm.get()))
-            ).size(),
-            4
+            ).size()
         );
 
-        // This should trim tlog-2.* files as it contains seq no 0
+        // This should trim tlog-2 from local
+        // This should not trim tlog-2.* files from remote as we not uploading any more translog to remote
         translog.setMinSeqNoToKeep(1);
+        translog.deletionPolicy.setLocalCheckpointOfSafeCommit(1);
         translog.trimUnreferencedReaders();
-        assertEquals(translog.allUploaded().size(), 2);
+        assertEquals(1, translog.readers.size());
+        assertEquals(4, translog.allUploaded().size());
         assertEquals(
+            4,
             blobStoreTransferService.listAll(
                 repository.basePath()
                     .add(shardId.getIndex().getUUID())
                     .add(String.valueOf(shardId.id()))
                     .add(String.valueOf(primaryTerm.get()))
-            ).size(),
-            2
+            ).size()
         );
 
+        // this should now trim as tlog-2 files from remote, but not tlog-3 and tlog-4
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("2", 2, primaryTerm.get(), new byte[] { 1 }));
+        translog.deletionPolicy.setLocalCheckpointOfSafeCommit(1);
+        translog.setMinSeqNoToKeep(2);
+        translog.trimUnreferencedReaders();
+        assertEquals(1, translog.readers.size());
+        assertEquals(4, translog.allUploaded().size());
     }
 
     private Long populateTranslogOps(boolean withMissingOps) throws IOException {
