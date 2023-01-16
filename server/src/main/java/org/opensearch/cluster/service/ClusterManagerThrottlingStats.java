@@ -18,7 +18,6 @@ import org.opensearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -54,20 +53,20 @@ public class ClusterManagerThrottlingStats implements ClusterManagerTaskThrottle
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeInt(throttledTasksCount.size());
+        out.writeVInt(throttledTasksCount.size());
         for (Map.Entry<String, CounterMetric> entry : throttledTasksCount.entrySet()) {
             out.writeString(entry.getKey());
-            out.writeLong(entry.getValue().count());
+            out.writeVInt((int) entry.getValue().count());
         }
     }
 
     public ClusterManagerThrottlingStats(StreamInput in) throws IOException {
-        int throttledTaskEntries = in.readInt();
+        int throttledTaskEntries = in.readVInt();
         throttledTasksCount = new ConcurrentHashMap<>();
         for (int i = 0; i < throttledTaskEntries; i++) {
             String taskType = in.readString();
-            long throttledTaskCount = in.readLong();
-            onThrottle(taskType, (int) throttledTaskCount);
+            int throttledTaskCount = in.readVInt();
+            onThrottle(taskType, throttledTaskCount);
         }
     }
 
@@ -104,6 +103,10 @@ public class ClusterManagerThrottlingStats implements ClusterManagerTaskThrottle
     }
 
     public int hashCode() {
-        return Objects.hash(new Object[] { this.throttledTasksCount });
+        Map<String, Long> countMap = new ConcurrentHashMap<>();
+        for (Map.Entry<String, CounterMetric> entry : this.throttledTasksCount.entrySet()) {
+            countMap.put(entry.getKey(), entry.getValue().count());
+        }
+        return countMap.hashCode();
     }
 }
