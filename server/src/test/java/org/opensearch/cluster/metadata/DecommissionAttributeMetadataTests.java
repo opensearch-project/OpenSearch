@@ -24,7 +24,7 @@ public class DecommissionAttributeMetadataTests extends AbstractNamedWriteableTe
         String attributeValue = randomAlphaOfLength(6);
         DecommissionAttribute decommissionAttribute = new DecommissionAttribute(attributeName, attributeValue);
         DecommissionStatus decommissionStatus = randomFrom(DecommissionStatus.values());
-        return new DecommissionAttributeMetadata(decommissionAttribute, decommissionStatus);
+        return new DecommissionAttributeMetadata(decommissionAttribute, decommissionStatus, randomAlphaOfLength(10));
     }
 
     @Override

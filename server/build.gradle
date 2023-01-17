@@ -135,10 +135,6 @@ dependencies {
   // jna
   api "net.java.dev.jna:jna:${versions.jna}"
 
-  // jackson
-  api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
-  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
-
   testImplementation(project(":test:framework")) {
     // tests use the locally compiled version of server
     exclude group: 'org.opensearch', module: 'server'
@@ -212,12 +208,31 @@ tasks.named("processResources").configure {
 
 tasks.named("thirdPartyAudit").configure {
     ignoreMissingClasses(
+            // from com.fasterxml.jackson.dataformat.yaml.YAMLMapper (jackson-dataformat-yaml)
+            'com.fasterxml.jackson.databind.ObjectMapper',
 
             // from log4j
             'com.conversantmedia.util.concurrent.SpinPolicy',
+            'com.fasterxml.jackson.annotation.JsonInclude$Include',
+            'com.fasterxml.jackson.databind.DeserializationContext',
+            'com.fasterxml.jackson.databind.DeserializationFeature',
+            'com.fasterxml.jackson.databind.JsonMappingException',
+            'com.fasterxml.jackson.databind.JsonNode',
+            'com.fasterxml.jackson.databind.Module$SetupContext',
+            'com.fasterxml.jackson.databind.ObjectReader',
+            'com.fasterxml.jackson.databind.ObjectWriter',
+            'com.fasterxml.jackson.databind.SerializerProvider',
+            'com.fasterxml.jackson.databind.deser.std.StdDeserializer',
+            'com.fasterxml.jackson.databind.deser.std.StdScalarDeserializer',
+            'com.fasterxml.jackson.databind.module.SimpleModule',
+            'com.fasterxml.jackson.databind.ser.impl.SimpleBeanPropertyFilter',
+            'com.fasterxml.jackson.databind.ser.impl.SimpleFilterProvider',
+            'com.fasterxml.jackson.databind.ser.std.StdScalarSerializer',
+            'com.fasterxml.jackson.databind.ser.std.StdSerializer',
             'com.fasterxml.jackson.dataformat.xml.JacksonXmlModule',
             'com.fasterxml.jackson.dataformat.xml.XmlMapper',
             'com.fasterxml.jackson.dataformat.xml.util.DefaultXmlPrettyPrinter',
+            'com.fasterxml.jackson.databind.node.ObjectNode',
             'org.fusesource.jansi.Ansi',
             'org.fusesource.jansi.AnsiRenderer$Code',
             'com.lmax.disruptor.EventFactory',
@@ -277,6 +292,9 @@ tasks.named("thirdPartyAudit").configure {
             'org.noggit.JSONParser',
 
             // from lucene-spatial
+            'com.fasterxml.jackson.databind.JsonSerializer',
+            'com.fasterxml.jackson.databind.JsonDeserializer',
+            'com.fasterxml.jackson.databind.node.ArrayNode',
             'com.google.common.geometry.S2Cell',
             'com.google.common.geometry.S2CellId',
             'com.google.common.geometry.S2Projections',

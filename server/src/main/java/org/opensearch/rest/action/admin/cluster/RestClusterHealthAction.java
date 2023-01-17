@@ -94,6 +94,14 @@ public class RestClusterHealthAction extends BaseRestHandler {
         );
         parseDeprecatedMasterTimeoutParameter(clusterHealthRequest, request, deprecationLogger, "cluster_health");
         clusterHealthRequest.timeout(request.paramAsTime("timeout", clusterHealthRequest.timeout()));
+        String awarenessAttribute = request.param("awareness_attribute");
+        if (awarenessAttribute != null) {
+            clusterHealthRequest.setAwarenessAttribute(awarenessAttribute);
+        }
+        String level = request.param("level");
+        if (level != null) {
+            clusterHealthRequest.setLevel(level);
+        }
         String waitForStatus = request.param("wait_for_status");
         if (waitForStatus != null) {
             clusterHealthRequest.waitForStatus(ClusterHealthStatus.valueOf(waitForStatus.toUpperCase(Locale.ROOT)));
