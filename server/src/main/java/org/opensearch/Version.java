@@ -316,8 +316,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
      * lazily once.
      */
     static class DeclaredVersionsHolder {
-        // use LegacyESVersion.class since it inherits Version fields
-        protected static final List<Version> DECLARED_VERSIONS = Collections.unmodifiableList(getDeclaredVersions(LegacyESVersion.class));
+        protected static final List<Version> DECLARED_VERSIONS = Collections.unmodifiableList(getDeclaredVersions(Version.class));
     }
 
     // lazy initialized because we don't yet have the declared versions ready when instantiating the cached Version
@@ -394,7 +393,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         return res;
     }
 
-    private Version computeMinIndexCompatVersion() {
+    protected Version computeMinIndexCompatVersion() {
         final int bwcMajor;
         if (major == 5) {
             bwcMajor = 2; // we jumped from 2 to 5
