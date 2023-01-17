@@ -202,15 +202,6 @@ public class RemoteFsTranslog extends Translog {
     }
 
     private boolean upload(Long primaryTerm, Long generation) throws IOException {
-        boolean primaryMode = primaryModeSupplier.getAsBoolean();
-        // During primary relocation (primary-primary peer recovery), both the old and the new primary have engine
-        // created with the RemoteFsTranslog. Both primaries are equipped to upload the translogs. The primary mode check
-        // below ensures that the real primary only is uploading.
-        if (primaryMode == false) {
-            logger.trace("skipped uploading translog for {} {}", primaryTerm, generation);
-            // NO-OP
-            return true;
-        }
         logger.trace("uploading translog for {} {}", primaryTerm, generation);
         try (
             TranslogCheckpointTransferSnapshot transferSnapshotProvider = new TranslogCheckpointTransferSnapshot.Builder(
@@ -264,7 +255,12 @@ public class RemoteFsTranslog extends Translog {
     @Override
     public void sync() throws IOException {
         try {
-            if (syncToDisk() || syncNeeded()) {
+            // During primary relocation (primary-primary peer recovery), both the old and the new primary have engine
+            // created with the RemoteFsTranslog. Both primaries are equipped to sync translogs. The primary mode
+            // check below ensures that the real primary only is syncing translogs. Before the primary mode is set as
+            // true for the new primary, the engine is reset to InternalEngine which also initialises the RemoteFsTranslog
+            // which in turns downloads all the translogs from remote store and does a flush before the relocation finishes.
+            if (primaryModeSupplier.getAsBoolean() && (syncToDisk() || syncNeeded())) {
                 prepareAndUpload(primaryTermSupplier.getAsLong(), null);
             }
         } catch (final Exception e) {
@@ -275,7 +271,7 @@ public class RemoteFsTranslog extends Translog {
     }
 
     /**
-     *  Returns <code>true</code> if an fsync and/or remote transfer is required to ensure durability of the translogs operations or it's metadata.
+     * Returns <code>true</code> if an fsync and/or remote transfer is required to ensure durability of the translogs operations or it's metadata.
      */
     public boolean syncNeeded() {
         try (ReleasableLock lock = readLock.acquire()) {
