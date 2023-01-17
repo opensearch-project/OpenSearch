@@ -348,34 +348,6 @@ public class JsonXContentGenerator implements XContentGenerator {
 
     /**
      * Writes a raw field with the value taken from the bytes in the stream
-     * @deprecated use {@link #writeRawField(String, InputStream, MediaType)} instead
-     */
-    @Deprecated
-    @Override
-    public void writeRawField(String name, InputStream content, XContentType contentType) throws IOException {
-        if (mayWriteRawData(contentType) == false) {
-            // EMPTY is safe here because we never call namedObject when writing raw data
-            try (
-                XContentParser parser = XContentFactory.xContent(contentType)
-                    // It's okay to pass the throwing deprecation handler
-                    // because we should not be writing raw fields when
-                    // generating JSON
-                    .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, content)
-            ) {
-                parser.nextToken();
-                writeFieldName(name);
-                copyCurrentStructure(parser);
-            }
-        } else {
-            writeStartRaw(name);
-            flush();
-            Streams.copy(content, os);
-            writeEndRaw();
-        }
-    }
-
-    /**
-     * Writes a raw field with the value taken from the bytes in the stream
      */
     @Override
     public void writeRawField(String name, InputStream content, MediaType mediaType) throws IOException {
@@ -396,27 +368,6 @@ public class JsonXContentGenerator implements XContentGenerator {
             writeStartRaw(name);
             flush();
             Streams.copy(content, os);
-            writeEndRaw();
-        }
-    }
-
-    /**
-     * Writes the raw value to the stream
-     *
-     * @deprecated use {@link #writeRawValue(InputStream, MediaType)} instead
-     */
-    @Deprecated
-    @Override
-    public void writeRawValue(InputStream stream, XContentType xContentType) throws IOException {
-        if (mayWriteRawData(xContentType) == false) {
-            copyRawValue(stream, xContentType.xContent());
-        } else {
-            if (generator.getOutputContext().getCurrentName() != null) {
-                // If we've just started a field we'll need to add the separator
-                generator.writeRaw(':');
-            }
-            flush();
-            Streams.copy(stream, os, false);
             writeEndRaw();
         }
     }

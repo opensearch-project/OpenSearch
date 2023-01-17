@@ -114,29 +114,15 @@ public interface XContentGenerator extends Closeable, Flushable {
 
     /**
      * Writes a raw field with the value taken from the bytes in the stream
-     * @deprecated use {@link #writeRawField(String, InputStream, XContentType)} to avoid content type auto-detection
+     * @deprecated use {@link #writeRawField(String, InputStream, MediaType)} to avoid content type auto-detection
      */
     @Deprecated
     void writeRawField(String name, InputStream value) throws IOException;
 
     /**
      * Writes a raw field with the value taken from the bytes in the stream
-     * @deprecated use {@link #writeRawField(String, InputStream, MediaType)} instead
-     */
-    @Deprecated
-    void writeRawField(String name, InputStream value, XContentType xContentType) throws IOException;
-
-    /**
-     * Writes a raw field with the value taken from the bytes in the stream
      */
     void writeRawField(String name, InputStream value, MediaType mediaType) throws IOException;
-
-    /**
-     * Writes a raw value taken from the bytes in the stream
-     * @deprecated use {@link #writeRawValue(InputStream, MediaType)} instead
-     */
-    @Deprecated
-    void writeRawValue(InputStream value, XContentType xContentType) throws IOException;
 
     /**
      * Writes a raw value taken from the bytes in the stream
