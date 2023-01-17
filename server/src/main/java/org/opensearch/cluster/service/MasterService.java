@@ -607,6 +607,13 @@ public class MasterService extends AbstractLifecycleComponent {
     }
 
     /**
+     * Returns the stats of throttled pending tasks.
+     */
+    public ClusterManagerThrottlingStats getThrottlingStats() {
+        return throttlingStats;
+    }
+
+    /**
      * Returns the min version of nodes in cluster
      */
     public Version getMinNodeVersion() {
