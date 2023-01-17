@@ -203,6 +203,9 @@ public class RemoteFsTranslog extends Translog {
 
     private boolean upload(Long primaryTerm, Long generation) throws IOException {
         boolean primaryMode = primaryModeSupplier.getAsBoolean();
+        // During primary relocation (primary-primary peer recovery), both the old and the new primary have engine
+        // created with the RemoteFsTranslog. Both primaries are equipped to upload the translogs. The primary mode check
+        // below ensures that the real primary only is uploading.
         if (primaryMode == false) {
             logger.trace("skipped uploading translog for {} {}", primaryTerm, generation);
             // NO-OP

@@ -826,8 +826,6 @@ public abstract class RecoverySourceHandler {
                 final Consumer<StepListener> forceSegRepConsumer = indexSettings.isSegRepEnabled()
                     ? recoveryTarget::forceSegmentFileSync
                     : res -> res.onResponse(null);
-                final boolean syncTranslog = indexSettings.isRemoteTranslogStoreEnabled()
-                    && Translog.Durability.ASYNC == indexSettings.getTranslogDurability();
                 // TODO: make relocated async
                 // this acquires all IndexShard operation permits and will thus delay new recoveries until it is done
                 cancellableThreads.execute(
@@ -835,8 +833,7 @@ public abstract class RecoverySourceHandler {
                         request.targetAllocationId(),
                         recoveryTarget::handoffPrimaryContext,
                         forceSegRepConsumer,
-                        handoffListener,
-                        syncTranslog
+                        handoffListener
                     )
                 );
                 /*
