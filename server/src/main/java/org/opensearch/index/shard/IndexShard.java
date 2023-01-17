@@ -220,7 +220,14 @@ import static org.opensearch.index.seqno.SequenceNumbers.LOCAL_CHECKPOINT_KEY;
 import static org.opensearch.index.seqno.SequenceNumbers.MAX_SEQ_NO;
 import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.opensearch.index.shard.RemoteStoreRefreshListener.SEGMENT_INFO_SNAPSHOT_FILENAME_PREFIX;
+import static org.opensearch.index.translog.Translog.Delete;
 import static org.opensearch.index.translog.Translog.Durability;
+import static org.opensearch.index.translog.Translog.Location;
+import static org.opensearch.index.translog.Translog.NoOp;
+import static org.opensearch.index.translog.Translog.Operation;
+import static org.opensearch.index.translog.Translog.Snapshot;
+import static org.opensearch.index.translog.Translog.TRANSLOG_UUID_KEY;
+import static org.opensearch.index.translog.Translog.readGlobalCheckpoint;
 
 /**
  * An OpenSearch index shard
@@ -770,10 +777,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> {
                 forceRefreshes.close();
 
+                boolean syncTranslog = isRemoteTranslogEnabled() && Durability.ASYNC == indexSettings.getTranslogDurability();
                 // Since all the index permits are acquired at this point, the translog buffer will not change.
                 // It is safe to perform sync of translogs now as this will ensure for remote-backed indexes, the
                 // translogs has been uploaded to the remote store.
-                boolean syncTranslog = isRemoteTranslogEnabled() && indexSettings().getTranslogDurability() == Durability.ASYNC;
                 if (syncTranslog) {
                     maybeSync();
                 }
