@@ -2834,7 +2834,7 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     public void testRelocatedForRemoteTranslogBackedIndexWithAsyncDurability() throws IOException {
-        Settings primarySettings = Settings.builder()
+        Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
@@ -2844,7 +2844,7 @@ public class IndexShardTests extends IndexShardTestCase {
             .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "txlog-test")
             .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC)
             .build();
-        final IndexShard indexShard = newStartedShard(true, primarySettings, new NRTReplicationEngineFactory());
+        final IndexShard indexShard = newStartedShard(true, settings, new NRTReplicationEngineFactory());
         ShardRouting routing = indexShard.routingEntry();
         routing = newShardRouting(
             routing.shardId(),
@@ -2866,6 +2866,7 @@ public class IndexShardTests extends IndexShardTestCase {
                     public void onResponse(Void unused) {
                         assertTrue(indexShard.isRelocatedPrimary());
                         assertFalse(indexShard.isSyncNeeded());
+                        assertFalse(indexShard.getReplicationTracker().isPrimaryMode());
                     }
 
                     @Override

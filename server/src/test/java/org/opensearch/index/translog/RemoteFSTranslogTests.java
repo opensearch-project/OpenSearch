@@ -107,6 +107,7 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
     protected Path translogDir;
     // A default primary term is used by translog instances created in this test.
     private final AtomicLong primaryTerm = new AtomicLong();
+    private final AtomicBoolean primaryMode = new AtomicBoolean(true);
     private final AtomicReference<LongConsumer> persistedSeqNoConsumer = new AtomicReference<>();
     private ThreadPool threadPool;
 
@@ -171,7 +172,7 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
             getPersistedSeqNoConsumer(),
             repository,
             threadPool.executor(ThreadPool.Names.TRANSLOG_TRANSFER),
-            () -> Boolean.TRUE
+            primaryMode::get
         );
 
     }
@@ -251,6 +252,33 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
         translog.ensureSynced(loc);
         list.add(op);
         return loc;
+    }
+
+    public void testUploadWithPrimaryModeFalse() {
+        // Test setup
+        primaryMode.set(false);
+
+        // Validate
+        assertTrue(translog.syncNeeded());
+        assertFalse(primaryMode.get());
+        try {
+            translog.sync();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        assertTrue(translog.syncNeeded());
+    }
+
+    public void testUploadWithPrimaryModeTrue() {
+        // Validate
+        assertTrue(translog.syncNeeded());
+        assertTrue(primaryMode.get());
+        try {
+            translog.sync();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        assertFalse(translog.syncNeeded());
     }
 
     public void testSimpleOperations() throws IOException {

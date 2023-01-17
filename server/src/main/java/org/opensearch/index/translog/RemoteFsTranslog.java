@@ -265,11 +265,6 @@ public class RemoteFsTranslog extends Translog {
     @Override
     public void sync() throws IOException {
         try {
-            // During primary relocation (primary-primary peer recovery), both the old and the new primary have engine
-            // created with the RemoteFsTranslog. Both primaries are equipped to sync translogs. The primary mode
-            // check below ensures that the real primary only is syncing translogs. Before the primary mode is set as
-            // true for the new primary, the engine is reset to InternalEngine which also initialises the RemoteFsTranslog
-            // which in turns downloads all the translogs from remote store and does a flush before the relocation finishes.
             if (syncToDisk() || syncNeeded()) {
                 prepareAndUpload(primaryTermSupplier.getAsLong(), null);
             }
