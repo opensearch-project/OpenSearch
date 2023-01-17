@@ -821,10 +821,16 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
         logger.info("--> setting shard routing weights for weighted round robin");
         Map<String, Double> weights = Map.of("a", 1.0, "b", 1.0, "c", 0.0);
         setShardRoutingWeights(weights);
+        String nodeInZoneA = nodeMap.get("a").get(0);
+        String customPreference = randomAlphaOfLength(10);
 
         assertThrows(
             PreferenceBasedSearchNotAllowedException.class,
-            () -> internalCluster().client(nodeMap.get("b").get(0)).prepareSearch().setSize(0).setPreference("_only_local").get()
+            () -> internalCluster().client(nodeMap.get("b").get(0))
+                .prepareSearch()
+                .setSize(0)
+                .setPreference(randomFrom("_local", "_only_nodes:" + nodeInZoneA, "_prefer_nodes:" + nodeInZoneA, customPreference))
+                .get()
         );
 
     }
@@ -852,10 +858,13 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
         Map<String, Double> weights = Map.of("a", 1.0, "b", 1.0, "c", 0.0);
         setShardRoutingWeights(weights);
 
+        String customPreference = randomAlphaOfLength(10);
+        String nodeInZoneA = nodeMap.get("a").get(0);
+
         SearchResponse searchResponse = internalCluster().client(nodeMap.get("b").get(0))
             .prepareSearch()
             .setSize(0)
-            .setPreference("_only_local")
+            .setPreference(randomFrom("_local", "_only_nodes:" + nodeInZoneA, "_prefer_nodes:" + nodeInZoneA, customPreference))
             .get();
         assertEquals(RestStatus.OK.getStatus(), searchResponse.status().getStatus());
     }
