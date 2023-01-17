@@ -201,7 +201,13 @@ public class ExtensionTransportActionsHandler {
             if (e.getCause() instanceof TimeoutException) {
                 logger.info("No response from extension to request.");
             }
-            throw Exception.class.cast(e.getCause());
+            if (e.getCause() instanceof RuntimeException) {
+                throw (RuntimeException) e.getCause();
+            } else if (e.getCause() instanceof Error) {
+                throw (Error) e.getCause();
+            } else {
+                throw new RuntimeException(e.getCause());
+            }
         }
         return extensionActionResponse;
     }
