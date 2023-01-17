@@ -51,6 +51,7 @@ public class RemoteFsTranslog extends Translog {
 
     private volatile long minSeqNoToKeep;
 
+    // min generation referred by last uploaded translog
     private volatile long minRemoteGenReferenced;
 
     public RemoteFsTranslog(
@@ -344,7 +345,7 @@ public class RemoteFsTranslog extends Translog {
 
         // cleans up remote translog files not referenced in latest uploaded metadata
         // This enables us to restore translog from that metadata
-        for (long generation = minRemoteGenReferenced - 1; generation > 0; generation--) {
+        for (long generation = minRemoteGenReferenced - 1; generation >= 0; generation--) {
             String translogFilename = Translog.getFilename(generation);
             if (fileTransferTracker.uploaded(translogFilename)) {
                 logger.trace("delete remote translog generation file [{}], not referenced by metadata anymore", generation);
