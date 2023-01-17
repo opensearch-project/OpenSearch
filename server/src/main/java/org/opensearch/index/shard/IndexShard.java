@@ -220,14 +220,7 @@ import static org.opensearch.index.seqno.SequenceNumbers.LOCAL_CHECKPOINT_KEY;
 import static org.opensearch.index.seqno.SequenceNumbers.MAX_SEQ_NO;
 import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.opensearch.index.shard.RemoteStoreRefreshListener.SEGMENT_INFO_SNAPSHOT_FILENAME_PREFIX;
-import static org.opensearch.index.translog.Translog.Delete;
 import static org.opensearch.index.translog.Translog.Durability;
-import static org.opensearch.index.translog.Translog.Location;
-import static org.opensearch.index.translog.Translog.NoOp;
-import static org.opensearch.index.translog.Translog.Operation;
-import static org.opensearch.index.translog.Translog.Snapshot;
-import static org.opensearch.index.translog.Translog.TRANSLOG_UUID_KEY;
-import static org.opensearch.index.translog.Translog.readGlobalCheckpoint;
 
 /**
  * An OpenSearch index shard
@@ -326,7 +319,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final RefreshListeners refreshListeners;
 
     private final AtomicLong lastSearcherAccess = new AtomicLong();
-    private final AtomicReference<Location> pendingRefreshLocation = new AtomicReference<>();
+    private final AtomicReference<Translog.Location> pendingRefreshLocation = new AtomicReference<>();
     private final RefreshPendingLocationListener refreshPendingLocationListener;
     private volatile boolean useRetentionLeasesInPeerRecovery;
     private final Store remoteStore;
@@ -1813,8 +1806,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final Optional<SequenceNumbers.CommitInfo> safeCommit;
         final long globalCheckpoint;
         try {
-            final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(TRANSLOG_UUID_KEY);
-            globalCheckpoint = readGlobalCheckpoint(translogConfig.getTranslogPath(), translogUUID);
+            final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
+            globalCheckpoint = Translog.readGlobalCheckpoint(translogConfig.getTranslogPath(), translogUUID);
             safeCommit = store.findSafeIndexCommit(globalCheckpoint);
         } catch (org.apache.lucene.index.IndexNotFoundException e) {
             logger.trace("skip local recovery as no index commit found");
@@ -1967,11 +1960,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         getEngine().updateMaxUnsafeAutoIdTimestamp(maxSeenAutoIdTimestampFromPrimary);
     }
 
-    public Engine.Result applyTranslogOperation(Operation operation, Engine.Operation.Origin origin) throws IOException {
+    public Engine.Result applyTranslogOperation(Translog.Operation operation, Engine.Operation.Origin origin) throws IOException {
         return applyTranslogOperation(getEngine(), operation, origin);
     }
 
-    private Engine.Result applyTranslogOperation(Engine engine, Operation operation, Engine.Operation.Origin origin) throws IOException {
+    private Engine.Result applyTranslogOperation(Engine engine, Translog.Operation operation, Engine.Operation.Origin origin)
+        throws IOException {
         // If a translog op is replayed on the primary (eg. ccr), we need to use external instead of null for its version type.
         final VersionType versionType = (origin == Engine.Operation.Origin.PRIMARY) ? VersionType.EXTERNAL : null;
         final Engine.Result result;
@@ -2001,7 +1995,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 );
                 break;
             case DELETE:
-                final Delete delete = (Delete) operation;
+                final Translog.Delete delete = (Translog.Delete) operation;
                 result = applyDeleteOperation(
                     engine,
                     delete.seqNo(),
@@ -2015,7 +2009,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 );
                 break;
             case NO_OP:
-                final NoOp noOp = (NoOp) operation;
+                final Translog.NoOp noOp = (Translog.NoOp) operation;
                 result = markSeqNoAsNoop(engine, noOp.seqNo(), noOp.primaryTerm(), noOp.reason(), origin);
                 break;
             default:
@@ -2028,10 +2022,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Replays translog operations from the provided translog {@code snapshot} to the current engine using the given {@code origin}.
      * The callback {@code onOperationRecovered} is notified after each translog operation is replayed successfully.
      */
-    int runTranslogRecovery(Engine engine, Snapshot snapshot, Engine.Operation.Origin origin, Runnable onOperationRecovered)
+    int runTranslogRecovery(Engine engine, Translog.Snapshot snapshot, Engine.Operation.Origin origin, Runnable onOperationRecovered)
         throws IOException {
         int opsRecovered = 0;
-        Operation operation;
+        Translog.Operation operation;
         while ((operation = snapshot.next()) != null) {
             try {
                 logger.trace("[translog] recover op {}", operation);
@@ -2066,8 +2060,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // we have to set it before we open an engine and recover from the translog because
         // acquiring a snapshot from the translog causes a sync which causes the global checkpoint to be pulled in,
         // and an engine can be forced to close in ctor which also causes the global checkpoint to be pulled in.
-        final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(TRANSLOG_UUID_KEY);
-        final long globalCheckpoint = readGlobalCheckpoint(translogConfig.getTranslogPath(), translogUUID);
+        final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
+        final long globalCheckpoint = Translog.readGlobalCheckpoint(translogConfig.getTranslogPath(), translogUUID);
         replicationTracker.updateGlobalCheckpointOnReplica(globalCheckpoint, "read from translog checkpoint");
     }
 
