@@ -2833,6 +2833,53 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
+    public void testRelocatedForRemoteTranslogBackedIndexWithAsyncDurability() throws IOException {
+        Settings primarySettings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+            .put(IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY, "seg-test")
+            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, true)
+            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "txlog-test")
+            .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC)
+            .build();
+        final IndexShard indexShard = newStartedShard(true, primarySettings, new NRTReplicationEngineFactory());
+        ShardRouting routing = indexShard.routingEntry();
+        routing = newShardRouting(
+            routing.shardId(),
+            routing.currentNodeId(),
+            "otherNode",
+            true,
+            ShardRoutingState.RELOCATING,
+            AllocationId.newRelocation(routing.allocationId())
+        );
+        IndexShardTestCase.updateRoutingEntry(indexShard, routing);
+        assertTrue(indexShard.isSyncNeeded());
+        try {
+            indexShard.relocated(
+                routing.getTargetRelocatingShard().allocationId().getId(),
+                primaryContext -> {},
+                r -> r.onResponse(null),
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(Void unused) {
+                        assertTrue(indexShard.isRelocatedPrimary());
+                        assertFalse(indexShard.isSyncNeeded());
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        fail(e.toString());
+                    }
+                }
+            );
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+        closeShards(indexShard);
+    }
+
     public void testRestoreShard() throws IOException {
         final IndexShard source = newStartedShard(true);
         IndexShard target = newStartedShard(true);
