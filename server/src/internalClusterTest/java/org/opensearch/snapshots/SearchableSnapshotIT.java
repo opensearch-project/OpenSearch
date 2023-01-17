@@ -12,6 +12,7 @@ import org.opensearch.action.admin.cluster.snapshots.delete.DeleteSnapshotReques
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequestBuilder;
 import org.opensearch.action.index.IndexRequestBuilder;
+import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
@@ -37,6 +38,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.FS;
 import static org.opensearch.common.util.CollectionUtils.iterableAsArrayList;
 
@@ -211,6 +213,7 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         assertIndexingBlocked(restoredIndexName);
         assertIndexSettingChangeBlocked(restoredIndexName);
+        assertAllowedIndexSettingUpdate(restoredIndexName);
         assertTrue(client.admin().indices().prepareDelete(restoredIndexName).get().isAcknowledged());
         assertThrows(
             "Expect index to not exist",
@@ -330,6 +333,13 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         } catch (ClusterBlockException e) {
             MatcherAssert.assertThat(e.blocks(), contains(IndexMetadata.REMOTE_READ_ONLY_ALLOW_DELETE));
         }
+    }
+
+    private void assertAllowedIndexSettingUpdate(String index) {
+        final UpdateSettingsRequestBuilder builder = client().admin().indices().prepareUpdateSettings(index);
+        builder.setSettings(Map.of("index.max_result_window", 100));
+        AcknowledgedResponse settingsResponse = builder.execute().actionGet();
+        assertThat(settingsResponse, notNullValue());
     }
 
     /**
