@@ -12,4 +12,7 @@ grant {
   permission java.lang.RuntimePermission "accessUserInformation";
 
   permission java.net.SocketPermission "*", "accept,connect";
+
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };
