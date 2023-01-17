@@ -9,11 +9,11 @@
 package org.opensearch.index.translog.transfer;
 
 import org.opensearch.common.Nullable;
-import org.opensearch.common.io.stream.BytesStreamInput;
-import org.opensearch.common.io.stream.InputStreamStreamInput;
+import org.opensearch.common.lucene.store.ByteArrayIndexInput;
+import org.opensearch.common.lucene.store.InputStreamIndexInput;
 import org.opensearch.core.internal.io.IOUtils;
-import org.opensearch.index.translog.BufferedChecksumStreamInput;
 
+import java.io.BufferedInputStream;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
@@ -21,6 +21,7 @@ import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.Arrays;
 import java.util.Objects;
 
 /**
@@ -66,11 +67,8 @@ public class FileSnapshot implements Closeable {
 
     public InputStream inputStream() throws IOException {
         return fileChannel != null
-            ? new BufferedChecksumStreamInput(
-                new InputStreamStreamInput(Channels.newInputStream(fileChannel), fileChannel.size()),
-                path.toString()
-            )
-            : new BufferedChecksumStreamInput(new BytesStreamInput(content), name);
+            ? new BufferedInputStream(Channels.newInputStream(fileChannel))
+            : new InputStreamIndexInput(new ByteArrayIndexInput(this.name, content), content.length);
     }
 
     @Override
@@ -83,9 +81,7 @@ public class FileSnapshot implements Closeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         FileSnapshot other = (FileSnapshot) o;
-        return Objects.equals(this.name, other.name)
-            && Objects.equals(this.content, other.content)
-            && Objects.equals(this.path, other.path);
+        return Objects.equals(this.name, other.name) && Arrays.equals(this.content, other.content) && Objects.equals(this.path, other.path);
     }
 
     @Override
