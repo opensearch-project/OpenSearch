@@ -289,7 +289,7 @@ public class InternalEngine extends Engine {
                     this::getLocalCheckpointTracker,
                     translogUUID,
                     new CompositeTranslogEventListener(Arrays.asList(internalTranslogEventListener, translogEventListener), shardId),
-                    this,
+                    this::ensureOpen,
                     engineConfig.getTranslogFactory(),
                     engineConfig.getPrimaryModeSupplier()
                 );

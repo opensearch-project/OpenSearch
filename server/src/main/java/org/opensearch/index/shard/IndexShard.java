@@ -2511,7 +2511,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * the provided starting seqno (inclusive) and ending seqno (inclusive)
      * The returned snapshot can be retrieved from either Lucene index or translog files.
      */
-    public Snapshot getHistoryOperations(String reason, long startingSeqNo, long endSeqNo, boolean accurateCount) throws IOException {
+    public Translog.Snapshot getHistoryOperations(String reason, long startingSeqNo, long endSeqNo, boolean accurateCount)
+        throws IOException {
         return getEngine().newChangesSnapshot(reason, startingSeqNo, endSeqNo, true, accurateCount);
     }
 
@@ -2520,7 +2521,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Use the recommended {@link #getHistoryOperations(String, long, long, boolean)} method for other cases.
      * This method should only be invoked if Segment Replication or Remote Store is not enabled.
      */
-    public Snapshot getHistoryOperationsFromTranslog(long startingSeqNo, long endSeqNo) throws IOException {
+    public Translog.Snapshot getHistoryOperationsFromTranslog(long startingSeqNo, long endSeqNo) throws IOException {
         assert (indexSettings.isSegRepEnabled() || indexSettings.isRemoteStoreEnabled()) == false
             : "unsupported operation for segment replication enabled indices or remote store backed indices";
         return getEngine().translogManager().newChangesSnapshot(startingSeqNo, endSeqNo, true);
@@ -2561,12 +2562,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @param source            the source of the request
      * @param fromSeqNo         the from seq_no (inclusive) to read
      * @param toSeqNo           the to seq_no (inclusive) to read
-     * @param requiredFullRange if {@code true} then {@link Snapshot#next()} will throw {@link IllegalStateException}
+     * @param requiredFullRange if {@code true} then {@link Translog.Snapshot#next()} will throw {@link IllegalStateException}
      *                          if any operation between {@code fromSeqNo} and {@code toSeqNo} is missing.
      *                          This parameter should be only enabled when the entire requesting range is below the global checkpoint.
      */
-    public Snapshot newChangesSnapshot(String source, long fromSeqNo, long toSeqNo, boolean requiredFullRange, boolean accurateCount)
-        throws IOException {
+    public Translog.Snapshot newChangesSnapshot(
+        String source,
+        long fromSeqNo,
+        long toSeqNo,
+        boolean requiredFullRange,
+        boolean accurateCount
+    ) throws IOException {
         return getEngine().newChangesSnapshot(source, fromSeqNo, toSeqNo, requiredFullRange, accurateCount);
     }
 
@@ -3798,16 +3804,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return indexShardOperationPermits.getActiveOperations();
     }
 
-    private final AsyncIOProcessor<Location> translogSyncProcessor;
+    private final AsyncIOProcessor<Translog.Location> translogSyncProcessor;
 
-    private static AsyncIOProcessor<Location> createTranslogSyncProcessor(
+    private static AsyncIOProcessor<Translog.Location> createTranslogSyncProcessor(
         Logger logger,
         ThreadContext threadContext,
         Supplier<Engine> engineSupplier
     ) {
-        return new AsyncIOProcessor<Location>(logger, 1024, threadContext) {
+        return new AsyncIOProcessor<Translog.Location>(logger, 1024, threadContext) {
             @Override
-            protected void write(List<Tuple<Location, Consumer<Exception>>> candidates) throws IOException {
+            protected void write(List<Tuple<Translog.Location, Consumer<Exception>>> candidates) throws IOException {
                 try {
                     engineSupplier.get().translogManager().ensureTranslogSynced(candidates.stream().map(Tuple::v1));
                 } catch (AlreadyClosedException ex) {
@@ -3830,7 +3836,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * NOTE: if the syncListener throws an exception when it's processed the exception will only be logged. Users should make sure that the
      * listener handles all exception cases internally.
      */
-    public final void sync(Location location, Consumer<Exception> syncListener) {
+    public final void sync(Translog.Location location, Consumer<Exception> syncListener) {
         verifyNotClosed();
         translogSyncProcessor.put(location, syncListener);
     }
@@ -4028,7 +4034,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private void setRefreshPending(Engine engine) {
-        final Location lastWriteLocation = engine.translogManager().getTranslogLastWriteLocation();
+        final Translog.Location lastWriteLocation = engine.translogManager().getTranslogLastWriteLocation();
         pendingRefreshLocation.updateAndGet(curr -> {
             if (curr == null || curr.compareTo(lastWriteLocation) <= 0) {
                 return lastWriteLocation;
@@ -4039,7 +4045,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private class RefreshPendingLocationListener implements ReferenceManager.RefreshListener {
-        Location lastWriteLocation;
+        Translog.Location lastWriteLocation;
 
         @Override
         public void beforeRefresh() {
@@ -4074,7 +4080,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public final void awaitShardSearchActive(Consumer<Boolean> listener) {
         markSearcherAccessed(); // move the shard into non-search idle
-        final Location location = pendingRefreshLocation.get();
+        final Translog.Location location = pendingRefreshLocation.get();
         if (location != null) {
             addRefreshListener(location, (b) -> {
                 pendingRefreshLocation.compareAndSet(location, null);
@@ -4092,7 +4098,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @param listener for the refresh. Called with true if registering the listener ran it out of slots and forced a refresh. Called with
      *        false otherwise.
      */
-    public void addRefreshListener(Location location, Consumer<Boolean> listener) {
+    public void addRefreshListener(Translog.Location location, Consumer<Boolean> listener) {
         final boolean readAllowed;
         if (isReadAllowed()) {
             readAllowed = true;
