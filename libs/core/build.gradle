@@ -77,6 +77,8 @@ if (!isEclipse) {
 dependencies {
   api project(':libs:opensearch-common')
 
+  api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+
   testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testImplementation "junit:junit:${versions.junit}"
   testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
@@ -92,30 +94,6 @@ tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'
 }
 
-thirdPartyAudit.ignoreMissingClasses(
-  // from com.fasterxml.jackson.dataformat.yaml.YAMLMapper (jackson-dataformat-yaml)
-  'com.fasterxml.jackson.databind.ObjectMapper',
-  'com.fasterxml.jackson.databind.cfg.MapperBuilder',
-  'org.yaml.snakeyaml.DumperOptions',
-  'org.yaml.snakeyaml.DumperOptions$FlowStyle',
-  'org.yaml.snakeyaml.DumperOptions$LineBreak',
-  'org.yaml.snakeyaml.DumperOptions$ScalarStyle',
-  'org.yaml.snakeyaml.DumperOptions$Version',
-  'org.yaml.snakeyaml.LoaderOptions',
-  'org.yaml.snakeyaml.emitter.Emitter',
-  'org.yaml.snakeyaml.error.Mark',
-  'org.yaml.snakeyaml.error.MarkedYAMLException',
-  'org.yaml.snakeyaml.error.YAMLException',
-  'org.yaml.snakeyaml.events.AliasEvent',
-  'org.yaml.snakeyaml.events.CollectionStartEvent',
-  'org.yaml.snakeyaml.events.Event',
-  'org.yaml.snakeyaml.events.Event$ID',
-  'org.yaml.snakeyaml.events.ImplicitTuple',
-  'org.yaml.snakeyaml.events.MappingStartEvent',
-  'org.yaml.snakeyaml.events.NodeEvent',
-  'org.yaml.snakeyaml.events.ScalarEvent',
-  'org.yaml.snakeyaml.nodes.NodeId',
-  'org.yaml.snakeyaml.nodes.Tag',
-  'org.yaml.snakeyaml.parser.ParserImpl',
-  'org.yaml.snakeyaml.resolver.Resolver'
-)
+tasks.named("dependencyLicenses").configure {
+  mapping from: /jackson-.*/, to: 'jackson'
+}

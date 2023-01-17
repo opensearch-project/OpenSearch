@@ -34,6 +34,7 @@ package org.opensearch.test;
 
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContent;
@@ -203,7 +204,7 @@ public final class XContentTestUtils {
      * </pre>
      */
     public static BytesReference insertRandomFields(
-        XContentType contentType,
+        MediaType contentType,
         BytesReference xContent,
         Predicate<String> excludeFilter,
         Random random

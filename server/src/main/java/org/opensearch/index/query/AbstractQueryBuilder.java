@@ -42,6 +42,7 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.lucene.BytesRefs;
 import org.opensearch.common.xcontent.SuggestingErrorOnUnknown;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.xcontent.AbstractObjectParser;
 import org.opensearch.core.xcontent.NamedObjectNotFoundException;
