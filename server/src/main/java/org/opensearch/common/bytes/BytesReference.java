@@ -38,8 +38,8 @@ import org.apache.lucene.util.BytesRefIterator;
 import org.opensearch.common.io.stream.BytesStream;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.util.ByteArray;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;

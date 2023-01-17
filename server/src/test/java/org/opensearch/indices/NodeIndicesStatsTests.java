@@ -32,7 +32,7 @@
 
 package org.opensearch.indices;
 
-import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Collections;

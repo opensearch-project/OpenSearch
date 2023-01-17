@@ -34,7 +34,7 @@ package org.opensearch.index.reindex;
 
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.action.bulk.BulkItemResponse.Failure;
-import org.opensearch.common.xcontent.ObjectParser;
+import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.index.reindex.ScrollableHitSource.SearchFailure;
 import org.opensearch.index.reindex.BulkByScrollTask.StatusBuilder;
 

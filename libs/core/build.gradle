@@ -93,14 +93,29 @@ tasks.named('forbiddenApisMain').configure {
 }
 
 thirdPartyAudit.ignoreMissingClasses(
-  // from log4j
-  'org/osgi/framework/AdaptPermission',
-  'org/osgi/framework/AdminPermission',
-  'org/osgi/framework/Bundle',
-  'org/osgi/framework/BundleActivator',
-  'org/osgi/framework/BundleContext',
-  'org/osgi/framework/BundleEvent',
-  'org/osgi/framework/SynchronousBundleListener',
-  'org/osgi/framework/wiring/BundleWire',
-  'org/osgi/framework/wiring/BundleWiring'
+  // from com.fasterxml.jackson.dataformat.yaml.YAMLMapper (jackson-dataformat-yaml)
+  'com.fasterxml.jackson.databind.ObjectMapper',
+  'com.fasterxml.jackson.databind.cfg.MapperBuilder',
+  'org.yaml.snakeyaml.DumperOptions',
+  'org.yaml.snakeyaml.DumperOptions$FlowStyle',
+  'org.yaml.snakeyaml.DumperOptions$LineBreak',
+  'org.yaml.snakeyaml.DumperOptions$ScalarStyle',
+  'org.yaml.snakeyaml.DumperOptions$Version',
+  'org.yaml.snakeyaml.LoaderOptions',
+  'org.yaml.snakeyaml.emitter.Emitter',
+  'org.yaml.snakeyaml.error.Mark',
+  'org.yaml.snakeyaml.error.MarkedYAMLException',
+  'org.yaml.snakeyaml.error.YAMLException',
+  'org.yaml.snakeyaml.events.AliasEvent',
+  'org.yaml.snakeyaml.events.CollectionStartEvent',
+  'org.yaml.snakeyaml.events.Event',
+  'org.yaml.snakeyaml.events.Event$ID',
+  'org.yaml.snakeyaml.events.ImplicitTuple',
+  'org.yaml.snakeyaml.events.MappingStartEvent',
+  'org.yaml.snakeyaml.events.NodeEvent',
+  'org.yaml.snakeyaml.events.ScalarEvent',
+  'org.yaml.snakeyaml.nodes.NodeId',
+  'org.yaml.snakeyaml.nodes.Tag',
+  'org.yaml.snakeyaml.parser.ParserImpl',
+  'org.yaml.snakeyaml.resolver.Resolver'
 )

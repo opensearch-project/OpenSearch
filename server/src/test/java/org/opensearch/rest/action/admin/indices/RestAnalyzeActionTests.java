@@ -35,7 +35,7 @@ import org.opensearch.action.admin.indices.analyze.AnalyzeAction;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.analysis.NameOrDefinition;
 import org.opensearch.rest.RestRequest;

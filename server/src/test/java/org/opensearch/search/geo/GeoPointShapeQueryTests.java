@@ -42,7 +42,7 @@ import org.opensearch.common.geo.builders.LineStringBuilder;
 import org.opensearch.common.geo.builders.MultiLineStringBuilder;
 import org.opensearch.common.geo.builders.MultiPointBuilder;
 import org.opensearch.common.geo.builders.PointBuilder;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.geometry.Line;
 import org.opensearch.geometry.LinearRing;

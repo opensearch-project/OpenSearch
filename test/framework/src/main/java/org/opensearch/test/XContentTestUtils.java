@@ -33,14 +33,14 @@
 package org.opensearch.test;
 
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.xcontent.DeprecationHandler;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContent;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.test.rest.yaml.ObjectPath;
@@ -57,7 +57,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static com.carrotsearch.randomizedtesting.generators.RandomStrings.randomAsciiOfLength;
-import static org.opensearch.common.xcontent.ToXContent.EMPTY_PARAMS;
+import static org.opensearch.core.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.opensearch.common.xcontent.XContentHelper.createParser;
 
 public final class XContentTestUtils {
@@ -70,7 +70,8 @@ public final class XContentTestUtils {
         builder.startObject();
         part.toXContent(builder, EMPTY_PARAMS);
         builder.endObject();
-        return XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
+        XContentType xContentType = (XContentType) builder.contentType();
+        return XContentHelper.convertToMap(BytesReference.bytes(builder), false, xContentType).v2();
     }
 
     public static BytesReference convertToXContent(Map<String, ?> map, XContentType xContentType) throws IOException {

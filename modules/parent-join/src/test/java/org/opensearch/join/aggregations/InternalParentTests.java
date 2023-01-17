@@ -32,8 +32,8 @@
 
 package org.opensearch.join.aggregations;
 
-import org.opensearch.common.ParseField;
-import org.opensearch.common.xcontent.NamedXContentRegistry.Entry;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.xcontent.NamedXContentRegistry.Entry;
 import org.opensearch.join.ParentJoinModulePlugin;
 import org.opensearch.plugins.SearchPlugin;
 import org.opensearch.search.aggregations.Aggregation;

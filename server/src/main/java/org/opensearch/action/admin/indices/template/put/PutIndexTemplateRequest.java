@@ -48,14 +48,15 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.common.xcontent.support.XContentMapValues;
@@ -258,6 +259,21 @@ public class PutIndexTemplateRequest extends ClusterManagerNodeRequest<PutIndexT
      * Adds mapping that will be added when the index gets created.
      *
      * @param source The mapping source
+     * @param mediaType The type of content contained within the source
+     */
+    public PutIndexTemplateRequest mapping(String source, MediaType mediaType) {
+        if (mediaType instanceof XContentType == false) {
+            throw new IllegalArgumentException(
+                "PutIndexTemplateRequest does not support media type [" + mediaType.getClass().getName() + "]"
+            );
+        }
+        return mapping(new BytesArray(source), (XContentType) mediaType);
+    }
+
+    /**
+     * Adds mapping that will be added when the index gets created.
+     *
+     * @param source The mapping source
      * @param xContentType The type of content contained within the source
      */
     public PutIndexTemplateRequest mapping(String source, XContentType xContentType) {
@@ -271,6 +287,21 @@ public class PutIndexTemplateRequest extends ClusterManagerNodeRequest<PutIndexT
      */
     public PutIndexTemplateRequest mapping(XContentBuilder source) {
         return mapping(BytesReference.bytes(source), source.contentType());
+    }
+
+    /**
+     * Adds mapping that will be added when the index gets created.
+     *
+     * @param source The mapping source
+     * @param mediaType the source content type
+     */
+    public PutIndexTemplateRequest mapping(BytesReference source, MediaType mediaType) {
+        if (mediaType instanceof XContentType == false) {
+            throw new IllegalArgumentException(
+                "PutIndexTemplateRequest does not support media type [" + mediaType.getClass().getName() + "]"
+            );
+        }
+        return mapping(source, (XContentType) mediaType);
     }
 
     /**
@@ -406,6 +437,18 @@ public class PutIndexTemplateRequest extends ClusterManagerNodeRequest<PutIndexT
      */
     public PutIndexTemplateRequest source(byte[] source, int offset, int length, XContentType xContentType) {
         return source(new BytesArray(source, offset, length), xContentType);
+    }
+
+    /**
+     * The template source definition.
+     */
+    public PutIndexTemplateRequest source(BytesReference source, MediaType mediaType) {
+        if (mediaType instanceof XContentType == false) {
+            throw new IllegalArgumentException(
+                "PutIndexTemplateRequest does not support media type [" + mediaType.getClass().getName() + "]"
+            );
+        }
+        return source(XContentHelper.convertToMap(source, true, (XContentType) mediaType).v2());
     }
 
     /**

@@ -11,7 +11,7 @@ package org.opensearch.cluster.metadata;
 import org.opensearch.cluster.decommission.DecommissionAttribute;
 import org.opensearch.cluster.decommission.DecommissionAttributeMetadata;
 import org.opensearch.cluster.decommission.DecommissionStatus;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;

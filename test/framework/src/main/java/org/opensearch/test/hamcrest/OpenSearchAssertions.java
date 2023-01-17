@@ -60,11 +60,11 @@ import org.opensearch.cluster.metadata.IndexTemplateMetadata;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.DeprecationHandler;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.search.SearchHit;
@@ -683,7 +683,7 @@ public class OpenSearchAssertions {
 
     /**
      * Asserts that the provided {@link BytesReference}s created through
-     * {@link org.opensearch.common.xcontent.ToXContent#toXContent(XContentBuilder, ToXContent.Params)} hold the same content.
+     * {@link ToXContent#toXContent(XContentBuilder, ToXContent.Params)} hold the same content.
      * The comparison is done by parsing both into a map and comparing those two, so that keys ordering doesn't matter.
      * Also binary values (byte[]) are properly compared through arrays comparisons.
      */

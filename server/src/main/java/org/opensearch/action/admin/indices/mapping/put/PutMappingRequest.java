@@ -46,8 +46,9 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.util.CollectionUtils;
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
@@ -310,6 +311,16 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
      */
     public PutMappingRequest source(String mappingSource, XContentType xContentType) {
         return source(new BytesArray(mappingSource), xContentType);
+    }
+
+    /**
+     * The mapping source definition.
+     */
+    public PutMappingRequest source(BytesReference mappingSource, MediaType mediaType) {
+        if (mediaType instanceof XContentType == false) {
+            throw new IllegalArgumentException("PutMappingRequest does not support media type [" + mediaType.getClass().getName() + "]");
+        }
+        return source(mappingSource, (XContentType) mediaType);
     }
 
     /**

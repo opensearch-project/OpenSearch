@@ -45,7 +45,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * Checks for jdk jar hell
+ * CLI tool for checking jar hell
  *
  * @opensearch.internal
  */

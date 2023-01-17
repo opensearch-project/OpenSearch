@@ -43,7 +43,7 @@ import org.opensearch.action.ingest.SimulatePipelineRequest;
 import org.opensearch.action.ingest.SimulatePipelineResponse;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.ingest.PipelineConfiguration;
 
@@ -58,7 +58,11 @@ public class IngestClientIT extends OpenSearchRestHighLevelClientTestCase {
     public void testPutPipeline() throws IOException {
         String id = "some_pipeline_id";
         XContentBuilder pipelineBuilder = buildRandomXContentPipeline();
-        PutPipelineRequest request = new PutPipelineRequest(id, BytesReference.bytes(pipelineBuilder), pipelineBuilder.contentType());
+        PutPipelineRequest request = new PutPipelineRequest(
+            id,
+            BytesReference.bytes(pipelineBuilder),
+            (XContentType) pipelineBuilder.contentType()
+        );
 
         AcknowledgedResponse putPipelineResponse = execute(
             request,
@@ -72,7 +76,11 @@ public class IngestClientIT extends OpenSearchRestHighLevelClientTestCase {
         String id = "some_pipeline_id";
         XContentBuilder pipelineBuilder = buildRandomXContentPipeline();
         {
-            PutPipelineRequest request = new PutPipelineRequest(id, BytesReference.bytes(pipelineBuilder), pipelineBuilder.contentType());
+            PutPipelineRequest request = new PutPipelineRequest(
+                id,
+                BytesReference.bytes(pipelineBuilder),
+                (XContentType) pipelineBuilder.contentType()
+            );
             createPipeline(request);
         }
 
@@ -161,7 +169,7 @@ public class IngestClientIT extends OpenSearchRestHighLevelClientTestCase {
         }
         builder.endObject();
 
-        SimulatePipelineRequest request = new SimulatePipelineRequest(BytesReference.bytes(builder), builder.contentType());
+        SimulatePipelineRequest request = new SimulatePipelineRequest(BytesReference.bytes(builder), (XContentType) builder.contentType());
         request.setVerbose(isVerbose);
         SimulatePipelineResponse response = execute(
             request,

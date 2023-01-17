@@ -46,9 +46,9 @@ import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.network.NetworkModule;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.rest.RestRequest;
@@ -244,7 +244,7 @@ public class ClusterRerouteRequestTests extends OpenSearchTestCase {
         FakeRestRequest.Builder requestBuilder = new FakeRestRequest.Builder(xContentRegistry());
         requestBuilder.withParams(params);
         if (hasBody) {
-            requestBuilder.withContent(BytesReference.bytes(builder), builder.contentType());
+            requestBuilder.withContent(BytesReference.bytes(builder), (XContentType) builder.contentType());
         }
         return requestBuilder.build();
     }

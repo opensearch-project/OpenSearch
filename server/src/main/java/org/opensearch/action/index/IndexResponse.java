@@ -35,8 +35,8 @@ package org.opensearch.action.index;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.rest.RestStatus;
 

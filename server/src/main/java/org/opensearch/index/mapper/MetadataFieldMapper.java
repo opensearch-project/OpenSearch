@@ -33,7 +33,7 @@
 package org.opensearch.index.mapper;
 
 import org.opensearch.common.Explicit;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 
 import java.io.IOException;

@@ -55,7 +55,7 @@ import static org.hamcrest.Matchers.containsString;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshots;
 import org.opensearch.index.snapshots.blobstore.SnapshotFiles;

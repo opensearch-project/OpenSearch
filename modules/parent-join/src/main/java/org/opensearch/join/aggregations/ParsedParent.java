@@ -31,7 +31,7 @@
 
 package org.opensearch.join.aggregations;
 
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.search.aggregations.bucket.ParsedSingleBucketAggregation;
 
 import java.io.IOException;

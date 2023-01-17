@@ -33,7 +33,7 @@
 package org.opensearch.action.admin.indices.open;
 
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.AbstractSerializingTestCase;
 
 public class OpenIndexResponseTests extends AbstractSerializingTestCase<OpenIndexResponse> {

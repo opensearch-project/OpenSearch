@@ -32,7 +32,7 @@
 package org.opensearch.test.rest.yaml.restspec;
 
 import org.opensearch.common.util.set.Sets;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.yaml.YamlXContent;
 import org.opensearch.test.OpenSearchTestCase;
 

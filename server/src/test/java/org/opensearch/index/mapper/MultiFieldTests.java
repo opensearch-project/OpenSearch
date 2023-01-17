@@ -39,7 +39,7 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.support.XContentMapValues;
@@ -205,7 +205,7 @@ public class MultiFieldTests extends OpenSearchSingleNodeTestCase {
         Map<String, Object> sourceAsMap = XContentHelper.convertToMap(
             docMapper.mappingSource().compressedReference(),
             true,
-            builder.contentType()
+            (XContentType) builder.contentType()
         ).v2();
         @SuppressWarnings("unchecked")
         Map<String, Object> multiFields = (Map<String, Object>) XContentMapValues.extractValue(

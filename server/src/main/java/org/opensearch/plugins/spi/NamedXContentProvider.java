@@ -32,7 +32,7 @@
 
 package org.opensearch.plugins.spi;
 
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 
 import java.util.List;
 

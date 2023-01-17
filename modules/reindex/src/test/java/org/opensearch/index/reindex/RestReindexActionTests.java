@@ -35,7 +35,7 @@ package org.opensearch.index.reindex;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.test.rest.FakeRestRequest;
@@ -74,7 +74,7 @@ public class RestReindexActionTests extends RestActionTestCase {
                 body.endObject();
             }
             body.endObject();
-            request.withContent(BytesReference.bytes(body), body.contentType());
+            request.withContent(BytesReference.bytes(body), (XContentType) body.contentType());
         }
         request.withParams(singletonMap("pipeline", "doesn't matter"));
         Exception e = expectThrows(

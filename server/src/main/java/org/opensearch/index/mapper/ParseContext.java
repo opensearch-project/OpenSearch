@@ -37,7 +37,7 @@ import com.carrotsearch.hppc.ObjectObjectMap;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.IndexSettings;
 
 import java.util.ArrayList;

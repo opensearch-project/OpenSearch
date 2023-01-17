@@ -31,6 +31,7 @@
 
 package org.opensearch.common.xcontent;
 
+import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.rest.RestStatus;
 
 /**

@@ -36,12 +36,15 @@ import org.opensearch.common.xcontent.cbor.CborXContent;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.common.xcontent.smile.SmileXContent;
 import org.opensearch.common.xcontent.yaml.YamlXContent;
+import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeParser;
+import org.opensearch.core.xcontent.XContent;
 
 import java.util.Locale;
 import java.util.Map;
 
 /**
- * The content type of {@link org.opensearch.common.xcontent.XContent}.
+ * The content type of {@link XContent}.
  */
 public enum XContentType implements MediaType {
 

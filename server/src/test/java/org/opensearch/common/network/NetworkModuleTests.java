@@ -40,7 +40,7 @@ import org.opensearch.common.transport.BoundTransportAddress;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.http.HttpInfo;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.http.HttpStats;

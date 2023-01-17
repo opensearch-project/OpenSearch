@@ -35,7 +35,7 @@ package org.opensearch.index.mapper;
 import org.apache.lucene.document.FeatureField;
 import org.apache.lucene.index.IndexableField;
 import org.opensearch.common.Strings;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.plugins.Plugin;
 import org.hamcrest.Matchers;
 

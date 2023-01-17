@@ -47,10 +47,10 @@ import org.opensearch.cluster.coordination.NoClusterManagerBlockService;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.shard.IndexShardRecoveringException;
 import org.opensearch.index.shard.ShardId;
@@ -81,8 +81,8 @@ public final class RandomObjects {
 
     /**
      * Returns a tuple containing random stored field values and their corresponding expected values once printed out
-     * via {@link org.opensearch.common.xcontent.ToXContent#toXContent(XContentBuilder, ToXContent.Params)} and parsed back via
-     * {@link org.opensearch.common.xcontent.XContentParser#objectText()}.
+     * via {@link ToXContent#toXContent(XContentBuilder, ToXContent.Params)} and parsed back via
+     * {@link XContentParser#objectText()}.
      * Generates values based on what can get printed out. Stored fields values are retrieved from lucene and converted via
      * {@link org.opensearch.index.mapper.MappedFieldType#valueForDisplay(Object)} to either strings, numbers or booleans.
      *
@@ -145,8 +145,8 @@ public final class RandomObjects {
 
     /**
      * Converts the provided field value to its corresponding expected value once printed out
-     * via {@link org.opensearch.common.xcontent.ToXContent#toXContent(XContentBuilder, ToXContent.Params)} and parsed back via
-     * {@link org.opensearch.common.xcontent.XContentParser#objectText()}.
+     * via {@link ToXContent#toXContent(XContentBuilder, ToXContent.Params)} and parsed back via
+     * {@link XContentParser#objectText()}.
      * Generates values based on what can get printed out. Stored fields values are retrieved from lucene and converted via
      * {@link org.opensearch.index.mapper.MappedFieldType#valueForDisplay(Object)} to either strings, numbers or booleans.
      */

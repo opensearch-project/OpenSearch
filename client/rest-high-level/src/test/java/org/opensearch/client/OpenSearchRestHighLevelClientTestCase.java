@@ -51,7 +51,7 @@ import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
@@ -228,7 +228,7 @@ public abstract class OpenSearchRestHighLevelClientTestCase extends OpenSearchRe
 
     protected static void createPipeline(String pipelineId) throws IOException {
         XContentBuilder builder = buildRandomXContentPipeline();
-        createPipeline(new PutPipelineRequest(pipelineId, BytesReference.bytes(builder), builder.contentType()));
+        createPipeline(new PutPipelineRequest(pipelineId, BytesReference.bytes(builder), (XContentType) builder.contentType()));
     }
 
     protected static void createPipeline(PutPipelineRequest putPipelineRequest) throws IOException {
@@ -267,7 +267,7 @@ public abstract class OpenSearchRestHighLevelClientTestCase extends OpenSearchRe
         final PutPipelineRequest putPipelineRequest = new PutPipelineRequest(
             CONFLICT_PIPELINE_ID,
             BytesReference.bytes(pipelineBuilder),
-            pipelineBuilder.contentType()
+            (XContentType) pipelineBuilder.contentType()
         );
         assertTrue(highLevelClient().ingest().putPipeline(putPipelineRequest, RequestOptions.DEFAULT).isAcknowledged());
     }

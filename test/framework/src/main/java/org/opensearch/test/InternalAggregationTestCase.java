@@ -32,8 +32,7 @@
 
 package org.opensearch.test;
 
-import org.opensearch.common.ParseField;
-import org.opensearch.common.SetOnce;
+import org.apache.lucene.util.SetOnce;
 import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
@@ -41,10 +40,11 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.MockBigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;
-import org.opensearch.common.xcontent.ContextParser;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.xcontent.ContextParser;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentParserUtils;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
