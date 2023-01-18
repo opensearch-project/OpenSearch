@@ -16,6 +16,7 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutorService;
+import java.util.function.BooleanSupplier;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -53,7 +54,8 @@ public class RemoteBlobStoreInternalTranslogFactory implements TranslogFactory {
         TranslogDeletionPolicy deletionPolicy,
         LongSupplier globalCheckpointSupplier,
         LongSupplier primaryTermSupplier,
-        LongConsumer persistedSequenceNumberConsumer
+        LongConsumer persistedSequenceNumberConsumer,
+        BooleanSupplier primaryModeSupplier
     ) throws IOException {
 
         assert repository instanceof BlobStoreRepository : "repository should be instance of BlobStoreRepository";
@@ -66,7 +68,8 @@ public class RemoteBlobStoreInternalTranslogFactory implements TranslogFactory {
             primaryTermSupplier,
             persistedSequenceNumberConsumer,
             blobStoreRepository,
-            executorService
+            executorService,
+            primaryModeSupplier
         );
     }
 }

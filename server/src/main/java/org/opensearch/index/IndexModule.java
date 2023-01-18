@@ -461,11 +461,19 @@ public final class IndexModule {
         }
 
         /**
-         * Convenience method to check whether the given IndexSettings contains
-         * an {@link #INDEX_STORE_TYPE_SETTING} set to the value of this type.
+         * Convenience method to check whether the given {@link IndexSettings}
+         * object contains an {@link #INDEX_STORE_TYPE_SETTING} set to the value of this type.
          */
         public boolean match(IndexSettings settings) {
-            return match(INDEX_STORE_TYPE_SETTING.get(settings.getSettings()));
+            return match(settings.getSettings());
+        }
+
+        /**
+         * Convenience method to check whether the given {@link Settings}
+         * object contains an {@link #INDEX_STORE_TYPE_SETTING} set to the value of this type.
+         */
+        public boolean match(Settings settings) {
+            return match(INDEX_STORE_TYPE_SETTING.get(settings));
         }
     }
 

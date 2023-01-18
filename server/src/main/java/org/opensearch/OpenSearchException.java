@@ -34,6 +34,7 @@ package org.opensearch;
 
 import org.opensearch.action.support.replication.ReplicationOperation;
 import org.opensearch.cluster.action.shard.ShardStateAction;
+import org.opensearch.cluster.routing.PreferenceBasedSearchNotAllowedException;
 import org.opensearch.cluster.routing.UnsupportedWeightedRoutingStateException;
 import org.opensearch.cluster.service.ClusterManagerThrottlingException;
 import org.opensearch.common.CheckedFunction;
@@ -72,6 +73,7 @@ import static java.util.Collections.unmodifiableMap;
 import static org.opensearch.Version.V_2_1_0;
 import static org.opensearch.Version.V_2_4_0;
 import static org.opensearch.Version.V_2_5_0;
+import static org.opensearch.Version.V_2_6_0;
 import static org.opensearch.Version.V_3_0_0;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VALUE;
 import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -1631,6 +1633,12 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
             UnsupportedWeightedRoutingStateException::new,
             167,
             V_2_5_0
+        ),
+        PREFERENCE_BASED_SEARCH_NOT_ALLOWED_EXCEPTION(
+            PreferenceBasedSearchNotAllowedException.class,
+            PreferenceBasedSearchNotAllowedException::new,
+            168,
+            V_2_6_0
         ),
         INDEX_CREATE_BLOCK_EXCEPTION(
             org.opensearch.cluster.block.IndexCreateBlockException.class,

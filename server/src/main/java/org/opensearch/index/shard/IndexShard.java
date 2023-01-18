@@ -220,6 +220,7 @@ import static org.opensearch.index.seqno.SequenceNumbers.LOCAL_CHECKPOINT_KEY;
 import static org.opensearch.index.seqno.SequenceNumbers.MAX_SEQ_NO;
 import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.opensearch.index.shard.RemoteStoreRefreshListener.SEGMENT_INFO_SNAPSHOT_FILENAME_PREFIX;
+import static org.opensearch.index.translog.Translog.Durability;
 
 /**
  * An OpenSearch index shard
@@ -768,6 +769,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         try (Releasable forceRefreshes = refreshListeners.forceRefreshes()) {
             indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> {
                 forceRefreshes.close();
+
+                boolean syncTranslog = isRemoteTranslogEnabled() && Durability.ASYNC == indexSettings.getTranslogDurability();
+                // Since all the index permits are acquired at this point, the translog buffer will not change.
+                // It is safe to perform sync of translogs now as this will ensure for remote-backed indexes, the
+                // translogs has been uploaded to the remote store.
+                if (syncTranslog) {
+                    maybeSync();
+                }
                 // no shard operation permits are being held here, move state from started to relocated
                 assert indexShardOperationPermits.getActiveOperationsCount() == OPERATIONS_BLOCKED
                     : "in-flight operations in progress while moving shard state to relocated";
@@ -805,6 +814,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // Fail primary relocation source and target shards.
             failShard("timed out waiting for relocation hand-off to complete", null);
             throw new IndexShardClosedException(shardId(), "timed out waiting for relocation hand-off to complete");
+        }
+    }
+
+    private void maybeSync() {
+        try {
+            if (isSyncNeeded()) {
+                sync();
+            }
+        } catch (IOException e) {
+            logger.warn("failed to sync translog", e);
         }
     }
 
@@ -2067,7 +2086,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         };
 
         // Do not load the global checkpoint if this is a remote snapshot index
-        if (IndexModule.Type.REMOTE_SNAPSHOT.match(indexSettings) == false) {
+        if (indexSettings.isRemoteSnapshot() == false) {
             loadGlobalCheckpointToReplicationTracker();
         }
 
@@ -2126,7 +2145,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private boolean assertSequenceNumbersInCommit() throws IOException {
-        final Map<String, String> userData = SegmentInfos.readLatestCommit(store.directory()).getUserData();
+        final Map<String, String> userData = fetchUserData();
         assert userData.containsKey(SequenceNumbers.LOCAL_CHECKPOINT_KEY) : "commit point doesn't contains a local checkpoint";
         assert userData.containsKey(MAX_SEQ_NO) : "commit point doesn't contains a maximum sequence number";
         assert userData.containsKey(Engine.HISTORY_UUID_KEY) : "commit point doesn't contains a history uuid";
@@ -2139,6 +2158,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             + Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID
             + " is not found in commit";
         return true;
+    }
+
+    private Map<String, String> fetchUserData() throws IOException {
+        if (indexSettings.isRemoteSnapshot() && indexSettings.getExtendedCompatibilitySnapshotVersion() != null) {
+            // Inefficient method to support reading old Lucene indexes
+            return Lucene.readSegmentInfosExtendedCompatibility(store.directory(), indexSettings.getExtendedCompatibilitySnapshotVersion())
+                .getUserData();
+        } else {
+            return SegmentInfos.readLatestCommit(store.directory()).getUserData();
+        }
     }
 
     private void onNewEngine(Engine newEngine) {
@@ -2908,7 +2937,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert assertPrimaryMode();
         // only sync if there are no operations in flight, or when using async durability
         final SeqNoStats stats = getEngine().getSeqNoStats(replicationTracker.getGlobalCheckpoint());
-        final boolean asyncDurability = indexSettings().getTranslogDurability() == Translog.Durability.ASYNC;
+        final boolean asyncDurability = indexSettings().getTranslogDurability() == Durability.ASYNC;
         if (stats.getMaxSeqNo() == stats.getGlobalCheckpoint() || asyncDurability) {
             final ObjectLongMap<String> globalCheckpoints = getInSyncGlobalCheckpoints();
             final long globalCheckpoint = replicationTracker.getGlobalCheckpoint();
@@ -3001,7 +3030,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             + routingEntry()
             + "]";
         assert getLocalCheckpoint() == primaryContext.getCheckpointStates().get(routingEntry().allocationId().getId()).getLocalCheckpoint()
-            || indexSettings().getTranslogDurability() == Translog.Durability.ASYNC : "local checkpoint ["
+            || indexSettings().getTranslogDurability() == Durability.ASYNC : "local checkpoint ["
                 + getLocalCheckpoint()
                 + "] does not match checkpoint from primary context ["
                 + primaryContext
@@ -3421,6 +3450,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             () -> getOperationPrimaryTerm(),
             tombstoneDocSupplier(),
             isReadOnlyReplica,
+            replicationTracker::isPrimaryMode,
             translogFactorySupplier.apply(indexSettings, shardRouting)
         );
     }
@@ -3826,7 +3856,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * Returns the current translog durability mode
      */
-    public Translog.Durability getTranslogDurability() {
+    public Durability getTranslogDurability() {
         return indexSettings.getTranslogDurability();
     }
 

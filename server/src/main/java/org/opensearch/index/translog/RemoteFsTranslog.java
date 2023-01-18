@@ -29,6 +29,7 @@ import java.nio.file.Path;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
+import java.util.function.BooleanSupplier;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 
@@ -45,6 +46,7 @@ public class RemoteFsTranslog extends Translog {
     private final BlobStoreRepository blobStoreRepository;
     private final TranslogTransferManager translogTransferManager;
     private final FileTransferTracker fileTransferTracker;
+    private final BooleanSupplier primaryModeSupplier;
     private volatile long maxRemoteTranslogGenerationUploaded;
 
     private volatile long minSeqNoToKeep;
@@ -57,10 +59,12 @@ public class RemoteFsTranslog extends Translog {
         LongSupplier primaryTermSupplier,
         LongConsumer persistedSequenceNumberConsumer,
         BlobStoreRepository blobStoreRepository,
-        ExecutorService executorService
+        ExecutorService executorService,
+        BooleanSupplier primaryModeSupplier
     ) throws IOException {
         super(config, translogUUID, deletionPolicy, globalCheckpointSupplier, primaryTermSupplier, persistedSequenceNumberConsumer);
         this.blobStoreRepository = blobStoreRepository;
+        this.primaryModeSupplier = primaryModeSupplier;
         fileTransferTracker = new FileTransferTracker(shardId);
         this.translogTransferManager = buildTranslogTransferManager(blobStoreRepository, executorService, shardId, fileTransferTracker);
 
@@ -198,7 +202,17 @@ public class RemoteFsTranslog extends Translog {
     }
 
     private boolean upload(Long primaryTerm, Long generation) throws IOException {
-        logger.trace("uploading translog for {} {} ", primaryTerm, generation);
+        // During primary relocation (primary-primary peer recovery), both the old and the new primary have engine
+        // created with the RemoteFsTranslog. Both primaries are equipped to upload the translogs. The primary mode check
+        // below ensures that the real primary only is uploading. Before the primary mode is set as true for the new
+        // primary, the engine is reset to InternalEngine which also initialises the RemoteFsTranslog which in turns
+        // downloads all the translogs from remote store and does a flush before the relocation finishes.
+        if (primaryModeSupplier.getAsBoolean() == false) {
+            logger.trace("skipped uploading translog for {} {}", primaryTerm, generation);
+            // NO-OP
+            return true;
+        }
+        logger.trace("uploading translog for {} {}", primaryTerm, generation);
         try (
             TranslogCheckpointTransferSnapshot transferSnapshotProvider = new TranslogCheckpointTransferSnapshot.Builder(
                 primaryTerm,
@@ -262,7 +276,7 @@ public class RemoteFsTranslog extends Translog {
     }
 
     /**
-     *  Returns <code>true</code> if an fsync and/or remote transfer is required to ensure durability of the translogs operations or it's metadata.
+     * Returns <code>true</code> if an fsync and/or remote transfer is required to ensure durability of the translogs operations or it's metadata.
      */
     public boolean syncNeeded() {
         try (ReleasableLock lock = readLock.acquire()) {

@@ -3,6 +3,7 @@
 ## [Unreleased]
 ### Dependencies
 - Bumps `azure-core-http-netty` from 1.12.7 to 1.12.8
+- Bumps `reactor-netty` from 1.1.1 to 1.1.2
 
 
 All notable changes to this project are documented in this file.
@@ -32,12 +33,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Added support for feature flags in opensearch.yml ([#4959](https://github.com/opensearch-project/OpenSearch/pull/4959))
 - Add query for initialized extensions ([#5658](https://github.com/opensearch-project/OpenSearch/pull/5658))
 - Revert 'Added jackson dependency to server' and change extension reading ([#5768](https://github.com/opensearch-project/OpenSearch/pull/5768))
+- Add support to disallow search request with preference parameter with strict weighted shard routing([#5874](https://github.com/opensearch-project/OpenSearch/pull/5874))
 - Replace latches with CompletableFutures for extensions ([#5646](https://github.com/opensearch-project/OpenSearch/pull/5646))
 
 ### Dependencies
 - Bumps `log4j-core` from 2.18.0 to 2.19.0
 - Bumps `reactor-netty-http` from 1.0.18 to 1.0.23
-- Bumps `jettison` from 1.5.0 to 1.5.1
+- Bumps `jettison` from 1.5.0 to 1.5.3
 - Bumps `forbiddenapis` from 3.3 to 3.4
 - Bumps `gson` from 2.9.0 to 2.10
 - Bumps `avro` from 1.11.0 to 1.11.1
@@ -107,6 +109,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased 2.x]
 ### Added
+- Added cluster manager throttling stats in nodes/stats API ([#5790](https://github.com/opensearch-project/OpenSearch/pull/5790))
 
 ### Dependencies
 

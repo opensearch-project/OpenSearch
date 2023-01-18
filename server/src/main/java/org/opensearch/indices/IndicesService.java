@@ -911,7 +911,7 @@ public class IndicesService extends AbstractLifecycleComponent
             if (idxSettings.isSegRepEnabled()) {
                 return new NRTReplicationEngineFactory();
             }
-            if (IndexModule.Type.REMOTE_SNAPSHOT.match(idxSettings)) {
+            if (idxSettings.isRemoteSnapshot()) {
                 return config -> new ReadOnlyEngine(config, new SeqNoStats(0, 0, 0), new TranslogStats(), true, Function.identity(), false);
             }
             return new InternalEngineFactory();
