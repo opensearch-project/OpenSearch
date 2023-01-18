@@ -28,7 +28,7 @@ import org.opensearch.action.get.MultiGetItemResponse;
 import org.opensearch.action.get.MultiGetRequest;
 import org.opensearch.action.get.MultiGetResponse;
 import org.opensearch.action.get.MultiGetResponse.Failure;
-import org.opensearch.authn.DefaultObjectMapper;
+import org.opensearch.identity.DefaultObjectMapper;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.bytes.BytesArray;

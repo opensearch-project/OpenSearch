@@ -8,7 +8,7 @@
 
 package org.opensearch.identity.configuration;
 
-import org.opensearch.authn.User;
+import org.opensearch.identity.User;
 
 import java.util.Collections;
 import java.util.HashMap;

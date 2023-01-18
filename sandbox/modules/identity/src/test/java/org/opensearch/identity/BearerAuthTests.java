@@ -10,9 +10,9 @@ package org.opensearch.identity;
 
 import org.apache.cxf.rs.security.jose.jwt.JwtToken;
 import org.hamcrest.MatcherAssert;
-import org.opensearch.authn.jwt.BadCredentialsException;
-import org.opensearch.authn.jwt.JwtVendor;
-import org.opensearch.authn.jwt.JwtVerifier;
+import org.opensearch.identity.jwt.BadCredentialsException;
+import org.opensearch.identity.jwt.JwtVendor;
+import org.opensearch.identity.jwt.JwtVerifier;
 import org.opensearch.client.Request;
 import org.opensearch.client.RequestOptions;
 import org.opensearch.client.Response;

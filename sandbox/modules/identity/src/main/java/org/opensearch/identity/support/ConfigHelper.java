@@ -14,7 +14,7 @@ import org.opensearch.action.DocWriteRequest.OpType;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.support.WriteRequest.RefreshPolicy;
-import org.opensearch.authn.DefaultObjectMapper;
+import org.opensearch.identity.DefaultObjectMapper;
 import org.opensearch.client.Client;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.NamedXContentRegistry;

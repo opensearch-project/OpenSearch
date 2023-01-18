@@ -12,7 +12,7 @@ import java.nio.file.Path;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import org.opensearch.authn.User;
+import org.opensearch.identity.User;
 import org.opensearch.identity.configuration.model.InternalUsersModel;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
