@@ -131,7 +131,7 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
             }
 
             @Override
-            protected void applyIndexCreateBlock(ActionListener<Void> listener, boolean indexCreateBlock) {
+            protected void setIndexCreateBlock(ActionListener<Void> listener, boolean indexCreateBlock) {
                 listener.onResponse(null);
             }
         };
@@ -192,7 +192,7 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
             }
 
             @Override
-            protected void applyIndexCreateBlock(ActionListener<Void> listener, boolean indexCreateBlock) {
+            protected void setIndexCreateBlock(ActionListener<Void> listener, boolean indexCreateBlock) {
                 listener.onResponse(null);
             }
         };
@@ -384,7 +384,7 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
             }
 
             @Override
-            protected void applyIndexCreateBlock(ActionListener<Void> listener, boolean indexCreateBlock) {
+            protected void setIndexCreateBlock(ActionListener<Void> listener, boolean indexCreateBlock) {
                 listener.onResponse(null);
             }
 
@@ -446,7 +446,7 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
             }
 
             @Override
-            protected void applyIndexCreateBlock(ActionListener<Void> listener, boolean indexCreateBlock) {
+            protected void setIndexCreateBlock(ActionListener<Void> listener, boolean indexCreateBlock) {
                 listener.onResponse(null);
             }
         };
@@ -559,7 +559,7 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
             }
 
             @Override
-            protected void applyIndexCreateBlock(ActionListener<Void> listener, boolean indexCreateBlock) {
+            protected void setIndexCreateBlock(ActionListener<Void> listener, boolean indexCreateBlock) {
                 listener.onResponse(null);
             }
         };

@@ -79,7 +79,6 @@ import java.util.stream.StreamSupport;
 public class DiskThresholdMonitor {
 
     private static final Logger logger = LogManager.getLogger(DiskThresholdMonitor.class);
-    public static final int INDEX_CREATE_BLOCK_ID = 10;
     private final DiskThresholdSettings diskThresholdSettings;
     private final Client client;
     private final Supplier<ClusterState> clusterStateSupplier;
@@ -377,9 +376,9 @@ public class DiskThresholdMonitor {
 
         // If all the nodes are breaching high disk watermark, we apply index create block to avoid red clusters.
         if (nodesOverHighThreshold.size() == nodes.size()) {
-            applyIndexCreateBlock(listener, true);
-        } else if (state.getBlocks().hasGlobalBlockWithId(INDEX_CREATE_BLOCK_ID)) {
-            applyIndexCreateBlock(listener, false);
+            setIndexCreateBlock(listener, true);
+        } else if (state.getBlocks().hasGlobalBlockWithId(Metadata.CLUSTER_CREATE_INDEX_BLOCK.id())) {
+            setIndexCreateBlock(listener, false);
         } else {
             listener.onResponse(null);
         }
@@ -416,7 +415,7 @@ public class DiskThresholdMonitor {
         lastRunTimeMillis.getAndUpdate(l -> Math.max(l, currentTimeMillisSupplier.getAsLong()));
     }
 
-    protected void applyIndexCreateBlock(final ActionListener<Void> listener, boolean indexCreateBlock) {
+    protected void setIndexCreateBlock(final ActionListener<Void> listener, boolean indexCreateBlock) {
         final ActionListener<Void> wrappedListener = ActionListener.wrap(r -> {
             setLastRunTimeMillis();
             listener.onResponse(r);
