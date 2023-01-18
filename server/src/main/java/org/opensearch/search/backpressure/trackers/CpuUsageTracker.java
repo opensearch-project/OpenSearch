@@ -64,9 +64,9 @@ public class CpuUsageTracker extends TaskResourceUsageTracker {
     }
 
     @Override
-    public TaskResourceUsageTracker.Stats stats(List<? extends Task> tasks) {
-        long currentMax = tasks.stream().mapToLong(t -> t.getTotalResourceStats().getCpuTimeInNanos()).max().orElse(0);
-        long currentAvg = (long) tasks.stream().mapToLong(t -> t.getTotalResourceStats().getCpuTimeInNanos()).average().orElse(0);
+    public TaskResourceUsageTracker.Stats stats(List<? extends Task> activeTasks) {
+        long currentMax = activeTasks.stream().mapToLong(t -> t.getTotalResourceStats().getCpuTimeInNanos()).max().orElse(0);
+        long currentAvg = (long) activeTasks.stream().mapToLong(t -> t.getTotalResourceStats().getCpuTimeInNanos()).average().orElse(0);
         return new Stats(getCancellations(), currentMax, currentAvg);
     }
 

@@ -8,13 +8,16 @@
 
 package org.opensearch.search.backpressure.settings;
 
-import org.apache.logging.log4j.LogManager;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.monitor.jvm.JvmStats;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 /**
  * Defines the settings related to the cancellation of SearchTasks.
@@ -24,8 +27,13 @@ import java.util.concurrent.TimeUnit;
 
 public class SearchTaskSettings {
     private static final long HEAP_SIZE_BYTES = JvmStats.jvmStats().getMem().getHeapMax().getBytes();
+    private final List<Listener> listeners = new ArrayList<>();
 
     private static class Defaults {
+        // TODO: decide on default settings for SearchTask
+        private static final double CANCELLATION_RATIO = 0.1;
+        private static final double CANCELLATION_RATE = 0.003;
+        private static final double CANCELLATION_BURST = 10.0;
         private static final double TOTAL_HEAP_PERCENT_THRESHOLD = 0.05;
         private static final long CPU_TIME_MILLIS_THRESHOLD = 60000;
         private static final long ELAPSED_TIME_MILLIS_THRESHOLD = 120000;
@@ -33,6 +41,45 @@ public class SearchTaskSettings {
         private static final double HEAP_VARIANCE_THRESHOLD = 2.0;
         private static final int HEAP_MOVING_AVERAGE_WINDOW_SIZE = 100;
     }
+
+    /**
+     * Defines the percentage of SearchTasks to cancel relative to the number of successful SearchTask completions.
+     * In other words, it is the number of tokens added to the bucket on each successful SearchTask completion.
+     */
+    private volatile double cancellationRatio;
+    public static final Setting<Double> SETTING_CANCELLATION_RATIO = Setting.doubleSetting(
+        "search_backpressure.search_task.cancellation_ratio",
+        Defaults.CANCELLATION_RATIO,
+        0.0,
+        1.0,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Defines the number of SearchTasks to cancel per unit time (in millis).
+     * In other words, it is the number of tokens added to the bucket each millisecond.
+     */
+    private volatile double cancellationRate;
+    public static final Setting<Double> SETTING_CANCELLATION_RATE = Setting.doubleSetting(
+        "search_backpressure.search_task.cancellation_rate",
+        Defaults.CANCELLATION_RATE,
+        0.0,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Defines the maximum number of SearchTasks that can be cancelled before being rate-limited.
+     */
+    private volatile double cancellationBurst;
+    public static final Setting<Double> SETTING_CANCELLATION_BURST = Setting.doubleSetting(
+        "search_backpressure.search_task.cancellation_burst",
+        Defaults.CANCELLATION_BURST,
+        1.0,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
 
     /**
      * Defines the heap usage threshold (in percentage) for the sum of heap usages across all search tasks
@@ -117,12 +164,30 @@ public class SearchTaskSettings {
         this.heapPercentThreshold = SETTING_HEAP_PERCENT_THRESHOLD.get(settings);
         this.heapVarianceThreshold = SETTING_HEAP_VARIANCE_THRESHOLD.get(settings);
         this.heapMovingAverageWindowSize = SETTING_HEAP_MOVING_AVERAGE_WINDOW_SIZE.get(settings);
+        this.cancellationRatio = SETTING_CANCELLATION_RATIO.get(settings);
+        this.cancellationRate = SETTING_CANCELLATION_RATE.get(settings);
+        this.cancellationBurst = SETTING_CANCELLATION_BURST.get(settings);
+
         clusterSettings.addSettingsUpdateConsumer(SETTING_TOTAL_HEAP_PERCENT_THRESHOLD, this::setTotalHeapPercentThreshold);
         clusterSettings.addSettingsUpdateConsumer(SETTING_CPU_TIME_MILLIS_THRESHOLD, this::setCpuTimeMillisThreshold);
         clusterSettings.addSettingsUpdateConsumer(SETTING_ELAPSED_TIME_MILLIS_THRESHOLD, this::setElapsedTimeMillisThreshold);
         clusterSettings.addSettingsUpdateConsumer(SETTING_HEAP_PERCENT_THRESHOLD, this::setHeapPercentThreshold);
         clusterSettings.addSettingsUpdateConsumer(SETTING_HEAP_VARIANCE_THRESHOLD, this::setHeapVarianceThreshold);
         clusterSettings.addSettingsUpdateConsumer(SETTING_HEAP_MOVING_AVERAGE_WINDOW_SIZE, this::setHeapMovingAverageWindowSize);
+        clusterSettings.addSettingsUpdateConsumer(SETTING_CANCELLATION_RATIO, this::setCancellationRatio);
+        clusterSettings.addSettingsUpdateConsumer(SETTING_CANCELLATION_RATE, this::setCancellationRate);
+        clusterSettings.addSettingsUpdateConsumer(SETTING_CANCELLATION_BURST, this::setCancellationBurst);
+    }
+
+    /**
+     * Callback listeners.
+     */
+    public interface Listener {
+        void onCancellationRatioSearchTaskChanged();
+
+        void onCancellationRateSearchTaskChanged();
+
+        void onCancellationBurstSearchTaskChanged();
     }
 
     public double getTotalHeapPercentThreshold() {
@@ -158,7 +223,6 @@ public class SearchTaskSettings {
     }
 
     public void setCpuTimeMillisThreshold(long cpuTimeMillisThreshold) {
-        LogManager.getLogger(SearchTaskSettings.class).info("setCpuTimeMillisThreshold " + cpuTimeMillisThreshold);
         this.cpuTimeMillisThreshold = cpuTimeMillisThreshold;
     }
 
@@ -176,5 +240,54 @@ public class SearchTaskSettings {
 
     public void setHeapMovingAverageWindowSize(int heapMovingAverageWindowSize) {
         this.heapMovingAverageWindowSize = heapMovingAverageWindowSize;
+    }
+
+    public double getCancellationRatio() {
+        return cancellationRatio;
+    }
+
+    private void setCancellationRatio(double cancellationRatio) {
+        this.cancellationRatio = cancellationRatio;
+        notifyListeners(Listener::onCancellationRatioSearchTaskChanged);
+    }
+
+    public double getCancellationRate() {
+        return cancellationRate;
+    }
+
+    public double getCancellationRateNanos() {
+        return getCancellationRate() / TimeUnit.MILLISECONDS.toNanos(1); // rate per nanoseconds
+    }
+
+    private void setCancellationRate(double cancellationRate) {
+        this.cancellationRate = cancellationRate;
+        notifyListeners(Listener::onCancellationRateSearchTaskChanged);
+    }
+
+    public double getCancellationBurst() {
+        return cancellationBurst;
+    }
+
+    private void setCancellationBurst(double cancellationBurst) {
+        this.cancellationBurst = cancellationBurst;
+        notifyListeners(Listener::onCancellationBurstSearchTaskChanged);
+    }
+
+    public void addListener(Listener listener) {
+        listeners.add(listener);
+    }
+
+    private void notifyListeners(Consumer<Listener> consumer) {
+        List<Exception> exceptions = new ArrayList<>();
+
+        for (Listener listener : listeners) {
+            try {
+                consumer.accept(listener);
+            } catch (Exception e) {
+                exceptions.add(e);
+            }
+        }
+
+        ExceptionsHelper.maybeThrowRuntimeAndSuppress(exceptions);
     }
 }

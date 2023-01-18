@@ -65,10 +65,10 @@ public class ElapsedTimeTracker extends TaskResourceUsageTracker {
     }
 
     @Override
-    public TaskResourceUsageTracker.Stats stats(List<? extends Task> tasks) {
+    public TaskResourceUsageTracker.Stats stats(List<? extends Task> activeTasks) {
         long now = timeNanosSupplier.getAsLong();
-        long currentMax = tasks.stream().mapToLong(t -> now - t.getStartTimeNanos()).max().orElse(0);
-        long currentAvg = (long) tasks.stream().mapToLong(t -> now - t.getStartTimeNanos()).average().orElse(0);
+        long currentMax = activeTasks.stream().mapToLong(t -> now - t.getStartTimeNanos()).max().orElse(0);
+        long currentAvg = (long) activeTasks.stream().mapToLong(t -> now - t.getStartTimeNanos()).average().orElse(0);
         return new Stats(getCancellations(), currentMax, currentAvg);
     }
 
