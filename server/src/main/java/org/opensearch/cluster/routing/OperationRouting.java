@@ -90,11 +90,19 @@ public class OperationRouting {
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
+
+    public static final Setting<Boolean> STRICT_WEIGHTED_SHARD_ROUTING_ENABLED = Setting.boolSetting(
+        "cluster.routing.weighted.strict",
+        false,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
     private volatile List<String> awarenessAttributes;
     private volatile boolean useAdaptiveReplicaSelection;
     private volatile boolean ignoreAwarenessAttr;
     private volatile double weightedRoutingDefaultWeight;
     private volatile boolean isFailOpenEnabled;
+    private volatile boolean isStrictWeightedShardRouting;
 
     public OperationRouting(Settings settings, ClusterSettings clusterSettings) {
         // whether to ignore awareness attributes when routing requests
@@ -107,10 +115,12 @@ public class OperationRouting {
         this.useAdaptiveReplicaSelection = USE_ADAPTIVE_REPLICA_SELECTION_SETTING.get(settings);
         this.weightedRoutingDefaultWeight = WEIGHTED_ROUTING_DEFAULT_WEIGHT.get(settings);
         this.isFailOpenEnabled = WEIGHTED_ROUTING_FAILOPEN_ENABLED.get(settings);
+        this.isStrictWeightedShardRouting = STRICT_WEIGHTED_SHARD_ROUTING_ENABLED.get(settings);
         clusterSettings.addSettingsUpdateConsumer(USE_ADAPTIVE_REPLICA_SELECTION_SETTING, this::setUseAdaptiveReplicaSelection);
         clusterSettings.addSettingsUpdateConsumer(IGNORE_AWARENESS_ATTRIBUTES_SETTING, this::setIgnoreAwarenessAttributes);
         clusterSettings.addSettingsUpdateConsumer(WEIGHTED_ROUTING_DEFAULT_WEIGHT, this::setWeightedRoutingDefaultWeight);
         clusterSettings.addSettingsUpdateConsumer(WEIGHTED_ROUTING_FAILOPEN_ENABLED, this::setFailOpenEnabled);
+        clusterSettings.addSettingsUpdateConsumer(STRICT_WEIGHTED_SHARD_ROUTING_ENABLED, this::setStrictWeightedShardRouting);
     }
 
     void setUseAdaptiveReplicaSelection(boolean useAdaptiveReplicaSelection) {
@@ -127,6 +137,10 @@ public class OperationRouting {
 
     void setFailOpenEnabled(boolean isFailOpenEnabled) {
         this.isFailOpenEnabled = isFailOpenEnabled;
+    }
+
+    void setStrictWeightedShardRouting(boolean strictWeightedShardRouting) {
+        this.isStrictWeightedShardRouting = strictWeightedShardRouting;
     }
 
     public boolean isIgnoreAwarenessAttr() {
@@ -266,6 +280,11 @@ public class OperationRouting {
     ) {
         if (preference == null || preference.isEmpty()) {
             return shardRoutings(indexShard, nodes, collectorService, nodeCounts, weightedRoutingMetadata);
+        }
+        if (weightedRoutingMetadata != null && weightedRoutingMetadata.getWeightedRouting().isSet() && isStrictWeightedShardRouting) {
+            throw new PreferenceBasedSearchNotAllowedException(
+                "Preference based routing not allowed with strict weighted shard routing setting"
+            );
         }
         if (preference.charAt(0) == '_') {
             Preference preferenceType = Preference.parse(preference);
