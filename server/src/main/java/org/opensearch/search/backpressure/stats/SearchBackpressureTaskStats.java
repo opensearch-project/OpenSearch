@@ -88,22 +88,7 @@ public class SearchBackpressureTaskStats implements ToXContentObject, Writeable 
         SearchBackpressureTaskStats that = (SearchBackpressureTaskStats) o;
         return cancellationCount == that.cancellationCount
             && limitReachedCount == that.limitReachedCount
-            && compareMaps(resourceUsageTrackerStats, that.resourceUsageTrackerStats);
-    }
-
-    private boolean compareMaps(
-        Map<TaskResourceUsageTrackerType, TaskResourceUsageTracker.Stats> trackers1,
-        Map<TaskResourceUsageTrackerType, TaskResourceUsageTracker.Stats> trackers2
-    ) {
-        if (trackers1.size() != trackers2.size()) {
-            return false;
-        }
-        for (Map.Entry<TaskResourceUsageTrackerType, TaskResourceUsageTracker.Stats> e1 : trackers1.entrySet()) {
-            if (trackers2.containsKey(e1.getKey()) == false || trackers2.get(e1.getKey()).equals(e1.getValue()) == false) {
-                return false;
-            }
-        }
-        return true;
+            && resourceUsageTrackerStats.equals(that.resourceUsageTrackerStats);
     }
 
     @Override

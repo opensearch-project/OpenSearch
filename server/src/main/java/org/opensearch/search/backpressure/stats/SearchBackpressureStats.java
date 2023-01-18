@@ -8,7 +8,6 @@
 
 package org.opensearch.search.backpressure.stats;
 
-import org.opensearch.Version;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
@@ -40,11 +39,7 @@ public class SearchBackpressureStats implements ToXContentFragment, Writeable {
     public SearchBackpressureStats(StreamInput in) throws IOException {
         searchShardTaskStats = new SearchBackpressureTaskStats(in);
         mode = SearchBackpressureMode.fromName(in.readString());
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
-            searchTaskStats = new SearchBackpressureTaskStats(in);
-        } else {
-            searchTaskStats = null;
-        }
+        searchTaskStats = in.readOptionalWriteable(SearchBackpressureTaskStats::new);
     }
 
     @Override
@@ -60,9 +55,8 @@ public class SearchBackpressureStats implements ToXContentFragment, Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         searchShardTaskStats.writeTo(out);
         out.writeString(mode.getName());
-        if (Version.CURRENT.onOrAfter(Version.V_3_0_0) && out.getVersion().onOrAfter(Version.V_3_0_0)) {
-            searchTaskStats.writeTo(out);
-        }
+        // searchTaskStats.writeTo(out);
+        out.writeOptionalWriteable(searchTaskStats);
     }
 
     @Override
@@ -70,9 +64,9 @@ public class SearchBackpressureStats implements ToXContentFragment, Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SearchBackpressureStats that = (SearchBackpressureStats) o;
-        return (Version.CURRENT.onOrAfter(Version.V_3_0_0)
-            && searchTaskStats.equals(that.searchTaskStats)
-            && searchShardTaskStats.equals(that.searchShardTaskStats)) && mode == that.mode;
+        return mode == that.mode
+            && Objects.equals(searchTaskStats, that.searchTaskStats)
+            && Objects.equals(searchShardTaskStats, that.searchShardTaskStats);
     }
 
     @Override
