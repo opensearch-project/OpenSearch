@@ -70,7 +70,6 @@ import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.TextFieldMapper;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.support.QueryParsers;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -743,6 +742,14 @@ public class MatchQuery {
                 lastState = end;
                 final Query queryPos;
                 boolean usePrefix = isPrefix && end == -1;
+                /**
+                 * check if the GraphTokenStreamFiniteStrings graph is empty
+                 * return empty BooleanQuery result
+                 */
+                Iterator<TokenStream> graphIt = graph.getFiniteStrings();
+                if (!graphIt.hasNext()) {
+                    return builder.build();
+                }
                 if (graph.hasSidePath(start)) {
                     final Iterator<TokenStream> it = graph.getFiniteStrings(start, end);
                     Iterator<Query> queries = new Iterator<Query>() {
