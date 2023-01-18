@@ -7,6 +7,7 @@
  */
 
 /**
- * Module that provides authentication and authorization to OpenSearch
+ * Internal implementation of the APIs in the `opensearch-authn` library. This module provides security features
+ * like authentication, authorization and methods to interact with the internal Identity Provider.
  */
 package org.opensearch.identity;
