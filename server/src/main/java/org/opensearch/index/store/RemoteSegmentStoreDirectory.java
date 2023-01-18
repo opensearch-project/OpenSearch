@@ -11,6 +11,8 @@ package org.opensearch.index.store;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.store.BufferedChecksumIndexInput;
+import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
@@ -126,7 +128,17 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
 
     private Map<String, UploadedSegmentMetadata> readMetadataFile(String metadataFilename) throws IOException {
         try (IndexInput indexInput = remoteMetadataDirectory.openInput(metadataFilename, IOContext.DEFAULT)) {
-            Map<String, String> segmentMetadata = indexInput.readMapOfStrings();
+            // BufferedChecksumIndexInput reader keeps computing checksum for all the bytes we read from indexInput
+            // This checksum is then compared with checksum in footer
+            ChecksumIndexInput in = new BufferedChecksumIndexInput(indexInput);
+            CodecUtil.checkHeader(
+                in,
+                UploadedSegmentMetadata.METADATA_CODEC,
+                UploadedSegmentMetadata.CURRENT_VERSION,
+                UploadedSegmentMetadata.CURRENT_VERSION
+            );
+            Map<String, String> segmentMetadata = in.readMapOfStrings();
+            CodecUtil.checkFooter(in);
             return segmentMetadata.entrySet()
                 .stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, entry -> UploadedSegmentMetadata.fromString(entry.getValue())));
@@ -137,6 +149,9 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
      * Metadata of a segment that is uploaded to remote segment store.
      */
     public static class UploadedSegmentMetadata {
+        private static final int CURRENT_VERSION = 1;
+        private static final String METADATA_CODEC = "segment_md";
+
         // Visible for testing
         static final String SEPARATOR = "::";
         private final String originalFilename;
@@ -353,7 +368,10 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
                     throw new NoSuchFileException(file);
                 }
             }
+
+            CodecUtil.writeHeader(indexOutput, UploadedSegmentMetadata.METADATA_CODEC, UploadedSegmentMetadata.CURRENT_VERSION);
             indexOutput.writeMapOfStrings(uploadedSegments);
+            CodecUtil.writeFooter(indexOutput);
             indexOutput.close();
             storeDirectory.sync(Collections.singleton(metadataFilename));
             remoteMetadataDirectory.copyFrom(storeDirectory, metadataFilename, metadataFilename, IOContext.DEFAULT);
