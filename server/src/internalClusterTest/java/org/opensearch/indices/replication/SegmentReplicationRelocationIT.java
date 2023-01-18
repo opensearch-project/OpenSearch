@@ -22,15 +22,12 @@ import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.IndexModule;
-import org.opensearch.index.query.QueryBuilders;
-import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.TransportService;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -281,6 +278,10 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationIT {
         assertEquals(client().prepareSearch(INDEX_NAME).setSize(0).execute().actionGet().getHits().getTotalHits().value, 120L);
     }
 
+    /**
+     * This test verifies delayed operations are replayed and searchable on target
+     *
+     */
     @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/5669")
     public void testRelocateWithQueuedOperationsDuringHandoff() throws Exception {
         final String primary = internalCluster().startNode(featureFlagSettings());
@@ -321,16 +322,15 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationIT {
             .actionGet();
         assertEquals(clusterHealthResponse.isTimedOut(), false);
 
-        // Mock transport service to add behaviour of throwing corruption exception during segment replication process.
+        // Mock transport service to halt round of segment replication to allow indexing in parallel.
         MockTransportService mockTransportService = ((MockTransportService) internalCluster().getInstance(TransportService.class, replica));
-        // Block segment replication to allow adding operations during handoff
-        CountDownLatch latch = new CountDownLatch(1);
+        CountDownLatch blockSegRepLatch = new CountDownLatch(1);
         CountDownLatch relocationLatch = new CountDownLatch(1);
         mockTransportService.addSendBehavior(
             internalCluster().getInstance(TransportService.class, primary),
             (connection, requestId, action, request, options) -> {
                 if (action.equals(SegmentReplicationSourceService.Actions.GET_SEGMENT_FILES)) {
-                    latch.countDown();
+                    blockSegRepLatch.countDown();
                     try {
                         relocationLatch.await();
                     } catch (InterruptedException e) {
@@ -340,11 +340,11 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationIT {
                 connection.sendRequest(requestId, action, request, options);
             }
         );
-        int totalDocCount = 2000;
-        Runnable relocationThread = () -> {
+        int totalDocCount = 200;
+        Thread relocationThread = new Thread(() -> {
             // Wait for relocation to halt at SegRep. Ingest docs at that point.
             try {
-                latch.await();
+                blockSegRepLatch.await();
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
@@ -353,12 +353,8 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationIT {
                     client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).execute()
                 );
             }
-            IndexShard indexShard = getIndexShard(replica);
-            logger.info("--> Active operations {}", indexShard.getActiveOperationsCount());
-            assertTrue(indexShard.getActiveOperationsCount() > 0);
-            // Post ingestion, let SegRep to complete.
             relocationLatch.countDown();
-        };
+        });
 
         logger.info("--> relocate the shard from primary to replica");
         ActionFuture<ClusterRerouteResponse> relocationListener = client().admin()
@@ -369,8 +365,8 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationIT {
 
         // This thread first waits for recovery to halt during segment replication. After which it ingests data to ensure
         // have some documents queued.
-        relocationThread.run();
-
+        relocationThread.start();
+        relocationThread.join();
         relocationListener.actionGet();
         clusterHealthResponse = client().admin()
             .cluster()

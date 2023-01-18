@@ -819,7 +819,7 @@ public abstract class RecoverySourceHandler {
             );
 
             if (request.isPrimaryRelocation()) {
-                logger.trace("performing relocation hand-off");
+                logger.info("performing relocation hand-off");
                 final Runnable forceSegRepRunnable = shard.indexSettings().isSegRepEnabled()
                     ? recoveryTarget::forceSegmentFileSync
                     : () -> {};
@@ -834,7 +834,7 @@ public abstract class RecoverySourceHandler {
                  */
             }
             stopWatch.stop();
-            logger.trace("finalizing recovery took [{}]", stopWatch.totalTime());
+            logger.info("finalizing recovery took [{}]", stopWatch.totalTime());
             listener.onResponse(null);
         }, listener::onFailure);
     }
