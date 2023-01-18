@@ -596,27 +596,28 @@ public final class ClusterSettings extends AbstractScopedSettings {
 
                 // Settings related to search backpressure
                 SearchBackpressureSettings.SETTING_MODE,
-                SearchBackpressureSettings.SETTING_CANCELLATION_RATIO_SEARCH_TASK,
-                SearchBackpressureSettings.SETTING_CANCELLATION_RATE_SEARCH_TASK,
-                SearchBackpressureSettings.SETTING_CANCELLATION_BURST_SEARCH_TASK,
-                SearchBackpressureSettings.SETTING_CANCELLATION_RATIO_SEARCH_SHARD_TASK,
-                SearchBackpressureSettings.SETTING_CANCELLATION_RATE_SEARCH_SHARD_TASK,
-                SearchBackpressureSettings.SETTING_CANCELLATION_BURST_SEARCH_SHARD_TASK,
+
                 NodeDuressSettings.SETTING_NUM_SUCCESSIVE_BREACHES,
                 NodeDuressSettings.SETTING_CPU_THRESHOLD,
                 NodeDuressSettings.SETTING_HEAP_THRESHOLD,
-                SearchShardTaskSettings.SETTING_TOTAL_HEAP_PERCENT_THRESHOLD,
+                SearchTaskSettings.SETTING_CANCELLATION_RATIO,
+                SearchTaskSettings.SETTING_CANCELLATION_RATE,
+                SearchTaskSettings.SETTING_CANCELLATION_BURST,
                 SearchTaskSettings.SETTING_HEAP_PERCENT_THRESHOLD,
-                SearchShardTaskSettings.SETTING_HEAP_PERCENT_THRESHOLD,
                 SearchTaskSettings.SETTING_HEAP_VARIANCE_THRESHOLD,
-                SearchShardTaskSettings.SETTING_HEAP_VARIANCE_THRESHOLD,
                 SearchTaskSettings.SETTING_HEAP_MOVING_AVERAGE_WINDOW_SIZE,
-                SearchShardTaskSettings.SETTING_HEAP_MOVING_AVERAGE_WINDOW_SIZE,
                 SearchTaskSettings.SETTING_CPU_TIME_MILLIS_THRESHOLD,
-                SearchShardTaskSettings.SETTING_CPU_TIME_MILLIS_THRESHOLD,
                 SearchTaskSettings.SETTING_ELAPSED_TIME_MILLIS_THRESHOLD,
+                SearchTaskSettings.SETTING_TOTAL_HEAP_PERCENT_THRESHOLD,
+                SearchShardTaskSettings.SETTING_CANCELLATION_RATIO,
+                SearchShardTaskSettings.SETTING_CANCELLATION_RATE,
+                SearchShardTaskSettings.SETTING_CANCELLATION_BURST,
+                SearchShardTaskSettings.SETTING_HEAP_PERCENT_THRESHOLD,
+                SearchShardTaskSettings.SETTING_HEAP_VARIANCE_THRESHOLD,
+                SearchShardTaskSettings.SETTING_HEAP_MOVING_AVERAGE_WINDOW_SIZE,
+                SearchShardTaskSettings.SETTING_CPU_TIME_MILLIS_THRESHOLD,
                 SearchShardTaskSettings.SETTING_ELAPSED_TIME_MILLIS_THRESHOLD,
-                SearchTaskSettings.SETTING_TOTAL_HEAP_PERCENT_THRESHOLD
+                SearchShardTaskSettings.SETTING_TOTAL_HEAP_PERCENT_THRESHOLD
             )
         )
     );

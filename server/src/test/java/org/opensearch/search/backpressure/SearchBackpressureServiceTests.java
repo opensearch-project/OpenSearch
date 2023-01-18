@@ -314,12 +314,7 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
     private SearchBackpressureSettings getBackpressureSettings(String mode, double ratio, double rate, double burst) {
         return spy(
             new SearchBackpressureSettings(
-                Settings.builder()
-                    .put(SearchBackpressureSettings.SETTING_MODE.getKey(), mode)
-                    .put(SearchBackpressureSettings.SETTING_CANCELLATION_RATIO_SEARCH_SHARD_TASK.getKey(), ratio)
-                    .put(SearchBackpressureSettings.SETTING_CANCELLATION_RATE_SEARCH_TASK.getKey(), rate)
-                    .put(SearchBackpressureSettings.SETTING_CANCELLATION_BURST_SEARCH_TASK.getKey(), burst)
-                    .build(),
+                Settings.builder().put(SearchBackpressureSettings.SETTING_MODE.getKey(), mode).build(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
             )
         );

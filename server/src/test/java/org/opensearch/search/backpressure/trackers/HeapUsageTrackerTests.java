@@ -49,8 +49,9 @@ public class HeapUsageTrackerTests extends OpenSearchTestCase {
             new HeapUsageTracker(
                 mockSearchTaskSettings::getHeapVarianceThreshold,
                 mockSearchTaskSettings::getHeapBytesThreshold,
-                mockSearchTaskSettings::getHeapMovingAverageWindowSize,
-                mockSettings.getClusterSettings()
+                mockSearchTaskSettings.getHeapMovingAverageWindowSize(),
+                mockSettings.getClusterSettings(),
+                SearchTaskSettings.SETTING_HEAP_MOVING_AVERAGE_WINDOW_SIZE
             )
         );
         Task task = createMockTaskWithResourceStats(SearchTask.class, 1, 50);
@@ -77,8 +78,9 @@ public class HeapUsageTrackerTests extends OpenSearchTestCase {
             new HeapUsageTracker(
                 mockSearchShardTaskSettings::getHeapVarianceThreshold,
                 mockSearchShardTaskSettings::getHeapBytesThreshold,
-                mockSearchShardTaskSettings::getHeapMovingAverageWindowSize,
-                mockSettings.getClusterSettings()
+                mockSearchShardTaskSettings.getHeapMovingAverageWindowSize(),
+                mockSettings.getClusterSettings(),
+                SearchShardTaskSettings.SETTING_HEAP_MOVING_AVERAGE_WINDOW_SIZE
             )
         );
         Task task = createMockTaskWithResourceStats(SearchShardTask.class, 1, 50);
@@ -107,8 +109,9 @@ public class HeapUsageTrackerTests extends OpenSearchTestCase {
             new HeapUsageTracker(
                 mockSearchShardTaskSettings::getHeapVarianceThreshold,
                 mockSearchShardTaskSettings::getHeapBytesThreshold,
-                mockSearchShardTaskSettings::getHeapMovingAverageWindowSize,
-                mockSettings.getClusterSettings()
+                mockSearchShardTaskSettings.getHeapMovingAverageWindowSize(),
+                mockSettings.getClusterSettings(),
+                SearchShardTaskSettings.SETTING_HEAP_MOVING_AVERAGE_WINDOW_SIZE
             )
         );
 
