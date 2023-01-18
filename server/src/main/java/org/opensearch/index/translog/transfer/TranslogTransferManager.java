@@ -204,4 +204,8 @@ public class TranslogTransferManager {
         fileTransferTracker.delete(files);
         transferService.deleteBlobs(remoteBaseTransferPath.add(String.valueOf(primaryTerm)), files);
     }
+
+    public void cleanTranslog(long primaryTerm) throws IOException {
+        transferService.delete(remoteBaseTransferPath.add(String.valueOf(primaryTerm)));
+    }
 }
