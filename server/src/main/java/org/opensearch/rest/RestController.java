@@ -46,10 +46,15 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.path.PathTrie;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.internal.io.Streams;
 import org.opensearch.http.HttpServerTransport;
+import org.opensearch.identity.IdentityService;
+import org.opensearch.identity.Subject;
+import org.opensearch.identity.tokens.AuthToken;
+import org.opensearch.identity.tokens.RestTokenExtractor;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.usage.UsageService;
 
@@ -110,13 +115,15 @@ public class RestController implements HttpServerTransport.Dispatcher {
     /** Rest headers that are copied to internal requests made during a rest request. */
     private final Set<RestHeaderDefinition> headersToCopy;
     private final UsageService usageService;
+    private final IdentityService identityService;
 
     public RestController(
         Set<RestHeaderDefinition> headersToCopy,
         UnaryOperator<RestHandler> handlerWrapper,
         NodeClient client,
         CircuitBreakerService circuitBreakerService,
-        UsageService usageService
+        UsageService usageService,
+        IdentityService identityService
     ) {
         this.headersToCopy = headersToCopy;
         this.usageService = usageService;
@@ -126,6 +133,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         this.handlerWrapper = handlerWrapper;
         this.client = client;
         this.circuitBreakerService = circuitBreakerService;
+        this.identityService = identityService;
         registerHandlerNoWrap(
             RestRequest.Method.GET,
             "/favicon.ico",
@@ -395,6 +403,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
                         return;
                     }
                 } else {
+                    if (!handleAuthenticateUser(request, channel)) {
+                        return;
+                    }
                     dispatchRequest(request, channel, handler);
                     return;
                 }
@@ -503,6 +514,42 @@ public class RestController implements HttpServerTransport.Dispatcher {
             builder.endObject();
             channel.sendResponse(new BytesRestResponse(BAD_REQUEST, builder));
         }
+    }
+
+    /**
+     * Attempts to extracts auth token and login.
+     * 
+     * @returns false if there was an error and the request should not continue being dispatched
+     * */
+    private boolean handleAuthenticateUser(final RestRequest request, final RestChannel channel) {    
+        if (!FeatureFlags.isEnabled(FeatureFlags.IDENTITY)) {
+            return true;
+        }
+
+        try {
+            final AuthToken token = RestTokenExtractor.extractToken(request);
+            // If no token was found, continue executing the request
+            if (token == null) {
+                return true;
+            }
+            final Subject currentSubject = identityService.getSubject();
+            currentSubject.login(token);
+            logger.info("Logged in as user " + currentSubject);
+        } catch (final Exception e) {
+            try {
+                final BytesRestResponse bytesRestResponse = BytesRestResponse.createSimpleErrorResponse(
+                    channel,
+                    RestStatus.UNAUTHORIZED,
+                    e.getMessage()
+                );
+                channel.sendResponse(bytesRestResponse);
+            } catch (final Exception _ignored) {
+                // TODO: clean this up
+            }
+            return false;
+        }
+
+        return true;
     }
 
     /**

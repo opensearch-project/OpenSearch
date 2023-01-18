@@ -55,6 +55,11 @@ public class FeatureFlags {
     public static final String EXTENSIONS = "opensearch.experimental.feature.extensions.enabled";
 
     /**
+     * Gates the functionality of identity.
+     */
+    public static final String IDENTITY = "opensearch.experimental.feature.identity.enabled";
+
+    /**
      * Should store the settings from opensearch.yml.
      */
     private static Settings settings;
@@ -89,4 +94,6 @@ public class FeatureFlags {
     public static final Setting<Boolean> SEARCHABLE_SNAPSHOT_SETTING = Setting.boolSetting(SEARCHABLE_SNAPSHOT, false, Property.NodeScope);
 
     public static final Setting<Boolean> EXTENSIONS_SETTING = Setting.boolSetting(EXTENSIONS, false, Property.NodeScope);
+
+    public static final Setting<Boolean> IDENTITY_SETTING = Setting.boolSetting(IDENTITY, false, Property.NodeScope);
 }

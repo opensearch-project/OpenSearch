@@ -9,8 +9,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Add getter for path field in NestedQueryBuilder ([#4636](https://github.com/opensearch-project/OpenSearch/pull/4636))
 - Allow mmap to use new JDK-19 preview APIs in Apache Lucene 9.4+ ([#5151](https://github.com/opensearch-project/OpenSearch/pull/5151))
 - Add support for ppc64le architecture ([#5459](https://github.com/opensearch-project/OpenSearch/pull/5459))
+- Add support to disallow search request with preference parameter with strict weighted shard routing([#5874](https://github.com/opensearch-project/OpenSearch/pull/5874))
+- Add identity and access control extension point ([5925](https://github.com/opensearch-project/OpenSearch/pull/5925))
 
 ### Dependencies
+- Bumps `wiremock-jre8-standalone` from 2.33.2 to 2.35.0
+- Bumps `gson` from 2.10 to 2.10.1
+- Bumps `json-schema-validator` from 1.0.73 to 1.0.76
 - Bumps `log4j-core` from 2.18.0 to 2.19.0
 - Bumps `reactor-netty-http` from 1.0.18 to 1.0.23
 - Bumps `jettison` from 1.5.0 to 1.5.3

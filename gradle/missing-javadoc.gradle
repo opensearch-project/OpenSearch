@@ -107,6 +107,7 @@ configure([
   project(":modules:aggs-matrix-stats"),
   project(":modules:analysis-common"),
   project(":modules:geo"),
+  project(":modules:identity-shiro"),
   project(":modules:ingest-common"),
   project(":modules:ingest-geoip"),
   project(":modules:ingest-user-agent"),

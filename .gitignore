@@ -13,7 +13,7 @@ out/
 !.idea/vcs.xml
 !.idea/icon.svg
 
-# These files are generated in the main tree by annotation processors
+# These files are generated in the main tree by IntelliJ
 benchmarks/src/main/generated/*
 benchmarks/bin/*
 benchmarks/build-eclipse-default/*

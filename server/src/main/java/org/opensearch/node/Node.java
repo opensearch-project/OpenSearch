@@ -132,6 +132,7 @@ import org.opensearch.gateway.GatewayService;
 import org.opensearch.gateway.MetaStateService;
 import org.opensearch.gateway.PersistedClusterStateService;
 import org.opensearch.http.HttpServerTransport;
+import org.opensearch.identity.IdentityService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.index.engine.EngineFactory;
@@ -164,6 +165,7 @@ import org.opensearch.plugins.CircuitBreakerPlugin;
 import org.opensearch.plugins.ClusterPlugin;
 import org.opensearch.plugins.DiscoveryPlugin;
 import org.opensearch.plugins.EnginePlugin;
+import org.opensearch.plugins.IdentityPlugin;
 import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.plugins.IngestPlugin;
 import org.opensearch.plugins.MapperPlugin;
@@ -432,6 +434,13 @@ public class Node implements Closeable {
 
             // Ensure to initialize Feature Flags via the settings from opensearch.yml
             FeatureFlags.initializeFeatureFlags(settings);
+
+            final List<IdentityPlugin> identityPlugins = new ArrayList<>();
+            if (FeatureFlags.isEnabled(FeatureFlags.IDENTITY)) {
+                // If identity is enabled load plugins implementing the extension point
+                identityPlugins.addAll(pluginsService.filterPlugins(IdentityPlugin.class));
+            }
+            final IdentityService identityService = new IdentityService(settings, identityPlugins);
 
             if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
                 this.extensionsManager = new ExtensionsManager(tmpSettings, initialEnvironment.extensionDir());
@@ -782,7 +791,8 @@ public class Node implements Closeable {
                 client,
                 circuitBreakerService,
                 usageService,
-                systemIndices
+                systemIndices,
+                identityService
             );
             modules.add(actionModule);
 
@@ -1081,6 +1091,7 @@ public class Node implements Closeable {
                 b.bind(ShardLimitValidator.class).toInstance(shardLimitValidator);
                 b.bind(FsHealthService.class).toInstance(fsHealthService);
                 b.bind(SystemIndices.class).toInstance(systemIndices);
+                b.bind(IdentityService.class).toInstance(identityService);
             });
             injector = modules.createInjector();
 
