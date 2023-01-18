@@ -8,6 +8,7 @@
 
 package org.opensearch.index.translog;
 
+import org.apache.lucene.util.SetOnce;
 import org.opensearch.common.io.FileSystemUtils;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
@@ -53,6 +54,9 @@ public class RemoteFsTranslog extends Translog {
 
     // min generation referred by last uploaded translog
     private volatile long minRemoteGenReferenced;
+
+    // clean up translog folder uploaded by previous primaries once
+    private final SetOnce<Boolean> olderPrimaryCleaned = new SetOnce<>();;
 
     public RemoteFsTranslog(
         TranslogConfig config,
@@ -350,8 +354,25 @@ public class RemoteFsTranslog extends Translog {
             if (fileTransferTracker.uploaded(translogFilename)) {
                 logger.trace("delete remote translog generation file [{}], not referenced by metadata anymore", generation);
                 deleteRemoteGeneration(generation);
+                // Safe to delete
+                if (olderPrimaryCleaned.get() == null) {
+                    // clean up translog uploaded by previous primaries if any
+                    cleanupOlderPrimary();
+                    olderPrimaryCleaned.set(true);
+                }
             } else {
                 break;
+            }
+        }
+    }
+
+    public void cleanupOlderPrimary() {
+        logger.info("Cleaning up translog uploaded by previous primaries");
+        for (long oldPrimaryTerm = current.getPrimaryTerm() - 1; oldPrimaryTerm >= 0; oldPrimaryTerm--) {
+            try {
+                translogTransferManager.cleanTranslog(oldPrimaryTerm);
+            } catch (IOException e) {
+                logger.error("Exception {} while deleting older primary translog files {}", e, oldPrimaryTerm);
             }
         }
     }

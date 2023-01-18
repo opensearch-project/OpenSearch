@@ -45,6 +45,8 @@ public interface TransferService {
 
     void deleteBlobs(Iterable<String> path, List<String> fileNames) throws IOException;
 
+    void delete(Iterable<String> path) throws IOException;
+
     /**
      * Lists the files
      * @param path : the path to list
