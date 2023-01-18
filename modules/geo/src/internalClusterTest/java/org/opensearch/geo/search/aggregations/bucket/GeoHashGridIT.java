@@ -32,20 +32,15 @@
 package org.opensearch.geo.search.aggregations.bucket;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
-import com.carrotsearch.hppc.ObjectIntMap;
 import com.carrotsearch.hppc.cursors.ObjectIntCursor;
-import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.geo.GeoBoundingBox;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.geo.GeoShapeDocValue;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.geo.search.aggregations.bucket.geogrid.GeoGrid;
 import org.opensearch.geo.search.aggregations.bucket.geogrid.GeoGridAggregationBuilder;
 import org.opensearch.geo.search.aggregations.common.GeoBoundsHelper;
 import org.opensearch.geo.tests.common.AggregationBuilders;
-import org.opensearch.geo.tests.common.RandomGeoGeometryGenerator;
 import org.opensearch.geometry.Geometry;
 import org.opensearch.geometry.Rectangle;
 import org.opensearch.geometry.utils.Geohash;
@@ -54,7 +49,6 @@ import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.bucket.filter.Filter;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
@@ -64,29 +58,25 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.opensearch.geometry.utils.Geohash.PRECISION;
 import static org.opensearch.geometry.utils.Geohash.stringEncode;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
 
 @OpenSearchIntegTestCase.SuiteScopeTestCase
-public class GeoHashGridIT extends AbstractBucketAggregationIntegTest {
+public class GeoHashGridIT extends AbstractGeoBucketAggregationIntegTest {
 
-    private static ObjectIntMap<String> expectedDocCountsForGeohash;
-
-    private static ObjectIntMap<String> multiValuedExpectedDocCountsForGeohash;
-
-    private static ObjectIntMap<String> expectedDocCountsForGeoshapeGeohash;
-
-    private static String smallestGeoHash = null;
+    private static final String AGG_NAME = "geohashgrid";
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
         Random random = random();
+        // Creating a BB for limiting the number buckets generated during aggregation
+        boundingRectangleForGeoShapesAgg = getGridAggregationBoundingBox(random);
+        expectedDocCountsForSingleGeoPoint = new ObjectIntHashMap<>();
         prepareSingleValueGeoPointIndex(random);
         prepareMultiValuedGeoPointIndex(random);
-        prepareGeoShapeIndex(random);
+        prepareGeoShapeIndexForAggregations(random);
     }
 
-    public void testSimple() throws Exception {
+    public void testSimple() {
         for (int precision = 1; precision <= PRECISION; precision++) {
             SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(AggregationBuilders.geohashGrid(AGG_NAME).field(GEO_POINT_FIELD_NAME).precision(precision))
@@ -103,7 +93,7 @@ public class GeoHashGridIT extends AbstractBucketAggregationIntegTest {
                 String geohash = cell.getKeyAsString();
 
                 long bucketCount = cell.getDocCount();
-                int expectedBucketCount = expectedDocCountsForGeohash.get(geohash);
+                int expectedBucketCount = expectedDocCountsForSingleGeoPoint.get(geohash);
                 assertNotSame(bucketCount, 0);
                 assertEquals("Geohash " + geohash + " has wrong doc count ", expectedBucketCount, bucketCount);
                 GeoPoint geoPoint = (GeoPoint) propertiesKeys[i];
@@ -115,8 +105,8 @@ public class GeoHashGridIT extends AbstractBucketAggregationIntegTest {
 
     public void testGeoShapes() {
         final GeoBoundingBox boundingBox = new GeoBoundingBox(
-            new GeoPoint(BOUNDING_RECTANGLE_FOR_GEO_SHAPES_AGG.getMaxLat(), BOUNDING_RECTANGLE_FOR_GEO_SHAPES_AGG.getMinLon()),
-            new GeoPoint(BOUNDING_RECTANGLE_FOR_GEO_SHAPES_AGG.getMinLat(), BOUNDING_RECTANGLE_FOR_GEO_SHAPES_AGG.getMaxLon())
+            new GeoPoint(boundingRectangleForGeoShapesAgg.getMaxLat(), boundingRectangleForGeoShapesAgg.getMinLon()),
+            new GeoPoint(boundingRectangleForGeoShapesAgg.getMinLat(), boundingRectangleForGeoShapesAgg.getMaxLon())
         );
         for (int precision = 1; precision <= MAX_PRECISION_FOR_GEO_SHAPES_AGG_TESTING; precision++) {
             GeoGridAggregationBuilder builder = AggregationBuilders.geohashGrid(AGG_NAME).field(GEO_SHAPE_FIELD_NAME).precision(precision);
@@ -135,7 +125,7 @@ public class GeoHashGridIT extends AbstractBucketAggregationIntegTest {
                 final String geohash = cell.getKeyAsString();
 
                 final long bucketCount = cell.getDocCount();
-                final int expectedBucketCount = expectedDocCountsForGeoshapeGeohash.get(geohash);
+                final int expectedBucketCount = expectedDocsCountForGeoShapes.get(geohash);
                 assertNotSame(bucketCount, 0);
                 assertEquals("Geohash " + geohash + " has wrong doc count ", expectedBucketCount, bucketCount);
                 final GeoPoint geoPoint = (GeoPoint) propertiesKeys[i];
@@ -145,7 +135,7 @@ public class GeoHashGridIT extends AbstractBucketAggregationIntegTest {
         }
     }
 
-    public void testMultivalued() throws Exception {
+    public void testMultivalued() {
         for (int precision = 1; precision <= PRECISION; precision++) {
             SearchResponse response = client().prepareSearch("multi_valued_idx")
                 .addAggregation(AggregationBuilders.geohashGrid(AGG_NAME).field(GEO_POINT_FIELD_NAME).precision(precision))
@@ -156,14 +146,14 @@ public class GeoHashGridIT extends AbstractBucketAggregationIntegTest {
                 String geohash = cell.getKeyAsString();
 
                 long bucketCount = cell.getDocCount();
-                int expectedBucketCount = multiValuedExpectedDocCountsForGeohash.get(geohash);
+                int expectedBucketCount = multiValuedExpectedDocCountsGeoPoint.get(geohash);
                 assertNotSame(bucketCount, 0);
                 assertEquals("Geohash " + geohash + " has wrong doc count ", expectedBucketCount, bucketCount);
             }
         }
     }
 
-    public void testFiltered() throws Exception {
+    public void testFiltered() {
         GeoBoundingBoxQueryBuilder bbox = new GeoBoundingBoxQueryBuilder(GEO_POINT_FIELD_NAME);
         bbox.setCorners(smallestGeoHash).queryName("bbox");
         for (int precision = 1; precision <= PRECISION; precision++) {
@@ -182,7 +172,7 @@ public class GeoHashGridIT extends AbstractBucketAggregationIntegTest {
             for (GeoGrid.Bucket cell : geoGrid.getBuckets()) {
                 String geohash = cell.getKeyAsString();
                 long bucketCount = cell.getDocCount();
-                int expectedBucketCount = expectedDocCountsForGeohash.get(geohash);
+                int expectedBucketCount = expectedDocCountsForSingleGeoPoint.get(geohash);
                 assertNotSame(bucketCount, 0);
                 assertTrue("Buckets must be filtered", geohash.startsWith(smallestGeoHash));
                 assertEquals("Geohash " + geohash + " has wrong doc count ", expectedBucketCount, bucketCount);
@@ -191,7 +181,7 @@ public class GeoHashGridIT extends AbstractBucketAggregationIntegTest {
         }
     }
 
-    public void testUnmapped() throws Exception {
+    public void testUnmapped() {
         for (int precision = 1; precision <= PRECISION; precision++) {
             SearchResponse response = client().prepareSearch("idx_unmapped")
                 .addAggregation(AggregationBuilders.geohashGrid(AGG_NAME).field(GEO_POINT_FIELD_NAME).precision(precision))
@@ -205,7 +195,7 @@ public class GeoHashGridIT extends AbstractBucketAggregationIntegTest {
 
     }
 
-    public void testPartiallyUnmapped() throws Exception {
+    public void testPartiallyUnmapped() {
         for (int precision = 1; precision <= PRECISION; precision++) {
             SearchResponse response = client().prepareSearch("idx", "idx_unmapped")
                 .addAggregation(AggregationBuilders.geohashGrid(AGG_NAME).field(GEO_POINT_FIELD_NAME).precision(precision))
@@ -218,14 +208,14 @@ public class GeoHashGridIT extends AbstractBucketAggregationIntegTest {
                 String geohash = cell.getKeyAsString();
 
                 long bucketCount = cell.getDocCount();
-                int expectedBucketCount = expectedDocCountsForGeohash.get(geohash);
+                int expectedBucketCount = expectedDocCountsForSingleGeoPoint.get(geohash);
                 assertNotSame(bucketCount, 0);
                 assertEquals("Geohash " + geohash + " has wrong doc count ", expectedBucketCount, bucketCount);
             }
         }
     }
 
-    public void testTopMatch() throws Exception {
+    public void testTopMatch() {
         for (int precision = 1; precision <= PRECISION; precision++) {
             SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(
@@ -242,7 +232,7 @@ public class GeoHashGridIT extends AbstractBucketAggregationIntegTest {
                 String geohash = cell.getKeyAsString();
                 long bucketCount = cell.getDocCount();
                 int expectedBucketCount = 0;
-                for (ObjectIntCursor<String> cursor : expectedDocCountsForGeohash) {
+                for (ObjectIntCursor<String> cursor : expectedDocCountsForSingleGeoPoint) {
                     if (cursor.key.length() == precision) {
                         expectedBucketCount = Math.max(expectedBucketCount, cursor.value);
                     }
@@ -277,131 +267,56 @@ public class GeoHashGridIT extends AbstractBucketAggregationIntegTest {
         assertThat(exception.getMessage(), containsString("[shardSize] must be greater than 0. Found [0] in [" + AGG_NAME + "]"));
     }
 
-    private void prepareSingleValueGeoPointIndex(final Random random) throws Exception {
-        createIndex("idx_unmapped");
-        final Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, version)
-            .put("index.number_of_shards", 4)
-            .put("index.number_of_replicas", 0)
-            .build();
-        assertAcked(
-            prepareCreate("idx").setSettings(settings)
-                .setMapping(GEO_POINT_FIELD_NAME, "type=geo_point", KEYWORD_FIELD_NAME, "type=keyword")
-        );
-        final List<IndexRequestBuilder> cities = new ArrayList<>();
-        expectedDocCountsForGeohash = new ObjectIntHashMap<>(NUM_DOCS * 2);
-        for (int i = 0; i < NUM_DOCS; i++) {
-            // generate random point
-            double lat = (180d * random.nextDouble()) - 90d;
-            double lng = (360d * random.nextDouble()) - 180d;
-            String randomGeoHash = stringEncode(lng, lat, PRECISION);
-            // Index at the highest resolution
-            cities.add(indexCity("idx", randomGeoHash, lat + ", " + lng));
-            expectedDocCountsForGeohash.put(randomGeoHash, expectedDocCountsForGeohash.getOrDefault(randomGeoHash, 0) + 1);
-            // Update expected doc counts for all resolutions..
-            for (int precision = PRECISION - 1; precision > 0; precision--) {
-                String hash = stringEncode(lng, lat, precision);
-                if ((smallestGeoHash == null) || (hash.length() < smallestGeoHash.length())) {
-                    smallestGeoHash = hash;
+    @Override
+    protected Set<String> generateBucketsForGeometry(final Geometry geometry, final GeoShapeDocValue geometryDocValue) {
+        final GeoPoint topLeft = new GeoPoint();
+        final GeoPoint bottomRight = new GeoPoint();
+        assert geometry != null;
+        GeoBoundsHelper.updateBoundsForGeometry(geometry, topLeft, bottomRight);
+        final Set<String> geoHashes = new HashSet<>();
+        for (int precision = MAX_PRECISION_FOR_GEO_SHAPES_AGG_TESTING; precision > 0; precision--) {
+            if (precision > 2 && !geometryDocValue.isIntersectingRectangle(boundingRectangleForGeoShapesAgg)) {
+                continue;
+            }
+            final GeoPoint topRight = new GeoPoint(topLeft.getLat(), bottomRight.getLon());
+            String currentGeoHash = Geohash.stringEncode(topLeft.getLon(), topLeft.getLat(), precision);
+            String startingRowGeoHash = currentGeoHash;
+            String endGeoHashForCurrentRow = Geohash.stringEncode(topRight.getLon(), topRight.getLat(), precision);
+            String terminatingGeoHash = Geohash.stringEncode(bottomRight.getLon(), bottomRight.getLat(), precision);
+            while (true) {
+                final Rectangle currentRectangle = Geohash.toBoundingBox(currentGeoHash);
+                if (geometryDocValue.isIntersectingRectangle(currentRectangle)) {
+                    geoHashes.add(currentGeoHash);
                 }
-                expectedDocCountsForGeohash.put(hash, expectedDocCountsForGeohash.getOrDefault(hash, 0) + 1);
+                assert currentGeoHash != null;
+                if (currentGeoHash.equals(terminatingGeoHash)) {
+                    break;
+                }
+                if (currentGeoHash.equals(endGeoHashForCurrentRow)) {
+                    // move in south direction
+                    currentGeoHash = Geohash.getNeighbor(startingRowGeoHash, precision, 0, -1);
+                    startingRowGeoHash = currentGeoHash;
+                    endGeoHashForCurrentRow = Geohash.getNeighbor(endGeoHashForCurrentRow, precision, 0, -1);
+                } else {
+                    // move in East direction
+                    currentGeoHash = Geohash.getNeighbor(currentGeoHash, precision, 1, 0);
+                }
             }
         }
-        indexRandom(true, cities);
-        ensureGreen("idx_unmapped", "idx");
+        return geoHashes;
     }
 
-    private void prepareMultiValuedGeoPointIndex(final Random random) throws Exception {
-        final Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
-        final List<IndexRequestBuilder> cities = new ArrayList<>();
-        assertAcked(
-            prepareCreate("multi_valued_idx").setSettings(settings)
-                .setMapping(GEO_POINT_FIELD_NAME, "type=geo_point", KEYWORD_FIELD_NAME, "type=keyword")
-        );
-        multiValuedExpectedDocCountsForGeohash = new ObjectIntHashMap<>(NUM_DOCS * 2);
-        for (int i = 0; i < NUM_DOCS; i++) {
-            final int numPoints = random.nextInt(4);
-            final List<String> points = new ArrayList<>();
-            final Set<String> geoHashes = new HashSet<>();
-            for (int j = 0; j < numPoints; ++j) {
-                final double lat = (180d * random.nextDouble()) - 90d;
-                final double lng = (360d * random.nextDouble()) - 180d;
-                points.add(lat + "," + lng);
-                // Update expected doc counts for all resolutions..
-                for (int precision = PRECISION; precision > 0; precision--) {
-                    final String geoHash = stringEncode(lng, lat, precision);
-                    geoHashes.add(geoHash);
-                }
+    @Override
+    protected Set<String> generateBucketsForGeoPoint(final GeoPoint geoPoint) {
+        Set<String> buckets = new HashSet<>();
+        for (int precision = PRECISION; precision > 0; precision--) {
+            final String hash = Geohash.stringEncode(geoPoint.getLon(), geoPoint.getLat(), precision);
+            if ((smallestGeoHash == null) || (hash.length() < smallestGeoHash.length())) {
+                smallestGeoHash = hash;
             }
-            cities.add(indexCity("multi_valued_idx", Integer.toString(i), points));
-            for (final String hash : geoHashes) {
-                multiValuedExpectedDocCountsForGeohash.put(hash, multiValuedExpectedDocCountsForGeohash.getOrDefault(hash, 0) + 1);
-            }
+            buckets.add(hash);
         }
-        indexRandom(true, cities);
-        ensureGreen("multi_valued_idx");
-    }
-
-    private void prepareGeoShapeIndex(final Random random) throws Exception {
-        final Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
-
-        final List<IndexRequestBuilder> geoshapes = new ArrayList<>();
-        assertAcked(prepareCreate(GEO_SHAPE_INDEX_NAME).setSettings(settings).setMapping(GEO_SHAPE_FIELD_NAME, "type" + "=geo_shape"));
-        expectedDocCountsForGeoshapeGeohash = new ObjectIntHashMap<>();
-        boolean isShapeIntersectingBB = false;
-        for (int i = 0; i < NUM_DOCS;) {
-            final Geometry geometry = RandomGeoGeometryGenerator.randomGeometry(random);
-            final GeoShapeDocValue geometryDocValue = GeoShapeDocValue.createGeometryDocValue(geometry);
-            // make sure that there is 1 shape is intersecting with the bounding box
-            if (!isShapeIntersectingBB) {
-                isShapeIntersectingBB = geometryDocValue.isIntersectingRectangle(BOUNDING_RECTANGLE_FOR_GEO_SHAPES_AGG);
-                if (!isShapeIntersectingBB && i == NUM_DOCS - 1) {
-                    continue;
-                }
-            }
-            i++;
-            final GeoPoint topLeft = new GeoPoint();
-            final GeoPoint bottomRight = new GeoPoint();
-            assert geometry != null;
-            GeoBoundsHelper.updateBoundsForGeometry(geometry, topLeft, bottomRight);
-            final Set<String> geoHashes = new HashSet<>();
-            for (int precision = MAX_PRECISION_FOR_GEO_SHAPES_AGG_TESTING; precision > 0; precision--) {
-                if (precision > 2 && !geometryDocValue.isIntersectingRectangle(BOUNDING_RECTANGLE_FOR_GEO_SHAPES_AGG)) {
-                    continue;
-                }
-                final GeoPoint topRight = new GeoPoint(topLeft.getLat(), bottomRight.getLon());
-                String currentGeoHash = Geohash.stringEncode(topLeft.getLon(), topLeft.getLat(), precision);
-                String startingRowGeoHash = currentGeoHash;
-                String endGeoHashForCurrentRow = Geohash.stringEncode(topRight.getLon(), topRight.getLat(), precision);
-                String terminatingGeoHash = Geohash.stringEncode(bottomRight.getLon(), bottomRight.getLat(), precision);
-                while (true) {
-                    final Rectangle currentRectangle = Geohash.toBoundingBox(currentGeoHash);
-                    if (geometryDocValue.isIntersectingRectangle(currentRectangle)) {
-                        geoHashes.add(currentGeoHash);
-                    }
-                    assert currentGeoHash != null;
-                    if (currentGeoHash.equals(terminatingGeoHash)) {
-                        break;
-                    }
-                    if (currentGeoHash.equals(endGeoHashForCurrentRow)) {
-                        // move in south direction
-                        currentGeoHash = Geohash.getNeighbor(startingRowGeoHash, precision, 0, -1);
-                        startingRowGeoHash = currentGeoHash;
-                        endGeoHashForCurrentRow = Geohash.getNeighbor(endGeoHashForCurrentRow, precision, 0, -1);
-                    } else {
-                        // move in East direction
-                        currentGeoHash = Geohash.getNeighbor(currentGeoHash, precision, 1, 0);
-                    }
-                }
-            }
-
-            geoshapes.add(indexGeoShape(GEO_SHAPE_INDEX_NAME, geometry));
-            for (final String hash : geoHashes) {
-                expectedDocCountsForGeoshapeGeohash.put(hash, expectedDocCountsForGeoshapeGeohash.getOrDefault(hash, 0) + 1);
-            }
-        }
-        indexRandom(true, geoshapes);
-        ensureGreen(GEO_SHAPE_INDEX_NAME);
+        return buckets;
     }
 
 }
