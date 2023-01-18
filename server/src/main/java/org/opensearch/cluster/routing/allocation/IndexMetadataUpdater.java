@@ -56,6 +56,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
+
 /**
  * Observer that tracks changes made to RoutingNodes in order to update the primary terms and in-sync allocation ids in
  * {@link IndexMetadata} once the allocation round has completed.
@@ -202,7 +204,9 @@ public class IndexMetadataUpdater extends RoutingChangesObserver.AbstractRouting
                 if (recoverySource == RecoverySource.ExistingStoreRecoverySource.FORCE_STALE_PRIMARY_INSTANCE) {
                     allocationId = RecoverySource.ExistingStoreRecoverySource.FORCED_ALLOCATION_ID;
                 } else {
-                    assert recoverySource instanceof RecoverySource.SnapshotRecoverySource : recoverySource;
+                    boolean isRemoteStoreEnabled = oldIndexMetadata.getSettings().getAsBoolean(SETTING_REMOTE_STORE_ENABLED, false);
+                    assert ((isRemoteStoreEnabled && recoverySource instanceof RecoverySource.RemoteStoreRecoverySource)
+                        || recoverySource instanceof RecoverySource.SnapshotRecoverySource) : recoverySource;
                     allocationId = updates.initializedPrimary.allocationId().getId();
                 }
                 // forcing a stale primary resets the in-sync allocations to the singleton set with the stale id
