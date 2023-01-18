@@ -212,8 +212,8 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         restoreSnapshotAndEnsureGreen(client, snapshotName, repoName);
 
         assertIndexingBlocked(restoredIndexName);
-        assertIndexSettingChangeBlocked(restoredIndexName);
-        assertAllowedIndexSettingUpdate(restoredIndexName);
+        assertUpdateIndexSettingsDefault(restoredIndexName);
+        assertUpdateIndexSettingsAllowList(restoredIndexName);
         assertTrue(client.admin().indices().prepareDelete(restoredIndexName).get().isAcknowledged());
         assertThrows(
             "Expect index to not exist",
@@ -324,7 +324,7 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
-    private void assertIndexSettingChangeBlocked(String index) {
+    private void assertUpdateIndexSettingsDefault(String index) {
         try {
             final UpdateSettingsRequestBuilder builder = client().admin().indices().prepareUpdateSettings(index);
             builder.setSettings(Map.of("index.refresh_interval", 10));
@@ -335,9 +335,9 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
-    private void assertAllowedIndexSettingUpdate(String index) {
+    private void assertUpdateIndexSettingsAllowList(String index) {
         final UpdateSettingsRequestBuilder builder = client().admin().indices().prepareUpdateSettings(index);
-        builder.setSettings(Map.of("index.max_result_window", 100));
+        builder.setSettings(Map.of("index.max_result_window", 100, "index.search.slowlog.threshold.query.warn", "10s"));
         AcknowledgedResponse settingsResponse = builder.execute().actionGet();
         assertThat(settingsResponse, notNullValue());
     }
