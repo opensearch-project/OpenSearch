@@ -22,13 +22,13 @@ import java.util.Objects;
  * Stats related to search backpressure.
  */
 public class SearchBackpressureStats implements ToXContentFragment, Writeable {
-    private final SearchBackpressureTaskStats searchTaskStats;
-    private final SearchBackpressureTaskStats searchShardTaskStats;
+    private final SearchTaskStats searchTaskStats;
+    private final SearchShardTaskStats searchShardTaskStats;
     private final SearchBackpressureMode mode;
 
     public SearchBackpressureStats(
-        SearchBackpressureTaskStats searchTaskStats,
-        SearchBackpressureTaskStats searchShardTaskStats,
+        SearchTaskStats searchTaskStats,
+        SearchShardTaskStats searchShardTaskStats,
         SearchBackpressureMode mode
     ) {
         this.searchTaskStats = searchTaskStats;
@@ -37,9 +37,9 @@ public class SearchBackpressureStats implements ToXContentFragment, Writeable {
     }
 
     public SearchBackpressureStats(StreamInput in) throws IOException {
-        searchShardTaskStats = new SearchBackpressureTaskStats(in);
+        searchShardTaskStats = new SearchShardTaskStats(in);
         mode = SearchBackpressureMode.fromName(in.readString());
-        searchTaskStats = in.readOptionalWriteable(SearchBackpressureTaskStats::new);
+        searchTaskStats = in.readOptionalWriteable(SearchTaskStats::new);
     }
 
     @Override

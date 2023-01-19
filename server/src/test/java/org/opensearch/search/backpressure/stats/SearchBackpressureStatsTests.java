@@ -25,8 +25,8 @@ public class SearchBackpressureStatsTests extends AbstractWireSerializingTestCas
 
     public static SearchBackpressureStats randomInstance() {
         return new SearchBackpressureStats(
-            SearchBackpressureTaskStatsTests.randomInstance(),
-            SearchBackpressureTaskStatsTests.randomInstance(),
+            SearchTaskStatsTests.randomInstance(),
+            SearchShardTaskStatsTests.randomInstance(),
             randomFrom(SearchBackpressureMode.DISABLED, SearchBackpressureMode.MONITOR_ONLY, SearchBackpressureMode.ENFORCED)
         );
     }
