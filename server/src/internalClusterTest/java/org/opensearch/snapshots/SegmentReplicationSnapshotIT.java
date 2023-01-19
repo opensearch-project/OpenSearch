@@ -99,11 +99,11 @@ public class SegmentReplicationSnapshotIT extends AbstractSnapshotIntegTestCase 
     // Start cluster with provided settings and return the node names as list
     public List<String> startClusterWithSettings(Settings indexSettings, int replicaCount) throws Exception {
         // Start primary
-        final String primaryNode = internalCluster().startNode(featureFlagSettings());
+        final String primaryNode = internalCluster().startNode();
         List<String> nodeNames = new ArrayList<>();
         nodeNames.add(primaryNode);
         for (int i = 0; i < replicaCount; i++) {
-            nodeNames.add(internalCluster().startNode(featureFlagSettings()));
+            nodeNames.add(internalCluster().startNode());
         }
         createIndex(INDEX_NAME, indexSettings);
         ensureGreen(INDEX_NAME);
@@ -266,7 +266,7 @@ public class SegmentReplicationSnapshotIT extends AbstractSnapshotIntegTestCase 
 
         // Assertions
         assertThat(restoreSnapshotResponse.status(), equalTo(RestStatus.ACCEPTED));
-        internalCluster().startNode(featureFlagSettings());
+        internalCluster().startNode();
         ensureGreen(RESTORED_INDEX_NAME);
         GetSettingsResponse settingsResponse = client().admin()
             .indices()
