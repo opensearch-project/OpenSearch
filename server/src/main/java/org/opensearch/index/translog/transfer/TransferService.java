@@ -45,7 +45,7 @@ public interface TransferService {
 
     void deleteBlobs(Iterable<String> path, List<String> fileNames) throws IOException;
 
-    void delete(Iterable<String> path) throws IOException;
+    void deleteAsync(Iterable<String> path, ActionListener<Void> listener);
 
     /**
      * Lists the files

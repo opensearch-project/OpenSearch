@@ -205,7 +205,7 @@ public class TranslogTransferManager {
         transferService.deleteBlobs(remoteBaseTransferPath.add(String.valueOf(primaryTerm)), files);
     }
 
-    public void cleanTranslog(long primaryTerm) throws IOException {
-        transferService.delete(remoteBaseTransferPath.add(String.valueOf(primaryTerm)));
+    public void cleanTranslogAsync(long primaryTerm, ActionListener<Void> listener) {
+        transferService.deleteAsync(remoteBaseTransferPath.add(String.valueOf(primaryTerm)), listener);
     }
 }
