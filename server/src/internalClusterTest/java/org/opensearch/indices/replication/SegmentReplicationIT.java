@@ -185,6 +185,7 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
         assertSegmentStats(REPLICA_COUNT);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/5669")
     public void testCancelPrimaryAllocation() throws Exception {
         // this test cancels allocation on the primary - promoting the new replica and recreating the former primary as a replica.
         final String primary = internalCluster().startNode(featureFlagSettings());
