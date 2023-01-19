@@ -59,7 +59,7 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationIT {
      */
     @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/5669")
     public void testPrimaryRelocation() throws Exception {
-        final String oldPrimary = internalCluster().startNode(featureFlagSettings());
+        final String oldPrimary = internalCluster().startNode();
         createIndex(1);
         final String replica = internalCluster().startNode(featureFlagSettings());
         ensureGreen(INDEX_NAME);
