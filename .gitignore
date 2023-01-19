@@ -12,8 +12,10 @@ out/
 !.idea/runConfigurations/Debug_OpenSearch.xml
 !.idea/vcs.xml
 
-# These files are generated in the main tree by IntelliJ
+# These files are generated in the main tree by annotation processors
 benchmarks/src/main/generated/*
+benchmarks/bin/*
+benchmarks/build-eclipse-default/*
 
 # eclipse files
 .project
