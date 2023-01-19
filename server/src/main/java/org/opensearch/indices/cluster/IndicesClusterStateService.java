@@ -51,7 +51,6 @@ import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
-import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.RecoverySource.Type;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
