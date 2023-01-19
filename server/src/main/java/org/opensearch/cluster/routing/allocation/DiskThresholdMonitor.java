@@ -46,6 +46,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.DiskUsage;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.routing.RerouteService;
 import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.RoutingNodes;
@@ -80,7 +81,6 @@ import java.util.stream.StreamSupport;
 public class DiskThresholdMonitor {
 
     private static final Logger logger = LogManager.getLogger(DiskThresholdMonitor.class);
-
     private final DiskThresholdSettings diskThresholdSettings;
     private final Client client;
     private final Supplier<ClusterState> clusterStateSupplier;
@@ -297,7 +297,7 @@ public class DiskThresholdMonitor {
                 }
         }
 
-        final ActionListener<Void> listener = new GroupedActionListener<>(ActionListener.wrap(this::checkFinished), 3);
+        final ActionListener<Void> listener = new GroupedActionListener<>(ActionListener.wrap(this::checkFinished), 4);
 
         if (reroute) {
             logger.debug("rerouting shards: [{}]", explanation);
@@ -400,6 +400,15 @@ public class DiskThresholdMonitor {
         } else {
             listener.onResponse(null);
         }
+
+        // If all the nodes are breaching high disk watermark, we apply index create block to avoid red clusters.
+        if (nodesOverHighThreshold.size() == nodes.size()) {
+            setIndexCreateBlock(listener, true);
+        } else if (state.getBlocks().hasGlobalBlockWithId(Metadata.CLUSTER_CREATE_INDEX_BLOCK.id())) {
+            setIndexCreateBlock(listener, false);
+        } else {
+            listener.onResponse(null);
+        }
     }
 
     // exposed for tests to override
@@ -433,6 +442,27 @@ public class DiskThresholdMonitor {
 
     private void setLastRunTimeMillis() {
         lastRunTimeMillis.getAndUpdate(l -> Math.max(l, currentTimeMillisSupplier.getAsLong()));
+    }
+
+    protected void setIndexCreateBlock(final ActionListener<Void> listener, boolean indexCreateBlock) {
+        final ActionListener<Void> wrappedListener = ActionListener.wrap(r -> {
+            setLastRunTimeMillis();
+            listener.onResponse(r);
+        }, e -> {
+            logger.debug("setting index create block failed", e);
+            setLastRunTimeMillis();
+            listener.onFailure(e);
+        });
+
+        final Settings indexCreateBlockSetting = indexCreateBlock
+            ? Settings.builder().put(Metadata.SETTING_CREATE_INDEX_BLOCK_SETTING.getKey(), Boolean.TRUE.toString()).build()
+            : Settings.builder().putNull(Metadata.SETTING_CREATE_INDEX_BLOCK_SETTING.getKey()).build();
+
+        client.admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(indexCreateBlockSetting)
+            .execute(ActionListener.map(wrappedListener, r -> null));
     }
 
     protected void updateIndicesReadOnly(Set<String> indicesToUpdate, ActionListener<Void> listener, boolean readOnly) {
