@@ -2077,6 +2077,23 @@ public class Setting<T> implements ToXContentObject {
         final String key,
         Function<Settings, TimeValue> defaultValue,
         final TimeValue minValue,
+        final Validator<TimeValue> validator,
+        final Property... properties
+    ) {
+        final SimpleKey simpleKey = new SimpleKey(key);
+        return new Setting<>(
+            simpleKey,
+            s -> defaultValue.apply(s).getStringRep(),
+            minTimeValueParser(key, minValue, isFiltered(properties)),
+            validator,
+            properties
+        );
+    }
+
+    public static Setting<TimeValue> timeSetting(
+        final String key,
+        Function<Settings, TimeValue> defaultValue,
+        final TimeValue minValue,
         final Property... properties
     ) {
         final SimpleKey simpleKey = new SimpleKey(key);
@@ -2171,6 +2188,16 @@ public class Setting<T> implements ToXContentObject {
 
     public static Setting<TimeValue> timeSetting(String key, Setting<TimeValue> fallbackSetting, Property... properties) {
         return new Setting<>(key, fallbackSetting, (s) -> TimeValue.parseTimeValue(s, key), properties);
+    }
+
+    public static Setting<TimeValue> timeSetting(
+        String key,
+        TimeValue defaultValue,
+        TimeValue minValue,
+        Validator<TimeValue> validator,
+        Property... properties
+    ) {
+        return timeSetting(key, (s) -> defaultValue, minValue, validator, properties);
     }
 
     public static Setting<TimeValue> timeSetting(

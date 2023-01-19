@@ -964,11 +964,13 @@ public class IndexSettingsTests extends OpenSearchTestCase {
                 .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, true)
                 .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "tlog-store")
+                .put(IndexMetadata.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.getKey(), "200ms")
                 .build()
         );
         IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
         assertNull(settings.getRemoteStoreRepository());
         assertEquals("tlog-store", settings.getRemoteStoreTranslogRepository());
+        assertEquals(TimeValue.timeValueMillis(200), settings.getBufferInterval());
     }
 
     public void testSetRemoteTranslogRepositoryFailsWhenRemoteTranslogIsNotEnabled() {
@@ -998,6 +1000,32 @@ public class IndexSettingsTests extends OpenSearchTestCase {
             () -> IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING.get(indexSettings)
         );
         assertEquals("Setting index.remote_store.translog.repository should be provided with non-empty repository ID", iae.getMessage());
+    }
+
+    public void testSetRemoteTranslogBufferIntervalDefaultSetting() {
+        Version createdVersion = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), createdVersion)
+            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, true)
+            .build();
+        assertTrue(IndexSettings.INDEX_SOFT_DELETES_SETTING.get(settings));
+        assertEquals(TimeValue.timeValueMillis(100), IndexMetadata.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(settings));
+    }
+
+    public void testSetRemoteTranslogBufferIntervalFailsWhenRemoteTranslogIsNotEnabled() {
+        Settings indexSettings = Settings.builder()
+            .put("index.replication.type", ReplicationType.SEGMENT)
+            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, false)
+            .put(IndexMetadata.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.getKey(), "200ms")
+            .build();
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> IndexMetadata.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(indexSettings)
+        );
+        assertEquals(
+            "Settings index.remote_store.translog.buffer_interval can only be set when index.remote_store.translog.enabled is set to true",
+            iae.getMessage()
+        );
     }
 
     @SuppressForbidden(reason = "sets the SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY feature flag")
