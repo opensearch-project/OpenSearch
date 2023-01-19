@@ -1,60 +1,36 @@
 /*
- * Copyright OpenSearch Contributors
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
  */
 
 package org.opensearch.authn;
 
 /**
- * A permission of OpenSearch internal resources
- *
- * Example "opensearch.indexing.index.create"
- *
- * @opensearch.experimental
+ * This is an abstract class that defines the minimum expectations for a permission object.
+ * A permission implementation of this class can implement further functionality or structuring.
+ * A permission needs to entail the action it allows and the resource its performed on.
  */
-public class Permission {
+abstract class Permission {
 
-    private final static String PERMISSION_DELIMITER = "\\.";
+    // If using a string for construction, a delimiter is required to split the string
+    String PERMISSION_DELIMITER;
 
-    public final static String INVALID_CHARACTERS = ":"; // This is a placeholder for what may want to be banned
+    // If using string-object permissions, you use the invalid characters for ensuring formatting
+    String[] INVALID_CHARACTERS;
 
-    public final String[] permissionChunks;
+    // An array of the valid operations which a permission can grant the privilege to perform.
+    String[] QUALIFIED_OPERATIONS;
 
-    public final String permissionString;
+    // An array of the available resources which a permission can grant some operation to act upon.
+    String[] QUALIFIED_RESOURCES;
 
-    public Permission(final String permission) {
-        try {
-            this.permissionString = permission;
-            this.permissionChunks = permission.split(PERMISSION_DELIMITER);
-            if (!permissionIsValidFormat()) {
-                throw new Exception();
-            }
-            ;
-        } catch (final Exception e) {
-            throw new InvalidPermissionName(permission);
-        }
-    }
+    String permissionString;
 
-    /**
-     * Check that the permission is formatted in the correct syntax
-     */
-    public boolean permissionIsValidFormat() {
+    abstract void Permission(String permission);
 
-        for (int i = 0; i < this.permissionChunks.length; i++) { // No segments contain invalid characters
-            if (this.permissionChunks[i].contains(INVALID_CHARACTERS)) {
-                return false;
-            }
-            if (this.permissionChunks[i].isEmpty()) { // Make sure that no segments are empty i.e. 'opensearch..index.create'
-                return false;
-            }
-        }
+    abstract boolean permissionIsValidFormat();
 
-        return true;
-    }
-
-    public static class InvalidPermissionName extends RuntimeException {
-        public InvalidPermissionName(final String name) {
-            super("The name '" + name + "' is not a valid permission name");
-        }
-    }
 }

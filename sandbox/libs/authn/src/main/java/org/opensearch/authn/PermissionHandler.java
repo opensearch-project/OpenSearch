@@ -8,44 +8,47 @@
 
 package org.opensearch.authn;
 
-import org.opensearch.authn.internal.InternalSubject;
-
+import java.security.Principal;
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Objects;
 
-public class PermissionHandler {
+/**
+ * This interface represents the abstract notion of a permission handler. A permission handler needs to be able to service the
+ * assignment and
+ *
+ * @opensearch.experimental
+ */
+public interface PermissionHandler {
+
+    // Currently have users --> roles --> permissions want user --> permissions but permissions should be stored elsewhere not directly with
+    // the user objects
+    // Do not need the higher level construct
+    // Want to be able to resolve users to a list of permission
+    // Multi-tenancy is like a private index -- not going to be considered for now.
+    // Each grant having an ID and have a table then the endpoint has the username and a permission -- this grant could end up as a document
+    // in an index
 
     /**
-     * Check that the permission required matches the permission available
+     * This function needs to be able to resolve a java Principal to an associated java Subject and return the associated Subject or throw an error if none corresponds
      */
-    public static boolean matchPermission(final Permission permission, final String permissionRequired) {
+    public Subject resolvePrincipal(Principal principal);
 
-        Objects.nonNull(permissionRequired);
+    /**
+     * This function grants a permission to a subject when provided the permission and a principal resolvable to a subject
+     * A principal should never be able to grant a permission to itself and implementations should ensure that only valid Subjects are able to execute this operation.
+     */
+    public void putPermission(Permission permission, Principal principal);
 
-        final Permission required = new Permission(permissionRequired); // Could also just pass a permission instead
-        for (int i = 0; i < permission.permissionChunks.length; i++) {
-            if (!permission.permissionChunks[i].equals(required.permissionChunks[i])) {
-                return false;
-            }
-        }
-        return true;
-    }
+    /**
+     * Returns a list of the permissions granted to the provided principal.
+     * Requires that the principal is resolvable to a Subject, throws an error no corresponding subject can be identified.
+     */
+    public ArrayList<Permission> getPermission(Principal principal);
 
-    public static void grantPermission(final Permission permission, final String resource, final InternalSubject subject) {
+    /**
+     * This function should be able to in-place remove a permission from the granted permissions of the Subject associated with the provided principal.
+     * If no matching permission is found an error should be thrown.
+     * If no resolvable Subject is associated with the Principal an error should be thrown.
+     */
+    public void deletePermission(Permission permission, Principal principal);
 
-        // Principal represents the user or plugin which requires the permission on the target resource
-        subject.grantedPermissions.putIfAbsent(resource, new ArrayList<Permission>());
-        subject.grantedPermissions.get(resource).add(permission);
-    }
-
-    public static HashMap<String, ArrayList<Permission>> getPermissions(InternalSubject subject) {
-
-        return subject.grantedPermissions;
-    }
-
-    public static void deletePermissions(final Permission permission, final String resource, final InternalSubject subject) {
-
-        subject.grantedPermissions.get(resource).remove(permission);
-    }
 }

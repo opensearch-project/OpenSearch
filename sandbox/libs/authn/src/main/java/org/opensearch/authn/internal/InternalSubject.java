@@ -6,12 +6,9 @@
 package org.opensearch.authn.internal;
 
 import java.security.Principal;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Objects;
 
 import org.opensearch.authn.AuthenticationTokenHandler;
-import org.opensearch.authn.Permission;
 import org.opensearch.authn.tokens.AuthenticationToken;
 import org.opensearch.authn.Subject;
 
@@ -25,12 +22,9 @@ import org.opensearch.authn.Subject;
 public class InternalSubject implements Subject {
     private final org.apache.shiro.subject.Subject shiroSubject;
 
-    public HashMap<String, ArrayList<Permission>> grantedPermissions; // Not sure how we plan to store the permissions
-
     public InternalSubject(org.apache.shiro.subject.Subject subject) {
 
         shiroSubject = subject;
-        this.grantedPermissions = new HashMap<String, ArrayList<Permission>>();
     }
 
     @Override
