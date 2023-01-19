@@ -2703,27 +2703,13 @@ public class IndexShardTests extends IndexShardTestCase {
         IndexShardTestCase.updateRoutingEntry(indexShard, routing);
         assertTrue(indexShard.isSyncNeeded());
         try {
-            indexShard.relocated(
-                routing.getTargetRelocatingShard().allocationId().getId(),
-                primaryContext -> {},
-                r -> r.onResponse(null),
-                new ActionListener<>() {
-                    @Override
-                    public void onResponse(Void unused) {
-                        assertTrue(indexShard.isRelocatedPrimary());
-                        assertFalse(indexShard.isSyncNeeded());
-                        assertFalse(indexShard.getReplicationTracker().isPrimaryMode());
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        fail(e.toString());
-                    }
-                }
-            );
+            indexShard.relocated(routing.getTargetRelocatingShard().allocationId().getId(), primaryContext -> {}, () -> {});
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }
+        assertTrue(indexShard.isRelocatedPrimary());
+        assertFalse(indexShard.isSyncNeeded());
+        assertFalse(indexShard.getReplicationTracker().isPrimaryMode());
         closeShards(indexShard);
     }
 
