@@ -851,7 +851,7 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
         Map<String, List<String>> nodeMap = setupCluster(nodeCountPerAZ, commonSettings);
 
         int numShards = 10;
-        int numReplicas = 1;
+        int numReplicas = 2;
         setUpIndexing(numShards, numReplicas);
 
         logger.info("--> setting shard routing weights for weighted round robin");
