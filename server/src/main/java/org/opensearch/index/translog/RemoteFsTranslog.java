@@ -9,6 +9,7 @@
 package org.opensearch.index.translog;
 
 import org.apache.lucene.util.SetOnce;
+import org.opensearch.action.ActionListener;
 import org.opensearch.common.io.FileSystemUtils;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
@@ -353,11 +354,12 @@ public class RemoteFsTranslog extends Translog {
             String translogFilename = Translog.getFilename(generation);
             if (fileTransferTracker.uploaded(translogFilename)) {
                 logger.trace("delete remote translog generation file [{}], not referenced by metadata anymore", generation);
+                // ToDo : Make it async.
                 deleteRemoteGeneration(generation);
                 // Safe to delete
                 if (olderPrimaryCleaned.get() == null) {
                     // clean up translog uploaded by previous primaries if any
-                    cleanupOlderPrimary();
+                    cleanupOlderPrimariesTranslog();
                     olderPrimaryCleaned.set(true);
                 }
             } else {
@@ -366,14 +368,25 @@ public class RemoteFsTranslog extends Translog {
         }
     }
 
-    public void cleanupOlderPrimary() {
+    /**
+     * Cleans up remote translog uploaded by previous primaries
+     * Safe to do when latest metadata doesn't refer them
+     */
+    public void cleanupOlderPrimariesTranslog() {
         logger.info("Cleaning up translog uploaded by previous primaries");
+        // ToDo : Move deletions to another threadpool so as not to block indexing
         for (long oldPrimaryTerm = current.getPrimaryTerm() - 1; oldPrimaryTerm >= 0; oldPrimaryTerm--) {
-            try {
-                translogTransferManager.cleanTranslog(oldPrimaryTerm);
-            } catch (IOException e) {
-                logger.error("Exception {} while deleting older primary translog files {}", e, oldPrimaryTerm);
-            }
+            long finalOldPrimaryTerm = oldPrimaryTerm;
+            translogTransferManager.cleanTranslogAsync(oldPrimaryTerm,  new ActionListener<>() {
+                @Override
+                public void onResponse(Void response) {
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.info("Exception {} while deleting older primary translog files", e, finalOldPrimaryTerm);
+                }
+            });
         }
     }
 }

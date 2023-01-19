@@ -82,6 +82,19 @@ public class BlobStoreTransferService implements TransferService {
     }
 
     @Override
+    public void deleteAsync(Iterable<String> path, ActionListener<Void> listener) {
+        executorService.execute( () -> {
+            try {
+                blobStore.blobContainer((BlobPath) path).delete();
+            } catch (IOException e) {
+                listener.onFailure(e);
+            }
+            listener.onResponse(null);
+        });
+    }
+
+
+    @Override
     public Set<String> listAll(Iterable<String> path) throws IOException {
         return blobStore.blobContainer((BlobPath) path).listBlobs().keySet();
     }
