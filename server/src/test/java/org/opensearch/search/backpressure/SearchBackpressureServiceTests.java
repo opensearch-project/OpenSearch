@@ -19,10 +19,11 @@ import org.opensearch.search.backpressure.settings.SearchBackpressureMode;
 import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
 import org.opensearch.search.backpressure.settings.SearchShardTaskSettings;
 import org.opensearch.search.backpressure.settings.SearchTaskSettings;
+import org.opensearch.search.backpressure.stats.SearchShardTaskStats;
+import org.opensearch.search.backpressure.stats.SearchTaskStats;
 import org.opensearch.search.backpressure.trackers.NodeDuressTracker;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.search.backpressure.stats.SearchBackpressureStats;
-import org.opensearch.search.backpressure.stats.SearchBackpressureTaskStats;
 import org.opensearch.search.backpressure.trackers.TaskResourceUsageTracker;
 import org.opensearch.search.backpressure.trackers.TaskResourceUsageTrackerType;
 import org.opensearch.tasks.CancellableTask;
@@ -223,8 +224,8 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
 
         // Verify search backpressure stats.
         SearchBackpressureStats expectedStats = new SearchBackpressureStats(
-            new SearchBackpressureTaskStats(20, 3, Map.of(TaskResourceUsageTrackerType.CPU_USAGE_TRACKER, new MockStats(20))),
-            new SearchBackpressureTaskStats(0, 0, Collections.emptyMap()),
+            new SearchTaskStats(20, 3, Map.of(TaskResourceUsageTrackerType.CPU_USAGE_TRACKER, new MockStats(20))),
+            new SearchShardTaskStats(0, 0, Collections.emptyMap()),
             SearchBackpressureMode.ENFORCED
         );
         SearchBackpressureStats actualStats = service.nodeStats();
@@ -303,8 +304,8 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
 
         // Verify search backpressure stats.
         SearchBackpressureStats expectedStats = new SearchBackpressureStats(
-            new SearchBackpressureTaskStats(0, 0, Collections.emptyMap()),
-            new SearchBackpressureTaskStats(15, 3, Map.of(TaskResourceUsageTrackerType.CPU_USAGE_TRACKER, new MockStats(15))),
+            new SearchTaskStats(0, 0, Collections.emptyMap()),
+            new SearchShardTaskStats(15, 3, Map.of(TaskResourceUsageTrackerType.CPU_USAGE_TRACKER, new MockStats(15))),
             SearchBackpressureMode.ENFORCED
         );
         SearchBackpressureStats actualStats = service.nodeStats();

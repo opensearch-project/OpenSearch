@@ -25,7 +25,9 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Stats related to cancelled search shard tasks.
+ * Stats related to cancelled SearchBackpressureTasks.
+ * Since the children of this class has exact same structures, we have extracted the common stats to this class.
+ * However, in the future, if some task stats does not have this common stats, we can remove this class.
  */
 public class SearchBackpressureTaskStats implements ToXContentObject, Writeable {
     private final long cancellationCount;

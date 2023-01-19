@@ -22,7 +22,8 @@ import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
 import org.opensearch.search.backpressure.settings.SearchShardTaskSettings;
 import org.opensearch.search.backpressure.settings.SearchTaskSettings;
 import org.opensearch.search.backpressure.stats.SearchBackpressureStats;
-import org.opensearch.search.backpressure.stats.SearchBackpressureTaskStats;
+import org.opensearch.search.backpressure.stats.SearchShardTaskStats;
+import org.opensearch.search.backpressure.stats.SearchTaskStats;
 import org.opensearch.search.backpressure.trackers.CpuUsageTracker;
 import org.opensearch.search.backpressure.trackers.ElapsedTimeTracker;
 import org.opensearch.search.backpressure.trackers.HeapUsageTracker;
@@ -472,14 +473,14 @@ public class SearchBackpressureService extends AbstractLifecycleComponent
     public SearchBackpressureStats nodeStats() {
         List<CancellableTask> searchTasks = getTaskByType(SearchTask.class);
         List<CancellableTask> searchShardTasks = getTaskByType(SearchShardTask.class);
-        SearchBackpressureTaskStats searchTaskStats = new SearchBackpressureTaskStats(
+        SearchTaskStats searchTaskStats = new SearchTaskStats(
             searchBackpressureStates.get(SearchTask.class).getCancellationCount(),
             searchBackpressureStates.get(SearchTask.class).getLimitReachedCount(),
             searchTaskTrackers.stream()
                 .collect(Collectors.toUnmodifiableMap(t -> TaskResourceUsageTrackerType.fromName(t.name()), t -> t.stats(searchTasks)))
         );
 
-        SearchBackpressureTaskStats searchShardTaskStats = new SearchBackpressureTaskStats(
+        SearchShardTaskStats searchShardTaskStats = new SearchShardTaskStats(
             searchBackpressureStates.get(SearchShardTask.class).getCancellationCount(),
             searchBackpressureStates.get(SearchShardTask.class).getLimitReachedCount(),
             searchShardTaskTrackers.stream()
