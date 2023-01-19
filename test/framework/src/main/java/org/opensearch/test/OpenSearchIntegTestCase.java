@@ -1919,7 +1919,8 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             // randomly enable low-level search cancellation to make sure it does not alter results
             .put(SearchService.LOW_LEVEL_CANCELLATION_SETTING.getKey(), randomBoolean())
             .putList(DISCOVERY_SEED_HOSTS_SETTING.getKey()) // empty list disables a port scan for other nodes
-            .putList(DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "file");
+            .putList(DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "file")
+            .put(featureFlagSettings());
         if (rarely()) {
             // Sometimes adjust the minimum search thread pool size, causing
             // QueueResizingOpenSearchThreadPoolExecutor to be used instead of a regular
