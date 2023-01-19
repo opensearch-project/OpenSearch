@@ -62,6 +62,7 @@ import org.opensearch.action.admin.indices.refresh.RefreshResponse;
 import org.opensearch.action.admin.indices.segments.IndexSegments;
 import org.opensearch.action.admin.indices.segments.IndexShardSegments;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentResponse;
+import org.opensearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.opensearch.action.admin.indices.segments.ShardSegments;
 import org.opensearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
 import org.opensearch.action.bulk.BulkRequestBuilder;
@@ -84,6 +85,7 @@ import org.opensearch.cluster.coordination.OpenSearchNodeCommand;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
@@ -125,6 +127,7 @@ import org.opensearch.env.TestEnvironment;
 import org.opensearch.http.HttpInfo;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexModule;
+import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.MergePolicyConfig;
 import org.opensearch.index.MergeSchedulerConfig;
@@ -132,10 +135,12 @@ import org.opensearch.index.MockEngineFactoryPlugin;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.Segment;
 import org.opensearch.index.mapper.MockFieldFilterPlugin;
+import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndicesQueryCache;
 import org.opensearch.indices.IndicesRequestCache;
+import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.store.IndicesStore;
 import org.opensearch.monitor.os.OsInfo;
 import org.opensearch.node.NodeMocksPlugin;
@@ -185,6 +190,7 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.Callable;
@@ -1015,6 +1021,118 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     public ClusterHealthStatus waitForRelocation() {
         return waitForRelocation(null);
     }
+
+    protected void assertSegmentStats(int numberOfReplicas) throws IOException {
+        final IndicesSegmentResponse indicesSegmentResponse = client().admin().indices().segments(new IndicesSegmentsRequest()).actionGet();
+
+        List<ShardSegments[]> segmentsByIndex = getShardSegments(indicesSegmentResponse);
+
+        // There will be an entry in the list for each index.
+        for (ShardSegments[] replicationGroupSegments : segmentsByIndex) {
+
+            // Separate Primary & replica shards ShardSegments.
+            final Map<Boolean, List<ShardSegments>> segmentListMap = segmentsByShardType(replicationGroupSegments);
+            final List<ShardSegments> primaryShardSegmentsList = segmentListMap.get(true);
+            final List<ShardSegments> replicaShardSegments = segmentListMap.get(false);
+
+            assertEquals("There should only be one primary in the replicationGroup", primaryShardSegmentsList.size(), 1);
+            final ShardSegments primaryShardSegments = primaryShardSegmentsList.stream().findFirst().get();
+            final Map<String, Segment> latestPrimarySegments = getLatestSegments(primaryShardSegments);
+
+            assertEquals(
+                "There should be a ShardSegment entry for each replica in the replicationGroup",
+                numberOfReplicas,
+                replicaShardSegments.size()
+            );
+
+            for (ShardSegments shardSegment : replicaShardSegments) {
+                final Map<String, Segment> latestReplicaSegments = getLatestSegments(shardSegment);
+                for (Segment replicaSegment : latestReplicaSegments.values()) {
+                    final Segment primarySegment = latestPrimarySegments.get(replicaSegment.getName());
+                    assertEquals(replicaSegment.getGeneration(), primarySegment.getGeneration());
+                    assertEquals(replicaSegment.getNumDocs(), primarySegment.getNumDocs());
+                    assertEquals(replicaSegment.getDeletedDocs(), primarySegment.getDeletedDocs());
+                    assertEquals(replicaSegment.getSize(), primarySegment.getSize());
+                }
+
+                // Fetch the IndexShard for this replica and try and build its SegmentInfos from the previous commit point.
+                // This ensures the previous commit point is not wiped.
+                final ShardRouting replicaShardRouting = shardSegment.getShardRouting();
+                ClusterState state = client(internalCluster().getMasterName()).admin().cluster().prepareState().get().getState();
+                final DiscoveryNode replicaNode = state.nodes().resolveNode(replicaShardRouting.currentNodeId());
+                IndexShard indexShard = getIndexShard(replicaNode.getName(), replicaShardRouting.getIndexName());
+                // calls to readCommit will fail if a valid commit point and all its segments are not in the store.
+                indexShard.store().readLastCommittedSegmentsInfo();
+            }
+        }
+    }
+
+    protected IndexShard getIndexShard(String node, String indexName) {
+        final Index index = resolveIndex(indexName);
+        IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
+        IndexService indexService = indicesService.indexServiceSafe(index);
+        final Optional<Integer> shardId = indexService.shardIds().stream().findFirst();
+        return indexService.getShard(shardId.get());
+    }
+
+    private Map<String, Segment> getLatestSegments(ShardSegments segments) {
+        final Optional<Long> generation = segments.getSegments().stream().map(Segment::getGeneration).max(Long::compare);
+        final Long latestPrimaryGen = generation.get();
+        return segments.getSegments()
+            .stream()
+            .filter(s -> s.getGeneration() == latestPrimaryGen)
+            .collect(Collectors.toMap(Segment::getName, Function.identity()));
+    }
+
+    private Map<Boolean, List<ShardSegments>> segmentsByShardType(ShardSegments[] replicationGroupSegments) {
+        return Arrays.stream(replicationGroupSegments).collect(Collectors.groupingBy(s -> s.getShardRouting().primary()));
+    }
+
+    private List<ShardSegments[]> getShardSegments(IndicesSegmentResponse indicesSegmentResponse) {
+        return indicesSegmentResponse.getIndices()
+            .values()
+            .stream() // get list of IndexSegments
+            .flatMap(is -> is.getShards().values().stream()) // Map to shard replication group
+            .map(IndexShardSegments::getShards) // get list of segments across replication group
+            .collect(Collectors.toList());
+    }
+
+    /**
+     * Used for segment replication only
+     *
+     * Waits until the replica is caught up to the latest primary segments gen.
+     * @throws Exception if assertion fails
+     */
+    protected void waitForReplicaUpdate() throws Exception {
+        // wait until the replica has the latest segment generation.
+        assertBusy(() -> {
+            final IndicesSegmentResponse indicesSegmentResponse = client().admin()
+                .indices()
+                .segments(new IndicesSegmentsRequest())
+                .actionGet();
+            List<ShardSegments[]> segmentsByIndex = getShardSegments(indicesSegmentResponse);
+            for (ShardSegments[] replicationGroupSegments : segmentsByIndex) {
+                final Map<Boolean, List<ShardSegments>> segmentListMap = segmentsByShardType(replicationGroupSegments);
+                final List<ShardSegments> primaryShardSegmentsList = segmentListMap.get(true);
+                final List<ShardSegments> replicaShardSegments = segmentListMap.get(false);
+                // if we don't have any segments yet, proceed.
+                final ShardSegments primaryShardSegments = primaryShardSegmentsList.stream().findFirst().get();
+                logger.debug("Primary Segments: {}", primaryShardSegments.getSegments());
+                if (primaryShardSegments.getSegments().isEmpty() == false && replicaShardSegments != null) {
+                    final Map<String, Segment> latestPrimarySegments = getLatestSegments(primaryShardSegments);
+                    final Long latestPrimaryGen = latestPrimarySegments.values().stream().findFirst().map(Segment::getGeneration).get();
+                    for (ShardSegments shardSegments : replicaShardSegments) {
+                        logger.debug("Replica {} Segments: {}", shardSegments.getShardRouting(), shardSegments.getSegments());
+                        final boolean isReplicaCaughtUpToPrimary = shardSegments.getSegments()
+                            .stream()
+                            .anyMatch(segment -> segment.getGeneration() == latestPrimaryGen);
+                        assertTrue(isReplicaCaughtUpToPrimary);
+                    }
+                }
+            }
+        });
+    }
+
 
     /**
      * Waits for all relocating shards to become active and the cluster has reached the given health status
