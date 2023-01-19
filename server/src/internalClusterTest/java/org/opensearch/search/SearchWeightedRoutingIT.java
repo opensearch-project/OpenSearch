@@ -20,6 +20,7 @@ import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.routing.PreferenceBasedSearchNotAllowedException;
 import org.opensearch.cluster.routing.WeightedRouting;
 import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.opensearch.common.collect.ImmutableOpenMap;
@@ -27,6 +28,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.search.stats.SearchStats;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.rest.RestStatus;
 import org.opensearch.search.aggregations.Aggregations;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
 import org.opensearch.snapshots.mockstore.MockRepository;
@@ -794,6 +796,77 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
             60,
             TimeUnit.SECONDS
         );
+    }
+
+    /**
+     * Assert that preference based search is not allowed with strict weighted shard routing
+     * @throws Exception throws exception
+     */
+    public void testStrictWeightedRouting() throws Exception {
+
+        Settings commonSettings = Settings.builder()
+            .put("cluster.routing.allocation.awareness.attributes", "zone")
+            .put("cluster.routing.allocation.awareness.force.zone.values", "a,b,c")
+            .put("cluster.routing.weighted.fail_open", true)
+            .put("cluster.routing.weighted.strict", true)
+            .build();
+
+        int nodeCountPerAZ = 1;
+        Map<String, List<String>> nodeMap = setupCluster(nodeCountPerAZ, commonSettings);
+
+        int numShards = 10;
+        int numReplicas = 1;
+        setUpIndexing(numShards, numReplicas);
+
+        logger.info("--> setting shard routing weights for weighted round robin");
+        Map<String, Double> weights = Map.of("a", 1.0, "b", 1.0, "c", 0.0);
+        setShardRoutingWeights(weights);
+        String nodeInZoneA = nodeMap.get("a").get(0);
+        String customPreference = randomAlphaOfLength(10);
+
+        assertThrows(
+            PreferenceBasedSearchNotAllowedException.class,
+            () -> internalCluster().client(nodeMap.get("b").get(0))
+                .prepareSearch()
+                .setSize(0)
+                .setPreference(randomFrom("_local", "_only_nodes:" + nodeInZoneA, "_prefer_nodes:" + nodeInZoneA, customPreference))
+                .get()
+        );
+
+    }
+
+    /**
+     *  Assert that preference based search works with non-strict weighted shard routing
+     * @throws Exception
+     */
+    public void testPreferenceSearchWithWeightedRouting() throws Exception {
+        Settings commonSettings = Settings.builder()
+            .put("cluster.routing.allocation.awareness.attributes", "zone")
+            .put("cluster.routing.allocation.awareness.force.zone.values", "a,b,c")
+            .put("cluster.routing.weighted.fail_open", true)
+            .put("cluster.routing.weighted.strict", false)
+            .build();
+
+        int nodeCountPerAZ = 1;
+        Map<String, List<String>> nodeMap = setupCluster(nodeCountPerAZ, commonSettings);
+
+        int numShards = 10;
+        int numReplicas = 1;
+        setUpIndexing(numShards, numReplicas);
+
+        logger.info("--> setting shard routing weights for weighted round robin");
+        Map<String, Double> weights = Map.of("a", 1.0, "b", 1.0, "c", 0.0);
+        setShardRoutingWeights(weights);
+
+        String customPreference = randomAlphaOfLength(10);
+        String nodeInZoneA = nodeMap.get("a").get(0);
+
+        SearchResponse searchResponse = internalCluster().client(nodeMap.get("b").get(0))
+            .prepareSearch()
+            .setSize(0)
+            .setPreference(randomFrom("_local", "_only_nodes:" + nodeInZoneA, "_prefer_nodes:" + nodeInZoneA, customPreference))
+            .get();
+        assertEquals(RestStatus.OK.getStatus(), searchResponse.status().getStatus());
     }
 
 }
