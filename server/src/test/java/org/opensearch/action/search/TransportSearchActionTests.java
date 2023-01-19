@@ -33,7 +33,6 @@
 package org.opensearch.action.search;
 
 import org.apache.lucene.search.TotalHits;
-import org.apache.lucene.util.SetOnce;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.LatchedActionListener;
@@ -52,6 +51,7 @@ import org.opensearch.cluster.routing.GroupShardsIteratorTests;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.TestShardRouting;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.Strings;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;

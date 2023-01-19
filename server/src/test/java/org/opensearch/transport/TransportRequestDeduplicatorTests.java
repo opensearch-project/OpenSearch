@@ -31,8 +31,8 @@
 
 package org.opensearch.transport;
 
-import org.apache.lucene.util.SetOnce;
 import org.opensearch.action.ActionListener;
+import org.opensearch.common.SetOnce;
 import org.opensearch.tasks.TaskId;
 import org.opensearch.test.OpenSearchTestCase;
 
