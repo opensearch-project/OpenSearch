@@ -37,7 +37,7 @@ public class DoubleParser<T> implements Function<String, T>, Writeable {
         return properties != null && Arrays.asList(properties).contains(Property.Filtered);
     }
 
-    private static Double perser(String s, double minValue, double maxValue, String key, boolean isFiltered) {
+    private T perser(String s, double minValue, double maxValue, String key, boolean isFiltered, Class<T> type) {
         double value = Double.parseDouble(s);
         if(value < minValue) {
             String err = "Failed to parse value" + (isFiltered ? "" : " [" + s + "]") + " for setting [" + key + "] must be >= " + minValue;
@@ -47,7 +47,7 @@ public class DoubleParser<T> implements Function<String, T>, Writeable {
             String err = "Failed to parse value" + (isFiltered ? "" : " [" + s + "]") + " for setting [" + key + "] must be <= " + maxValue;
             throw new IllegalArgumentException(err);
         }
-        return value;
+        return type.cast(value);
     }
 
     @Override
@@ -62,7 +62,7 @@ public class DoubleParser<T> implements Function<String, T>, Writeable {
 
     @Override
     public T apply(String s) {
-        return parser(s, minValue, maxValue, key, isFiltered(properties));
+        return perser(s, minValue, maxValue, key, isFiltered(properties));
     }
 
 }
