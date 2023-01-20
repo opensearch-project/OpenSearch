@@ -5,7 +5,7 @@
  * this file be licensed under the Apache-2.0 license or a
  * compatible open source license.
  */
-package org.opensearch.authn.noop;
+package org.opensearch.identity.authmanager.noop;
 
 import org.opensearch.authn.tokens.AccessToken;
 import org.opensearch.authn.AccessTokenManager;

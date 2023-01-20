@@ -40,14 +40,6 @@ public class InternalAuthenticationManager implements AuthenticationManager {
         SecurityUtils.setSecurityManager(securityManager);
     }
 
-    /**
-     * Instantiates this Auth manager by setting the custom security Manager that is passed as an argument
-     * @param securityManager the custom security manager (with realm instantiated in it)
-     */
-    public InternalAuthenticationManager(SecurityManager securityManager) {
-        SecurityUtils.setSecurityManager(securityManager);
-    }
-
     @Override
     public Subject getSubject() {
         return new InternalSubject(SecurityUtils.getSubject());
@@ -56,5 +48,13 @@ public class InternalAuthenticationManager implements AuthenticationManager {
     @Override
     public AccessTokenManager getAccessTokenManager() {
         return null;
+    }
+
+    /**
+     * Setter for this Auth manager to set the custom security Manager that is passed as an argument
+     * @param securityManager the custom security manager (with realm instantiated in it)
+     */
+    public void setSecurityManager(SecurityManager securityManager) {
+        SecurityUtils.setSecurityManager(securityManager);
     }
 }

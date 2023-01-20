@@ -8,6 +8,8 @@
 
 package org.opensearch.authn;
 
+import java.util.Objects;
+
 /**
  * Application wide access for identity systems
  *
@@ -25,6 +27,7 @@ public final class Identity {
      * Gets the Authentication Manager for this application
      */
     public static AuthenticationManager getAuthManager() {
+        Objects.requireNonNull(AUTH_MANAGER, "Auth Manager has not been set");
         return AUTH_MANAGER;
     }
 

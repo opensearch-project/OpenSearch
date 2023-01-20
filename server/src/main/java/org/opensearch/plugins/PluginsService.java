@@ -65,6 +65,7 @@ import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -140,6 +141,19 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         // first we load plugins that are on the classpath. this is for tests
         for (Class<? extends Plugin> pluginClass : classpathPlugins) {
             Plugin plugin = loadPlugin(pluginClass, settings, configPath);
+
+            List<String> extendedPlugins = Collections.emptyList();
+            // Adds the ability for test plugins to extend plugins. The test plugin needs to register a setting called
+            // extended.plugin with a default of the canonical name of the extended plugin class
+            Optional<Setting<?>> extendedPluginsSetting = plugin.getSettings()
+                .stream()
+                .filter(s -> "extended.plugins".equals(s.getKey()))
+                .findFirst();
+            if (extendedPluginsSetting.isPresent()) {
+                String settingValue = extendedPluginsSetting.get().getDefault(Settings.EMPTY).toString();
+                extendedPlugins = Arrays.stream(settingValue.split(",")).map(String::trim).collect(Collectors.toList());
+            }
+
             PluginInfo pluginInfo = new PluginInfo(
                 pluginClass.getName(),
                 "classpath plugin",
@@ -148,7 +162,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
                 "1.8",
                 pluginClass.getName(),
                 null,
-                Collections.emptyList(),
+                extendedPlugins,
                 false
             );
             if (logger.isTraceEnabled()) {
@@ -158,6 +172,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             pluginsList.add(pluginInfo);
             pluginsNames.add(pluginInfo.getName());
         }
+        loadExtensions(pluginsLoaded);
 
         Set<Bundle> seenBundles = new LinkedHashSet<>();
         List<PluginInfo> modulesList = new ArrayList<>();

@@ -6,12 +6,11 @@
  * compatible open source license.
  */
 
-package org.opensearch.authn.noop;
+package org.opensearch.identity.authmanager.noop;
 
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.authn.Subject;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 public class NoopSubjectTests extends OpenSearchTestCase {

@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.authn.noop;
+package org.opensearch.identity.authmanager.noop;
 
 import org.opensearch.test.OpenSearchTestCase;
 

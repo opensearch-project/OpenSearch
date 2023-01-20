@@ -7,4 +7,4 @@
  */
 
 /** Classes for the noop authentication in OpenSearch */
-package org.opensearch.authn.noop;
+package org.opensearch.identity.authmanager.noop;

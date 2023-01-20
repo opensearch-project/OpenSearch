@@ -11,13 +11,14 @@ apply plugin: 'opensearch.internal-cluster-test'
 opensearchplugin {
   description 'Plugin for identity features in OpenSearch.'
   classname 'org.opensearch.identity.IdentityPlugin'
-  name project.name
+  name 'identity'
   licenseFile rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
   noticeFile rootProject.file('NOTICE.txt')
+  extendedPlugins = ['extensible-identity']
 }
 
 dependencies {
-  implementation project(':sandbox:libs:opensearch-authn')
+  compileOnly project(':sandbox:libs:opensearch-authn')
 
   implementation 'org.apache.shiro:shiro-core:1.9.1'
   // Needed for shiro
@@ -62,9 +63,9 @@ tasks.named("dependencyLicenses").configure {
  * We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
  * other if we allow them to set the number of available processors as it's set-once in Netty.
  */
-  test {
-    systemProperty 'opensearch.set.netty.runtime.available.processors', 'false'
-  }
+test {
+  systemProperty 'opensearch.set.netty.runtime.available.processors', 'false'
+}
 
 internalClusterTest {
   systemProperty 'opensearch.set.netty.runtime.available.processors', 'false'

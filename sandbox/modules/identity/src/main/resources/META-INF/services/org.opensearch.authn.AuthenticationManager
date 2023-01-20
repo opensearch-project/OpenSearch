@@ -1,0 +1,2 @@
+org.opensearch.identity.authmanager.internal.InternalAuthenticationManager
+org.opensearch.identity.authmanager.noop.NoopAuthenticationManager
