@@ -39,7 +39,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * This is borrowed from lucene's experimental API. It is not reused to eliminate the dependency
  * on lucene core for such a simple (standalone) utility class that may change beyond OpenSearch needs.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
 public final class SetOnce<T> implements Cloneable {
 
