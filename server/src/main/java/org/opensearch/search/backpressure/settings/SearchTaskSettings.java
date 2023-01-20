@@ -33,10 +33,10 @@ public class SearchTaskSettings {
         // TODO: decide on default settings for SearchTask
         private static final double CANCELLATION_RATIO = 0.1;
         private static final double CANCELLATION_RATE = 0.003;
-        private static final double CANCELLATION_BURST = 10.0;
+        private static final double CANCELLATION_BURST = 5.0;
         private static final double TOTAL_HEAP_PERCENT_THRESHOLD = 0.05;
-        private static final long CPU_TIME_MILLIS_THRESHOLD = 60000;
-        private static final long ELAPSED_TIME_MILLIS_THRESHOLD = 120000;
+        private static final long CPU_TIME_MILLIS_THRESHOLD = 30000;
+        private static final long ELAPSED_TIME_MILLIS_THRESHOLD = 45000;
         private static final double HEAP_PERCENT_THRESHOLD = 0.02;
         private static final double HEAP_VARIANCE_THRESHOLD = 2.0;
         private static final int HEAP_MOVING_AVERAGE_WINDOW_SIZE = 100;

@@ -169,7 +169,7 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
         TaskResourceUsageTracker mockTaskResourceUsageTracker = getMockedTaskResourceUsageTracker();
 
         // Mocking 'settings' with predictable rate limiting thresholds.
-        SearchBackpressureSettings settings = getBackpressureSettings("enforced", 0.2, 0.005, 10.0);
+        SearchBackpressureSettings settings = getBackpressureSettings("enforced", 0.1, 0.003, 5.0);
 
         SearchBackpressureService service = new SearchBackpressureService(
             settings,
@@ -202,29 +202,29 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
         }
         doReturn(activeSearchTasks).when(mockTaskResourceTrackingService).getResourceAwareTasks();
 
-        // There are 25 SearchTasks eligible for cancellation but only 10 will be cancelled (burst limit).
+        // There are 25 SearchTasks eligible for cancellation but only 5 will be cancelled (burst limit).
         LogManager.getLogger(SearchBackpressureServiceTests.class).info("first run");
         service.doRun();
-        assertEquals(10, service.getSearchBackpressureTaskStats(SearchTask.class).getCancellationCount());
+        assertEquals(5, service.getSearchBackpressureTaskStats(SearchTask.class).getCancellationCount());
         assertEquals(1, service.getSearchBackpressureTaskStats(SearchTask.class).getLimitReachedCount());
 
         // If the clock or completed task count haven't made sufficient progress, we'll continue to be rate-limited.
         LogManager.getLogger(SearchBackpressureServiceTests.class).info("second run");
         service.doRun();
-        assertEquals(10, service.getSearchBackpressureTaskStats(SearchTask.class).getCancellationCount());
+        assertEquals(5, service.getSearchBackpressureTaskStats(SearchTask.class).getCancellationCount());
         assertEquals(2, service.getSearchBackpressureTaskStats(SearchTask.class).getLimitReachedCount());
 
         // Fast-forward the clock by ten second to replenish some tokens.
-        // This will add 50 tokens (time delta * rate) to 'rateLimitPerTime' but it will cancel only 10 tasks (burst limit).
+        // This will add 50 tokens (time delta * rate) to 'rateLimitPerTime' but it will cancel only 5 tasks (burst limit).
         mockTime.addAndGet(TimeUnit.SECONDS.toNanos(10));
         LogManager.getLogger(SearchBackpressureServiceTests.class).info("third run");
         service.doRun();
-        assertEquals(20, service.getSearchBackpressureTaskStats(SearchTask.class).getCancellationCount());
+        assertEquals(10, service.getSearchBackpressureTaskStats(SearchTask.class).getCancellationCount());
         assertEquals(3, service.getSearchBackpressureTaskStats(SearchTask.class).getLimitReachedCount());
 
         // Verify search backpressure stats.
         SearchBackpressureStats expectedStats = new SearchBackpressureStats(
-            new SearchTaskStats(20, 3, Map.of(TaskResourceUsageTrackerType.CPU_USAGE_TRACKER, new MockStats(20))),
+            new SearchTaskStats(10, 3, Map.of(TaskResourceUsageTrackerType.CPU_USAGE_TRACKER, new MockStats(10))),
             new SearchShardTaskStats(0, 0, Collections.emptyMap()),
             SearchBackpressureMode.ENFORCED
         );
