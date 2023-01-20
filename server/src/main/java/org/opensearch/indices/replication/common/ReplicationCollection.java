@@ -34,8 +34,6 @@ package org.opensearch.indices.replication.common;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.OpenSearchException;
-import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.common.concurrent.AutoCloseableRefCounted;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
@@ -134,7 +132,7 @@ public class ReplicationCollection<T extends ReplicationTarget> {
         } catch (Exception e) {
             // fail shard to be safe
             assert oldTarget != null;
-            oldTarget.notifyListener(new OpenSearchException("Unable to reset target", e), true);
+            oldTarget.notifyListener(new ReplicationFailedException("Unable to reset target", e), true);
             return null;
         }
     }
@@ -187,7 +185,7 @@ public class ReplicationCollection<T extends ReplicationTarget> {
      * @param e                exception with reason for the failure
      * @param sendShardFailure true a shard failed message should be sent to the master
      */
-    public void fail(long id, OpenSearchException e, boolean sendShardFailure) {
+    public void fail(long id, ReplicationFailedException e, boolean sendShardFailure) {
         T removed = onGoingTargetEvents.remove(id);
         if (removed != null) {
             logger.trace("failing {}. Send shard failure: [{}]", removed.description(), sendShardFailure);
@@ -299,7 +297,7 @@ public class ReplicationCollection<T extends ReplicationTarget> {
                 String message = "no activity after [" + checkInterval + "]";
                 fail(
                     id,
-                    new OpenSearchTimeoutException(message),
+                    new ReplicationFailedException(message),
                     true // to be safe, we don't know what go stuck
                 );
                 return;
