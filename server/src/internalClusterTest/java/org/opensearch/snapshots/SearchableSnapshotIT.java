@@ -212,8 +212,6 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         restoreSnapshotAndEnsureGreen(client, snapshotName, repoName);
 
         assertIndexingBlocked(restoredIndexName);
-        assertUpdateIndexSettingsDefault(restoredIndexName);
-        assertUpdateIndexSettingsAllowList(restoredIndexName);
         assertTrue(client.admin().indices().prepareDelete(restoredIndexName).get().isAcknowledged());
         assertThrows(
             "Expect index to not exist",
@@ -324,7 +322,27 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
-    private void assertUpdateIndexSettingsDefault(String index) {
+    public void testUpdateIndexSettings() throws InterruptedException {
+        final String indexName = "test-index";
+        final String restoredIndexName = indexName + "-copy";
+        final String repoName = "test-repo";
+        final String snapshotName = "test-snap";
+        final Client client = client();
+
+        createIndexWithDocsAndEnsureGreen(0, 100, indexName);
+        createRepositoryWithSettings(null, repoName);
+        takeSnapshot(client, snapshotName, repoName, indexName);
+        deleteIndicesAndEnsureGreen(client, indexName);
+
+        internalCluster().ensureAtLeastNumSearchNodes(1);
+        restoreSnapshotAndEnsureGreen(client, snapshotName, repoName);
+
+        testUpdateIndexSettingsOnlyNotAllowedSettings(restoredIndexName);
+        testUpdateIndexSettingsOnlyAllowedSettings(restoredIndexName);
+        testUpdateIndexSettingsAtLeastOneNotAllowedSettings(restoredIndexName);
+    }
+
+    private void testUpdateIndexSettingsOnlyNotAllowedSettings(String index) {
         try {
             final UpdateSettingsRequestBuilder builder = client().admin().indices().prepareUpdateSettings(index);
             builder.setSettings(Map.of("index.refresh_interval", 10));
@@ -335,11 +353,24 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
-    private void assertUpdateIndexSettingsAllowList(String index) {
+    private void testUpdateIndexSettingsOnlyAllowedSettings(String index) {
         final UpdateSettingsRequestBuilder builder = client().admin().indices().prepareUpdateSettings(index);
-        builder.setSettings(Map.of("index.max_result_window", 100, "index.search.slowlog.threshold.query.warn", "10s"));
+        builder.setSettings(Map.of("index.max_result_window", 1000, "index.search.slowlog.threshold.query.warn", "10s"));
         AcknowledgedResponse settingsResponse = builder.execute().actionGet();
         assertThat(settingsResponse, notNullValue());
+    }
+
+    private void testUpdateIndexSettingsAtLeastOneNotAllowedSettings(String index) {
+        try {
+            final UpdateSettingsRequestBuilder builder = client().admin().indices().prepareUpdateSettings(index);
+            builder.setSettings(
+                Map.of("index.max_result_window", 5000, "index.search.slowlog.threshold.query.warn", "15s", "index.refresh_interval", 10)
+            );
+            builder.execute().actionGet();
+            fail("Expected operation to throw an exception");
+        } catch (ClusterBlockException e) {
+            MatcherAssert.assertThat(e.blocks(), contains(IndexMetadata.REMOTE_READ_ONLY_ALLOW_DELETE));
+        }
     }
 
     /**

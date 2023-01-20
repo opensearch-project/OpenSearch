@@ -56,8 +56,8 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.stream.Stream;
+import java.util.Set;
 
 import static org.opensearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 
@@ -70,7 +70,7 @@ public class TransportUpdateSettingsAction extends TransportClusterManagerNodeAc
 
     private static final Logger logger = LogManager.getLogger(TransportUpdateSettingsAction.class);
 
-    private final static String[] ALLOWLIST_REMOTE_SNAPSHOT_SETTINGS = {
+    private final static Set<String> ALLOWLIST_REMOTE_SNAPSHOT_SETTINGS = Set.of(
         "index.max_result_window",
         "index.max_inner_result_window",
         "index.max_rescore_window",
@@ -78,7 +78,8 @@ public class TransportUpdateSettingsAction extends TransportClusterManagerNodeAc
         "index.max_script_fields",
         "index.max_terms_count",
         "index.max_regex_length",
-        "index.highlight.max_analyzed_offset" };
+        "index.highlight.max_analyzed_offset"
+    );
 
     private final static String[] ALLOWLIST_REMOTE_SNAPSHOT_SETTINGS_PREFIXES = { "index.search.slowlog" };
 
@@ -141,8 +142,8 @@ public class TransportUpdateSettingsAction extends TransportClusterManagerNodeAc
             if (allowSearchableSnapshotSettingsUpdate) {
                 for (String setting : request.settings().keySet()) {
                     allowSearchableSnapshotSettingsUpdate = allowSearchableSnapshotSettingsUpdate
-                        && (Stream.of(ALLOWLIST_REMOTE_SNAPSHOT_SETTINGS_PREFIXES).anyMatch(setting::startsWith)
-                            || (Arrays.asList(ALLOWLIST_REMOTE_SNAPSHOT_SETTINGS).contains(setting)));
+                        && (ALLOWLIST_REMOTE_SNAPSHOT_SETTINGS.contains(setting)
+                            || Stream.of(ALLOWLIST_REMOTE_SNAPSHOT_SETTINGS_PREFIXES).anyMatch(setting::startsWith));
                 }
             }
 
