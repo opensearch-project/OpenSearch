@@ -74,6 +74,7 @@ import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.CheckedFunction;
@@ -1437,22 +1438,53 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
+     * Checks if this target shard should start a round of segment replication.
+     * @return - True if the shard is able to perform segment replication.
+     */
+    public boolean isSegmentReplicationAllowed() {
+        if (indexSettings.isSegRepEnabled() == false) {
+            logger.warn("Attempting to perform segment replication when it is not enabled on the index");
+            return false;
+        }
+        if (getReplicationTracker().isPrimaryMode()) {
+            logger.warn("Shard is in primary mode and cannot perform segment replication as a replica.");
+            return false;
+        }
+        if (this.routingEntry().primary()) {
+            logger.warn("Shard is marked as primary and cannot perform segment replication as a replica");
+            return false;
+        }
+        if (state().equals(IndexShardState.STARTED) == false
+            && (state() == IndexShardState.POST_RECOVERY && shardRouting.state() == ShardRoutingState.INITIALIZING) == false) {
+            logger.warn(
+                () -> new ParameterizedMessage(
+                    "Shard is not started or recovering {} {} and cannot perform segment replication as a replica",
+                    state(),
+                    shardRouting.state()
+                )
+            );
+            return false;
+        }
+        if (getReplicationEngine().isEmpty()) {
+            logger.warn(
+                () -> new ParameterizedMessage(
+                    "Shard does not have the correct engine type to perform segment replication {}.",
+                    getEngine().getClass()
+                )
+            );
+            return false;
+        }
+        return true;
+    }
+
+    /**
      * Checks if checkpoint should be processed
      *
      * @param requestCheckpoint       received checkpoint that is checked for processing
      * @return true if checkpoint should be processed
      */
     public final boolean shouldProcessCheckpoint(ReplicationCheckpoint requestCheckpoint) {
-        if (state().equals(IndexShardState.STARTED) == false) {
-            logger.trace(() -> new ParameterizedMessage("Ignoring new replication checkpoint - shard is not started {}", state()));
-            return false;
-        }
-        if (getReplicationTracker().isPrimaryMode()) {
-            logger.warn("Ignoring new replication checkpoint - shard is in primaryMode and cannot receive any checkpoints.");
-            return false;
-        }
-        if (this.routingEntry().primary()) {
-            logger.warn("Ignoring new replication checkpoint - primary shard cannot receive any checkpoints.");
+        if (isSegmentReplicationAllowed() == false) {
             return false;
         }
         ReplicationCheckpoint localCheckpoint = getLatestReplicationCheckpoint();
