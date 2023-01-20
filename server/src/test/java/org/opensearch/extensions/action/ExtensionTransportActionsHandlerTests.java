@@ -31,6 +31,7 @@ import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.ActionNotFoundTransportException;
+import org.opensearch.transport.NodeNotConnectedException;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.nio.MockNioTransport;
 
@@ -172,10 +173,6 @@ public class ExtensionTransportActionsHandlerTests extends OpenSearchTestCase {
         );
         assertTrue(response.getStatus());
 
-        ExtensionActionResponse extensionResponse = extensionTransportActionsHandler.sendTransportRequestToExtension(request);
-        assertEquals(
-            "Request failed: [firstExtension][127.0.0.0:9300] Node not connected",
-            new String(extensionResponse.getResponseBytes(), StandardCharsets.UTF_8)
-        );
+        expectThrows(NodeNotConnectedException.class, () -> extensionTransportActionsHandler.sendTransportRequestToExtension(request));
     }
 }
