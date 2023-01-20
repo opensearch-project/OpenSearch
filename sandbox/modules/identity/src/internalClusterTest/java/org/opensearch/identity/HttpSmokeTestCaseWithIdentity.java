@@ -15,7 +15,10 @@ import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.health.ClusterIndexHealth;
 import org.opensearch.common.network.NetworkModule;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.extensible.identity.ExtensibleIdentityPlugin;
+import org.opensearch.identity.authmanager.internal.InternalAuthenticationManager;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.transport.Netty4ModulePlugin;
@@ -25,6 +28,7 @@ import org.junit.BeforeClass;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoTimeout;
@@ -38,6 +42,13 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoTimeout;
 // TODO not sure why ThreadLeakScope.NONE is required
 @ThreadLeakScope(ThreadLeakScope.Scope.NONE)
 public abstract class HttpSmokeTestCaseWithIdentity extends OpenSearchIntegTestCase {
+    public static class TestRegisterExtendedPluginsSettingPlugin extends Plugin {
+
+        @Override
+        public List<Setting<?>> getSettings() {
+            return Collections.singletonList(Setting.simpleString("extended.plugins", Setting.Property.NodeScope));
+        }
+    }
 
     private static String nodeTransportTypeKey;
     private static String nodeHttpTypeKey;
@@ -83,12 +94,21 @@ public abstract class HttpSmokeTestCaseWithIdentity extends OpenSearchIntegTestC
             .put(NetworkModule.TRANSPORT_TYPE_KEY, nodeTransportTypeKey)
             .put(NetworkModule.HTTP_TYPE_KEY, nodeHttpTypeKey)
             .put(ConfigConstants.IDENTITY_ENABLED, true)
+            .put(ConfigConstants.IDENTITY_AUTH_MANAGER_CLASS, InternalAuthenticationManager.class.getCanonicalName())
+            .put("extended.plugins", ExtensibleIdentityPlugin.class.getCanonicalName())
             .build();
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(getTestTransportPlugin(), Netty4ModulePlugin.class, NioTransportPlugin.class, IdentityPlugin.class);
+        return Arrays.asList(
+            getTestTransportPlugin(),
+            Netty4ModulePlugin.class,
+            NioTransportPlugin.class,
+            TestRegisterExtendedPluginsSettingPlugin.class,
+            ExtensibleIdentityPlugin.class,
+            IdentityPlugin.class
+        );
     }
 
     @Override

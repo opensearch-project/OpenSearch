@@ -150,7 +150,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
                 .filter(s -> "extended.plugins".equals(s.getKey()))
                 .findFirst();
             if (extendedPluginsSetting.isPresent()) {
-                String settingValue = extendedPluginsSetting.get().getDefault(Settings.EMPTY).toString();
+                String settingValue = extendedPluginsSetting.get().get(settings).toString();
                 extendedPlugins = Arrays.stream(settingValue.split(",")).map(String::trim).collect(Collectors.toList());
             }
 

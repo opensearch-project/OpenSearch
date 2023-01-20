@@ -9,14 +9,18 @@
 package org.opensearch.identity;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.extensible.identity.ExtensibleIdentityPlugin;
 import org.opensearch.http.CorsHandler;
 import org.opensearch.http.HttpTransportSettings;
+import org.opensearch.identity.authmanager.internal.InternalAuthenticationManager;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.transport.Netty4ModulePlugin;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -24,10 +28,22 @@ import java.util.List;
  */
 @ThreadLeakScope(ThreadLeakScope.Scope.NONE)
 public abstract class AbstractIdentityTestCase extends OpenSearchIntegTestCase {
+    public static class TestRegisterExtendedPluginsSettingPlugin extends Plugin {
+
+        @Override
+        public List<Setting<?>> getSettings() {
+            return Collections.singletonList(Setting.simpleString("extended.plugins", Setting.Property.NodeScope));
+        }
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(IdentityPlugin.class, Netty4ModulePlugin.class);
+        return List.of(
+            TestRegisterExtendedPluginsSettingPlugin.class,
+            ExtensibleIdentityPlugin.class,
+            IdentityPlugin.class,
+            Netty4ModulePlugin.class
+        );
     }
 
     @Override
@@ -46,6 +62,8 @@ public abstract class AbstractIdentityTestCase extends OpenSearchIntegTestCase {
             .put(HttpTransportSettings.SETTING_CORS_ALLOW_ORIGIN.getKey(), CorsHandler.ANY_ORIGIN)
             .put(HttpTransportSettings.SETTING_CORS_ALLOW_CREDENTIALS.getKey(), true)
             .put(ConfigConstants.IDENTITY_ENABLED, true)
+            .put(ConfigConstants.IDENTITY_AUTH_MANAGER_CLASS, InternalAuthenticationManager.class.getCanonicalName())
+            .put("extended.plugins", ExtensibleIdentityPlugin.class.getCanonicalName())
             .build();
     }
 }
