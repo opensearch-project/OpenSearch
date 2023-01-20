@@ -33,11 +33,11 @@
 package org.opensearch.common.settings;
 
 import org.apache.logging.log4j.Level;
-import org.apache.lucene.util.SetOnce;
 import org.opensearch.OpenSearchGenerationException;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
 import org.opensearch.common.Booleans;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;

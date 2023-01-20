@@ -35,7 +35,7 @@ package org.opensearch.node;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
-import org.apache.lucene.util.SetOnce;
+import org.opensearch.common.SetOnce;
 import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexingPressureService;
