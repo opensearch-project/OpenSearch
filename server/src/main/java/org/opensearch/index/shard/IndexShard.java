@@ -63,6 +63,7 @@ import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
+import org.opensearch.action.StepListener;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.opensearch.action.admin.indices.upgrade.post.UpgradeRequest;
@@ -751,16 +752,23 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final AtomicBoolean primaryReplicaResyncInProgress = new AtomicBoolean();
 
     /**
-     * Completes the relocation. Operations are blocked and current operations are drained before changing state to relocated. The provided
-     * {@link Runnable} is executed after all operations are successfully blocked.
+     * Completes the relocation. Operations are blocked and current operations are drained before changing state to
+     * relocated. After all operations are successfully blocked, performSegRep is executed followed by target relocation
+     * handoff.
      *
-     * @param consumer a {@link Runnable} that is executed after operations are blocked
+     * @param performSegRep a {@link Runnable} that is executed after operations are blocked
+     * @param consumer a {@link Runnable} that is executed after performSegRep
+     * @param listener ActionListener
      * @throws IllegalIndexShardStateException if the shard is not relocating due to concurrent cancellation
      * @throws IllegalStateException           if the relocation target is no longer part of the replication group
      * @throws InterruptedException            if blocking operations is interrupted
      */
-    public void relocated(final String targetAllocationId, final Consumer<ReplicationTracker.PrimaryContext> consumer)
-        throws IllegalIndexShardStateException, IllegalStateException, InterruptedException {
+    public void relocated(
+        final String targetAllocationId,
+        final Consumer<ReplicationTracker.PrimaryContext> consumer,
+        final Consumer<StepListener> performSegRep,
+        final ActionListener<Void> listener
+    ) throws IllegalIndexShardStateException, IllegalStateException, InterruptedException {
         assert shardRouting.primary() : "only primaries can be marked as relocated: " + shardRouting;
         try (Releasable forceRefreshes = refreshListeners.forceRefreshes()) {
             indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> {
@@ -768,26 +776,33 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 // no shard operation permits are being held here, move state from started to relocated
                 assert indexShardOperationPermits.getActiveOperationsCount() == OPERATIONS_BLOCKED
                     : "in-flight operations in progress while moving shard state to relocated";
-                /*
-                 * We should not invoke the runnable under the mutex as the expected implementation is to handoff the primary context via a
-                 * network operation. Doing this under the mutex can implicitly block the cluster state update thread on network operations.
-                 */
-                verifyRelocatingState();
-                final ReplicationTracker.PrimaryContext primaryContext = replicationTracker.startRelocationHandoff(targetAllocationId);
-                try {
-                    consumer.accept(primaryContext);
-                    synchronized (mutex) {
-                        verifyRelocatingState();
-                        replicationTracker.completeRelocationHandoff(); // make changes to primaryMode and relocated flag only under mutex
-                    }
-                } catch (final Exception e) {
+
+                final StepListener<Void> segRepSyncListener = new StepListener<>();
+                performSegRep.accept(segRepSyncListener);
+                segRepSyncListener.whenComplete(r -> {
+                    /*
+                     * We should not invoke the runnable under the mutex as the expected implementation is to handoff the primary context via a
+                     * network operation. Doing this under the mutex can implicitly block the cluster state update thread on network operations.
+                     */
+                    verifyRelocatingState();
+                    final ReplicationTracker.PrimaryContext primaryContext = replicationTracker.startRelocationHandoff(targetAllocationId);
                     try {
-                        replicationTracker.abortRelocationHandoff();
-                    } catch (final Exception inner) {
-                        e.addSuppressed(inner);
+                        consumer.accept(primaryContext);
+                        synchronized (mutex) {
+                            verifyRelocatingState();
+                            replicationTracker.completeRelocationHandoff(); // make changes to primaryMode and relocated flag only under
+                                                                            // mutex
+                        }
+                    } catch (final Exception e) {
+                        try {
+                            replicationTracker.abortRelocationHandoff();
+                        } catch (final Exception inner) {
+                            e.addSuppressed(inner);
+                        }
+                        throw e;
                     }
-                    throw e;
-                }
+                    listener.onResponse(null);
+                }, listener::onFailure);
             });
         } catch (TimeoutException e) {
             logger.warn("timed out waiting for relocation hand-off to complete");
@@ -1646,6 +1661,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 )
             ); // this will run the closeable on the wrapped engine reader
         }
+    }
+
+    /**
+     * Used with segment replication during relocation handoff, this method updates current read only engine to global
+     * checkpoint followed by changing to writeable engine
+     *
+     * @throws IOException
+     * @throws InterruptedException
+     * @throws TimeoutException
+     *
+     * @opensearch.internal
+     */
+    public void resetToWriteableEngine() throws IOException, InterruptedException, TimeoutException {
+        indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> { resetEngineToGlobalCheckpoint(); });
     }
 
     /**
@@ -3379,6 +3408,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (this.checkpointPublisher != null && indexSettings.isSegRepEnabled() && shardRouting.primary()) {
             internalRefreshListener.add(new CheckpointRefreshListener(this, this.checkpointPublisher));
         }
+        /**
+         * With segment replication enabled for primary relocation, recover replica shard initially as read only and
+         * change to a writeable engine during relocation handoff after a round of segment replication.
+         */
+        boolean isReadOnlyReplica = indexSettings.isSegRepEnabled()
+            && (shardRouting.primary() == false
+                || (shardRouting.isRelocationTarget() && recoveryState.getStage() != RecoveryState.Stage.FINALIZE));
 
         return this.engineConfigFactory.newEngineConfig(
             shardId,
@@ -3403,7 +3439,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             replicationTracker::getRetentionLeases,
             () -> getOperationPrimaryTerm(),
             tombstoneDocSupplier(),
-            indexSettings.isSegRepEnabled() && shardRouting.primary() == false,
+            isReadOnlyReplica,
             translogFactorySupplier.apply(indexSettings, shardRouting)
         );
     }
