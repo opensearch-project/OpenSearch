@@ -6,9 +6,7 @@
 package org.opensearch.authn;
 
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.List;
 
 /**
  * An extension of the abstract Permission class which uses String-object Permissions.
@@ -31,8 +29,21 @@ public class Permissions extends Permission {
 
     public String permissionString;
 
+    public String[] permissionSegments;
+
+    public String principal;
+    public String resource;
+
+    public String action;
+
+    @Override
     public void Permission(String permission) {
+
         this.permissionString = permission;
+        this.permissionSegments = permissionString.split(PERMISSION_DELIMITER);
+        this.principal = permissionSegments[0];
+        this.resource = permissionSegments[1];
+        this.action = permissionSegments[2];
     }
 
     /**
@@ -41,21 +52,25 @@ public class Permissions extends Permission {
      * Assumes that the permission is formatted as <principal>.<resource>.<action>
      * The principal should already be verified before the permission is created.
      */
-    public boolean permissionIsValidFormat() {
+    @Override
+    public boolean isValidFormat() {
 
-        ArrayList<String> permissionSegments = new ArrayList<>(Arrays.asList(this.permissionString.split(PERMISSION_DELIMITER)));
-        Set<String> permissionSet = new HashSet<>(permissionSegments);
-        Set<String> invalidSet = new HashSet<>(new ArrayList<>(Arrays.asList(INVALID_CHARACTERS)));
-        Set<String> actionSet = new HashSet<>(new ArrayList<>(Arrays.asList(QUALIFIED_ACTIONS)));
-        Set<String> resourceSet = new HashSet<>(new ArrayList<>(Arrays.asList(QUALIFIED_RESOURCES)));
-        permissionSet.retainAll(invalidSet);
-        if (permissionSet.size() > 0) {
+        // Check for illegal characters in any of the permission segments O(3n)
+        for (int i = 0; i < INVALID_CHARACTERS.length; i++) {
+            if (this.principal.contains(INVALID_CHARACTERS[i])
+                || this.resource.contains(INVALID_CHARACTERS[i])
+                || this.action.contains(INVALID_CHARACTERS[i])) {
+                return false;
+            }
+        }
+
+        // Make sure the resource being acted on is one of the qualified resources
+        if (!new ArrayList(List.of(QUALIFIED_RESOURCES)).contains(this.resource.toUpperCase())) {
             return false;
         }
-        if (!resourceSet.contains(permissionSegments.get(1))) {
-            return false;
-        }
-        if (!actionSet.contains(permissionSegments.get(2))) {
+
+        // Make sure the action being taken is one of the qualified actions
+        if (!new ArrayList(List.of(QUALIFIED_ACTIONS)).contains(this.action.toUpperCase())) {
             return false;
         }
         return true;

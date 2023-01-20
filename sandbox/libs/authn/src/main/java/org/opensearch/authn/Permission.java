@@ -29,8 +29,16 @@ abstract class Permission {
 
     String permissionString;
 
+    // Every permissionString must be resolvable to its constituent parts: <principal>.<resource>.<action>
+    // These are then stored separately to avoid costly String manipulation.
+    String principal;
+
+    String resource;
+
+    String action;
+
     abstract void Permission(String permission);
 
-    abstract boolean permissionIsValidFormat();
+    abstract boolean isValidFormat();
 
 }

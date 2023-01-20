@@ -8,12 +8,11 @@
 
 package org.opensearch.authn;
 
-import java.security.Principal;
 import java.util.ArrayList;
 
 /**
  * This interface represents the abstract notion of a permission handler. A permission handler needs to be able to service the
- * assignment and
+ * assignment and verification of permissions.
  *
  * @opensearch.experimental
  */
@@ -28,27 +27,28 @@ public interface PermissionHandler {
     // in an index
 
     /**
-     * This function needs to be able to resolve a java Principal to an associated java Subject and return the associated Subject or throw an error if none corresponds
+     * This function grants an array of permission to a subject when provided a permission array and returns a grant identifier representing the permission
+     * grant event. It does so by adding the identifier and associated permissions to a permission storage data structure. A valid permission
+     * storage structure can be any structure that can hold generic or String-objects and which allows at least O(n) traversal as well as the keying of
+     * permissions by identifier strings. For example an OpenSearch index or for small modeling clusters, a HashMap in memory.
+     *
+     * A SQL-style database solution is possible by storing the identifier and then the separated components of the Permissions.
+     *
+     * A principal should never be able to grant a permission to itself and implementations should ensure that only valid
+     * and permitted Subjects are able to execute this operation.
      */
-    public Subject resolvePrincipal(Principal principal);
+    public String putPermissions(Permission[] permission);
 
     /**
-     * This function grants a permission to a subject when provided the permission and a principal resolvable to a subject
-     * A principal should never be able to grant a permission to itself and implementations should ensure that only valid Subjects are able to execute this operation.
+     * Returns a list of the permissions granted during a permission grant event.
+     * Requires that the grantIdentifier exist, should throw an error if none can be found.
      */
-    public void putPermission(Permission permission, Principal principal);
+    public ArrayList<Permission> getPermissions(String grantIdentifier);
 
     /**
-     * Returns a list of the permissions granted to the provided principal.
-     * Requires that the principal is resolvable to a Subject, throws an error no corresponding subject can be identified.
+     * This function in-place deletes all targeted permissions associated with a given permission grant event.
+     * This function should be implemented such that '*' means that all permissions associated with the grant event are deleted.
      */
-    public ArrayList<Permission> getPermission(Principal principal);
-
-    /**
-     * This function should be able to in-place remove a permission from the granted permissions of the Subject associated with the provided principal.
-     * If no matching permission is found an error should be thrown.
-     * If no resolvable Subject is associated with the Principal an error should be thrown.
-     */
-    public void deletePermission(Permission permission, Principal principal);
+    public void deletePermissions(String permissionIdentifier, Permission[] permissions);
 
 }
