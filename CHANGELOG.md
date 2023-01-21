@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Dependencies
 - Bumps `wiremock-jre8-standalone` from 2.33.2 to 2.35.0
 - Bumps `gson` from 2.10 to 2.10.1
+- Bumps `google-cloud-storage` from 1.113.1 to 2.17.1
 
 ### Dependencies
 - Bumps `log4j-core` from 2.18.0 to 2.19.0
