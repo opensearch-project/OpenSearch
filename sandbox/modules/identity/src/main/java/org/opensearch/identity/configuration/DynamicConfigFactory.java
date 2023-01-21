@@ -18,6 +18,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
 import org.opensearch.client.Client;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.identity.realm.InternalUsersStore;
 import org.opensearch.threadpool.ThreadPool;
 import org.greenrobot.eventbus.EventBus;
 import org.greenrobot.eventbus.EventBusBuilder;
@@ -48,6 +49,7 @@ public class DynamicConfigFactory implements ConfigurationChangeListener {
         this.opensearchSettings = opensearchSettings;
         this.configPath = configPath;
 
+        registerDCFListener(InternalUsersStore.getInstance());
         this.cr.subscribeOnChange(this);
     }
 
@@ -72,6 +74,9 @@ public class DynamicConfigFactory implements ConfigurationChangeListener {
 
         final InternalUsersModel ium;
         ium = new InternalUsersModelV1((SecurityDynamicConfiguration<User>) internalusers);
+
+        System.out.println("DynamicConfigFactory.onChange");
+        System.out.println(internalusers);
 
         eventBus.post(ium);
 
@@ -101,19 +106,24 @@ public class DynamicConfigFactory implements ConfigurationChangeListener {
         }
 
         @Override
-        public boolean exists(String user) {
-            return internalUserSecurityDynamicConfiguration.exists(user);
+        public User getUser(String username) {
+            return internalUserSecurityDynamicConfiguration.getCEntry(username);
         }
 
         @Override
-        public Map<String, String> getAttributes(String user) {
-            User tmp = internalUserSecurityDynamicConfiguration.getCEntry(user);
+        public boolean exists(String username) {
+            return internalUserSecurityDynamicConfiguration.exists(username);
+        }
+
+        @Override
+        public Map<String, String> getAttributes(String username) {
+            User tmp = internalUserSecurityDynamicConfiguration.getCEntry(username);
             return tmp == null ? null : tmp.getAttributes();
         }
 
         @Override
-        public String getHash(String user) {
-            User tmp = internalUserSecurityDynamicConfiguration.getCEntry(user);
+        public String getHash(String username) {
+            User tmp = internalUserSecurityDynamicConfiguration.getCEntry(username);
             return tmp == null ? null : tmp.getBcryptHash();
         }
     }

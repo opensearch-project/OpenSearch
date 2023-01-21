@@ -43,7 +43,7 @@ import java.util.stream.Collectors;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoTimeout;
 
 @ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class BasicAuthenticationIT extends HttpSmokeTestCaseWithIdentity {
+public class TokenPropagationIT extends HttpSmokeTestCaseWithIdentity {
 
     public static Map<String, String> interceptedTokens = new HashMap<>();
     private final static String expectedActionName = "cluster:monitor/health";

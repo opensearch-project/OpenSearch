@@ -9,6 +9,7 @@
 package org.opensearch.identity;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
+import org.junit.rules.TemporaryFolder;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.node.info.NodeInfo;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
@@ -23,6 +24,10 @@ import org.opensearch.transport.nio.MockNioTransportPlugin;
 import org.opensearch.transport.nio.NioTransportPlugin;
 import org.junit.BeforeClass;
 
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -125,6 +130,26 @@ public abstract class HttpSmokeTestCaseWithIdentity extends OpenSearchIntegTestC
         assertEquals(2, nodeInfos.size());
 
         Thread.sleep(1000);
+    }
+
+    protected void startNodesWithIdentityIndex() throws Exception {
+        try {
+            TemporaryFolder folder = new TemporaryFolder();
+            folder.create();
+            File internalUsersYml = folder.newFile("internal_users.yml");
+            FileWriter fw1 = new FileWriter(internalUsersYml);
+            BufferedWriter bw1 = new BufferedWriter(fw1);
+            bw1.write("admin:\n" + "  hash: \"$2a$12$VcCDgh2NDk07JGN0rjGbM.Ad41qVR/YFJcgHp0UGns5JDymv..TOG\"\n" + "\n");
+            bw1.close();
+            final String defaultInitDirectory = folder.getRoot().getAbsolutePath();
+            System.setProperty("identity.default_init.dir", defaultInitDirectory);
+
+            startNodes();
+
+            ensureIdentityIndexIsGreen();
+        } catch (IOException ioe) {
+            fail("error creating temporary test file in " + this.getClass().getSimpleName());
+        }
     }
 
     protected void ensureIdentityIndexIsGreen() {

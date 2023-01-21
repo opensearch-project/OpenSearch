@@ -18,9 +18,11 @@ import java.nio.charset.StandardCharsets;
 
 import static org.hamcrest.Matchers.containsString;
 
-@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 1)
-public class BasicAuthTests extends AbstractIdentityTestCase {
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
+public class BasicAuthIT extends HttpSmokeTestCaseWithIdentity {
     public void testBasicAuthSuccess() throws Exception {
+        startNodesWithIdentityIndex();
+
         Request request = new Request("GET", "/_cluster/health");
         RequestOptions options = RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Basic YWRtaW46YWRtaW4=").build(); // admin:admin
         request.setOptions(options);
@@ -34,6 +36,8 @@ public class BasicAuthTests extends AbstractIdentityTestCase {
     }
 
     public void testBasicAuthUnauthorized() throws Exception {
+        startNodesWithIdentityIndex();
+
         Request request = new Request("GET", "/_cluster/health");
         RequestOptions options = RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Basic bWFydmluOmdhbGF4eQ==").build(); // marvin:galaxy
         request.setOptions(options);

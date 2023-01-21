@@ -13,6 +13,7 @@ import org.opensearch.authn.StringPrincipal;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * A non-volatile and immutable object in the storage.
@@ -21,6 +22,25 @@ import java.util.Map;
  */
 
 public class User {
+
+    // Needed for InternalUsersStore.readUsersAsMap
+    public User() {}
+
+    /**
+     * Create a new user
+     *
+     * @param username The username (must not be null or empty)
+     * @param bcryptHash The hashed password (must not be null or empty)
+     * @param attributes A map of custom attributes
+     * @throws IllegalArgumentException if username or bcryptHash is null or empty
+     */
+    public User(final String username, final String bcryptHash, Map<String, String> attributes) {
+        Objects.requireNonNull(username);
+        Objects.requireNonNull(bcryptHash);
+        this.username = new StringPrincipal(username);
+        this.bcryptHash = bcryptHash;
+        this.attributes = attributes;
+    }
 
     @JsonProperty(value = "username")
     private StringPrincipal username;

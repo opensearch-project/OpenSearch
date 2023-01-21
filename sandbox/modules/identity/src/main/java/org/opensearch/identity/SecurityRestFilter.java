@@ -121,6 +121,9 @@ public class SecurityRestFilter {
         if (authHeader.isPresent()) {
             try {
                 headerToken = tokenType(authHeader.get());
+                System.out.println("headerToken");
+                System.out.println(authHeader.get());
+                System.out.println(Identity.getAuthManager());
                 subject = Identity.getAuthManager().getSubject();
                 if (subject != null) {
                     subject.login(headerToken);
