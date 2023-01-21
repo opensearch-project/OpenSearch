@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Replace latches with CompletableFutures for extensions ([#5646](https://github.com/opensearch-project/OpenSearch/pull/5646))
 ### Dependencies
 - Bumps `wiremock-jre8-standalone` from 2.33.2 to 2.35.0
+- Bumps `gson` from 2.10 to 2.10.1
 
 ### Dependencies
 - Bumps `log4j-core` from 2.18.0 to 2.19.0
