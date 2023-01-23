@@ -42,6 +42,9 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.TriConsumer;
 import org.opensearch.common.collect.Triplet;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.MemorySizeValue;
@@ -1349,6 +1352,33 @@ public class Setting<T> implements ToXContentObject {
         );
     }
 
+    private class FloatParser implements Function<String, Float>, Writeable {
+        private String key;
+        private float minValue;
+        private float maxValue;
+        private boolean isFiltered;
+
+        public FloatParser(String key, float minValue, float maxValue, boolean isFiltered) {
+            this.key = key;
+            this.minValue = minValue;
+            this.maxValue = maxValue;
+            this.isFiltered = isFiltered;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(key);
+            out.writeDouble(minValue);
+            out.writeDouble(maxValue);
+            out.writeBoolean(isFiltered);    
+        }
+
+        @Override
+        public Float apply(String s) {
+            return parseFloat(s, minValue, maxValue, key, isFiltered);
+        }  
+    }
+
     // Setting<Float> with fallback
 
     public static Setting<Float> floatSetting(String key, Setting<Float> fallbackSetting, Property... properties) {
@@ -1445,10 +1475,37 @@ public class Setting<T> implements ToXContentObject {
         return new Setting<>(
             key,
             Integer.toString(defaultValue),
-            (s) -> parseInt(s, minValue, maxValue, key, isFiltered(properties)),
+            new IntegerParser(key, minValue, maxValue, isFiltered(properties)),
             validator,
             properties
         );
+    }
+
+    private static class IntegerParser implements Function<String, Integer>, Writeable {
+        private String key;
+        private int minValue;
+        private int maxValue;
+        private boolean isFiltered;
+
+        public IntegerParser(String key, int minValue, int maxValue, boolean isFiltered) {
+            this.key = key;
+            this.minValue = minValue;
+            this.maxValue = maxValue;
+            this.isFiltered = isFiltered;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(key);
+            out.writeDouble(minValue);
+            out.writeDouble(maxValue);
+            out.writeBoolean(isFiltered);    
+        }
+
+        @Override
+        public Integer apply(String s) {
+            return parseInt(s, minValue, maxValue, key, isFiltered);
+        } 
     }
 
     // Setting<Integer> with fallback
@@ -1539,10 +1596,37 @@ public class Setting<T> implements ToXContentObject {
         return new Setting<>(
             key,
             Long.toString(defaultValue),
-            (s) -> parseLong(s, minValue, maxValue, key, isFiltered(properties)),
+            new LongParser(key, minValue, maxValue, isFiltered(properties)),
             validator,
             properties
         );
+    }
+
+    private static class LongParser implements Function<String, Long>, Writeable {
+        private String key;
+        private long minValue;
+        private long maxValue;
+        private boolean isFiltered;
+
+        public LongParser(String key, long minValue, long maxValue, boolean isFiltered) {
+            this.key = key;
+            this.minValue = minValue;
+            this.maxValue = maxValue;
+            this.isFiltered = isFiltered;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(key);
+            out.writeDouble(minValue);
+            out.writeDouble(maxValue);
+            out.writeBoolean(isFiltered);    
+        }
+
+        @Override
+        public Long apply(String s) {
+            return parseLong(s, minValue, maxValue, key, isFiltered);
+        } 
     }
 
     // Setting<Long> with fallback
@@ -1633,10 +1717,37 @@ public class Setting<T> implements ToXContentObject {
         return new Setting<>(
             key,
             Double.toString(defaultValue),
-            (s) -> parseDouble(s, minValue, maxValue, key, isFiltered(properties)),
+            new DoubleParser(key, minValue, maxValue, isFiltered(properties)),
             validator,
             properties
         );
+    }
+
+    private static class DoubleParser implements Function<String, Double>, Writeable {
+        private String key;
+        private double minValue;
+        private double maxValue;
+        private boolean isFiltered;
+
+        public DoubleParser(String key, double minValue, double maxValue, boolean isFiltered) {
+            this.key = key;
+            this.minValue = minValue;
+            this.maxValue = maxValue;
+            this.isFiltered = isFiltered;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(key);
+            out.writeDouble(minValue);
+            out.writeDouble(maxValue);
+            out.writeBoolean(isFiltered);    
+        }
+
+        @Override
+        public Double apply(String s) {
+            return parseDouble(s, minValue, maxValue, key, isFiltered);
+        }  
     }
 
     // Setting<Double> with fallback
