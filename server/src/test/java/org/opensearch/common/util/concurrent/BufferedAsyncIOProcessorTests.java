@@ -19,6 +19,7 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -191,5 +192,52 @@ public class BufferedAsyncIOProcessorTests extends OpenSearchTestCase {
         assertEquals(threadCount, notified.get());
         assertEquals(threadCount, received.get());
         threads.forEach(t -> assertFalse(t.isAlive()));
+    }
+
+    public void testConsecutiveWritesAtLeastBufferIntervalAway() throws InterruptedException {
+        AtomicInteger received = new AtomicInteger(0);
+        AtomicInteger notified = new AtomicInteger(0);
+        long bufferIntervalMs = randomLongBetween(50, 150);
+        List<Long> writeInvocationTimes = new LinkedList<>();
+
+        AsyncIOProcessor<Object> processor = new BufferedAsyncIOProcessor<>(
+            logger,
+            scaledRandomIntBetween(1, 2024),
+            threadContext,
+            threadpool,
+            TimeValue.timeValueMillis(bufferIntervalMs)
+        ) {
+            @Override
+            protected void write(List<Tuple<Object, Consumer<Exception>>> candidates) throws IOException {
+                received.addAndGet(candidates.size());
+                writeInvocationTimes.add(System.currentTimeMillis());
+            }
+        };
+
+        int runCount = randomIntBetween(2, 5);
+        CountDownLatch processed = new CountDownLatch(runCount);
+        IntStream.range(0, runCount).forEach(i -> {
+            processor.put(new Object(), (e) -> {
+                notified.incrementAndGet();
+                processed.countDown();
+            });
+            try {
+                long startTime = System.currentTimeMillis();
+                while (received.get() != (i + 1) && (System.currentTimeMillis() - startTime) < 2 * bufferIntervalMs) {
+                    sleep(50);
+                }
+                sleep(50);
+            } catch (InterruptedException ex) {
+                logger.error("Exception while trying to sleep", ex);
+            }
+        }
+
+        );
+        assertTrue(processed.await(bufferIntervalMs * (runCount + 1), TimeUnit.MILLISECONDS));
+        assertEquals(runCount, notified.get());
+        assertEquals(runCount, received.get());
+        for (int i = 1; i < runCount; i++) {
+            assertTrue(writeInvocationTimes.get(i) - writeInvocationTimes.get(i - 1) > bufferIntervalMs);
+        }
     }
 }
