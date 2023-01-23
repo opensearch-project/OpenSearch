@@ -7549,4 +7549,62 @@ public class InternalEngineTests extends EngineTestCase {
         store.close();
         engine.close();
     }
+
+    public void testGetMaxSeqNoRefreshedWithoutRefresh() throws IOException {
+        IOUtils.close(store, engine);
+
+        final Settings.Builder settings = Settings.builder().put(defaultSettings.getSettings()).put("index.refresh_interval", "300s");
+        final IndexMetadata indexMetadata = IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetadata);
+
+        Store store = createStore();
+        InternalEngine engine = createEngine(indexSettings, store, createTempDir(), newMergePolicy());
+
+        int numDocs = randomIntBetween(10, 100);
+        for (int i = 0; i < numDocs; i++) {
+            engine.index(indexForDoc(createParsedDoc(Integer.toString(i), null)));
+        }
+
+        assertEquals(NO_OPS_PERFORMED, engine.getMaxSeqNoRefreshed("test"));
+
+        store.close();
+        engine.close();
+    }
+
+    public void testGetMaxSeqNoRefreshed() throws IOException {
+        IOUtils.close(store, engine);
+
+        final Settings.Builder settings = Settings.builder().put(defaultSettings.getSettings()).put("index.refresh_interval", "300s");
+        final IndexMetadata indexMetadata = IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetadata);
+
+        Store store = createStore();
+        InternalEngine engine = createEngine(indexSettings, store, createTempDir(), newMergePolicy());
+
+        int totalNumberOfDocsRefreshed = 0;
+        for (int j = 0; j < randomIntBetween(1, 10); j++) {
+            int numDocs = randomIntBetween(10, 100);
+            for (int i = totalNumberOfDocsRefreshed; i < (totalNumberOfDocsRefreshed + numDocs); i++) {
+                engine.index(indexForDoc(createParsedDoc(Integer.toString(i), null)));
+            }
+            // this is just to make sure that refresh post flush has the same impact.
+            if (randomBoolean()) {
+                engine.refresh("test");
+            } else {
+                engine.flush();
+            }
+            totalNumberOfDocsRefreshed += numDocs;
+        }
+        // Optionally, index more docs without refreshing. These should not be part of getMaxSeqNoRefreshed
+        if (randomBoolean()) {
+            for (int i = totalNumberOfDocsRefreshed; i < (totalNumberOfDocsRefreshed + randomIntBetween(10, 100)); i++) {
+                engine.index(indexForDoc(createParsedDoc(Integer.toString(i), null)));
+            }
+        }
+
+        assertEquals(totalNumberOfDocsRefreshed - 1, engine.getMaxSeqNoRefreshed("test"));
+
+        store.close();
+        engine.close();
+    }
 }
