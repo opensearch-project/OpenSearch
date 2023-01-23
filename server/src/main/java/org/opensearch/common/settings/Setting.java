@@ -42,7 +42,6 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.TriConsumer;
 import org.opensearch.common.collect.Triplet;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.regex.Regex;
@@ -1370,13 +1369,13 @@ public class Setting<T> implements ToXContentObject {
             out.writeString(key);
             out.writeFloat(minValue);
             out.writeFloat(maxValue);
-            out.writeBoolean(isFiltered);    
+            out.writeBoolean(isFiltered);
         }
 
         @Override
         public Float apply(String s) {
             return parseFloat(s, minValue, maxValue, key, isFiltered);
-        }  
+        }
     }
 
     // Setting<Float> with fallback
@@ -1499,13 +1498,13 @@ public class Setting<T> implements ToXContentObject {
             out.writeString(key);
             out.writeInt(minValue);
             out.writeInt(maxValue);
-            out.writeBoolean(isFiltered);    
+            out.writeBoolean(isFiltered);
         }
 
         @Override
         public Integer apply(String s) {
             return parseInt(s, minValue, maxValue, key, isFiltered);
-        } 
+        }
     }
 
     // Setting<Integer> with fallback
@@ -1620,13 +1619,13 @@ public class Setting<T> implements ToXContentObject {
             out.writeString(key);
             out.writeLong(minValue);
             out.writeLong(maxValue);
-            out.writeBoolean(isFiltered);    
+            out.writeBoolean(isFiltered);
         }
 
         @Override
         public Long apply(String s) {
             return parseLong(s, minValue, maxValue, key, isFiltered);
-        } 
+        }
     }
 
     // Setting<Long> with fallback
@@ -1741,13 +1740,13 @@ public class Setting<T> implements ToXContentObject {
             out.writeString(key);
             out.writeDouble(minValue);
             out.writeDouble(maxValue);
-            out.writeBoolean(isFiltered);    
+            out.writeBoolean(isFiltered);
         }
 
         @Override
         public Double apply(String s) {
             return parseDouble(s, minValue, maxValue, key, isFiltered);
-        }  
+        }
     }
 
     // Setting<Double> with fallback
@@ -2255,13 +2254,13 @@ public class Setting<T> implements ToXContentObject {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(key);
             out.writeTimeValue(minValue);
-            out.writeBoolean(isFiltered);    
+            out.writeBoolean(isFiltered);
         }
 
         @Override
         public TimeValue apply(String s) {
             return minTimeValueParser(key, minValue, isFiltered).apply(s);
-        }  
+        }
     }
 
     public static Setting<TimeValue> timeSetting(
