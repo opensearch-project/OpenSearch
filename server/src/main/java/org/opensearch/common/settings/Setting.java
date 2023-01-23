@@ -1368,8 +1368,8 @@ public class Setting<T> implements ToXContentObject {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(key);
-            out.writeDouble(minValue);
-            out.writeDouble(maxValue);
+            out.writeFloat(minValue);
+            out.writeFloat(maxValue);
             out.writeBoolean(isFiltered);    
         }
 
@@ -1497,8 +1497,8 @@ public class Setting<T> implements ToXContentObject {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(key);
-            out.writeDouble(minValue);
-            out.writeDouble(maxValue);
+            out.writeInt(minValue);
+            out.writeInt(maxValue);
             out.writeBoolean(isFiltered);    
         }
 
@@ -1618,8 +1618,8 @@ public class Setting<T> implements ToXContentObject {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(key);
-            out.writeDouble(minValue);
-            out.writeDouble(maxValue);
+            out.writeLong(minValue);
+            out.writeLong(maxValue);
             out.writeBoolean(isFiltered);    
         }
 
@@ -2238,6 +2238,30 @@ public class Setting<T> implements ToXContentObject {
             v -> {},
             properties
         );
+    }
+
+    private static class TimeValueParser implements Function<Settings, TimeValue>, Writeable {
+        private String key;
+        private TimeValue minValue;
+        private boolean isFiltered;
+
+        public TimeValueParser(String key, TimeValue minValue, boolean isFiltered) {
+            this.key = key;
+            this.minValue = minValue;
+            this.isFiltered = isFiltered;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(key);
+            out.writeTimeValue(minValue);
+            out.writeBoolean(isFiltered);    
+        }
+
+        @Override
+        public TimeValue apply(Settings t) {
+            return parseTimeValue(t, minValue, key, isFiltered);
+        }  
     }
 
     public static Setting<TimeValue> timeSetting(
