@@ -39,6 +39,8 @@ import org.opensearch.Version;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
+import org.opensearch.common.TriConsumer;
+import org.opensearch.common.collect.Triplet;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.unit.ByteSizeValue;
@@ -718,6 +720,56 @@ public class Setting<T> implements ToXContentObject {
             @Override
             public String toString() {
                 return "CompoundUpdater for: " + aSettingUpdater + " and " + bSettingUpdater;
+            }
+        };
+    }
+
+    /**
+     * Updates settings that depend on each other.
+     */
+    static <A, B, C> AbstractScopedSettings.SettingUpdater<Triplet<A, B, C>> compoundUpdater(
+        final TriConsumer<A, B, C> consumer,
+        final TriConsumer<A, B, C> validator,
+        final Setting<A> aSetting,
+        final Setting<B> bSetting,
+        final Setting<C> cSetting,
+        Logger logger
+    ) {
+        final AbstractScopedSettings.SettingUpdater<A> aSettingUpdater = aSetting.newUpdater(null, logger);
+        final AbstractScopedSettings.SettingUpdater<B> bSettingUpdater = bSetting.newUpdater(null, logger);
+        final AbstractScopedSettings.SettingUpdater<C> cSettingUpdater = cSetting.newUpdater(null, logger);
+        return new AbstractScopedSettings.SettingUpdater<Triplet<A, B, C>>() {
+            @Override
+            public boolean hasChanged(Settings current, Settings previous) {
+                return aSettingUpdater.hasChanged(current, previous)
+                    || bSettingUpdater.hasChanged(current, previous)
+                    || cSettingUpdater.hasChanged(current, previous);
+            }
+
+            @Override
+            public Triplet<A, B, C> getValue(Settings current, Settings previous) {
+                A valueA = aSettingUpdater.getValue(current, previous);
+                B valueB = bSettingUpdater.getValue(current, previous);
+                C valueC = cSettingUpdater.getValue(current, previous);
+                validator.accept(valueA, valueB, valueC);
+                return new Triplet<>(valueA, valueB, valueC);
+            }
+
+            @Override
+            public void apply(Triplet<A, B, C> value, Settings current, Settings previous) {
+                logger.info("--> Settings changed!");
+                if (aSettingUpdater.hasChanged(current, previous)) {
+                    logSettingUpdate(aSetting, current, previous, logger);
+                }
+                if (bSettingUpdater.hasChanged(current, previous)) {
+                    logSettingUpdate(bSetting, current, previous, logger);
+                }
+                consumer.accept(value.v1(), value.v2(), value.v3());
+            }
+
+            @Override
+            public String toString() {
+                return "CompoundUpdater for: " + aSettingUpdater + " and " + bSettingUpdater + " and " + cSettingUpdater;
             }
         };
     }

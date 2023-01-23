@@ -35,8 +35,6 @@ package org.opensearch.cluster.routing.allocation.allocator;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.IntroSorter;
-import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.RoutingNodes;
 import org.opensearch.cluster.routing.ShardRouting;
@@ -53,7 +51,6 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
-import org.opensearch.indices.replication.common.ReplicationType;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -104,7 +101,15 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     );
     public static final Setting<Float> THRESHOLD_SETTING = Setting.floatSetting(
         "cluster.routing.allocation.balance.threshold",
-        1.5f,
+        1.0f,
+        0.0f,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    public static final Setting<Float> PRIMARY_BALANCE_FACTOR_SETTING = Setting.floatSetting(
+        "cluster.routing.allocation.balance.primary",
+        0.45f,
         0.0f,
         Property.Dynamic,
         Property.NodeScope
@@ -120,10 +125,19 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
     @Inject
     public BalancedShardsAllocator(Settings settings, ClusterSettings clusterSettings) {
-        setWeightFunction(INDEX_BALANCE_FACTOR_SETTING.get(settings), SHARD_BALANCE_FACTOR_SETTING.get(settings));
+        setWeightFunction(
+            INDEX_BALANCE_FACTOR_SETTING.get(settings),
+            SHARD_BALANCE_FACTOR_SETTING.get(settings),
+            PRIMARY_BALANCE_FACTOR_SETTING.get(settings)
+        );
         setThreshold(THRESHOLD_SETTING.get(settings));
         clusterSettings.addSettingsUpdateConsumer(SHARD_MOVE_PRIMARY_FIRST_SETTING, this::setMovePrimaryFirst);
-        clusterSettings.addSettingsUpdateConsumer(INDEX_BALANCE_FACTOR_SETTING, SHARD_BALANCE_FACTOR_SETTING, this::setWeightFunction);
+        clusterSettings.addSettingsUpdateConsumer(
+            INDEX_BALANCE_FACTOR_SETTING,
+            SHARD_BALANCE_FACTOR_SETTING,
+            PRIMARY_BALANCE_FACTOR_SETTING,
+            this::setWeightFunction
+        );
         clusterSettings.addSettingsUpdateConsumer(THRESHOLD_SETTING, this::setThreshold);
     }
 
@@ -131,8 +145,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         this.movePrimaryFirst = movePrimaryFirst;
     }
 
-    private void setWeightFunction(float indexBalance, float shardBalanceFactor) {
-        weightFunction = new WeightFunction(indexBalance, shardBalanceFactor);
+    private void setWeightFunction(float indexBalance, float shardBalanceFactor, float primaryShardBalance) {
+        weightFunction = new WeightFunction(indexBalance, shardBalanceFactor, primaryShardBalance);
     }
 
     private void setThreshold(float threshold) {
@@ -259,9 +273,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private final float primaryShardBalance;
         private AllocationConstraints constraints;
 
-        WeightFunction(float indexBalance, float shardBalance) {
+        WeightFunction(float indexBalance, float shardBalance, float primaryShardBalance) {
             // Start with higher primary constants for POC
-            this.primaryShardBalance = 0.50f;
+            this.primaryShardBalance = primaryShardBalance; // 0.50f;
             float sum = indexBalance + shardBalance + primaryShardBalance;
             if (sum <= 0.0f) {
                 throw new IllegalArgumentException("Balance factors must sum to a value > 0 but was: " + sum);
