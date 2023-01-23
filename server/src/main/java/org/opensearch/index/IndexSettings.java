@@ -886,7 +886,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_MERGE_ON_FLUSH_ENABLED, this::setMergeOnFlushEnabled);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MERGE_ON_FLUSH_POLICY, this::setMergeOnFlushPolicy);
 
-        if (isRemoteTranslogStoreEnabled && FeatureFlags.isEnabled(FeatureFlags.REMOTE_STORE)) {
+        if (FeatureFlags.isEnabled(FeatureFlags.REMOTE_STORE) && isRemoteTranslogStoreEnabled) {
             scopedSettings.addSettingsUpdateConsumer(IndexMetadata.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING, this::setBufferInterval);
         }
     }

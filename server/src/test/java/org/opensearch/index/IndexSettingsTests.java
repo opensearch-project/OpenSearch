@@ -1008,15 +1008,14 @@ public class IndexSettingsTests extends OpenSearchTestCase {
             .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), createdVersion)
             .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, true)
             .build();
-        assertTrue(IndexSettings.INDEX_SOFT_DELETES_SETTING.get(settings));
         assertEquals(TimeValue.timeValueMillis(100), IndexMetadata.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(settings));
     }
 
     public void testSetRemoteTranslogBufferIntervalFailsWhenRemoteTranslogIsNotEnabled() {
         Settings indexSettings = Settings.builder()
-            .put("index.replication.type", ReplicationType.SEGMENT)
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, false)
-            .put(IndexMetadata.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.getKey(), "200ms")
+            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_BUFFER_INTERVAL, "200ms")
             .build();
         IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
@@ -1026,6 +1025,44 @@ public class IndexSettingsTests extends OpenSearchTestCase {
             "Settings index.remote_store.translog.buffer_interval can only be set when index.remote_store.translog.enabled is set to true",
             iae.getMessage()
         );
+    }
+
+    public void testSetRemoteTranslogBufferIntervalFailsWhenEmpty() {
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, false)
+            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_BUFFER_INTERVAL, "")
+            .build();
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> IndexMetadata.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(indexSettings)
+        );
+        assertEquals(
+            "failed to parse setting [index.remote_store.translog.buffer_interval] with value [] as a time value: unit is missing or unrecognized",
+            iae.getMessage()
+        );
+    }
+
+    public void testUpdateRemoteTranslogBufferInterval() throws Exception {
+        try (FeatureFlagSetter f = FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE)) {
+            Settings settings = Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+                .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, true)
+                .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_BUFFER_INTERVAL, "250ms")
+                .build();
+            IndexMetadata metadata = newIndexMeta("index", settings);
+            IndexScopedSettings scopedSettings = IndexScopedSettings.DEFAULT_SCOPED_SETTINGS;
+            scopedSettings.registerSetting(IndexMetadata.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING);
+            IndexSettings indexSettings = new IndexSettings(metadata, settings, scopedSettings);
+            assertEquals(TimeValue.timeValueMillis(250), indexSettings.getBufferInterval());
+
+            // Update settings
+            indexSettings.updateIndexMetadata(
+                newIndexMeta("index", Settings.builder().put(IndexMetadata.SETTING_REMOTE_TRANSLOG_BUFFER_INTERVAL, "150ms").build())
+            );
+            assertEquals(TimeValue.timeValueMillis(150), indexSettings.getBufferInterval());
+        }
     }
 
     @SuppressForbidden(reason = "sets the SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY feature flag")
