@@ -8,6 +8,7 @@
 
 package org.opensearch.identity;
 
+import org.junit.Before;
 import org.opensearch.client.Request;
 import org.opensearch.client.RequestOptions;
 import org.opensearch.client.Response;
@@ -20,9 +21,13 @@ import static org.hamcrest.Matchers.containsString;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class BasicAuthIT extends HttpSmokeTestCaseWithIdentity {
-    public void testBasicAuthSuccess() throws Exception {
-        startNodesWithIdentityIndex();
 
+    @Before
+    public void startBasicAuthTestCluster() throws Exception {
+        startNodesWithIdentityIndex();
+    }
+
+    public void testBasicAuthSuccess() throws Exception {
         Request request = new Request("GET", "/_cluster/health");
         RequestOptions options = RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Basic YWRtaW46YWRtaW4=").build(); // admin:admin
         request.setOptions(options);
@@ -36,8 +41,6 @@ public class BasicAuthIT extends HttpSmokeTestCaseWithIdentity {
     }
 
     public void testBasicAuthUnauthorized() throws Exception {
-        startNodesWithIdentityIndex();
-
         Request request = new Request("GET", "/_cluster/health");
         RequestOptions options = RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Basic bWFydmluOmdhbGF4eQ==").build(); // marvin:galaxy
         request.setOptions(options);
