@@ -1053,10 +1053,10 @@ public class IndexSettingsTests extends OpenSearchTestCase {
                 .build();
             IndexMetadata metadata = newIndexMeta("index", settings);
             IndexScopedSettings scopedSettings = IndexScopedSettings.DEFAULT_SCOPED_SETTINGS;
+            // Register the setting to index-scoped settings since this is under experimental feature flag
             scopedSettings.registerSetting(IndexMetadata.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING);
             IndexSettings indexSettings = new IndexSettings(metadata, settings, scopedSettings);
             assertEquals(TimeValue.timeValueMillis(250), indexSettings.getBufferInterval());
-
             // Update settings
             indexSettings.updateIndexMetadata(
                 newIndexMeta("index", Settings.builder().put(IndexMetadata.SETTING_REMOTE_TRANSLOG_BUFFER_INTERVAL, "150ms").build())

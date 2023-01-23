@@ -53,11 +53,11 @@ import java.util.function.Supplier;
  * @opensearch.internal
  */
 public abstract class AsyncIOProcessor<Item> {
-    final Logger logger;
-    final ArrayBlockingQueue<Tuple<Item, Consumer<Exception>>> queue;
+    private final Logger logger;
+    private final ArrayBlockingQueue<Tuple<Item, Consumer<Exception>>> queue;
     private final ThreadContext threadContext;
-    final Semaphore promiseSemaphore = new Semaphore(1);
-    long lastRunStartTimeInMs;
+    private final Semaphore promiseSemaphore = new Semaphore(1);
+    private long lastRunStartTimeInMs;
 
     protected AsyncIOProcessor(Logger logger, int queueSize, ThreadContext threadContext) {
         this.logger = logger;
@@ -78,13 +78,7 @@ public abstract class AsyncIOProcessor<Item> {
         // we first try make a promise that we are responsible for the processing
         final boolean promised = promiseSemaphore.tryAcquire();
         if (promised == false) {
-            // in this case we are not responsible and can just block until there is space
-            try {
-                queue.put(new Tuple<>(item, preserveContext(listener)));
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                listener.accept(e);
-            }
+            addToQueue(item, listener);
         }
 
         // here we have to try to make the promise again otherwise there is a race when a thread puts an entry without making the promise
@@ -100,7 +94,17 @@ public abstract class AsyncIOProcessor<Item> {
         }
     }
 
-    protected void process(List<Tuple<Item, Consumer<Exception>>> candidates) {
+    void addToQueue(Item item, Consumer<Exception> listener) {
+        // in this case we are not responsible and can just block until there is space
+        try {
+            queue.put(new Tuple<>(item, preserveContext(listener)));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            listener.accept(e);
+        }
+    }
+
+    void process(List<Tuple<Item, Consumer<Exception>>> candidates) {
         // since we made the promise to process we gotta do it here at least once
         drainAndProcessAndRelease(candidates);
         while (queue.isEmpty() == false && promiseSemaphore.tryAcquire()) {
@@ -117,7 +121,6 @@ public abstract class AsyncIOProcessor<Item> {
             exception = processList(candidates);
         } finally {
             promiseSemaphore.release();
-            logger.debug("step=drainAndProcessAndRelease timeTakenInMs={}", (System.currentTimeMillis() - lastRunStartTimeInMs));
         }
         notifyList(candidates, exception);
         candidates.clear();
@@ -161,4 +164,16 @@ public abstract class AsyncIOProcessor<Item> {
      * Writes or processes the items out or to disk.
      */
     protected abstract void write(List<Tuple<Item, Consumer<Exception>>> candidates) throws IOException;
+
+    Logger getLogger() {
+        return logger;
+    }
+
+    Semaphore getPromiseSemaphore() {
+        return promiseSemaphore;
+    }
+
+    long getLastRunStartTimeInMs() {
+        return lastRunStartTimeInMs;
+    }
 }

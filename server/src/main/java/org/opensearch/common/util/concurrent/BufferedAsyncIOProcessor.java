@@ -32,13 +32,11 @@
 package org.opensearch.common.util.concurrent;
 
 import org.apache.logging.log4j.Logger;
-import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Objects;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 /**
@@ -49,6 +47,8 @@ import java.util.function.Consumer;
  * If more requests are enequed between invocations of drainAndProcessAndRelease, another processor thread
  * gets scheduled. Subsequent requests will get buffered till drainAndProcessAndRelease gets called in this new
  * processor thread.
+ *
+ * @opensearch.internal
  */
 public abstract class BufferedAsyncIOProcessor<Item> extends AsyncIOProcessor<Item> {
 
@@ -71,44 +71,24 @@ public abstract class BufferedAsyncIOProcessor<Item> extends AsyncIOProcessor<It
     public void put(Item item, Consumer<Exception> listener) {
         Objects.requireNonNull(item, "item must not be null");
         Objects.requireNonNull(listener, "listener must not be null");
-
-        try {
-            long timeout = getPutBlockingTimeoutMillis();
-            if (timeout > 0) {
-                if (!queue.offer(new Tuple<>(item, preserveContext(listener)), timeout, TimeUnit.MILLISECONDS)) {
-                    listener.accept(new OpenSearchRejectedExecutionException("failed to queue request, queue full"));
-                }
-            } else {
-                queue.put(new Tuple<>(item, preserveContext(listener)));
-            }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            listener.accept(e);
-        }
-
+        addToQueue(item, listener);
         scheduleRefresh();
     }
 
-    protected long getPutBlockingTimeoutMillis() {
-        return -1L;
-    }
-
     private void scheduleRefresh() {
-        Runnable processor = () -> { process(new ArrayList<>()); };
-
-        if (promiseSemaphore.tryAcquire()) {
+        if (getPromiseSemaphore().tryAcquire()) {
             try {
-                threadpool.schedule(processor, getBufferInterval(), getBufferRefreshThreadPoolName());
+                threadpool.schedule(() -> process(new ArrayList<>()), getBufferInterval(), getBufferRefreshThreadPoolName());
             } catch (Exception e) {
-                logger.error("failed to schedule refresh");
-                promiseSemaphore.release();
+                getLogger().error("failed to schedule refresh");
+                getPromiseSemaphore().release();
                 throw e;
             }
         }
     }
 
     private TimeValue getBufferInterval() {
-        long timeSinceLastRunStartInMS = System.currentTimeMillis() - lastRunStartTimeInMs;
+        long timeSinceLastRunStartInMS = System.currentTimeMillis() - getLastRunStartTimeInMs();
         if (timeSinceLastRunStartInMS >= bufferInterval.getMillis()) {
             return TimeValue.ZERO;
         }

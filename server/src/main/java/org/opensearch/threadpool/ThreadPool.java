@@ -175,7 +175,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         map.put(Names.SYSTEM_READ, ThreadPoolType.FIXED);
         map.put(Names.SYSTEM_WRITE, ThreadPoolType.FIXED);
         map.put(Names.TRANSLOG_TRANSFER, ThreadPoolType.SCALING);
-        map.put(Names.TRANSLOG_SYNC, ThreadPoolType.SCALING);
+        map.put(Names.TRANSLOG_SYNC, ThreadPoolType.FIXED);
         THREAD_POOL_TYPES = Collections.unmodifiableMap(map);
     }
 
@@ -252,10 +252,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             Names.TRANSLOG_TRANSFER,
             new ScalingExecutorBuilder(Names.TRANSLOG_TRANSFER, 1, halfProcMaxAt10, TimeValue.timeValueMinutes(5))
         );
-        builders.put(
-            Names.TRANSLOG_SYNC,
-            new ScalingExecutorBuilder(Names.TRANSLOG_SYNC, 1, halfProcMaxAt10, TimeValue.timeValueMinutes(5))
-        );
+        builders.put(Names.TRANSLOG_SYNC, new FixedExecutorBuilder(settings, Names.TRANSLOG_SYNC, allocatedProcessors * 4, 10000));
 
         for (final ExecutorBuilder<?> builder : customBuilders) {
             if (builders.containsKey(builder.name())) {
