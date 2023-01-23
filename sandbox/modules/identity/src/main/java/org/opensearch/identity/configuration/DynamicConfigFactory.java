@@ -75,9 +75,6 @@ public class DynamicConfigFactory implements ConfigurationChangeListener {
         final InternalUsersModel ium;
         ium = new InternalUsersModelV1((SecurityDynamicConfiguration<User>) internalusers);
 
-        System.out.println("DynamicConfigFactory.onChange");
-        System.out.println(internalusers);
-
         eventBus.post(ium);
 
         initialized.set(true);
