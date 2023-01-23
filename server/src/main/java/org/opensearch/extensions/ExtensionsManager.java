@@ -20,7 +20,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.LogManager;
@@ -198,7 +200,7 @@ public class ExtensionsManager {
      *
      * @param request which was sent by an extension.
      */
-    public ExtensionActionResponse handleTransportRequest(ExtensionActionRequest request) throws InterruptedException {
+    public ExtensionActionResponse handleTransportRequest(ExtensionActionRequest request) throws Exception {
         return extensionTransportActionsHandler.sendTransportRequestToExtension(request);
     }
 
@@ -401,13 +403,17 @@ public class ExtensionsManager {
                 new InitializeExtensionRequest(transportService.getLocalNode(), extension),
                 initializeExtensionResponseHandler
             );
-            // TODO: make asynchronous
-            inProgressFuture.get(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS);
-        } catch (Exception e) {
-            try {
-                throw e;
-            } catch (Exception e1) {
-                logger.error(e.toString());
+            inProgressFuture.orTimeout(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS).join();
+        } catch (CompletionException e) {
+            if (e.getCause() instanceof TimeoutException) {
+                logger.info("No response from extension to request.");
+            }
+            if (e.getCause() instanceof RuntimeException) {
+                throw (RuntimeException) e.getCause();
+            } else if (e.getCause() instanceof Error) {
+                throw (Error) e.getCause();
+            } else {
+                throw new RuntimeException(e.getCause());
             }
         }
     }
@@ -462,7 +468,7 @@ public class ExtensionsManager {
 
             @Override
             public void handleException(TransportException exp) {
-
+                inProgressIndexNameFuture.completeExceptionally(exp);
             }
 
             @Override
@@ -506,20 +512,21 @@ public class ExtensionsManager {
                                     new IndicesModuleRequest(indexModule),
                                     acknowledgedResponseHandler
                                 );
-                                // TODO: make asynchronous
-                                inProgressIndexNameFuture.get(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS);
-                                logger.info("Received ack response from Extension");
-                            } catch (Exception e) {
-                                try {
-                                    throw e;
-                                } catch (Exception e1) {
-                                    logger.error(e.toString());
-                                }
+                                inProgressIndexNameFuture.whenComplete((r, e) -> {
+                                    if (e != null) {
+                                        inProgressFuture.complete(response);
+                                    } else if (e == null) {
+                                        inProgressFuture.completeExceptionally(e);
+                                    }
+                                });
+                            } catch (Exception ex) {
+                                inProgressFuture.completeExceptionally(ex);
                             }
                         }
                     });
+                } else {
+                    inProgressFuture.complete(response);
                 }
-                inProgressFuture.complete(response);
             }
 
             @Override
@@ -542,14 +549,18 @@ public class ExtensionsManager {
                 new IndicesModuleRequest(indexModule),
                 indicesModuleResponseHandler
             );
-            // TODO: make asynchronous
-            inProgressFuture.get(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS);
+            inProgressFuture.orTimeout(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS).join();
             logger.info("Received response from Extension");
-        } catch (Exception e) {
-            try {
-                throw e;
-            } catch (Exception e1) {
-                logger.error(e.toString());
+        } catch (CompletionException e) {
+            if (e.getCause() instanceof TimeoutException) {
+                logger.info("No response from extension to request.");
+            }
+            if (e.getCause() instanceof RuntimeException) {
+                throw (RuntimeException) e.getCause();
+            } else if (e.getCause() instanceof Error) {
+                throw (Error) e.getCause();
+            } else {
+                throw new RuntimeException(e.getCause());
             }
         }
     }
