@@ -47,6 +47,7 @@ dependencies {
   api "commons-codec:commons-codec:${versions.commonscodec}"
   api "commons-logging:commons-logging:${versions.commonslogging}"
 
+  api project(':libs:opensearch-commons')
   api project(':libs:opensearch-core')
 
   testImplementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"

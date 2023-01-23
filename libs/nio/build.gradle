@@ -29,11 +29,12 @@
  */
 
 import org.opensearch.gradle.info.BuildParams
- 
+
 apply plugin: 'opensearch.publish'
 
 dependencies {
   api project(':libs:opensearch-core')
+  api project(':libs:opensearch-commons')
 
   testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testImplementation "junit:junit:${versions.junit}"
