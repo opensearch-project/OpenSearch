@@ -58,7 +58,7 @@ public class PublishTests extends GradleUnitTestCase {
 
     /**
      * This test is used to verify that adding the 'opensearch.pluginzip' to the project
-     * adds some other transitive plugins and tasks under the h`ood. This is basically
+     * adds some other transitive plugins and tasks under the hood. This is basically
      * a behavioral test of the {@link Publish#apply(Project)} method.
      *
      * This is equivalent of having a build.gradle script with just the following section:
