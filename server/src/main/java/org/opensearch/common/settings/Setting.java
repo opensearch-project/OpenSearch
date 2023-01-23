@@ -2240,7 +2240,7 @@ public class Setting<T> implements ToXContentObject {
         );
     }
 
-    private static class TimeValueParser implements Function<Settings, TimeValue>, Writeable {
+    private static class TimeValueParser implements Function<String, TimeValue>, Writeable {
         private String key;
         private TimeValue minValue;
         private boolean isFiltered;
@@ -2259,8 +2259,8 @@ public class Setting<T> implements ToXContentObject {
         }
 
         @Override
-        public TimeValue apply(Settings t) {
-            return parseTimeValue(t, minValue, key, isFiltered);
+        public TimeValue apply(String s) {
+            return minTimeValueParser(key, minValue, isFiltered).apply(s);
         }  
     }
 
