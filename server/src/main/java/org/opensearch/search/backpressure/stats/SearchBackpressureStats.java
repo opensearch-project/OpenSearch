@@ -8,6 +8,7 @@
 
 package org.opensearch.search.backpressure.stats;
 
+import org.opensearch.Version;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
@@ -39,7 +40,11 @@ public class SearchBackpressureStats implements ToXContentFragment, Writeable {
     public SearchBackpressureStats(StreamInput in) throws IOException {
         searchShardTaskStats = new SearchShardTaskStats(in);
         mode = SearchBackpressureMode.fromName(in.readString());
-        searchTaskStats = in.readOptionalWriteable(SearchTaskStats::new);
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            searchTaskStats = in.readOptionalWriteable(SearchTaskStats::new);
+        } else {
+            searchTaskStats = null;
+        }
     }
 
     @Override
@@ -55,8 +60,9 @@ public class SearchBackpressureStats implements ToXContentFragment, Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         searchShardTaskStats.writeTo(out);
         out.writeString(mode.getName());
-        // searchTaskStats.writeTo(out);
-        out.writeOptionalWriteable(searchTaskStats);
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            out.writeOptionalWriteable(searchTaskStats);
+        }
     }
 
     @Override
