@@ -34,6 +34,11 @@ package org.opensearch.common;
 
 import java.util.function.Supplier;
 
+/**
+ * A base supplier using memoization optimization technique
+ *
+ * @opensearch.api
+ */
 public class MemoizedSupplier<T> implements Supplier<T> {
     private Supplier<T> supplier;
     private T value;

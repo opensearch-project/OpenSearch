@@ -38,6 +38,8 @@ import java.lang.annotation.Target;
 
 /**
  * Annotation to suppress forbidden-apis errors inside a whole class, a method, or a field.
+ *
+ * @opensearch.api
  */
 @Retention(RetentionPolicy.CLASS)
 @Target({ ElementType.CONSTRUCTOR, ElementType.FIELD, ElementType.METHOD, ElementType.TYPE })

@@ -36,6 +36,8 @@ import java.util.function.Function;
 
 /**
  * A {@link Function}-like interface which allows throwing checked exceptions.
+ *
+ * @opensearch.api
  */
 @FunctionalInterface
 public interface CheckedFunction<T, R, E extends Exception> {

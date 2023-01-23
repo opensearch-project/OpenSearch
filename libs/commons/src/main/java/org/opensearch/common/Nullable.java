@@ -45,7 +45,7 @@ import java.lang.annotation.Target;
  * {@code null} is an acceptable value for that parameter.  It should not be
  * used for parameters of primitive types.
  *
- *
+ * @opensearch.api
  */
 @Documented
 @TypeQualifierNickname

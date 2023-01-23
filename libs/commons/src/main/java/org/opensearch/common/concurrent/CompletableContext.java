@@ -41,6 +41,8 @@ import java.util.function.BiConsumer;
  * an exceptional result. This allows attaching listeners that only handle {@link Exception}.
  *
  * @param <T> the result type
+ *
+ * @opensearch.api
  */
 public class CompletableContext<T> {
 

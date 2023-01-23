@@ -34,6 +34,8 @@ package org.opensearch.common;
 
 /**
  * Utility class for glob-like matching
+ *
+ * @opensearch.api
  */
 public class Glob {
 

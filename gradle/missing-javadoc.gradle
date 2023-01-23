@@ -162,7 +162,10 @@ configure([
   }
 }
 
-configure(project(":server")) {
+configure([
+  project(":libs:opensearch-commons"),
+  project(":server")
+]) {
   project.tasks.withType(MissingJavadocTask) {
     // TODO: bump to variable missing level after increasing javadoc coverage
     javadocMissingLevel = "class"

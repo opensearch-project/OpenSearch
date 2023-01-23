@@ -46,6 +46,8 @@ import java.nio.file.Paths;
  * <p>
  * This class allows the default filesystem to
  * be changed during tests.
+ *
+ * @opensearch.internal
  */
 @SuppressForbidden(reason = "accesses the default filesystem by design")
 // TODO: can we move this to the .env package and make it package-private?

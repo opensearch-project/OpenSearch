@@ -49,6 +49,8 @@ package org.opensearch.common.util.concurrent;
  *          inst.decRef();
  *      }
  * </pre>
+ *
+ * @opensearch.api
  */
 public interface RefCounted {
 

@@ -40,6 +40,8 @@ import java.util.Objects;
 
 /**
  * Helper class similar to Arrays to handle conversions for Char arrays
+ *
+ * @opensearch.api
  */
 public final class CharArrays {
 

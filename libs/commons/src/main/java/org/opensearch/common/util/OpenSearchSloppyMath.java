@@ -34,6 +34,8 @@ package org.opensearch.common.util;
 
 /**
  * Similar to Lucene's SloppyMath, but for additional math functions.
+ *
+ * @opensearch.api
  */
 public class OpenSearchSloppyMath {
 

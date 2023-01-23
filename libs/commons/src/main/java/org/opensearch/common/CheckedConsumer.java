@@ -36,6 +36,8 @@ import java.util.function.Consumer;
 
 /**
  * A {@link Consumer}-like interface which allows throwing checked exceptions.
+ *
+ * @opensearch.api
  */
 @FunctionalInterface
 public interface CheckedConsumer<T, E extends Exception> {

@@ -47,6 +47,8 @@ package org.opensearch.common.util;
 
 /**
  * Additions or modifications to this class should only come from the original org.math.plot.utils.FastMath source
+ *
+ * @opensearch.api
  */
 final class FastMath {
 

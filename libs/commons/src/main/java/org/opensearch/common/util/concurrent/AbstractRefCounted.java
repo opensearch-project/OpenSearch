@@ -38,6 +38,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  * A basic RefCounted implementation that is initialized with a
  * ref count of 1 and calls {@link #closeInternal()} once it reaches
  * a 0 ref count
+ *
+ * @opensearch.api
  */
 public abstract class AbstractRefCounted implements RefCounted {
     private final AtomicInteger refCount = new AtomicInteger(1);
