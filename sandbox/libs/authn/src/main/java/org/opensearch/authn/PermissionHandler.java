@@ -42,6 +42,7 @@ public interface PermissionHandler {
     /**
      * Returns a list of the permissions granted during a permission grant event.
      * Requires that the grantIdentifier exist, should throw an error if none can be found.
+     * Invalid permission checks should be rejected.
      */
     public ArrayList<Permission> getPermissions(String grantIdentifier);
 

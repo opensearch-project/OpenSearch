@@ -9,12 +9,17 @@
 package org.opensearch.authn;
 
 import org.apache.commons.lang.RandomStringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.util.ArrayList;
+import java.util.regex.Pattern;
 
 public class PermissionManager implements PermissionHandler {
 
     PermissionStorage permissionStorage = new PermissionStorage();
+
+    protected final Logger log = LogManager.getLogger(this.getClass());
 
     /**
      * This function takes a Permission array and adds it to permission storage.
@@ -38,6 +43,8 @@ public class PermissionManager implements PermissionHandler {
 
         permissionStorage.put(grantIdentifier, toGrant);
 
+        log.debug("Permission grant event completed, grant identifier: ", grantIdentifier);
+
         return grantIdentifier;
     }
 
@@ -47,6 +54,7 @@ public class PermissionManager implements PermissionHandler {
     @Override
     public ArrayList<Permission> getPermissions(String grantIdentifier) {
 
+        log.debug("Checking permissions from grant event: ", grantIdentifier);
         return permissionStorage.get(grantIdentifier);
     }
 
@@ -61,11 +69,18 @@ public class PermissionManager implements PermissionHandler {
 
     /**
      * Delete permissions based off of regex strings.
-     * Not fully implemented
      */
     public void deletePermissions(String grantIdentifier, String regex) {
 
-        // TODO: Fully implement this
-        permissionStorage.delete(grantIdentifier, regex);
+        // TODO: There may be a better way to do this.
+        ArrayList<Permission> grantedPermissions = permissionStorage.get(grantIdentifier);
+        ArrayList<Permission> toDelete = new ArrayList<>();
+        for (Permission permission : grantedPermissions) {
+            if (Pattern.matches(regex, permission.permissionString)) {
+                toDelete.add(permission);
+            }
+        }
+        Object[] toDeleteArray = toDelete.toArray();
+        permissionStorage.delete(grantIdentifier, (Permission[]) toDeleteArray);
     }
 }
