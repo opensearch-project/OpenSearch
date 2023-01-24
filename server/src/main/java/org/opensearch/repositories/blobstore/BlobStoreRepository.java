@@ -647,6 +647,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     public BlobStore blobStore() {
         BlobStore store = blobStore.get();
+        assert store != null;
         if (store == null) {
             synchronized (lock) {
                 store = blobStore.get();
