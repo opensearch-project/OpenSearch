@@ -51,6 +51,8 @@ public class RestCatSegmentReplicationAction extends  AbstractCatAction {
 
     @Override
     public BaseRestHandler.RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
+        String indexname = request.param("index");
+        logger.info("index name is : {} ", indexname);
         final SegmentReplicationRequest segmentReplicationRequest = new SegmentReplicationRequest(Strings.splitStringByCommaToArray(request.param("index")));
         segmentReplicationRequest.timeout(request.param("timeout"));
         segmentReplicationRequest.detailed(request.paramAsBoolean("detailed", false));
