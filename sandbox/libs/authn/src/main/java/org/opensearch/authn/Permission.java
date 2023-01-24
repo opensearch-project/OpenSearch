@@ -1,43 +1,34 @@
 /*
+ * Copyright OpenSearch Contributors
  * SPDX-License-Identifier: Apache-2.0
- *
- * The OpenSearch Contributors require contributions made to
- * this file be licensed under the Apache-2.0 license or a
- * compatible open source license.
  */
 
 package org.opensearch.authn;
 
 /**
- * This is an abstract class that defines the minimum expectations for a permission object.
- * A permission implementation of this class can implement further functionality or structuring.
- * A permission needs to entail the action it allows and the resource its performed on.
+ * An extension of the abstract Permission class which uses String-object Permissions.
+ *
+ * Example "opensearch.indexing.index.create"
+ *
+ * @opensearch.experimental
  */
-abstract class Permission {
+public class Permission extends AbstractPermission {
 
-    // If using a string for construction, a delimiter is required to split the string
-    String PERMISSION_DELIMITER;
+    private final static String PERMISSION_DELIMITER = "\\.";
 
-    // If using string-object permissions, you use the invalid characters for ensuring formatting
-    String[] INVALID_CHARACTERS;
+    public String permissionString;
 
-    // An array of the valid actions which a permission can grant the privilege to perform.
-    String[] QUALIFIED_ACTIONS;
+    public String[] permissionSegments;
 
-    // An array of the available resources which a permission can grant some action to act upon.
-    String[] QUALIFIED_RESOURCES;
+    public String resource;
 
-    String permissionString;
+    public String action;
 
-    // Every permissionString must be resolvable to its constituent parts: <resource>.<action>
-    // These are then stored separately to avoid costly String manipulation.
+    public Permission(String permission) {
 
-    String resource;
-
-    String action;
-
-    abstract void Permission(String permission);
-
-    abstract boolean isValidFormat();
-
+        this.permissionString = permission;
+        this.permissionSegments = permissionString.split(PERMISSION_DELIMITER);
+        this.resource = permissionSegments[0];
+        this.action = permissionSegments[1];
+    }
 }

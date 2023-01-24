@@ -8,41 +8,42 @@
 
 package org.opensearch.authn;
 
-import java.util.ArrayList;
+import java.security.Principal;
 import java.util.HashMap;
+import java.util.List;
 
 /**
  * A basic HashMap implementation of a PermissionStore.
  */
 public class PermissionStorage implements PermissionStore {
 
-    public HashMap<String, ArrayList<Permission>> permissionStore = new HashMap<>();
+    public HashMap<Principal, List<Permission>> permissionStore = new HashMap<>();
 
     @Override
-    public void put(String principalString, ArrayList<Permission> permissions) {
+    public void put(Principal principal, List<Permission> permissions) {
 
-        permissionStore.put(principalString, permissions);
+        permissionStore.put(principal, permissions);
     }
 
     @Override
-    public ArrayList<Permission> get(String principalString) {
+    public List<Permission> get(Principal principal) {
 
-        return permissionStore.get(principalString);
+        return permissionStore.get(principal);
     }
 
     @Override
-    public void delete(String principalString, Permission[] permissions) {
+    public void delete(Principal principal, List<Permission> permissions) {
 
         for (Permission permission : permissions) {
-            permissionStore.remove(principalString, permission);
+            permissionStore.remove(principal, permission);
         }
     }
 
-    // Allow for using a String regex expression to delete an entire pair from the map.
-    public void delete(String principalString, String regex) {
+    // Allow for using a String regex expression to delete all permissions granted to a principal from the map.
+    public void delete(Principal principal, String regex) {
 
         if (regex.equals("*")) {
-            permissionStore.remove(principalString);
+            permissionStore.remove(principal);
         }
     }
 }

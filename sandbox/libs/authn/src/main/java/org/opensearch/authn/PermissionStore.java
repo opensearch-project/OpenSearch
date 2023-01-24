@@ -8,7 +8,8 @@
 
 package org.opensearch.authn;
 
-import java.util.ArrayList;
+import java.security.Principal;
+import java.util.List;
 
 /**
  * This interface represents an abstract permission store. A permission store should be a data structure which
@@ -25,22 +26,21 @@ import java.util.ArrayList;
 public interface PermissionStore {
 
     /**
-     * This function adds a set of permissions to the permission store. The principalString is a unique string that
-     * corresponds to the subject which the permissions are being granted to.
+     * This function adds a set of permissions to the permission store. The principal is a unique identifier for some subject.
      * The ArrayList is a list of all permissions that are being granted.
      */
-    public void put(String principalString, ArrayList<Permission> permissions);
+    public void put(Principal principal, List<Permission> permissions);
 
     /**
-     * This function returns the ArrayList of permissions associated with the provided principalString.
+     * This function returns the ArrayList of permissions associated with the provided principal.
      * If permissions are modified during storage they must be reverted back to their original state during get().
      */
-    public ArrayList<Permission> get(String principalString);
+    public List<Permission> get(Principal principal);
 
     /**
-     * This function in-place deletes all targeted permissions associated with a given principalString.
-     * This function should be implemented such that '*' means that all permissions associated with the grant event are deleted.
+     * This function in-place deletes all targeted permissions associated with a given principal.
+     * This function should support wildcard use.
      */
-    public void delete(String principalString, Permission[] permissions);
+    public void delete(Principal principal, List<Permission> permissions);
 
 }
