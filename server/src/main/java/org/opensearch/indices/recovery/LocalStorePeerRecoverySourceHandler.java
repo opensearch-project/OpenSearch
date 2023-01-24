@@ -9,13 +9,13 @@
 package org.opensearch.indices.recovery;
 
 import org.apache.lucene.index.IndexCommit;
-import org.apache.lucene.util.SetOnce;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.StepListener;
 import org.opensearch.action.support.ThreadedActionListener;
 import org.opensearch.action.support.replication.ReplicationResponse;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.unit.TimeValue;
@@ -101,7 +101,6 @@ public class LocalStorePeerRecoverySourceHandler extends RecoverySourceHandler {
         final StepListener<SendFileResult> sendFileStep = new StepListener<>();
         final StepListener<TimeValue> prepareEngineStep = new StepListener<>();
         final StepListener<SendSnapshotResult> sendSnapshotStep = new StepListener<>();
-        final StepListener<Void> finalizeStep = new StepListener<>();
 
         if (isSequenceNumberBasedRecovery) {
             logger.trace("performing sequence numbers based recovery. starting at [{}]", request.startingSeqNo());

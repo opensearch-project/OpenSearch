@@ -132,6 +132,9 @@ import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.shard.IndexingOperationListener;
 import org.opensearch.index.shard.IndexingStats;
 import org.opensearch.index.shard.ShardId;
+import org.opensearch.index.translog.InternalTranslogFactory;
+import org.opensearch.index.translog.RemoteBlobStoreInternalTranslogFactory;
+import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.index.translog.TranslogStats;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
@@ -177,11 +180,12 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
-import java.util.function.Supplier;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
@@ -272,7 +276,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final boolean nodeWriteDanglingIndicesInfo;
     private final ValuesSourceRegistry valuesSourceRegistry;
     private final IndexStorePlugin.RemoteDirectoryFactory remoteDirectoryFactory;
-    private final Supplier<RepositoriesService> repositoriesServiceSupplier;
+    private final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier;
 
     @Override
     protected void doStart() {
@@ -393,7 +397,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.allowExpensiveQueries = ALLOW_EXPENSIVE_QUERIES.get(clusterService.getSettings());
         clusterService.getClusterSettings().addSettingsUpdateConsumer(ALLOW_EXPENSIVE_QUERIES, this::setAllowExpensiveQueries);
         this.remoteDirectoryFactory = remoteDirectoryFactory;
-        this.repositoriesServiceSupplier = repositoriesServiceSupplier;
+        this.translogFactorySupplier = getTranslogFactorySupplier(repositoriesServiceSupplier, threadPool);
     }
 
     public IndicesService(
@@ -510,7 +514,23 @@ public class IndicesService extends AbstractLifecycleComponent
         this.allowExpensiveQueries = ALLOW_EXPENSIVE_QUERIES.get(clusterService.getSettings());
         clusterService.getClusterSettings().addSettingsUpdateConsumer(ALLOW_EXPENSIVE_QUERIES, this::setAllowExpensiveQueries);
         this.remoteDirectoryFactory = remoteDirectoryFactory;
-        this.repositoriesServiceSupplier = repositoriesServiceSupplier;
+        this.translogFactorySupplier = getTranslogFactorySupplier(repositoriesServiceSupplier, threadPool);
+    }
+
+    private static BiFunction<IndexSettings, ShardRouting, TranslogFactory> getTranslogFactorySupplier(
+        Supplier<RepositoriesService> repositoriesServiceSupplier,
+        ThreadPool threadPool
+    ) {
+        return (indexSettings, shardRouting) -> {
+            if (indexSettings.isRemoteTranslogStoreEnabled() && shardRouting.primary()) {
+                return new RemoteBlobStoreInternalTranslogFactory(
+                    repositoriesServiceSupplier,
+                    threadPool,
+                    indexSettings.getRemoteStoreTranslogRepository()
+                );
+            }
+            return new InternalTranslogFactory();
+        };
     }
 
     private static final String DANGLING_INDICES_UPDATE_THREAD_NAME = "DanglingIndices#updateTask";
@@ -875,7 +895,7 @@ public class IndicesService extends AbstractLifecycleComponent
             this::isIdFieldDataEnabled,
             valuesSourceRegistry,
             remoteDirectoryFactory,
-            repositoriesServiceSupplier
+            translogFactorySupplier
         );
     }
 
@@ -898,7 +918,7 @@ public class IndicesService extends AbstractLifecycleComponent
             if (idxSettings.isSegRepEnabled()) {
                 return new NRTReplicationEngineFactory();
             }
-            if (IndexModule.Type.REMOTE_SNAPSHOT.match(idxSettings)) {
+            if (idxSettings.isRemoteSnapshot()) {
                 return config -> new ReadOnlyEngine(config, new SeqNoStats(0, 0, 0), new TranslogStats(), true, Function.identity(), false);
             }
             return new InternalEngineFactory();

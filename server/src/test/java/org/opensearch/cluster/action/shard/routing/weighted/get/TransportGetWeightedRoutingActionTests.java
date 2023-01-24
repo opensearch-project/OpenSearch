@@ -174,7 +174,7 @@ public class TransportGetWeightedRoutingActionTests extends OpenSearchTestCase {
 
     private ClusterState setWeightedRoutingWeights(ClusterState clusterState, Map<String, Double> weights) {
         WeightedRouting weightedRouting = new WeightedRouting("zone", weights);
-        WeightedRoutingMetadata weightedRoutingMetadata = new WeightedRoutingMetadata(weightedRouting);
+        WeightedRoutingMetadata weightedRoutingMetadata = new WeightedRoutingMetadata(weightedRouting, 0);
         Metadata.Builder metadataBuilder = Metadata.builder(clusterState.metadata());
         metadataBuilder.putCustom(WeightedRoutingMetadata.TYPE, weightedRoutingMetadata);
         clusterState = ClusterState.builder(clusterState).metadata(metadataBuilder).build();
@@ -191,7 +191,6 @@ public class TransportGetWeightedRoutingActionTests extends OpenSearchTestCase {
         ClusterState state = clusterService.state();
 
         ClusterGetWeightedRoutingResponse response = ActionTestUtils.executeBlocking(transportGetWeightedRoutingAction, request.request());
-        assertEquals(response.getLocalNodeWeight(), null);
         assertEquals(response.weights(), null);
     }
 
@@ -231,7 +230,8 @@ public class TransportGetWeightedRoutingActionTests extends OpenSearchTestCase {
         ClusterServiceUtils.setState(clusterService, builder);
 
         ClusterGetWeightedRoutingResponse response = ActionTestUtils.executeBlocking(transportGetWeightedRoutingAction, request.request());
-        assertEquals("0.0", response.getLocalNodeWeight());
+        assertEquals(true, response.getDiscoveredClusterManager());
+        assertEquals(weights, response.getWeightedRouting().weights());
     }
 
     public void testGetWeightedRoutingLocalWeight_WeightsNotSetInMetadata() {
@@ -250,7 +250,7 @@ public class TransportGetWeightedRoutingActionTests extends OpenSearchTestCase {
         ClusterServiceUtils.setState(clusterService, builder);
 
         ClusterGetWeightedRoutingResponse response = ActionTestUtils.executeBlocking(transportGetWeightedRoutingAction, request.request());
-        assertEquals(null, response.getLocalNodeWeight());
+        assertEquals(null, response.getWeightedRouting());
     }
 
     @After

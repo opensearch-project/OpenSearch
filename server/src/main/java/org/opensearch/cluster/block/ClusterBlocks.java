@@ -205,6 +205,13 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
         return new ClusterBlockException(global(level));
     }
 
+    public IndexCreateBlockException createIndexBlockedException(ClusterBlockLevel level) {
+        if (!globalBlocked(level)) {
+            return null;
+        }
+        return new IndexCreateBlockException(global(level));
+    }
+
     public void indexBlockedRaiseException(ClusterBlockLevel level, String index) throws ClusterBlockException {
         ClusterBlockException blockException = indexBlockedException(level, index);
         if (blockException != null) {
@@ -394,8 +401,7 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
             if (IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.get(indexMetadata.getSettings())) {
                 addIndexBlock(indexName, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK);
             }
-            if (IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey()
-                .equals(indexMetadata.getSettings().get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey()))) {
+            if (IndexModule.Type.REMOTE_SNAPSHOT.match(indexMetadata.getSettings().get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey()))) {
                 addIndexBlock(indexName, IndexMetadata.REMOTE_READ_ONLY_ALLOW_DELETE);
             }
             return this;

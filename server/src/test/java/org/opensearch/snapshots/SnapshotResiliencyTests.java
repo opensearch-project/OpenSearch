@@ -34,7 +34,6 @@ package org.opensearch.snapshots;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.SetOnce;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
@@ -149,6 +148,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.cluster.service.FakeThreadPoolClusterManagerService;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.ClusterSettings;
@@ -1902,7 +1902,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         threadPool,
                         recoverySettings,
                         transportService,
-                        new SegmentReplicationSourceFactory(transportService, recoverySettings, clusterService)
+                        new SegmentReplicationSourceFactory(transportService, recoverySettings, clusterService),
+                        indicesService
                     ),
                     SegmentReplicationSourceService.NO_OP,
                     shardStateAction,

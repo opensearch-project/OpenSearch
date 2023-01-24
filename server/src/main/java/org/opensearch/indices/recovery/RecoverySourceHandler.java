@@ -818,19 +818,34 @@ public abstract class RecoverySourceHandler {
                 logger
             );
 
+            final StepListener<Void> handoffListener = new StepListener<>();
             if (request.isPrimaryRelocation()) {
                 logger.trace("performing relocation hand-off");
+                final Consumer<StepListener> forceSegRepConsumer = shard.indexSettings().isSegRepEnabled()
+                    ? recoveryTarget::forceSegmentFileSync
+                    : res -> res.onResponse(null);
                 // TODO: make relocated async
                 // this acquires all IndexShard operation permits and will thus delay new recoveries until it is done
-                cancellableThreads.execute(() -> shard.relocated(request.targetAllocationId(), recoveryTarget::handoffPrimaryContext));
+                cancellableThreads.execute(
+                    () -> shard.relocated(
+                        request.targetAllocationId(),
+                        recoveryTarget::handoffPrimaryContext,
+                        forceSegRepConsumer,
+                        handoffListener
+                    )
+                );
                 /*
                  * if the recovery process fails after disabling primary mode on the source shard, both relocation source and
                  * target are failed (see {@link IndexShard#updateRoutingEntry}).
                  */
+            } else {
+                handoffListener.onResponse(null);
             }
-            stopWatch.stop();
-            logger.trace("finalizing recovery took [{}]", stopWatch.totalTime());
-            listener.onResponse(null);
+            handoffListener.whenComplete(res -> {
+                stopWatch.stop();
+                logger.trace("finalizing recovery took [{}]", stopWatch.totalTime());
+                listener.onResponse(null);
+            }, listener::onFailure);
         }, listener::onFailure);
     }
 

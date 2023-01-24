@@ -45,7 +45,8 @@
         "options":[
           "cluster",
           "indices",
-          "shards"
+          "shards",
+          "awareness_attributes"
         ],
         "default":"cluster",
         "description":"Specify the level of detail for returned information"
@@ -106,6 +107,10 @@
           "red"
         ],
         "description":"Wait until cluster is in a specific state"
+      },
+      "awareness_attribute":{
+        "type":"string",
+        "description":"The awareness attribute for which the health is required"
       }
     }
   }

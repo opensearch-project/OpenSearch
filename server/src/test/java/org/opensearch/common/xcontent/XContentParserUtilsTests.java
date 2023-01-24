@@ -32,11 +32,11 @@
 
 package org.opensearch.common.xcontent;
 
-import org.apache.lucene.util.SetOnce;
 import org.opensearch.common.CheckedBiConsumer;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.ParsingException;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.json.JsonXContent;

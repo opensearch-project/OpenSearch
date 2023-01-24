@@ -107,6 +107,7 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
     protected Path translogDir;
     // A default primary term is used by translog instances created in this test.
     private final AtomicLong primaryTerm = new AtomicLong();
+    private final AtomicBoolean primaryMode = new AtomicBoolean(true);
     private final AtomicReference<LongConsumer> persistedSeqNoConsumer = new AtomicReference<>();
     private ThreadPool threadPool;
 
@@ -170,7 +171,8 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
             primaryTerm::get,
             getPersistedSeqNoConsumer(),
             repository,
-            threadPool.executor(ThreadPool.Names.TRANSLOG_TRANSFER)
+            threadPool.executor(ThreadPool.Names.TRANSLOG_TRANSFER),
+            primaryMode::get
         );
 
     }
@@ -250,6 +252,33 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
         translog.ensureSynced(loc);
         list.add(op);
         return loc;
+    }
+
+    public void testUploadWithPrimaryModeFalse() {
+        // Test setup
+        primaryMode.set(false);
+
+        // Validate
+        assertTrue(translog.syncNeeded());
+        assertFalse(primaryMode.get());
+        try {
+            translog.sync();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        assertTrue(translog.syncNeeded());
+    }
+
+    public void testUploadWithPrimaryModeTrue() {
+        // Validate
+        assertTrue(translog.syncNeeded());
+        assertTrue(primaryMode.get());
+        try {
+            translog.sync();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        assertFalse(translog.syncNeeded());
     }
 
     public void testSimpleOperations() throws IOException {
@@ -448,13 +477,13 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
             assertThat(snapshot.totalOperations(), equalTo(ops.size()));
         }
 
-        assertEquals(translog.allUploaded().size(), 4);
+        assertEquals(translog.allUploaded().size(), 2);
 
         addToTranslogAndListAndUpload(translog, ops, new Translog.Index("1", 1, primaryTerm.get(), new byte[] { 1 }));
-        assertEquals(translog.allUploaded().size(), 6);
+        assertEquals(translog.allUploaded().size(), 4);
 
         translog.rollGeneration();
-        assertEquals(translog.allUploaded().size(), 6);
+        assertEquals(translog.allUploaded().size(), 4);
 
         Set<String> mdFiles = blobStoreTransferService.listAll(
             repository.basePath().add(shardId.getIndex().getUUID()).add(String.valueOf(shardId.id())).add("metadata")
@@ -495,6 +524,38 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
                 assertArrayEquals(ckp, content);
             }
         }
+
+        // expose the new checkpoint (simulating a commit), before we trim the translog
+        translog.deletionPolicy.setLocalCheckpointOfSafeCommit(0);
+        // simulating the remote segment upload .
+        translog.setMinSeqNoToKeep(0);
+        // This should not trim anything
+        translog.trimUnreferencedReaders();
+        assertEquals(translog.allUploaded().size(), 4);
+        assertEquals(
+            blobStoreTransferService.listAll(
+                repository.basePath()
+                    .add(shardId.getIndex().getUUID())
+                    .add(String.valueOf(shardId.id()))
+                    .add(String.valueOf(primaryTerm.get()))
+            ).size(),
+            4
+        );
+
+        // This should trim tlog-2.* files as it contains seq no 0
+        translog.setMinSeqNoToKeep(1);
+        translog.trimUnreferencedReaders();
+        assertEquals(translog.allUploaded().size(), 2);
+        assertEquals(
+            blobStoreTransferService.listAll(
+                repository.basePath()
+                    .add(shardId.getIndex().getUUID())
+                    .add(String.valueOf(shardId.id()))
+                    .add(String.valueOf(primaryTerm.get()))
+            ).size(),
+            2
+        );
+
     }
 
     private Long populateTranslogOps(boolean withMissingOps) throws IOException {
@@ -620,8 +681,8 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
     public void testConcurrentWriteViewsAndSnapshot() throws Throwable {
         final Thread[] writers = new Thread[randomIntBetween(1, 3)];
         final Thread[] readers = new Thread[randomIntBetween(1, 3)];
-        final int flushEveryOps = randomIntBetween(5, 100);
-        final int maxOps = randomIntBetween(200, 1000);
+        final int flushEveryOps = randomIntBetween(5, 10);
+        final int maxOps = randomIntBetween(20, 100);
         final Object signalReaderSomeDataWasIndexed = new Object();
         final AtomicLong idGenerator = new AtomicLong();
         final CyclicBarrier barrier = new CyclicBarrier(writers.length + readers.length + 1);
@@ -684,6 +745,7 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
                                 // expose the new checkpoint (simulating a commit), before we trim the translog
                                 lastCommittedLocalCheckpoint.set(localCheckpoint);
                                 deletionPolicy.setLocalCheckpointOfSafeCommit(localCheckpoint);
+                                translog.setMinSeqNoToKeep(localCheckpoint + 1);
                                 translog.trimUnreferencedReaders();
                             }
                         }
@@ -1087,7 +1149,8 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
                 primaryTerm::get,
                 persistedSeqNos::add,
                 repository,
-                threadPool.executor(ThreadPool.Names.TRANSLOG_TRANSFER)
+                threadPool.executor(ThreadPool.Names.TRANSLOG_TRANSFER),
+                () -> Boolean.TRUE
             ) {
                 @Override
                 ChannelFactory getChannelFactory() {

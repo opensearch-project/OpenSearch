@@ -45,7 +45,6 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.SetOnce;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
@@ -67,6 +66,7 @@ import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Numbers;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.blobstore.BlobContainer;
@@ -1820,7 +1820,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             return RepositoryData.EMPTY;
         }
         try {
-            final String snapshotsIndexBlobName = INDEX_FILE_PREFIX + Long.toString(indexGen);
+            final String snapshotsIndexBlobName = INDEX_FILE_PREFIX + indexGen;
 
             // EMPTY is safe here because RepositoryData#fromXContent calls namedObject
             try (
@@ -2419,7 +2419,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 newSnapshotsList.add(point);
             }
             final BlobStoreIndexShardSnapshots updatedBlobStoreIndexShardSnapshots = new BlobStoreIndexShardSnapshots(newSnapshotsList);
-            final Runnable afterWriteSnapBlob;
             // When using shard generations we can safely write the index-${uuid} blob before writing out any of the actual data
             // for this shard since the uuid named blob will simply not be referenced in case of error and thus we will never
             // reference a generation that has not had all its files fully upload.
@@ -2437,7 +2436,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     e
                 );
             }
-            afterWriteSnapBlob = () -> {};
             final StepListener<Collection<Void>> allFilesUploadedListener = new StepListener<>();
             allFilesUploadedListener.whenComplete(v -> {
                 final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.moveToFinalize(snapshotIndexCommit.getGeneration());
@@ -2462,7 +2460,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 } catch (IOException e) {
                     throw new IndexShardSnapshotFailedException(shardId, "Failed to write commit point", e);
                 }
-                afterWriteSnapBlob.run();
                 snapshotStatus.moveToDone(threadPool.absoluteTimeInMillis(), indexGeneration);
                 listener.onResponse(indexGeneration);
             }, listener::onFailure);

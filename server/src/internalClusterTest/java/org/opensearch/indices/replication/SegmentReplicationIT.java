@@ -65,9 +65,9 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchHits
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class SegmentReplicationIT extends OpenSearchIntegTestCase {
 
-    private static final String INDEX_NAME = "test-idx-1";
-    private static final int SHARD_COUNT = 1;
-    private static final int REPLICA_COUNT = 1;
+    protected static final String INDEX_NAME = "test-idx-1";
+    protected static final int SHARD_COUNT = 1;
+    protected static final int REPLICA_COUNT = 1;
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -95,11 +95,31 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
         return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.REPLICATION_TYPE, "true").build();
     }
 
+    public void ingestDocs(int docCount) throws Exception {
+        try (
+            BackgroundIndexer indexer = new BackgroundIndexer(
+                INDEX_NAME,
+                "_doc",
+                client(),
+                -1,
+                RandomizedTest.scaledRandomIntBetween(2, 5),
+                false,
+                random()
+            )
+        ) {
+            indexer.start(docCount);
+            waitForDocs(docCount, indexer);
+            refresh(INDEX_NAME);
+            waitForReplicaUpdate();
+        }
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/5669")
     public void testPrimaryStopped_ReplicaPromoted() throws Exception {
-        final String primary = internalCluster().startNode(featureFlagSettings());
+        final String primary = internalCluster().startNode();
         createIndex(INDEX_NAME);
         ensureYellowAndNoInitializingShards(INDEX_NAME);
-        final String replica = internalCluster().startNode(featureFlagSettings());
+        final String replica = internalCluster().startNode();
         ensureGreen(INDEX_NAME);
 
         client().prepareIndex(INDEX_NAME).setId("1").setSource("foo", "bar").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
@@ -126,7 +146,7 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
         assertHitCount(client(replica).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), 3);
 
         // start another node, index another doc and replicate.
-        String nodeC = internalCluster().startNode(featureFlagSettings());
+        String nodeC = internalCluster().startNode();
         ensureGreen(INDEX_NAME);
         client().prepareIndex(INDEX_NAME).setId("4").setSource("baz", "baz").get();
         refresh(INDEX_NAME);
@@ -136,11 +156,12 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
         assertSegmentStats(REPLICA_COUNT);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/5669")
     public void testRestartPrimary() throws Exception {
-        final String primary = internalCluster().startNode(featureFlagSettings());
+        final String primary = internalCluster().startNode();
         createIndex(INDEX_NAME);
         ensureYellowAndNoInitializingShards(INDEX_NAME);
-        final String replica = internalCluster().startNode(featureFlagSettings());
+        final String replica = internalCluster().startNode();
         ensureGreen(INDEX_NAME);
 
         assertEquals(getNodeContainingPrimaryShard().getName(), primary);
@@ -164,12 +185,13 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
         assertSegmentStats(REPLICA_COUNT);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/5669")
     public void testCancelPrimaryAllocation() throws Exception {
         // this test cancels allocation on the primary - promoting the new replica and recreating the former primary as a replica.
-        final String primary = internalCluster().startNode(featureFlagSettings());
+        final String primary = internalCluster().startNode();
         createIndex(INDEX_NAME);
         ensureYellowAndNoInitializingShards(INDEX_NAME);
-        final String replica = internalCluster().startNode(featureFlagSettings());
+        final String replica = internalCluster().startNode();
         ensureGreen(INDEX_NAME);
 
         final int initialDocCount = 1;
@@ -206,7 +228,7 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
     @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/5669")
     public void testAddNewReplicaFailure() throws Exception {
         logger.info("--> starting [Primary Node] ...");
-        final String primaryNode = internalCluster().startNode(featureFlagSettings());
+        final String primaryNode = internalCluster().startNode();
 
         logger.info("--> creating test index ...");
         prepareCreate(
@@ -229,7 +251,7 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
         assertThat(client().prepareSearch(INDEX_NAME).setSize(0).execute().actionGet().getHits().getTotalHits().value, equalTo(20L));
 
         logger.info("--> start empty node to add replica shard");
-        final String replicaNode = internalCluster().startNode(featureFlagSettings());
+        final String replicaNode = internalCluster().startNode();
 
         // Mock transport service to add behaviour of throwing corruption exception during segment replication process.
         MockTransportService mockTransportService = ((MockTransportService) internalCluster().getInstance(
@@ -272,8 +294,8 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
 
     @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/5669")
     public void testReplicationAfterPrimaryRefreshAndFlush() throws Exception {
-        final String nodeA = internalCluster().startNode(featureFlagSettings());
-        final String nodeB = internalCluster().startNode(featureFlagSettings());
+        final String nodeA = internalCluster().startNode();
+        final String nodeB = internalCluster().startNode();
         createIndex(INDEX_NAME);
         ensureGreen(INDEX_NAME);
 
@@ -313,8 +335,8 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
     }
 
     public void testIndexReopenClose() throws Exception {
-        final String primary = internalCluster().startNode(featureFlagSettings());
-        final String replica = internalCluster().startNode(featureFlagSettings());
+        final String primary = internalCluster().startNode();
+        final String replica = internalCluster().startNode();
         createIndex(INDEX_NAME);
         ensureGreen(INDEX_NAME);
 
@@ -358,8 +380,8 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
             .put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), false)
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .build();
-        final String nodeA = internalCluster().startNode(featureFlagSettings());
-        final String nodeB = internalCluster().startNode(featureFlagSettings());
+        final String nodeA = internalCluster().startNode();
+        final String nodeB = internalCluster().startNode();
         createIndex(INDEX_NAME, indexSettings);
         ensureGreen(INDEX_NAME);
 
@@ -399,8 +421,8 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
     }
 
     public void testReplicationAfterForceMerge() throws Exception {
-        final String nodeA = internalCluster().startNode(featureFlagSettings());
-        final String nodeB = internalCluster().startNode(featureFlagSettings());
+        final String nodeA = internalCluster().startNode();
+        final String nodeB = internalCluster().startNode();
         createIndex(INDEX_NAME);
         ensureGreen(INDEX_NAME);
 
@@ -444,11 +466,11 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
     }
 
     public void testCancellation() throws Exception {
-        final String primaryNode = internalCluster().startNode(featureFlagSettings());
+        final String primaryNode = internalCluster().startNode();
         createIndex(INDEX_NAME, Settings.builder().put(indexSettings()).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build());
         ensureYellow(INDEX_NAME);
 
-        final String replicaNode = internalCluster().startNode(featureFlagSettings());
+        final String replicaNode = internalCluster().startNode();
 
         final SegmentReplicationSourceService segmentReplicationSourceService = internalCluster().getInstance(
             SegmentReplicationSourceService.class,
@@ -503,7 +525,7 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
     }
 
     public void testStartReplicaAfterPrimaryIndexesDocs() throws Exception {
-        final String primaryNode = internalCluster().startNode(featureFlagSettings());
+        final String primaryNode = internalCluster().startNode();
         createIndex(INDEX_NAME, Settings.builder().put(indexSettings()).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build());
         ensureGreen(INDEX_NAME);
 
@@ -526,7 +548,7 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
                 .prepareUpdateSettings(INDEX_NAME)
                 .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
         );
-        final String replicaNode = internalCluster().startNode(featureFlagSettings());
+        final String replicaNode = internalCluster().startNode();
         ensureGreen(INDEX_NAME);
 
         assertHitCount(client(primaryNode).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), 2);
@@ -541,8 +563,8 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
     }
 
     public void testDeleteOperations() throws Exception {
-        final String nodeA = internalCluster().startNode(featureFlagSettings());
-        final String nodeB = internalCluster().startNode(featureFlagSettings());
+        final String nodeA = internalCluster().startNode();
+        final String nodeB = internalCluster().startNode();
 
         createIndex(INDEX_NAME);
         ensureGreen(INDEX_NAME);
@@ -603,11 +625,12 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/5669")
     public void testUpdateOperations() throws Exception {
-        final String primary = internalCluster().startNode(featureFlagSettings());
+        final String primary = internalCluster().startNode();
         createIndex(INDEX_NAME);
         ensureYellow(INDEX_NAME);
-        final String replica = internalCluster().startNode(featureFlagSettings());
+        final String replica = internalCluster().startNode();
 
         final int initialDocCount = scaledRandomIntBetween(0, 200);
         try (
@@ -708,10 +731,10 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 6)
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .build();
-        final String clusterManagerNode = internalCluster().startClusterManagerOnlyNode(featureFlagSettings());
-        final String primaryNode = internalCluster().startDataOnlyNode(featureFlagSettings());
+        final String clusterManagerNode = internalCluster().startClusterManagerOnlyNode();
+        final String primaryNode = internalCluster().startDataOnlyNode();
         createIndex(INDEX_NAME, settings);
-        internalCluster().startDataOnlyNodes(6, featureFlagSettings());
+        internalCluster().startDataOnlyNodes(6);
         ensureGreen(INDEX_NAME);
 
         int initialDocCount = scaledRandomIntBetween(100, 200);
@@ -734,7 +757,7 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
             ensureYellow(INDEX_NAME);
 
             // start another replica.
-            internalCluster().startDataOnlyNode(featureFlagSettings());
+            internalCluster().startDataOnlyNode();
             ensureGreen(INDEX_NAME);
 
             // index another doc and refresh - without this the new replica won't catch up.
@@ -765,7 +788,7 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
                 // if we don't have any segments yet, proceed.
                 final ShardSegments primaryShardSegments = primaryShardSegmentsList.stream().findFirst().get();
                 logger.debug("Primary Segments: {}", primaryShardSegments.getSegments());
-                if (primaryShardSegments.getSegments().isEmpty() == false) {
+                if (primaryShardSegments.getSegments().isEmpty() == false && replicaShardSegments != null) {
                     final Map<String, Segment> latestPrimarySegments = getLatestSegments(primaryShardSegments);
                     final Long latestPrimaryGen = latestPrimarySegments.values().stream().findFirst().map(Segment::getGeneration).get();
                     for (ShardSegments shardSegments : replicaShardSegments) {
