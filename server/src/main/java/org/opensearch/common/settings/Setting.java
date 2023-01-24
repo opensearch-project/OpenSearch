@@ -757,7 +757,6 @@ public class Setting<T> implements ToXContentObject {
 
             @Override
             public void apply(Triplet<A, B, C> value, Settings current, Settings previous) {
-                logger.info("--> Settings changed!");
                 if (aSettingUpdater.hasChanged(current, previous)) {
                     logSettingUpdate(aSetting, current, previous, logger);
                 }

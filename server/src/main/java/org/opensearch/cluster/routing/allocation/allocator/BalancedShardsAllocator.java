@@ -109,7 +109,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
     public static final Setting<Float> PRIMARY_BALANCE_FACTOR_SETTING = Setting.floatSetting(
         "cluster.routing.allocation.balance.primary",
-        0.45f,
+        0.0f,
         0.0f,
         Property.Dynamic,
         Property.NodeScope
@@ -274,8 +274,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private AllocationConstraints constraints;
 
         WeightFunction(float indexBalance, float shardBalance, float primaryShardBalance) {
-            // Start with higher primary constants for POC
-            this.primaryShardBalance = primaryShardBalance; // 0.50f;
             float sum = indexBalance + shardBalance + primaryShardBalance;
             if (sum <= 0.0f) {
                 throw new IllegalArgumentException("Balance factors must sum to a value > 0 but was: " + sum);
@@ -286,6 +284,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
             this.indexBalance = indexBalance;
             this.shardBalance = shardBalance;
+            this.primaryShardBalance = primaryShardBalance;
             this.constraints = new AllocationConstraints();
         }
 

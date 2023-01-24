@@ -628,7 +628,7 @@ public class SettingTests extends OpenSearchTestCase {
 
     // This test class is used to verify behavior of BalancedShardAllocator.WeightFunction and ensure set function is called
     // whenever there is a change in any of the settings.
-    public static class Triposite {
+    public static class TriSettingConsumer {
 
         private Integer b;
         private Integer a;
@@ -712,8 +712,8 @@ public class SettingTests extends OpenSearchTestCase {
 
     }
 
-    public void testTriplet() {
-        Triposite consumer = new Triposite();
+    public void testTriSettingConsumer() {
+        TriSettingConsumer consumer = new TriSettingConsumer();
         Setting<Integer> a = Setting.intSetting("foo.int.bar.a", 1, Property.Dynamic, Property.NodeScope);
         Setting<Integer> b = Setting.intSetting("foo.int.bar.b", 1, Property.Dynamic, Property.NodeScope);
         Setting<Integer> c = Setting.intSetting("foo.int.bar.c", 1, Property.Dynamic, Property.NodeScope);
@@ -762,8 +762,8 @@ public class SettingTests extends OpenSearchTestCase {
         assertEquals(1, consumer.c.intValue());
     }
 
-    public void testTripletValidator1() {
-        Triposite consumer = new Triposite();
+    public void testTriSettingConsumerValidator() {
+        TriSettingConsumer consumer = new TriSettingConsumer();
         Setting<Integer> a = Setting.intSetting("foo.int.bar.a", 1, Property.Dynamic, Property.NodeScope);
         Setting<Integer> b = Setting.intSetting("foo.int.bar.b", 1, Property.Dynamic, Property.NodeScope);
         Setting<Integer> c = Setting.intSetting("foo.int.bar.c", 1, Property.Dynamic, Property.NodeScope);
