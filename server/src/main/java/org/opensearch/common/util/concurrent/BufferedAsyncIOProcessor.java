@@ -6,29 +6,6 @@
  * compatible open source license.
  */
 
-/*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-/*
- * Modifications Copyright OpenSearch Contributors. See
- * GitHub history for details.
- */
-
 package org.opensearch.common.util.concurrent;
 
 import org.apache.logging.log4j.Logger;
@@ -42,11 +19,11 @@ import java.util.Objects;
 import java.util.function.Consumer;
 
 /**
- * A variant of AsyncIOProcessor which will wait for interval before processing items
- * processing happens in another thread from same threadpool after {@link #bufferInterval}
+ * A variant of {@link AsyncIOProcessor} that allows to batch and buffer processing items at every
+ * {@link BufferedAsyncIOProcessor#bufferInterval} in a separate threadpool.
  * <p>
  * Requests are buffered till processor thread calls @{link drainAndProcessAndRelease} after bufferInterval.
- * If more requests are enequed between invocations of drainAndProcessAndRelease, another processor thread
+ * If more requests are enqueued between invocations of drainAndProcessAndRelease, another processor thread
  * gets scheduled. Subsequent requests will get buffered till drainAndProcessAndRelease gets called in this new
  * processor thread.
  *
@@ -82,7 +59,7 @@ public abstract class BufferedAsyncIOProcessor<Item> extends AsyncIOProcessor<It
             try {
                 threadpool.schedule(() -> process(new ArrayList<>()), getBufferInterval(), getBufferRefreshThreadPoolName());
             } catch (Exception e) {
-                getLogger().error("failed to schedule refresh");
+                getLogger().error("failed to schedule process");
                 getPromiseSemaphore().release();
                 throw e;
             }
