@@ -104,7 +104,7 @@ public abstract class AsyncIOProcessor<Item> {
         }
     }
 
-    void process(List<Tuple<Item, Consumer<Exception>>> candidates) {
+    private void process(List<Tuple<Item, Consumer<Exception>>> candidates) {
         // since we made the promise to process we gotta do it here at least once
         drainAndProcessAndRelease(candidates);
         while (queue.isEmpty() == false && promiseSemaphore.tryAcquire()) {
@@ -175,5 +175,9 @@ public abstract class AsyncIOProcessor<Item> {
 
     long getLastRunStartTimeInMs() {
         return lastRunStartTimeInMs;
+    }
+
+    ArrayBlockingQueue<Tuple<Item, Consumer<Exception>>> getQueue() {
+        return queue;
     }
 }

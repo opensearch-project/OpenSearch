@@ -32,10 +32,12 @@
 package org.opensearch.common.util.concurrent;
 
 import org.apache.logging.log4j.Logger;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
 
@@ -72,10 +74,10 @@ public abstract class BufferedAsyncIOProcessor<Item> extends AsyncIOProcessor<It
         Objects.requireNonNull(item, "item must not be null");
         Objects.requireNonNull(listener, "listener must not be null");
         addToQueue(item, listener);
-        scheduleRefresh();
+        scheduleProcess();
     }
 
-    private void scheduleRefresh() {
+    private void scheduleProcess() {
         if (getPromiseSemaphore().tryAcquire()) {
             try {
                 threadpool.schedule(() -> process(new ArrayList<>()), getBufferInterval(), getBufferRefreshThreadPoolName());
@@ -87,6 +89,12 @@ public abstract class BufferedAsyncIOProcessor<Item> extends AsyncIOProcessor<It
         }
     }
 
+    private void process(List<Tuple<Item, Consumer<Exception>>> candidates) {
+        // since we made the promise to process we gotta do it here at least once
+        drainAndProcessAndRelease(candidates);
+        scheduleProcess();
+    }
+
     private TimeValue getBufferInterval() {
         long timeSinceLastRunStartInMS = System.currentTimeMillis() - getLastRunStartTimeInMs();
         if (timeSinceLastRunStartInMS >= bufferInterval.getMillis()) {
@@ -95,8 +103,6 @@ public abstract class BufferedAsyncIOProcessor<Item> extends AsyncIOProcessor<It
         return TimeValue.timeValueMillis(bufferInterval.getMillis() - timeSinceLastRunStartInMS);
     }
 
-    protected String getBufferRefreshThreadPoolName() {
-        return ThreadPool.Names.TRANSLOG_SYNC;
-    }
+    protected abstract String getBufferRefreshThreadPoolName();
 
 }
