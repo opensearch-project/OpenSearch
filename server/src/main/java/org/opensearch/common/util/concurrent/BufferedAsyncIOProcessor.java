@@ -73,11 +73,11 @@ public abstract class BufferedAsyncIOProcessor<Item> extends AsyncIOProcessor<It
     }
 
     private TimeValue getBufferInterval() {
-        long timeSinceLastRunStartInMS = System.currentTimeMillis() - getLastRunStartTimeInMs();
-        if (timeSinceLastRunStartInMS >= bufferInterval.getMillis()) {
+        long timeSinceLastRunStartInNS = System.nanoTime() - getLastRunStartTimeInNs();
+        if (timeSinceLastRunStartInNS >= bufferInterval.getNanos()) {
             return TimeValue.ZERO;
         }
-        return TimeValue.timeValueMillis(bufferInterval.getMillis() - timeSinceLastRunStartInMS);
+        return TimeValue.timeValueNanos(bufferInterval.getNanos() - timeSinceLastRunStartInNS);
     }
 
     protected abstract String getBufferRefreshThreadPoolName();

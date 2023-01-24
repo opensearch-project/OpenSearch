@@ -57,7 +57,7 @@ public abstract class AsyncIOProcessor<Item> {
     private final ArrayBlockingQueue<Tuple<Item, Consumer<Exception>>> queue;
     private final ThreadContext threadContext;
     private final Semaphore promiseSemaphore = new Semaphore(1);
-    private long lastRunStartTimeInMs;
+    private long lastRunStartTimeInNs;
 
     protected AsyncIOProcessor(Logger logger, int queueSize, ThreadContext threadContext) {
         this.logger = logger;
@@ -114,7 +114,7 @@ public abstract class AsyncIOProcessor<Item> {
     }
 
     void drainAndProcessAndRelease(List<Tuple<Item, Consumer<Exception>>> candidates) {
-        lastRunStartTimeInMs = System.currentTimeMillis();
+        lastRunStartTimeInNs = System.nanoTime();
         Exception exception;
         try {
             queue.drainTo(candidates);
@@ -173,8 +173,8 @@ public abstract class AsyncIOProcessor<Item> {
         return promiseSemaphore;
     }
 
-    long getLastRunStartTimeInMs() {
-        return lastRunStartTimeInMs;
+    long getLastRunStartTimeInNs() {
+        return lastRunStartTimeInNs;
     }
 
     ArrayBlockingQueue<Tuple<Item, Consumer<Exception>>> getQueue() {

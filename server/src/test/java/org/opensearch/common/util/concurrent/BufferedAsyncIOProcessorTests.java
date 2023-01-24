@@ -225,7 +225,7 @@ public class BufferedAsyncIOProcessorTests extends OpenSearchTestCase {
             @Override
             protected void write(List<Tuple<Object, Consumer<Exception>>> candidates) throws IOException {
                 received.addAndGet(candidates.size());
-                writeInvocationTimes.add(System.currentTimeMillis());
+                writeInvocationTimes.add(System.nanoTime());
             }
 
             @Override
@@ -246,7 +246,7 @@ public class BufferedAsyncIOProcessorTests extends OpenSearchTestCase {
         assertEquals(runCount, notified.get());
         assertEquals(runCount, received.get());
         for (int i = 1; i < writeInvocationTimes.size(); i++) {
-            assertTrue(writeInvocationTimes.get(i) - writeInvocationTimes.get(i - 1) > bufferIntervalMs);
+            assertTrue(writeInvocationTimes.get(i) - writeInvocationTimes.get(i - 1) > bufferIntervalMs * 1_000_000);
         }
     }
 }
