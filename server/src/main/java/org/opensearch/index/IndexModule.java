@@ -568,7 +568,6 @@ public final class IndexModule {
                 valuesSourceRegistry,
                 recoveryStateFactory,
                 segmentReplicationStateFactory,
-                repositoriesServiceSupplier
                 translogFactorySupplier
             );
             success = true;
