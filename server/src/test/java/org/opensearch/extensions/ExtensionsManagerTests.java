@@ -31,6 +31,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -60,7 +61,7 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.WriteableSetting.SettingType;
 import org.opensearch.common.settings.SettingsModule;
 import org.opensearch.common.transport.TransportAddress;
-import org.opensearch.common.util.FeatureFlagTests;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.env.Environment;
@@ -75,6 +76,7 @@ import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.plugins.PluginInfo;
 import org.opensearch.rest.RestController;
+import org.opensearch.test.FeatureFlagSetter;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.OpenSearchTestCase;
@@ -82,6 +84,8 @@ import org.opensearch.test.client.NoOpNodeClient;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.ConnectTransportException;
+import org.opensearch.transport.NodeNotConnectedException;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportService;
@@ -90,6 +94,7 @@ import org.opensearch.usage.UsageService;
 
 public class ExtensionsManagerTests extends OpenSearchTestCase {
 
+    private FeatureFlagSetter featureFlagSetter;
     private TransportService transportService;
     private RestController restController;
     private SettingsModule settingsModule;
@@ -137,7 +142,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
 
     @Before
     public void setup() throws Exception {
-        FeatureFlagTests.enableFeature();
+        featureFlagSetter = FeatureFlagSetter.set(FeatureFlags.EXTENSIONS);
         Settings settings = Settings.builder().put("cluster.name", "test").build();
         transport = new MockNioTransport(
             settings,
@@ -207,6 +212,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         transportService.close();
         client.close();
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
+        featureFlagSetter.close();
     }
 
     public void testDiscover() throws Exception {
@@ -423,23 +429,23 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
 
             mockLogAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
-                    "Connect Transport Exception 1",
+                    "Node Not Connected Exception 1",
                     "org.opensearch.extensions.ExtensionsManager",
                     Level.ERROR,
-                    "ConnectTransportException[[firstExtension][127.0.0.0:9300] connect_timeout[30s]]"
+                    "[secondExtension][127.0.0.1:9301] Node not connected"
                 )
             );
 
             mockLogAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
-                    "Connect Transport Exception 2",
+                    "Node Not Connected Exception 2",
                     "org.opensearch.extensions.ExtensionsManager",
                     Level.ERROR,
-                    "ConnectTransportException[[secondExtension][127.0.0.1:9301] connect_exception]; nested: ConnectException[Connection refused];"
+                    "[firstExtension][127.0.0.0:9300] Node not connected"
                 )
             );
 
-            extensionsManager.initialize();
+            expectThrows(ConnectTransportException.class, () -> extensionsManager.initialize());
 
             // Test needs to be changed to mock the connection between the local node and an extension. Assert statment is commented out for
             // now.
@@ -526,6 +532,88 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             () -> extensionsManager.handleExtensionRequest(exceptionRequest)
         );
         assertEquals("Handler not present for the provided request", exception.getMessage());
+    }
+
+    public void testExtensionRequest() throws Exception {
+        ExtensionsManager.RequestType expectedRequestType = ExtensionsManager.RequestType.REQUEST_EXTENSION_DEPENDENCY_INFORMATION;
+
+        // Test ExtensionRequest 2 arg constructor
+        String expectedUniqueId = "test uniqueid";
+        ExtensionRequest extensionRequest = new ExtensionRequest(expectedRequestType, expectedUniqueId);
+        assertEquals(expectedRequestType, extensionRequest.getRequestType());
+        assertEquals(Optional.of(expectedUniqueId), extensionRequest.getUniqueId());
+
+        // Test ExtensionRequest StreamInput constructor
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            extensionRequest.writeTo(out);
+            out.flush();
+            try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
+                extensionRequest = new ExtensionRequest(in);
+                assertEquals(expectedRequestType, extensionRequest.getRequestType());
+                assertEquals(Optional.of(expectedUniqueId), extensionRequest.getUniqueId());
+            }
+        }
+
+        // Test ExtensionRequest 1 arg constructor
+        extensionRequest = new ExtensionRequest(expectedRequestType);
+        assertEquals(expectedRequestType, extensionRequest.getRequestType());
+        assertEquals(Optional.empty(), extensionRequest.getUniqueId());
+
+        // Test ExtensionRequest StreamInput constructor
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            extensionRequest.writeTo(out);
+            out.flush();
+            try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
+                extensionRequest = new ExtensionRequest(in);
+                assertEquals(expectedRequestType, extensionRequest.getRequestType());
+                assertEquals(Optional.empty(), extensionRequest.getUniqueId());
+            }
+        }
+    }
+
+    public void testExtensionDependencyResponse() throws Exception {
+        String expectedUniqueId = "test uniqueid";
+        List<DiscoveryExtensionNode> expectedExtensionsList = new ArrayList<DiscoveryExtensionNode>();
+        Version expectedVersion = Version.fromString("2.0.0");
+        ExtensionDependency expectedDependency = new ExtensionDependency(expectedUniqueId, expectedVersion);
+
+        expectedExtensionsList.add(
+            new DiscoveryExtensionNode(
+                "firstExtension",
+                "uniqueid1",
+                "uniqueid1",
+                "myIndependentPluginHost1",
+                "127.0.0.0",
+                new TransportAddress(InetAddress.getByName("127.0.0.0"), 9300),
+                new HashMap<String, String>(),
+                Version.fromString("3.0.0"),
+                new PluginInfo(
+                    "firstExtension",
+                    "Fake description 1",
+                    "0.0.7",
+                    Version.fromString("3.0.0"),
+                    "14",
+                    "fakeClass1",
+                    new ArrayList<String>(),
+                    false
+                ),
+                List.of(expectedDependency)
+            )
+        );
+
+        // Test ExtensionDependencyResponse arg constructor
+        ExtensionDependencyResponse extensionDependencyResponse = new ExtensionDependencyResponse(expectedExtensionsList);
+        assertEquals(expectedExtensionsList, extensionDependencyResponse.getExtensionDependency());
+
+        // Test ExtensionDependencyResponse StreamInput constructor
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            extensionDependencyResponse.writeTo(out);
+            out.flush();
+            try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
+                extensionDependencyResponse = new ExtensionDependencyResponse(in);
+                assertEquals(expectedExtensionsList, extensionDependencyResponse.getExtensionDependency());
+            }
+        }
     }
 
     public void testEnvironmentSettingsResponse() throws Exception {
@@ -711,7 +799,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             settings,
             client
         );
-        verify(mockTransportService, times(8)).registerRequestHandler(anyString(), anyString(), anyBoolean(), anyBoolean(), any(), any());
+        verify(mockTransportService, times(9)).registerRequestHandler(anyString(), anyString(), anyBoolean(), anyBoolean(), any(), any());
 
     }
 
@@ -745,21 +833,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
             Collections.emptyMap()
         );
+        expectThrows(NodeNotConnectedException.class, () -> extensionsManager.onIndexModule(indexModule));
 
-        try (MockLogAppender mockLogAppender = MockLogAppender.createForLoggers(LogManager.getLogger(ExtensionsManager.class))) {
-
-            mockLogAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
-                    "IndicesModuleRequest Failure",
-                    "org.opensearch.extensions.ExtensionsManager",
-                    Level.ERROR,
-                    "IndicesModuleRequest failed"
-                )
-            );
-
-            extensionsManager.onIndexModule(indexModule);
-            mockLogAppender.assertAllExpectationsMatched();
-        }
     }
 
     private void initialize(ExtensionsManager extensionsManager) {

@@ -32,10 +32,10 @@
 package org.opensearch.node;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
-import org.apache.lucene.util.SetOnce;
 import org.opensearch.bootstrap.BootstrapCheck;
 import org.opensearch.bootstrap.BootstrapContext;
 import org.opensearch.cluster.ClusterName;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.Settings;

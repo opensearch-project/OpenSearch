@@ -45,7 +45,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
-import org.apache.lucene.util.SetOnce;
 import org.junit.After;
 import org.junit.Before;
 import org.opensearch.ExceptionsHelper;
@@ -58,6 +57,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Numbers;
 import org.opensearch.common.Randomness;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
@@ -1115,6 +1115,9 @@ public class LocalStorePeerRecoverySourceHandlerTests extends OpenSearchTestCase
 
         @Override
         public void finalizeRecovery(long globalCheckpoint, long trimAboveSeqNo, ActionListener<Void> listener) {}
+
+        @Override
+        public void forceSegmentFileSync(ActionListener<Void> listener) {}
 
         @Override
         public void handoffPrimaryContext(ReplicationTracker.PrimaryContext primaryContext) {}

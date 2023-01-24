@@ -119,10 +119,9 @@ public class VersionTests extends OpenSearchTestCase {
     }
 
     public void testMinimumIndexCompatibilityVersion() {
-        // note: all Legacy compatibility support will be removed in OpenSearch 3.0
-        assertEquals(LegacyESVersion.fromId(7000099), Version.fromId(2000099).minimumIndexCompatibilityVersion());
-        assertEquals(LegacyESVersion.fromId(7000099), Version.fromId(2010000).minimumIndexCompatibilityVersion());
-        assertEquals(LegacyESVersion.fromId(7000099), Version.fromId(2000001).minimumIndexCompatibilityVersion());
+        assertEquals(LegacyESVersion.fromId(7000099), Version.fromId(2000099 ^ MASK).minimumIndexCompatibilityVersion());
+        assertEquals(LegacyESVersion.fromId(7000099), Version.fromId(2010000 ^ MASK).minimumIndexCompatibilityVersion());
+        assertEquals(LegacyESVersion.fromId(7000099), Version.fromId(2000001 ^ MASK).minimumIndexCompatibilityVersion());
     }
 
     public void testVersionConstantPresent() {

@@ -1031,14 +1031,14 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
     }
 
     public void testAwarenessReplicaBalance() throws IOException {
-        manageReplicaBalanceSetting(true);
+        manageReplicaSettingForDefaultReplica(true);
         int updated = 0;
         try {
             client().admin()
                 .indices()
                 .preparePutTemplate("template_1")
                 .setPatterns(Arrays.asList("a*", "b*"))
-                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2))
                 .get();
             updated++;
 
@@ -1046,7 +1046,15 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
                 .indices()
                 .preparePutTemplate("template_1")
                 .setPatterns(Arrays.asList("a*", "b*"))
-                .setSettings(Settings.builder().put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1"))
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4))
+                .get();
+            updated++;
+
+            client().admin()
+                .indices()
+                .preparePutTemplate("template_1")
+                .setPatterns(Arrays.asList("a*", "b*"))
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-2"))
                 .get();
             updated++;
 
@@ -1060,12 +1068,12 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
             fail("should have thrown an exception about the replica  count");
         } catch (InvalidIndexTemplateException e) {
             assertEquals(
-                "index_template [template_1] invalid, cause [Validation Failed: 1: expected total copies needs to be a multiple of total awareness attributes [2];]",
+                "index_template [template_1] invalid, cause [Validation Failed: 1: expected total copies needs to be a multiple of total awareness attributes [3];]",
                 e.getMessage()
             );
-            assertEquals(2, updated);
+            assertEquals(3, updated);
         } finally {
-            manageReplicaBalanceSetting(false);
+            manageReplicaSettingForDefaultReplica(false);
         }
     }
 

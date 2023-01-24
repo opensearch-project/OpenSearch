@@ -286,11 +286,12 @@ public class InternalEngine extends Engine {
                     translogDeletionPolicy,
                     shardId,
                     readLock,
-                    () -> getLocalCheckpointTracker(),
+                    this::getLocalCheckpointTracker,
                     translogUUID,
                     new CompositeTranslogEventListener(Arrays.asList(internalTranslogEventListener, translogEventListener), shardId),
                     this::ensureOpen,
-                    engineConfig.getTranslogFactory()
+                    engineConfig.getTranslogFactory(),
+                    engineConfig.getPrimaryModeSupplier()
                 );
                 this.translogManager = translogManagerRef;
                 this.softDeletesPolicy = newSoftDeletesPolicy();

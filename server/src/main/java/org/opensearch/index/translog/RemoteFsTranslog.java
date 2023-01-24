@@ -29,6 +29,7 @@ import java.nio.file.Path;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
+import java.util.function.BooleanSupplier;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 
@@ -45,7 +46,10 @@ public class RemoteFsTranslog extends Translog {
     private final BlobStoreRepository blobStoreRepository;
     private final TranslogTransferManager translogTransferManager;
     private final FileTransferTracker fileTransferTracker;
+    private final BooleanSupplier primaryModeSupplier;
     private volatile long maxRemoteTranslogGenerationUploaded;
+
+    private volatile long minSeqNoToKeep;
 
     public RemoteFsTranslog(
         TranslogConfig config,
@@ -55,10 +59,12 @@ public class RemoteFsTranslog extends Translog {
         LongSupplier primaryTermSupplier,
         LongConsumer persistedSequenceNumberConsumer,
         BlobStoreRepository blobStoreRepository,
-        ExecutorService executorService
+        ExecutorService executorService,
+        BooleanSupplier primaryModeSupplier
     ) throws IOException {
         super(config, translogUUID, deletionPolicy, globalCheckpointSupplier, primaryTermSupplier, persistedSequenceNumberConsumer);
         this.blobStoreRepository = blobStoreRepository;
+        this.primaryModeSupplier = primaryModeSupplier;
         fileTransferTracker = new FileTransferTracker(shardId);
         this.translogTransferManager = buildTranslogTransferManager(blobStoreRepository, executorService, shardId, fileTransferTracker);
 
@@ -130,8 +136,7 @@ public class RemoteFsTranslog extends Translog {
         return new TranslogTransferManager(
             new BlobStoreTransferService(blobStoreRepository.blobStore(), executorService),
             blobStoreRepository.basePath().add(shardId.getIndex().getUUID()).add(String.valueOf(shardId.id())),
-            fileTransferTracker,
-            fileTransferTracker::exclusionFilter
+            fileTransferTracker
         );
     }
 
@@ -197,7 +202,17 @@ public class RemoteFsTranslog extends Translog {
     }
 
     private boolean upload(Long primaryTerm, Long generation) throws IOException {
-        logger.trace("uploading translog for {} {} ", primaryTerm, generation);
+        // During primary relocation (primary-primary peer recovery), both the old and the new primary have engine
+        // created with the RemoteFsTranslog. Both primaries are equipped to upload the translogs. The primary mode check
+        // below ensures that the real primary only is uploading. Before the primary mode is set as true for the new
+        // primary, the engine is reset to InternalEngine which also initialises the RemoteFsTranslog which in turns
+        // downloads all the translogs from remote store and does a flush before the relocation finishes.
+        if (primaryModeSupplier.getAsBoolean() == false) {
+            logger.trace("skipped uploading translog for {} {}", primaryTerm, generation);
+            // NO-OP
+            return true;
+        }
+        logger.trace("uploading translog for {} {}", primaryTerm, generation);
         try (
             TranslogCheckpointTransferSnapshot transferSnapshotProvider = new TranslogCheckpointTransferSnapshot.Builder(
                 primaryTerm,
@@ -261,7 +276,7 @@ public class RemoteFsTranslog extends Translog {
     }
 
     /**
-     *  Returns <code>true</code> if an fsync and/or remote transfer is required to ensure durability of the translogs operations or it's metadata.
+     * Returns <code>true</code> if an fsync and/or remote transfer is required to ensure durability of the translogs operations or it's metadata.
      */
     public boolean syncNeeded() {
         try (ReleasableLock lock = readLock.acquire()) {
@@ -282,5 +297,43 @@ public class RemoteFsTranslog extends Translog {
                 closeFilesIfNoPendingRetentionLocks();
             }
         }
+    }
+
+    protected long getMinReferencedGen() throws IOException {
+        assert readLock.isHeldByCurrentThread() || writeLock.isHeldByCurrentThread();
+        long minReferencedGen = Math.min(
+            deletionPolicy.minTranslogGenRequired(readers, current),
+            minGenerationForSeqNo(Math.min(deletionPolicy.getLocalCheckpointOfSafeCommit() + 1, minSeqNoToKeep), current, readers)
+        );
+        assert minReferencedGen >= getMinFileGeneration() : "deletion policy requires a minReferenceGen of ["
+            + minReferencedGen
+            + "] but the lowest gen available is ["
+            + getMinFileGeneration()
+            + "]";
+        assert minReferencedGen <= currentFileGeneration() : "deletion policy requires a minReferenceGen of ["
+            + minReferencedGen
+            + "] which is higher than the current generation ["
+            + currentFileGeneration()
+            + "]";
+        return minReferencedGen;
+    }
+
+    protected void setMinSeqNoToKeep(long seqNo) {
+        if (seqNo < this.minSeqNoToKeep) {
+            throw new IllegalArgumentException(
+                "min seq number required can't go backwards: " + "current [" + this.minSeqNoToKeep + "] new [" + seqNo + "]"
+            );
+        }
+        this.minSeqNoToKeep = seqNo;
+    }
+
+    @Override
+    void deleteReaderFiles(TranslogReader reader) {
+        try {
+            translogTransferManager.deleteTranslog(primaryTermSupplier.getAsLong(), reader.generation);
+        } catch (IOException ignored) {
+            logger.error("Exception {} while deleting generation {}", ignored, reader.generation);
+        }
+        super.deleteReaderFiles(reader);
     }
 }

@@ -39,6 +39,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.ResourceAlreadyExistsException;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.opensearch.action.admin.indices.template.delete.DeleteIndexTemplateRequestBuilder;
 import org.opensearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.AutoExpandReplicas;
@@ -297,6 +298,31 @@ public class RolloverIT extends OpenSearchIntegTestCase {
         );
 
         manageReplicaBalanceSetting(false);
+    }
+
+    public void testRolloverWithIndexSettingsBalancedWithUseZoneForReplicaDefaultCount() throws Exception {
+        DeleteIndexTemplateRequestBuilder deleteTemplate = client().admin().indices().prepareDeleteTemplate("random_index_template");
+        assertAcked(deleteTemplate.execute().actionGet());
+
+        Alias testAlias = new Alias("test_alias");
+        boolean explicitWriteIndex = randomBoolean();
+        if (explicitWriteIndex) {
+            testAlias.writeIndex(true);
+        }
+        assertAcked(prepareCreate("test_index-2").addAlias(testAlias).get());
+        manageReplicaSettingForDefaultReplica(true);
+        index("test_index-2", "type1", "1", "field", "value");
+        flush("test_index-2");
+
+        final Settings settings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3).build();
+        client().admin().indices().prepareRolloverIndex("test_alias").settings(settings).alias(new Alias("extra_alias")).get();
+
+        final ClusterState state = client().admin().cluster().prepareState().get().getState();
+        final IndexMetadata newIndex = state.metadata().index("test_index-000003");
+        assertThat(newIndex.getNumberOfShards(), equalTo(3));
+        assertThat(newIndex.getNumberOfReplicas(), equalTo(2));
+        manageReplicaSettingForDefaultReplica(false);
+        randomIndexTemplate();
     }
 
     public void testRolloverWithIndexSettingsWithoutPrefix() throws Exception {

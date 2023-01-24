@@ -17,7 +17,6 @@ import org.opensearch.action.LatchedActionListener;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.index.translog.Translog;
-import org.opensearch.index.translog.transfer.listener.FileTransferListener;
 import org.opensearch.index.translog.transfer.listener.TranslogTransferListener;
 
 import java.io.IOException;
@@ -33,7 +32,6 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
@@ -48,9 +46,8 @@ public class TranslogTransferManager {
 
     private final TransferService transferService;
     private final BlobPath remoteBaseTransferPath;
-    private final BlobPath remoteMetadaTransferPath;
-    private final FileTransferListener fileTransferListener;
-    private final UnaryOperator<Set<TransferFileSnapshot>> exclusionFilter;
+    private final BlobPath remoteMetadataTransferPath;
+    private final FileTransferTracker fileTransferTracker;
 
     private static final long TRANSFER_TIMEOUT_IN_MILLIS = 30000;
 
@@ -61,14 +58,12 @@ public class TranslogTransferManager {
     public TranslogTransferManager(
         TransferService transferService,
         BlobPath remoteBaseTransferPath,
-        FileTransferListener fileTransferListener,
-        UnaryOperator<Set<TransferFileSnapshot>> exclusionFilter
+        FileTransferTracker fileTransferTracker
     ) {
         this.transferService = transferService;
         this.remoteBaseTransferPath = remoteBaseTransferPath;
-        this.remoteMetadaTransferPath = remoteBaseTransferPath.add(METADATA_DIR);
-        this.fileTransferListener = fileTransferListener;
-        this.exclusionFilter = exclusionFilter;
+        this.remoteMetadataTransferPath = remoteBaseTransferPath.add(METADATA_DIR);
+        this.fileTransferTracker = fileTransferTracker;
     }
 
     public boolean transferSnapshot(TransferSnapshot transferSnapshot, TranslogTransferListener translogTransferListener)
@@ -76,8 +71,8 @@ public class TranslogTransferManager {
         List<Exception> exceptionList = new ArrayList<>(transferSnapshot.getTranslogTransferMetadata().getCount());
         Set<TransferFileSnapshot> toUpload = new HashSet<>(transferSnapshot.getTranslogTransferMetadata().getCount());
         try {
-            toUpload.addAll(exclusionFilter.apply(transferSnapshot.getTranslogFileSnapshots()));
-            toUpload.addAll(exclusionFilter.apply(transferSnapshot.getCheckpointFileSnapshots()));
+            toUpload.addAll(fileTransferTracker.exclusionFilter(transferSnapshot.getTranslogFileSnapshots()));
+            toUpload.addAll(fileTransferTracker.exclusionFilter((transferSnapshot.getCheckpointFileSnapshots())));
             if (toUpload.isEmpty()) {
                 logger.trace("Nothing to upload for transfer");
                 translogTransferListener.onUploadComplete(transferSnapshot);
@@ -85,7 +80,7 @@ public class TranslogTransferManager {
             }
             final CountDownLatch latch = new CountDownLatch(toUpload.size());
             LatchedActionListener<TransferFileSnapshot> latchedActionListener = new LatchedActionListener<>(
-                ActionListener.wrap(fileTransferListener::onSuccess, ex -> {
+                ActionListener.wrap(fileTransferTracker::onSuccess, ex -> {
                     assert ex instanceof FileTransferException;
                     logger.error(
                         () -> new ParameterizedMessage(
@@ -95,7 +90,7 @@ public class TranslogTransferManager {
                         ex
                     );
                     FileTransferException e = (FileTransferException) ex;
-                    fileTransferListener.onFailure(e.getFileSnapshot(), ex);
+                    fileTransferTracker.onFailure(e.getFileSnapshot(), ex);
                     exceptionList.add(ex);
                 }),
                 latch
@@ -119,7 +114,7 @@ public class TranslogTransferManager {
                 throw ex;
             }
             if (exceptionList.isEmpty()) {
-                transferService.uploadBlob(prepareMetadata(transferSnapshot), remoteMetadaTransferPath);
+                transferService.uploadBlob(prepareMetadata(transferSnapshot), remoteMetadataTransferPath);
                 translogTransferListener.onUploadComplete(transferSnapshot);
                 return true;
             } else {
@@ -160,14 +155,16 @@ public class TranslogTransferManager {
         try (InputStream inputStream = transferService.downloadBlob(remoteBaseTransferPath.add(primaryTerm), fileName)) {
             Files.copy(inputStream, filePath);
         }
+        // Mark in FileTransferTracker so that the same files are not uploaded at the time of translog sync
+        fileTransferTracker.add(fileName, true);
     }
 
     public TranslogTransferMetadata readMetadata() throws IOException {
-        return transferService.listAll(remoteMetadaTransferPath)
+        return transferService.listAll(remoteMetadataTransferPath)
             .stream()
             .max(TranslogTransferMetadata.METADATA_FILENAME_COMPARATOR)
             .map(filename -> {
-                try (InputStream inputStream = transferService.downloadBlob(remoteMetadaTransferPath, filename);) {
+                try (InputStream inputStream = transferService.downloadBlob(remoteMetadataTransferPath, filename);) {
                     IndexInput indexInput = new ByteArrayIndexInput("metadata file", inputStream.readAllBytes());
                     return new TranslogTransferMetadata(indexInput);
                 } catch (IOException e) {
@@ -191,12 +188,21 @@ public class TranslogTransferManager {
             );
         TranslogTransferMetadata translogTransferMetadata = transferSnapshot.getTranslogTransferMetadata();
         translogTransferMetadata.setGenerationToPrimaryTermMapper(new HashMap<>(generationPrimaryTermMap));
-        TransferFileSnapshot fileSnapshot = new TransferFileSnapshot(
+        return new TransferFileSnapshot(
             translogTransferMetadata.getFileName(),
             translogTransferMetadata.createMetadataBytes(),
             translogTransferMetadata.getPrimaryTerm()
         );
+    }
 
-        return fileSnapshot;
+    public void deleteTranslog(long primaryTerm, long generation) throws IOException {
+        String ckpFileName = Translog.getCommitCheckpointFileName(generation);
+        String translogFilename = Translog.getFilename(generation);
+        // ToDo - Take care of metadata file cleanup
+        // https://github.com/opensearch-project/OpenSearch/issues/5677
+        fileTransferTracker.onDelete(ckpFileName);
+        fileTransferTracker.onDelete(translogFilename);
+        List<String> files = List.of(ckpFileName, translogFilename);
+        transferService.deleteBlobs(remoteBaseTransferPath.add(String.valueOf(primaryTerm)), files);
     }
 }

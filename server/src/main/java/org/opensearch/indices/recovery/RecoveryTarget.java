@@ -44,7 +44,6 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.util.CancellableThreads;
-import org.opensearch.index.IndexModule;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.mapper.MapperException;
 import org.opensearch.index.seqno.ReplicationTracker;
@@ -218,6 +217,11 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
     }
 
     @Override
+    public void forceSegmentFileSync(ActionListener<Void> listener) {
+        throw new UnsupportedOperationException("Method not supported on target!");
+    }
+
+    @Override
     public void finalizeRecovery(final long globalCheckpoint, final long trimAboveSeqNo, ActionListener<Void> listener) {
         ActionListener.completeWith(listener, () -> {
             indexShard.updateGlobalCheckpointOnReplica(globalCheckpoint, "finalizing recovery");
@@ -360,7 +364,7 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
                 // their own commit points and therefore do not modify the commit user data
                 // in their store. In these cases, reuse the primary's translog UUID.
                 final boolean reuseTranslogUUID = indexShard.indexSettings().isSegRepEnabled()
-                    || IndexModule.Type.REMOTE_SNAPSHOT.match(indexShard.indexSettings());
+                    || indexShard.indexSettings().isRemoteSnapshot();
                 if (reuseTranslogUUID) {
                     final String translogUUID = store.getMetadata().getCommitUserData().get(TRANSLOG_UUID_KEY);
                     Translog.createEmptyTranslog(

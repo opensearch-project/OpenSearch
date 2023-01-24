@@ -50,6 +50,7 @@ java.nio.channels.SocketChannel#connect(java.net.SocketAddress)
 java.lang.Boolean#getBoolean(java.lang.String)
 
 org.apache.lucene.util.IOUtils @ use @org.opensearch.core.internal.io instead
+org.apache.lucene.util.SetOnce @ use @org.opensearch.common.SetOnce instead
 
 @defaultMessage use executors from org.opensearch.common.util.concurrent.OpenSearchExecutors instead which will properly bubble up Errors
 java.util.concurrent.AbstractExecutorService#<init>()

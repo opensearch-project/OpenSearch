@@ -47,7 +47,6 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.ShardRouting;
-import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.RoutingNode;
@@ -811,11 +810,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         StepListener<Void> forceSegRepListener
     ) {
         IndexShard indexShard = (IndexShard) indexService.getShardOrNull(shardRouting.id());
-        if (indexShard != null
-            && indexShard.indexSettings().isSegRepEnabled()
-            && shardRouting.primary() == false
-            && shardRouting.state() == ShardRoutingState.INITIALIZING
-            && indexShard.state() == IndexShardState.POST_RECOVERY) {
+        if (indexShard != null && indexShard.isSegmentReplicationAllowed()) {
             segmentReplicationTargetService.startReplication(
                 ReplicationCheckpoint.empty(shardRouting.shardId()),
                 indexShard,
