@@ -83,7 +83,6 @@ public class DefaultObjectMapper {
         }
     }
 
-
     public static <T> T readTree(JsonNode node, Class<T> clazz) throws IOException {
 
         final SecurityManager sm = System.getSecurityManager();

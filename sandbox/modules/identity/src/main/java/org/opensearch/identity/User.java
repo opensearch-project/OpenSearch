@@ -9,6 +9,7 @@
 package org.opensearch.identity;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import org.opensearch.authn.Hashed;
 import org.opensearch.authn.StringPrincipal;
 
 import java.util.Collections;
@@ -26,7 +27,7 @@ public class User implements Hashed {
     private StringPrincipal username;
 
     @JsonProperty(value = "hash")
-    private String bcryptHash;
+    private String hash;
 
     @JsonProperty(value = "attributes")
     private Map<String, String> attributes = Collections.emptyMap();
@@ -42,13 +43,15 @@ public class User implements Hashed {
     }
 
     @JsonProperty(value = "hash")
-    public String getBcryptHash() {
-        return bcryptHash;
+    @Override
+    public String getHash() {
+        return hash;
     }
 
     @JsonProperty(value = "hash")
-    public void setBcryptHash(String bcryptHash) {
-        this.bcryptHash = bcryptHash;
+    @Override
+    public void setHash(String hash) {
+        this.hash = hash;
     }
 
     @JsonProperty(value = "attributes")
@@ -63,21 +66,11 @@ public class User implements Hashed {
 
     @Override
     public String toString() {
-        return "User [username=" + username + ", bcryptHash=" + bcryptHash + ", attributes=" + attributes + "]";
-    }
-
-    @Override
-    public String getHash() {
-        return bcryptHash;
-    }
-
-    @Override
-    public void setHash(String hash) {
-        this.bcryptHash = bcryptHash;
+        return "User [username=" + username + ", bcryptHash=" + hash + ", attributes=" + attributes + "]";
     }
 
     @Override
     public void clearHash() {
-        bcryptHash = "";
+        hash = "";
     }
 }

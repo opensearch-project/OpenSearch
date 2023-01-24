@@ -9,6 +9,7 @@
 package org.opensearch.identity.utils;
 
 public class Utils {
+    @SuppressWarnings("unchecked")
     public static <T> T coalesce(T first, T... more) {
         if (first != null) {
             return first;

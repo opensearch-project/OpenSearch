@@ -35,7 +35,6 @@ dependencies {
   implementation "org.bouncycastle:bcprov-jdk15on:${versions.bouncycastle}"
 
   implementation 'org.greenrobot:eventbus:3.2.0'
-  implementation 'com.google.guava:guava:31.1-jre'
 
   implementation ('org.apache.cxf:cxf-rt-rs-security-jose:3.4.5') {
     exclude(group: 'jakarta.activation', module: 'jakarta.activation-api')
@@ -47,6 +46,8 @@ dependencies {
 
   testImplementation project(path: ':modules:transport-netty4') // for http
   testImplementation project(path: ':plugins:transport-nio') // for http
+  testImplementation 'commons-io:commons-io:2.11.0'
+  testImplementation project(':client:rest-high-level')  // for rest api tests
 }
 
 tasks.named("dependencyLicenses").configure {
@@ -69,6 +70,10 @@ tasks.named("dependencyLicenses").configure {
 
 internalClusterTest {
   systemProperty 'opensearch.set.netty.runtime.available.processors', 'false'
+}
+
+tasks.register("integTest", Test) {
+  include '**/*IT.class'
 }
 
 thirdPartyAudit.ignoreMissingClasses(

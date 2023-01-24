@@ -25,10 +25,6 @@ public class InternalUsersValidator extends CredentialsValidator {
         Object... param
     ) {
         super(request, ref, opensearchSettings, param);
-        allowedKeys.put("backend_roles", DataType.ARRAY);
         allowedKeys.put("attributes", DataType.OBJECT);
-        allowedKeys.put("description", DataType.STRING);
-        allowedKeys.put("opendistro_security_roles", DataType.ARRAY);
-        if (isSuperAdmin) allowedKeys.put("reserved", DataType.BOOLEAN);
     }
 }

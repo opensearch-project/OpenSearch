@@ -120,7 +120,7 @@ public class InternalRealm extends AuthenticatingRealm {
             // Check for other things, like a locked account, expired password, etc.
 
             // Verify the user
-            SimpleAuthenticationInfo sai = new SimpleAuthenticationInfo(userRecord.getUsername(), userRecord.getBcryptHash(), realmName);
+            SimpleAuthenticationInfo sai = new SimpleAuthenticationInfo(userRecord.getUsername(), userRecord.getHash(), realmName);
             boolean successfulAuthentication = getCredentialsMatcher().doCredentialsMatch(token, sai);
 
             if (successfulAuthentication) {
@@ -190,7 +190,7 @@ public class InternalRealm extends AuthenticatingRealm {
 
         User user = new User();
         user.setUsername(new StringPrincipal(primaryPrincipal));
-        user.setBcryptHash(hash);
+        user.setHash(hash);
         user.setAttributes(attributes);
 
         createUser(user);
@@ -217,7 +217,7 @@ public class InternalRealm extends AuthenticatingRealm {
             throw new RuntimeException(userDoesNotExistMessage(primaryPrincipal));
         }
         User userToBeUpdated = this.internalUsers.get(primaryPrincipal);
-        userToBeUpdated.setBcryptHash(hash);
+        userToBeUpdated.setHash(hash);
 
         this.internalUsers.put(primaryPrincipal, userToBeUpdated);
         return true;

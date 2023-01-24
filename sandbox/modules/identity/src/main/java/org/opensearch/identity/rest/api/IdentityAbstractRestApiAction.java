@@ -23,8 +23,6 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.support.WriteRequest.RefreshPolicy;
-import org.opensearch.authn.DefaultObjectMapper;
-import org.opensearch.authn.User;
 import org.opensearch.client.Client;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.service.ClusterService;
@@ -36,13 +34,14 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.identity.ConfigConstants;
+import org.opensearch.identity.DefaultObjectMapper;
+import org.opensearch.identity.User;
 import org.opensearch.identity.rest.action.ConfigUpdateAction;
 import org.opensearch.identity.rest.request.ConfigUpdateRequest;
 import org.opensearch.identity.rest.response.ConfigUpdateResponse;
 import org.opensearch.identity.configuration.CType;
 import org.opensearch.identity.configuration.ConfigurationRepository;
 import org.opensearch.identity.configuration.SecurityDynamicConfiguration;
-import org.opensearch.identity.configuration.StaticDefinable;
 import org.opensearch.identity.rest.validation.AbstractConfigurationValidator;
 import org.opensearch.identity.rest.validation.AbstractConfigurationValidator.ErrorType;
 import org.opensearch.index.engine.VersionConflictEngineException;
@@ -65,12 +64,7 @@ public abstract class IdentityAbstractRestApiAction extends BaseRestHandler {
     protected String identityIndex;
     private final RestApiPrivilegesEvaluator restApiPrivilegesEvaluator;
     protected final Settings settings;
-    // private AdminDNs adminDNs;
 
-    // protected AbstractApiAction(final Settings settings, final Path configPath, final RestController controller,
-    // final Client client, final AdminDNs adminDNs, final ConfigurationRepository cl,
-    // final ClusterService cs, final PrincipalExtractor principalExtractor, final PrivilegesEvaluator evaluator,
-    // ThreadPool threadPool, AuditLog auditLog) {
     protected IdentityAbstractRestApiAction(
         final Settings settings,
         final Path configPath,
@@ -144,15 +138,11 @@ public abstract class IdentityAbstractRestApiAction extends BaseRestHandler {
 
         final SecurityDynamicConfiguration<?> existingConfiguration = load(getConfigName());
 
-        if (!isWriteable(channel, existingConfiguration, name)) {
-            return;
-        }
-
         boolean existed = existingConfiguration.exists(name);
         existingConfiguration.remove(name);
 
         if (existed) {
-            saveAnUpdateConfigs(
+            saveAndUpdateConfigs(
                 client,
                 request,
                 getConfigName(),
@@ -183,23 +173,6 @@ public abstract class IdentityAbstractRestApiAction extends BaseRestHandler {
 
         final SecurityDynamicConfiguration<?> existingConfiguration = load(getConfigName());
 
-        if (existingConfiguration.getSeqNo() < 0) {
-            forbidden(
-                channel,
-                "Security index need to be updated to support '" + getConfigName().toLCString() + "'. Use SecurityAdmin to populate."
-            );
-            return;
-        }
-
-        if (!isWriteable(channel, existingConfiguration, name)) {
-            return;
-        }
-
-        if (isReadonlyFieldUpdated(existingConfiguration, content)) {
-            conflict(channel, "Attempted to update read-only property.");
-            return;
-        }
-
         if (log.isTraceEnabled() && content != null) {
             log.trace(content.toString());
         }
@@ -207,7 +180,7 @@ public abstract class IdentityAbstractRestApiAction extends BaseRestHandler {
         boolean existed = existingConfiguration.exists(name);
         existingConfiguration.putCObject(name, DefaultObjectMapper.readTree(content, existingConfiguration.getImplementingClass()));
 
-        saveAnUpdateConfigs(client, request, getConfigName(), existingConfiguration, new OnSucessActionListener<IndexResponse>(channel) {
+        saveAndUpdateConfigs(client, request, getConfigName(), existingConfiguration, new OnSucessActionListener<IndexResponse>(channel) {
 
             @Override
             public void onResponse(IndexResponse response) {
@@ -232,7 +205,6 @@ public abstract class IdentityAbstractRestApiAction extends BaseRestHandler {
         final String resourcename = request.param("name");
 
         final SecurityDynamicConfiguration<?> configuration = load(getConfigName());
-        filter(configuration);
 
         // no specific resource requested, return complete config
         if (resourcename == null || resourcename.length() == 0) {
@@ -254,7 +226,6 @@ public abstract class IdentityAbstractRestApiAction extends BaseRestHandler {
 
     protected final SecurityDynamicConfiguration<?> load(final CType config) {
         SecurityDynamicConfiguration<?> loaded = cl.getConfigurationsFromIndex(Collections.singleton(config)).get(config).deepClone();
-        // return DynamicConfigFactory.addStatics(loaded);
         return loaded;
     }
 
@@ -263,22 +234,6 @@ public abstract class IdentityAbstractRestApiAction extends BaseRestHandler {
             return false;
         }
         return true;
-    }
-
-    protected void filter(SecurityDynamicConfiguration<?> builder) {
-        if (!isSuperAdmin()) {
-            builder.removeHidden();
-        }
-    }
-
-    protected boolean isReadonlyFieldUpdated(final JsonNode existingResource, final JsonNode targetResource) {
-        // Default is false. Override function for additional logic
-        return false;
-    }
-
-    protected boolean isReadonlyFieldUpdated(final SecurityDynamicConfiguration<?> configuration, final JsonNode targetResource) {
-        // Default is false. Override function for additional logic
-        return false;
     }
 
     abstract class OnSucessActionListener<Response> implements ActionListener<Response> {
@@ -301,7 +256,7 @@ public abstract class IdentityAbstractRestApiAction extends BaseRestHandler {
 
     }
 
-    protected void saveAnUpdateConfigs(
+    protected void saveAndUpdateConfigs(
         final Client client,
         final RestRequest request,
         final CType cType,
@@ -310,10 +265,7 @@ public abstract class IdentityAbstractRestApiAction extends BaseRestHandler {
     ) {
         final IndexRequest ir = new IndexRequest(this.identityIndex);
 
-        // final String type = "_doc";
         final String id = cType.toLCString();
-
-        configuration.removeStatic();
 
         try {
             client.index(
@@ -379,7 +331,7 @@ public abstract class IdentityAbstractRestApiAction extends BaseRestHandler {
 
         // check if .opendistro_security index has been initialized
         if (!ensureIndexExists()) {
-            return channel -> internalErrorResponse(channel, ErrorType.SECURITY_NOT_INITIALIZED.getMessage());
+            return channel -> internalErrorResponse(channel, ErrorType.IDENTITY_NOT_INITIALIZED.getMessage());
         }
 
         // check if request is authorized
@@ -521,45 +473,4 @@ public abstract class IdentityAbstractRestApiAction extends BaseRestHandler {
         // TODO implement this by creating something similar to AdminDNS.java (see security repo)
         return false;
     }
-
-    /**
-     * Resource is readonly if it is reserved and user is not super admin.
-     * @param existingConfiguration Configuration
-     * @param name
-     * @return True if resource readonly
-     */
-    protected boolean isReadOnly(final SecurityDynamicConfiguration<?> existingConfiguration, String name) {
-        return isSuperAdmin() ? false : isReserved(existingConfiguration, name);
-    }
-
-    protected final boolean isStatic(SecurityDynamicConfiguration<?> configuration, String resourceName) {
-        final Object o = configuration.getCEntry(resourceName);
-        return o != null && o instanceof StaticDefinable && ((StaticDefinable) o).isStatic();
-    }
-
-    protected final boolean isReserved(SecurityDynamicConfiguration<?> configuration, String resourceName) {
-        if (isStatic(configuration, resourceName)) { // static is also always reserved
-            return true;
-        }
-
-        return configuration.isHidden(resourceName);
-    }
-
-    protected final boolean isHidden(SecurityDynamicConfiguration<?> configuration, String resourceName) {
-        return configuration.isHidden(resourceName) && !isSuperAdmin();
-    }
-
-    boolean isWriteable(final RestChannel channel, final SecurityDynamicConfiguration<?> configuration, final String resourceName) {
-        if (isHidden(configuration, resourceName)) {
-            notFound(channel, "Resource '" + resourceName + "' is not available.");
-            return false;
-        }
-
-        if (isReadOnly(configuration, resourceName)) {
-            forbidden(channel, "Resource '" + resourceName + "' is read-only.");
-            return false;
-        }
-        return true;
-    }
-
 }

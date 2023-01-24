@@ -21,4 +21,5 @@ public class ConfigConstants {
     public static final String IDENTITY_ORIGIN = IDENTITY_CONFIG_INDEX_NAME + "origin";
     public static final String IDENTITY_RESTAPI_PASSWORD_VALIDATION_REGEX = "plugins.identity.restapi.password_validation_regex";
 
+    public static final String IDENTITY_REST_REQUEST_PREFIX = "_identity";
 }

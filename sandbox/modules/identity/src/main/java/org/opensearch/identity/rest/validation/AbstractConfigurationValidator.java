@@ -9,6 +9,7 @@
 package org.opensearch.identity.rest.validation;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -31,7 +32,7 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestRequest.Method;
-import org.opensearch.authn.DefaultObjectMapper;
+import org.opensearch.identity.DefaultObjectMapper;
 
 public abstract class AbstractConfigurationValidator {
 
@@ -129,7 +130,7 @@ public abstract class AbstractConfigurationValidator {
                 }
 
             } catch (IOException e) {
-                log.error(errorType.BODY_NOT_PARSEABLE.toString(), e);
+                log.error(ErrorType.BODY_NOT_PARSEABLE.toString(), e);
                 this.errorType = ErrorType.BODY_NOT_PARSEABLE;
                 return false;
             }
@@ -144,9 +145,11 @@ public abstract class AbstractConfigurationValidator {
         Set<String> requested = new HashSet<String>();
         try {
             contentAsNode = DefaultObjectMapper.readTree(content.utf8ToString());
-            requested.addAll(ImmutableList.copyOf(contentAsNode.fieldNames()));
+            Set<String> fieldNames = new HashSet<>();
+            contentAsNode.fieldNames().forEachRemaining(fieldNames::add);
+            requested.addAll(fieldNames);
         } catch (Exception e) {
-            log.error(errorType.BODY_NOT_PARSEABLE.toString(), e);
+            log.error(ErrorType.BODY_NOT_PARSEABLE.toString(), e);
             this.errorType = ErrorType.BODY_NOT_PARSEABLE;
             return false;
         }
@@ -177,7 +180,7 @@ public abstract class AbstractConfigurationValidator {
                 return false;
             }
         } catch (Exception e) {
-            log.error(errorType.BODY_NOT_PARSEABLE.toString(), e);
+            log.error(ErrorType.BODY_NOT_PARSEABLE.toString(), e);
             this.errorType = ErrorType.BODY_NOT_PARSEABLE;
             return false;
         }
@@ -277,7 +280,7 @@ public abstract class AbstractConfigurationValidator {
     private void addErrorMessage(final XContentBuilder builder, final String message, final Set<String> keys) throws IOException {
         if (!keys.isEmpty()) {
             builder.startObject(message);
-            builder.field("keys", Joiner.on(",").join(keys.toArray(new String[0])));
+            builder.field("keys", String.join(",", keys.toArray(new String[0])));
             builder.endObject();
         }
     }
@@ -297,7 +300,7 @@ public abstract class AbstractConfigurationValidator {
         BODY_NOT_PARSEABLE("Could not parse content of request."),
         PAYLOAD_NOT_ALLOWED("Request body not allowed for this action."),
         PAYLOAD_MANDATORY("Request body required for this action."),
-        SECURITY_NOT_INITIALIZED("Security index not initialized"),
+        IDENTITY_NOT_INITIALIZED("Identity index not initialized"),
         NULL_ARRAY_ELEMENT("`null` is not allowed as json array element");
 
         private String message;

@@ -13,6 +13,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.authn.Hashed;
 import org.opensearch.identity.DefaultObjectMapper;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.ToXContent;
@@ -204,8 +205,24 @@ public class SecurityDynamicConfiguration<T> implements ToXContent {
         }
     }
 
-    public boolean isHidden(String resourceName) {
-        final Object o = centries.get(resourceName);
-        return o != null && o instanceof Hideable && ((Hideable) o).isHidden();
+    @JsonIgnore
+    public void remove(String key) {
+        centries.remove(key);
+
+    }
+
+    @JsonIgnore
+    public void clearHashes() {
+        for (Map.Entry<String, T> entry : centries.entrySet()) {
+            if (entry.getValue() instanceof Hashed) {
+                ((Hashed) entry.getValue()).clearHash();
+            }
+        }
+    }
+
+    public void removeOthers(String key) {
+        T tmp = this.centries.get(key);
+        this.centries.clear();
+        this.centries.put(key, tmp);
     }
 }

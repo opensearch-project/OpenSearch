@@ -66,7 +66,7 @@ public class InternalRealmTests extends OpenSearchTestCase {
 
         User user = new User();
         user.setAttributes(attributes);
-        user.setBcryptHash(hash);
+        user.setHash(hash);
         user.setUsername(new StringPrincipal(otherPrimaryPrincipal));
 
         realm.createUser(user);
@@ -94,11 +94,11 @@ public class InternalRealmTests extends OpenSearchTestCase {
         String currentHash = "$2y$12$88IFVl6IfIwCFh5aQYfOmuXVL9j2hz/GusQb35o.4sdTDAEMTOD.K";
         User newUser = realm.getInternalUser(primaryPrincipal);
 
-        assertEquals(currentHash, newUser.getBcryptHash());
+        assertEquals(currentHash, newUser.getHash());
 
         String newHash = "new_hash";
         realm.updateUserPassword(primaryPrincipal, newHash);
-        String newUserPasswordHash = realm.getInternalUser(primaryPrincipal).getBcryptHash();
+        String newUserPasswordHash = realm.getInternalUser(primaryPrincipal).getHash();
         assertEquals(newHash, newUserPasswordHash);
     }
 

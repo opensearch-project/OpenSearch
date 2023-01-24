@@ -17,7 +17,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import org.opensearch.action.index.IndexResponse;
-import org.opensearch.authn.DefaultObjectMapper;
+import org.opensearch.identity.DefaultObjectMapper;
 import org.opensearch.authn.Hashed;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.service.ClusterService;
@@ -36,27 +36,33 @@ import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestRequest.Method;
 import org.opensearch.threadpool.ThreadPool;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static org.opensearch.identity.utils.RoutesHelper.addRoutesPrefix;
 
 public class RestInternalUsersApiAction extends IdentityAbstractRestApiAction {
-    static final List<String> RESTRICTED_FROM_USERNAME = ImmutableList.of(
-        ":" // Not allowed in basic auth, see https://stackoverflow.com/a/33391003/533057
+    static final List<String> RESTRICTED_FROM_USERNAME = unmodifiableList(
+        asList(
+            ":" // Not allowed in basic auth, see https://stackoverflow.com/a/33391003/533057
+        )
     );
 
     private static final List<RestHandler.Route> routes = addRoutesPrefix(
-        ImmutableList.of(
-            new Route(Method.GET, "/user/{name}"),
-            new Route(Method.GET, "/user/"),
-            new Route(Method.DELETE, "/user/{name}"),
-            new Route(Method.PUT, "/user/{name}"),
+        unmodifiableList(
+            asList(
+                new Route(Method.GET, "/user/{name}"),
+                new Route(Method.GET, "/user/"),
+                new Route(Method.DELETE, "/user/{name}"),
+                new Route(Method.PUT, "/user/{name}"),
 
-            // corrected mapping, introduced in OpenSearch Security
-            new Route(Method.GET, "/internalusers/{name}"),
-            new Route(Method.GET, "/internalusers/"),
-            new Route(Method.DELETE, "/internalusers/{name}"),
-            new Route(Method.PUT, "/internalusers/{name}"),
-            new Route(Method.PATCH, "/internalusers/"),
-            new Route(Method.PATCH, "/internalusers/{name}")
+                // corrected mapping, introduced in OpenSearch Security
+                new Route(Method.GET, "/internalusers/{name}"),
+                new Route(Method.GET, "/internalusers/"),
+                new Route(Method.DELETE, "/internalusers/{name}"),
+                new Route(Method.PUT, "/internalusers/{name}"),
+                new Route(Method.PATCH, "/internalusers/"),
+                new Route(Method.PATCH, "/internalusers/{name}")
+            )
         )
     );
 
@@ -88,7 +94,7 @@ public class RestInternalUsersApiAction extends IdentityAbstractRestApiAction {
     protected void handlePut(RestChannel channel, final RestRequest request, final Client client, final JsonNode content)
         throws IOException {
 
-        final String username = request.param("username");
+        final String username = request.param("name");
 
         if (username == null || username.length() == 0) {
             badRequestResponse(channel, "No " + getResourceName() + " specified.");
@@ -109,14 +115,8 @@ public class RestInternalUsersApiAction extends IdentityAbstractRestApiAction {
 
         final SecurityDynamicConfiguration<?> internalUsersConfiguration = load(getConfigName());
 
-        if (!isWriteable(channel, internalUsersConfiguration, username)) {
-            return;
-        }
-
         final ObjectNode contentAsNode = (ObjectNode) content;
         final JsonNode userContentAsNode = contentAsNode;
-
-        // TODO: Check role mapping and its validity here
 
         // if password is set, it takes precedence over hash
         final String hashedPassword = userContentAsNode.get("hash").asText();
@@ -154,7 +154,7 @@ public class RestInternalUsersApiAction extends IdentityAbstractRestApiAction {
             DefaultObjectMapper.readTree(contentAsNode, internalUsersConfiguration.getImplementingClass())
         );
 
-        saveAnUpdateConfigs(
+        saveAndUpdateConfigs(
             client,
             request,
             CType.INTERNALUSERS,
@@ -172,15 +172,6 @@ public class RestInternalUsersApiAction extends IdentityAbstractRestApiAction {
                 }
             }
         );
-    }
-
-    @Override
-    protected void filter(SecurityDynamicConfiguration<?> builder) {
-        super.filter(builder);
-        // replace password hashes in addition. We must not remove them from the
-        // Builder since this would remove users completely if they
-        // do not have any addition properties like roles or attributes
-        builder.clearHashes();
     }
 
     @Override

@@ -9,6 +9,8 @@
 package org.opensearch.identity.authmanager.internal;
 
 import org.apache.shiro.config.IniSecurityManagerFactory;
+import org.apache.shiro.env.BasicIniEnvironment;
+import org.apache.shiro.env.Environment;
 import org.apache.shiro.util.Factory;
 import org.opensearch.authn.AccessTokenManager;
 import org.opensearch.authn.AuthenticationManager;
@@ -35,8 +37,8 @@ public class InternalAuthenticationManager implements AuthenticationManager {
      * and this instantiation uses the default security manager
      */
     public InternalAuthenticationManager() {
-        Factory<SecurityManager> factory = new IniSecurityManagerFactory("classpath:shiro.ini");
-        SecurityManager securityManager = factory.getInstance();
+        Environment env = new BasicIniEnvironment("classpath:shiro.ini");
+        SecurityManager securityManager = env.getSecurityManager();
         SecurityUtils.setSecurityManager(securityManager);
     }
 
