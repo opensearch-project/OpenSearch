@@ -49,4 +49,3 @@ public class TransportCreateUserAction extends HandledTransportAction<CreateUser
     }
 
 }
-

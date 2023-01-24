@@ -46,13 +46,7 @@ public class RestCreateUserAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return addRoutesPrefix(
-            unmodifiableList(
-                asList(
-                    new Route(PUT, "/internalusers/{name}")
-                )
-            ));
+        return addRoutesPrefix(unmodifiableList(asList(new Route(PUT, "/internalusers/{name}"))));
     }
 
 }
-

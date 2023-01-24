@@ -8,7 +8,6 @@
 
 package org.opensearch.identity.rest.action;
 
-
 import org.opensearch.action.ActionType;
 import org.opensearch.identity.rest.response.CreateUserResponse;
 

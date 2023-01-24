@@ -113,4 +113,3 @@ public class CreateUserRequest extends ActionRequest implements ToXContentObject
     }
 
 }
-
