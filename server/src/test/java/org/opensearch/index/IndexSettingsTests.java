@@ -1022,7 +1022,7 @@ public class IndexSettingsTests extends OpenSearchTestCase {
             () -> IndexMetadata.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(indexSettings)
         );
         assertEquals(
-            "Settings index.remote_store.translog.buffer_interval can only be set when index.remote_store.translog.enabled is set to true",
+            "Setting index.remote_store.translog.buffer_interval can only be set when index.remote_store.translog.enabled is set to true",
             iae.getMessage()
         );
     }

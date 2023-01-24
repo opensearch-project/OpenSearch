@@ -78,6 +78,7 @@ public abstract class AsyncIOProcessor<Item> {
         // we first try make a promise that we are responsible for the processing
         final boolean promised = promiseSemaphore.tryAcquire();
         if (promised == false) {
+            // in this case we are not responsible and can just block until there is space
             addToQueue(item, listener);
         }
 
@@ -90,26 +91,21 @@ public abstract class AsyncIOProcessor<Item> {
                 // no need to preserve context for listener since it runs in current thread.
                 candidates.add(new Tuple<>(item, listener));
             }
-            process(candidates);
+            // since we made the promise to process we gotta do it here at least once
+            drainAndProcessAndRelease(candidates);
+            while (queue.isEmpty() == false && promiseSemaphore.tryAcquire()) {
+                // yet if the queue is not empty AND nobody else has yet made the promise to take over we continue processing
+                drainAndProcessAndRelease(candidates);
+            }
         }
     }
 
     void addToQueue(Item item, Consumer<Exception> listener) {
-        // in this case we are not responsible and can just block until there is space
         try {
             queue.put(new Tuple<>(item, preserveContext(listener)));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             listener.accept(e);
-        }
-    }
-
-    private void process(List<Tuple<Item, Consumer<Exception>>> candidates) {
-        // since we made the promise to process we gotta do it here at least once
-        drainAndProcessAndRelease(candidates);
-        while (queue.isEmpty() == false && promiseSemaphore.tryAcquire()) {
-            // yet if the queue is not empty AND nobody else has yet made the promise to take over we continue processing
-            drainAndProcessAndRelease(candidates);
         }
     }
 

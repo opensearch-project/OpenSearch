@@ -468,7 +468,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     final Boolean isRemoteTranslogStoreEnabled = (Boolean) settings.get(INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING);
                     if (isRemoteTranslogStoreEnabled == null || isRemoteTranslogStoreEnabled == false) {
                         throw new IllegalArgumentException(
-                            "Settings "
+                            "Setting "
                                 + SETTING_REMOTE_TRANSLOG_BUFFER_INTERVAL
                                 + " can only be set when "
                                 + SETTING_REMOTE_TRANSLOG_STORE_ENABLED
