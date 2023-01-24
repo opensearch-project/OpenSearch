@@ -514,9 +514,9 @@ public class ExtensionsManager {
                                 );
                                 inProgressIndexNameFuture.whenComplete((r, e) -> {
                                     if (e != null) {
-                                        inProgressFuture.complete(response);
-                                    } else if (e == null) {
                                         inProgressFuture.completeExceptionally(e);
+                                    } else {
+                                        inProgressFuture.complete(response);
                                     }
                                 });
                             } catch (Exception ex) {
