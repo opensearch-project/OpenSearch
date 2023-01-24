@@ -21,17 +21,16 @@ abstract class Permission {
     // If using string-object permissions, you use the invalid characters for ensuring formatting
     String[] INVALID_CHARACTERS;
 
-    // An array of the valid operations which a permission can grant the privilege to perform.
-    String[] QUALIFIED_OPERATIONS;
+    // An array of the valid actions which a permission can grant the privilege to perform.
+    String[] QUALIFIED_ACTIONS;
 
-    // An array of the available resources which a permission can grant some operation to act upon.
+    // An array of the available resources which a permission can grant some action to act upon.
     String[] QUALIFIED_RESOURCES;
 
     String permissionString;
 
-    // Every permissionString must be resolvable to its constituent parts: <principal>.<resource>.<action>
+    // Every permissionString must be resolvable to its constituent parts: <resource>.<action>
     // These are then stored separately to avoid costly String manipulation.
-    String principal;
 
     String resource;
 

@@ -31,7 +31,6 @@ public class Permissions extends Permission {
 
     public String[] permissionSegments;
 
-    public String principal;
     public String resource;
 
     public String action;
@@ -41,15 +40,13 @@ public class Permissions extends Permission {
 
         this.permissionString = permission;
         this.permissionSegments = permissionString.split(PERMISSION_DELIMITER);
-        this.principal = permissionSegments[0];
-        this.resource = permissionSegments[1];
-        this.action = permissionSegments[2];
+        this.resource = permissionSegments[0];
+        this.action = permissionSegments[1];
     }
 
     /**
      * Check that the permission does not contain any forbidden strings.
-     * This set implementation does so in O(n).
-     * Assumes that the permission is formatted as <principal>.<resource>.<action>
+     * Assumes that the permission is formatted as <resource>.<action>
      * The principal should already be verified before the permission is created.
      */
     @Override
@@ -57,9 +54,7 @@ public class Permissions extends Permission {
 
         // Check for illegal characters in any of the permission segments O(3n)
         for (int i = 0; i < INVALID_CHARACTERS.length; i++) {
-            if (this.principal.contains(INVALID_CHARACTERS[i])
-                || this.resource.contains(INVALID_CHARACTERS[i])
-                || this.action.contains(INVALID_CHARACTERS[i])) {
+            if (this.resource.contains(INVALID_CHARACTERS[i]) || this.action.contains(INVALID_CHARACTERS[i])) {
                 return false;
             }
         }

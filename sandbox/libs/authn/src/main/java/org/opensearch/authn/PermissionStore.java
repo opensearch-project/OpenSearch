@@ -25,23 +25,22 @@ import java.util.ArrayList;
 public interface PermissionStore {
 
     /**
-     * This function adds a new grant permissions event to the permissions store. The eventIdentifier is a unique string that
-     * represents the event (it does not need to be encrypted and should not be deterministic unless time is a factor of the generation).
-     * The ArrayList is a list of all permissions that are being granted during the associated event and should be referencable
-     * by the eventIdentifier.
+     * This function adds a set of permissions to the permission store. The principalString is a unique string that
+     * corresponds to the subject which the permissions are being granted to.
+     * The ArrayList is a list of all permissions that are being granted.
      */
-    public void put(String eventIdentifier, ArrayList<Permission> permissions);
+    public void put(String principalString, ArrayList<Permission> permissions);
 
     /**
-     * This function returns the ArrayList of permissions added to the permission store during the provided permission grant event.
+     * This function returns the ArrayList of permissions associated with the provided principalString.
      * If permissions are modified during storage they must be reverted back to their original state during get().
      */
-    public ArrayList<Permission> get(String eventIdentifier);
+    public ArrayList<Permission> get(String principalString);
 
     /**
-     * This function in-place deletes all targeted permissions associated with a given permission grant event.
+     * This function in-place deletes all targeted permissions associated with a given principalString.
      * This function should be implemented such that '*' means that all permissions associated with the grant event are deleted.
      */
-    public void delete(String eventIdentifier, Permission[] permissions);
+    public void delete(String principalString, Permission[] permissions);
 
 }

@@ -19,30 +19,30 @@ public class PermissionStorage implements PermissionStore {
     public HashMap<String, ArrayList<Permission>> permissionStore = new HashMap<>();
 
     @Override
-    public void put(String eventIdentifier, ArrayList<Permission> permissions) {
+    public void put(String principalString, ArrayList<Permission> permissions) {
 
-        permissionStore.put(eventIdentifier, permissions);
+        permissionStore.put(principalString, permissions);
     }
 
     @Override
-    public ArrayList<Permission> get(String eventIdentifier) {
+    public ArrayList<Permission> get(String principalString) {
 
-        return permissionStore.get(eventIdentifier);
+        return permissionStore.get(principalString);
     }
 
     @Override
-    public void delete(String eventIdentifier, Permission[] permissions) {
+    public void delete(String principalString, Permission[] permissions) {
 
         for (Permission permission : permissions) {
-            permissionStore.remove(eventIdentifier, permission);
+            permissionStore.remove(principalString, permission);
         }
     }
 
     // Allow for using a String regex expression to delete an entire pair from the map.
-    public void delete(String eventIdentifier, String regex) {
+    public void delete(String principalString, String regex) {
 
         if (regex.equals("*")) {
-            permissionStore.remove(eventIdentifier);
+            permissionStore.remove(principalString);
         }
     }
 }
