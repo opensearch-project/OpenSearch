@@ -16,6 +16,7 @@ jobs:
     permissions:
       contents: read # to fetch code (actions/checkout)
       pull-requests: write # to create or update comment (peter-evans/create-or-update-comment)
+      issues: write # To create an issue if check fails on push.
 
     runs-on: ubuntu-latest
     timeout-minutes: 130
@@ -130,4 +131,5 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
+          assignees: ${{ github.event.head_commit.author.username }}, ${{ github.triggering_actor }}
           filename: .github/ISSUE_TEMPLATE/failed_check.md
