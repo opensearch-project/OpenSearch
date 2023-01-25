@@ -42,6 +42,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
+import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.QueryCache;
@@ -282,32 +283,39 @@ public abstract class Engine implements LifecycleAware, Closeable {
     }
 
     /**
-     * Get max sequence number that was part of last refresh.
-     * Sequence number is part of each document that is indexed.
-     * This method fetches the _id of last indexed document that was part of refresh and
-     * retrieves the _seq_no of the document.
+     * Get max sequence number from segments that are referenced by given SegmentInfos
      */
-    public long getMaxSeqNoRefreshed(String source) throws IOException {
-        try (Engine.Searcher searcher = acquireSearcher(source, Engine.SearcherScope.INTERNAL)) {
-            searcher.setQueryCache(null);
-            ScoreDoc[] docs = searcher.search(
-                Queries.newMatchAllQuery(),
-                1,
-                new Sort(new SortField(SeqNoFieldMapper.NAME, SortField.Type.DOC, true))
-            ).scoreDocs;
-            if (docs.length == 0) {
-                return SequenceNumbers.NO_OPS_PERFORMED;
-            }
-            org.apache.lucene.document.Document document = searcher.storedFields().document(docs[0].doc);
-            Term uidTerm = new Term(IdFieldMapper.NAME, document.getField(IdFieldMapper.NAME).binaryValue());
-            VersionsAndSeqNoResolver.DocIdAndVersion docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(
-                searcher.getIndexReader(),
-                uidTerm,
-                true
-            );
-            assert docIdAndVersion != null;
-            return docIdAndVersion.seqNo;
+    public long getMaxSeqNoFromSegmentInfos(SegmentInfos segmentInfos) throws IOException {
+        try (DirectoryReader innerReader = StandardDirectoryReader.open(store.directory(), segmentInfos, null, null)) {
+            final IndexSearcher searcher = new IndexSearcher(innerReader);
+            return getMaxSeqNoFromSearcher(searcher);
         }
+    }
+
+    /**
+     * Get max sequence number that is part of given searcher. Sequence number is part of each document that is indexed.
+     * This method fetches the _id of last indexed document that was part of the given searcher and
+     * retrieves the _seq_no of the retrieved document.
+     */
+    protected long getMaxSeqNoFromSearcher(IndexSearcher searcher) throws IOException {
+        searcher.setQueryCache(null);
+        ScoreDoc[] docs = searcher.search(
+            Queries.newMatchAllQuery(),
+            1,
+            new Sort(new SortField(SeqNoFieldMapper.NAME, SortField.Type.DOC, true))
+        ).scoreDocs;
+        if (docs.length == 0) {
+            return SequenceNumbers.NO_OPS_PERFORMED;
+        }
+        org.apache.lucene.document.Document document = searcher.storedFields().document(docs[0].doc);
+        Term uidTerm = new Term(IdFieldMapper.NAME, document.getField(IdFieldMapper.NAME).binaryValue());
+        VersionsAndSeqNoResolver.DocIdAndVersion docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(
+            searcher.getIndexReader(),
+            uidTerm,
+            true
+        );
+        assert docIdAndVersion != null;
+        return docIdAndVersion.seqNo;
     }
 
     /**
