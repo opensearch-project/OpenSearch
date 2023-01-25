@@ -40,6 +40,11 @@ opensearchplugin {
   classname 'org.opensearch.painless.PainlessPlugin'
 }
 
+ext {
+  // Do not fail on `javadoc` warning (ANTLR generated code)
+  failOnJavadocWarning = false
+}
+
 testClusters.all {
   module ':modules:mapper-extras'
   systemProperty 'opensearch.scripting.update.ctx_in_params', 'false'
