@@ -23,7 +23,6 @@ public class InternalSubject implements Subject {
     private final org.apache.shiro.subject.Subject shiroSubject;
 
     public InternalSubject(org.apache.shiro.subject.Subject subject) {
-
         shiroSubject = subject;
     }
 
@@ -70,5 +69,4 @@ public class InternalSubject implements Subject {
         // Login via shiro realm.
         shiroSubject.login(authToken);
     }
-
 }
