@@ -43,7 +43,7 @@ import java.util.Map;
 /**
  * The content type of {@link org.opensearch.common.xcontent.XContent}.
  */
-public enum XContentType implements MediaType {
+public enum XContentType implements XContentMediaType {
 
     /**
      * A JSON based content type.

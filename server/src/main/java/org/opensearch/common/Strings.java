@@ -37,9 +37,9 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.util.CollectionUtils;
-import org.opensearch.common.xcontent.MediaType;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentMediaType;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -712,7 +712,7 @@ public class Strings {
      * Wraps the output into an anonymous object if needed. The content is not pretty-printed
      * nor human readable.
      */
-    public static String toString(MediaType mediaType, ToXContent toXContent) {
+    public static String toString(XContentMediaType mediaType, ToXContent toXContent) {
         return toString(mediaType, toXContent, false, false);
     }
 
@@ -722,7 +722,7 @@ public class Strings {
      * Allows to configure the params.
      * The content is not pretty-printed nor human readable.
      */
-    public static String toString(MediaType mediaType, ToXContent toXContent, ToXContent.Params params) {
+    public static String toString(XContentMediaType mediaType, ToXContent toXContent, ToXContent.Params params) {
         return toString(mediaType, toXContent, params, false, false);
     }
 
@@ -740,7 +740,7 @@ public class Strings {
      * json needs to be pretty printed and human readable.
      *
      */
-    public static String toString(MediaType mediaType, ToXContent toXContent, boolean pretty, boolean human) {
+    public static String toString(XContentMediaType mediaType, ToXContent toXContent, boolean pretty, boolean human) {
         return toString(mediaType, toXContent, ToXContent.EMPTY_PARAMS, pretty, human);
     }
 
@@ -750,7 +750,13 @@ public class Strings {
      * Allows to configure the params.
      * Allows to control whether the outputted json needs to be pretty printed and human readable.
      */
-    private static String toString(MediaType mediaType, ToXContent toXContent, ToXContent.Params params, boolean pretty, boolean human) {
+    private static String toString(
+        XContentMediaType mediaType,
+        ToXContent toXContent,
+        ToXContent.Params params,
+        boolean pretty,
+        boolean human
+    ) {
         try {
             XContentBuilder builder = createBuilder(mediaType, pretty, human);
             if (toXContent.isFragment()) {
@@ -775,7 +781,7 @@ public class Strings {
         }
     }
 
-    private static XContentBuilder createBuilder(MediaType mediaType, boolean pretty, boolean human) throws IOException {
+    private static XContentBuilder createBuilder(XContentMediaType mediaType, boolean pretty, boolean human) throws IOException {
         XContentBuilder builder = XContentBuilder.builder(mediaType.xContent());
         if (pretty) {
             builder.prettyPrint();
