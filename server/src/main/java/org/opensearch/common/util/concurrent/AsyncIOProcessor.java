@@ -136,7 +136,7 @@ public abstract class AsyncIOProcessor<Item> {
         return exception;
     }
 
-    private void notifyList(List<Tuple<Item, Consumer<Exception>>> candidates, Exception exception) {
+    void notifyList(List<Tuple<Item, Consumer<Exception>>> candidates, Exception exception) {
         for (Tuple<Item, Consumer<Exception>> tuple : candidates) {
             Consumer<Exception> consumer = tuple.v2();
             try {

@@ -9,10 +9,12 @@
 package org.opensearch.common.util.concurrent;
 
 import org.apache.logging.log4j.Logger;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
 
@@ -58,10 +60,20 @@ public abstract class BufferedAsyncIOProcessor<Item> extends AsyncIOProcessor<It
                 threadpool.schedule(this::process, getBufferInterval(), getBufferRefreshThreadPoolName());
             } catch (Exception e) {
                 getLogger().error("failed to schedule process");
+                // process scheduling failure
+                processSchedulingFailure(e);
                 getPromiseSemaphore().release();
-                throw e;
+                // This is to make sure that any new items that are added to the queue between processSchedulingFailure
+                // and releasing the semaphore is handled by a subsequent refresh and not starved.
+                scheduleProcess();
             }
         }
+    }
+
+    private void processSchedulingFailure(Exception e) {
+        List<Tuple<Item, Consumer<Exception>>> candidates = new ArrayList<>();
+        getQueue().drainTo(candidates);
+        notifyList(candidates, e);
     }
 
     private void process() {
