@@ -1581,6 +1581,19 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
+     * Fetch a map of StoreFileMetadata for each segment from the latest SegmentInfos.
+     * This is used to compute diffs for segment replication.
+     *
+     * @return - Map of Segment Filename to its {@link StoreFileMetadata}
+     * @throws IOException - When there is an error loading metadata from the store.
+     */
+    public Map<String, StoreFileMetadata> getSegmentMetadataMap() throws IOException {
+        try (final GatedCloseable<SegmentInfos> snapshot = getSegmentInfosSnapshot()) {
+            return store.getSegmentMetadataMap(snapshot.get());
+        }
+    }
+
+    /**
      * Fails the shard and marks the shard store as corrupted if
      * <code>e</code> is caused by index corruption
      */
