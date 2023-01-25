@@ -21,6 +21,7 @@ import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.xcontent.ToXContentFragment;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.List;
@@ -292,7 +293,7 @@ public class ClusterAwarenessAttributeValueHealth implements Writeable, ToXConte
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toString(XContentType.JSON, this);
     }
 
     @Override

@@ -47,6 +47,7 @@ import org.opensearch.common.xcontent.ToXContentObject;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Map;
@@ -207,7 +208,7 @@ public final class TaskResult implements Writeable, ToXContentObject {
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toString(XContentType.JSON, this);
     }
 
     // Implements equals and hashcode for testing

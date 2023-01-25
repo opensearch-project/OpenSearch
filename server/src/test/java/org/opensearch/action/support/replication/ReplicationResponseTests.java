@@ -66,7 +66,7 @@ public class ReplicationResponseTests extends OpenSearchTestCase {
     public void testShardInfoToXContent() throws IOException {
         {
             ShardInfo shardInfo = new ShardInfo(5, 3);
-            String output = Strings.toString(shardInfo);
+            String output = Strings.toString(XContentType.JSON, shardInfo);
             assertEquals("{\"total\":5,\"successful\":3,\"failed\":0}", output);
         }
         {
@@ -88,7 +88,7 @@ public class ReplicationResponseTests extends OpenSearchTestCase {
                     true
                 )
             );
-            String output = Strings.toString(shardInfo);
+            String output = Strings.toString(XContentType.JSON, shardInfo);
             assertEquals(
                 "{\"total\":6,\"successful\":4,\"failed\":2,\"failures\":[{\"_index\":\"index\",\"_shard\":3,"
                     + "\"_node\":\"_node_id\",\"reason\":{\"type\":\"illegal_argument_exception\",\"reason\":\"Wrong\"},"

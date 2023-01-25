@@ -62,4 +62,6 @@ public interface MediaType {
     default String typeWithSubtype() {
         return type() + "/" + subtype();
     }
+
+    XContent xContent();
 }

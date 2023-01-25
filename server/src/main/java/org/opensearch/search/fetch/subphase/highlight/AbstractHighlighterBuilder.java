@@ -45,6 +45,7 @@ import org.opensearch.common.xcontent.ObjectParser;
 import org.opensearch.common.xcontent.ToXContentObject;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.Rewriteable;
 import org.opensearch.search.fetch.subphase.highlight.HighlightBuilder.BoundaryScannerType;
@@ -772,6 +773,6 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
 
     @Override
     public String toString() {
-        return Strings.toString(this, true, true);
+        return Strings.toString(XContentType.JSON, this, true, true);
     }
 }

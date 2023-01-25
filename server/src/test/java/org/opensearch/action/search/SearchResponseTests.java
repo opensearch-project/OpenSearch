@@ -282,7 +282,7 @@ public class SearchResponseTests extends OpenSearchTestCase {
                 }
             }
             expectedString.append("}");
-            assertEquals(expectedString.toString(), Strings.toString(response));
+            assertEquals(expectedString.toString(), Strings.toString(XContentType.JSON, response));
         }
         {
             SearchResponse response = new SearchResponse(
@@ -329,7 +329,7 @@ public class SearchResponseTests extends OpenSearchTestCase {
                 }
             }
             expectedString.append("}");
-            assertEquals(expectedString.toString(), Strings.toString(response));
+            assertEquals(expectedString.toString(), Strings.toString(XContentType.JSON, response));
         }
     }
 
