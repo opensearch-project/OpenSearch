@@ -32,7 +32,6 @@ import java.util.Map;
  */
 public class DiscoveryExtensionNode extends DiscoveryNode implements Writeable, ToXContentFragment {
 
-    private final PluginInfo pluginInfo;
     private List<ExtensionDependency> dependencies = Collections.emptyList();
 
     public DiscoveryExtensionNode(
@@ -44,18 +43,15 @@ public class DiscoveryExtensionNode extends DiscoveryNode implements Writeable, 
         TransportAddress address,
         Map<String, String> attributes,
         Version version,
-        PluginInfo pluginInfo,
         List<ExtensionDependency> dependencies
     ) {
         super(name, id, ephemeralId, hostName, hostAddress, address, attributes, DiscoveryNodeRole.BUILT_IN_ROLES, version);
-        this.pluginInfo = pluginInfo;
         this.dependencies = dependencies;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        pluginInfo.writeTo(out);
         out.writeVInt(dependencies.size());
         for (ExtensionDependency dependency : dependencies) {
             dependency.writeTo(out);
@@ -70,7 +66,6 @@ public class DiscoveryExtensionNode extends DiscoveryNode implements Writeable, 
      */
     public DiscoveryExtensionNode(final StreamInput in) throws IOException {
         super(in);
-        this.pluginInfo = new PluginInfo(in);
         int size = in.readVInt();
         dependencies = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {

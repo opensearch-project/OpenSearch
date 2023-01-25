@@ -117,10 +117,6 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         "     version: '0.0.7'",
         "     description: Fake description 1",
         "     opensearchVersion: '3.0.0'",
-        "     javaVersion: '14'",
-        "     className: fakeClass1",
-        "     customFolderName: fakeFolder1",
-        "     hasNativeController: false",
         "   - name: secondExtension",
         "     uniqueId: 'uniqueid2'",
         "     hostName: 'myIndependentPluginHost2'",
@@ -129,10 +125,6 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         "     version: '3.14.16'",
         "     description: Fake description 2",
         "     opensearchVersion: '2.0.0'",
-        "     javaVersion: '17'",
-        "     className: fakeClass2",
-        "     customFolderName: fakeFolder2",
-        "     hasNativeController: true",
         "     dependencies:",
         "       - uniqueId: 'uniqueid0'",
         "       - version: '2.0.0'"
@@ -190,16 +182,6 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             new TransportAddress(InetAddress.getByName("127.0.0.0"), 9300),
             new HashMap<String, String>(),
             Version.fromString("3.0.0"),
-            new PluginInfo(
-                "firstExtension",
-                "Fake description 1",
-                "0.0.7",
-                Version.fromString("3.0.0"),
-                "14",
-                "fakeClass1",
-                new ArrayList<String>(),
-                false
-            ),
             Collections.emptyList()
         );
         client = new NoOpNodeClient(this.getTestName());
@@ -236,16 +218,6 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                 new TransportAddress(InetAddress.getByName("127.0.0.0"), 9300),
                 new HashMap<String, String>(),
                 Version.fromString("3.0.0"),
-                new PluginInfo(
-                    "firstExtension",
-                    "Fake description 1",
-                    "0.0.7",
-                    Version.fromString("3.0.0"),
-                    "14",
-                    "fakeClass1",
-                    new ArrayList<String>(),
-                    false
-                ),
                 Collections.emptyList()
             )
         );
@@ -260,16 +232,6 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                 new TransportAddress(TransportAddress.META_ADDRESS, 9301),
                 new HashMap<String, String>(),
                 Version.fromString("2.0.0"),
-                new PluginInfo(
-                    "secondExtension",
-                    "Fake description 2",
-                    "3.14.16",
-                    Version.fromString("2.0.0"),
-                    "17",
-                    "fakeClass2",
-                    new ArrayList<String>(),
-                    true
-                ),
                 List.of(expectedDependency)
             )
         );
@@ -300,16 +262,6 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                 new TransportAddress(InetAddress.getByName("127.0.0.0"), 9300),
                 new HashMap<String, String>(),
                 Version.fromString("3.0.0"),
-                new PluginInfo(
-                    "firstExtension",
-                    "Fake description 1",
-                    "0.0.7",
-                    Version.fromString("3.0.0"),
-                    "14",
-                    "fakeClass1",
-                    new ArrayList<String>(),
-                    false
-                ),
                 Collections.emptyList()
             )
         );
@@ -333,16 +285,6 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             new TransportAddress(InetAddress.getByName("127.0.0.0"), 9300),
             new HashMap<String, String>(),
             Version.fromString("3.0.0"),
-            new PluginInfo(
-                "firstExtension",
-                "Fake description 1",
-                "0.0.7",
-                Version.fromString("3.0.0"),
-                "14",
-                "fakeClass1",
-                new ArrayList<String>(),
-                false
-            ),
             List.of(expectedDependency)
         );
 
@@ -397,7 +339,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                 new MockLogAppender.SeenEventExpectation(
                     "No Extensions File Present",
                     "org.opensearch.extensions.ExtensionsManager",
-                    Level.INFO,
+                    Level.ERROR,
                     "Extensions.yml file is not present.  No extensions will be loaded."
                 )
             );
@@ -587,16 +529,6 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                 new TransportAddress(InetAddress.getByName("127.0.0.0"), 9300),
                 new HashMap<String, String>(),
                 Version.fromString("3.0.0"),
-                new PluginInfo(
-                    "firstExtension",
-                    "Fake description 1",
-                    "0.0.7",
-                    Version.fromString("3.0.0"),
-                    "14",
-                    "fakeClass1",
-                    new ArrayList<String>(),
-                    false
-                ),
                 List.of(expectedDependency)
             )
         );

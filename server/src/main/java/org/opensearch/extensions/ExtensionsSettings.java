@@ -44,10 +44,6 @@ public class ExtensionsSettings {
         private String version;
         private String description;
         private String opensearchVersion;
-        private String jvmVersion;
-        private String className;
-        private String customFolderName;
-        private String hasNativeController;
         private List<ExtensionDependency> dependencies = Collections.emptyList();
 
         public Extension(
@@ -58,11 +54,7 @@ public class ExtensionsSettings {
             String port,
             String version,
             String description,
-            String opensearchVersion,
-            String jvmVersion,
-            String className,
-            String customFolderName,
-            String hasNativeController
+            String opensearchVersion
         ) {
             this.name = name;
             this.uniqueId = uniqueId;
@@ -72,10 +64,6 @@ public class ExtensionsSettings {
             this.version = version;
             this.description = description;
             this.opensearchVersion = opensearchVersion;
-            this.jvmVersion = jvmVersion;
-            this.className = className;
-            this.customFolderName = customFolderName;
-            this.hasNativeController = hasNativeController;
         }
 
         public Extension() {
@@ -87,10 +75,6 @@ public class ExtensionsSettings {
             version = "";
             description = "";
             opensearchVersion = "";
-            jvmVersion = "";
-            className = "";
-            customFolderName = "";
-            hasNativeController = "false";
         }
 
         public String getName() {
@@ -143,20 +127,12 @@ public class ExtensionsSettings {
 
         @Override
         public String toString() {
-            return "Extension [className="
-                + className
-                + ", customFolderName="
-                + customFolderName
-                + ", description="
+            return "Extension [description="
                 + description
-                + ", hasNativeController="
-                + hasNativeController
                 + ", hostAddress="
                 + hostAddress
                 + ", hostName="
                 + hostName
-                + ", jvmVersion="
-                + jvmVersion
                 + ", name="
                 + name
                 + ", opensearchVersion="
@@ -184,38 +160,6 @@ public class ExtensionsSettings {
 
         public void setOpensearchVersion(String opensearchVersion) {
             this.opensearchVersion = opensearchVersion;
-        }
-
-        public String getJavaVersion() {
-            return jvmVersion;
-        }
-
-        public void setJavaVersion(String jvmVersion) {
-            this.jvmVersion = jvmVersion;
-        }
-
-        public String getClassName() {
-            return className;
-        }
-
-        public void setClassName(String className) {
-            this.className = className;
-        }
-
-        public String getCustomFolderName() {
-            return customFolderName;
-        }
-
-        public void setCustomFolderName(String customFolderName) {
-            this.customFolderName = customFolderName;
-        }
-
-        public String hasNativeController() {
-            return hasNativeController;
-        }
-
-        public void setHasNativeController(String hasNativeController) {
-            this.hasNativeController = hasNativeController;
         }
 
         public List<ExtensionDependency> getDependencies() {

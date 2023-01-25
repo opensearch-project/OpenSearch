@@ -289,7 +289,7 @@ public class ExtensionsManager {
      * Load and populate all extensions
      */
     private void discover() throws IOException {
-        logger.info("Extensions Config Directory :" + extensionsPath.toString());
+        logger.info("Loading extensions :" + extensionsPath.toString());
         if (!FileSystemUtils.isAccessibleDirectory(extensionsPath, logger)) {
             return;
         }
@@ -308,7 +308,7 @@ public class ExtensionsManager {
                 logger.info("Loaded all extensions");
             }
         } else {
-            logger.info("Extensions.yml file is not present.  No extensions will be loaded.");
+            logger.error("Extensions.yml file is not present.  No extensions will be loaded.");
         }
     }
 
@@ -331,16 +331,6 @@ public class ExtensionsManager {
                     new TransportAddress(InetAddress.getByName(extension.getHostAddress()), Integer.parseInt(extension.getPort())),
                     new HashMap<String, String>(),
                     Version.fromString(extension.getOpensearchVersion()),
-                    new PluginInfo(
-                        extension.getName(),
-                        extension.getDescription(),
-                        extension.getVersion(),
-                        Version.fromString(extension.getOpensearchVersion()),
-                        extension.getJavaVersion(),
-                        extension.getClassName(),
-                        new ArrayList<String>(),
-                        Boolean.parseBoolean(extension.hasNativeController())
-                    ),
                     extension.getDependencies()
                 );
                 extensionIdMap.put(extension.getUniqueId(), discoveryExtensionNode);
@@ -585,11 +575,7 @@ public class ExtensionsManager {
                         extensionMap.get("port").toString(),
                         extensionMap.get("version").toString(),
                         extensionMap.get("description").toString(),
-                        extensionMap.get("opensearchVersion").toString(),
-                        extensionMap.get("javaVersion").toString(),
-                        extensionMap.get("className").toString(),
-                        extensionMap.get("customFolderName").toString(),
-                        extensionMap.get("hasNativeController").toString()
+                        extensionMap.get("opensearchVersion").toString()
                     )
                 );
             }
