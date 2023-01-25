@@ -5,6 +5,8 @@
 
 package org.opensearch.authn;
 
+import org.apache.shiro.authz.Permission;
+
 /**
  * A class that defines a Permission.
  *
@@ -12,7 +14,7 @@ package org.opensearch.authn;
  *
  * @opensearch.experimental
  */
-public class Permission {
+public class OpenSearchPermission implements Permission {
 
     public final String PERMISSION_DELIMITER = "\\.";
 
@@ -42,5 +44,10 @@ public class Permission {
         if (this.permissionSegments.length == 3) {
             this.resource = permissionSegments[2];
         }
+    }
+
+    @Override
+    public boolean implies(Permission p) {
+        return false;
     }
 }

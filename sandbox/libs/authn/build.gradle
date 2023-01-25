@@ -17,6 +17,7 @@ dependencies {
   testImplementation(project(":test:framework")) {
     exclude group: 'org.opensearch.sandbox', module: 'opensearch-authn'
   }
+  implementation 'org.apache.shiro:shiro-core:1.9.1'
 }
 
 tasks.named('forbiddenApisMain').configure {
