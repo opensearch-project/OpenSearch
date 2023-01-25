@@ -33,7 +33,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class TransportSegmentReplicationAction extends TransportBroadcastByNodeAction<SegmentReplicationRequest, SegmentReplicationResponse, SegmentReplicationState>  {
+public class TransportSegmentReplicationAction extends TransportBroadcastByNodeAction<
+    SegmentReplicationRequest,
+    SegmentReplicationResponse,
+    SegmentReplicationState> {
 
     private final IndicesService indicesService;
 
@@ -82,7 +85,9 @@ public class TransportSegmentReplicationAction extends TransportBroadcastByNodeA
                 shardResponses.put(indexName, new ArrayList<>());
             }
             if (request.activeOnly()) {
-                shardResponses.get(indexName).add(segmentReplicationState);
+                if (segmentReplicationState.getStage() != SegmentReplicationState.Stage.DONE) {
+                    shardResponses.get(indexName).add(segmentReplicationState);
+                }
             } else {
                 shardResponses.get(indexName).add(segmentReplicationState);
             }

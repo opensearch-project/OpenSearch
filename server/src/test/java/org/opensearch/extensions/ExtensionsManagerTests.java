@@ -831,7 +831,6 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             Collections.emptyMap(),
             () -> true,
             new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
-            Collections.emptyMap(),
             Collections.emptyMap()
         );
         expectThrows(NodeNotConnectedException.class, () -> extensionsManager.onIndexModule(indexModule));

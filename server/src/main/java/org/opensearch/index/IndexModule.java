@@ -54,6 +54,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.env.NodeEnvironment;
@@ -126,7 +127,8 @@ public final class IndexModule {
 
     private static final IndexStorePlugin.RecoveryStateFactory DEFAULT_RECOVERY_STATE_FACTORY = RecoveryState::new;
 
-    private static final IndexStorePlugin.SegmentReplicationStateFactory DEFAULT_SEGMENT_REPLICATION_STATE_FACTORY = SegmentReplicationState ::new;
+    private static final IndexStorePlugin.SegmentReplicationStateFactory DEFAULT_SEGMENT_REPLICATION_STATE_FACTORY =
+        SegmentReplicationState::new;
 
     public static final Setting<String> INDEX_STORE_TYPE_SETTING = new Setting<>(
         "index.store.type",
@@ -202,8 +204,6 @@ public final class IndexModule {
     private final BooleanSupplier allowExpensiveQueries;
     private final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories;
 
-    private final Map<String, IndexStorePlugin.SegmentReplicationStateFactory> segmentReplicationStateFactories;
-
     /**
      * Construct the index module for the index with the specified index settings. The index module contains extension points for plugins
      * via {@link org.opensearch.plugins.PluginsService#onIndexModule(IndexModule)}.
@@ -221,8 +221,7 @@ public final class IndexModule {
         final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories,
         final BooleanSupplier allowExpensiveQueries,
         final IndexNameExpressionResolver expressionResolver,
-        final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
-        final Map<String, IndexStorePlugin.SegmentReplicationStateFactory> segmentReplicationStateFactories
+        final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories
     ) {
         this.indexSettings = indexSettings;
         this.analysisRegistry = analysisRegistry;
@@ -234,7 +233,6 @@ public final class IndexModule {
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.expressionResolver = expressionResolver;
         this.recoveryStateFactories = recoveryStateFactories;
-        this.segmentReplicationStateFactories = segmentReplicationStateFactories;
     }
 
     /**
@@ -518,7 +516,7 @@ public final class IndexModule {
         eventListener.beforeIndexCreated(indexSettings.getIndex(), indexSettings.getSettings());
         final IndexStorePlugin.DirectoryFactory directoryFactory = getDirectoryFactory(indexSettings, directoryFactories);
         final IndexStorePlugin.RecoveryStateFactory recoveryStateFactory = getRecoveryStateFactory(indexSettings, recoveryStateFactories);
-        final IndexStorePlugin.SegmentReplicationStateFactory segmentReplicationStateFactory = getSegmentReplicationStateFactory(indexSettings, segmentReplicationStateFactories);
+        final IndexStorePlugin.SegmentReplicationStateFactory segmentReplicationStateFactory = DEFAULT_SEGMENT_REPLICATION_STATE_FACTORY;
         QueryCache queryCache = null;
         IndexAnalyzers indexAnalyzers = null;
         boolean success = false;
@@ -567,7 +565,9 @@ public final class IndexModule {
                 expressionResolver,
                 valuesSourceRegistry,
                 recoveryStateFactory,
-                segmentReplicationStateFactory,
+                FeatureFlags.isEnabled(FeatureFlags.REPLICATION_TYPE) && indexSettings.isSegRepEnabled()
+                    ? segmentReplicationStateFactory
+                    : null,
                 translogFactorySupplier
             );
             success = true;
@@ -626,13 +626,6 @@ public final class IndexModule {
         }
 
         return factory;
-    }
-
-    private static IndexStorePlugin.SegmentReplicationStateFactory getSegmentReplicationStateFactory(
-        final IndexSettings indexSettings,
-        final Map<String, IndexStorePlugin.SegmentReplicationStateFactory> segmentReplicationStateFactories
-    ) {
-        return DEFAULT_SEGMENT_REPLICATION_STATE_FACTORY;
     }
 
     /**

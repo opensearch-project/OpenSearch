@@ -107,8 +107,8 @@ public interface IndexStorePlugin {
     @FunctionalInterface
     interface SegmentReplicationStateFactory {
         /**
-         * Creates a new {@link RecoveryState} per shard. This method is called once per shard on shard creation.
-         * @return a new RecoveryState instance
+         * Creates a new {@link SegmentReplicationState} per shard. This method is called once per shard on shard creation.
+         * @return a new SegmentReplicationState instance
          */
         SegmentReplicationState newSegmentReplicationState(ShardRouting shardRouting, DiscoveryNode node);
     }
@@ -123,6 +123,4 @@ public interface IndexStorePlugin {
     default Map<String, RecoveryStateFactory> getRecoveryStateFactories() {
         return Collections.emptyMap();
     }
-
-    default Map<String, SegmentReplicationStateFactory> getSegmentReplicationStateFactory() { return Collections.emptyMap(); }
 }

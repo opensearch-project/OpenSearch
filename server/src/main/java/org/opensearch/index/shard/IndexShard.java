@@ -1548,11 +1548,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return true;
     }
 
-    public SegmentReplicationState getSegmentReplicationState(){
+    public SegmentReplicationState getSegmentReplicationState() {
         return this.segmentReplicationState;
     }
 
-    public void setSegmentReplicationState(SegmentReplicationState segmentReplicationState){
+    public void setSegmentReplicationState(SegmentReplicationState segmentReplicationState) {
         this.segmentReplicationState = segmentReplicationState;
     }
 

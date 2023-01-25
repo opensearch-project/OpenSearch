@@ -142,6 +142,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final IndexStorePlugin.RemoteDirectoryFactory remoteDirectoryFactory;
     private final IndexStorePlugin.RecoveryStateFactory recoveryStateFactory;
 
+    @Nullable
     private final IndexStorePlugin.SegmentReplicationStateFactory segmentReplicationStateFactory;
     private final CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper;
     private final IndexCache indexCache;
@@ -657,8 +658,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         return recoveryStateFactory.newRecoveryState(shardRouting, targetNode, sourceNode);
     }
 
-    public SegmentReplicationState createSegmentReplicationState(ShardRouting shardRouting, DiscoveryNode node){
-        return segmentReplicationStateFactory.newSegmentReplicationState(shardRouting, node);
+    public SegmentReplicationState createSegmentReplicationState(ShardRouting shardRouting, DiscoveryNode node) {
+        if (segmentReplicationStateFactory != null && indexSettings.isSegRepEnabled() && shardRouting.primary() == false) {
+            return segmentReplicationStateFactory.newSegmentReplicationState(shardRouting, node);
+        } else return null;
     }
 
     @Override

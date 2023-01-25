@@ -264,7 +264,6 @@ public class IndicesService extends AbstractLifecycleComponent
     private final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories;
     private final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories;
 
-    private final Map<String, IndexStorePlugin.SegmentReplicationStateFactory> segmentReplicationStateFactories;
     final AbstractRefCounted indicesRefCount; // pkg-private for testing
     private final CountDownLatch closeLatch = new CountDownLatch(1);
     private volatile boolean idFieldDataEnabled;
@@ -305,7 +304,6 @@ public class IndicesService extends AbstractLifecycleComponent
         Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories,
         ValuesSourceRegistry valuesSourceRegistry,
         Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
-        Map<String, IndexStorePlugin.SegmentReplicationStateFactory> segmentReplicationStateFactories,
         IndexStorePlugin.RemoteDirectoryFactory remoteDirectoryFactory,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
@@ -354,7 +352,6 @@ public class IndicesService extends AbstractLifecycleComponent
 
         this.directoryFactories = directoryFactories;
         this.recoveryStateFactories = recoveryStateFactories;
-        this.segmentReplicationStateFactories = segmentReplicationStateFactories;
         // doClose() is called when shutting down a node, yet there might still be ongoing requests
         // that we need to wait for before closing some resources such as the caches. In order to
         // avoid closing these resources while ongoing requests are still being processed, we use a
@@ -422,7 +419,6 @@ public class IndicesService extends AbstractLifecycleComponent
         Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories,
         ValuesSourceRegistry valuesSourceRegistry,
         Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
-        Map<String, IndexStorePlugin.SegmentReplicationStateFactory> segmentReplicationStateFactories,
         IndexStorePlugin.RemoteDirectoryFactory remoteDirectoryFactory,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
@@ -471,7 +467,6 @@ public class IndicesService extends AbstractLifecycleComponent
 
         this.directoryFactories = directoryFactories;
         this.recoveryStateFactories = recoveryStateFactories;
-        this.segmentReplicationStateFactories = segmentReplicationStateFactories;
         // doClose() is called when shutting down a node, yet there might still be ongoing requests
         // that we need to wait for before closing some resources such as the caches. In order to
         // avoid closing these resources while ongoing requests are still being processed, we use a
@@ -864,8 +859,7 @@ public class IndicesService extends AbstractLifecycleComponent
             directoryFactories,
             () -> allowExpensiveQueries,
             indexNameExpressionResolver,
-            recoveryStateFactories,
-            segmentReplicationStateFactories
+            recoveryStateFactories
         );
         for (IndexingOperationListener operationListener : indexingOperationListeners) {
             indexModule.addIndexOperationListener(operationListener);
@@ -955,8 +949,7 @@ public class IndicesService extends AbstractLifecycleComponent
             directoryFactories,
             () -> allowExpensiveQueries,
             indexNameExpressionResolver,
-            recoveryStateFactories,
-            segmentReplicationStateFactories
+            recoveryStateFactories
         );
         pluginsService.onIndexModule(indexModule);
         return indexModule.newIndexMapperService(xContentRegistry, mapperRegistry, scriptService);
@@ -1025,7 +1018,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 .setSource(mapping.source().string(), XContentType.JSON)
                 .get();
         }, this);
-        if(indexService.getIndexSettings().isSegRepEnabled() && shardRouting.primary() == false){
+        if (indexService.getIndexSettings().isSegRepEnabled() && shardRouting.primary() == false) {
             indexShard.setSegmentReplicationState(indexService.createSegmentReplicationState(shardRouting, targetNode));
         }
         return indexShard;

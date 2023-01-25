@@ -1833,7 +1833,6 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         emptyMap(),
                         null,
                         emptyMap(),
-                        emptyMap(),
                         new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService),
                         repositoriesServiceReference::get
                     );
@@ -1869,7 +1868,6 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         Collections.emptyList(),
                         emptyMap(),
                         null,
-                        emptyMap(),
                         emptyMap(),
                         new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService),
                         repositoriesServiceReference::get

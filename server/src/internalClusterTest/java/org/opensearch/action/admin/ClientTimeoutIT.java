@@ -19,8 +19,10 @@ import org.opensearch.action.admin.indices.recovery.RecoveryAction;
 import org.opensearch.action.admin.indices.recovery.RecoveryResponse;
 import org.opensearch.action.admin.indices.stats.IndicesStatsAction;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
@@ -144,6 +146,46 @@ public class ClientTimeoutIT extends OpenSearchIntegTestCase {
         assertThat(recoveryResponse.getTotalShards(), equalTo(numShards));
         assertThat(recoveryResponse.getSuccessfulShards(), equalTo(numShards / 2));
         assertThat(recoveryResponse.getFailedShards(), equalTo(numShards / 2));
+        assertThat(recoveryResponse.getShardFailures()[0].reason(), containsString("ReceiveTimeoutTransportException"));
+    }
+
+    public void testSegment_ReplicationWithTimeout() {
+        internalCluster().startClusterManagerOnlyNode();
+        String dataNode = internalCluster().startDataOnlyNode();
+        String anotherDataNode = internalCluster().startDataOnlyNode();
+
+        int numShards = 4;
+        assertAcked(
+            prepareCreate(
+                "test-index",
+                0,
+                Settings.builder()
+                    .put("number_of_shards", numShards)
+                    .put("number_of_replicas", 1)
+                    .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            )
+        );
+        ensureGreen();
+        final long numDocs = scaledRandomIntBetween(50, 100);
+        for (int i = 0; i < numDocs; i++) {
+            index("test-index", "doc", Integer.toString(i));
+        }
+        refresh("test-index");
+        ensureSearchable("test-index");
+
+        // Happy case
+        RecoveryResponse recoveryResponse = dataNodeClient().admin().indices().prepareRecoveries().get();
+        assertThat(recoveryResponse.getTotalShards(), equalTo(numShards * 2));
+        assertThat(recoveryResponse.getSuccessfulShards(), equalTo(numShards * 2));
+
+        // simulate timeout on bad node.
+        simulateTimeoutAtTransport(dataNode, anotherDataNode, RecoveryAction.NAME);
+
+        // verify response with bad node.
+        recoveryResponse = dataNodeClient().admin().indices().prepareRecoveries().get();
+        assertThat(recoveryResponse.getTotalShards(), equalTo(numShards * 2));
+        assertThat(recoveryResponse.getSuccessfulShards(), equalTo(numShards));
+        assertThat(recoveryResponse.getFailedShards(), equalTo(numShards));
         assertThat(recoveryResponse.getShardFailures()[0].reason(), containsString("ReceiveTimeoutTransportException"));
     }
 

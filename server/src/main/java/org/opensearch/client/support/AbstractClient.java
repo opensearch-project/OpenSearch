@@ -1785,7 +1785,10 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public void segment_replication(final SegmentReplicationRequest request, final ActionListener<SegmentReplicationResponse> listener){
+        public void segment_replication(
+            final SegmentReplicationRequest request,
+            final ActionListener<SegmentReplicationResponse> listener
+        ) {
             execute(SegmentReplicationAction.INSTANCE, request, listener);
         }
 

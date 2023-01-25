@@ -25,7 +25,7 @@ public class SegmentReplicationResponse extends BroadcastResponse {
 
     public SegmentReplicationResponse(StreamInput in) throws IOException {
         super(in);
-        shardSegmentReplicationStates = in.readMapOfLists(StreamInput::readString, SegmentReplicationState:: new);
+        shardSegmentReplicationStates = in.readMapOfLists(StreamInput::readString, SegmentReplicationState::new);
     }
 
     /**

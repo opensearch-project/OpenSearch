@@ -648,14 +648,6 @@ public class Node implements Closeable {
                 .flatMap(m -> m.entrySet().stream())
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
-            final Map<String, IndexStorePlugin.SegmentReplicationStateFactory> segmentReplicationStateFactories = pluginsService.filterPlugins(
-                    IndexStorePlugin.class
-                )
-                .stream()
-                .map(IndexStorePlugin::getSegmentReplicationStateFactory)
-                .flatMap(m -> m.entrySet().stream())
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-
             final Map<String, Collection<SystemIndexDescriptor>> systemIndexDescriptorMap = Collections.unmodifiableMap(
                 pluginsService.filterPlugins(SystemIndexPlugin.class)
                     .stream()
@@ -697,7 +689,6 @@ public class Node implements Closeable {
                     Map.copyOf(directoryFactories),
                     searchModule.getValuesSourceRegistry(),
                     recoveryStateFactories,
-                    segmentReplicationStateFactories,
                     remoteDirectoryFactory,
                     repositoriesServiceReference::get
                 );
@@ -723,7 +714,6 @@ public class Node implements Closeable {
                     Map.copyOf(directoryFactories),
                     searchModule.getValuesSourceRegistry(),
                     recoveryStateFactories,
-                    segmentReplicationStateFactories,
                     remoteDirectoryFactory,
                     repositoriesServiceReference::get
                 );

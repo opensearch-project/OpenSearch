@@ -363,7 +363,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                                 "[shardId {}] [replication id {}] Replication complete, timing data: {}",
                                 indexShard.shardId().getId(),
                                 state.getReplicationId(),
-                                state.getTimingData()
+                                state.getOverallTimer()
                             )
                         );
                         try {
@@ -385,7 +385,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                                 "[shardId {}] [replication id {}] Replication failed, timing data: {}",
                                 indexShard.shardId().getId(),
                                 state.getReplicationId(),
-                                state.getTimingData()
+                                state.getOverallTimer()
                             )
                         );
                         if (sendShardFailure == true) {
