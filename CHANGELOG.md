@@ -1,4 +1,10 @@
+
 # CHANGELOG
+## [Unreleased]
+### Dependencies
+- Bumps `azure-core-http-netty` from 1.12.7 to 1.12.8
+- Bumps `reactor-netty` from 1.1.1 to 1.1.2
+
 
 All notable changes to this project are documented in this file.
 
@@ -20,4 +26,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - [Identity] Adds Bearer Auth mechanism via internal token handling ([#5611](https://github.com/opensearch-project/OpenSearch/pull/5611))
 - [Identity] Persistence for the Identity module using a System Index ([#5613](https://github.com/opensearch-project/OpenSearch/pull/5613))
 - [Identity] Ensure compatibility with Security Plugin by accepting up to two rest handler wrappers ([#5837](https://github.com/opensearch-project/OpenSearch/pull/5837))
+- [Identity] Move implementations of AuthenticationManager into Identity Module and keep interfaces in authn lib ([#5857](https://github.com/opensearch-project/OpenSearch/pull/5857))
 - [Identity] Define permission structure and basic handling ([#5909](https://github.com/opensearch-project/OpenSearch/pull/5909))
+

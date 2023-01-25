@@ -70,7 +70,6 @@ public class UserPersistenceIT extends HttpSmokeTestCaseWithIdentity {
                     + "\n"
             );
             bw1.close();
-            // TODO see if possible to do this without relative paths
             final String defaultInitDirectory = folder.getRoot().getAbsolutePath();
             System.setProperty("identity.default_init.dir", defaultInitDirectory);
 
@@ -108,7 +107,6 @@ public class UserPersistenceIT extends HttpSmokeTestCaseWithIdentity {
                     + "\n"
             );
             bw1.close();
-            // TODO see if possible to do this without relative paths
             final String defaultInitDirectory = folder.getRoot().getAbsolutePath();
             System.setProperty("identity.default_init.dir", defaultInitDirectory);
 
