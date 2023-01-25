@@ -321,6 +321,9 @@ public class ClusterHealthRequest extends ClusterManagerNodeReadRequest<ClusterH
         } else if (!level.equals(Level.AWARENESS_ATTRIBUTES) && awarenessAttribute != null) {
             return addValidationError("level=awareness_attributes is required with awareness_attribute parameter", null);
         }
+        if (ensureLocalNodeCommissioned && local == false) {
+            return addValidationError("not a local request to ensure local node commissioned", null);
+        }
         return null;
     }
 

@@ -1437,8 +1437,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         peerFinder.onNodeCommissionStatusChange(localNodeCommissioned);
     }
 
-    // package-visible for testing
-    boolean localNodeCommissioned() {
+    public boolean localNodeCommissioned() {
         return localNodeCommissioned;
     }
 

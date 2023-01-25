@@ -46,23 +46,32 @@ public abstract class ClusterManagerNodeReadRequest<Request extends ClusterManag
     ClusterManagerNodeRequest<Request> {
 
     protected boolean local = false;
+    protected boolean ensureLocalNodeCommissioned = false;
 
     protected ClusterManagerNodeReadRequest() {}
 
     protected ClusterManagerNodeReadRequest(StreamInput in) throws IOException {
         super(in);
         local = in.readBoolean();
+        ensureLocalNodeCommissioned = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeBoolean(local);
+        out.writeBoolean(ensureLocalNodeCommissioned);
     }
 
     @SuppressWarnings("unchecked")
     public final Request local(boolean local) {
         this.local = local;
+        return (Request) this;
+    }
+
+    @SuppressWarnings("unchecked")
+    public final Request ensureLocalNodeCommissioned(boolean ensureLocalNodeCommissioned) {
+        this.ensureLocalNodeCommissioned = ensureLocalNodeCommissioned;
         return (Request) this;
     }
 
@@ -73,5 +82,14 @@ public abstract class ClusterManagerNodeReadRequest<Request extends ClusterManag
      */
     public final boolean local() {
         return local;
+    }
+
+    /**
+     * For a given local request, checks if the local node is commissioned or not (default: false).
+     * @return <code>true</code> if local information is to be returned only when local node is also commissioned
+     * <code>false</code> to not check local node if commissioned or not for a local request
+     */
+    public final boolean ensureLocalNodeCommissioned() {
+        return ensureLocalNodeCommissioned;
     }
 }

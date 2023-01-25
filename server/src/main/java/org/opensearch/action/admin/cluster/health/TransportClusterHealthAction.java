@@ -46,6 +46,8 @@ import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.LocalClusterUpdateTask;
 import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.block.ClusterBlockException;
+import org.opensearch.cluster.coordination.Coordinator;
+import org.opensearch.cluster.decommission.NodeDecommissionedException;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.ProcessClusterEventTimeoutException;
@@ -57,6 +59,7 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.CollectionUtils;
+import org.opensearch.discovery.Discovery;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.tasks.Task;
@@ -77,6 +80,7 @@ public class TransportClusterHealthAction extends TransportClusterManagerNodeRea
     private static final Logger logger = LogManager.getLogger(TransportClusterHealthAction.class);
 
     private final AllocationService allocationService;
+    private final Discovery discovery;
 
     @Inject
     public TransportClusterHealthAction(
@@ -85,7 +89,8 @@ public class TransportClusterHealthAction extends TransportClusterManagerNodeRea
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        AllocationService allocationService
+        AllocationService allocationService,
+        Discovery discovery
     ) {
         super(
             ClusterHealthAction.NAME,
@@ -98,6 +103,7 @@ public class TransportClusterHealthAction extends TransportClusterManagerNodeRea
             indexNameExpressionResolver
         );
         this.allocationService = allocationService;
+        this.discovery = discovery;
     }
 
     @Override
@@ -134,7 +140,9 @@ public class TransportClusterHealthAction extends TransportClusterManagerNodeRea
         final ClusterState unusedState,
         final ActionListener<ClusterHealthResponse> listener
     ) {
-
+        if (request.ensureLocalNodeCommissioned() && discovery instanceof Coordinator && ((Coordinator) discovery).localNodeCommissioned() == false) {
+            listener.onFailure(new NodeDecommissionedException("local node is decommissioned"));
+        }
         final int waitCount = getWaitCount(request);
 
         if (request.waitForEvents() != null) {
