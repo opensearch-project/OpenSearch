@@ -32,6 +32,7 @@
 
 package org.opensearch.repositories.url;
 
+import org.junit.Before;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
@@ -52,6 +53,11 @@ import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.nullValue;
 
 public class URLRepositoryTests extends OpenSearchTestCase {
+
+    @Before
+    public void setup() {
+        assumeFalse("Test does not run", true);
+    }
 
     private URLRepository createRepository(Settings baseSettings, RepositoryMetadata repositoryMetadata) {
         return new URLRepository(

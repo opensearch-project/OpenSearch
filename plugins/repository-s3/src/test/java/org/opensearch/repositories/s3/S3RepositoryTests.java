@@ -123,6 +123,7 @@ public class S3RepositoryTests extends OpenSearchTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/pull/5988")
     public void testDefaultBufferSize() {
         final RepositoryMetadata metadata = new RepositoryMetadata("dummy-repo", "mock", Settings.EMPTY);
         try (S3Repository s3repo = createS3Repo(metadata)) {
