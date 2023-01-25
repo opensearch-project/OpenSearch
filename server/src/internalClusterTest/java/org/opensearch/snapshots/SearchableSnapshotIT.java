@@ -6,13 +6,13 @@ package org.opensearch.snapshots;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.hamcrest.MatcherAssert;
-import org.junit.BeforeClass;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequestBuilder;
 import org.opensearch.action.index.IndexRequestBuilder;
+import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
@@ -38,22 +38,20 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.FS;
 import static org.opensearch.common.util.CollectionUtils.iterableAsArrayList;
 
 public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
 
-    @BeforeClass
-    public static void assumeFeatureFlag() {
-        assumeTrue(
-            "Searchable snapshot feature flag is enabled",
-            Boolean.parseBoolean(System.getProperty(FeatureFlags.SEARCHABLE_SNAPSHOT))
-        );
-    }
-
     @Override
     protected boolean addMockInternalEngine() {
         return false;
+    }
+
+    @Override
+    protected Settings featureFlagSettings() {
+        return Settings.builder().put(FeatureFlags.SEARCHABLE_SNAPSHOT, "true").build();
     }
 
     @Override
@@ -214,7 +212,6 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         restoreSnapshotAndEnsureGreen(client, snapshotName, repoName);
 
         assertIndexingBlocked(restoredIndexName);
-        assertIndexSettingChangeBlocked(restoredIndexName);
         assertTrue(client.admin().indices().prepareDelete(restoredIndexName).get().isAcknowledged());
         assertThrows(
             "Expect index to not exist",
@@ -325,10 +322,50 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
-    private void assertIndexSettingChangeBlocked(String index) {
+    public void testUpdateIndexSettings() throws InterruptedException {
+        final String indexName = "test-index";
+        final String restoredIndexName = indexName + "-copy";
+        final String repoName = "test-repo";
+        final String snapshotName = "test-snap";
+        final Client client = client();
+
+        createIndexWithDocsAndEnsureGreen(0, 100, indexName);
+        createRepositoryWithSettings(null, repoName);
+        takeSnapshot(client, snapshotName, repoName, indexName);
+        deleteIndicesAndEnsureGreen(client, indexName);
+
+        internalCluster().ensureAtLeastNumSearchNodes(1);
+        restoreSnapshotAndEnsureGreen(client, snapshotName, repoName);
+
+        testUpdateIndexSettingsOnlyNotAllowedSettings(restoredIndexName);
+        testUpdateIndexSettingsOnlyAllowedSettings(restoredIndexName);
+        testUpdateIndexSettingsAtLeastOneNotAllowedSettings(restoredIndexName);
+    }
+
+    private void testUpdateIndexSettingsOnlyNotAllowedSettings(String index) {
         try {
             final UpdateSettingsRequestBuilder builder = client().admin().indices().prepareUpdateSettings(index);
             builder.setSettings(Map.of("index.refresh_interval", 10));
+            builder.execute().actionGet();
+            fail("Expected operation to throw an exception");
+        } catch (ClusterBlockException e) {
+            MatcherAssert.assertThat(e.blocks(), contains(IndexMetadata.REMOTE_READ_ONLY_ALLOW_DELETE));
+        }
+    }
+
+    private void testUpdateIndexSettingsOnlyAllowedSettings(String index) {
+        final UpdateSettingsRequestBuilder builder = client().admin().indices().prepareUpdateSettings(index);
+        builder.setSettings(Map.of("index.max_result_window", 1000, "index.search.slowlog.threshold.query.warn", "10s"));
+        AcknowledgedResponse settingsResponse = builder.execute().actionGet();
+        assertThat(settingsResponse, notNullValue());
+    }
+
+    private void testUpdateIndexSettingsAtLeastOneNotAllowedSettings(String index) {
+        try {
+            final UpdateSettingsRequestBuilder builder = client().admin().indices().prepareUpdateSettings(index);
+            builder.setSettings(
+                Map.of("index.max_result_window", 5000, "index.search.slowlog.threshold.query.warn", "15s", "index.refresh_interval", 10)
+            );
             builder.execute().actionGet();
             fail("Expected operation to throw an exception");
         } catch (ClusterBlockException e) {
