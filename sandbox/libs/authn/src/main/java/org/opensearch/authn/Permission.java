@@ -14,7 +14,9 @@ package org.opensearch.authn;
  */
 public class Permission extends AbstractPermission {
 
-    private final static String PERMISSION_DELIMITER = "\\.";
+    public final String PERMISSION_DELIMITER = "\\.";
+
+    public final String ACTION_DELIMITER = "/";
 
     public String permissionString;
 
@@ -23,12 +25,16 @@ public class Permission extends AbstractPermission {
     public String resource;
 
     public String action;
+    public String permissionType;
 
     public Permission(String permission) {
 
         this.permissionString = permission;
         this.permissionSegments = permissionString.split(PERMISSION_DELIMITER);
-        this.resource = permissionSegments[0];
+        this.permissionType = permissionSegments[0];
         this.action = permissionSegments[1];
+        if (this.permissionSegments.length == 3) {
+            this.resource = permissionSegments[2];
+        }
     }
 }

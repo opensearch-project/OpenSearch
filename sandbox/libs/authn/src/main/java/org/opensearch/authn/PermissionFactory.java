@@ -19,11 +19,8 @@ public class PermissionFactory {
 
     public final static String[] INVALID_CHARACTERS = new String[] { ":", "" }; // This is a placeholder for what may want to be banned
 
-    // This is a placeholder for the different actions which a permission may grant a Subject to perform
-    public final static String[] QUALIFIED_ACTIONS = new String[] { "CREATE", "READ", "WRITE", "DELETE", "UPDATE" };
-
     // A placeholder for the different resources which a permission may grant a permission based on
-    public final static String[] QUALIFIED_RESOURCES = new String[] { "index", "indices", "cluster", "all" };
+    public final static String[] QUALIFIED_PERMISSION_TYPES = new String[] { "cluster", "indices", "plugin", "extension" };
 
     /**
      * This function creates a standard permission instance. It includes checking that the permission that is being created
@@ -35,7 +32,7 @@ public class PermissionFactory {
         if (permissionIsValidFormat(newPermission)) {
             return newPermission;
         }
-        throw new InvalidPermissionName(permissionString);
+        throw new InvalidPermission(permissionString);
     }
 
     /**
@@ -58,21 +55,26 @@ public class PermissionFactory {
             }
         }
 
-        // Make sure the resource being acted on is one of the qualified resources
-        if (!new ArrayList(List.of(QUALIFIED_RESOURCES)).contains(permission.resource.toUpperCase())) {
+        // Make sure the resource being acted on is one of the qualified permission types
+        if (!new ArrayList(List.of(QUALIFIED_PERMISSION_TYPES)).contains(permission.permissionType.toUpperCase())) {
             return false;
         }
 
-        // Make sure the action being taken is one of the qualified actions
-        if (!new ArrayList(List.of(QUALIFIED_ACTIONS)).contains(permission.action.toUpperCase())) {
-            return false;
+        // Require a valid resource pattern for permissions based on indices, plugins, or extensions
+        if (permission.permissionType.toUpperCase() == "INDICES"
+            || permission.permissionType.toUpperCase() == "PLUGIN"
+            || permission.permissionType.toUpperCase() == "EXTENSION") {
+            if (permission.resource.isEmpty()) {
+                return false;
+            }
         }
+
         return true;
     }
 
-    public static class InvalidPermissionName extends RuntimeException {
-        public InvalidPermissionName(final String name) {
-            super("The name '" + name + "' is not a valid permission name");
+    public static class InvalidPermission extends RuntimeException {
+        public InvalidPermission(final String permission) {
+            super("The permission '" + permission + "' is not valid.");
         }
     }
 }

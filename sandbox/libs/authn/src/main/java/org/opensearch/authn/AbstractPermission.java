@@ -18,12 +18,18 @@ abstract class AbstractPermission {
     // If using a string for construction, a delimiter is required to split the string
     String PERMISSION_DELIMITER;
 
+    // A delimiter is used to split the namespace of a provided action -- this allows grouping of actions
+    String ACTION_DELIMITER;
+
     String permissionString;
 
-    // Every permissionString must be resolvable to its constituent parts: <resource>.<action>
+    // Every permissionString must be resolvable to its constituent parts: <permissionType>.<namespace/of/action>.<resource pattern>
     // These are then stored separately to avoid costly String manipulation.
     String resource;
 
     String action;
+
+    // The different categories of actions that permissions can grant [cluster, indices, plugin, extension]
+    String permissionType;
 
 }
