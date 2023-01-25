@@ -44,6 +44,7 @@ public class PermissionFactory {
      * Check that the permission does not contain any forbidden strings.
      * Assumes that the permission is formatted as resource.action
      */
+
     public void permissionIsValidFormat(Permission permission) {
 
         // Check for illegal characters in any of the permission segments O(3n)
@@ -59,7 +60,7 @@ public class PermissionFactory {
         }
 
         // Make sure the resource being acted on is one of the qualified permission types
-        if (!new ArrayList<String>(List.of(QUALIFIED_PERMISSION_TYPES)).contains(permission.permissionType.toUpperCase())) {
+        if (!new ArrayList<String>(List.of(QUALIFIED_PERMISSION_TYPES)).stream().anyMatch(permission.permissionType::equalsIgnoreCase)) {
             throw new InvalidPermissionException(
                 "The permission type for '"
                     + permission.permissionString
@@ -68,9 +69,9 @@ public class PermissionFactory {
         }
 
         // Require a valid resource pattern for permissions based on indices, plugins, or extensions
-        if (permission.permissionType.toUpperCase() == "INDICES"
-            || permission.permissionType.toUpperCase() == "PLUGIN"
-            || permission.permissionType.toUpperCase() == "EXTENSION") {
+        if (permission.permissionType.equalsIgnoreCase("INDICES")
+            || permission.permissionType.equalsIgnoreCase("PLUGIN")
+            || permission.permissionType.equalsIgnoreCase("EXTENSION")) {
             if (permission.resource.isEmpty()) {
                 throw new InvalidPermissionException(
                     "The provided resource pattern for '"
