@@ -59,7 +59,7 @@ public class PermissionFactory {
         }
 
         // Make sure the resource being acted on is one of the qualified permission types
-        if (!new ArrayList(List.of(QUALIFIED_PERMISSION_TYPES)).contains(permission.permissionType.toUpperCase())) {
+        if (!new ArrayList<String>(List.of(QUALIFIED_PERMISSION_TYPES)).contains(permission.permissionType.toUpperCase())) {
             throw new InvalidPermissionException(
                 "The permission type for '"
                     + permission.permissionString
