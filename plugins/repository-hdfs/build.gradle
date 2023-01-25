@@ -430,10 +430,6 @@ thirdPartyAudit {
     'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
     'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
     'org.apache.hadoop.shaded.org.xbill.DNS.spi.DNSJavaNameServiceDescriptor',
-    'org.apache.hadoop.shaded.org.xerial.snappy.pure.PureJavaSnappy',
-    'org.apache.hadoop.shaded.org.xerial.snappy.pure.SnappyRawCompressor',
-    'org.apache.hadoop.shaded.org.xerial.snappy.pure.SnappyRawDecompressor',
-    'org.apache.hadoop.shaded.org.xerial.snappy.pure.UnsafeUtil',
 
     'org.apache.avro.reflect.FieldAccessUnsafe',
     'org.apache.avro.reflect.FieldAccessUnsafe$UnsafeBooleanField',
