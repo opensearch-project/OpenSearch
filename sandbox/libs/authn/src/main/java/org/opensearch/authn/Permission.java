@@ -30,9 +30,15 @@ public class Permission {
     public Permission(String permission) {
 
         this.permissionString = permission;
-        this.permissionSegments = permissionString.split(PERMISSION_DELIMITER);
-        this.permissionType = permissionSegments[0];
-        this.action = permissionSegments[1];
+        try {
+            this.permissionSegments = permissionString.split(PERMISSION_DELIMITER);
+            this.permissionType = permissionSegments[0];
+            this.action = permissionSegments[1];
+        } catch (IndexOutOfBoundsException ex) {
+            throw new PermissionFactory.InvalidPermissionException(
+                "All permissions must contain a permission type and" + " action delimited by a \".\"."
+            );
+        }
         if (this.permissionSegments.length == 3) {
             this.resource = permissionSegments[2];
         }

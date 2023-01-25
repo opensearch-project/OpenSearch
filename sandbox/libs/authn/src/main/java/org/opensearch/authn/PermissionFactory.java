@@ -47,15 +47,24 @@ public class PermissionFactory {
     public void permissionIsValidFormat(Permission permission) {
 
         // Check for illegal characters in any of the permission segments O(3n)
-        for (int i = 0; i < INVALID_CHARACTERS.length; i++) {
-            if (permission.permissionType.contains(INVALID_CHARACTERS[i]) || permission.action.contains(INVALID_CHARACTERS[i])) {
-                throw new InvalidPermissionString(permission.permissionString);
+        for (String character : INVALID_CHARACTERS) {
+            if (permission.permissionType.contains(character) || permission.action.contains(character)) {
+                throw new InvalidPermissionException(
+                    "The provided permission string for '"
+                        + permission.permissionString
+                        + "' is not valid. The permission type and action  may not include "
+                        + "the character ':' or be empty."
+                );
             }
         }
 
         // Make sure the resource being acted on is one of the qualified permission types
         if (!new ArrayList(List.of(QUALIFIED_PERMISSION_TYPES)).contains(permission.permissionType.toUpperCase())) {
-            throw new InvalidPermissionType(permission.permissionString);
+            throw new InvalidPermissionException(
+                "The permission type for '"
+                    + permission.permissionString
+                    + "' is not valid. Valid permission types are: CLUSTER, INDICES, PLUGIN, and EXTENSION."
+            );
         }
 
         // Require a valid resource pattern for permissions based on indices, plugins, or extensions
@@ -63,41 +72,21 @@ public class PermissionFactory {
             || permission.permissionType.toUpperCase() == "PLUGIN"
             || permission.permissionType.toUpperCase() == "EXTENSION") {
             if (permission.resource.isEmpty()) {
-                throw new InvalidPermissionResource(permission.permissionString);
+                throw new InvalidPermissionException(
+                    "The provided resource pattern for '"
+                        + permission.permissionString
+                        + "' is not valid. A resource pattern is required for all "
+                        + "permissions of types INDICES, PLUGIN, or EXTENSION."
+                );
 
             }
         }
     }
 
-    public static class InvalidPermissionString extends RuntimeException {
-        public InvalidPermissionString(final String permission) {
-            super(
-                "The provided permission string for '"
-                    + permission
-                    + "' is not valid. The permission type and action  may not include "
-                    + "the character ':' or be empty."
-            );
-        }
-    }
+    public static class InvalidPermissionException extends RuntimeException {
 
-    public static class InvalidPermissionResource extends RuntimeException {
-        public InvalidPermissionResource(final String permission) {
-            super(
-                "The provided resource pattern for '"
-                    + permission
-                    + "' is not valid. A resource pattern is required for all "
-                    + "permissions of types INDICES, PLUGIN, or EXTENSION."
-            );
-        }
-    }
-
-    public static class InvalidPermissionType extends RuntimeException {
-        public InvalidPermissionType(final String permission) {
-            super(
-                "The permission type for '"
-                    + permission
-                    + "' is not valid. Valid permission types are: CLUSTER, INDICES, PLUGIN, and EXTENSION."
-            );
+        public InvalidPermissionException(String message) {
+            super(message);
         }
     }
 }
