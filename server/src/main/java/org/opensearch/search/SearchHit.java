@@ -56,6 +56,7 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentParser.Token;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.mapper.IgnoredFieldMapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.SourceFieldMapper;
@@ -1107,6 +1108,6 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
 
     @Override
     public String toString() {
-        return Strings.toString(this, true, true);
+        return Strings.toString(XContentType.JSON, this, true, true);
     }
 }

@@ -51,6 +51,7 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AnalyzerScope;
@@ -186,7 +187,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         assertEquals(
             "{\"field\":{\"type\":\"completion\",\"analyzer\":\"simple\",\"search_analyzer\":\"standard\","
                 + "\"preserve_separators\":false,\"preserve_position_increments\":true,\"max_input_length\":50}}",
-            Strings.toString(fieldMapper)
+            Strings.toString(XContentType.JSON, fieldMapper)
         );
     }
 

@@ -32,6 +32,8 @@
 
 package org.opensearch.common.xcontent;
 
+import java.io.IOException;
+
 /**
  * Abstracts a <a href="http://en.wikipedia.org/wiki/Internet_media_type">Media Type</a> and a format parameter.
  * Media types are used as values on Content-Type and Accept headers
@@ -62,4 +64,6 @@ public interface MediaType {
     default String typeWithSubtype() {
         return type() + "/" + subtype();
     }
+
+    XContentBuilder contentBuilder() throws IOException;
 }

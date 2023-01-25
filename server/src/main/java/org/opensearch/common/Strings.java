@@ -37,9 +37,9 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.util.CollectionUtils;
+import org.opensearch.common.xcontent.MediaType;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.json.JsonXContent;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -712,8 +712,8 @@ public class Strings {
      * Wraps the output into an anonymous object if needed. The content is not pretty-printed
      * nor human readable.
      */
-    public static String toString(ToXContent toXContent) {
-        return toString(toXContent, false, false);
+    public static String toString(MediaType mediaType, ToXContent toXContent) {
+        return toString(mediaType, toXContent, false, false);
     }
 
     /**
@@ -722,8 +722,8 @@ public class Strings {
      * Allows to configure the params.
      * The content is not pretty-printed nor human readable.
      */
-    public static String toString(ToXContent toXContent, ToXContent.Params params) {
-        return toString(toXContent, params, false, false);
+    public static String toString(MediaType mediaType, ToXContent toXContent, ToXContent.Params params) {
+        return toString(mediaType, toXContent, params, false, false);
     }
 
     /**
@@ -740,8 +740,8 @@ public class Strings {
      * json needs to be pretty printed and human readable.
      *
      */
-    public static String toString(ToXContent toXContent, boolean pretty, boolean human) {
-        return toString(toXContent, ToXContent.EMPTY_PARAMS, pretty, human);
+    public static String toString(MediaType mediaType, ToXContent toXContent, boolean pretty, boolean human) {
+        return toString(mediaType, toXContent, ToXContent.EMPTY_PARAMS, pretty, human);
     }
 
     /**
@@ -750,9 +750,9 @@ public class Strings {
      * Allows to configure the params.
      * Allows to control whether the outputted json needs to be pretty printed and human readable.
      */
-    private static String toString(ToXContent toXContent, ToXContent.Params params, boolean pretty, boolean human) {
+    private static String toString(MediaType mediaType, ToXContent toXContent, ToXContent.Params params, boolean pretty, boolean human) {
         try {
-            XContentBuilder builder = createBuilder(pretty, human);
+            XContentBuilder builder = createBuilder(mediaType, pretty, human);
             if (toXContent.isFragment()) {
                 builder.startObject();
             }
@@ -763,7 +763,7 @@ public class Strings {
             return toString(builder);
         } catch (IOException e) {
             try {
-                XContentBuilder builder = createBuilder(pretty, human);
+                XContentBuilder builder = createBuilder(mediaType, pretty, human);
                 builder.startObject();
                 builder.field("error", "error building toString out of XContent: " + e.getMessage());
                 builder.field("stack_trace", ExceptionsHelper.stackTrace(e));
@@ -775,8 +775,8 @@ public class Strings {
         }
     }
 
-    private static XContentBuilder createBuilder(boolean pretty, boolean human) throws IOException {
-        XContentBuilder builder = JsonXContent.contentBuilder();
+    private static XContentBuilder createBuilder(MediaType mediaType, boolean pretty, boolean human) throws IOException {
+        XContentBuilder builder = mediaType.contentBuilder();
         if (pretty) {
             builder.prettyPrint();
         }
