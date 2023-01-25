@@ -211,8 +211,6 @@ public enum XContentType implements MediaType {
         return mediaTypeWithoutParameters();
     }
 
-    public abstract XContent xContent();
-
     public abstract String mediaTypeWithoutParameters();
 
     @Override

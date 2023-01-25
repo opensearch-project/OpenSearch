@@ -65,5 +65,7 @@ public interface MediaType {
         return type() + "/" + subtype();
     }
 
+    XContent xContent();
+
     XContentBuilder contentBuilder() throws IOException;
 }

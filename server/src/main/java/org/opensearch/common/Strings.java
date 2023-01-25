@@ -776,7 +776,7 @@ public class Strings {
     }
 
     private static XContentBuilder createBuilder(MediaType mediaType, boolean pretty, boolean human) throws IOException {
-        XContentBuilder builder = mediaType.contentBuilder();
+        XContentBuilder builder = XContentBuilder.builder(mediaType.xContent());
         if (pretty) {
             builder.prettyPrint();
         }
