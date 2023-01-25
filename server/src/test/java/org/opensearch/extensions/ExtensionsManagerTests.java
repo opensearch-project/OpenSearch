@@ -74,7 +74,6 @@ import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
-import org.opensearch.plugins.PluginInfo;
 import org.opensearch.rest.RestController;
 import org.opensearch.test.FeatureFlagSetter;
 import org.opensearch.test.IndexSettingsModule;
@@ -115,7 +114,6 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         "     hostAddress: '127.0.0.0'",
         "     port: '9300'",
         "     version: '0.0.7'",
-        "     description: Fake description 1",
         "     opensearchVersion: '3.0.0'",
         "   - name: secondExtension",
         "     uniqueId: 'uniqueid2'",
@@ -123,7 +121,6 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         "     hostAddress: '127.0.0.1'",
         "     port: '9301'",
         "     version: '3.14.16'",
-        "     description: Fake description 2",
         "     opensearchVersion: '2.0.0'",
         "     dependencies:",
         "       - uniqueId: 'uniqueid0'",

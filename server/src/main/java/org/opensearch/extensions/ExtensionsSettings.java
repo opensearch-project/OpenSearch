@@ -42,7 +42,6 @@ public class ExtensionsSettings {
         private String hostAddress;
         private String port;
         private String version;
-        private String description;
         private String opensearchVersion;
         private List<ExtensionDependency> dependencies = Collections.emptyList();
 
@@ -53,7 +52,6 @@ public class ExtensionsSettings {
             String hostAddress,
             String port,
             String version,
-            String description,
             String opensearchVersion
         ) {
             this.name = name;
@@ -62,7 +60,6 @@ public class ExtensionsSettings {
             this.hostAddress = hostAddress;
             this.port = port;
             this.version = version;
-            this.description = description;
             this.opensearchVersion = opensearchVersion;
         }
 
@@ -73,7 +70,6 @@ public class ExtensionsSettings {
             hostAddress = "";
             port = "";
             version = "";
-            description = "";
             opensearchVersion = "";
         }
 
@@ -127,9 +123,7 @@ public class ExtensionsSettings {
 
         @Override
         public String toString() {
-            return "Extension [description="
-                + description
-                + ", hostAddress="
+            return "Extension [hostAddress="
                 + hostAddress
                 + ", hostName="
                 + hostName
@@ -144,14 +138,6 @@ public class ExtensionsSettings {
                 + ", version="
                 + version
                 + "]";
-        }
-
-        public String getDescription() {
-            return description;
-        }
-
-        public void setDescription(String description) {
-            this.description = description;
         }
 
         public String getOpensearchVersion() {

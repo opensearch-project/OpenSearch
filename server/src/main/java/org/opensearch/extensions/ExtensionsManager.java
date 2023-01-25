@@ -57,7 +57,6 @@ import org.opensearch.index.IndicesModuleRequest;
 import org.opensearch.index.IndicesModuleResponse;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
-import org.opensearch.plugins.PluginInfo;
 import org.opensearch.rest.RestController;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportException;
@@ -574,7 +573,6 @@ public class ExtensionsManager {
                         extensionMap.get("hostAddress").toString(),
                         extensionMap.get("port").toString(),
                         extensionMap.get("version").toString(),
-                        extensionMap.get("description").toString(),
                         extensionMap.get("opensearchVersion").toString()
                     )
                 );

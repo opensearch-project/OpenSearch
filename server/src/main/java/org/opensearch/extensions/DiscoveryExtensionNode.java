@@ -17,7 +17,6 @@ import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.xcontent.ToXContentFragment;
 import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.plugins.PluginInfo;
 
 import java.io.IOException;
 import java.util.ArrayList;
