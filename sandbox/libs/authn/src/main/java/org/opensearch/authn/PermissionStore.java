@@ -13,7 +13,7 @@ import java.util.List;
 
 /**
  * This interface represents an abstract permission store. A permission store should be a data structure which
- * supports add, get, and delete operations and can store "String : ArrayList<Permission>" pairs or simulate this storage.
+ * supports add, get, and delete operations and can store "String : ArrayListofPermission" pairs or simulate this storage.
  * The underlying data structure can be options other than a HashMap as long as the implementation
  * has a way to translate between the required functions and the data structure below.
  *

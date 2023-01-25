@@ -42,7 +42,7 @@ public class PermissionFactory {
 
     /**
      * Check that the permission does not contain any forbidden strings.
-     * Assumes that the permission is formatted as <resource>.<action>
+     * Assumes that the permission is formatted as resource.action
      */
     public void permissionIsValidFormat(Permission permission) {
 

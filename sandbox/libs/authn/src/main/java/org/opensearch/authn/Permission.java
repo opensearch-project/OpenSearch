@@ -8,7 +8,7 @@ package org.opensearch.authn;
 /**
  * A class that defines a Permission.
  *
- * Example "opensearch.indexing.index.create"
+ * Example "cluster.write"
  *
  * @opensearch.experimental
  */
