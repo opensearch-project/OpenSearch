@@ -39,8 +39,6 @@ public interface PermissionStore {
 
     /**
      * This function in-place deletes all targeted permissions associated with a given principal.
-     * This function should support wildcard use.
      */
     public void delete(Principal principal, List<Permission> permissions);
-
 }

@@ -38,12 +38,4 @@ public class PermissionStorage implements PermissionStore {
             permissionStore.remove(principal, permission);
         }
     }
-
-    // Allow for using a String regex expression to delete all permissions granted to a principal from the map.
-    public void delete(Principal principal, String regex) {
-
-        if (regex.equals("*")) {
-            permissionStore.remove(principal);
-        }
-    }
 }

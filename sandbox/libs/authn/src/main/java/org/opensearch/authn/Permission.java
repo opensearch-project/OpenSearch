@@ -6,13 +6,13 @@
 package org.opensearch.authn;
 
 /**
- * An extension of the abstract Permission class which uses String-object Permissions.
+ * A class that defines a Permission.
  *
  * Example "opensearch.indexing.index.create"
  *
  * @opensearch.experimental
  */
-public class Permission extends AbstractPermission {
+public class Permission {
 
     public final String PERMISSION_DELIMITER = "\\.";
 
