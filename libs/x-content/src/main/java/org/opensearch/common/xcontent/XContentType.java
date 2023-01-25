@@ -37,7 +37,6 @@ import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.common.xcontent.smile.SmileXContent;
 import org.opensearch.common.xcontent.yaml.YamlXContent;
 
-import java.io.IOException;
 import java.util.Locale;
 import java.util.Map;
 
@@ -69,11 +68,6 @@ public enum XContentType implements MediaType {
         public XContent xContent() {
             return JsonXContent.jsonXContent;
         }
-
-        @Override
-        public XContentBuilder contentBuilder() throws IOException {
-            return JsonXContent.contentBuilder();
-        }
     },
     /**
      * The jackson based smile binary format. Fast and compact binary format.
@@ -92,11 +86,6 @@ public enum XContentType implements MediaType {
         @Override
         public XContent xContent() {
             return SmileXContent.smileXContent;
-        }
-
-        @Override
-        public XContentBuilder contentBuilder() throws IOException {
-            return SmileXContent.contentBuilder();
         }
     },
     /**
@@ -117,11 +106,6 @@ public enum XContentType implements MediaType {
         public XContent xContent() {
             return YamlXContent.yamlXContent;
         }
-
-        @Override
-        public XContentBuilder contentBuilder() throws IOException {
-            return YamlXContent.contentBuilder();
-        }
     },
     /**
      * A CBOR based content type.
@@ -140,11 +124,6 @@ public enum XContentType implements MediaType {
         @Override
         public XContent xContent() {
             return CborXContent.cborXContent;
-        }
-
-        @Override
-        public XContentBuilder contentBuilder() throws IOException {
-            return CborXContent.contentBuilder();
         }
     };
 
