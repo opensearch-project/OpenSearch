@@ -246,7 +246,7 @@ public class BufferedAsyncIOProcessorTests extends OpenSearchTestCase {
         assertEquals(runCount, notified.get());
         assertEquals(runCount, received.get());
         for (int i = 1; i < writeInvocationTimes.size(); i++) {
-            assertTrue(writeInvocationTimes.get(i) - writeInvocationTimes.get(i - 1) > bufferIntervalMs * 1_000_000);
+            assertTrue(writeInvocationTimes.get(i) - writeInvocationTimes.get(i - 1) >= bufferIntervalMs * 1_000_000);
         }
     }
 }

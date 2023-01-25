@@ -9,12 +9,10 @@
 package org.opensearch.common.util.concurrent;
 
 import org.apache.logging.log4j.Logger;
-import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
 
@@ -55,9 +53,9 @@ public abstract class BufferedAsyncIOProcessor<Item> extends AsyncIOProcessor<It
     }
 
     private void scheduleProcess() {
-        if (getPromiseSemaphore().tryAcquire()) {
+        if (getQueue().isEmpty() == false && getPromiseSemaphore().tryAcquire()) {
             try {
-                threadpool.schedule(() -> process(new ArrayList<>()), getBufferInterval(), getBufferRefreshThreadPoolName());
+                threadpool.schedule(this::process, getBufferInterval(), getBufferRefreshThreadPoolName());
             } catch (Exception e) {
                 getLogger().error("failed to schedule process");
                 getPromiseSemaphore().release();
@@ -66,9 +64,8 @@ public abstract class BufferedAsyncIOProcessor<Item> extends AsyncIOProcessor<It
         }
     }
 
-    private void process(List<Tuple<Item, Consumer<Exception>>> candidates) {
-        // since we made the promise to process we gotta do it here at least once
-        drainAndProcessAndRelease(candidates);
+    private void process() {
+        drainAndProcessAndRelease(new ArrayList<>());
         scheduleProcess();
     }
 
