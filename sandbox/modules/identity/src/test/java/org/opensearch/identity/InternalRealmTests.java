@@ -26,7 +26,7 @@ public class InternalRealmTests extends OpenSearchTestCase {
 
     private class TestInternalUsersModel extends InternalUsersModel {
 
-        private User user1 = new User("admin", "$2a$12$VcCDgh2NDk07JGN0rjGbM.Ad41qVR/YFJcgHp0UGns5JDymv..TOG", null);
+        private User user1 = new User("admin", "$2a$12$VcCDgh2NDk07JGN0rjGbM.Ad41qVR/YFJcgHp0UGns5JDymv..TOG", null, null);
         private final Map<String, User> userModel = Map.of("admin", user1);
 
         @Override

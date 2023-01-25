@@ -3,9 +3,15 @@
 
 # Define your internal users here
 new-user:
-  hash: "$2y$12$88IFVl6IfIwCFh5aQYfOmuXVL9j2hz/GusQb35o.4sdTDAEMTOD.K"
+  hash: "$2y$12$Iq/yHpipN9z1AvN3AjG/ceRu9oVlJPubAan6QxngnFQ3bx1UM8xqK"
   attributes:
     attribute1: "value1"
+  permissions:
+    - indices:admin:create
+    - indices:data:write:index
+    - indices:data:/read/search|my-index*,other-index*
+    - indices:data:/read/search|third-index*
+    - indices:data:/read/search|my*
 
 ## Demo users
 

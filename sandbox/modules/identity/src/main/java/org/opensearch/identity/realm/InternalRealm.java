@@ -18,8 +18,14 @@ import org.apache.shiro.authc.IncorrectCredentialsException;
 import org.apache.shiro.authc.SimpleAuthenticationInfo;
 import org.apache.shiro.authc.UnknownAccountException;
 import org.apache.shiro.authc.UsernamePasswordToken;
+import org.apache.shiro.authz.AuthorizationInfo;
+import org.apache.shiro.authz.Permission;
+import org.apache.shiro.authz.SimpleAuthorizationInfo;
+import org.apache.shiro.authz.permission.WildcardPermission;
 import org.apache.shiro.realm.AuthenticatingRealm;
 
+import org.apache.shiro.realm.AuthorizingRealm;
+import org.apache.shiro.subject.PrincipalCollection;
 import org.opensearch.authn.StringPrincipal;
 import org.opensearch.identity.User;
 import org.opensearch.identity.configuration.model.InternalUsersModel;
@@ -27,16 +33,15 @@ import org.opensearch.identity.jwt.BadCredentialsException;
 import org.opensearch.identity.jwt.JwtVerifier;
 
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Internal Realm is a custom realm using the internal OpenSearch IdP
  *
  * @opensearch.experimental
  */
-public class InternalRealm extends AuthenticatingRealm {
-    public static final String INVALID_SUBJECT_MESSAGE = "Subject can't be null";
-
-    public static final String INVALID_ARGUMENTS_MESSAGE = "primaryPrincipal or hash can't be null or empty";
+public class InternalRealm extends AuthorizingRealm {
 
     public static final String INCORRECT_CREDENTIALS_MESSAGE = "Incorrect credentials";
 
@@ -139,16 +144,25 @@ public class InternalRealm extends AuthenticatingRealm {
         throw new CredentialsException();
     }
 
-    public void setRealmName(String realmName) {
-        this.realmName = realmName;
+    @Override
+    protected AuthorizationInfo doGetAuthorizationInfo(PrincipalCollection principals) {
+        System.out.println("Principals: " + principals);
+        SimpleAuthorizationInfo authorizations = new SimpleAuthorizationInfo();
+        if (principals == null || principals.isEmpty()) {
+            return authorizations;
+        }
+        String username = (String) principals.getPrimaryPrincipal();
+        System.out.println("Primary Principal: " + username);
+        User userRecord = getInternalUser(username);
+        System.out.println("Found user: " + userRecord);
+        Set<String> stringPermissions = userRecord.getPermissions().stream().filter(p -> !p.contains("*")).collect(Collectors.toSet());
+        authorizations.setStringPermissions(stringPermissions);
+        Set<Permission> wildcardPermissions = userRecord.getPermissions().stream().filter(p -> p.contains("*")).map(p -> new WildcardPermission(p)).collect(Collectors.toSet());
+        authorizations.setObjectPermissions(wildcardPermissions);
+        return authorizations;
     }
 
-    /**
-     * Generates an Exception message
-     * @param primaryPrincipal to be added to this message
-     * @return the exception message string
-     */
-    public String userDoesNotExistMessage(String primaryPrincipal) {
-        return "Subject with primaryPrincipal=" + primaryPrincipal + " doesn't exist";
+    public void setRealmName(String realmName) {
+        this.realmName = realmName;
     }
 }

@@ -12,6 +12,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import org.opensearch.authn.StringPrincipal;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -34,12 +35,13 @@ public class User {
      * @param attributes A map of custom attributes
      * @throws IllegalArgumentException if username or bcryptHash is null or empty
      */
-    public User(final String username, final String bcryptHash, Map<String, String> attributes) {
+    public User(final String username, final String bcryptHash, Map<String, String> attributes, List<String> permissions) {
         Objects.requireNonNull(username);
         Objects.requireNonNull(bcryptHash);
         this.username = new StringPrincipal(username);
         this.bcryptHash = bcryptHash;
         this.attributes = attributes;
+        this.permissions = permissions;
     }
 
     @JsonProperty(value = "username")
@@ -50,6 +52,9 @@ public class User {
 
     @JsonProperty(value = "attributes")
     private Map<String, String> attributes = Collections.emptyMap();
+
+    @JsonProperty(value = "permissions")
+    private List<String> permissions = Collections.emptyList();
 
     @JsonProperty(value = "username")
     public StringPrincipal getUsername() {
@@ -69,6 +74,16 @@ public class User {
     @JsonProperty(value = "hash")
     public void setBcryptHash(String bcryptHash) {
         this.bcryptHash = bcryptHash;
+    }
+
+    @JsonProperty(value = "permissions")
+    public List<String> getPermissions() {
+        return permissions;
+    }
+
+    @JsonProperty(value = "hash")
+    public void setPermissions(List<String> permissions) {
+        this.permissions = permissions;
     }
 
     @JsonProperty(value = "attributes")

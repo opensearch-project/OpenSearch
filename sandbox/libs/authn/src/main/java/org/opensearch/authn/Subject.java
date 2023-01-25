@@ -29,4 +29,6 @@ public interface Subject {
      * throws SubjectDisabled
      */
     void login(final AuthenticationToken token);
+
+    boolean isPermitted(String permission);
 }

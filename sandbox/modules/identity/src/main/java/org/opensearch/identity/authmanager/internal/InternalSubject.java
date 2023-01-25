@@ -71,4 +71,12 @@ public class InternalSubject implements Subject {
         // Login via shiro realm.
         shiroSubject.login(authToken);
     }
+
+    @Override
+    public boolean isPermitted(String permission) {
+        if (shiroSubject == null || !shiroSubject.isAuthenticated()) {
+            return false;
+        }
+        return shiroSubject.isPermitted(permission);
+    }
 }
