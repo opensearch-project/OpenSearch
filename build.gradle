@@ -272,7 +272,7 @@ allprojects {
 
     // See please https://bugs.openjdk.java.net/browse/JDK-8209058
     if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_11) {
-      //compile.options.compilerArgs << '-Werror'
+      compile.options.compilerArgs << '-Werror'
     }
     compile.options.compilerArgs << '-Xlint:auxiliaryclass'
     compile.options.compilerArgs << '-Xlint:cast'
