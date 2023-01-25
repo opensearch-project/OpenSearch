@@ -54,7 +54,7 @@ public class CreateUserResponse extends ActionResponse implements StatusToXConte
     }
 
     /**
-     * @return Whether the attempt to delete PIT was successful.
+     * @return Whether the attempt to Create a user was successful
      */
     @Override
     public RestStatus status() {
@@ -73,7 +73,7 @@ public class CreateUserResponse extends ActionResponse implements StatusToXConte
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
-        builder.startArray("pits");
+        builder.startArray("users");
         for (CreateUserResponseInfo response : createUserResults) {
             response.toXContent(builder, params);
         }

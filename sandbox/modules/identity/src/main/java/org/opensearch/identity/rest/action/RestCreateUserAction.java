@@ -9,8 +9,10 @@
 package org.opensearch.identity.rest.action;
 
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.identity.ConfigConstants;
 import org.opensearch.identity.rest.request.CreateUserRequest;
 import org.opensearch.rest.BaseRestHandler;
+import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestStatusToXContentListener;
 
@@ -18,25 +20,49 @@ import java.io.IOException;
 import java.util.List;
 
 import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.opensearch.identity.utils.RoutesHelper.addRoutesPrefix;
 import static org.opensearch.rest.RestRequest.Method.PUT;
 
 /**
- * Rest action for creating user
+ * Rest action for creating a user
  */
 public class RestCreateUserAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "create_user_action";
+        return ConfigConstants.IDENTITY_CREATE_USER_ACTION;
     }
 
+    /**
+     * Rest request handler for creating a new user
+     * @param request the request to execute
+     * @param client  client for executing actions on the local node
+     * @return the action to be executed See {@link #handleRequest(RestRequest, RestChannel, NodeClient) for more}
+     * @throws IOException
+     */
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         String username = request.param("name");
-        String password = request.param("password");
-        CreateUserRequest createUserRequest = new CreateUserRequest(username, password);
+        // TODO: add username validator here
+
+        // Parsing request body using DefaultObjectMapper
+        // JsonNode contentAsNode = DefaultObjectMapper.readTree(request.content().utf8ToString());
+        // String password = contentAsNode.get("password").asText();
+        //
+        // CreateUserRequest createUserRequest = new CreateUserRequest(username, password);
+
+        // // Parsing request body using XContentParser
+        CreateUserRequest createUserRequest = new CreateUserRequest();
+        createUserRequest.setUsername(username);
+        request.withContentOrSourceParamParserOrNull((xContentParser -> {
+            if (xContentParser != null) {
+                try {
+                    createUserRequest.fromXContent(xContentParser);
+                } catch (IOException e) {
+                    throw new IllegalArgumentException("Failed to parse create user request body", e);
+                }
+            }
+        }));
 
         // TODO: check if this bypass to directly doExecute is okay.
         // TODO: Ideally, this should be registered as `createUser` request in Client.java and AbstractClient.java
@@ -44,9 +70,14 @@ public class RestCreateUserAction extends BaseRestHandler {
         return channel -> client.doExecute(CreateUserAction.INSTANCE, createUserRequest, new RestStatusToXContentListener<>(channel));
     }
 
+    /**
+     * Routes to be registered for this action
+     * @return the unmodifiable list of routes to be registered
+     */
     @Override
     public List<Route> routes() {
-        return addRoutesPrefix(unmodifiableList(asList(new Route(PUT, "/internalusers/{name}"))));
+        // e.g. return value "_identity/api/internalusers/test"
+        return addRoutesPrefix(asList(new Route(PUT, "/internalusers/{name}")));
     }
 
 }

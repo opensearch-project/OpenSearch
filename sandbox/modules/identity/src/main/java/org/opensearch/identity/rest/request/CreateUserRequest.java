@@ -46,6 +46,10 @@ public class CreateUserRequest extends ActionRequest implements ToXContentObject
         return username;
     }
 
+    public void setUsername(String username) {
+        this.username = username;
+    }
+
     public String getPassword() {
         return password;
     }
@@ -71,10 +75,8 @@ public class CreateUserRequest extends ActionRequest implements ToXContentObject
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
-        builder.startArray("pit_id");
         builder.value(username);
         builder.value(password);
-        builder.endArray();
         builder.endObject();
         return builder;
     }
@@ -89,21 +91,19 @@ public class CreateUserRequest extends ActionRequest implements ToXContentObject
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                } else if ("username".equals(currentFieldName)) {
-
-                    if (token.isValue() == false) {
-                        throw new IllegalArgumentException();
-                    }
-                    username = parser.text();
-
                 } else if ("password".equals(currentFieldName)) {
 
                     if (token.isValue() == false) {
                         throw new IllegalArgumentException(); // TODO: check the message to be returned
                     }
-                    username = parser.text();
 
-                } else {
+                    // add any validation checks here
+
+                    password = parser.text();
+
+                }
+                // add all other fields to be parsed from body
+                else {
                     throw new IllegalArgumentException(
                         "Unknown parameter [" + currentFieldName + "] in request body or parameter is of the wrong type[" + token + "] "
                     );

@@ -11,7 +11,6 @@ package org.opensearch.identity.rest.service;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionListener;
-import org.opensearch.action.search.SearchTransportService;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
@@ -26,19 +25,12 @@ public class UserService {
     private static final Logger logger = LogManager.getLogger(UserService.class);
 
     private final ClusterService clusterService;
-    private final SearchTransportService searchTransportService;
     private final TransportService transportService;
     private final NodeClient nodeClient;
 
     @Inject
-    public UserService(
-        ClusterService clusterService,
-        SearchTransportService searchTransportService,
-        TransportService transportService,
-        NodeClient nodeClient
-    ) {
+    public UserService(ClusterService clusterService, TransportService transportService, NodeClient nodeClient) {
         this.clusterService = clusterService;
-        this.searchTransportService = searchTransportService;
         this.transportService = transportService;
         this.nodeClient = nodeClient;
     }

@@ -20,7 +20,7 @@ import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
 
 /**
- * Transport action for deleting point in time searches - supports deleting list and all point in time searches
+ * Transport action for Creating a user
  */
 public class TransportCreateUserAction extends HandledTransportAction<CreateUserRequest, CreateUserResponse> {
     private final NamedWriteableRegistry namedWriteableRegistry;
@@ -31,11 +31,11 @@ public class TransportCreateUserAction extends HandledTransportAction<CreateUser
         TransportService transportService,
         ActionFilters actionFilters,
         NamedWriteableRegistry namedWriteableRegistry,
-        UserService pitService
+        UserService userService
     ) {
         super(CreateUserAction.NAME, transportService, actionFilters, CreateUserRequest::new);
         this.namedWriteableRegistry = namedWriteableRegistry;
-        this.userService = pitService;
+        this.userService = userService;
     }
 
     /**

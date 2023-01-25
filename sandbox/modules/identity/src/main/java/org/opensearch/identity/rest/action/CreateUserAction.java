@@ -17,7 +17,9 @@ import org.opensearch.identity.rest.response.CreateUserResponse;
 public class CreateUserAction extends ActionType<CreateUserResponse> {
 
     public static final CreateUserAction INSTANCE = new CreateUserAction();
-    public static final String NAME = "cluster:admin/user/create"; // TODO <- revisit this
+
+    // TODO : revisit this action type
+    public static final String NAME = "cluster:admin/user/create";
 
     private CreateUserAction() {
         super(NAME, CreateUserResponse::new);

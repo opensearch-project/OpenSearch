@@ -26,7 +26,6 @@ import static org.opensearch.common.xcontent.ConstructingObjectParser.constructo
  */
 public class CreateUserResponseInfo extends TransportResponse implements Writeable, ToXContent {
     private final boolean successful;
-
     private final String username;
 
     public CreateUserResponseInfo(boolean successful, String username) {
