@@ -30,10 +30,9 @@
  * GitHub history for details.
  */
 
-package org.opensearch.geo.search.aggregations.metrics;
+package org.opensearch.geo.search.aggregations.bucket.geogrid;
 
 import org.opensearch.common.geo.GeoBoundingBox;
-import org.opensearch.geo.search.aggregations.bucket.geogrid.GeoGridAggregator;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.CardinalityUpperBound;

@@ -43,7 +43,7 @@ import org.opensearch.core.ParseField;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.geo.search.aggregations.bucket.geogrid.CellIdSource;
+import org.opensearch.geo.search.aggregations.bucket.geogrid.cells.CellIdSource;
 import org.opensearch.geo.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.query.QueryShardContext;

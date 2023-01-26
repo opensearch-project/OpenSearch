@@ -10,12 +10,18 @@ package org.opensearch.common.geo;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LatLonShape;
+import org.apache.lucene.document.LatLonShapeDocValues;
 import org.apache.lucene.document.LatLonShapeDocValuesField;
+import org.apache.lucene.geo.LatLonGeometry;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.PointValues;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.geometry.Geometry;
+import org.opensearch.geometry.GeometryVisitor;
+import org.opensearch.geometry.Rectangle;
 import org.opensearch.index.mapper.GeoShapeIndexer;
 
+import java.io.IOException;
 import java.util.List;
 
 /**
@@ -25,6 +31,7 @@ import java.util.List;
  */
 public class GeoShapeDocValue extends ShapeDocValue {
     private static final String FIELD_NAME = "missingField";
+    private final LatLonShapeDocValues shapeDocValues;
 
     public GeoShapeDocValue(final String fieldName, final BytesRef bytesRef) {
         this(LatLonShape.createDocValueField(fieldName, bytesRef));
@@ -39,6 +46,7 @@ public class GeoShapeDocValue extends ShapeDocValue {
             shapeDocValuesField.getBoundingBox().minLon,
             shapeDocValuesField.getBoundingBox().minLat
         );
+        this.shapeDocValues = LatLonShape.createLatLonShapeDocValues(shapeDocValuesField.binaryValue());
     }
 
     /**
@@ -170,6 +178,23 @@ public class GeoShapeDocValue extends ShapeDocValue {
                 + ", minLongitude: "
                 + getMinX();
 
+        }
+    }
+
+    /**
+     * Checks if the input {@link Rectangle} is intersecting with the shape represented as {@link GeoShapeDocValue}.
+     * We could have used the {@link GeometryVisitor} here and added the functionality to check the intersection with
+     * other {@link Geometry} also, but that will be an overkill for now, if required we can easily create a
+     * {@link GeometryVisitor} to check the intersection with this Shape represented as {@link GeoShapeDocValue}.
+     * @return boolean
+     */
+    public boolean isIntersectingRectangle(final Rectangle rectangle) {
+        final org.apache.lucene.geo.Rectangle luceneRectangle = GeoShapeUtils.toLuceneRectangle(rectangle);
+        try {
+            final PointValues.Relation relation = shapeDocValues.relate(LatLonGeometry.create(luceneRectangle));
+            return relation != PointValues.Relation.CELL_OUTSIDE_QUERY;
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
     }
 }
