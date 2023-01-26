@@ -42,9 +42,11 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.TriConsumer;
 import org.opensearch.common.collect.Triplet;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.regex.Regex;
+import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.MemorySizeValue;
 import org.opensearch.common.unit.TimeValue;
@@ -1345,36 +1347,77 @@ public class Setting<T> implements ToXContentObject {
         return new Setting<>(
             key,
             Float.toString(defaultValue),
-            (s) -> parseFloat(s, minValue, maxValue, key, isFiltered(properties)),
+            new FloatParser(minValue, maxValue, key, isFiltered(properties)),
             validator,
             properties
         );
     }
 
-    private class FloatParser implements Function<String, Float>, Writeable {
-        private String key;
+    public static class FloatParser implements Function<String, Float>, Writeable {
         private float minValue;
         private float maxValue;
+        private String key;
         private boolean isFiltered;
 
-        public FloatParser(String key, float minValue, float maxValue, boolean isFiltered) {
-            this.key = key;
+        public FloatParser(float minValue, float maxValue, String key, boolean isFiltered) {
             this.minValue = minValue;
             this.maxValue = maxValue;
+            this.key = key;
             this.isFiltered = isFiltered;
+        }
+
+        public FloatParser(StreamInput in) throws IOException {
+            minValue = in.readFloat();
+            maxValue = in.readFloat();
+            key = in.readString();
+            isFiltered = in.readBoolean();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(key);
             out.writeFloat(minValue);
             out.writeFloat(maxValue);
+            out.writeString(key);
             out.writeBoolean(isFiltered);
+        }
+
+        // For testing
+        float getMin() {
+            return minValue;
+        }
+
+        // For testing
+        float getMax() {
+            return maxValue;
+        }
+
+        // For testing
+        String getKey() {
+            return key;
+        }
+
+        // For testing
+        boolean getFilterStatus() {
+            return isFiltered;
         }
 
         @Override
         public Float apply(String s) {
             return parseFloat(s, minValue, maxValue, key, isFiltered);
+        }
+
+        public boolean equals(Object obj) {
+            if (this == obj) return true;
+            if (obj == null || getClass() != obj.getClass()) return false;
+            FloatParser that = (FloatParser) obj;
+            return Objects.equals(key, that.key)
+                && Objects.equals(minValue, that.minValue)
+                && Objects.equals(maxValue, that.maxValue)
+                && Objects.equals(isFiltered, that.isFiltered);
+        }
+
+        public int hashCode() {
+            return Objects.hash(minValue, maxValue, key, isFiltered);
         }
     }
 
@@ -1474,36 +1517,77 @@ public class Setting<T> implements ToXContentObject {
         return new Setting<>(
             key,
             Integer.toString(defaultValue),
-            new IntegerParser(key, minValue, maxValue, isFiltered(properties)),
+            new IntegerParser(minValue, maxValue, key, isFiltered(properties)),
             validator,
             properties
         );
     }
 
-    private static class IntegerParser implements Function<String, Integer>, Writeable {
+    public static class IntegerParser implements Function<String, Integer>, Writeable {
         private String key;
         private int minValue;
         private int maxValue;
         private boolean isFiltered;
 
-        public IntegerParser(String key, int minValue, int maxValue, boolean isFiltered) {
-            this.key = key;
+        public IntegerParser(int minValue, int maxValue, String key, boolean isFiltered) {
             this.minValue = minValue;
             this.maxValue = maxValue;
+            this.key = key;
             this.isFiltered = isFiltered;
+        }
+
+        public IntegerParser(StreamInput in) throws IOException {
+            minValue = in.readInt();
+            maxValue = in.readInt();
+            key = in.readString();
+            isFiltered = in.readBoolean();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(key);
             out.writeInt(minValue);
             out.writeInt(maxValue);
+            out.writeString(key);
             out.writeBoolean(isFiltered);
+        }
+
+        // For testing
+        int getMin() {
+            return minValue;
+        }
+
+        // For testing
+        int getMax() {
+            return maxValue;
+        }
+
+        // For testing
+        String getKey() {
+            return key;
+        }
+
+        // For testing
+        boolean getFilterStatus() {
+            return isFiltered;
         }
 
         @Override
         public Integer apply(String s) {
             return parseInt(s, minValue, maxValue, key, isFiltered);
+        }
+
+        public boolean equals(Object obj) {
+            if (this == obj) return true;
+            if (obj == null || getClass() != obj.getClass()) return false;
+            IntegerParser that = (IntegerParser) obj;
+            return Objects.equals(key, that.key)
+                && Objects.equals(minValue, that.minValue)
+                && Objects.equals(maxValue, that.maxValue)
+                && Objects.equals(isFiltered, that.isFiltered);
+        }
+
+        public int hashCode() {
+            return Objects.hash(minValue, maxValue, key, isFiltered);
         }
     }
 
@@ -1595,36 +1679,77 @@ public class Setting<T> implements ToXContentObject {
         return new Setting<>(
             key,
             Long.toString(defaultValue),
-            new LongParser(key, minValue, maxValue, isFiltered(properties)),
+            new LongParser(minValue, maxValue, key, isFiltered(properties)),
             validator,
             properties
         );
     }
 
-    private static class LongParser implements Function<String, Long>, Writeable {
+    public static class LongParser implements Function<String, Long>, Writeable {
         private String key;
         private long minValue;
         private long maxValue;
         private boolean isFiltered;
 
-        public LongParser(String key, long minValue, long maxValue, boolean isFiltered) {
-            this.key = key;
+        public LongParser(long minValue, long maxValue, String key, boolean isFiltered) {
             this.minValue = minValue;
             this.maxValue = maxValue;
+            this.key = key;
             this.isFiltered = isFiltered;
+        }
+
+        public LongParser(StreamInput in) throws IOException {
+            minValue = in.readLong();
+            maxValue = in.readLong();
+            key = in.readString();
+            isFiltered = in.readBoolean();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(key);
             out.writeLong(minValue);
             out.writeLong(maxValue);
+            out.writeString(key);
             out.writeBoolean(isFiltered);
+        }
+
+        // For testing
+        long getMin() {
+            return minValue;
+        }
+
+        // For testing
+        long getMax() {
+            return maxValue;
+        }
+
+        // For testing
+        String getKey() {
+            return key;
+        }
+
+        // For testing
+        boolean getFilterStatus() {
+            return isFiltered;
         }
 
         @Override
         public Long apply(String s) {
             return parseLong(s, minValue, maxValue, key, isFiltered);
+        }
+
+        public boolean equals(Object obj) {
+            if (this == obj) return true;
+            if (obj == null || getClass() != obj.getClass()) return false;
+            LongParser that = (LongParser) obj;
+            return Objects.equals(key, that.key)
+                && Objects.equals(minValue, that.minValue)
+                && Objects.equals(maxValue, that.maxValue)
+                && Objects.equals(isFiltered, that.isFiltered);
+        }
+
+        public int hashCode() {
+            return Objects.hash(minValue, maxValue, key, isFiltered);
         }
     }
 
@@ -1716,36 +1841,77 @@ public class Setting<T> implements ToXContentObject {
         return new Setting<>(
             key,
             Double.toString(defaultValue),
-            new DoubleParser(key, minValue, maxValue, isFiltered(properties)),
+            new DoubleParser(minValue, maxValue, key, isFiltered(properties)),
             validator,
             properties
         );
     }
 
-    private static class DoubleParser implements Function<String, Double>, Writeable {
-        private String key;
+    public static class DoubleParser implements Function<String, Double>, Writeable {
         private double minValue;
         private double maxValue;
+        private String key;
         private boolean isFiltered;
 
-        public DoubleParser(String key, double minValue, double maxValue, boolean isFiltered) {
-            this.key = key;
+        public DoubleParser(double minValue, double maxValue, String key, boolean isFiltered) {
             this.minValue = minValue;
             this.maxValue = maxValue;
+            this.key = key;
             this.isFiltered = isFiltered;
+        }
+
+        public DoubleParser(StreamInput in) throws IOException {
+            minValue = in.readLong();
+            maxValue = in.readLong();
+            key = in.readString();
+            isFiltered = in.readBoolean();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(key);
             out.writeDouble(minValue);
             out.writeDouble(maxValue);
+            out.writeString(key);
             out.writeBoolean(isFiltered);
+        }
+
+        // For testing
+        double getMin() {
+            return minValue;
+        }
+
+        // For testing
+        double getMax() {
+            return maxValue;
+        }
+
+        // For testing
+        String getKey() {
+            return key;
+        }
+
+        // For testing
+        boolean getFilterStatus() {
+            return isFiltered;
         }
 
         @Override
         public Double apply(String s) {
             return parseDouble(s, minValue, maxValue, key, isFiltered);
+        }
+
+        public boolean equals(Object obj) {
+            if (this == obj) return true;
+            if (obj == null || getClass() != obj.getClass()) return false;
+            DoubleParser that = (DoubleParser) obj;
+            return Objects.equals(key, that.key)
+                && Objects.equals(minValue, that.minValue)
+                && Objects.equals(maxValue, that.maxValue)
+                && Objects.equals(isFiltered, that.isFiltered);
+        }
+
+        public int hashCode() {
+            return Objects.hash(minValue, maxValue, key, isFiltered);
         }
     }
 
@@ -1857,7 +2023,7 @@ public class Setting<T> implements ToXContentObject {
             new SimpleKey(key),
             fallbackSetting,
             fallbackSetting::getRaw,
-            b -> parseBoolean(b, key, isFiltered(properties)),
+            new BooleanParser(key, isFiltered(properties)),
             validator,
             properties
         );
@@ -1880,6 +2046,54 @@ public class Setting<T> implements ToXContentObject {
             } else {
                 throw ex;
             }
+        }
+    }
+
+    public static class BooleanParser implements Function<String, Boolean>, Writeable {
+        private String key;
+        private boolean isFiltered;
+
+        public BooleanParser(String key, boolean isFiltered) {
+            this.key = key;
+            this.isFiltered = isFiltered;
+        }
+
+        public BooleanParser(StreamInput in) throws IOException {
+            key = in.readString();
+            isFiltered = in.readBoolean();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(key);
+            out.writeBoolean(isFiltered);
+        }
+
+        // For testing
+        String getKey() {
+            return key;
+        }
+
+        // For testing
+        boolean getFilterStatus() {
+            return isFiltered;
+        }
+
+        @Override
+        public Boolean apply(String b) {
+            return parseBoolean(b, key, isFiltered);
+        }
+
+        public boolean equals(Object obj) {
+            if (this == obj) return true;
+            if (obj == null || getClass() != obj.getClass()) return false;
+            IntegerParser that = (IntegerParser) obj;
+            return Objects.equals(key, that.key)
+                && Objects.equals(isFiltered, that.isFiltered);
+        }
+
+        public int hashCode() {
+            return Objects.hash(key, isFiltered);
         }
     }
 
@@ -1912,7 +2126,63 @@ public class Setting<T> implements ToXContentObject {
         ByteSizeValue maxValue,
         Property... properties
     ) {
-        return new Setting<>(key, defaultValue, (s) -> parseByteSize(s, minValue, maxValue, key), properties);
+        return new Setting<>(key, defaultValue, new ByteSizeValueParser(minValue, maxValue, key), properties);
+    }
+
+    public static class ByteSizeValueParser implements Function<String, ByteSizeValue>, Writeable {
+        private ByteSizeValue minValue;
+        private ByteSizeValue maxValue;
+        private String key;
+
+        public ByteSizeValueParser(ByteSizeValue minValue, ByteSizeValue maxValue, String key) {
+            this.minValue = minValue;
+            this.maxValue = maxValue;
+            this.key = key;
+        }
+
+        public ByteSizeValueParser(StreamInput in) throws IOException {
+            minValue = new ByteSizeValue(in);
+            maxValue = new ByteSizeValue(in);
+            key = in.readString();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            ((ByteSizeValue) minValue).writeTo(out);
+            ((ByteSizeValue) maxValue).writeTo(out);
+            out.writeString(key);
+        }
+
+        // For testing
+        ByteSizeValue getMin() {
+            return minValue;
+        }
+
+        // For testing
+        ByteSizeValue getMax() {
+            return maxValue;
+        }
+
+        // For testing
+        String getKey() {
+            return key;
+        }
+
+        @Override
+        public ByteSizeValue apply(String s) {
+            return parseByteSize(s, minValue, maxValue, key);
+        }
+
+        public boolean equals(Object obj) {
+            if (this == obj) return true;
+            if (obj == null || getClass() != obj.getClass()) return false;
+            ByteSizeValueParser that = (ByteSizeValueParser) obj;
+            return Objects.equals(key, that.key) && Objects.equals(minValue, that.minValue) && Objects.equals(maxValue, that.maxValue);
+        }
+
+        public int hashCode() {
+            return Objects.hash(key, minValue, maxValue);
+        }
     }
 
     public static ByteSizeValue parseByteSize(String s, ByteSizeValue minValue, ByteSizeValue maxValue, String key) {
@@ -2239,15 +2509,21 @@ public class Setting<T> implements ToXContentObject {
         );
     }
 
-    private static class TimeValueParser implements Function<String, TimeValue>, Writeable {
+    public static class MinTimeValueParser implements Function<String, TimeValue>, Writeable {
         private String key;
         private TimeValue minValue;
         private boolean isFiltered;
 
-        public TimeValueParser(String key, TimeValue minValue, boolean isFiltered) {
+        public MinTimeValueParser(String key, TimeValue minValue, boolean isFiltered) {
             this.key = key;
             this.minValue = minValue;
             this.isFiltered = isFiltered;
+        }
+
+        public MinTimeValueParser(StreamInput in) throws IOException {
+            key = in.readString();
+            minValue = in.readTimeValue();
+            isFiltered = in.readBoolean();
         }
 
         @Override
@@ -2257,9 +2533,35 @@ public class Setting<T> implements ToXContentObject {
             out.writeBoolean(isFiltered);
         }
 
+        // For testing
+        TimeValue getMin() {
+            return minValue;
+        }
+
+        // For testing
+        String getKey() {
+            return key;
+        }
+
+        // For testing
+        boolean getFilterStatus() {
+            return isFiltered;
+        }
+
         @Override
         public TimeValue apply(String s) {
             return minTimeValueParser(key, minValue, isFiltered).apply(s);
+        }
+
+        public boolean equals(Object obj) {
+            if (this == obj) return true;
+            if (obj == null || getClass() != obj.getClass()) return false;
+            MinTimeValueParser that = (MinTimeValueParser) obj;
+            return Objects.equals(key, that.key) && Objects.equals(minValue, that.minValue) && Objects.equals(isFiltered, that.isFiltered);
+        }
+
+        public int hashCode() {
+            return Objects.hash(key, minValue, isFiltered);
         }
     }
 
@@ -2273,7 +2575,7 @@ public class Setting<T> implements ToXContentObject {
         return new Setting<>(
             simpleKey,
             s -> defaultValue.apply(s).getStringRep(),
-            minTimeValueParser(key, minValue, isFiltered(properties)),
+            new MinTimeValueParser(key, minValue, isFiltered(properties)),
             properties
         );
     }
@@ -2289,9 +2591,77 @@ public class Setting<T> implements ToXContentObject {
         return new Setting<>(
             simpleKey,
             s -> defaultValue.getStringRep(),
-            minMaxTimeValueParser(key, minValue, maxValue, isFiltered(properties)),
+            new MinMaxTimeValueParser(key, minValue, maxValue, isFiltered(properties)),
             properties
         );
+    }
+
+    public static class MinMaxTimeValueParser implements Function<String, TimeValue>, Writeable {
+        private String key;
+        private TimeValue minValue;
+        private TimeValue maxValue;
+        private boolean isFiltered;
+
+        public MinMaxTimeValueParser(String key, TimeValue minValue, TimeValue maxValue, boolean isFiltered) {
+            this.key = key;
+            this.minValue = minValue;
+            this.maxValue = maxValue;
+            this.isFiltered = isFiltered;
+        }
+
+        public MinMaxTimeValueParser(StreamInput in) throws IOException {
+            key = in.readString();
+            minValue = in.readTimeValue();
+            maxValue = in.readTimeValue();
+            isFiltered = in.readBoolean();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(key);
+            out.writeTimeValue(minValue);
+            out.writeTimeValue(maxValue);
+            out.writeBoolean(isFiltered);
+        }
+
+        // For testing
+        TimeValue getMin() {
+            return minValue;
+        }
+
+        // For testing
+        TimeValue getMax() {
+            return maxValue;
+        }
+
+        // For testing
+        String getKey() {
+            return key;
+        }
+
+        // For testing
+        boolean getFilterStatus() {
+            return isFiltered;
+        }
+
+        @Override
+        public TimeValue apply(String s) {
+            return minMaxTimeValueParser(key, minValue, maxValue, isFiltered).apply(s);
+        }
+
+        public boolean equals(Object obj) {
+            if (this == obj) return true;
+            if (obj == null || getClass() != obj.getClass()) return false;
+            MinMaxTimeValueParser that = (MinMaxTimeValueParser) obj;
+            return Objects.equals(key, that.key)
+                && Objects.equals(minValue, that.minValue)
+                && Objects.equals(maxValue, that.maxValue)
+                && Objects.equals(isFiltered, that.isFiltered);
+        }
+
+        public int hashCode() {
+            return Objects.hash(key, minValue, maxValue, isFiltered);
+        }
     }
 
     private static Function<String, TimeValue> minTimeValueParser(final String key, final TimeValue minValue, boolean isFiltered) {

@@ -44,6 +44,7 @@ public class WriteableSetting implements Writeable {
 
     private Setting<?> setting;
     private SettingType type;
+    private WriteableSetting parser;
 
     /**
      * Wrap a {@link Setting}. The generic type is determined from the type of the default value.
@@ -85,7 +86,8 @@ public class WriteableSetting implements Writeable {
         if (hasFallback) {
             fallback = new WriteableSetting(in);
         }
-        // We are using known types so don't need the parser
+        // Read the parser
+        parser = new WriteableSetting(in);
         // We are not using validator
         // Read properties
         EnumSet<Property> propSet = in.readEnumSet(Property.class);
@@ -197,7 +199,15 @@ public class WriteableSetting implements Writeable {
         if (hasFallback) {
             new WriteableSetting(setting.fallbackSetting, type).writeTo(out);
         }
-        // We are using known types so don't need the parser
+        // Write a boolean specifying whether the parser is an instanceof writeable
+        boolean isParserWriteable = parser instanceof Writeable;
+        if(isParserWriteable = true) {
+            out.writeBoolean(isParserWriteable);
+            parser.writeTo(out);
+        }
+        else{
+            out.writeBoolean(isParserWriteable);
+        }
         // We are not using validator
         // Write properties
         out.writeEnumSet(setting.getProperties());
