@@ -27,8 +27,6 @@ import org.opensearch.geo.tests.common.RandomGeoGenerator;
 import org.opensearch.geo.tests.common.RandomGeoGeometryGenerator;
 import org.opensearch.geometry.Geometry;
 import org.opensearch.geometry.utils.Geohash;
-import org.opensearch.geometry.utils.StandardValidator;
-import org.opensearch.geometry.utils.WellKnownText;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.sort.SortBuilders;
 import org.opensearch.search.sort.SortOrder;
@@ -69,8 +67,6 @@ public abstract class AbstractGeoAggregatorModulePluginTestCase extends GeoModul
         unmappedCentroid, geoShapeTopLeft, geoShapeBottomRight;
     protected static ObjectIntMap<String> expectedDocCountsForGeoHash = null;
     protected static ObjectObjectMap<String, GeoPoint> expectedCentroidsForGeoHash = null;
-
-    protected static final WellKnownText WKT = new WellKnownText(true, new StandardValidator(true));
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
