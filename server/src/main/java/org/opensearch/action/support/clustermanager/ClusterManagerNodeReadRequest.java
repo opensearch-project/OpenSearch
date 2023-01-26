@@ -32,6 +32,7 @@
 
 package org.opensearch.action.support.clustermanager;
 
+import org.opensearch.Version;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 
@@ -53,14 +54,18 @@ public abstract class ClusterManagerNodeReadRequest<Request extends ClusterManag
     protected ClusterManagerNodeReadRequest(StreamInput in) throws IOException {
         super(in);
         local = in.readBoolean();
-        ensureLocalNodeCommissioned = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_2_6_0)) {
+            ensureLocalNodeCommissioned = in.readBoolean();
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeBoolean(local);
-        out.writeBoolean(ensureLocalNodeCommissioned);
+        if (out.getVersion().onOrAfter(Version.V_2_6_0)) {
+            out.writeBoolean(ensureLocalNodeCommissioned);
+        }
     }
 
     @SuppressWarnings("unchecked")
