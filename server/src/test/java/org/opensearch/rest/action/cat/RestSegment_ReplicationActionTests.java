@@ -68,22 +68,7 @@ public class RestSegment_ReplicationActionTests extends OpenSearchTestCase {
             ReplicationLuceneIndex index = createTestIndex();
             when(state.getIndex()).thenReturn(index);
 
-            final SegmentReplicationState.Replicating replicating = mock(SegmentReplicationState.Replicating.class);
-            final SegmentReplicationState.GetCheckpointInfo getCheckpointInfo = mock(SegmentReplicationState.GetCheckpointInfo.class);
-            final SegmentReplicationState.FileDiff fileDiff = mock(SegmentReplicationState.FileDiff.class);
-            final SegmentReplicationState.GetFile getFile = mock(SegmentReplicationState.GetFile.class);
-            final SegmentReplicationState.FinalizeReplication finalizeReplication = mock(SegmentReplicationState.FinalizeReplication.class);
-
-            when(state.getReplicating()).thenReturn(replicating);
-            when(replicating.time()).thenReturn(randomLongBetween(0, 10));
-            when(state.getGetCheckpointInfo()).thenReturn(getCheckpointInfo);
-            when(getCheckpointInfo.time()).thenReturn(randomLongBetween(0, 10));
-            when(state.getFileDiff()).thenReturn(fileDiff);
-            when(fileDiff.time()).thenReturn(randomLongBetween(0, 10));
-            when(state.getGetFile()).thenReturn(getFile);
-            when(getFile.time()).thenReturn(randomLongBetween(0, 10));
-            when(state.getFinalizeReplication()).thenReturn(finalizeReplication);
-            when(finalizeReplication.time()).thenReturn(randomLongBetween(0, 10));
+            //
 
             segmentReplicationStates.add(state);
         }
@@ -127,12 +112,7 @@ public class RestSegment_ReplicationActionTests extends OpenSearchTestCase {
             "bytes",
             "bytes_fetched",
             "bytes_percent",
-            "bytes_total",
-            "replicating_stage_time_taken",
-            "get_checkpoint_info_stage_time_taken",
-            "file_diff_stage_time_taken",
-            "get_files_stage_time_taken",
-            "finalize_replication_stage_time_taken"
+            "bytes_total"
         );
 
         for (int i = 0; i < expectedHeaders.size(); i++) {
@@ -164,12 +144,7 @@ public class RestSegment_ReplicationActionTests extends OpenSearchTestCase {
                 state.getIndex().totalRecoverBytes(),
                 state.getIndex().recoveredBytes(),
                 percent(state.getIndex().recoveredBytesPercent()),
-                state.getIndex().totalBytes(),
-                new TimeValue(state.getReplicating().time()),
-                new TimeValue(state.getGetCheckpointInfo().time()),
-                new TimeValue(state.getFileDiff().time()),
-                new TimeValue(state.getGetFile().time()),
-                new TimeValue(state.getFinalizeReplication().time())
+                state.getIndex().totalBytes()
             );
 
             final List<Table.Cell> cells = table.getRows().get(i);

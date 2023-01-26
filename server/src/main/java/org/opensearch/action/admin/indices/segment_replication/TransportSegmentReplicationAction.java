@@ -33,6 +33,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Transport action for shard segment replication operation. This transport action does not actually
+ * perform segment replication, it only reports on metrics of segment replication event (both active and complete).
+ *
+ * @opensearch.internal
+ */
 public class TransportSegmentReplicationAction extends TransportBroadcastByNodeAction<
     SegmentReplicationRequest,
     SegmentReplicationResponse,

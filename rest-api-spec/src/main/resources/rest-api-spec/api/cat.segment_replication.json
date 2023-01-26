@@ -1,7 +1,7 @@
 {
   "cat.segment_replication":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/cat-segment_replication.html",
+      "url":"TO DO",
       "description":"Returns information about index Segment Replication events, both on-going and completed."
     },
     "stability":"stable",

@@ -377,6 +377,11 @@ public class SegmentReplicationState implements ReplicationState, ToXContentFrag
         static final String FINALIZE_REPLICATION_STAGE = "finalize_replication_stage";
     }
 
+    /**
+     * Starts Replicating
+     *
+     * @opensearch.internal
+     */
     public static class Replicating extends ReplicationTimer implements ToXContentFragment, Writeable {
 
         public Replicating() {}
@@ -401,6 +406,11 @@ public class SegmentReplicationState implements ReplicationState, ToXContentFrag
         }
     }
 
+    /**
+     * Gets checkpoint info from source
+     *
+     * @opensearch.internal
+     */
     public static class GetCheckpointInfo extends ReplicationTimer implements ToXContentFragment, Writeable {
 
         public GetCheckpointInfo() {}
@@ -425,6 +435,11 @@ public class SegmentReplicationState implements ReplicationState, ToXContentFrag
         }
     }
 
+    /**
+     * Computes File Diff
+     *
+     * @opensearch.internal
+     */
     public static class FileDiff extends ReplicationTimer implements ToXContentFragment, Writeable {
 
         private volatile long sizeOfFiles;
@@ -463,6 +478,11 @@ public class SegmentReplicationState implements ReplicationState, ToXContentFrag
         }
     }
 
+    /**
+     * Gets necessary files from source
+     *
+     * @opensearch.internal
+     */
     public static class GetFile extends ReplicationTimer implements ToXContentFragment, Writeable {
 
         public GetFile() {}
@@ -487,6 +507,11 @@ public class SegmentReplicationState implements ReplicationState, ToXContentFrag
         }
     }
 
+    /**
+     * Finalizes Replication
+     *
+     * @opensearch.internal
+     */
     public static class FinalizeReplication extends ReplicationTimer implements ToXContentFragment, Writeable {
 
         public FinalizeReplication() {}

@@ -32,6 +32,13 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
+/**
+ * RestCatSegmentReplicationAction provides information about the status of replica's segment replication event
+ * in a string format, designed to be used at the command line. An Index can
+ * be specified to limit output to a particular index or indices.
+ *
+ * @opensearch.api
+ */
 public class RestCatSegmentReplicationAction extends AbstractCatAction {
     @Override
     public List<RestHandler.Route> routes() {
@@ -74,6 +81,11 @@ public class RestCatSegmentReplicationAction extends AbstractCatAction {
     @Override
     protected Table getTableWithHeader(RestRequest request) {
 
+        boolean detailed = false;
+        if (request != null) {
+            detailed = Boolean.parseBoolean(request.param("detailed"));
+        }
+
         Table t = new Table();
         t.startHeaders()
             .addCell("index", "alias:i,idx;desc:index name")
@@ -96,13 +108,15 @@ public class RestCatSegmentReplicationAction extends AbstractCatAction {
             .addCell("bytes", "alias:b;desc:number of bytes to fetch")
             .addCell("bytes_fetched", "alias:bf;desc:bytes fetched")
             .addCell("bytes_percent", "alias:bp;desc:percent of bytes fetched")
-            .addCell("bytes_total", "alias:tb;desc:total number of bytes")
-            .addCell("replicating_stage_time_taken", "alias:rstt;desc:time taken in replicating stage")
-            .addCell("get_checkpoint_info_stage_time_taken", "alias:gcistt;desc:time taken in get checkpoint info stage")
-            .addCell("file_diff_stage_time_taken", "alias:fdstt;desc:time taken in file diff stage")
-            .addCell("get_files_stage_time_taken", "alias:gfstt;desc:time taken in get files stage")
-            .addCell("finalize_replication_stage_time_taken", "alias:frstt;desc:time taken in finalize replication stage")
-            .endHeaders();
+            .addCell("bytes_total", "alias:tb;desc:total number of bytes");
+        if (detailed) {
+            t.addCell("replicating_stage_time_taken", "alias:rstt;desc:time taken in replicating stage")
+                .addCell("get_checkpoint_info_stage_time_taken", "alias:gcistt;desc:time taken in get checkpoint info stage")
+                .addCell("file_diff_stage_time_taken", "alias:fdstt;desc:time taken in file diff stage")
+                .addCell("get_files_stage_time_taken", "alias:gfstt;desc:time taken in get files stage")
+                .addCell("finalize_replication_stage_time_taken", "alias:frstt;desc:time taken in finalize replication stage");
+        }
+        t.endHeaders();
         return t;
     }
 
@@ -116,8 +130,10 @@ public class RestCatSegmentReplicationAction extends AbstractCatAction {
      */
     public Table buildSegmentReplicationTable(RestRequest request, SegmentReplicationResponse response) {
         String indexname = "";
+        boolean detailed = false;
         if (request != null) {
             indexname = request.param("index");
+            detailed = Boolean.parseBoolean(request.param("detailed"));
         }
         if (request != null && indexname != null && !response.shardSegmentReplicationStates().containsKey(indexname)) {
             Table t = new Table();
@@ -175,11 +191,13 @@ public class RestCatSegmentReplicationAction extends AbstractCatAction {
                 t.addCell(state.getIndex().recoveredBytes());
                 t.addCell(String.format(Locale.ROOT, "%1.1f%%", state.getIndex().recoveredBytesPercent()));
                 t.addCell(state.getIndex().totalBytes());
-                t.addCell(new TimeValue(state.getReplicating().time()));
-                t.addCell(new TimeValue(state.getGetCheckpointInfo().time()));
-                t.addCell(new TimeValue(state.getFileDiff().time()));
-                t.addCell(new TimeValue(state.getGetFile().time()));
-                t.addCell(new TimeValue(state.getFinalizeReplication().time()));
+                if (detailed) {
+                    t.addCell(new TimeValue(state.getReplicating().time()));
+                    t.addCell(new TimeValue(state.getGetCheckpointInfo().time()));
+                    t.addCell(new TimeValue(state.getFileDiff().time()));
+                    t.addCell(new TimeValue(state.getGetFile().time()));
+                    t.addCell(new TimeValue(state.getFinalizeReplication().time()));
+                }
                 t.endRow();
             }
         }

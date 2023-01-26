@@ -16,9 +16,14 @@ import org.opensearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
+/**
+ * Request for Segment Replication information
+ *
+ * @opensearch.internal
+ */
 public class SegmentReplicationRequest extends BroadcastRequest<SegmentReplicationRequest> {
     private boolean detailed = false;       // Provides extra details in the response
-    private boolean activeOnly = false;     // Only reports on active recoveries
+    private boolean activeOnly = false;     // Only reports on active segment replication events
 
     /**
      * Constructs a request for segment replication information for all shards
@@ -53,7 +58,7 @@ public class SegmentReplicationRequest extends BroadcastRequest<SegmentReplicati
 
     /**
      * Set value of the detailed flag. Detailed requests will contain extra
-     * information.
+     * information like timing metric of each stage of segment replication event.
      *
      * @param detailed  Whether or not to set the detailed flag
      */
@@ -71,8 +76,8 @@ public class SegmentReplicationRequest extends BroadcastRequest<SegmentReplicati
     }
 
     /**
-     * Set value of the activeOnly flag. If true, this request will only response with
-     * on-going recovery information.
+     * Set value of the activeOnly flag. If true, this request will only respond with
+     * on-going segment replication event information.
      *
      * @param activeOnly    Whether or not to set the activeOnly flag.
      */

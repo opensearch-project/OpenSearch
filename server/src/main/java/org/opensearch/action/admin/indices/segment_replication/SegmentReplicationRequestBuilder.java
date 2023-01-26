@@ -11,6 +11,11 @@ package org.opensearch.action.admin.indices.segment_replication;
 import org.opensearch.action.support.broadcast.BroadcastOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 
+/**
+ * Segment Replication information request builder.
+ *
+ * @opensearch.internal
+ */
 public class SegmentReplicationRequestBuilder extends BroadcastOperationRequestBuilder<
     SegmentReplicationRequest,
     SegmentReplicationResponse,

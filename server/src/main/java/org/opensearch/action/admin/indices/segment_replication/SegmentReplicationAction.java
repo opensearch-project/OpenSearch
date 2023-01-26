@@ -10,6 +10,11 @@ package org.opensearch.action.admin.indices.segment_replication;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Segment Replication information action
+ *
+ * @opensearch.internal
+ */
 public class SegmentReplicationAction extends ActionType<SegmentReplicationResponse> {
     public static final SegmentReplicationAction INSTANCE = new SegmentReplicationAction();
     public static final String NAME = "indices:monitor/segment_replication";

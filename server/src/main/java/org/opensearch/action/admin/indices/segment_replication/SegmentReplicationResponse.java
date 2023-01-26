@@ -20,6 +20,11 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Information regarding the Segment Replication state of indices and their associated shards.
+ *
+ * @opensearch.internal
+ */
 public class SegmentReplicationResponse extends BroadcastResponse {
     private final Map<String, List<SegmentReplicationState>> shardSegmentReplicationStates;
 

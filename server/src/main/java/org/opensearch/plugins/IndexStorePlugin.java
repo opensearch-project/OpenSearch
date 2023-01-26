@@ -104,6 +104,9 @@ public interface IndexStorePlugin {
         RecoveryState newRecoveryState(ShardRouting shardRouting, DiscoveryNode targetNode, @Nullable DiscoveryNode sourceNode);
     }
 
+    /**
+     * An interface that allows to create a new {@link SegmentReplicationState} per shard.
+     */
     @FunctionalInterface
     interface SegmentReplicationStateFactory {
         /**
