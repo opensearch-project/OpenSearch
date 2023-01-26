@@ -6,6 +6,7 @@
 package org.opensearch.authn;
 
 import org.apache.shiro.authz.Permission;
+import org.apache.shiro.authz.permission.WildcardPermission;
 
 /**
  * A class that defines a Permission.
@@ -29,7 +30,7 @@ public class OpenSearchPermission implements Permission {
     public String action;
     public String permissionType;
 
-    public Permission(String permission) {
+    public OpenSearchPermission(String permission) {
 
         this.permissionString = permission;
         try {
@@ -46,8 +47,34 @@ public class OpenSearchPermission implements Permission {
         }
     }
 
+    /**
+     * Compare the current permission's permission type to another permission's permission type
+     */
+    public boolean permissionTypesMatch(OpenSearchPermission permission) {
+
+        if (this.permissionType.equalsIgnoreCase(permission.permissionType)){
+            return true;
+        }
+        return false;
+    }
+
+
+
     @Override
-    public boolean implies(Permission p) {
+    public boolean implies(Permission permission) {
+
+        OpenSearchPermission permissionToCompare = new OpenSearchPermission(permission.toString());
+
+        // Check if permission types match
+        permissionTypesMatch(permissionToCompare);
+
+        // Check if action namespaces match or this permission's namespace includes the targeted permission
+        WildcardPermission wildcardPermission = new WildcardPermission(this.action.replace("/", ":"));
+        wildcardPermission.implies(new WildcardPermission(permissionToCompare.action.replace("/", ":'")));
+
+        // Check that resource patterns match or that this permission's resource pattern includes the targeted permission
+
+
         return false;
     }
 }
