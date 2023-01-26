@@ -32,6 +32,8 @@
 
 package org.opensearch.index.search;
 
+import java.util.HashSet;
+import java.util.Set;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
@@ -112,6 +114,8 @@ public class QueryStringQueryParser extends XQueryParser {
     private int fuzzyMaxExpansions = FuzzyQuery.defaultMaxExpansions;
     private MultiTermQuery.RewriteMethod fuzzyRewriteMethod = MultiTermQuery.CONSTANT_SCORE_REWRITE;
     private boolean fuzzyTranspositions = FuzzyQuery.defaultTranspositions;
+
+    private Set<String> discoveredQueryFields = new HashSet<>();
 
     /**
      * @param context The query shard context.
@@ -327,6 +331,8 @@ public class QueryStringQueryParser extends XQueryParser {
             return getFieldQuery(field, queryText, getPhraseSlop());
         }
 
+        onDiscoveredField(field);
+
         // Detects additional operators '<', '<=', '>', '>=' to handle range query with one side unbounded.
         // It is required to use a prefix field operator to enable the detection since they are not treated
         // as logical operator by the query parser (e.g. age:>=10).
@@ -361,6 +367,9 @@ public class QueryStringQueryParser extends XQueryParser {
             // if there is no match in the mappings.
             return newUnmappedFieldQuery(field);
         }
+        for (Map.Entry<String, Float> entry : fields.entrySet()) {
+            onDiscoveredField(entry.getKey());
+        }
         Analyzer oldAnalyzer = queryBuilder.analyzer;
         try {
             if (forceAnalyzer != null) {
@@ -374,6 +383,13 @@ public class QueryStringQueryParser extends XQueryParser {
         }
     }
 
+    private void onDiscoveredField(String field) {
+        if (field == null || Regex.isSimpleMatchPattern(field)) {
+            return;
+        }
+        discoveredQueryFields.add(field);
+    }
+
     @Override
     protected Query getFieldQuery(String field, String queryText, int slop) throws ParseException {
         if (field != null && EXISTS_FIELD.equals(field)) {
@@ -383,6 +399,9 @@ public class QueryStringQueryParser extends XQueryParser {
         Map<String, Float> fields = extractMultiFields(field, true);
         if (fields.isEmpty()) {
             return newUnmappedFieldQuery(field);
+        }
+        for (Map.Entry<String, Float> entry : fields.entrySet()) {
+            onDiscoveredField(entry.getKey());
         }
         Analyzer oldAnalyzer = queryBuilder.analyzer;
         int oldSlop = queryBuilder.phraseSlop;
@@ -423,6 +442,7 @@ public class QueryStringQueryParser extends XQueryParser {
 
         List<Query> queries = new ArrayList<>();
         for (Map.Entry<String, Float> entry : fields.entrySet()) {
+            onDiscoveredField(entry.getKey());
             Query q = getRangeQuerySingle(entry.getKey(), part1, part2, startInclusive, endInclusive, context);
             assert q != null;
             queries.add(applyBoost(q, entry.getValue()));
@@ -448,6 +468,7 @@ public class QueryStringQueryParser extends XQueryParser {
             return newUnmappedFieldQuery(field);
         }
         try {
+            onDiscoveredField(currentFieldType.name());
             Analyzer normalizer = forceAnalyzer == null ? queryBuilder.context.getSearchAnalyzer(currentFieldType) : forceAnalyzer;
             BytesRef part1Binary = part1 == null ? null : normalizer.normalize(field, part1);
             BytesRef part2Binary = part2 == null ? null : normalizer.normalize(field, part2);
@@ -472,6 +493,7 @@ public class QueryStringQueryParser extends XQueryParser {
 
     @Override
     protected Query handleBareFuzzy(String field, Token fuzzySlop, String termImage) throws ParseException {
+        onDiscoveredField(field);
         if (fuzzySlop.image.length() == 1) {
             return getFuzzyQuery(field, termImage, fuzziness.asDistance(termImage));
         }
@@ -487,6 +509,7 @@ public class QueryStringQueryParser extends XQueryParser {
         }
         List<Query> queries = new ArrayList<>();
         for (Map.Entry<String, Float> entry : fields.entrySet()) {
+            onDiscoveredField(entry.getKey());
             Query q = getFuzzyQuerySingle(entry.getKey(), termStr, minSimilarity);
             assert q != null;
             queries.add(applyBoost(q, entry.getValue()));
@@ -506,6 +529,7 @@ public class QueryStringQueryParser extends XQueryParser {
             return newUnmappedFieldQuery(field);
         }
         try {
+            onDiscoveredField(field);
             Analyzer normalizer = forceAnalyzer == null ? queryBuilder.context.getSearchAnalyzer(currentFieldType) : forceAnalyzer;
             BytesRef term = termStr == null ? null : normalizer.normalize(field, termStr);
             return currentFieldType.fuzzyQuery(
@@ -526,6 +550,7 @@ public class QueryStringQueryParser extends XQueryParser {
 
     @Override
     protected Query newFuzzyQuery(Term term, float minimumSimilarity, int prefixLength) {
+        onDiscoveredField(term.field());
         int numEdits = Fuzziness.build(minimumSimilarity).asDistance(term.text());
         if (fuzzyRewriteMethod != null) {
             return new FuzzyQuery(term, numEdits, prefixLength, fuzzyMaxExpansions, fuzzyTranspositions, fuzzyRewriteMethod);
@@ -542,6 +567,7 @@ public class QueryStringQueryParser extends XQueryParser {
         }
         List<Query> queries = new ArrayList<>();
         for (Map.Entry<String, Float> entry : fields.entrySet()) {
+            onDiscoveredField(entry.getKey());
             Query q = getPrefixQuerySingle(entry.getKey(), termStr);
             if (q != null) {
                 queries.add(applyBoost(q, entry.getValue()));
@@ -564,6 +590,7 @@ public class QueryStringQueryParser extends XQueryParser {
             if (currentFieldType == null || currentFieldType.getTextSearchInfo() == TextSearchInfo.NONE) {
                 return newUnmappedFieldQuery(field);
             }
+            onDiscoveredField(field);
             setAnalyzer(getSearchAnalyzer(currentFieldType));
             Query query = null;
             if (currentFieldType.getTextSearchInfo().isTokenized() == false) {
@@ -598,6 +625,7 @@ public class QueryStringQueryParser extends XQueryParser {
                 source = getAnalyzer().tokenStream(field, termStr);
                 source.reset();
             } catch (IOException e) {
+                onDiscoveredField(field);
                 return super.getPrefixQuery(field, termStr);
             }
             tlist = new ArrayList<>();
@@ -642,20 +670,24 @@ public class QueryStringQueryParser extends XQueryParser {
             Query posQuery;
             if (plist.size() == 1) {
                 if (isLastPos) {
+                    onDiscoveredField(currentFieldType.name());
                     posQuery = currentFieldType.prefixQuery(plist.get(0), getMultiTermRewriteMethod(), context);
                 } else {
+                    onDiscoveredField(field);
                     posQuery = newTermQuery(new Term(field, plist.get(0)), BoostAttribute.DEFAULT_BOOST);
                 }
             } else if (isLastPos == false) {
                 // build a synonym query for terms in the same position.
                 SynonymQuery.Builder sb = new SynonymQuery.Builder(field);
                 for (String synonym : plist) {
+                    onDiscoveredField(field);
                     sb.addTerm(new Term(field, synonym));
                 }
                 posQuery = sb.build();
             } else {
                 List<BooleanClause> innerClauses = new ArrayList<>();
                 for (String token : plist) {
+                    onDiscoveredField(field);
                     innerClauses.add(new BooleanClause(super.getPrefixQuery(field, token), BooleanClause.Occur.SHOULD));
                 }
                 posQuery = getBooleanQuery(innerClauses);
@@ -674,6 +706,9 @@ public class QueryStringQueryParser extends XQueryParser {
         if (fieldNamesFieldType == null) {
             return new MatchNoDocsQuery("No mappings yet");
         }
+
+        onDiscoveredField(fieldName);
+
         if (fieldNamesFieldType.isEnabled() == false) {
             // The field_names_field is disabled so we switch to a wildcard query that matches all terms
             return new WildcardQuery(new Term(fieldName, "*"));
@@ -699,6 +734,7 @@ public class QueryStringQueryParser extends XQueryParser {
         }
         List<Query> queries = new ArrayList<>();
         for (Map.Entry<String, Float> entry : fields.entrySet()) {
+            onDiscoveredField(entry.getKey());
             Query q = getWildcardQuerySingle(entry.getKey(), termStr);
             assert q != null;
             queries.add(applyBoost(q, entry.getValue()));
@@ -724,6 +760,7 @@ public class QueryStringQueryParser extends XQueryParser {
             }
             if (forceAnalyzer != null && (analyzeWildcard || currentFieldType.getTextSearchInfo().isTokenized())) {
                 setAnalyzer(forceAnalyzer);
+                onDiscoveredField(currentFieldType.name());
                 return super.getWildcardQuery(currentFieldType.name(), termStr);
             }
             if (getAllowLeadingWildcard() == false && (termStr.startsWith("*") || termStr.startsWith("?"))) {
@@ -771,6 +808,7 @@ public class QueryStringQueryParser extends XQueryParser {
         for (Map.Entry<String, Float> entry : fields.entrySet()) {
             Query q = getRegexpQuerySingle(entry.getKey(), termStr);
             assert q != null;
+            onDiscoveredField(entry.getKey());
             queries.add(applyBoost(q, entry.getValue()));
         }
         if (queries.size() == 1) {
@@ -789,6 +827,7 @@ public class QueryStringQueryParser extends XQueryParser {
                 return newUnmappedFieldQuery(field);
             }
             setAnalyzer(getSearchAnalyzer(currentFieldType));
+            onDiscoveredField(field);
             return super.getRegexpQuery(field, termStr);
         } catch (RuntimeException e) {
             if (lenient) {
@@ -807,6 +846,10 @@ public class QueryStringQueryParser extends XQueryParser {
             return null;
         }
         return fixNegativeQueryIfNeeded(q);
+    }
+
+    public Set<String> getDiscoveredQueryFields() {
+        return this.discoveredQueryFields;
     }
 
     private Query applySlop(Query q, int slop) {

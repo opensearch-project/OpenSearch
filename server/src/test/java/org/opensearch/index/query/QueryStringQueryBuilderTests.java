@@ -32,6 +32,7 @@
 
 package org.opensearch.index.query;
 
+import java.util.Set;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.Term;
