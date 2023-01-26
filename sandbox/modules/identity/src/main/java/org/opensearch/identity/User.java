@@ -81,7 +81,7 @@ public class User {
         return permissions;
     }
 
-    @JsonProperty(value = "hash")
+    @JsonProperty(value = "permissions")
     public void setPermissions(List<String> permissions) {
         this.permissions = permissions;
     }
