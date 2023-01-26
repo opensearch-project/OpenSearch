@@ -35,6 +35,7 @@ dependencies {
   implementation "org.bouncycastle:bcprov-jdk15on:${versions.bouncycastle}"
 
   implementation 'org.greenrobot:eventbus:3.2.0'
+  implementation 'org.apache.commons:commons-lang3:3.12.0'
 
   implementation ('org.apache.cxf:cxf-rt-rs-security-jose:3.4.5') {
     exclude(group: 'jakarta.activation', module: 'jakarta.activation-api')

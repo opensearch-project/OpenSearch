@@ -8,6 +8,8 @@
 
 package org.opensearch.identity.configuration;
 
+import java.io.StringReader;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -22,6 +24,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
+import org.opensearch.action.DocWriteRequest;
+import org.opensearch.action.index.IndexRequest;
+import org.opensearch.action.index.IndexResponse;
+import org.opensearch.action.support.WriteRequest;
+import org.opensearch.authn.DefaultObjectMapper;
+import org.opensearch.authn.realm.InternalRealm;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.identity.ConfigConstants;
 import org.opensearch.identity.exception.ConfigUpdateAlreadyInProgressException;
 import org.opensearch.identity.exception.ExceptionUtils;
@@ -44,6 +53,9 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.concurrent.ThreadContext.StoredContext;
 import org.opensearch.env.Environment;
+//import org.opensearch.index.mapper.ObjectMapper;
+import org.opensearch.identity.utils.Hasher;
+import org.opensearch.index.engine.VersionConflictEngineException;
 import org.opensearch.threadpool.ThreadPool;
 
 /**
@@ -102,20 +114,38 @@ public class ConfigurationRepository {
                                     createSecurityIndexIfAbsent();
                                     waitForSecurityIndexToBeAtLeastYellow();
 
-                                    ConfigHelper.uploadFile(
-                                        client,
-                                        cd + "internal_users.yml",
-                                        identityIndex,
-                                        CType.INTERNALUSERS,
-                                        DEFAULT_CONFIG_VERSION
-                                    );
+
+                                    String adminPassword = ConfigHelper.generateCommonLangPassword();
+                                    LOGGER.always().log("Generated a random admin password: {}", adminPassword);
+                                    char [] clearAdminPassword = adminPassword.toCharArray();
+                                    String hashedAdminPassword = Hasher.hash(clearAdminPassword);
+                                    Map<String, Object> adminUserMap = Map.of("admin", Map.of("hash", hashedAdminPassword));
+                                    final IndexRequest indexRequest = new IndexRequest(identityIndex).id(CType.INTERNALUSERS.toLCString())
+                                        .opType(DocWriteRequest.OpType.INDEX)
+                                        .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                                        .source(CType.INTERNALUSERS.toLCString(), ConfigHelper.readXContent(new StringReader(DefaultObjectMapper.writeValueAsString(adminUserMap, false)), XContentType.JSON));
+                                    IndexResponse response = client.index(indexRequest).actionGet();
+                                    System.out.println(response);
+                                    InternalRealm.INSTANCE.createUser("admin", hashedAdminPassword, null);
+
+
+//                                    ConfigHelper.uploadFile(
+//                                        client,
+//                                        cd + "internal_users.yml",
+//                                        identityIndex,
+//                                        CType.INTERNALUSERS,
+//                                        DEFAULT_CONFIG_VERSION
+//                                    );
                                 }
                             } else {
                                 LOGGER.error("{} does not exist", confFile.toAbsolutePath().toString());
                             }
+                        } catch (VersionConflictEngineException versionConflictEngineException) {
+                            LOGGER.info("Index {} already contains doc with id {}, skipping update.", identityIndex, CType.INTERNALUSERS.toLCString());
                         } catch (Exception e) {
                             LOGGER.error("Cannot apply default config (this is maybe not an error!)", e);
                         }
+                        //TODO: merge the admin into internal_user config
                     }
 
                     while (!dynamicConfigFactory.isInitialized()) {
