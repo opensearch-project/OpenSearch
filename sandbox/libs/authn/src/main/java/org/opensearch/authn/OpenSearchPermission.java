@@ -8,6 +8,9 @@ package org.opensearch.authn;
 import org.apache.shiro.authz.Permission;
 import org.apache.shiro.authz.permission.WildcardPermission;
 
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 /**
  * A class that defines a Permission.
  *
@@ -52,13 +55,11 @@ public class OpenSearchPermission implements Permission {
      */
     public boolean permissionTypesMatch(OpenSearchPermission permission) {
 
-        if (this.permissionType.equalsIgnoreCase(permission.permissionType)){
+        if (this.permissionType.equalsIgnoreCase(permission.permissionType)) {
             return true;
         }
         return false;
     }
-
-
 
     @Override
     public boolean implies(Permission permission) {
@@ -66,15 +67,29 @@ public class OpenSearchPermission implements Permission {
         OpenSearchPermission permissionToCompare = new OpenSearchPermission(permission.toString());
 
         // Check if permission types match
-        permissionTypesMatch(permissionToCompare);
+        if (!permissionTypesMatch(permissionToCompare)) {
+            return false;
+        }
 
         // Check if action namespaces match or this permission's namespace includes the targeted permission
         WildcardPermission wildcardPermission = new WildcardPermission(this.action.replace("/", ":"));
-        wildcardPermission.implies(new WildcardPermission(permissionToCompare.action.replace("/", ":'")));
+        if (!wildcardPermission.implies(new WildcardPermission(permissionToCompare.action.replace("/", ":'")))) {
+            return false;
+        }
 
         // Check that resource patterns match or that this permission's resource pattern includes the targeted permission
-
-
+        if (this.resource != null) {
+            String[] resourcePatterns = this.resource.split(",");
+            for (String resource : resourcePatterns) {
+                Pattern pattern = Pattern.compile(resource, Pattern.CASE_INSENSITIVE);
+                Matcher matcher = pattern.matcher(permissionToCompare.resource);
+                if (matcher.find()) {
+                    return true;
+                }
+            }
+        } else if (this.resource == null && permissionToCompare.resource == null) {
+            return true;
+        }
         return false;
     }
 }
