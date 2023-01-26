@@ -162,8 +162,6 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
 
     private ZoneId timeZone;
 
-    List<String> discoveredFields;
-
     /** To limit effort spent determinizing regexp queries. */
     private int maxDeterminizedStates = DEFAULT_DETERMINIZE_WORK_LIMIT;
 
