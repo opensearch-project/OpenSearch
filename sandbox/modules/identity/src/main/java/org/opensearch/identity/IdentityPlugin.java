@@ -16,10 +16,6 @@ import org.opensearch.authn.Identity;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.component.Lifecycle;
-import org.opensearch.common.component.LifecycleComponent;
-import org.opensearch.common.component.LifecycleListener;
-import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -224,58 +220,5 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
         cr.setDynamicConfigFactory(dcf);
 
         return components;
-    }
-
-    @Override
-    public Collection<Class<? extends LifecycleComponent>> getGuiceServiceClasses() {
-
-        if (!enabled) {
-            return Collections.emptyList();
-        }
-
-        final List<Class<? extends LifecycleComponent>> services = new ArrayList<>(1);
-        services.add(GuiceHolder.class);
-        return services;
-    }
-
-    public static class GuiceHolder implements LifecycleComponent {
-
-        private static ClusterService clusterService;
-        private static RepositoriesService repositoriesService;
-
-        @Inject
-        public GuiceHolder(final RepositoriesService repositoriesService, final ClusterService clusterService) {
-            GuiceHolder.repositoriesService = repositoriesService;
-            GuiceHolder.clusterService = clusterService;
-        }
-
-        public static RepositoriesService getRepositoriesService() {
-            return repositoriesService;
-        }
-
-        public static ClusterService getClusterService() {
-            return clusterService;
-        }
-
-        @Override
-        public void close() {}
-
-        @Override
-        public Lifecycle.State lifecycleState() {
-            return null;
-        }
-
-        @Override
-        public void addLifecycleListener(LifecycleListener listener) {}
-
-        @Override
-        public void removeLifecycleListener(LifecycleListener listener) {}
-
-        @Override
-        public void start() {}
-
-        @Override
-        public void stop() {}
-
     }
 }
