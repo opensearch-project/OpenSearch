@@ -1183,7 +1183,7 @@ public class SettingTests extends OpenSearchTestCase {
         assertEquals(1, integerSetting.get(Settings.EMPTY).intValue());
     }
 
-    public void testIntegerParser() {
+    public void testIntegerParser() throws Exception {
         String expectedKey = "test key";
         int expectedMinValue = Integer.MIN_VALUE;
         int expectedMaxValue = Integer.MAX_VALUE;
@@ -1243,7 +1243,7 @@ public class SettingTests extends OpenSearchTestCase {
         assertEquals(1, longSetting.get(Settings.EMPTY).longValue());
     }
 
-    public void testLongParser() {
+    public void testLongParser() throws Exception {
         String expectedKey = "test key";
         long expectedMinValue = Long.MIN_VALUE;
         long expectedMaxValue = Long.MAX_VALUE;
@@ -1303,7 +1303,7 @@ public class SettingTests extends OpenSearchTestCase {
         assertEquals(1.2, floatSetting.get(Settings.EMPTY).floatValue(), 0.01);
     }
 
-    public void testFloatParser() {
+    public void testFloatParser() throws Exception {
         String expectedKey = "test key";
         float expectedMinValue = Float.MIN_VALUE;
         float expectedMaxValue = Float.MAX_VALUE;
@@ -1343,7 +1343,7 @@ public class SettingTests extends OpenSearchTestCase {
         assertEquals(doubleSetting.get(Settings.builder().put("foo.baz", 3.2).build()), Double.valueOf(3.2));
     }
 
-    public void testDoubleWithMinMax() {
+    public void testDoubleWithMinMax() throws Exception {
         Setting<Double> doubleSetting = Setting.doubleSetting("foo.bar", 1.2, 0, 10, Property.NodeScope);
         try {
             doubleSetting.get(Settings.builder().put("foo.bar", 11.3).build());
@@ -1363,7 +1363,7 @@ public class SettingTests extends OpenSearchTestCase {
         assertEquals(1.2, doubleSetting.get(Settings.EMPTY).doubleValue(), 0.01);
     }
 
-    public void testDoubleParser() {
+    public void testDoubleParser() throws Exception {
         String expectedKey = "test key";
         double expectedMinValue = Double.MIN_VALUE;
         double expectedMaxValue = Double.MAX_VALUE;
@@ -1389,7 +1389,7 @@ public class SettingTests extends OpenSearchTestCase {
     }
 
     // Boolean
-    public void testBooleanParser() {
+    public void testBooleanParser() throws Exception {
         String expectedKey = "test key";
         Boolean expectedFilteredStatus = true;
         BooleanParser booleanParser = new BooleanParser(expectedKey, expectedFilteredStatus);
@@ -1409,7 +1409,7 @@ public class SettingTests extends OpenSearchTestCase {
     }
 
     // ByteSizeValue
-    public void testByteSizeValueParser() {
+    public void testByteSizeValueParser() throws Exception {
         String expectedKey = "test key";
         ByteSizeValue expectedMinValue = new ByteSizeValue((long) 1);
         ByteSizeValue expectedMaxValue = new ByteSizeValue(Long.MAX_VALUE);
@@ -1509,7 +1509,7 @@ public class SettingTests extends OpenSearchTestCase {
         assertThat(setting.get(Settings.EMPTY).getMillis(), equalTo(random.getMillis() * factor));
     }
 
-    public void testMinTimeValueParser() {
+    public void testMinTimeValueParser() throws Exception {
         String expectedKey = "test key";
         TimeValue expectedMinValue = TimeValue.timeValueSeconds(0);
         boolean expectedFilteredStatus = true;
@@ -1531,7 +1531,7 @@ public class SettingTests extends OpenSearchTestCase {
         }
     }
 
-    public void testMinMaxTimeValueParser() {
+    public void testMinMaxTimeValueParser() throws Exception {
         String expectedKey = "test key";
         TimeValue expectedMinValue = TimeValue.timeValueSeconds(0);
         TimeValue expectedMaxValue = TimeValue.MAX_VALUE;
