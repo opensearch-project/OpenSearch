@@ -50,6 +50,8 @@
       - [Installation](#installation)
       - [Configuration](#configuration)
     - [Submitting Changes](#submitting-changes)
+    - [Backwards Compatibility](#backwards-compatibility)
+      - [Data](#data)
     - [Backports](#backports)
     - [LineLint](#linelint)
     - [Lucene Snapshots](#lucene-snapshots)
@@ -382,7 +384,7 @@ The Distribution Download plugin downloads the latest version of OpenSearch by d
 
 A fat-JAR (or an uber-JAR) is the JAR, which contains classes from all the libraries, on which your project depends and, of course, the classes of current project.
 
-There might be cases where a developer would like to add some custom logic to the code of a module (or multiple modules) and generate a fat-JAR that can be directly used by the dependency management tool. For example, in [#3665](https://github.com/opensearch-project/OpenSearch/pull/3665) a developer wanted to provide a tentative patch as a fat-JAR to a consumer for changes made in the high level REST client. 
+There might be cases where a developer would like to add some custom logic to the code of a module (or multiple modules) and generate a fat-JAR that can be directly used by the dependency management tool. For example, in [#3665](https://github.com/opensearch-project/OpenSearch/pull/3665) a developer wanted to provide a tentative patch as a fat-JAR to a consumer for changes made in the high level REST client.
 
 Use [Gradle Shadow plugin](https://imperceptiblethoughts.com/shadow/).
 Add the following to the `build.gradle` file of the module for which you want to create the fat-JAR, e.g. `client/rest-high-level/build.gradle`:
@@ -400,7 +402,7 @@ This will generate a fat-JAR in the `build/distributions` folder of the module, 
 
 You can further customize your fat-JAR by customising the plugin, More information about shadow plugin can be found [here](https://imperceptiblethoughts.com/shadow/).
 
-To use the generated JAR, install the JAR locally, e.g. 
+To use the generated JAR, install the JAR locally, e.g.
 ```
 mvn install:install-file -Dfile=src/main/resources/opensearch-rest-high-level-client-1.4.0-SNAPSHOT.jar -DgroupId=org.opensearch.client -DartifactId=opensearch-rest-high-level-client -Dversion=1.4.0-SNAPSHOT -Dpackaging=jar -DgeneratePom=true
 ```
@@ -518,6 +520,45 @@ git secrets --register-aws
 
 See [CONTRIBUTING](CONTRIBUTING.md).
 
+### Backwards Compatibility
+
+OpenSearch strives for a smooth and easy upgrade experience that is resilient to data loss and corruption while minimizing downtime and ensuring integration with
+external systems does not unexpectedly break.
+
+To provide these guarantees each version must be designed and developed with [forward compatibility](https://en.wikipedia.org/wiki/Forward_compatibility) in mind.
+OpenSearch addresses backward and forward compatibility at three different levels: 1. Data, 2. Developer API, 3. User API. These levels and the developer mechanisms
+to ensure backwards compatibility are provided below.
+
+#### Data
+The data level consists of index and application data file formats. OpenSearch guarantees file formats and indexes are compatible only back to the first release of
+the previous major version. If on disk formats or encodings need to be changed (including index data, cluster state, or any other persisted data) developers must
+use Version checks accordingly (e.g., `Version.onOrAfter`, `Version.before`) to guarantee backwards compatibility.
+
+#### Developer API
+The Developer API consists of interfaces and foundation software implementations that enable external users to develop new OpenSearch features. This includes
+obvious components such as the Plugin framework and less obvious components such as REST Action Handlers. When developing a new feature of OpenSearch it is important
+to explicitly mark which implementation components may, or may not, be extended by external implementations. For example, all new API classes with `@opensearch.api`
+signal that the new component may be extended by an external implementation and therefore provide backwards compatibility guarantees. Similarly, any class explicitly
+marked with the `@opensearch.internal` annotation, or not explicitly marked by an annotation may not be extended by external implementation components as it does not
+guarantee backwards compatibility and may change at any time. The `@deprecated` annotation should also be added to any `@opensearch.api` classes or methods that are
+either changed or planned to be removed across minor versions.
+
+#### User API
+The User API consists of integration specifications (e.g., [Query Domain Specific Language](https://opensearch.org/docs/latest/opensearch/query-dsl/index/),
+[field mappings](https://opensearch.org/docs/latest/opensearch/mappings/)) and endpoints (e.g., [`_search`](https://opensearch.org/docs/latest/api-reference/search/),
+[`_cat`](https://opensearch.org/docs/latest/api-reference/cat/index/)) users rely on to integrate and use OpenSearch. Backwards compatibility is critical to the
+User API, therefore OpenSearch commits to using [semantic versioning](https://opensearch.org/blog/what-is-semver/) for all User facing APIs. To support this
+developers must leverage `Version` checks for any user facing endpoints or API specifications that change across minor versions. Developers must also inform
+users of any changes by adding the `>breaking` label on Pull Requests, adding an entry to the [CHANGELOG](https://github.com/opensearch-project/OpenSearch/blob/main/CHANGELOG.md)
+and a log message to the OpenSearch deprecation log files using the `DeprecationLogger`.
+
+#### Experimental Development
+Rapidly developing new features often benefit from several release cycles before committing to an official and long term supported (LTS) API. To enable this cycle OpenSearch
+uses an Experimental Development process leveraging [Feature Flags](https://featureflags.io/feature-flags/). This allows a feature to be developed using the same process as
+a LTS feature but with additional guard rails and communication mechanisms to signal to the users and development community the feature is not yet stable, may change in a future
+release, or be removed altogether. Any Developer or User APIs implemented along with the experimental feature should be marked with the `@opensearch.experimental` annotation to
+signal the implementation is not subject to LTS and does not follow backwards compatibility guidelines.
+
 ### Backports
 
 The Github workflow in [`backport.yml`](.github/workflows/backport.yml) creates backport PRs automatically when the original PR with an appropriate label `backport <backport-branch-name>` is merged to main with the backport workflow run successfully on the PR. For example, if a PR on main needs to be backported to `1.x` branch, add a label `backport 1.x` to the PR and make sure the backport workflow runs on the PR along with other checks. Once this PR is merged to main, the workflow will create a backport PR to the `1.x` branch.
@@ -551,7 +592,7 @@ If you encounter a build/test failure in CI that is unrelated to the change in y
 
 1. Follow failed CI links, and locate the failing test(s).
 2. Copy-paste the failure into a comment of your PR.
-3. Search through [issues](https://github.com/opensearch-project/OpenSearch/issues?q=is%3Aopen+is%3Aissue+label%3A%22flaky-test%22) using the name of the failed test for whether this is a known flaky test. 
+3. Search through [issues](https://github.com/opensearch-project/OpenSearch/issues?q=is%3Aopen+is%3Aissue+label%3A%22flaky-test%22) using the name of the failed test for whether this is a known flaky test.
 5. If an existing issue is found, paste a link to the known issue in a comment to your PR.
 6. If no existing issue is found, open one.
 7. Retry CI via the GitHub UX or by pushing an update to your PR.
