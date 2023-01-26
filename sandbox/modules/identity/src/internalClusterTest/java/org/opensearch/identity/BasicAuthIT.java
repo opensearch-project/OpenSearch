@@ -8,6 +8,7 @@
 
 package org.opensearch.identity;
 
+import org.junit.Before;
 import org.opensearch.client.Request;
 import org.opensearch.client.RequestOptions;
 import org.opensearch.client.Response;
@@ -18,8 +19,14 @@ import java.nio.charset.StandardCharsets;
 
 import static org.hamcrest.Matchers.containsString;
 
-@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 1)
-public class BasicAuthTests extends AbstractIdentityTestCase {
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
+public class BasicAuthIT extends HttpSmokeTestCaseWithIdentity {
+
+    @Before
+    public void startBasicAuthTestCluster() throws Exception {
+        startNodesWithIdentityIndex();
+    }
+
     public void testBasicAuthSuccess() throws Exception {
         Request request = new Request("GET", "/_cluster/health");
         RequestOptions options = RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Basic YWRtaW46YWRtaW4=").build(); // admin:admin

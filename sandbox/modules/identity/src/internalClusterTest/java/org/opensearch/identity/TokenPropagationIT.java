@@ -43,7 +43,7 @@ import java.util.stream.Collectors;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoTimeout;
 
 @ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class BasicAuthenticationIT extends HttpSmokeTestCaseWithIdentity {
+public class TokenPropagationIT extends HttpSmokeTestCaseWithIdentity {
 
     public static Map<String, String> interceptedTokens = new HashMap<>();
     private final static String expectedActionName = "cluster:monitor/health";
@@ -93,7 +93,9 @@ public class BasicAuthenticationIT extends HttpSmokeTestCaseWithIdentity {
         return plugins;
     }
 
-    public void testBasicAuth() throws Exception {
+    public void testClusterHealthWithBasicAuth() throws Exception {
+        createTemporaryInternalUsersYml();
+
         final String clusterManagerNode = internalCluster().startClusterManagerOnlyNode();
 
         ClusterStateResponse clusterStateResponse = client(clusterManagerNode).admin()
@@ -120,6 +122,9 @@ public class BasicAuthenticationIT extends HttpSmokeTestCaseWithIdentity {
         assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(2)).get());
         List<NodeInfo> nodeInfos = client().admin().cluster().prepareNodesInfo().get().getNodes();
         assertEquals(2, nodeInfos.size());
+
+        Thread.sleep(2000);
+        ensureIdentityIndexIsGreen();
 
         List<TransportService> transportServices = new ArrayList<TransportService>();
         Map<String, TransportMessageListener> listenerMap = new HashMap<>();

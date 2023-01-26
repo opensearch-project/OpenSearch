@@ -10,8 +10,10 @@ package org.opensearch.identity.realm;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.greenrobot.eventbus.Subscribe;
 import org.opensearch.identity.DefaultObjectMapper;
 import org.opensearch.identity.User;
+import org.opensearch.identity.configuration.model.InternalUsersModel;
 
 import java.io.IOException;
 import java.net.URL;
@@ -25,6 +27,20 @@ import java.util.concurrent.ConcurrentMap;
  * @opensearch.experimental
  */
 public class InternalUsersStore {
+
+    private static InternalUsersStore INSTANCE;
+
+    private InternalUsersModel internalUsersModel;
+
+    private InternalUsersStore() {}
+
+    public static InternalUsersStore getInstance() {
+        if (INSTANCE == null) {
+            INSTANCE = new InternalUsersStore();
+        }
+
+        return INSTANCE;
+    }
 
     public static ConcurrentMap<String, User> readUsersAsMap(String pathToInternalUsersYaml) {
         ConcurrentMap<String, User> internalUsersMap = new ConcurrentHashMap<>();
@@ -70,5 +86,14 @@ public class InternalUsersStore {
         }
 
         return internalUsersMap;
+    }
+
+    InternalUsersModel getInternalUsersModel() {
+        return this.internalUsersModel;
+    }
+
+    @Subscribe
+    public void onInternalUsersModelChanged(InternalUsersModel ium) {
+        this.internalUsersModel = ium;
     }
 }

@@ -8,15 +8,14 @@
 
 package org.opensearch.identity;
 
-import org.junit.rules.TemporaryFolder;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileWriter;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -33,11 +32,10 @@ public class UserPersistenceIT extends HttpSmokeTestCaseWithIdentity {
     @SuppressForbidden(reason = "manipulates system properties for testing")
     public void testUserPersistence() throws Exception {
         try {
-            TemporaryFolder folder = new TemporaryFolder();
-            folder.create();
-            File internalUsersYml = folder.newFile("internal_users.yml");
-            FileWriter fw1 = new FileWriter(internalUsersYml);
-            BufferedWriter bw1 = new BufferedWriter(fw1);
+            Path configDir = createTempDir();
+            Path internalUsersYaml = configDir.resolve("internal_users.yml");
+            Path internalUsersFile = Files.createFile(internalUsersYaml);
+            BufferedWriter bw1 = Files.newBufferedWriter(internalUsersFile);
             bw1.write(
                 "new-user:\n"
                     + "  hash: \"$2y$12$88IFVl6IfIwCFh5aQYfOmuXVL9j2hz/GusQb35o.4sdTDAEMTOD.K\"\n"
@@ -70,8 +68,7 @@ public class UserPersistenceIT extends HttpSmokeTestCaseWithIdentity {
                     + "\n"
             );
             bw1.close();
-            final String defaultInitDirectory = folder.getRoot().getAbsolutePath();
-            System.setProperty("identity.default_init.dir", defaultInitDirectory);
+            System.setProperty("identity.default_init.dir", configDir.toString());
 
             startNodes();
 
@@ -94,11 +91,10 @@ public class UserPersistenceIT extends HttpSmokeTestCaseWithIdentity {
     @SuppressForbidden(reason = "manipulates system properties for testing")
     public void testUserPersistenceInvalidYml() throws Exception {
         try {
-            TemporaryFolder folder = new TemporaryFolder();
-            folder.create();
-            File internalUsersYml = folder.newFile("internal_users.yml");
-            FileWriter fw1 = new FileWriter(internalUsersYml);
-            BufferedWriter bw1 = new BufferedWriter(fw1);
+            Path configDir = createTempDir();
+            Path internalUsersYaml = configDir.resolve("internal_users.yml");
+            Path internalUsersFile = Files.createFile(internalUsersYaml);
+            BufferedWriter bw1 = Files.newBufferedWriter(internalUsersFile);
             bw1.write(
                 "# Invalid internal_users.yml, hash is required\n"
                     + "new-user:\n"
@@ -107,8 +103,7 @@ public class UserPersistenceIT extends HttpSmokeTestCaseWithIdentity {
                     + "\n"
             );
             bw1.close();
-            final String defaultInitDirectory = folder.getRoot().getAbsolutePath();
-            System.setProperty("identity.default_init.dir", defaultInitDirectory);
+            System.setProperty("identity.default_init.dir", configDir.toString());
 
             startNodes();
 
