@@ -177,7 +177,8 @@ public class ClusterStateHealthTests extends OpenSearchTestCase {
             threadPool,
             new ActionFilters(new HashSet<>()),
             indexNameExpressionResolver,
-            new AllocationService(null, new TestGatewayAllocator(), null, null, null), null
+            new AllocationService(null, new TestGatewayAllocator(), null, null, null),
+            null
         );
         PlainActionFuture<ClusterHealthResponse> listener = new PlainActionFuture<>();
         action.execute(new ClusterHealthRequest().waitForGreenStatus(), listener);
