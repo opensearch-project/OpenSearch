@@ -18,6 +18,7 @@ import org.opensearch.common.xcontent.ObjectParser;
 import org.opensearch.common.xcontent.ToXContentObject;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.script.Script;
 
 import java.io.IOException;
@@ -146,7 +147,7 @@ public abstract class BaseMultiValuesSourceFieldConfig implements Writeable, ToX
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toString(XContentType.JSON, this);
     }
 
     abstract void doXContentBody(XContentBuilder builder, Params params) throws IOException;
