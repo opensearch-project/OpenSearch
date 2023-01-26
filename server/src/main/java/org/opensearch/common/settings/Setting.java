@@ -1352,6 +1352,10 @@ public class Setting<T> implements ToXContentObject {
         );
     }
 
+    /**
+     * A writeable parser for float
+     *
+     */
     public static class FloatParser implements Function<String, Float>, Writeable {
         private float minValue;
         private float maxValue;
@@ -1522,6 +1526,10 @@ public class Setting<T> implements ToXContentObject {
         );
     }
 
+    /**
+     * A writeable parser for integer
+     *
+     */
     public static class IntegerParser implements Function<String, Integer>, Writeable {
         private String key;
         private int minValue;
@@ -1684,6 +1692,10 @@ public class Setting<T> implements ToXContentObject {
         );
     }
 
+    /**
+     * A writeable parser for long
+     *
+     */
     public static class LongParser implements Function<String, Long>, Writeable {
         private String key;
         private long minValue;
@@ -1846,6 +1858,10 @@ public class Setting<T> implements ToXContentObject {
         );
     }
 
+    /**
+     * A writeable parser for double
+     *
+     */
     public static class DoubleParser implements Function<String, Double>, Writeable {
         private double minValue;
         private double maxValue;
@@ -2048,6 +2064,10 @@ public class Setting<T> implements ToXContentObject {
         }
     }
 
+    /**
+     * A writeable parser for boolean
+     *
+     */
     public static class BooleanParser implements Function<String, Boolean>, Writeable {
         private String key;
         private boolean isFiltered;
@@ -2127,6 +2147,10 @@ public class Setting<T> implements ToXContentObject {
         return new Setting<>(key, defaultValue, new ByteSizeValueParser(minValue, maxValue, key), properties);
     }
 
+    /**
+     * A writeable parser for bytesizevalue
+     *
+     */
     public static class ByteSizeValueParser implements Function<String, ByteSizeValue>, Writeable {
         private ByteSizeValue minValue;
         private ByteSizeValue maxValue;
@@ -2507,6 +2531,10 @@ public class Setting<T> implements ToXContentObject {
         );
     }
 
+    /**
+     * A writeable parser for time value only has min value
+     *
+     */
     public static class MinTimeValueParser implements Function<String, TimeValue>, Writeable {
         private String key;
         private TimeValue minValue;
@@ -2594,6 +2622,10 @@ public class Setting<T> implements ToXContentObject {
         );
     }
 
+    /**
+     * A writeable parser for time value have min and max value
+     *
+     */
     public static class MinMaxTimeValueParser implements Function<String, TimeValue>, Writeable {
         private String key;
         private TimeValue minValue;
