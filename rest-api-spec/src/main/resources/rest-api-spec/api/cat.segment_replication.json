@@ -1,7 +1,7 @@
 {
   "cat.segment_replication":{
     "documentation":{
-      "url":"TO DO",
+      "url":"https://TODO.html",
       "description":"Returns information about index Segment Replication events, both on-going and completed."
     },
     "stability":"stable",
