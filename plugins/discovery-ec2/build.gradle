@@ -38,10 +38,6 @@ opensearchplugin {
   classname 'org.opensearch.discovery.ec2.Ec2DiscoveryPlugin'
 }
 
-versions << [
-  'aws': '1.11.749'
-]
-
 dependencies {
   api "com.amazonaws:aws-java-sdk-ec2:${versions.aws}"
   api "com.amazonaws:aws-java-sdk-core:${versions.aws}"
