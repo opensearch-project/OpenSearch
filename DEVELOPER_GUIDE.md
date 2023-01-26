@@ -542,7 +542,7 @@ The Developer API consists of interfaces and foundation software implementations
 obvious components such as the Plugin framework and less obvious components such as REST Action Handlers. When developing a new feature of OpenSearch it is important
 to explicitly mark which implementation components may, or may not, be extended by external implementations. For example, all new API classes with `@opensearch.api`
 signal that the new component may be extended by an external implementation and therefore provide backwards compatibility guarantees. Similarly, any class explicitly
-marked with the `@opensearch.internal` annotation, or not explicitly marked by an annotation may not be extended by external implementation components as it does not
+marked with the `@opensearch.internal` annotation, or not explicitly marked by an annotation should not be extended by external implementation components as it does not
 guarantee backwards compatibility and may change at any time. The `@deprecated` annotation should also be added to any `@opensearch.api` classes or methods that are
 either changed or planned to be removed across minor versions.
 
