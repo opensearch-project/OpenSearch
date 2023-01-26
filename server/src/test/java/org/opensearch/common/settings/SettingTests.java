@@ -1194,7 +1194,7 @@ public class SettingTests extends OpenSearchTestCase {
         assertEquals(expectedFilteredStatus, integerParser.getFilterStatus());
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            expectedParser.writeTo(out);
+            integerParser.writeTo(out);
             out.flush();
             try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
                 integerParser = new IntegerParser(in);
