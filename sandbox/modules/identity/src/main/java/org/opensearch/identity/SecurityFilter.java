@@ -72,6 +72,8 @@ public class SecurityFilter implements ActionFilter {
         ActionListener<Response> listener,
         ActionFilterChain<Request, Response> chain
     ) {
+        // TODO The section below shows permission check working for index create and index search, but needs
+        // expanded to work for all actions
         Subject currentSubject = Identity.getAuthManager().getSubject();
         // can be multiple index patterns
         Optional<String[]> resources = Optional.empty();
