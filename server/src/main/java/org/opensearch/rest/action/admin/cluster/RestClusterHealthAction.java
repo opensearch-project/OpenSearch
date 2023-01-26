@@ -90,7 +90,7 @@ public class RestClusterHealthAction extends BaseRestHandler {
         clusterHealthRequest.indicesOptions(IndicesOptions.fromRequest(request, clusterHealthRequest.indicesOptions()));
         clusterHealthRequest.local(request.paramAsBoolean("local", clusterHealthRequest.local()));
         clusterHealthRequest.ensureLocalNodeCommissioned(
-            request.paramAsBoolean("ensureLocalNodeCommissioned", clusterHealthRequest.ensureLocalNodeCommissioned())
+            request.paramAsBoolean("ensure_local_node_commissioned", clusterHealthRequest.ensureLocalNodeCommissioned())
         );
         clusterHealthRequest.clusterManagerNodeTimeout(
             request.paramAsTime("cluster_manager_timeout", clusterHealthRequest.clusterManagerNodeTimeout())
