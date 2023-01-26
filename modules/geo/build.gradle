@@ -31,7 +31,7 @@ apply plugin: 'opensearch.yaml-rest-test'
 apply plugin: 'opensearch.internal-cluster-test'
 
 opensearchplugin {
-  description 'Plugin for geospatial features in OpenSearch. Registering the geo_shape and aggregations GeoBounds on Geo_Shape and Geo_Point'
+  description 'Plugin for geospatial features in OpenSearch. Registering the geo_shape and aggregations on GeoShape and GeoPoint'
   classname 'org.opensearch.geo.GeoModulePlugin'
 }
 

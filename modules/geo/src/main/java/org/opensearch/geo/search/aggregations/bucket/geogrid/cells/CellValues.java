@@ -29,7 +29,7 @@
  * GitHub history for details.
  */
 
-package org.opensearch.geo.search.aggregations.bucket.geogrid;
+package org.opensearch.geo.search.aggregations.bucket.geogrid.cells;
 
 import org.opensearch.index.fielddata.AbstractSortingNumericDocValues;
 import org.opensearch.index.fielddata.MultiGeoPointValues;
