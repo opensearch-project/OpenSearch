@@ -1384,7 +1384,7 @@ public class SettingTests extends OpenSearchTestCase {
         }
     }
 
-    //Boolean
+    // Boolean
     public void testBooleanParser() {
         String expectedKey = "test key";
         Boolean expectedFilteredStatus = true;
@@ -1404,10 +1404,10 @@ public class SettingTests extends OpenSearchTestCase {
         }
     }
 
-    //ByteSizeValue
+    // ByteSizeValue
     public void testByteSizeValueParser() {
         String expectedKey = "test key";
-        ByteSizeValue expectedMinValue = new ByteSizeValue((long)1);
+        ByteSizeValue expectedMinValue = new ByteSizeValue((long) 1);
         ByteSizeValue expectedMaxValue = new ByteSizeValue(Long.MAX_VALUE);
         ByteSizeValueParser byteSizeValueParser = new ByteSizeValueParser(expectedMinValue, expectedMaxValue, expectedKey);
 

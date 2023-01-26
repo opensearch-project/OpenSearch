@@ -46,7 +46,6 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.regex.Regex;
-import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.MemorySizeValue;
 import org.opensearch.common.unit.TimeValue;
@@ -2088,8 +2087,7 @@ public class Setting<T> implements ToXContentObject {
             if (this == obj) return true;
             if (obj == null || getClass() != obj.getClass()) return false;
             IntegerParser that = (IntegerParser) obj;
-            return Objects.equals(key, that.key)
-                && Objects.equals(isFiltered, that.isFiltered);
+            return Objects.equals(key, that.key) && Objects.equals(isFiltered, that.isFiltered);
         }
 
         public int hashCode() {

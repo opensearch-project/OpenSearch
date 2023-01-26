@@ -201,11 +201,10 @@ public class WriteableSetting implements Writeable {
         }
         // Write a boolean specifying whether the parser is an instanceof writeable
         boolean isParserWriteable = parser instanceof Writeable;
-        if(isParserWriteable = true) {
+        if (isParserWriteable = true) {
             out.writeBoolean(isParserWriteable);
             parser.writeTo(out);
-        }
-        else{
+        } else {
             out.writeBoolean(isParserWriteable);
         }
         // We are not using validator
