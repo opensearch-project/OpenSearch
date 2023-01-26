@@ -9,9 +9,9 @@ new-user:
   permissions:
     - indices:admin:create
     - indices:data:write:index
-    - indices:data:/read/search|my-index*,other-index*
-    - indices:data:/read/search|third-index*
-    - indices:data:/read/search|my*
+    - indices:data/read/search|my-index*,other-index*
+    - indices:data/read/search|third-index*
+    - indices:data/read/search|my*
 
 ## Demo users
 

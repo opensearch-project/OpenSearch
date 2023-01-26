@@ -76,21 +76,20 @@ public class SecurityFilter implements ActionFilter {
         // can be multiple index patterns
         Optional<String[]> resources = Optional.empty();
         if (request instanceof IndicesRequest) {
-            System.out.println("Request is IndicesRequest");
             String[] indices = ((IndicesRequest) request).indices();
             if (indices != null) {
                 resources = Optional.of(((IndicesRequest) request).indices());
             }
         }
-        System.out.println("Resources: " + resources);
-        String permission = action.replace("/", ":");
+        String permission = action;
         if (resources.isPresent()) {
-            permission += ":" + Strings.join(resources.get(), ",");
+            permission += "|" + Strings.join(resources.get(), ",");
         }
-        System.out.println("Request: " + request);
-        System.out.println("Request Description: " + request.getDescription());
-        System.out.println("Current Subject: " + currentSubject);
-        System.out.println("Current Subject is permitted to perform " + permission + ": " + currentSubject.isPermitted(permission));
+
+        if (log.isDebugEnabled()) {
+            log.debug("Current Subject: {}", currentSubject);
+            log.debug("Current Subject is permitted to perform {}: {}", permission, currentSubject.isPermitted(permission));
+        }
         try {
             // TODO Get jwt here and verify
             // TODO Move this logic to right after successful login

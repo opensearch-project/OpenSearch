@@ -21,13 +21,12 @@ import org.apache.shiro.authc.UsernamePasswordToken;
 import org.apache.shiro.authz.AuthorizationInfo;
 import org.apache.shiro.authz.Permission;
 import org.apache.shiro.authz.SimpleAuthorizationInfo;
-import org.apache.shiro.authz.permission.WildcardPermission;
-import org.apache.shiro.realm.AuthenticatingRealm;
 
 import org.apache.shiro.realm.AuthorizingRealm;
 import org.apache.shiro.subject.PrincipalCollection;
 import org.opensearch.authn.StringPrincipal;
 import org.opensearch.identity.User;
+import org.opensearch.identity.authz.OpenSearchPermission;
 import org.opensearch.identity.configuration.model.InternalUsersModel;
 import org.opensearch.identity.jwt.BadCredentialsException;
 import org.opensearch.identity.jwt.JwtVerifier;
@@ -146,19 +145,17 @@ public class InternalRealm extends AuthorizingRealm {
 
     @Override
     protected AuthorizationInfo doGetAuthorizationInfo(PrincipalCollection principals) {
-        System.out.println("Principals: " + principals);
         SimpleAuthorizationInfo authorizations = new SimpleAuthorizationInfo();
         if (principals == null || principals.isEmpty()) {
             return authorizations;
         }
         String username = (String) principals.getPrimaryPrincipal();
-        System.out.println("Primary Principal: " + username);
         User userRecord = getInternalUser(username);
-        System.out.println("Found user: " + userRecord);
-        Set<String> stringPermissions = userRecord.getPermissions().stream().filter(p -> !p.contains("*")).collect(Collectors.toSet());
-        authorizations.setStringPermissions(stringPermissions);
-        Set<Permission> wildcardPermissions = userRecord.getPermissions().stream().filter(p -> p.contains("*")).map(p -> new WildcardPermission(p)).collect(Collectors.toSet());
-        authorizations.setObjectPermissions(wildcardPermissions);
+        Set<Permission> permissions = userRecord.getPermissions()
+            .stream()
+            .map(p -> new OpenSearchPermission(p))
+            .collect(Collectors.toSet());
+        authorizations.setObjectPermissions(permissions);
         return authorizations;
     }
 

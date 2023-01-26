@@ -28,6 +28,7 @@ import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.identity.authmanager.internal.InternalAuthenticationManager;
+import org.opensearch.identity.authz.IndexNameExpressionResolverHolder;
 import org.opensearch.identity.configuration.ClusterInfoHolder;
 import org.opensearch.identity.configuration.ConfigurationRepository;
 import org.opensearch.identity.configuration.DynamicConfigFactory;
@@ -165,6 +166,7 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
         // Can the constructor be substituted by taking these from environment?
         this.configPath = environment.configDir();
         this.settings = environment.settings();
+        IndexNameExpressionResolverHolder.setIndexNameExpressionResolver(indexNameExpressionResolver);
 
         // TODO: revisit this
         final String authManagerClassName = this.settings.get(
@@ -238,20 +240,25 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
 
     public static class GuiceHolder implements LifecycleComponent {
 
+        private static ClusterService clusterService;
         private static RepositoriesService repositoriesService;
 
         @Inject
-        public GuiceHolder(final RepositoriesService repositoriesService) {
+        public GuiceHolder(final RepositoriesService repositoriesService, final ClusterService clusterService) {
             GuiceHolder.repositoriesService = repositoriesService;
+            GuiceHolder.clusterService = clusterService;
         }
 
         public static RepositoriesService getRepositoriesService() {
             return repositoriesService;
         }
 
-        @Override
-        public void close() {
+        public static ClusterService getClusterService() {
+            return clusterService;
         }
+
+        @Override
+        public void close() {}
 
         @Override
         public Lifecycle.State lifecycleState() {
@@ -259,20 +266,16 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
         }
 
         @Override
-        public void addLifecycleListener(LifecycleListener listener) {
-        }
+        public void addLifecycleListener(LifecycleListener listener) {}
 
         @Override
-        public void removeLifecycleListener(LifecycleListener listener) {
-        }
+        public void removeLifecycleListener(LifecycleListener listener) {}
 
         @Override
-        public void start() {
-        }
+        public void start() {}
 
         @Override
-        public void stop() {
-        }
+        public void stop() {}
 
     }
 }

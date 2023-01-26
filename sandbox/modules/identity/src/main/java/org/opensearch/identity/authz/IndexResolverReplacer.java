@@ -87,17 +87,17 @@ public class IndexResolverReplacer {
 
     private static final boolean isAllWithNoRemote(final String... requestedPatterns) {
 
-        final List<String> patterns = requestedPatterns==null?null:Arrays.asList(requestedPatterns);
+        final List<String> patterns = requestedPatterns == null ? null : Arrays.asList(requestedPatterns);
 
-        if(IndexNameExpressionResolver.isAllIndices(patterns)) {
+        if (IndexNameExpressionResolver.isAllIndices(patterns)) {
             return true;
         }
 
-        if(patterns.size() == 1 && patterns.contains("*")) {
+        if (patterns.size() == 1 && patterns.contains("*")) {
             return true;
         }
 
-        if(new HashSet<String>(patterns).equals(NULL_SET)) {
+        if (new HashSet<String>(patterns).equals(NULL_SET)) {
             return true;
         }
 
@@ -109,15 +109,15 @@ public class IndexResolverReplacer {
     }
 
     private static final boolean isLocalAll(Collection<String> patterns) {
-        if(IndexNameExpressionResolver.isAllIndices(patterns)) {
+        if (IndexNameExpressionResolver.isAllIndices(patterns)) {
             return true;
         }
 
-        if(patterns.contains("_all")) {
+        if (patterns.contains("_all")) {
             return true;
         }
 
-        if(new HashSet<String>(patterns).equals(NULL_SET)) {
+        if (new HashSet<String>(patterns).equals(NULL_SET)) {
             return true;
         }
 
@@ -142,10 +142,15 @@ public class IndexResolverReplacer {
             name = request.getClass().getSimpleName();
         }
 
-        private void resolveIndexPatterns(final String name, final IndicesOptions indicesOptions, final boolean enableCrossClusterResolution, final String[] original) {
+        private void resolveIndexPatterns(
+            final String name,
+            final IndicesOptions indicesOptions,
+            final boolean enableCrossClusterResolution,
+            final String[] original
+        ) {
             final boolean isTraceEnabled = log.isTraceEnabled();
             if (isTraceEnabled) {
-                log.trace("resolve requestedPatterns: "+ Arrays.toString(original));
+                log.trace("resolve requestedPatterns: " + Arrays.toString(original));
             }
 
             if (isAllWithNoRemote(original)) {
@@ -179,12 +184,11 @@ public class IndexResolverReplacer {
 
             else {
                 final ClusterState state = clusterService.state();
-                final Set<String> dateResolvedLocalRequestedPatterns = localRequestedPatterns
-                    .stream()
+                final Set<String> dateResolvedLocalRequestedPatterns = localRequestedPatterns.stream()
                     .map(resolver::resolveDateMathExpression)
                     .collect(Collectors.toSet());
                 final WildcardMatcher dateResolvedMatcher = WildcardMatcher.from(dateResolvedLocalRequestedPatterns);
-                //fill matchingAliases
+                // fill matchingAliases
                 final Map<String, IndexAbstraction> lookup = state.metadata().getIndicesLookup();
                 matchingAliases = lookup.entrySet()
                     .stream()
@@ -195,12 +199,18 @@ public class IndexResolverReplacer {
 
                 final boolean isDebugEnabled = log.isDebugEnabled();
                 try {
-                    matchingAllIndices = Arrays.asList(resolver.concreteIndexNames(state, indicesOptions, localRequestedPatterns.toArray(new String[0])));
+                    matchingAllIndices = Arrays.asList(
+                        resolver.concreteIndexNames(state, indicesOptions, localRequestedPatterns.toArray(new String[0]))
+                    );
                     matchingDataStreams = resolver.dataStreamNames(state, indicesOptions, localRequestedPatterns.toArray(new String[0]));
 
                     if (isDebugEnabled) {
-                        log.debug("Resolved pattern {} to indices: {} and data-streams: {}",
-                            localRequestedPatterns, matchingAllIndices, matchingDataStreams);
+                        log.debug(
+                            "Resolved pattern {} to indices: {} and data-streams: {}",
+                            localRequestedPatterns,
+                            matchingAllIndices,
+                            matchingDataStreams
+                        );
                     }
                 } catch (IndexNotFoundException e1) {
                     if (isDebugEnabled) {
@@ -216,8 +226,16 @@ public class IndexResolverReplacer {
             }
 
             if (isTraceEnabled) {
-                log.trace("Resolved patterns {} for {} ({}) to [aliases {}, allIndices {}, dataStreams {}, originalRequested{}]",
-                    original, name, this.name, matchingAliases, matchingAllIndices, matchingDataStreams, Arrays.toString(original));
+                log.trace(
+                    "Resolved patterns {} for {} ({}) to [aliases {}, allIndices {}, dataStreams {}, originalRequested{}]",
+                    original,
+                    name,
+                    this.name,
+                    matchingAliases,
+                    matchingAllIndices,
+                    matchingDataStreams,
+                    Arrays.toString(original)
+                );
             }
 
             resolveTo(matchingAliases, matchingAllIndices, matchingDataStreams, original);
@@ -229,8 +247,12 @@ public class IndexResolverReplacer {
             originalRequested.add(Resolved.ANY);
         }
 
-        private void resolveTo(Iterable<String> matchingAliases, Iterable<String> matchingAllIndices,
-                               Iterable<String> matchingDataStreams, String[] original) {
+        private void resolveTo(
+            Iterable<String> matchingAliases,
+            Iterable<String> matchingAllIndices,
+            Iterable<String> matchingDataStreams,
+            String[] original
+        ) {
             aliases.addAll(StreamSupport.stream(matchingAliases.spliterator(), false).collect(Collectors.toList()));
             allIndices.addAll(StreamSupport.stream(matchingAllIndices.spliterator(), false).collect(Collectors.toList()));
             allIndices.addAll(StreamSupport.stream(matchingDataStreams.spliterator(), false).collect(Collectors.toList()));
@@ -244,18 +266,20 @@ public class IndexResolverReplacer {
                 || localRequest instanceof SearchRequest
                 || localRequest instanceof ResolveIndexAction.Request;
             // skip the whole thing if we have seen this exact resolveIndexPatterns request
-            if (alreadyResolved.add(new MultiKey(indicesOptions, enableCrossClusterResolution,
-                (original != null) ? new MultiKey(original, false) : null))) {
+            if (alreadyResolved.add(
+                new MultiKey(indicesOptions, enableCrossClusterResolution, (original != null) ? new MultiKey(original, false) : null)
+            )) {
                 resolveIndexPatterns(localRequest.getClass().getSimpleName(), indicesOptions, enableCrossClusterResolution, original);
             }
             return IndicesProvider.NOOP;
         }
 
         Resolved resolved(IndicesOptions indicesOptions) {
-            final Resolved resolved = alreadyResolved.isEmpty() ? Resolved._LOCAL_ALL :
-                new Resolved(aliases, allIndices, originalRequested, indicesOptions);
+            final Resolved resolved = alreadyResolved.isEmpty()
+                ? Resolved._LOCAL_ALL
+                : new Resolved(aliases, allIndices, originalRequested, indicesOptions);
 
-            if(log.isTraceEnabled()) {
+            if (log.isTraceEnabled()) {
                 log.trace("Finally resolved for {}: {}", name, resolved);
             }
 
@@ -263,16 +287,17 @@ public class IndexResolverReplacer {
         }
     }
 
-    //dnfof
+    // dnfof
     public boolean replace(final TransportRequest request, boolean retainMode, String... replacements) {
         return getOrReplaceAllIndices(request, new IndicesProvider() {
 
             @Override
             public String[] provide(String[] original, Object request, boolean supportsReplace) {
-                if(supportsReplace) {
-                    if(retainMode && !isAllWithNoRemote(original)) {
+                if (supportsReplace) {
+                    if (retainMode && !isAllWithNoRemote(original)) {
                         final Resolved resolved = resolveRequest(request);
-                        final List<String> retained = WildcardMatcher.from(resolved.getAllIndices()).getMatchAny(replacements, Collectors.toList());
+                        final List<String> retained = WildcardMatcher.from(resolved.getAllIndices())
+                            .getMatchAny(replacements, Collectors.toList());
                         return retained.toArray(new String[0]);
                     }
                     return replacements;
@@ -307,14 +332,17 @@ public class IndexResolverReplacer {
         private final boolean isLocalAll;
         private final IndicesOptions indicesOptions;
 
-        public Resolved(final Set<String> aliases,
-                        final Set<String> allIndices,
-                        final Set<String> originalRequested,
-                        IndicesOptions indicesOptions) {
+        public Resolved(
+            final Set<String> aliases,
+            final Set<String> allIndices,
+            final Set<String> originalRequested,
+            IndicesOptions indicesOptions
+        ) {
             this.aliases = aliases;
             this.allIndices = allIndices;
             this.originalRequested = originalRequested;
-            this.isLocalAll = IndexResolverReplacer.isLocalAll(originalRequested.toArray(new String[0])) || (aliases.contains("*") && allIndices.contains("*"));
+            this.isLocalAll = IndexResolverReplacer.isLocalAll(originalRequested.toArray(new String[0]))
+                || (aliases.contains("*") && allIndices.contains("*"));
             this.indicesOptions = indicesOptions;
         }
 
@@ -348,8 +376,15 @@ public class IndexResolverReplacer {
 
         @Override
         public String toString() {
-            return "Resolved [aliases=" + aliases + ", allIndices=" + allIndices + ", types=" + types
-                + ", originalRequested=" + originalRequested + "]";
+            return "Resolved [aliases="
+                + aliases
+                + ", allIndices="
+                + allIndices
+                + ", types="
+                + types
+                + ", originalRequested="
+                + originalRequested
+                + "]";
         }
 
         @Override
@@ -364,28 +399,19 @@ public class IndexResolverReplacer {
 
         @Override
         public boolean equals(Object obj) {
-            if (this == obj)
-                return true;
-            if (obj == null)
-                return false;
-            if (getClass() != obj.getClass())
-                return false;
+            if (this == obj) return true;
+            if (obj == null) return false;
+            if (getClass() != obj.getClass()) return false;
             Resolved other = (Resolved) obj;
             if (aliases == null) {
-                if (other.aliases != null)
-                    return false;
-            } else if (!aliases.equals(other.aliases))
-                return false;
+                if (other.aliases != null) return false;
+            } else if (!aliases.equals(other.aliases)) return false;
             if (allIndices == null) {
-                if (other.allIndices != null)
-                    return false;
-            } else if (!allIndices.equals(other.allIndices))
-                return false;
+                if (other.allIndices != null) return false;
+            } else if (!allIndices.equals(other.allIndices)) return false;
             if (originalRequested == null) {
-                if (other.originalRequested != null)
-                    return false;
-            } else if (!originalRequested.equals(other.originalRequested))
-                return false;
+                if (other.originalRequested != null) return false;
+            } else if (!originalRequested.equals(other.originalRequested)) return false;
             return true;
         }
     }
@@ -407,42 +433,42 @@ public class IndexResolverReplacer {
         }
     }
 
-
-    //--
+    // --
 
     @FunctionalInterface
     public interface IndicesProvider {
         public static final String[] NOOP = new String[0];
+
         String[] provide(String[] original, Object request, boolean supportsReplace);
     }
 
     private boolean checkIndices(Object request, String[] indices, boolean needsToBeSizeOne, boolean allowEmpty) {
 
-        if(indices == IndicesProvider.NOOP) {
+        if (indices == IndicesProvider.NOOP) {
             return false;
         }
 
         final boolean isTraceEnabled = log.isTraceEnabled();
-        if(!allowEmpty && (indices == null || indices.length == 0)) {
-            if(isTraceEnabled && request != null) {
-                log.trace("Null or empty indices for "+request.getClass().getName());
+        if (!allowEmpty && (indices == null || indices.length == 0)) {
+            if (isTraceEnabled && request != null) {
+                log.trace("Null or empty indices for " + request.getClass().getName());
             }
             return false;
         }
 
-        if(!allowEmpty && needsToBeSizeOne && indices.length != 1) {
-            if(isTraceEnabled && request != null) {
-                log.trace("To much indices for "+request.getClass().getName());
+        if (!allowEmpty && needsToBeSizeOne && indices.length != 1) {
+            if (isTraceEnabled && request != null) {
+                log.trace("To much indices for " + request.getClass().getName());
             }
             return false;
         }
 
         for (int i = 0; i < indices.length; i++) {
             final String index = indices[i];
-            if(index == null || index.isEmpty()) {
-                //not allowed
-                if(isTraceEnabled && request != null) {
-                    log.trace("At least one null or empty index for "+request.getClass().getName());
+            if (index == null || index.isEmpty()) {
+                // not allowed
+                if (isTraceEnabled && request != null) {
+                    log.trace("At least one null or empty index for " + request.getClass().getName());
                 }
                 return false;
             }
@@ -462,7 +488,7 @@ public class IndexResolverReplacer {
         final boolean isDebugEnabled = log.isDebugEnabled();
         final boolean isTraceEnabled = log.isTraceEnabled();
         if (isTraceEnabled) {
-            log.trace("getOrReplaceAllIndices() for "+request.getClass());
+            log.trace("getOrReplaceAllIndices() for " + request.getClass());
         }
 
         boolean result = true;
@@ -475,7 +501,7 @@ public class IndexResolverReplacer {
 
         } else if (request instanceof MultiGetRequest) {
 
-            for (ListIterator<Item> it = ((MultiGetRequest) request).getItems().listIterator(); it.hasNext();){
+            for (ListIterator<Item> it = ((MultiGetRequest) request).getItems().listIterator(); it.hasNext();) {
                 Item item = it.next();
                 result = getOrReplaceAllIndices(item, provider, false) && result;
                 /*if(item.index() == null || item.indices() == null || item.indices().length == 0) {
@@ -499,12 +525,12 @@ public class IndexResolverReplacer {
                 result = getOrReplaceAllIndices(ar, provider, false) && result;
             }
 
-        } else if(request instanceof PutMappingRequest) {
+        } else if (request instanceof PutMappingRequest) {
             PutMappingRequest pmr = (PutMappingRequest) request;
             Index concreteIndex = pmr.getConcreteIndex();
-            if(concreteIndex != null && (pmr.indices() == null || pmr.indices().length == 0)) {
-                String[] newIndices = provider.provide(new String[]{concreteIndex.getName()}, request, true);
-                if(checkIndices(request, newIndices, true, allowEmptyIndices) == false) {
+            if (concreteIndex != null && (pmr.indices() == null || pmr.indices().length == 0)) {
+                String[] newIndices = provider.provide(new String[] { concreteIndex.getName() }, request, true);
+                if (checkIndices(request, newIndices, true, allowEmptyIndices) == false) {
                     return false;
                 }
 
@@ -512,14 +538,14 @@ public class IndexResolverReplacer {
                 ((PutMappingRequest) request).setConcreteIndex(null);
             } else {
                 String[] newIndices = provider.provide(((PutMappingRequest) request).indices(), request, true);
-                if(checkIndices(request, newIndices, false, allowEmptyIndices) == false) {
+                if (checkIndices(request, newIndices, false, allowEmptyIndices) == false) {
                     return false;
                 }
                 ((PutMappingRequest) request).indices(newIndices);
             }
-        } else if(request instanceof RestoreSnapshotRequest) {
+        } else if (request instanceof RestoreSnapshotRequest) {
 
-            if(clusterInfoHolder.isLocalNodeElectedClusterManager() == Boolean.FALSE) {
+            if (clusterInfoHolder.isLocalNodeElectedClusterManager() == Boolean.FALSE) {
                 return true;
             }
 
@@ -527,13 +553,19 @@ public class IndexResolverReplacer {
             final SnapshotInfo snapshotInfo = SnapshotRestoreHelper.getSnapshotInfo(restoreRequest);
 
             if (snapshotInfo == null) {
-                log.warn("snapshot repository '" + restoreRequest.repository() + "', snapshot '" + restoreRequest.snapshot() + "' not found");
-                provider.provide(new String[]{"*"}, request, false);
+                log.warn(
+                    "snapshot repository '" + restoreRequest.repository() + "', snapshot '" + restoreRequest.snapshot() + "' not found"
+                );
+                provider.provide(new String[] { "*" }, request, false);
             } else {
-                final List<String> requestedResolvedIndices = SnapshotUtils.filterIndices(snapshotInfo.indices(), restoreRequest.indices(), restoreRequest.indicesOptions());
+                final List<String> requestedResolvedIndices = SnapshotUtils.filterIndices(
+                    snapshotInfo.indices(),
+                    restoreRequest.indices(),
+                    restoreRequest.indicesOptions()
+                );
                 final List<String> renamedTargetIndices = renamedIndices(restoreRequest, requestedResolvedIndices);
-                //final Set<String> indices = new HashSet<>(requestedResolvedIndices);
-                //indices.addAll(renamedTargetIndices);
+                // final Set<String> indices = new HashSet<>(requestedResolvedIndices);
+                // indices.addAll(renamedTargetIndices);
                 if (isDebugEnabled) {
                     log.debug("snapshot: {} contains this indices: {}", snapshotInfo.snapshotId().getName(), renamedTargetIndices);
                 }
@@ -541,29 +573,29 @@ public class IndexResolverReplacer {
             }
 
         } else if (request instanceof IndicesAliasesRequest) {
-            for(AliasActions ar: ((IndicesAliasesRequest) request).getAliasActions()) {
+            for (AliasActions ar : ((IndicesAliasesRequest) request).getAliasActions()) {
                 result = getOrReplaceAllIndices(ar, provider, false) && result;
             }
         } else if (request instanceof DeleteRequest) {
             String[] newIndices = provider.provide(((DeleteRequest) request).indices(), request, true);
-            if(checkIndices(request, newIndices, true, allowEmptyIndices) == false) {
+            if (checkIndices(request, newIndices, true, allowEmptyIndices) == false) {
                 return false;
             }
-            ((DeleteRequest) request).index(newIndices.length!=1?null:newIndices[0]);
+            ((DeleteRequest) request).index(newIndices.length != 1 ? null : newIndices[0]);
         } else if (request instanceof UpdateRequest) {
             String[] newIndices = provider.provide(((UpdateRequest) request).indices(), request, true);
-            if(checkIndices(request, newIndices, true, allowEmptyIndices) == false) {
+            if (checkIndices(request, newIndices, true, allowEmptyIndices) == false) {
                 return false;
             }
-            ((UpdateRequest) request).index(newIndices.length!=1?null:newIndices[0]);
+            ((UpdateRequest) request).index(newIndices.length != 1 ? null : newIndices[0]);
         } else if (request instanceof SingleShardRequest) {
             final SingleShardRequest<?> singleShardRequest = (SingleShardRequest<?>) request;
             final String index = singleShardRequest.index();
-            String[] indices = provider.provide(index == null ? null : new String[]{index}, request, true);
+            String[] indices = provider.provide(index == null ? null : new String[] { index }, request, true);
             if (!checkIndices(request, indices, true, allowEmptyIndices)) {
                 return false;
             }
-            singleShardRequest.index(indices.length != 1? null : indices[0]);
+            singleShardRequest.index(indices.length != 1 ? null : indices[0]);
         } else if (request instanceof FieldCapabilitiesIndexRequest) {
             // FieldCapabilitiesIndexRequest does not support replacing the indexes.
             // However, the indexes are always determined by FieldCapabilitiesRequest which will be reduced below
@@ -573,56 +605,56 @@ public class IndexResolverReplacer {
 
             String index = fieldCapabilitiesRequest.index();
 
-            String[] newIndices = provider.provide(new String[]{index}, request, true);
+            String[] newIndices = provider.provide(new String[] { index }, request, true);
             if (!checkIndices(request, newIndices, true, allowEmptyIndices)) {
                 return false;
             }
         } else if (request instanceof IndexRequest) {
             String[] newIndices = provider.provide(((IndexRequest) request).indices(), request, true);
-            if(checkIndices(request, newIndices, true, allowEmptyIndices) == false) {
+            if (checkIndices(request, newIndices, true, allowEmptyIndices) == false) {
                 return false;
             }
-            ((IndexRequest) request).index(newIndices.length!=1?null:newIndices[0]);
+            ((IndexRequest) request).index(newIndices.length != 1 ? null : newIndices[0]);
         } else if (request instanceof Replaceable) {
             String[] newIndices = provider.provide(((Replaceable) request).indices(), request, true);
-            if(checkIndices(request, newIndices, false, allowEmptyIndices) == false) {
+            if (checkIndices(request, newIndices, false, allowEmptyIndices) == false) {
                 return false;
             }
             ((Replaceable) request).indices(newIndices);
         } else if (request instanceof BulkShardRequest) {
             provider.provide(((ReplicationRequest) request).indices(), request, false);
-            //replace not supported?
+            // replace not supported?
         } else if (request instanceof ReplicationRequest) {
             String[] newIndices = provider.provide(((ReplicationRequest) request).indices(), request, true);
-            if(checkIndices(request, newIndices, true, allowEmptyIndices) == false) {
+            if (checkIndices(request, newIndices, true, allowEmptyIndices) == false) {
                 return false;
             }
-            ((ReplicationRequest) request).index(newIndices.length!=1?null:newIndices[0]);
+            ((ReplicationRequest) request).index(newIndices.length != 1 ? null : newIndices[0]);
         } else if (request instanceof MultiGetRequest.Item) {
             String[] newIndices = provider.provide(((MultiGetRequest.Item) request).indices(), request, true);
-            if(checkIndices(request, newIndices, true, allowEmptyIndices) == false) {
+            if (checkIndices(request, newIndices, true, allowEmptyIndices) == false) {
                 return false;
             }
-            ((MultiGetRequest.Item) request).index(newIndices.length!=1?null:newIndices[0]);
+            ((MultiGetRequest.Item) request).index(newIndices.length != 1 ? null : newIndices[0]);
         } else if (request instanceof CreateIndexRequest) {
             String[] newIndices = provider.provide(((CreateIndexRequest) request).indices(), request, true);
-            if(checkIndices(request, newIndices, true, allowEmptyIndices) == false) {
+            if (checkIndices(request, newIndices, true, allowEmptyIndices) == false) {
                 return false;
             }
-            ((CreateIndexRequest) request).index(newIndices.length!=1?null:newIndices[0]);
+            ((CreateIndexRequest) request).index(newIndices.length != 1 ? null : newIndices[0]);
         } else if (request instanceof CreateDataStreamAction.Request) {
             provider.provide(((CreateDataStreamAction.Request) request).indices(), request, false);
         } else if (request instanceof ReindexRequest) {
             result = getOrReplaceAllIndices(((ReindexRequest) request).getDestination(), provider, false) && result;
             result = getOrReplaceAllIndices(((ReindexRequest) request).getSearchRequest(), provider, false) && result;
         } else if (request instanceof BaseNodesRequest) {
-            //do nothing
+            // do nothing
         } else if (request instanceof MainRequest) {
-            //do nothing
+            // do nothing
         } else if (request instanceof ClearScrollRequest) {
-            //do nothing
+            // do nothing
         } else if (request instanceof SearchScrollRequest) {
-            //do nothing
+            // do nothing
         } else if (request instanceof PutComponentTemplateAction.Request) {
             // do nothing
         } else {
@@ -638,13 +670,10 @@ public class IndexResolverReplacer {
     private IndicesOptions indicesOptionsFrom(Object localRequest) {
         if (IndicesRequest.class.isInstance(localRequest)) {
             return ((IndicesRequest) localRequest).indicesOptions();
-        }
-        else if (RestoreSnapshotRequest.class.isInstance(localRequest)) {
+        } else if (RestoreSnapshotRequest.class.isInstance(localRequest)) {
             return ((RestoreSnapshotRequest) localRequest).indicesOptions();
-        }
-        else {
+        } else {
             return IndicesOptions.fromOptions(false, true, true, false, true);
         }
     }
 }
-

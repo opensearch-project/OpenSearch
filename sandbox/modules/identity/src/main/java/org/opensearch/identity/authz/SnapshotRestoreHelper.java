@@ -41,11 +41,13 @@ public class SnapshotRestoreHelper {
             return SnapshotUtils.filterIndices(snapshotInfo.indices(), restoreRequest.indices(), restoreRequest.indicesOptions());
         }
 
-
     }
 
     public static SnapshotInfo getSnapshotInfo(RestoreSnapshotRequest restoreRequest) {
-        final RepositoriesService repositoriesService = Objects.requireNonNull(IdentityPlugin.GuiceHolder.getRepositoriesService(), "RepositoriesService not initialized");
+        final RepositoriesService repositoriesService = Objects.requireNonNull(
+            IdentityPlugin.GuiceHolder.getRepositoriesService(),
+            "RepositoriesService not initialized"
+        );
         final Repository repository = repositoriesService.repository(restoreRequest.repository());
         final String threadName = Thread.currentThread().getName();
         SnapshotInfo snapshotInfo = null;
@@ -55,7 +57,7 @@ public class SnapshotRestoreHelper {
             for (SnapshotId snapshotId : PlainActionFuture.get(repository::getRepositoryData).getSnapshotIds()) {
                 if (snapshotId.getName().equals(restoreRequest.snapshot())) {
 
-                    if(log.isDebugEnabled()) {
+                    if (log.isDebugEnabled()) {
                         log.debug("snapshot found: {} (UUID: {})", snapshotId.getName(), snapshotId.getUUID());
                     }
 

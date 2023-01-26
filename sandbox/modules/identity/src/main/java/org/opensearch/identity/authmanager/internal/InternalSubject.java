@@ -13,6 +13,7 @@ import java.util.Objects;
 
 import org.opensearch.authn.tokens.AuthenticationToken;
 import org.opensearch.authn.Subject;
+import org.opensearch.identity.authz.OpenSearchPermission;
 
 /**
  * Implementation of subject that is always authenticated
@@ -77,6 +78,6 @@ public class InternalSubject implements Subject {
         if (shiroSubject == null || !shiroSubject.isAuthenticated()) {
             return false;
         }
-        return shiroSubject.isPermitted(permission);
+        return shiroSubject.isPermitted(new OpenSearchPermission(permission));
     }
 }
