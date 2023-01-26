@@ -54,22 +54,15 @@ public class OpenSearchPermission implements Permission {
             return false;
         }
 
-        boolean allRequestedPatternsMatchGranted = requestedPermission.indexPatterns.stream()
-            .allMatch(requstedIp -> this.indexPatterns.stream().anyMatch(ip -> Glob.globMatch(ip, requstedIp)));
-
-        return allRequestedPatternsMatchGranted;
-
-        // Next check if the requested permissions resources match granted resources
-
+        // Uncomment the following lines if index name -> concrete index resolution is required
         // IndexNameExpressionResolver iner = IndexNameExpressionResolverHolder.getInstance();
         // ClusterState cs = IdentityPlugin.GuiceHolder.getClusterService().state();
         // Set<String> concretePermissionIndexNames = iner.resolveExpressions(cs, this.indexPatterns.toArray(new String[0]));
         // Set<String> concreteRequestedIndexNames = iner.resolveExpressions(cs, requestedPermission.indexPatterns.toArray(new String[0]));
-        // System.out.println("concretePermissionIndexNames: " + concretePermissionIndexNames);
-        // System.out.println("concreteRequestedIndexNames: " + concreteRequestedIndexNames);
-        // if (concretePermissionIndexNames.containsAll(concreteRequestedIndexNames)) {
-        // return true;
-        // }
-        // return false;
+
+        boolean allRequestedPatternsMatchGranted = requestedPermission.indexPatterns.stream()
+            .allMatch(requstedIp -> this.indexPatterns.stream().anyMatch(ip -> Glob.globMatch(ip, requstedIp)));
+
+        return allRequestedPatternsMatchGranted;
     }
 }
