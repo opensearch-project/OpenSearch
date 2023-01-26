@@ -38,8 +38,10 @@ import org.apache.logging.log4j.core.LogEvent;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.collect.Triplet;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.settings.AbstractScopedSettings.SettingUpdater;
 import org.opensearch.common.settings.Setting.BooleanParser;
+import org.opensearch.common.settings.Setting.ByteSizeValueParser;
 import org.opensearch.common.settings.Setting.DoubleParser;
 import org.opensearch.common.settings.Setting.FloatParser;
 import org.opensearch.common.settings.Setting.IntegerParser;
@@ -1254,7 +1256,7 @@ public class SettingTests extends OpenSearchTestCase {
         assertEquals(expectedFilteredStatus, longParser.getFilterStatus());
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            expectedParser.writeTo(out);
+            longParser.writeTo(out);
             out.flush();
             try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
                 longParser = new LongParser(in);
@@ -1314,7 +1316,7 @@ public class SettingTests extends OpenSearchTestCase {
         assertEquals(expectedFilteredStatus, floatParser.getFilterStatus());
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            expectedParser.writeTo(out);
+            floatParser.writeTo(out);
             out.flush();
             try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
                 floatParser = new FloatParser(in);
@@ -1374,7 +1376,7 @@ public class SettingTests extends OpenSearchTestCase {
         assertEquals(expectedFilteredStatus, doubleParser.getFilterStatus());
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            expectedParser.writeTo(out);
+            doubleParser.writeTo(out);
             out.flush();
             try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
                 doubleParser = new DoubleParser(in);
@@ -1396,7 +1398,7 @@ public class SettingTests extends OpenSearchTestCase {
         assertEquals(expectedFilteredStatus, booleanParser.getFilterStatus());
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            expectedParser.writeTo(out);
+            booleanParser.writeTo(out);
             out.flush();
             try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
                 booleanParser = new BooleanParser(in);
@@ -1418,7 +1420,7 @@ public class SettingTests extends OpenSearchTestCase {
         assertEquals(expectedMaxValue, byteSizeValueParser.getMax());
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            expectedParser.writeTo(out);
+            byteSizeValueParser.writeTo(out);
             out.flush();
             try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
                 byteSizeValueParser = new ByteSizeValueParser(in);
@@ -1518,7 +1520,7 @@ public class SettingTests extends OpenSearchTestCase {
         assertEquals(expectedFilteredStatus, minTimeValueParser.getFilterStatus());
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            expectedParser.writeTo(out);
+            minTimeValueParser.writeTo(out);
             out.flush();
             try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
                 minTimeValueParser = new MinTimeValueParser(in);
@@ -1547,7 +1549,7 @@ public class SettingTests extends OpenSearchTestCase {
         assertEquals(expectedFilteredStatus, minMaxTimeValueParser.getFilterStatus());
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            expectedParser.writeTo(out);
+            minMaxTimeValueParser.writeTo(out);
             out.flush();
             try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
                 minMaxTimeValueParser = new MinMaxTimeValueParser(in);
