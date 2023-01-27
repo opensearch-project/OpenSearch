@@ -330,7 +330,8 @@ thirdPartyAudit.ignoreMissingClasses(
   'com.amazonaws.services.kms.model.EncryptRequest',
   'com.amazonaws.services.kms.model.EncryptResult',
   'com.amazonaws.services.kms.model.GenerateDataKeyRequest',
-  'com.amazonaws.services.kms.model.GenerateDataKeyResult'
+  'com.amazonaws.services.kms.model.GenerateDataKeyResult',
+  'com.amazonaws.services.kms.AWSKMSClientBuilder'
 )
 
 // jarhell with jdk (intentionally, because jaxb was removed from default modules in java 9)
