@@ -17,18 +17,18 @@ package org.opensearch.identity.authz;
  */
 public class Permission {
 
-    public final String PERMISSION_DELIMITER = "\\.";
+    private final String PERMISSION_DELIMITER = "\\.";
 
-    public final String ACTION_DELIMITER = "/";
+    private final String ACTION_DELIMITER = "/";
 
-    public String permissionString;
+    private String permissionString;
 
-    public String[] permissionSegments;
+    private String[] permissionSegments;
 
-    public String resource;
+    private String resource;
 
-    public String action;
-    public String permissionType;
+    private String action;
+    private String permissionType;
 
     public Permission(String permission) {
 
@@ -39,11 +39,27 @@ public class Permission {
             this.action = permissionSegments[1];
         } catch (IndexOutOfBoundsException ex) {
             throw new PermissionFactory.InvalidPermissionException(
-                "All permissions must contain a permission type and" + " action delimited by a \".\"."
+                "All permissions must contain a permission type and" + " action delimited by a " + PERMISSION_DELIMITER + "."
             );
         }
         if (this.permissionSegments.length == 3) {
             this.resource = permissionSegments[2];
         }
+    }
+
+    public String getPermissionType() {
+        return this.permissionType;
+    }
+
+    public String getAction() {
+        return this.action;
+    }
+
+    public String getResource() {
+        return this.resource;
+    }
+
+    public String getPermissionString() {
+        return this.permissionString;
     }
 }
