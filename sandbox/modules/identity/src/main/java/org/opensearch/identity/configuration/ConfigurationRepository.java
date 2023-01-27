@@ -128,7 +128,6 @@ public class ConfigurationRepository {
                                     System.out.println(response);
                                     InternalRealm.INSTANCE.createUser("admin", hashedAdminPassword, null);
 
-
 //                                    ConfigHelper.uploadFile(
 //                                        client,
 //                                        cd + "internal_users.yml",
