@@ -67,7 +67,7 @@ public class RemoteStoreIT extends OpenSearchIntegTestCase {
     // As index creation is pre-requisite for each integration test in this class, once we add more integ tests,
     // we can remove this test.
     public void testIndexCreation() {
-        internalCluster().startNode(featureFlagSettings());
+        internalCluster().startNode();
 
         Path absolutePath = randomRepoPath().toAbsolutePath();
         assertAcked(
