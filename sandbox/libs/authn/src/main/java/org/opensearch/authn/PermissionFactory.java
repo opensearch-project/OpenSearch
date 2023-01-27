@@ -35,7 +35,7 @@ public class PermissionFactory {
             return this.permissionType;
         }
 
-        public boolean resourcePatternIsRequired() {
+        public boolean isResourcePatternRequired() {
             return this.patternRequired;
         }
 
@@ -101,13 +101,14 @@ public class PermissionFactory {
      * Make sure a resource pattern is present for permission types that require one
      */
     public void checkIfResourcePatternIsRequiredAndPresent(Permission permission) {
-        if (QUALIFIED_PERMISSION_TYPES.matchingType(permission.permissionType).patternRequired && permission.resource.isEmpty()) {
+        QUALIFIED_PERMISSION_TYPES permissionType = QUALIFIED_PERMISSION_TYPES.matchingType(permission.permissionType);
+        if (permissionType.patternRequired && permission.resource.isEmpty()) {
             throw new InvalidPermissionException(
                 "The provided resource pattern for '"
                     + permission.permissionString
                     + "' is not valid. A resource pattern is required for all "
                     + "permissions of type "
-                    + QUALIFIED_PERMISSION_TYPES.matchingType(permission.permissionType)
+                    + permissionType
             );
         }
     }
