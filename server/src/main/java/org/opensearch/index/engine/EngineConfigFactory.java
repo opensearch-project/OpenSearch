@@ -38,6 +38,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -149,6 +150,7 @@ public class EngineConfigFactory {
         LongSupplier primaryTermSupplier,
         EngineConfig.TombstoneDocSupplier tombstoneDocSupplier,
         boolean isReadOnlyReplica,
+        BooleanSupplier primaryModeSupplier,
         TranslogFactory translogFactory
     ) {
         CodecService codecServiceToUse = codecService;
@@ -180,6 +182,7 @@ public class EngineConfigFactory {
             .primaryTermSupplier(primaryTermSupplier)
             .tombstoneDocSupplier(tombstoneDocSupplier)
             .readOnlyReplica(isReadOnlyReplica)
+            .primaryModeSupplier(primaryModeSupplier)
             .translogFactory(translogFactory)
             .build();
     }

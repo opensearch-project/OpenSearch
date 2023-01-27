@@ -123,7 +123,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
 
         /**
-         * Set the {@link #size()} and ensure that the {@link #values} array can
+         * Set the {@link #size()} and ensure that the internal values array can
          * store at least that many entries.
          */
         protected void resize(int newSize) {
@@ -515,7 +515,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
 
         /**
-         * Set the {@link #size()} and ensure that the {@link #values} array can
+         * Set the {@link #size()} and ensure that the internal values array can
          * store at least that many entries.
          */
         protected void resize(int newSize) {

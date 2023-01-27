@@ -45,7 +45,6 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.SetOnce;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
@@ -67,6 +66,7 @@ import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Numbers;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.blobstore.BlobContainer;
@@ -646,8 +646,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * Public for testing.
      */
     public BlobStore blobStore() {
-        assertSnapshotOrGenericThread();
-
         BlobStore store = blobStore.get();
         if (store == null) {
             synchronized (lock) {
@@ -1820,7 +1818,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             return RepositoryData.EMPTY;
         }
         try {
-            final String snapshotsIndexBlobName = INDEX_FILE_PREFIX + Long.toString(indexGen);
+            final String snapshotsIndexBlobName = INDEX_FILE_PREFIX + indexGen;
 
             // EMPTY is safe here because RepositoryData#fromXContent calls namedObject
             try (
