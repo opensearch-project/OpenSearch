@@ -19,19 +19,35 @@ import java.util.stream.Collectors;
 
 public class OpenSearchPermission implements Permission {
 
-    private String actionName;
-
     private List<String> indexPatterns;
+    public final String PERMISSION_DELIMITER = "\\.";
+
+    public final String ACTION_DELIMITER = "/";
+
+    public String permissionString;
+    public String[] permissionSegments;
+    public String resource;
+
+    public String action;
+    public String permissionType;
 
     public OpenSearchPermission(String permission) {
-        Objects.requireNonNull(permission);
-        String[] permissionParts = permission.split("\\|");
-        // turns an action like indices:data/read/search into indices:data:read:search to leverage shiro's WildcardPermission
-        this.actionName = permissionParts[0].replace("/", ":");
-        if (permissionParts.length > 1) {
-            this.indexPatterns = Arrays.stream(permissionParts[1].split(",")).map(String::trim).collect(Collectors.toList());
+
+        this.permissionString = permission;
+        try {
+            this.permissionSegments = permissionString.split(PERMISSION_DELIMITER);
+            this.permissionType = permissionSegments[0];
+            this.action = permissionSegments[1];
+        } catch (IndexOutOfBoundsException ex) {
+            throw new PermissionFactory.InvalidPermissionException(
+                "All permissions must contain a permission type and" + " action delimited by a \".\"."
+            );
+        }
+        if (this.permissionSegments.length == 3) {
+            this.resource = permissionSegments[2];
         }
     }
+
 
     @Override
     public boolean implies(Permission p) {
@@ -40,8 +56,8 @@ public class OpenSearchPermission implements Permission {
         }
         OpenSearchPermission requestedPermission = (OpenSearchPermission) p;
 
-        WildcardPermission wp = new WildcardPermission(this.actionName);
-        WildcardPermission wp2 = new WildcardPermission(requestedPermission.actionName);
+        WildcardPermission wp = new WildcardPermission(this.action);
+        WildcardPermission wp2 = new WildcardPermission(requestedPermission.action);
         if (!wp.implies(wp2)) {
             return false;
         }
