@@ -31,9 +31,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
-
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
 /**
  * This test class verifies primary shard relocation with segment replication as replication strategy.
@@ -329,8 +326,12 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
         assertEquals(clusterHealthResponse.isTimedOut(), false);
         ensureGreen(INDEX_NAME);
 
-        // Get mock transport service from newPrimary, halt recovery during segment replication (during handoff) to allow indexing in parallel.
-        MockTransportService mockTargetTransportService = ((MockTransportService) internalCluster().getInstance(TransportService.class, newPrimary));
+        // Get mock transport service from newPrimary, halt recovery during segment replication (during handoff) to allow indexing in
+        // parallel.
+        MockTransportService mockTargetTransportService = ((MockTransportService) internalCluster().getInstance(
+            TransportService.class,
+            newPrimary
+        ));
         CountDownLatch blockSegRepLatch = new CountDownLatch(1);
         CountDownLatch waitForIndexingLatch = new CountDownLatch(1);
         mockTargetTransportService.addSendBehavior(
