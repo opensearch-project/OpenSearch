@@ -1553,7 +1553,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public void setSegmentReplicationState(SegmentReplicationState segmentReplicationState) {
-        this.segmentReplicationState = segmentReplicationState;
+        if(this.shardRouting.primary() == false || getReplicationEngine().isEmpty() == false){
+            this.segmentReplicationState = segmentReplicationState;
+        }
+        else throw new OpenSearchException("Cannot set Segment Replication State on a primary shard");
     }
 
     /**

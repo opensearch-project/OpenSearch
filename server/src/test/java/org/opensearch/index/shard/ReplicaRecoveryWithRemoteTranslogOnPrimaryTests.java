@@ -10,10 +10,12 @@ package org.opensearch.index.shard;
 
 import org.junit.Assert;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.index.engine.DocIdSeqNoAndSource;
 import org.opensearch.index.engine.NRTReplicationEngine;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
@@ -21,7 +23,9 @@ import org.opensearch.index.replication.OpenSearchIndexLevelReplicationTestCase;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.translog.WriteOnlyTranslogManager;
 import org.opensearch.indices.recovery.RecoveryTarget;
+import org.opensearch.indices.replication.SegmentReplicationState;
 import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.List;
@@ -37,6 +41,12 @@ public class ReplicaRecoveryWithRemoteTranslogOnPrimaryTests extends OpenSearchI
         .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, "true")
         .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "translog-repo")
         .build();
+
+    DiscoveryNode node = new DiscoveryNode(
+        "101",
+        new TransportAddress(TransportAddress.META_ADDRESS, randomInt(0xFFFF)),
+        VersionUtils.randomVersion(random())
+    );
 
     public void testStartSequenceForReplicaRecovery() throws Exception {
         try (ReplicationGroup shards = createGroup(0, settings, new NRTReplicationEngineFactory())) {
@@ -102,6 +112,9 @@ public class ReplicaRecoveryWithRemoteTranslogOnPrimaryTests extends OpenSearchI
                     return idxShard;
                 }
             });
+            for(IndexShard replicaShard:shards.getReplicas()){
+                replicaShard.setSegmentReplicationState(new SegmentReplicationState(replicaShard.routingEntry(), node));
+            }
 
             shards.flush();
             replicateSegments(primary, shards.getReplicas());
@@ -123,6 +136,7 @@ public class ReplicaRecoveryWithRemoteTranslogOnPrimaryTests extends OpenSearchI
 
             // Step 2 - Start replica, recovery happens, check docs recovered till last flush
             final IndexShard replica = shards.addReplica();
+            replica.setSegmentReplicationState(new SegmentReplicationState(replica.routingEntry(), node));
             shards.startAll();
             assertEquals(docIdAndSeqNosAfterFlush, getDocIdAndSeqNos(replica));
             assertDocCount(replica, numDocs);

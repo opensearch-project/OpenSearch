@@ -1,7 +1,7 @@
 {
   "cat.segment_replication":{
     "documentation":{
-      "url":"https://TODO.html",
+      "url":"https://opensearch.org/docs/1.0/opensearch/rest-api/cat/cat-recovery/",
       "description":"Returns information about index Segment Replication events, both on-going and completed."
     },
     "stability":"stable",
