@@ -541,6 +541,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 OperationRouting.IGNORE_AWARENESS_ATTRIBUTES_SETTING,
                 OperationRouting.WEIGHTED_ROUTING_DEFAULT_WEIGHT,
                 OperationRouting.WEIGHTED_ROUTING_FAILOPEN_ENABLED,
+                OperationRouting.STRICT_WEIGHTED_SHARD_ROUTING_ENABLED,
                 IndexGraveyard.SETTING_MAX_TOMBSTONES,
                 PersistentTasksClusterService.CLUSTER_TASKS_ALLOCATION_RECHECK_INTERVAL_SETTING,
                 EnableAssignmentDecider.CLUSTER_TASKS_ALLOCATION_ENABLE_SETTING,
