@@ -465,17 +465,16 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         assertTrue(allUsedFields.contains(KEYWORD_FIELD_NAME));
 
         // fields with field prefix
-        allUsedFields = queryStringQuery("654654356")
-            .fields(Map.of(TEXT_FIELD_NAME, 1.0f, OBJECT_FIELD_NAME + ".*", 1.0f))
+        allUsedFields = queryStringQuery("654654356").fields(Map.of(TEXT_FIELD_NAME, 1.0f, OBJECT_FIELD_NAME + ".*", 1.0f))
             .extractAllUsedFields(createShardContext());
         assertTrue(allUsedFields.contains(TEXT_FIELD_NAME));
         assertTrue(allUsedFields.contains(OBJECT_FIELD_NAME + "." + DATE_FIELD_NAME));
         assertTrue(allUsedFields.contains(OBJECT_FIELD_NAME + "." + INT_FIELD_NAME));
 
         // field prefix in query_string with bear token and fields combo
-        allUsedFields = queryStringQuery(TEXT_FIELD_NAME + "\\*:test 12345")
-            .fields(Map.of(INT_FIELD_NAME, 1.0f, OBJECT_FIELD_NAME + ".*", 1.0f))
-            .extractAllUsedFields(createShardContext());
+        allUsedFields = queryStringQuery(TEXT_FIELD_NAME + "\\*:test 12345").fields(
+            Map.of(INT_FIELD_NAME, 1.0f, OBJECT_FIELD_NAME + ".*", 1.0f)
+        ).extractAllUsedFields(createShardContext());
         assertTrue(allUsedFields.contains(TEXT_FIELD_NAME));
         assertTrue(allUsedFields.contains(KEYWORD_FIELD_NAME));
         assertTrue(allUsedFields.contains(OBJECT_FIELD_NAME + "." + DATE_FIELD_NAME));
