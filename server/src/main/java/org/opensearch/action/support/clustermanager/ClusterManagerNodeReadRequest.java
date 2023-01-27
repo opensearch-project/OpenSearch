@@ -54,7 +54,7 @@ public abstract class ClusterManagerNodeReadRequest<Request extends ClusterManag
     protected ClusterManagerNodeReadRequest(StreamInput in) throws IOException {
         super(in);
         local = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_2_6_0)) {
+        if (in.getVersion().onOrAfter(Version.CURRENT)) {
             ensureLocalNodeCommissioned = in.readBoolean();
         }
     }
@@ -63,7 +63,7 @@ public abstract class ClusterManagerNodeReadRequest<Request extends ClusterManag
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeBoolean(local);
-        if (out.getVersion().onOrAfter(Version.V_2_6_0)) {
+        if (out.getVersion().onOrAfter(Version.CURRENT)) {
             out.writeBoolean(ensureLocalNodeCommissioned);
         }
     }
