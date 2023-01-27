@@ -125,7 +125,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             }
 
             primaryShard.refresh("Test");
-            for(IndexShard replicaShard:shards.getReplicas()){
+            for (IndexShard replicaShard : shards.getReplicas()) {
                 replicaShard.setSegmentReplicationState(new SegmentReplicationState(replicaShard.routingEntry(), node));
             }
             replicateSegments(primaryShard, shards.getReplicas());
@@ -156,7 +156,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
                 }
             }
             primaryShard.refresh("Test");
-            for(IndexShard replicaShard:shards.getReplicas()){
+            for (IndexShard replicaShard : shards.getReplicas()) {
                 replicaShard.setSegmentReplicationState(new SegmentReplicationState(replicaShard.routingEntry(), node));
             }
             replicateSegments(primaryShard, shards.getReplicas());
@@ -331,7 +331,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
                 assert shardList.size() >= 2;
                 final IndexShard primary = shardList.get(0);
                 List<IndexShard> replicaShards = shardList.subList(1, shardList.size());
-                for(IndexShard replicaShard:replicaShards){
+                for (IndexShard replicaShard : replicaShards) {
                     replicaShard.setSegmentReplicationState(new SegmentReplicationState(replicaShard.routingEntry(), node));
                 }
                 return replicateSegments(primary, replicaShards, listener);
@@ -415,7 +415,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             final IndexShard primary = shards.getPrimary();
             final IndexShard replica_1 = shards.getReplicas().get(0);
             final IndexShard replica_2 = shards.getReplicas().get(1);
-            for(IndexShard replicaShard:shards.getReplicas()){
+            for (IndexShard replicaShard : shards.getReplicas()) {
                 replicaShard.setSegmentReplicationState(new SegmentReplicationState(replicaShard.routingEntry(), node));
             }
             int numDocs = randomIntBetween(10, 100);
@@ -445,7 +445,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             numDocs = randomIntBetween(numDocs + 1, numDocs + 10);
             shards.indexDocs(numDocs);
             flushShard(replica_2, false);
-            for(IndexShard replicaShard:shards.getReplicas()){
+            for (IndexShard replicaShard : shards.getReplicas()) {
                 replicaShard.setSegmentReplicationState(new SegmentReplicationState(replicaShard.routingEntry(), node));
             }
             replicateSegments(replica_2, shards.getReplicas());
@@ -465,7 +465,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
                 flushShard(primary);
             }
             primary.refresh("Test");
-            for(IndexShard replicaShard:shards.getReplicas()){
+            for (IndexShard replicaShard : shards.getReplicas()) {
                 replicaShard.setSegmentReplicationState(new SegmentReplicationState(replicaShard.routingEntry(), node));
             }
             replicateSegments(primary, shards.getReplicas());
@@ -496,7 +496,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
                     failAndPromoteRandomReplica(shards);
                 }
                 flushShard(shards.getPrimary());
-                for(IndexShard replicaShard:shards.getReplicas()){
+                for (IndexShard replicaShard : shards.getReplicas()) {
                     replicaShard.setSegmentReplicationState(new SegmentReplicationState(replicaShard.routingEntry(), node));
                 }
                 replicateSegments(shards.getPrimary(), shards.getReplicas());
@@ -612,7 +612,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             IndexShard oldPrimary = shards.getPrimary();
             final IndexShard nextPrimary = shards.getReplicas().get(0);
             final IndexShard replica = shards.getReplicas().get(1);
-            for(IndexShard replicaShard:shards.getReplicas()){
+            for (IndexShard replicaShard : shards.getReplicas()) {
                 replicaShard.setSegmentReplicationState(new SegmentReplicationState(replicaShard.routingEntry(), node));
             }
 
@@ -742,7 +742,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             assertDocCount(newReplica, numDocs);
 
             nextPrimary.refresh("test");
-            for(IndexShard replicaShard:shards.getReplicas()){
+            for (IndexShard replicaShard : shards.getReplicas()) {
                 replicaShard.setSegmentReplicationState(new SegmentReplicationState(replicaShard.routingEntry(), node));
             }
             replicateSegments(nextPrimary, shards.getReplicas());

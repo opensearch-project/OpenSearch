@@ -112,7 +112,7 @@ public class ReplicaRecoveryWithRemoteTranslogOnPrimaryTests extends OpenSearchI
                     return idxShard;
                 }
             });
-            for(IndexShard replicaShard:shards.getReplicas()){
+            for (IndexShard replicaShard : shards.getReplicas()) {
                 replicaShard.setSegmentReplicationState(new SegmentReplicationState(replicaShard.routingEntry(), node));
             }
 
