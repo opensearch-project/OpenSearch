@@ -65,6 +65,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Bumps `tika` from 2.4.0 to 2.5.0 ([#4791](https://github.com/opensearch-project/OpenSearch/pull/4791))
 - Bumps `protobuf-java` from 3.21.7 to 3.21.9 ([#5319](https://github.com/opensearch-project/OpenSearch/pull/5319))
 - Bump hadoop-minicluster to 3.3.4 ([#6034](https://github.com/opensearch-project/OpenSearch/pull/6034))
+- Bump aws-java-sdk to 1.12.270 ([#6035](https://github.com/opensearch-project/OpenSearch/pull/6035))
 
 ### Changed
 - Dependency updates (httpcore, mockito, slf4j, httpasyncclient, commons-codec) ([#4308](https://github.com/opensearch-project/OpenSearch/pull/4308))
