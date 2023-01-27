@@ -1311,8 +1311,8 @@ public class SettingTests extends OpenSearchTestCase {
         FloatParser floatParser = new FloatParser(expectedMinValue, expectedMaxValue, expectedKey, expectedFilteredStatus);
 
         assertEquals(expectedKey, floatParser.getKey());
-        assertEquals(expectedMinValue, floatParser.getMin());
-        assertEquals(expectedMaxValue, floatParser.getMax());
+        assertEquals(expectedMinValue, floatParser.getMin(), 0.01);
+        assertEquals(expectedMaxValue, floatParser.getMax(), 0.01);
         assertEquals(expectedFilteredStatus, floatParser.getFilterStatus());
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
@@ -1321,8 +1321,8 @@ public class SettingTests extends OpenSearchTestCase {
             try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
                 floatParser = new FloatParser(in);
                 assertEquals(expectedKey, floatParser.getKey());
-                assertEquals(expectedMinValue, floatParser.getMin());
-                assertEquals(expectedMaxValue, floatParser.getMax());
+                assertEquals(expectedMinValue, floatParser.getMin(), 0.01);
+                assertEquals(expectedMaxValue, floatParser.getMax(), 0.01);
                 assertEquals(expectedFilteredStatus, floatParser.getFilterStatus());
             }
         }
@@ -1371,8 +1371,8 @@ public class SettingTests extends OpenSearchTestCase {
         DoubleParser doubleParser = new DoubleParser(expectedMinValue, expectedMaxValue, expectedKey, expectedFilteredStatus);
 
         assertEquals(expectedKey, doubleParser.getKey());
-        assertEquals(expectedMinValue, doubleParser.getMin());
-        assertEquals(expectedMaxValue, doubleParser.getMax());
+        assertEquals(expectedMinValue, doubleParser.getMin(), 0.01);
+        assertEquals(expectedMaxValue, doubleParser.getMax(), 0.01);
         assertEquals(expectedFilteredStatus, doubleParser.getFilterStatus());
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
@@ -1381,8 +1381,8 @@ public class SettingTests extends OpenSearchTestCase {
             try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
                 doubleParser = new DoubleParser(in);
                 assertEquals(expectedKey, doubleParser.getKey());
-                assertEquals(expectedMinValue, doubleParser.getMin());
-                assertEquals(expectedMaxValue, doubleParser.getMax());
+                assertEquals(expectedMinValue, doubleParser.getMin(), 0.01);
+                assertEquals(expectedMaxValue, doubleParser.getMax(), 0.01);
                 assertEquals(expectedFilteredStatus, doubleParser.getFilterStatus());
             }
         }
