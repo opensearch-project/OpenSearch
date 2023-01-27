@@ -14,6 +14,7 @@ import org.opensearch.action.admin.cluster.node.info.NodeInfo;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.health.ClusterIndexHealth;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
@@ -23,6 +24,10 @@ import org.opensearch.transport.nio.MockNioTransportPlugin;
 import org.opensearch.transport.nio.NioTransportPlugin;
 import org.junit.BeforeClass;
 
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -125,6 +130,28 @@ public abstract class HttpSmokeTestCaseWithIdentity extends OpenSearchIntegTestC
         assertEquals(2, nodeInfos.size());
 
         Thread.sleep(1000);
+    }
+
+    @SuppressForbidden(reason = "sets system property for testing")
+    protected void createTemporaryInternalUsersYml() throws Exception {
+        try {
+            Path configDir = createTempDir();
+            Path internalUsersYaml = configDir.resolve("internal_users.yml");
+            Path internalUsersFile = Files.createFile(internalUsersYaml);
+            BufferedWriter bw1 = Files.newBufferedWriter(internalUsersFile);
+            bw1.write("admin:\n" + "  hash: \"$2a$12$VcCDgh2NDk07JGN0rjGbM.Ad41qVR/YFJcgHp0UGns5JDymv..TOG\"\n" + "\n");
+            bw1.close();
+            System.setProperty("identity.default_init.dir", configDir.toString());
+        } catch (IOException ioe) {
+            fail("error creating temporary test file in " + this.getClass().getSimpleName());
+        }
+    }
+
+    protected void startNodesWithIdentityIndex() throws Exception {
+        createTemporaryInternalUsersYml();
+        startNodes();
+
+        ensureIdentityIndexIsGreen();
     }
 
     protected void ensureIdentityIndexIsGreen() {
