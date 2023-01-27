@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.authn;
+package org.opensearch.identity.authz;
 
 import java.security.Principal;
 import java.util.HashMap;

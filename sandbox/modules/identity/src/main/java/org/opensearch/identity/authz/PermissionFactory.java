@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.authn;
+package org.opensearch.identity.authz;
 
 /**
  * This class is used to create Permission instances. The factory can create both standard Permissions which have specific
