@@ -34,9 +34,7 @@ import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Collections;
 import java.util.List;
-import java.util.Random;
 import java.util.stream.Collectors;
 
 import static org.opensearch.common.xcontent.DeprecationHandler.THROW_UNSUPPORTED_OPERATION;
@@ -167,24 +165,14 @@ public class ConfigHelper {
         return fromYamlReader(new StringReader(yamlString), ctype, version, seqNo, primaryTerm);
     }
 
-
     public static String generateCommonLangPassword() {
         String upperCaseLetters = RandomStringUtils.random(3, 65, 90, true, true);
         String lowerCaseLetters = RandomStringUtils.random(3, 97, 122, true, true);
         String numbers = RandomStringUtils.randomNumeric(4);
-        //String specialChar = RandomStringUtils.random(2, 33, 47, false, false);
         String totalChars = RandomStringUtils.randomAlphanumeric(3);
-        String combinedChars = upperCaseLetters.concat(lowerCaseLetters)
-            .concat(numbers)
-            //.concat(specialChar)
-            .concat(totalChars);
-        List<Character> pwdChars = combinedChars.chars()
-            .mapToObj(c -> (char) c)
-            .collect(Collectors.toList());
-        Collections.shuffle(pwdChars);
-        String password = pwdChars.stream()
-            .collect(StringBuilder::new, StringBuilder::append, StringBuilder::append)
-            .toString();
+        String combinedChars = upperCaseLetters.concat(lowerCaseLetters).concat(numbers).concat(totalChars);
+        List<Character> pwdChars = combinedChars.chars().mapToObj(c -> (char) c).collect(Collectors.toList());
+        String password = pwdChars.stream().collect(StringBuilder::new, StringBuilder::append, StringBuilder::append).toString();
         return password;
     }
 }

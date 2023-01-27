@@ -131,7 +131,9 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
         settings.add(
             Setting.simpleString(ConfigConstants.IDENTITY_CONFIG_INDEX_NAME, Setting.Property.NodeScope, Setting.Property.Filtered)
         );
-        settings.add(Setting.simpleString(ConfigConstants.IDENTITY_ADMIN_USERNAME, "admin", Setting.Property.NodeScope, Setting.Property.Filtered));
+        settings.add(
+            Setting.simpleString(ConfigConstants.IDENTITY_ADMIN_USERNAME, "admin", Setting.Property.NodeScope, Setting.Property.Filtered)
+        );
 
         return settings;
     }
