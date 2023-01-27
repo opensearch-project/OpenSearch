@@ -60,7 +60,7 @@ public class DocumentFieldTests extends OpenSearchTestCase {
 
     public void testToXContent() {
         DocumentField documentField = new DocumentField("field", Arrays.asList("value1", "value2"));
-        String output = Strings.toString(documentField);
+        String output = Strings.toString(XContentType.JSON, documentField);
         assertEquals("{\"field\":[\"value1\",\"value2\"]}", output);
     }
 

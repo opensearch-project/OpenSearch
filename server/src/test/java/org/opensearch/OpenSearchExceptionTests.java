@@ -449,8 +449,8 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
 
         { // test equivalence
             OpenSearchException ex = new RemoteTransportException("foobar", new FileNotFoundException("foo not found"));
-            String toXContentString = Strings.toString(ex);
-            String throwableString = Strings.toString((builder, params) -> {
+            String toXContentString = Strings.toString(XContentType.JSON, ex);
+            String throwableString = Strings.toString(XContentType.JSON, (builder, params) -> {
                 OpenSearchException.generateThrowableXContent(builder, params, ex);
                 return builder;
             });

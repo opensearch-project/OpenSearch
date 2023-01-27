@@ -69,7 +69,7 @@ public class UpdateResponseTests extends OpenSearchTestCase {
     public void testToXContent() throws IOException {
         {
             UpdateResponse updateResponse = new UpdateResponse(new ShardId("index", "index_uuid", 0), "id", -2, 0, 0, NOT_FOUND);
-            String output = Strings.toString(updateResponse);
+            String output = Strings.toString(XContentType.JSON, updateResponse);
             assertEquals(
                 "{\"_index\":\"index\",\"_id\":\"id\",\"_version\":0,\"result\":\"not_found\","
                     + "\"_shards\":{\"total\":0,\"successful\":0,\"failed\":0}}",
@@ -86,7 +86,7 @@ public class UpdateResponseTests extends OpenSearchTestCase {
                 1,
                 DELETED
             );
-            String output = Strings.toString(updateResponse);
+            String output = Strings.toString(XContentType.JSON, updateResponse);
             assertEquals(
                 "{\"_index\":\"index\",\"_id\":\"id\",\"_version\":1,\"result\":\"deleted\","
                     + "\"_shards\":{\"total\":10,\"successful\":6,\"failed\":0},\"_seq_no\":3,\"_primary_term\":17}",
@@ -110,7 +110,7 @@ public class UpdateResponseTests extends OpenSearchTestCase {
             );
             updateResponse.setGetResult(new GetResult("books", "1", 0, 1, 2, true, source, fields, null));
 
-            String output = Strings.toString(updateResponse);
+            String output = Strings.toString(XContentType.JSON, updateResponse);
             assertEquals(
                 "{\"_index\":\"books\",\"_id\":\"1\",\"_version\":2,\"result\":\"updated\","
                     + "\"_shards\":{\"total\":3,\"successful\":2,\"failed\":0},\"_seq_no\":7,\"_primary_term\":17,\"get\":{"
