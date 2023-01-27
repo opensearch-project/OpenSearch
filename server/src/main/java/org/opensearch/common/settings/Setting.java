@@ -1876,8 +1876,8 @@ public class Setting<T> implements ToXContentObject {
         }
 
         public DoubleParser(StreamInput in) throws IOException {
-            minValue = in.readLong();
-            maxValue = in.readLong();
+            minValue = in.readDouble();
+            maxValue = in.readDouble();
             key = in.readString();
             isFiltered = in.readBoolean();
         }
