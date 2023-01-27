@@ -45,7 +45,7 @@ opensearchplugin {
 }
 
 versions << [
-  'aws': '1.11.749'
+  'aws': '1.12.270'
 ]
 
 dependencies {
