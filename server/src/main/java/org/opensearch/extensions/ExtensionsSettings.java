@@ -38,39 +38,39 @@ public class ExtensionsSettings {
 
         private String name;
         private String uniqueId;
-        private String hostName;
         private String hostAddress;
         private String port;
         private String version;
         private String opensearchVersion;
+        private String minimumCompatibleVersion;
         private List<ExtensionDependency> dependencies = Collections.emptyList();
 
         public Extension(
             String name,
             String uniqueId,
-            String hostName,
             String hostAddress,
             String port,
             String version,
-            String opensearchVersion
+            String opensearchVersion,
+            String minimumCompatibleVersion
         ) {
             this.name = name;
             this.uniqueId = uniqueId;
-            this.hostName = hostName;
             this.hostAddress = hostAddress;
             this.port = port;
             this.version = version;
             this.opensearchVersion = opensearchVersion;
+            this.minimumCompatibleVersion = minimumCompatibleVersion;
         }
 
         public Extension() {
             name = "";
             uniqueId = "";
-            hostName = "";
             hostAddress = "";
             port = "";
             version = "";
             opensearchVersion = "";
+            minimumCompatibleVersion = "";
         }
 
         public String getName() {
@@ -87,14 +87,6 @@ public class ExtensionsSettings {
 
         public void setUniqueId(String uniqueId) {
             this.uniqueId = uniqueId;
-        }
-
-        public String getHostName() {
-            return hostName;
-        }
-
-        public void setHostName(String hostName) {
-            this.hostName = hostName;
         }
 
         public String getHostAddress() {
@@ -121,25 +113,6 @@ public class ExtensionsSettings {
             this.version = version;
         }
 
-        @Override
-        public String toString() {
-            return "Extension [hostAddress="
-                + hostAddress
-                + ", hostName="
-                + hostName
-                + ", name="
-                + name
-                + ", opensearchVersion="
-                + opensearchVersion
-                + ", port="
-                + port
-                + ", uniqueId="
-                + uniqueId
-                + ", version="
-                + version
-                + "]";
-        }
-
         public String getOpensearchVersion() {
             return opensearchVersion;
         }
@@ -150,6 +123,33 @@ public class ExtensionsSettings {
 
         public List<ExtensionDependency> getDependencies() {
             return dependencies;
+        }
+
+        public String getMinimumCompatibleVersion() {
+            return minimumCompatibleVersion;
+        }
+
+        public void setMinimumCompatibleVersion(String minimumCompatibleVersion) {
+            this.minimumCompatibleVersion = minimumCompatibleVersion;
+        }
+
+        @Override
+        public String toString() {
+            return "Extension [hostAddress="
+                + hostAddress
+                + ", name="
+                + name
+                + ", opensearchVersion="
+                + opensearchVersion
+                + ", port="
+                + port
+                + ", uniqueId="
+                + uniqueId
+                + ", version="
+                + version
+                + ", minimumCompatibleVersion="
+                + minimumCompatibleVersion
+                + "]";
         }
 
     }

@@ -110,18 +110,18 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         "extensions:",
         "   - name: firstExtension",
         "     uniqueId: uniqueid1",
-        "     hostName: 'myIndependentPluginHost1'",
         "     hostAddress: '127.0.0.0'",
         "     port: '9300'",
         "     version: '0.0.7'",
         "     opensearchVersion: '3.0.0'",
+        "     minimumCompatibleVersion: '3.0.0'",
         "   - name: secondExtension",
         "     uniqueId: 'uniqueid2'",
-        "     hostName: 'myIndependentPluginHost2'",
         "     hostAddress: '127.0.0.1'",
         "     port: '9301'",
         "     version: '3.14.16'",
         "     opensearchVersion: '2.0.0'",
+        "     minimumCompatibleVersion: '2.0.0'",
         "     dependencies:",
         "       - uniqueId: 'uniqueid0'",
         "       - version: '2.0.0'"
@@ -179,6 +179,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             new TransportAddress(InetAddress.getByName("127.0.0.0"), 9300),
             new HashMap<String, String>(),
             Version.fromString("3.0.0"),
+            Version.fromString("3.0.0"),
             Collections.emptyList()
         );
         client = new NoOpNodeClient(this.getTestName());
@@ -215,6 +216,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                 new TransportAddress(InetAddress.getByName("127.0.0.0"), 9300),
                 new HashMap<String, String>(),
                 Version.fromString("3.0.0"),
+                Version.fromString("3.0.0"),
                 Collections.emptyList()
             )
         );
@@ -228,6 +230,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                 "127.0.0.1",
                 new TransportAddress(TransportAddress.META_ADDRESS, 9301),
                 new HashMap<String, String>(),
+                Version.fromString("2.1.0"),
                 Version.fromString("2.0.0"),
                 List.of(expectedDependency)
             )
@@ -259,6 +262,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                 new TransportAddress(InetAddress.getByName("127.0.0.0"), 9300),
                 new HashMap<String, String>(),
                 Version.fromString("3.0.0"),
+                Version.fromString("3.0.0"),
                 Collections.emptyList()
             )
         );
@@ -281,6 +285,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             "127.0.0.0",
             new TransportAddress(InetAddress.getByName("127.0.0.0"), 9300),
             new HashMap<String, String>(),
+            Version.fromString("3.0.0"),
             Version.fromString("3.0.0"),
             List.of(expectedDependency)
         );
@@ -336,7 +341,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                 new MockLogAppender.SeenEventExpectation(
                     "No Extensions File Present",
                     "org.opensearch.extensions.ExtensionsManager",
-                    Level.ERROR,
+                    Level.WARN,
                     "Extensions.yml file is not present.  No extensions will be loaded."
                 )
             );
@@ -525,6 +530,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                 "127.0.0.0",
                 new TransportAddress(InetAddress.getByName("127.0.0.0"), 9300),
                 new HashMap<String, String>(),
+                Version.fromString("3.0.0"),
                 Version.fromString("3.0.0"),
                 List.of(expectedDependency)
             )
@@ -764,6 +770,37 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         );
         expectThrows(NodeNotConnectedException.class, () -> extensionsManager.onIndexModule(indexModule));
 
+    }
+
+    public void testIncompatibleExtensionRegistration() throws IOException, IllegalAccessException {
+
+        try (MockLogAppender mockLogAppender = MockLogAppender.createForLoggers(LogManager.getLogger(ExtensionsManager.class))) {
+
+            mockLogAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "Could not load extension with uniqueId",
+                    "org.opensearch.extensions.ExtensionsManager",
+                    Level.ERROR,
+                    "Could not load extension with uniqueId uniqueid1 due to OpenSearchException[Extension minimumCompatibleVersion: 3.99.0 is greater than current"
+                )
+            );
+
+            List<String> incompatibleExtension = Arrays.asList(
+                "extensions:",
+                "   - name: firstExtension",
+                "     uniqueId: uniqueid1",
+                "     hostAddress: '127.0.0.0'",
+                "     port: '9300'",
+                "     version: '0.0.7'",
+                "     opensearchVersion: '3.0.0'",
+                "     minimumCompatibleVersion: '3.99.0'"
+            );
+
+            Files.write(extensionDir.resolve("extensions.yml"), incompatibleExtension, StandardCharsets.UTF_8);
+            ExtensionsManager extensionsManager = new ExtensionsManager(settings, extensionDir);
+            assertEquals(0, extensionsManager.getExtensionIdMap().values().size());
+            mockLogAppender.assertAllExpectationsMatched();
+        }
     }
 
     private void initialize(ExtensionsManager extensionsManager) {

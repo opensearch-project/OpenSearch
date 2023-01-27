@@ -8,6 +8,7 @@
 
 package org.opensearch.extensions;
 
+import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
@@ -31,6 +32,7 @@ import java.util.Map;
  */
 public class DiscoveryExtensionNode extends DiscoveryNode implements Writeable, ToXContentFragment {
 
+    private Version minimumCompatibleVersion;
     private List<ExtensionDependency> dependencies = Collections.emptyList();
 
     public DiscoveryExtensionNode(
@@ -42,15 +44,19 @@ public class DiscoveryExtensionNode extends DiscoveryNode implements Writeable, 
         TransportAddress address,
         Map<String, String> attributes,
         Version version,
+        Version minimumCompatibleVersion,
         List<ExtensionDependency> dependencies
     ) {
         super(name, id, ephemeralId, hostName, hostAddress, address, attributes, DiscoveryNodeRole.BUILT_IN_ROLES, version);
+        this.minimumCompatibleVersion = minimumCompatibleVersion;
         this.dependencies = dependencies;
+        validate();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        Version.writeVersion(minimumCompatibleVersion, out);
         out.writeVInt(dependencies.size());
         for (ExtensionDependency dependency : dependencies) {
             dependency.writeTo(out);
@@ -65,6 +71,7 @@ public class DiscoveryExtensionNode extends DiscoveryNode implements Writeable, 
      */
     public DiscoveryExtensionNode(final StreamInput in) throws IOException {
         super(in);
+        minimumCompatibleVersion = Version.readVersion(in);
         int size = in.readVInt();
         dependencies = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
@@ -76,6 +83,10 @@ public class DiscoveryExtensionNode extends DiscoveryNode implements Writeable, 
         return dependencies;
     }
 
+    public Version getMinimumCompatibleVersion() {
+        return minimumCompatibleVersion;
+    }
+
     public boolean dependenciesContain(ExtensionDependency dependency) {
         for (ExtensionDependency extensiondependency : this.dependencies) {
             if (dependency.getUniqueId().equals(extensiondependency.getUniqueId())
@@ -84,6 +95,17 @@ public class DiscoveryExtensionNode extends DiscoveryNode implements Writeable, 
             }
         }
         return false;
+    }
+
+    private void validate() {
+        if (!Version.CURRENT.onOrAfter(minimumCompatibleVersion)) {
+            throw new OpenSearchException(
+                "Extension minimumCompatibleVersion: "
+                    + minimumCompatibleVersion
+                    + " is greater than current OpenSearch version: "
+                    + Version.CURRENT
+            );
+        }
     }
 
     @Override

@@ -83,6 +83,7 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
             new TransportAddress(InetAddress.getByName("127.0.0.0"), 9300),
             new HashMap<String, String>(),
             Version.fromString("3.0.0"),
+            Version.fromString("3.0.0"),
             Collections.emptyList()
         );
     }

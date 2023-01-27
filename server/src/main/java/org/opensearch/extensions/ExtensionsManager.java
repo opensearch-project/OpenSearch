@@ -28,6 +28,7 @@ import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.client.node.NodeClient;
@@ -288,7 +289,7 @@ public class ExtensionsManager {
      * Load and populate all extensions
      */
     private void discover() throws IOException {
-        logger.info("Loading extensions :" + extensionsPath.toString());
+        logger.info("Loading extensions : {}", extensionsPath);
         if (!FileSystemUtils.isAccessibleDirectory(extensionsPath, logger)) {
             return;
         }
@@ -307,7 +308,7 @@ public class ExtensionsManager {
                 logger.info("Loaded all extensions");
             }
         } else {
-            logger.error("Extensions.yml file is not present.  No extensions will be loaded.");
+            logger.warn("Extensions.yml file is not present.  No extensions will be loaded.");
         }
     }
 
@@ -325,15 +326,18 @@ public class ExtensionsManager {
                     extension.getUniqueId(),
                     // placeholder for ephemeral id, will change with POC discovery
                     extension.getUniqueId(),
-                    extension.getHostName(),
+                    extension.getHostAddress(),
                     extension.getHostAddress(),
                     new TransportAddress(InetAddress.getByName(extension.getHostAddress()), Integer.parseInt(extension.getPort())),
                     new HashMap<String, String>(),
                     Version.fromString(extension.getOpensearchVersion()),
+                    Version.fromString(extension.getMinimumCompatibleVersion()),
                     extension.getDependencies()
                 );
                 extensionIdMap.put(extension.getUniqueId(), discoveryExtensionNode);
                 logger.info("Loaded extension with uniqueId " + extension.getUniqueId() + ": " + extension);
+            } catch (OpenSearchException e) {
+                logger.error("Could not load extension with uniqueId " + extension.getUniqueId() + " due to " + e);
             } catch (IllegalArgumentException e) {
                 throw e;
             }
@@ -569,11 +573,11 @@ public class ExtensionsManager {
                     new Extension(
                         extensionMap.get("name").toString(),
                         extensionMap.get("uniqueId").toString(),
-                        extensionMap.get("hostName").toString(),
                         extensionMap.get("hostAddress").toString(),
                         extensionMap.get("port").toString(),
                         extensionMap.get("version").toString(),
-                        extensionMap.get("opensearchVersion").toString()
+                        extensionMap.get("opensearchVersion").toString(),
+                        extensionMap.get("minimumCompatibleVersion").toString()
                     )
                 );
             }
