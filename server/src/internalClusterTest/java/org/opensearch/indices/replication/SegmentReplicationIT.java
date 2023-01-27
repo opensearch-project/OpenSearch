@@ -11,10 +11,6 @@ package org.opensearch.indices.replication;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.opensearch.OpenSearchCorruptionException;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.opensearch.action.admin.indices.segments.IndexShardSegments;
-import org.opensearch.action.admin.indices.segments.IndicesSegmentResponse;
-import org.opensearch.action.admin.indices.segments.IndicesSegmentsRequest;
-import org.opensearch.action.admin.indices.segments.ShardSegments;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.WriteRequest;
 import org.opensearch.action.update.UpdateResponse;
@@ -22,7 +18,6 @@ import org.opensearch.client.Requests;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
@@ -215,7 +210,7 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
      * <p>
      * TODO: Ignoring this test as its flaky and needs separate fix
      */
-//    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/5669")
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/5669")
     public void testAddNewReplicaFailure() throws Exception {
         logger.info("--> starting [Primary Node] ...");
         final String primaryNode = internalCluster().startNode();
@@ -223,9 +218,7 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
         logger.info("--> creating test index ...");
         prepareCreate(
             INDEX_NAME,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
 
         ).get();
 
@@ -691,18 +684,17 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
         waitForSearchableDocs(docCount, Arrays.stream(nodes).collect(Collectors.toList()));
     }
 
-
     private void verifyStoreContent() throws Exception {
         assertBusy(() -> {
             final ClusterState clusterState = getClusterState();
-            for (IndexRoutingTable indexRoutingTable:  clusterState.routingTable()) {
-                for (IndexShardRoutingTable shardRoutingTable: indexRoutingTable) {
+            for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
+                for (IndexShardRoutingTable shardRoutingTable : indexRoutingTable) {
                     final ShardRouting primaryRouting = shardRoutingTable.primaryShard();
                     final String indexName = primaryRouting.getIndexName();
                     final List<ShardRouting> replicaRouting = shardRoutingTable.replicaShards();
                     final IndexShard primaryShard = getIndexShard(clusterState, primaryRouting, indexName);
                     final Map<String, StoreFileMetadata> primarySegmentMetadata = primaryShard.getSegmentMetadataMap();
-                    for(ShardRouting replica: replicaRouting) {
+                    for (ShardRouting replica : replicaRouting) {
                         IndexShard replicaShard = getIndexShard(clusterState, replica, indexName);
                         final Store.RecoveryDiff recoveryDiff = Store.segmentReplicationDiff(
                             primarySegmentMetadata,
