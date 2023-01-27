@@ -43,4 +43,6 @@ dependencies {
   api "com.fasterxml.woodstox:woodstox-core:${versions.woodstox}"
   api 'net.minidev:json-smart:2.4.8'
   api 'org.apache.zookeeper:zookeeper:3.8.0'
+  api "org.jetbrains.kotlin:kotlin-stdlib:${versions.kotlin}"
+  api 'org.eclipse.jetty:jetty-server:9.4.49.v20220914'
 }
