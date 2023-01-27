@@ -192,16 +192,17 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
      *
      * This function is used to force a sync target primary node with source (old primary). This is to avoid segment files
      * conflict with replicas when target is promoted as primary.
-     * @param listener segment replication event listener
      */
     @Override
-    public void forceSegmentFileSync(ActionListener<Void> listener) {
-        final String action = SegmentReplicationTargetService.Actions.FORCE_SYNC;
+    public void forceSegmentFileSync() {
         final long requestSeqNo = requestSeqNoGenerator.getAndIncrement();
-        final ForceSyncRequest request = new ForceSyncRequest(requestSeqNo, recoveryId, shardId);
-        final Writeable.Reader<TransportResponse.Empty> reader = in -> TransportResponse.Empty.INSTANCE;
-        final ActionListener<TransportResponse.Empty> responseListener = ActionListener.map(listener, r -> null);
-        retryableTransportClient.executeRetryableAction(action, request, responseListener, reader);
+        transportService.submitRequest(
+            targetNode,
+            SegmentReplicationTargetService.Actions.FORCE_SYNC,
+            new ForceSyncRequest(requestSeqNo, recoveryId, shardId),
+            TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionLongTimeout()).build(),
+            EmptyTransportResponseHandler.INSTANCE_SAME
+        ).txGet();
     }
 
     @Override
