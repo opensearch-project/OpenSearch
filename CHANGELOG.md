@@ -36,7 +36,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ### Dependencies
 - Bumps `log4j-core` from 2.18.0 to 2.19.0
 - Bumps `reactor-netty-http` from 1.0.18 to 1.0.23
-- Bumps `jettison` from 1.5.0 to 1.5.1
+- Bumps `jettison` from 1.5.0 to 1.5.3
 - Bumps `azure-storage-common` from 12.18.0 to 12.18.1
 - Bumps `forbiddenapis` from 3.3 to 3.4
 - Bumps `gson` from 2.9.0 to 2.9.1
@@ -61,6 +61,9 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - OpenJDK Update (October 2022 Patch releases) ([#4998](https://github.com/opensearch-project/OpenSearch/pull/4998))
 - Update Jackson to 2.14.0 ([#5105](https://github.com/opensearch-project/OpenSearch/pull/5105))
 - Upgrade zookeeper dependency in hdfs-fixture ([#5007](https://github.com/opensearch-project/OpenSearch/pull/5007))
+- Bump `woodstox-core` to 6.4.0 ([#4947](https://github.com/opensearch-project/OpenSearch/pull/4947))
+- Bumps `tika` from 2.4.0 to 2.5.0 ([#4791](https://github.com/opensearch-project/OpenSearch/pull/4791))
+- Bumps `protobuf-java` from 3.21.7 to 3.21.9 ([#5319](https://github.com/opensearch-project/OpenSearch/pull/5319))
 
 ### Changed
 - Dependency updates (httpcore, mockito, slf4j, httpasyncclient, commons-codec) ([#4308](https://github.com/opensearch-project/OpenSearch/pull/4308))
