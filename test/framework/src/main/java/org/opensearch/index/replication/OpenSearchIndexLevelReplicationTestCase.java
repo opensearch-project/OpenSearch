@@ -545,7 +545,7 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
                 markAsRecovering,
                 inSyncIds,
                 routingTable,
-                (a, b) -> null
+                (a) -> null
             );
             OpenSearchIndexLevelReplicationTestCase.this.startReplicaAfterRecovery(replica, primary, inSyncIds, routingTable);
             computeReplicationTargets();
