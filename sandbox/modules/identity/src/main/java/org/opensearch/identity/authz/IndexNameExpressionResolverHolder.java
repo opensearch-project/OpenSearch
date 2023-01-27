@@ -29,7 +29,7 @@ public class IndexNameExpressionResolverHolder {
     }
 
     /**
-     * Sets the IndexNameExpressionResolver for this holder
+     * ets the IndexNameExpressionResolver for this holder
      */
     public static void setIndexNameExpressionResolver(final IndexNameExpressionResolver indexNameExpressionResolver) {
         if (INSTANCE != null) {

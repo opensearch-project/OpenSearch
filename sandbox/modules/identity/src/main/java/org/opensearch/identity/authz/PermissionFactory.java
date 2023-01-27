@@ -102,7 +102,7 @@ public class PermissionFactory {
      */
     public void checkIfResourcePatternIsRequiredAndPresent(OpenSearchPermission permission) {
         QUALIFIED_PERMISSION_TYPES permissionType = QUALIFIED_PERMISSION_TYPES.matchingType(permission.permissionType);
-        if (permissionType.patternRequired && permission.resource.isEmpty()) {
+        if (permissionType.patternRequired && permission.resourcePatterns.isEmpty()) {
             throw new InvalidPermissionException(
                 "The provided resource pattern for '"
                     + permission.permissionString
