@@ -144,6 +144,7 @@ public class TransportClusterHealthAction extends TransportClusterManagerNodeRea
             && discovery instanceof Coordinator
             && ((Coordinator) discovery).localNodeCommissioned() == false) {
             listener.onFailure(new NodeDecommissionedException("local node is decommissioned"));
+            return;
         }
         final int waitCount = getWaitCount(request);
 

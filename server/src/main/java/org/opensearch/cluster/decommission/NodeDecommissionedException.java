@@ -32,6 +32,6 @@ public class NodeDecommissionedException extends OpenSearchException {
 
     @Override
     public RestStatus status() {
-        return RestStatus.UNPROCESSABLE_ENTITY;
+        return RestStatus.FAILED_DEPENDENCY;
     }
 }
