@@ -35,7 +35,7 @@ package org.opensearch.common.collect;
 /**
  * Java 9 Map
  *
- * @todo deprecate and remove w/ min jdk upgrade to 11?
+ * todo: deprecate and remove w/ min jdk upgrade to 11?
  *
  * @opensearch.internal
  */

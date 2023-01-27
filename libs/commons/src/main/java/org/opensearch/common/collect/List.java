@@ -37,7 +37,7 @@ import java.util.Collection;
 /**
  * Java 9 List
  *
- * @todo deprecate and remove w/ min jdk upgrade to 11?
+ * todo: deprecate and remove w/ min jdk upgrade to 11?
  *
  * @opensearch.internal
  */
