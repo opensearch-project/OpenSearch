@@ -87,7 +87,11 @@ public class WriteableSetting implements Writeable {
             fallback = new WriteableSetting(in);
         }
         // Read the parser
-        parser = new WriteableSetting(in);
+        WriteableSetting parser = null;
+        boolean isParserWriteable = in.readBoolean();
+        if (isParserWriteable) {
+            parser = new WriteableSetting(in);
+        }
         // We are not using validator
         // Read properties
         EnumSet<Property> propSet = in.readEnumSet(Property.class);
@@ -201,11 +205,9 @@ public class WriteableSetting implements Writeable {
         }
         // Write a boolean specifying whether the parser is an instanceof writeable
         boolean isParserWriteable = parser instanceof Writeable;
-        if (isParserWriteable = true) {
+        if (isParserWriteable) {
             out.writeBoolean(isParserWriteable);
             parser.writeTo(out);
-        } else {
-            out.writeBoolean(isParserWriteable);
         }
         // We are not using validator
         // Write properties

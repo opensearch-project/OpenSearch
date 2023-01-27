@@ -1185,7 +1185,7 @@ public class SettingTests extends OpenSearchTestCase {
 
     public void testIntegerParser() throws Exception {
         String expectedKey = "test key";
-        int expectedMinValue = Integer.MIN_VALUE;
+        int expectedMinValue = (int) 0;
         int expectedMaxValue = Integer.MAX_VALUE;
         boolean expectedFilteredStatus = true;
         IntegerParser integerParser = new IntegerParser(expectedMaxValue, expectedMinValue, expectedKey, expectedFilteredStatus);
@@ -1245,7 +1245,7 @@ public class SettingTests extends OpenSearchTestCase {
 
     public void testLongParser() throws Exception {
         String expectedKey = "test key";
-        long expectedMinValue = Long.MIN_VALUE;
+        long expectedMinValue = (long) 0;
         long expectedMaxValue = Long.MAX_VALUE;
         boolean expectedFilteredStatus = true;
         LongParser longParser = new LongParser(expectedMaxValue, expectedMinValue, expectedKey, expectedFilteredStatus);
@@ -1305,7 +1305,7 @@ public class SettingTests extends OpenSearchTestCase {
 
     public void testFloatParser() throws Exception {
         String expectedKey = "test key";
-        float expectedMinValue = Float.MIN_VALUE;
+        float expectedMinValue = (float) 0;
         float expectedMaxValue = Float.MAX_VALUE;
         boolean expectedFilteredStatus = true;
         FloatParser floatParser = new FloatParser(expectedMaxValue, expectedMinValue, expectedKey, expectedFilteredStatus);
@@ -1365,7 +1365,7 @@ public class SettingTests extends OpenSearchTestCase {
 
     public void testDoubleParser() throws Exception {
         String expectedKey = "test key";
-        double expectedMinValue = Double.MIN_VALUE;
+        double expectedMinValue = (double) 0;
         double expectedMaxValue = Double.MAX_VALUE;
         boolean expectedFilteredStatus = true;
         DoubleParser doubleParser = new DoubleParser(expectedMaxValue, expectedMinValue, expectedKey, expectedFilteredStatus);
