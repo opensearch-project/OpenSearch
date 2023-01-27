@@ -180,7 +180,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         if (diff.different.isEmpty() == false) {
             getFilesListener.onFailure(
                 new IllegalStateException(
-                    new ParameterizedMessage("Shard {} has local copies of segments that differ from the primary", indexShard.shardId())
+                    new ParameterizedMessage("Shard {} has local copies of segments that differ from the primary {}", indexShard.shardId(), Arrays.toString(diff.different.toArray()))
                         .getFormattedMessage()
                 )
             );
