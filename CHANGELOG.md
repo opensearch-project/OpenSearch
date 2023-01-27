@@ -67,6 +67,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Bump hadoop-minicluster to 3.3.4 ([#6034](https://github.com/opensearch-project/OpenSearch/pull/6034))
 - Bump aws-java-sdk to 1.12.270 ([#6035](https://github.com/opensearch-project/OpenSearch/pull/6035))
 - Bump reactor-netty-http to 1.0.24 in repository-azure ([#4880](https://github.com/opensearch-project/OpenSearch/pull/4880))
+- Upgrade jetty-http, kotlin-stdlib and snakeyaml ([#4981](https://github.com/opensearch-project/OpenSearch/pull/4981))
 
 ### Changed
 - Dependency updates (httpcore, mockito, slf4j, httpasyncclient, commons-codec) ([#4308](https://github.com/opensearch-project/OpenSearch/pull/4308))
