@@ -142,7 +142,7 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toString(XContentType.JSON, this);
     }
 
     @Override

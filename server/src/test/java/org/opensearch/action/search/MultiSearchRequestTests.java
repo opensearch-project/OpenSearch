@@ -301,7 +301,7 @@ public class MultiSearchRequestTests extends OpenSearchTestCase {
                 + "\"type\":\"illegal_state_exception\",\"reason\":\"baaaaaazzzz\"},\"status\":500"
                 + "}"
                 + "]}",
-            Strings.toString(response)
+            Strings.toString(XContentType.JSON, response)
         );
     }
 

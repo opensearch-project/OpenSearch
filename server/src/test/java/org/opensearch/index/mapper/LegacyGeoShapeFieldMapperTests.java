@@ -46,6 +46,7 @@ import org.opensearch.common.geo.SpatialStrategy;
 import org.opensearch.common.geo.builders.ShapeBuilder;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.geometry.Point;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.plugins.Plugin;
@@ -538,13 +539,13 @@ public class LegacyGeoShapeFieldMapperTests extends FieldMapperTestCase2<LegacyG
         ToXContent.Params includeDefaults = new ToXContent.MapParams(singletonMap("include_defaults", "true"));
         {
             DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_shape").field("tree", "quadtree")));
-            String serialized = Strings.toString(mapper.mappers().getMapper("field"), includeDefaults);
+            String serialized = Strings.toString(XContentType.JSON, mapper.mappers().getMapper("field"), includeDefaults);
             assertTrue(serialized, serialized.contains("\"precision\":\"50.0m\""));
             assertTrue(serialized, serialized.contains("\"tree_levels\":21"));
         }
         {
             DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_shape").field("tree", "geohash")));
-            String serialized = Strings.toString(mapper.mappers().getMapper("field"), includeDefaults);
+            String serialized = Strings.toString(XContentType.JSON, mapper.mappers().getMapper("field"), includeDefaults);
             assertTrue(serialized, serialized.contains("\"precision\":\"50.0m\""));
             assertTrue(serialized, serialized.contains("\"tree_levels\":9"));
         }
@@ -552,7 +553,7 @@ public class LegacyGeoShapeFieldMapperTests extends FieldMapperTestCase2<LegacyG
             DocumentMapper mapper = createDocumentMapper(
                 fieldMapping(b -> b.field("type", "geo_shape").field("tree", "quadtree").field("tree_levels", "6"))
             );
-            String serialized = Strings.toString(mapper.mappers().getMapper("field"), includeDefaults);
+            String serialized = Strings.toString(XContentType.JSON, mapper.mappers().getMapper("field"), includeDefaults);
             assertFalse(serialized, serialized.contains("\"precision\":"));
             assertTrue(serialized, serialized.contains("\"tree_levels\":6"));
         }
@@ -560,7 +561,7 @@ public class LegacyGeoShapeFieldMapperTests extends FieldMapperTestCase2<LegacyG
             DocumentMapper mapper = createDocumentMapper(
                 fieldMapping(b -> b.field("type", "geo_shape").field("tree", "quadtree").field("precision", "6"))
             );
-            String serialized = Strings.toString(mapper.mappers().getMapper("field"), includeDefaults);
+            String serialized = Strings.toString(XContentType.JSON, mapper.mappers().getMapper("field"), includeDefaults);
             assertTrue(serialized, serialized.contains("\"precision\":\"6.0m\""));
             assertFalse(serialized, serialized.contains("\"tree_levels\":"));
         }
@@ -568,7 +569,7 @@ public class LegacyGeoShapeFieldMapperTests extends FieldMapperTestCase2<LegacyG
             DocumentMapper mapper = createDocumentMapper(
                 fieldMapping(b -> b.field("type", "geo_shape").field("tree", "quadtree").field("precision", "6m").field("tree_levels", "5"))
             );
-            String serialized = Strings.toString(mapper.mappers().getMapper("field"), includeDefaults);
+            String serialized = Strings.toString(XContentType.JSON, mapper.mappers().getMapper("field"), includeDefaults);
             assertTrue(serialized, serialized.contains("\"precision\":\"6.0m\""));
             assertTrue(serialized, serialized.contains("\"tree_levels\":5"));
         }
@@ -590,7 +591,7 @@ public class LegacyGeoShapeFieldMapperTests extends FieldMapperTestCase2<LegacyG
         assertThat(strategy.getGrid().getMaxLevels(), equalTo(23));
         assertThat(strategy.isPointsOnly(), equalTo(true));
         // term strategy changes the default for points_only, check that we handle it correctly
-        assertThat(Strings.toString(geoShapeFieldMapper), not(containsString("points_only")));
+        assertThat(Strings.toString(XContentType.JSON, geoShapeFieldMapper), not(containsString("points_only")));
         assertFieldWarnings("tree", "precision", "strategy");
     }
 

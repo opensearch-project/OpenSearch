@@ -57,9 +57,9 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationIT {
      */
     @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/5669")
     public void testPrimaryRelocation() throws Exception {
-        final String oldPrimary = internalCluster().startNode(featureFlagSettings());
+        final String oldPrimary = internalCluster().startNode();
         createIndex();
-        final String replica = internalCluster().startNode(featureFlagSettings());
+        final String replica = internalCluster().startNode();
         ensureGreen(INDEX_NAME);
         final int initialDocCount = scaledRandomIntBetween(0, 200);
         ingestDocs(initialDocCount);
@@ -69,7 +69,7 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationIT {
         assertHitCount(client(replica).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), initialDocCount);
 
         logger.info("--> start another node");
-        final String newPrimary = internalCluster().startNode(featureFlagSettings());
+        final String newPrimary = internalCluster().startNode();
         ClusterHealthResponse clusterHealthResponse = client().admin()
             .cluster()
             .prepareHealth()
@@ -129,9 +129,9 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationIT {
      */
     @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/5669")
     public void testPrimaryRelocationWithSegRepFailure() throws Exception {
-        final String oldPrimary = internalCluster().startNode(featureFlagSettings());
+        final String oldPrimary = internalCluster().startNode();
         createIndex();
-        final String replica = internalCluster().startNode(featureFlagSettings());
+        final String replica = internalCluster().startNode();
         ensureGreen(INDEX_NAME);
         final int initialDocCount = scaledRandomIntBetween(1, 100);
         ingestDocs(initialDocCount);
@@ -141,7 +141,7 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationIT {
         assertHitCount(client(replica).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), initialDocCount);
 
         logger.info("--> start another node");
-        final String newPrimary = internalCluster().startNode(featureFlagSettings());
+        final String newPrimary = internalCluster().startNode();
         ClusterHealthResponse clusterHealthResponse = client().admin()
             .cluster()
             .prepareHealth()
@@ -204,7 +204,7 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationIT {
      *
      */
     public void testRelocateWhileContinuouslyIndexingAndWaitingForRefresh() throws Exception {
-        final String primary = internalCluster().startNode(featureFlagSettings());
+        final String primary = internalCluster().startNode();
         prepareCreate(
             INDEX_NAME,
             Settings.builder()
@@ -233,7 +233,7 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationIT {
             );
         }
 
-        final String replica = internalCluster().startNode(featureFlagSettings());
+        final String replica = internalCluster().startNode();
         ClusterHealthResponse clusterHealthResponse = client().admin()
             .cluster()
             .prepareHealth()

@@ -35,6 +35,7 @@ package org.opensearch.common;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.ToXContentObject;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Collections;
@@ -104,7 +105,7 @@ public class StringsTests extends OpenSearchTestCase {
             }
         }
 
-        String toString = Strings.toString(toXContent);
+        String toString = Strings.toString(XContentType.JSON, toXContent);
         if (error) {
             assertThat(toString, containsString("\"error\":\"error building toString out of XContent:"));
             assertThat(toString, containsString("\"stack_trace\":"));
@@ -117,10 +118,10 @@ public class StringsTests extends OpenSearchTestCase {
     public void testToStringToXContentWithOrWithoutParams() {
         ToXContent toXContent = (builder, params) -> builder.field("color_from_param", params.param("color", "red"));
         // Rely on the default value of "color" param when params are not passed
-        assertThat(Strings.toString(toXContent), containsString("\"color_from_param\":\"red\""));
+        assertThat(Strings.toString(XContentType.JSON, toXContent), containsString("\"color_from_param\":\"red\""));
         // Pass "color" param explicitly
         assertThat(
-            Strings.toString(toXContent, new ToXContent.MapParams(Collections.singletonMap("color", "blue"))),
+            Strings.toString(XContentType.JSON, toXContent, new ToXContent.MapParams(Collections.singletonMap("color", "blue"))),
             containsString("\"color_from_param\":\"blue\"")
         );
     }

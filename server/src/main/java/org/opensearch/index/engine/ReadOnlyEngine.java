@@ -277,7 +277,8 @@ public class ReadOnlyEngine extends Engine {
                     translogDeletionPolicy,
                     config.getGlobalCheckpointSupplier(),
                     config.getPrimaryTermSupplier(),
-                    seqNo -> {}
+                    seqNo -> {},
+                    config.getPrimaryModeSupplier()
                 )
         ) {
             return translog.stats();
