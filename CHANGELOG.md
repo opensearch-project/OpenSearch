@@ -11,10 +11,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Allow mmap to use new JDK-19 preview APIs in Apache Lucene 9.4+ ([#5151](https://github.com/opensearch-project/OpenSearch/pull/5151))
 - Add support for ppc64le architecture ([#5459](https://github.com/opensearch-project/OpenSearch/pull/5459))
 - Add support to disallow search request with preference parameter with strict weighted shard routing([#5874](https://github.com/opensearch-project/OpenSearch/pull/5874))
-### Dependencies
-- Bumps `wiremock-jre8-standalone` from 2.33.2 to 2.35.0
-- Bumps `gson` from 2.10 to 2.10.1
-- Bumps `json-schema-validator` from 1.0.73 to 1.0.76
 
 ### Dependencies
 - Bumps `log4j-core` from 2.18.0 to 2.19.0
@@ -39,6 +35,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bumps `maxmind-db` from 2.1.0 to 3.0.0 ([#5601](https://github.com/opensearch-project/OpenSearch/pull/5601))
 - Bumps `protobuf-java` from 3.21.11 to 3.21.12 ([#5603](https://github.com/opensearch-project/OpenSearch/pull/5603))
 - Bumps `azure-core-http-netty` from 1.12.7 to 1.12.8
+- Bumps `wiremock-jre8-standalone` from 2.33.2 to 2.35.0
+- Bumps `gson` from 2.10 to 2.10.1
+- Bumps `json-schema-validator` from 1.0.73 to 1.0.76
 
 ### Changed
 - [CCR] Add getHistoryOperationsFromTranslog method to fetch the history snapshot from translogs ([#3948](https://github.com/opensearch-project/OpenSearch/pull/3948))
