@@ -60,6 +60,14 @@ public class OpenSearchPermission implements Permission {
         // Set<String> concretePermissionIndexNames = iner.resolveExpressions(cs, this.indexPatterns.toArray(new String[0]));
         // Set<String> concreteRequestedIndexNames = iner.resolveExpressions(cs, requestedPermission.indexPatterns.toArray(new String[0]));
 
+        // TODO Switch this comments to tests to better document and assert different scenarios
+        // Example
+        // User granted index patterns: logs-*,my-index*
+        // Request permission on: logs-2023-01-27
+        //
+        // For all requested index patterns (ip):
+        // ip must match at least one pattern that the user has been granted access to
+
         boolean allRequestedPatternsMatchGranted = requestedPermission.indexPatterns.stream()
             .allMatch(requstedIp -> this.indexPatterns.stream().anyMatch(ip -> Glob.globMatch(ip, requstedIp)));
 
