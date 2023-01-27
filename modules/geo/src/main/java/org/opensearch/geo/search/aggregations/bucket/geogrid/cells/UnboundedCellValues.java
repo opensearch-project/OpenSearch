@@ -29,39 +29,26 @@
  * GitHub history for details.
  */
 
-package org.opensearch.geo.search.aggregations.bucket.geogrid;
+package org.opensearch.geo.search.aggregations.bucket.geogrid.cells;
 
 import org.opensearch.common.geo.GeoBoundingBox;
 import org.opensearch.index.fielddata.MultiGeoPointValues;
 
 /**
- * Class representing {@link CellValues} whose values are filtered
- * according to whether they are within the specified {@link GeoBoundingBox}.
- *
- * The specified bounding box is assumed to be bounded.
+ * Class representing {@link CellValues} that are unbounded by any
+ * {@link GeoBoundingBox}.
  *
  * @opensearch.internal
  */
-class BoundedCellValues extends CellValues {
+class UnboundedCellValues extends CellValues {
 
-    private final GeoBoundingBox geoBoundingBox;
-
-    protected BoundedCellValues(
-        MultiGeoPointValues geoValues,
-        int precision,
-        CellIdSource.GeoPointLongEncoder encoder,
-        GeoBoundingBox geoBoundingBox
-    ) {
+    UnboundedCellValues(MultiGeoPointValues geoValues, int precision, CellIdSource.GeoPointLongEncoder encoder) {
         super(geoValues, precision, encoder);
-        this.geoBoundingBox = geoBoundingBox;
     }
 
     @Override
     int advanceValue(org.opensearch.common.geo.GeoPoint target, int valuesIdx) {
-        if (geoBoundingBox.pointInBounds(target.getLon(), target.getLat())) {
-            values[valuesIdx] = encoder.encode(target.getLon(), target.getLat(), precision);
-            return valuesIdx + 1;
-        }
-        return valuesIdx;
+        values[valuesIdx] = encoder.encode(target.getLon(), target.getLat(), precision);
+        return valuesIdx + 1;
     }
 }

@@ -1593,6 +1593,19 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
+     * Fetch a map of StoreFileMetadata for each segment from the latest SegmentInfos.
+     * This is used to compute diffs for segment replication.
+     *
+     * @return - Map of Segment Filename to its {@link StoreFileMetadata}
+     * @throws IOException - When there is an error loading metadata from the store.
+     */
+    public Map<String, StoreFileMetadata> getSegmentMetadataMap() throws IOException {
+        try (final GatedCloseable<SegmentInfos> snapshot = getSegmentInfosSnapshot()) {
+            return store.getSegmentMetadataMap(snapshot.get());
+        }
+    }
+
+    /**
      * Fails the shard and marks the shard store as corrupted if
      * <code>e</code> is caused by index corruption
      */
@@ -1701,9 +1714,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Used with segment replication during relocation handoff, this method updates current read only engine to global
      * checkpoint followed by changing to writeable engine
      *
-     * @throws IOException
-     * @throws InterruptedException
-     * @throws TimeoutException
+     * @throws IOException if communication failed
+     * @throws InterruptedException if calling thread is interrupted
+     * @throws TimeoutException if timed out waiting for in-flight operations to finish
      *
      * @opensearch.internal
      */
@@ -1759,8 +1772,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 } finally {
                     // playing safe here and close the engine even if the above succeeds - close can be called multiple times
                     // Also closing refreshListeners to prevent us from accumulating any more listeners
-                    // Closing remoteStore as a part of IndexShard close. null check is handled by IOUtils
-                    IOUtils.close(engine, globalCheckpointListeners, refreshListeners, pendingReplicationActions, remoteStore);
+                    IOUtils.close(engine, globalCheckpointListeners, refreshListeners, pendingReplicationActions);
                     indexShardOperationPermits.close();
                 }
             }

@@ -43,6 +43,7 @@ import org.opensearch.common.xcontent.ToXContentObject;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentParserUtils;
+import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -212,6 +213,6 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toString(XContentType.JSON, this);
     }
 }

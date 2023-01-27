@@ -726,7 +726,7 @@ public class CCSDuelIT extends OpenSearchRestTestCase {
         sourceBuilder.suggest(suggestBuilder);
         duelSearch(searchRequest, response -> {
             assertMultiClusterSearchResponse(response);
-            assertEquals(Strings.toString(response, true, true), 3, response.getSuggest().size());
+            assertEquals(Strings.toString(XContentType.JSON, response, true, true), 3, response.getSuggest().size());
             assertThat(response.getSuggest().getSuggestion("python").getEntries().size(), greaterThan(0));
             assertThat(response.getSuggest().getSuggestion("java").getEntries().size(), greaterThan(0));
             assertThat(response.getSuggest().getSuggestion("ruby").getEntries().size(), greaterThan(0));

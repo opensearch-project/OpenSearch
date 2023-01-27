@@ -453,7 +453,7 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
             final FlushStats flushStats = shard.flushStats();
             logger.info(
                 "--> translog stats [{}] gen [{}] commit_stats [{}] flush_stats [{}/{}]",
-                Strings.toString(translogStats),
+                Strings.toString(XContentType.JSON, translogStats),
                 translog.getGeneration().translogFileGeneration,
                 commitStats.getUserData(),
                 flushStats.getPeriodic(),

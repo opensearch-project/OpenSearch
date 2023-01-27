@@ -973,7 +973,7 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
 
     protected static void createIndex(String name, Settings settings, String mapping, String aliases) throws IOException {
         Request request = new Request("PUT", "/" + name);
-        String entity = "{\"settings\": " + Strings.toString(settings);
+        String entity = "{\"settings\": " + Strings.toString(XContentType.JSON, settings);
         if (mapping != null) {
             entity += ",\"mappings\" : {" + mapping + "}";
         }
@@ -999,7 +999,7 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
 
     private static void updateIndexSettings(String index, Settings settings) throws IOException {
         Request request = new Request("PUT", "/" + index + "/_settings");
-        request.setJsonEntity(Strings.toString(settings));
+        request.setJsonEntity(Strings.toString(XContentType.JSON, settings));
         client().performRequest(request);
     }
 
@@ -1087,7 +1087,7 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
     protected static void registerRepository(String repository, String type, boolean verify, Settings settings) throws IOException {
         final Request request = new Request(HttpPut.METHOD_NAME, "_snapshot/" + repository);
         request.addParameter("verify", Boolean.toString(verify));
-        request.setJsonEntity(Strings.toString(new PutRepositoryRequest(repository).type(type).settings(settings)));
+        request.setJsonEntity(Strings.toString(XContentType.JSON, new PutRepositoryRequest(repository).type(type).settings(settings)));
 
         final Response response = client().performRequest(request);
         assertAcked("Failed to create repository [" + repository + "] of type [" + type + "]: " + response, response);
