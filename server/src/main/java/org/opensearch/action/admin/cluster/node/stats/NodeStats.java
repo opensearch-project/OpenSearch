@@ -36,6 +36,7 @@ import org.opensearch.Version;
 import org.opensearch.action.support.nodes.BaseNodeResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
+import org.opensearch.cluster.routing.FailOpenWeightedRoutingStats;
 import org.opensearch.cluster.service.ClusterManagerThrottlingStats;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamInput;
@@ -126,6 +127,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
     @Nullable
     private ClusterManagerThrottlingStats clusterManagerThrottlingStats;
 
+    @Nullable
+    private FailOpenWeightedRoutingStats failOpenStats;
+
     public NodeStats(StreamInput in) throws IOException {
         super(in);
         timestamp = in.readVLong();
@@ -162,6 +166,11 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         } else {
             clusterManagerThrottlingStats = null;
         }
+        if (in.getVersion().onOrAfter(Version.V_2_6_0)) {
+            failOpenStats = in.readOptionalWriteable(FailOpenWeightedRoutingStats::new);
+        } else {
+            failOpenStats = null;
+        }
     }
 
     public NodeStats(
@@ -184,7 +193,8 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         @Nullable IndexingPressureStats indexingPressureStats,
         @Nullable ShardIndexingPressureStats shardIndexingPressureStats,
         @Nullable SearchBackpressureStats searchBackpressureStats,
-        @Nullable ClusterManagerThrottlingStats clusterManagerThrottlingStats
+        @Nullable ClusterManagerThrottlingStats clusterManagerThrottlingStats,
+        @Nullable FailOpenWeightedRoutingStats failOpenStats
     ) {
         super(node);
         this.timestamp = timestamp;
@@ -206,6 +216,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         this.shardIndexingPressureStats = shardIndexingPressureStats;
         this.searchBackpressureStats = searchBackpressureStats;
         this.clusterManagerThrottlingStats = clusterManagerThrottlingStats;
+        this.failOpenStats = failOpenStats;
     }
 
     public long getTimestamp() {
@@ -325,6 +336,10 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         return clusterManagerThrottlingStats;
     }
 
+    public FailOpenWeightedRoutingStats getFailOpenStats() {
+        return failOpenStats;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -355,6 +370,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         }
         if (out.getVersion().onOrAfter(Version.V_2_6_0)) {
             out.writeOptionalWriteable(clusterManagerThrottlingStats);
+        }
+        if (out.getVersion().onOrAfter(Version.V_2_6_0)) {
+            out.writeOptionalWriteable(failOpenStats);
         }
     }
 
@@ -434,6 +452,10 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         if (getClusterManagerThrottlingStats() != null) {
             getClusterManagerThrottlingStats().toXContent(builder, params);
         }
+        if (getFailOpenStats() != null) {
+            getFailOpenStats().toXContent(builder, params);
+        }
+
         return builder;
     }
 }

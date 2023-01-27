@@ -46,6 +46,8 @@ public class FailAwareWeightedRouting {
         return INSTANCE;
     }
 
+    public static FailOpenWeightedRoutingStats failOpenStats = new FailOpenWeightedRoutingStats();
+
     /**
      * *
      * @return true if exception is due to cluster availability issues
@@ -103,6 +105,7 @@ public class FailAwareWeightedRouting {
             SearchShardTarget nextShard = next;
             if (canFailOpen(nextShard.getShardId(), exception, clusterState)) {
                 logger.info(() -> new ParameterizedMessage("{}: Fail open executed due to exception", nextShard.getShardId()), exception);
+                failOpenStats.updateFailOpenCount();
                 break;
             }
             next = shardIt.nextOrNull();
@@ -125,6 +128,7 @@ public class FailAwareWeightedRouting {
             ShardRouting nextShard = next;
             if (canFailOpen(nextShard.shardId(), exception, clusterState)) {
                 logger.info(() -> new ParameterizedMessage("{}: Fail open executed due to exception", nextShard.shardId()), exception);
+                failOpenStats.updateFailOpenCount();
                 break;
             }
             next = shardsIt.nextOrNull();
@@ -149,5 +153,9 @@ public class FailAwareWeightedRouting {
             }
         }
         return false;
+    }
+
+    public FailOpenWeightedRoutingStats getStats() {
+        return failOpenStats;
     }
 }
