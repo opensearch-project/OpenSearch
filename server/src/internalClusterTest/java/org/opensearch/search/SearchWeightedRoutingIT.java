@@ -974,7 +974,7 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
         assertSearchInAZ("c");
         assertNoSearchInAZ("a");
 
-        NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().addMetric("fail_open").execute().actionGet();
+        NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().addMetric("weighted_routing").execute().actionGet();
         Map<String, NodeStats> stats = nodeStats.getNodesMap();
         NodeStats nodeStatsC = stats.get(nodeIDMap.get(nodeMap.get("c").get(0)));
         assertEquals(failOpenShardCount, nodeStatsC.getWeightedRoutingStats().getFailOpenCount());
