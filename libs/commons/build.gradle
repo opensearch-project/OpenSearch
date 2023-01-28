@@ -20,7 +20,6 @@ dependencies {
   testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
 
   testImplementation(project(":test:framework")) {
-    exclude group: 'org.opensearch', module: 'opensearch-core'
     exclude group: 'org.opensearch', module: 'opensearch-commons'
   }
 }
