@@ -970,7 +970,7 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
         assertNull(settings.getRemoteStoreRepository());
         assertEquals("tlog-store", settings.getRemoteStoreTranslogRepository());
-        assertEquals(TimeValue.timeValueMillis(200), settings.getBufferInterval());
+        assertEquals(TimeValue.timeValueMillis(200), settings.getRemoteTranslogUploadBufferInterval());
     }
 
     public void testSetRemoteTranslogRepositoryFailsWhenRemoteTranslogIsNotEnabled() {

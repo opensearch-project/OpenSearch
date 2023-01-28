@@ -60,7 +60,6 @@ public abstract class BufferedAsyncIOProcessor<Item> extends AsyncIOProcessor<It
                 threadpool.schedule(this::process, getBufferInterval(), getBufferRefreshThreadPoolName());
             } catch (Exception e) {
                 getLogger().error("failed to schedule process");
-                // process scheduling failure
                 processSchedulingFailure(e);
                 getPromiseSemaphore().release();
                 // This is to make sure that any new items that are added to the queue between processSchedulingFailure

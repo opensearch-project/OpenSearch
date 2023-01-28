@@ -370,7 +370,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             threadPool,
             this::getEngine,
             indexSettings.isRemoteTranslogStoreEnabled(),
-            indexSettings.getBufferInterval()
+            indexSettings.getRemoteTranslogUploadBufferInterval()
         );
         this.mapperService = mapperService;
         this.indexCache = indexCache;
