@@ -191,7 +191,7 @@ if (project != rootProject) {
     distribution project(':distribution:archives:linux-tar')
     distribution project(':distribution:archives:windows-zip')
 
-    integTestRuntimeOnly(project(":libs:opensearch-commons"))
+    integTestRuntimeOnly(project(":libs:opensearch-common"))
     integTestRuntimeOnly(project(":libs:opensearch-core"))
   }
 

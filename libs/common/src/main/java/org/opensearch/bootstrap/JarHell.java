@@ -71,6 +71,8 @@ import java.util.jar.Manifest;
  *   <li>Checks any {@code X-Compile-OpenSearch-Version} value in
  *       the jar manifest is compatible with the current ES</li>
  * </ul>
+ *
+ * @opensearch.internal
  */
 public class JarHell {
 

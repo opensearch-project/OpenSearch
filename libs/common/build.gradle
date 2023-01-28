@@ -11,6 +11,10 @@
 
 import org.opensearch.gradle.info.BuildParams
 
+apply plugin: 'opensearch.publish'
+
+archivesBaseName = 'opensearch-common'
+
 dependencies {
   // This dependency is used only by :libs:core for null-checking interop with other tools
   compileOnly "com.google.code.findbugs:jsr305:3.0.2"
@@ -20,15 +24,12 @@ dependencies {
   testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
 
   testImplementation(project(":test:framework")) {
-    exclude group: 'org.opensearch', module: 'opensearch-commons'
+    exclude group: 'org.opensearch', module: 'opensearch-common'
   }
 }
 
-// Since CLI does not depend on :server, it cannot run the jarHell task
-jarHell.enabled = false
-
 tasks.named('forbiddenApisMain').configure {
-  // :libs:opensearch-commons does not depend on server
+  // :libs:opensearch-common does not depend on server
   // TODO: Need to decide how we want to handle for forbidden signatures with the changes to server
   replaceSignatureFiles 'jdk-signatures'
 }

@@ -34,7 +34,7 @@ apply plugin: 'opensearch.publish'
 
 dependencies {
   api project(':libs:opensearch-core')
-  api project(':libs:opensearch-commons')
+  api project(':libs:opensearch-common')
 
   testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testImplementation "junit:junit:${versions.junit}"

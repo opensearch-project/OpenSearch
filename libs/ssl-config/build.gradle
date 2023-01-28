@@ -33,7 +33,7 @@ import org.opensearch.gradle.info.BuildParams
 apply plugin: "opensearch.publish"
 
 dependencies {
-  api project(':libs:opensearch-commons')
+  api project(':libs:opensearch-common')
   api project(':libs:opensearch-core')
 
   testImplementation(project(":test:framework")) {
