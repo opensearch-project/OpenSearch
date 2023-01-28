@@ -19,18 +19,19 @@ import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Captures fail open stats per node. See {@link FailAwareWeightedRouting} for more details.
+ * Captures weighted shard routing stats per node. See {@link WeightedRoutingService} for more details.
  *
  * @opensearch.internal
  */
-public class FailOpenWeightedRoutingStats implements ToXContentFragment, Writeable {
+public class WeightedRoutingStats implements ToXContentFragment, Writeable {
+    // number of times fail open has to be executed for search requests
     private AtomicInteger failOpenCount;
 
-    public FailOpenWeightedRoutingStats() {
+    public WeightedRoutingStats() {
         failOpenCount = new AtomicInteger(0);
     }
 
-    public FailOpenWeightedRoutingStats(StreamInput in) throws IOException {
+    public WeightedRoutingStats(StreamInput in) throws IOException {
         failOpenCount = new AtomicInteger(in.readInt());
     }
 
@@ -40,7 +41,7 @@ public class FailOpenWeightedRoutingStats implements ToXContentFragment, Writeab
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        builder.startObject("fail_open");
+        builder.startObject("weighted_routing");
         builder.startObject("stats");
         builder.field("fail_open_count", getFailOpenCount());
         builder.endObject();

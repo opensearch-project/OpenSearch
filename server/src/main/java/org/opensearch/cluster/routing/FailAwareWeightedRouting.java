@@ -46,7 +46,7 @@ public class FailAwareWeightedRouting {
         return INSTANCE;
     }
 
-    public static FailOpenWeightedRoutingStats failOpenStats = new FailOpenWeightedRoutingStats();
+    public static WeightedRoutingStats failOpenStats = new WeightedRoutingStats();
 
     /**
      * *
@@ -155,7 +155,7 @@ public class FailAwareWeightedRouting {
         return false;
     }
 
-    public FailOpenWeightedRoutingStats getStats() {
+    public WeightedRoutingStats getStats() {
         return failOpenStats;
     }
 }

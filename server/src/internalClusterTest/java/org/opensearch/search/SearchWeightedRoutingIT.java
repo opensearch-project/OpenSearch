@@ -884,7 +884,7 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
      * Asserts on fail open stats which captures number of times fail open is executed
      * @throws IOException throws exception
      */
-    public void testFailOpenStats() throws Exception {
+    public void testWeightedRoutingFailOpenStats() throws Exception {
 
         Settings commonSettings = Settings.builder()
             .put("cluster.routing.allocation.awareness.attributes", "zone")
@@ -977,7 +977,7 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
         NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().addMetric("fail_open").execute().actionGet();
         Map<String, NodeStats> stats = nodeStats.getNodesMap();
         NodeStats nodeStatsC = stats.get(nodeIDMap.get(nodeMap.get("c").get(0)));
-        assertEquals(failOpenShardCount, nodeStatsC.getFailOpenStats().getFailOpenCount());
+        assertEquals(failOpenShardCount, nodeStatsC.getWeightedRoutingStats().getFailOpenCount());
     }
 
 }
