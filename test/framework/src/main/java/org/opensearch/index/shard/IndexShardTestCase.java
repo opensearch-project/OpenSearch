@@ -847,8 +847,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
     }
 
     protected void recoverReplica(IndexShard replica, IndexShard primary, boolean startReplica) throws IOException {
-        recoverReplica(replica, primary, startReplica, (a) -> null);
-//        recoverReplica(replica, primary, startReplica, getReplicationFunc(replica));
+        recoverReplica(replica, primary, startReplica, getReplicationFunc(replica));
     }
 
     /** recovers a replica from the given primary **/
@@ -878,17 +877,16 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         recoverReplica(replica, primary, targetSupplier, markAsRecovering, markAsStarted, (a) -> null);
     }
 
-    public BiFunction<List<IndexShard>, ActionListener<Void>, List<SegmentReplicationTarget>> getReplicationFunc(final IndexShard target) {
-        return target.indexSettings().isSegRepEnabled() ? (shardList, listener) -> {
+    public Function<List<IndexShard>, List<SegmentReplicationTarget>> getReplicationFunc(final IndexShard target) {
+        return target.indexSettings().isSegRepEnabled() ? (shardList) -> {
             try {
                 assert shardList.size() >= 2;
                 final IndexShard primary = shardList.get(0);
-                return replicateSegments(primary, shardList.subList(1, shardList.size()), listener);
+                return replicateSegments(primary, shardList.subList(1, shardList.size()));
             } catch (IOException | InterruptedException e) {
-                listener.onFailure(e);
                 throw new RuntimeException(e);
             }
-        } : (a, b) -> null;
+        } : (a) -> null;
     }
 
     /** recovers a replica from the given primary **/

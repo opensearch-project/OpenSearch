@@ -36,7 +36,6 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 
 import static java.util.Arrays.asList;
-import static org.hamcrest.Matchers.equalTo;
 import static org.opensearch.index.query.QueryBuilders.matchQuery;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
