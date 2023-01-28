@@ -264,7 +264,7 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
     }
 
     @Override
-    public void forceSegmentFileSync(ActionListener<Void> listener) {
+    public void forceSegmentFileSync() {
         throw new UnsupportedOperationException("Method not supported on target!");
     }
 
