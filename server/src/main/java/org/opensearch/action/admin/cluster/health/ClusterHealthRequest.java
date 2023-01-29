@@ -99,7 +99,7 @@ public class ClusterHealthRequest extends ClusterManagerNodeReadRequest<ClusterH
             awarenessAttribute = in.readOptionalString();
             level = in.readEnum(Level.class);
         }
-        if (in.getVersion().onOrAfter(Version.CURRENT)) {
+        if (in.getVersion().onOrAfter(Version.V_2_6_0)) {
             ensureNodeCommissioned = in.readBoolean();
         }
     }
@@ -134,7 +134,7 @@ public class ClusterHealthRequest extends ClusterManagerNodeReadRequest<ClusterH
             out.writeOptionalString(awarenessAttribute);
             out.writeEnum(level);
         }
-        if (out.getVersion().onOrAfter(Version.CURRENT)) {
+        if (out.getVersion().onOrAfter(Version.V_2_6_0)) {
             out.writeBoolean(ensureNodeCommissioned);
         }
     }
