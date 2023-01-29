@@ -39,11 +39,17 @@ import org.apache.lucene.util.Constants;
 
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.action.index.IndexRequestBuilder;
+
 import org.opensearch.cluster.ClusterInfoService;
+import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.InternalClusterInfoService;
+import org.opensearch.cluster.MockInternalClusterInfoService;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
@@ -82,16 +88,19 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.NotDirectoryException;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.List;
+import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+import static org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING;
 import static org.opensearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 import static org.opensearch.index.store.Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -127,6 +136,7 @@ public class DiskThresholdDeciderIT extends OpenSearchIntegTestCase {
     }
 
     private static final long WATERMARK_BYTES = new ByteSizeValue(10, ByteSizeUnit.KB).getBytes();
+    private static final String INDEX_ROUTING_ALLOCATION_NODE_SETTING = "index.routing.allocation.include._name";
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
@@ -150,7 +160,7 @@ public class DiskThresholdDeciderIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singletonList(InternalSettingsPlugin.class);
+        return List.of(InternalSettingsPlugin.class, MockInternalClusterInfoService.TestPlugin.class);
     }
 
     public void testHighWatermarkNotExceeded() throws Exception {
@@ -167,25 +177,114 @@ public class DiskThresholdDeciderIT extends OpenSearchIntegTestCase {
         final Path dataNode0Path = internalCluster().getInstance(Environment.class, dataNodeName).dataFiles()[0];
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(
-            indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 6)
-                .put(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), "0ms")
-                .put(IndexSettings.INDEX_MERGE_ON_FLUSH_ENABLED.getKey(), false)
-                .build()
-        );
-        final long minShardSize = createReasonableSizedShards(indexName);
+        final long minShardSize = createAndPopulateIndex(indexName, null);
 
-        // reduce disk size of node 0 so that no shards fit below the high watermark, forcing all shards onto the other data node
-        // (subtract the translog size since the disk threshold decider ignores this and may therefore move the shard back again)
+        // reduce disk size of node 0 so that no shards fit below the high watermark, forcing all shards onto the other
+        // data node (subtract the translog size since the disk threshold decider ignores this and may therefore move
+        // the shard back again).
         fileSystemProvider.getTestFileStore(dataNode0Path).setTotalSpace(minShardSize + WATERMARK_BYTES - 1L);
         assertBusyWithDiskUsageRefresh(dataNode0Id, indexName, empty());
 
         // increase disk size of node 0 to allow just enough room for one shard, and check that it's rebalanced back
         fileSystemProvider.getTestFileStore(dataNode0Path).setTotalSpace(minShardSize + WATERMARK_BYTES + 1L);
         assertBusyWithDiskUsageRefresh(dataNode0Id, indexName, hasSize(1));
+    }
+
+    public void testIndexCreateBlockWhenAllNodesExceededHighWatermark() throws Exception {
+        final Settings settings = Settings.builder()
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false)
+            .build();
+
+        internalCluster().startClusterManagerOnlyNode(settings);
+        final List<String> dataNodeNames = internalCluster().startDataOnlyNodes(2, settings);
+        ensureStableCluster(3);
+        // Reduce disk space of all node until all of them is breaching high disk watermark.
+        for (final String dataNodeName : dataNodeNames) {
+            populateNode(dataNodeName);
+        }
+
+        getMockInternalClusterInfoService().refresh();
+        assertBusy(() -> {
+            ClusterState state1 = client().admin().cluster().prepareState().setLocal(true).get().getState();
+            assertFalse(state1.blocks().hasGlobalBlockWithId(Metadata.CLUSTER_CREATE_INDEX_BLOCK.id()));
+        }, 30L, TimeUnit.SECONDS);
+    }
+
+    public void testIndexCreateBlockNotAppliedWhenAnyNodesBelowHighWatermark() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNodes(2);
+        ensureStableCluster(3);
+
+        final InternalClusterInfoService clusterInfoService = (InternalClusterInfoService) internalCluster()
+            .getCurrentClusterManagerNodeInstance(ClusterInfoService.class);
+        internalCluster().getCurrentClusterManagerNodeInstance(ClusterService.class).addListener(event -> clusterInfoService.refresh());
+
+        // Validate cluster block is not applied on the cluster
+        ClusterState state = client().admin().cluster().prepareState().setLocal(true).get().getState();
+        assertFalse(state.blocks().hasGlobalBlockWithId(Metadata.CLUSTER_CREATE_INDEX_BLOCK.id()));
+    }
+
+    public void testIndexCreateBlockIsRemovedWhenAnyNodesNotExceedHighWatermark() throws Exception {
+        final Settings settings = Settings.builder()
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false)
+            .build();
+
+        internalCluster().startClusterManagerOnlyNode(settings);
+        final List<String> dataNodeNames = internalCluster().startDataOnlyNodes(2, settings);
+        final List<String> indexNames = new ArrayList<>();
+        ensureStableCluster(3);
+
+        // Reduce disk space of all node until all of them is breaching high disk watermark.
+        for (final String dataNodeName : dataNodeNames) {
+            final String indexName = populateNode(dataNodeName);
+            indexNames.add(indexName);
+        }
+
+        getMockInternalClusterInfoService().refresh();
+        // Validate if cluster block is applied on the cluster
+        assertBusy(() -> {
+            ClusterState state = client().admin().cluster().prepareState().setLocal(true).get().getState();
+            assertTrue(state.blocks().hasGlobalBlockWithId(Metadata.CLUSTER_CREATE_INDEX_BLOCK.id()));
+        }, 30L, TimeUnit.SECONDS);
+
+        // Delete indices to free space
+        deleteIndices(indexNames);
+        getMockInternalClusterInfoService().refresh();
+        // Validate if index create block is removed on the cluster
+        assertBusy(() -> {
+            ClusterState state1 = client().admin().cluster().prepareState().setLocal(true).get().getState();
+            assertFalse(state1.blocks().hasGlobalBlockWithId(Metadata.CLUSTER_CREATE_INDEX_BLOCK.id()));
+        }, 30L, TimeUnit.SECONDS);
+    }
+
+    public void testIndexCreateBlockWithAReadOnlyBlock() throws Exception {
+        final Settings settings = Settings.builder()
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false)
+            .build();
+
+        internalCluster().startClusterManagerOnlyNode(settings);
+        final List<String> dataNodeNames = internalCluster().startDataOnlyNodes(2, settings);
+        ensureStableCluster(3);
+
+        // Create one of the index.
+        final String indexName = populateNode(dataNodeNames.get(0));
+        // Reduce disk space of all other node until all of them is breaching high disk watermark
+        for (int i = 1; i < dataNodeNames.size(); i++) {
+            populateNode(dataNodeNames.get(i));
+        }
+
+        // Apply a read_only_allow_delete_block on one of the index
+        // (can happen if the corresponding node has breached flood stage watermark).
+        final Settings readOnlySettings = Settings.builder()
+            .put(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE, Boolean.TRUE.toString())
+            .build();
+        client().admin().indices().prepareUpdateSettings(indexName).setSettings(readOnlySettings).get();
+        getMockInternalClusterInfoService().refresh();
+        // Validate index create block is applied on the cluster
+        assertBusy(() -> {
+            ClusterState state = client().admin().cluster().prepareState().setLocal(true).get().getState();
+            assertTrue(state.blocks().hasGlobalBlockWithId(Metadata.CLUSTER_CREATE_INDEX_BLOCK.id()));
+        }, 30L, TimeUnit.SECONDS);
     }
 
     public void testRestoreSnapshotAllocationDoesNotExceedWatermark() throws Exception {
@@ -210,16 +309,7 @@ public class DiskThresholdDeciderIT extends OpenSearchIntegTestCase {
         final Path dataNode0Path = internalCluster().getInstance(Environment.class, dataNodeName).dataFiles()[0];
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(
-            indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 6)
-                .put(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), "0ms")
-                .put(IndexSettings.INDEX_MERGE_ON_FLUSH_ENABLED.getKey(), false)
-                .build()
-        );
-        final long minShardSize = createReasonableSizedShards(indexName);
+        final long minShardSize = createAndPopulateIndex(indexName, null);
 
         final CreateSnapshotResponse createSnapshotResponse = client().admin()
             .cluster()
@@ -274,6 +364,53 @@ public class DiskThresholdDeciderIT extends OpenSearchIntegTestCase {
         assertBusyWithDiskUsageRefresh(dataNode0Id, indexName, hasSize(1));
     }
 
+    private void deleteIndices(final List<String> indexNames) throws ExecutionException, InterruptedException {
+        for (String indexName : indexNames) {
+            assertAcked(client().admin().indices().delete(new DeleteIndexRequest(indexName)).get());
+            assertFalse("index [" + indexName + "] should have been deleted", indexExists(indexName));
+        }
+    }
+
+    private String populateNode(final String dataNodeName) throws Exception {
+        final Path dataNodePath = internalCluster().getInstance(Environment.class, dataNodeName).dataFiles()[0];
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        long minShardSize = createAndPopulateIndex(indexName, dataNodeName);
+        fileSystemProvider.getTestFileStore(dataNodePath).setTotalSpace(minShardSize + WATERMARK_BYTES - 1L);
+        return indexName;
+    }
+
+    private long createAndPopulateIndex(final String indexName, final String nodeName) throws Exception {
+
+        final Settings.Builder indexSettingBuilder = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), "0ms")
+            .put(IndexSettings.INDEX_MERGE_ON_FLUSH_ENABLED.getKey(), false);
+
+        // Depending on node name specified or not, we determine whether to enable node name based shard routing for index
+        // and whether reallocation is disabled on that index or not.
+        if (nodeName != null) {
+            indexSettingBuilder.put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(INDEX_ROUTING_ALLOCATION_NODE_SETTING, nodeName);
+            createIndex(indexName, indexSettingBuilder.build());
+            assertAcked(
+                client().admin()
+                    .indices()
+                    .updateSettings(
+                        new UpdateSettingsRequest(indexName).settings(
+                            Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")
+                        )
+                    )
+                    .get()
+            );
+
+            ensureGreen(indexName);
+        } else {
+            indexSettingBuilder.put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 6);
+            createIndex(indexName, indexSettingBuilder.build());
+        }
+
+        return createReasonableSizedShards(indexName);
+    }
+
     private Set<ShardRouting> getShardRoutings(final String nodeId, final String indexName) {
         final Set<ShardRouting> shardRoutings = new HashSet<>();
         for (IndexShardRoutingTable indexShardRoutingTable : client().admin()
@@ -296,7 +433,7 @@ public class DiskThresholdDeciderIT extends OpenSearchIntegTestCase {
     }
 
     /**
-     * Index documents until all the shards are at least WATERMARK_BYTES in size, and return the size of the smallest shard
+     * Index documents until all the shards are at least WATERMARK_BYTES in size, and return the size of the smallest shard.
      */
     private long createReasonableSizedShards(final String indexName) throws InterruptedException {
         while (true) {
@@ -361,6 +498,10 @@ public class DiskThresholdDeciderIT extends OpenSearchIntegTestCase {
             final Set<ShardRouting> shardRoutings = getShardRoutings(nodeName, indexName);
             assertThat("Mismatching shard routings: " + shardRoutings, shardRoutings, matcher);
         }, 30L, TimeUnit.SECONDS);
+    }
+
+    private MockInternalClusterInfoService getMockInternalClusterInfoService() {
+        return (MockInternalClusterInfoService) internalCluster().getCurrentClusterManagerNodeInstance(ClusterInfoService.class);
     }
 
     private static class TestFileStore extends FilterFileStore {

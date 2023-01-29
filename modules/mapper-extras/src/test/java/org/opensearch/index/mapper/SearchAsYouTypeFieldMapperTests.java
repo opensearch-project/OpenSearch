@@ -53,6 +53,7 @@ import org.apache.lucene.search.TermQuery;
 import org.opensearch.common.Strings;
 import org.opensearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AnalyzerScope;
 import org.opensearch.index.analysis.IndexAnalyzers;
@@ -609,7 +610,7 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
             b.field("type", "search_as_you_type");
             b.field("analyzer", "simple");
         }));
-        String serialized = Strings.toString(ms.documentMapper());
+        String serialized = Strings.toString(XContentType.JSON, ms.documentMapper());
         assertEquals(
             serialized,
             "{\"_doc\":{\"properties\":{\"field\":"
@@ -617,7 +618,7 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         );
 
         merge(ms, mapping(b -> {}));
-        assertEquals(serialized, Strings.toString(ms.documentMapper()));
+        assertEquals(serialized, Strings.toString(XContentType.JSON, ms.documentMapper()));
     }
 
     private void documentParsingTestCase(Collection<String> values) throws IOException {
