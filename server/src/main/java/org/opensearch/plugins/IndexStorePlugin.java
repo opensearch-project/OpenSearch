@@ -105,18 +105,6 @@ public interface IndexStorePlugin {
     }
 
     /**
-     * An interface that allows to create a new {@link SegmentReplicationState} per shard.
-     */
-    @FunctionalInterface
-    interface SegmentReplicationStateFactory {
-        /**
-         * Creates a new {@link SegmentReplicationState} per shard. This method is called once per shard on shard creation.
-         * @return a new SegmentReplicationState instance
-         */
-        SegmentReplicationState newSegmentReplicationState(ShardRouting shardRouting, DiscoveryNode node);
-    }
-
-    /**
      * The {@link RecoveryStateFactory} mappings for this plugin. When an index is created the recovery type setting
      * {@link org.opensearch.index.IndexModule#INDEX_RECOVERY_TYPE_SETTING} on the index will be examined and either use the default
      * or looked up among all the recovery state factories from {@link IndexStorePlugin} plugins.

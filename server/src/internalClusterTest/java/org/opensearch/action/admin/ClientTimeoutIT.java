@@ -51,7 +51,7 @@ public class ClientTimeoutIT extends OpenSearchIntegTestCase {
         return Collections.singletonList(MockTransportService.TestPlugin.class);
     }
 
-    private static String featureFlagSetting = "NONE";
+    private String featureFlagSetting = "NONE";
 
     @Override
     protected Settings featureFlagSettings() {

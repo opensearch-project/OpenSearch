@@ -136,41 +136,21 @@ public class SegmentReplicationState implements ReplicationState, ToXContentFrag
 
     private long totalNumberOfSegRepEvents;
 
-    public SegmentReplicationState(ShardRouting shardRouting, ReplicationLuceneIndex index, DiscoveryNode node) {
-        stage = Stage.INIT;
+    public SegmentReplicationState(ShardRouting shardRouting, ReplicationLuceneIndex index, long replicationId, DiscoveryNode sourceNode, DiscoveryNode targetNode) {
         this.index = index;
         this.shardRouting = shardRouting;
+        this.replicationId = replicationId;
+        this.sourceNode = sourceNode;
+        this.targetNode = targetNode;
         // Timing data will have as many entries as stages, plus one
-
         overallTimer = new ReplicationTimer();
         replicating = new Replicating();
         getCheckpointInfo = new GetCheckpointInfo();
         fileDiff = new FileDiff();
         getFile = new GetFile();
         finalizeReplication = new FinalizeReplication();
-        // set an invalid value by default
-        this.replicationId = -1L;
-        this.sourceNode = node;
-        this.targetNode = node;
-    }
-
-    public SegmentReplicationState(ShardRouting shardRouting, DiscoveryNode node) {
-        this(shardRouting, new ReplicationLuceneIndex(), node);
-    }
-
-    public SegmentReplicationState onNewSegmentReplicationEvent(
-        ReplicationLuceneIndex index,
-        long replicationId,
-        DiscoveryNode sourceNode,
-        DiscoveryNode targetNode
-    ) {
-        this.index = index;
-        this.replicationId = replicationId;
-        this.sourceNode = sourceNode;
-        this.targetNode = targetNode;
         setStage(Stage.INIT);
         totalNumberOfSegRepEvents++;
-        return this;
     }
 
     public SegmentReplicationState(StreamInput in) throws IOException {

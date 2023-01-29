@@ -263,7 +263,6 @@ public class IndicesService extends AbstractLifecycleComponent
     private final Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders;
     private final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories;
     private final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories;
-
     final AbstractRefCounted indicesRefCount; // pkg-private for testing
     private final CountDownLatch closeLatch = new CountDownLatch(1);
     private volatile boolean idFieldDataEnabled;
@@ -1018,9 +1017,6 @@ public class IndicesService extends AbstractLifecycleComponent
                 .setSource(mapping.source().string(), XContentType.JSON)
                 .get();
         }, this);
-        // if (indexService.getIndexSettings().isSegRepEnabled() && shardRouting.primary() == false) {
-        // indexShard.setSegmentReplicationState(indexService.createSegmentReplicationState(shardRouting, targetNode));
-        // }
         return indexShard;
     }
 

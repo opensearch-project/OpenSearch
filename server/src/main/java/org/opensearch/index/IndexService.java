@@ -95,7 +95,6 @@ import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.indices.recovery.RecoveryState;
-import org.opensearch.indices.replication.SegmentReplicationState;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.script.ScriptService;
@@ -141,9 +140,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final IndexStorePlugin.DirectoryFactory directoryFactory;
     private final IndexStorePlugin.RemoteDirectoryFactory remoteDirectoryFactory;
     private final IndexStorePlugin.RecoveryStateFactory recoveryStateFactory;
-
-    @Nullable
-    private final IndexStorePlugin.SegmentReplicationStateFactory segmentReplicationStateFactory;
     private final CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper;
     private final IndexCache indexCache;
     private final MapperService mapperService;
@@ -211,7 +207,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         IndexNameExpressionResolver expressionResolver,
         ValuesSourceRegistry valuesSourceRegistry,
         IndexStorePlugin.RecoveryStateFactory recoveryStateFactory,
-        IndexStorePlugin.SegmentReplicationStateFactory segmentReplicationStateFactory,
         BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier
     ) {
         super(indexSettings);
@@ -273,7 +268,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.directoryFactory = directoryFactory;
         this.remoteDirectoryFactory = remoteDirectoryFactory;
         this.recoveryStateFactory = recoveryStateFactory;
-        this.segmentReplicationStateFactory = segmentReplicationStateFactory;
         this.engineFactory = Objects.requireNonNull(engineFactory);
         this.engineConfigFactory = Objects.requireNonNull(engineConfigFactory);
         // initialize this last -- otherwise if the wrapper requires any other member to be non-null we fail with an NPE
@@ -656,12 +650,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
     public RecoveryState createRecoveryState(ShardRouting shardRouting, DiscoveryNode targetNode, DiscoveryNode sourceNode) {
         return recoveryStateFactory.newRecoveryState(shardRouting, targetNode, sourceNode);
-    }
-
-    public SegmentReplicationState createSegmentReplicationState(ShardRouting shardRouting, DiscoveryNode node) {
-        if (segmentReplicationStateFactory != null && indexSettings.isSegRepEnabled() && shardRouting.primary() == false) {
-            return segmentReplicationStateFactory.newSegmentReplicationState(shardRouting, node);
-        } else return null;
     }
 
     @Override

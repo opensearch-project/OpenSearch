@@ -54,7 +54,6 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.BigArrays;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.env.NodeEnvironment;
@@ -79,7 +78,6 @@ import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.indices.recovery.RecoveryState;
-import org.opensearch.indices.replication.SegmentReplicationState;
 import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
@@ -126,9 +124,6 @@ public final class IndexModule {
     private static final FsDirectoryFactory DEFAULT_DIRECTORY_FACTORY = new FsDirectoryFactory();
 
     private static final IndexStorePlugin.RecoveryStateFactory DEFAULT_RECOVERY_STATE_FACTORY = RecoveryState::new;
-
-    private static final IndexStorePlugin.SegmentReplicationStateFactory DEFAULT_SEGMENT_REPLICATION_STATE_FACTORY =
-        SegmentReplicationState::new;
 
     public static final Setting<String> INDEX_STORE_TYPE_SETTING = new Setting<>(
         "index.store.type",
@@ -516,7 +511,6 @@ public final class IndexModule {
         eventListener.beforeIndexCreated(indexSettings.getIndex(), indexSettings.getSettings());
         final IndexStorePlugin.DirectoryFactory directoryFactory = getDirectoryFactory(indexSettings, directoryFactories);
         final IndexStorePlugin.RecoveryStateFactory recoveryStateFactory = getRecoveryStateFactory(indexSettings, recoveryStateFactories);
-        final IndexStorePlugin.SegmentReplicationStateFactory segmentReplicationStateFactory = DEFAULT_SEGMENT_REPLICATION_STATE_FACTORY;
         QueryCache queryCache = null;
         IndexAnalyzers indexAnalyzers = null;
         boolean success = false;
@@ -565,9 +559,6 @@ public final class IndexModule {
                 expressionResolver,
                 valuesSourceRegistry,
                 recoveryStateFactory,
-                FeatureFlags.isEnabled(FeatureFlags.REPLICATION_TYPE) && indexSettings.isSegRepEnabled()
-                    ? segmentReplicationStateFactory
-                    : null,
                 translogFactorySupplier
             );
             success = true;
