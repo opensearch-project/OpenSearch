@@ -1018,9 +1018,9 @@ public class IndicesService extends AbstractLifecycleComponent
                 .setSource(mapping.source().string(), XContentType.JSON)
                 .get();
         }, this);
-        if (indexService.getIndexSettings().isSegRepEnabled() && shardRouting.primary() == false) {
-            indexShard.setSegmentReplicationState(indexService.createSegmentReplicationState(shardRouting, targetNode));
-        }
+//        if (indexService.getIndexSettings().isSegRepEnabled() && shardRouting.primary() == false) {
+//            indexShard.setSegmentReplicationState(indexService.createSegmentReplicationState(shardRouting, targetNode));
+//        }
         return indexShard;
     }
 

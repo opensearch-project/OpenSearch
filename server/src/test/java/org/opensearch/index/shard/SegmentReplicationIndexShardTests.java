@@ -16,13 +16,11 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.delete.DeleteRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.common.xcontent.XContentType;
@@ -52,7 +50,6 @@ import org.opensearch.indices.replication.common.ReplicationFailedException;
 import org.opensearch.indices.replication.common.ReplicationListener;
 import org.opensearch.indices.replication.common.ReplicationState;
 import org.opensearch.indices.replication.common.ReplicationType;
-import org.opensearch.test.VersionUtils;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -80,12 +77,6 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
     private static final Settings settings = Settings.builder()
         .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
         .build();
-
-    private DiscoveryNode node = new DiscoveryNode(
-        "101",
-        new TransportAddress(TransportAddress.META_ADDRESS, randomInt(0xFFFF)),
-        VersionUtils.randomVersion(random())
-    );
 
     /**
      * Test that latestReplicationCheckpoint returns null only for docrep enabled indices
@@ -125,9 +116,6 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             }
 
             primaryShard.refresh("Test");
-            for (IndexShard replicaShard : shards.getReplicas()) {
-                replicaShard.setSegmentReplicationState(new SegmentReplicationState(replicaShard.routingEntry(), node));
-            }
             replicateSegments(primaryShard, shards.getReplicas());
 
             shards.assertAllEqual(numDocs);
@@ -156,9 +144,6 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
                 }
             }
             primaryShard.refresh("Test");
-            for (IndexShard replicaShard : shards.getReplicas()) {
-                replicaShard.setSegmentReplicationState(new SegmentReplicationState(replicaShard.routingEntry(), node));
-            }
             replicateSegments(primaryShard, shards.getReplicas());
             final List<DocIdSeqNoAndSource> docsAfterDelete = getDocIdAndSeqNos(primaryShard);
             for (IndexShard shard : shards.getReplicas()) {
@@ -172,7 +157,6 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             shards.startAll();
             final IndexShard primary = shards.getPrimary();
             final IndexShard replica = shards.getReplicas().get(0);
-            replica.setSegmentReplicationState(new SegmentReplicationState(replica.routingEntry(), node));
 
             final int numDocs = shards.indexDocs(randomInt(10));
             primary.refresh("test");
@@ -274,7 +258,6 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             shards.startAll();
             final IndexShard primary = shards.getPrimary();
             final IndexShard replica = shards.getReplicas().get(0);
-            replica.setSegmentReplicationState(new SegmentReplicationState(replica.routingEntry(), node));
             final int numDocs = randomIntBetween(10, 100);
             shards.indexDocs(numDocs);
             assertEquals(numDocs, primary.translogStats().estimatedNumberOfOperations());
@@ -330,11 +313,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             try {
                 assert shardList.size() >= 2;
                 final IndexShard primary = shardList.get(0);
-                List<IndexShard> replicaShards = shardList.subList(1, shardList.size());
-                for (IndexShard replicaShard : replicaShards) {
-                    replicaShard.setSegmentReplicationState(new SegmentReplicationState(replicaShard.routingEntry(), node));
-                }
-                return replicateSegments(primary, replicaShards, listener);
+                return replicateSegments(primary, shardList.subList(1, shardList.size()), listener);
             } catch (IOException | InterruptedException e) {
                 listener.onFailure(e);
                 throw new RuntimeException(e);
@@ -415,9 +394,6 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             final IndexShard primary = shards.getPrimary();
             final IndexShard replica_1 = shards.getReplicas().get(0);
             final IndexShard replica_2 = shards.getReplicas().get(1);
-            for (IndexShard replicaShard : shards.getReplicas()) {
-                replicaShard.setSegmentReplicationState(new SegmentReplicationState(replicaShard.routingEntry(), node));
-            }
             int numDocs = randomIntBetween(10, 100);
             shards.indexDocs(numDocs);
             flushShard(primary, false);
@@ -445,9 +421,6 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             numDocs = randomIntBetween(numDocs + 1, numDocs + 10);
             shards.indexDocs(numDocs);
             flushShard(replica_2, false);
-            for (IndexShard replicaShard : shards.getReplicas()) {
-                replicaShard.setSegmentReplicationState(new SegmentReplicationState(replicaShard.routingEntry(), node));
-            }
             replicateSegments(replica_2, shards.getReplicas());
             assertEqualCommittedSegments(replica_2, oldPrimary, replica_1);
         }
@@ -465,9 +438,6 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
                 flushShard(primary);
             }
             primary.refresh("Test");
-            for (IndexShard replicaShard : shards.getReplicas()) {
-                replicaShard.setSegmentReplicationState(new SegmentReplicationState(replicaShard.routingEntry(), node));
-            }
             replicateSegments(primary, shards.getReplicas());
 
             // at this point both shards should have numDocs persisted and searchable.
@@ -496,9 +466,6 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
                     failAndPromoteRandomReplica(shards);
                 }
                 flushShard(shards.getPrimary());
-                for (IndexShard replicaShard : shards.getReplicas()) {
-                    replicaShard.setSegmentReplicationState(new SegmentReplicationState(replicaShard.routingEntry(), node));
-                }
                 replicateSegments(shards.getPrimary(), shards.getReplicas());
             }
             primary = shards.getPrimary();
@@ -612,9 +579,6 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             IndexShard oldPrimary = shards.getPrimary();
             final IndexShard nextPrimary = shards.getReplicas().get(0);
             final IndexShard replica = shards.getReplicas().get(1);
-            for (IndexShard replicaShard : shards.getReplicas()) {
-                replicaShard.setSegmentReplicationState(new SegmentReplicationState(replicaShard.routingEntry(), node));
-            }
 
             // 1. Create ops that are in the index and xlog of both shards but not yet part of a commit point.
             final int numDocs = shards.indexDocs(randomInt(10));
@@ -678,7 +642,6 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             shards.startAll();
             final IndexShard oldPrimary = shards.getPrimary();
             final IndexShard nextPrimary = shards.getReplicas().get(0);
-            nextPrimary.setSegmentReplicationState(new SegmentReplicationState(nextPrimary.routingEntry(), node));
 
             final int numDocs = shards.indexDocs(randomInt(10));
             oldPrimary.refresh("Test");
@@ -742,9 +705,6 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             assertDocCount(newReplica, numDocs);
 
             nextPrimary.refresh("test");
-            for (IndexShard replicaShard : shards.getReplicas()) {
-                replicaShard.setSegmentReplicationState(new SegmentReplicationState(replicaShard.routingEntry(), node));
-            }
             replicateSegments(nextPrimary, shards.getReplicas());
             final List<DocIdSeqNoAndSource> docsAfterRecovery = getDocIdAndSeqNos(shards.getPrimary());
             for (IndexShard shard : shards.getReplicas()) {
@@ -758,7 +718,6 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             shards.startAll();
             IndexShard primary = shards.getPrimary();
             final IndexShard replica = shards.getReplicas().get(0);
-            replica.setSegmentReplicationState(new SegmentReplicationState(replica.routingEntry(), node));
 
             final int numDocs = shards.indexDocs(randomInt(10));
             primary.refresh("Test");
@@ -801,7 +760,6 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             shards.startAll();
             IndexShard primary = shards.getPrimary();
             final IndexShard replica = shards.getReplicas().get(0);
-            replica.setSegmentReplicationState(new SegmentReplicationState(replica.routingEntry(), node));
 
             final int numDocs = shards.indexDocs(randomInt(10));
             primary.refresh("Test");
@@ -844,7 +802,6 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             shards.startAll();
             IndexShard primary = shards.getPrimary();
             final IndexShard replica = shards.getReplicas().get(0);
-            replica.setSegmentReplicationState(new SegmentReplicationState(replica.routingEntry(), node));
 
             final int numDocs = shards.indexDocs(randomInt(10));
             primary.refresh("Test");

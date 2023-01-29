@@ -9,16 +9,12 @@
 package org.opensearch.indices.recovery;
 
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.replication.OpenSearchIndexLevelReplicationTestCase;
 import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.indices.replication.SegmentReplicationState;
 import org.opensearch.indices.replication.common.ReplicationType;
-import org.opensearch.test.VersionUtils;
 
 public class RemoteStorePeerRecoverySourceHandlerTests extends OpenSearchIndexLevelReplicationTestCase {
 
@@ -28,12 +24,6 @@ public class RemoteStorePeerRecoverySourceHandlerTests extends OpenSearchIndexLe
         .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, "true")
         .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "translog-repo")
         .build();
-
-    DiscoveryNode node = new DiscoveryNode(
-        "101",
-        new TransportAddress(TransportAddress.META_ADDRESS, randomInt(0xFFFF)),
-        VersionUtils.randomVersion(random())
-    );
 
     public void testReplicaShardRecoveryUptoLastFlushedCommit() throws Exception {
         try (ReplicationGroup shards = createGroup(0, settings, new NRTReplicationEngineFactory())) {
@@ -46,7 +36,6 @@ public class RemoteStorePeerRecoverySourceHandlerTests extends OpenSearchIndexLe
 
             // Step 2 - Start replica for recovery to happen, check both has same number of docs
             final IndexShard replica1 = shards.addReplica();
-            replica1.setSegmentReplicationState(new SegmentReplicationState(replica1.routingEntry(), node));
             shards.startAll();
             assertEquals(getDocIdAndSeqNos(primary), getDocIdAndSeqNos(replica1));
 
@@ -66,7 +55,6 @@ public class RemoteStorePeerRecoverySourceHandlerTests extends OpenSearchIndexLe
 
             // Step 6 - Start new replica, recovery happens, and check that new replica has docs upto last flush
             final IndexShard replica2 = shards.addReplica();
-            replica2.setSegmentReplicationState(new SegmentReplicationState(replica2.routingEntry(), node));
             shards.startAll();
             assertDocCount(replica2, numDocs);
 

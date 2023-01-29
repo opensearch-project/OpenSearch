@@ -29,9 +29,7 @@ import org.mockito.Mockito;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.shard.IndexShard;
@@ -45,7 +43,6 @@ import org.opensearch.indices.replication.common.ReplicationFailedException;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.DummyShardLock;
 import org.opensearch.test.IndexSettingsModule;
-import org.opensearch.test.VersionUtils;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -98,13 +95,6 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
 
         indexShard = newStartedShard(false, indexSettings, new NRTReplicationEngineFactory());
         spyIndexShard = spy(indexShard);
-        DiscoveryNode node = new DiscoveryNode(
-            "101",
-            new TransportAddress(TransportAddress.META_ADDRESS, randomInt(0xFFFF)),
-            VersionUtils.randomVersion(random())
-        );
-        when(spyIndexShard.getSegmentReplicationState()).thenReturn(new SegmentReplicationState(indexShard.routingEntry(), node));
-        indexShard.setSegmentReplicationState(new SegmentReplicationState(indexShard.routingEntry(), node));
 
         Mockito.doNothing().when(spyIndexShard).finalizeReplication(any(SegmentInfos.class), anyLong());
         testSegmentInfos = spyIndexShard.store().readLastCommittedSegmentsInfo();

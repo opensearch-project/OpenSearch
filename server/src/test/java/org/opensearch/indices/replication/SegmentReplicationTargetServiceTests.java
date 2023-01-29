@@ -13,10 +13,8 @@ import org.mockito.Mockito;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.shard.IndexShard;
@@ -26,7 +24,6 @@ import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.ReplicationFailedException;
 import org.opensearch.indices.replication.common.ReplicationType;
-import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.List;
@@ -73,12 +70,6 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         SegmentReplicationSourceFactory replicationSourceFactory = mock(SegmentReplicationSourceFactory.class);
         replicationSource = mock(SegmentReplicationSource.class);
         when(replicationSourceFactory.get(replicaShard)).thenReturn(replicationSource);
-        DiscoveryNode node = new DiscoveryNode(
-            "101",
-            new TransportAddress(TransportAddress.META_ADDRESS, randomInt(0xFFFF)),
-            VersionUtils.randomVersion(random())
-        );
-        replicaShard.setSegmentReplicationState(new SegmentReplicationState(replicaShard.routingEntry(), node));
 
         sut = prepareForReplication(primaryShard, null);
         initialCheckpoint = replicaShard.getLatestReplicationCheckpoint();
