@@ -1117,7 +1117,7 @@ public class LocalStorePeerRecoverySourceHandlerTests extends OpenSearchTestCase
         public void finalizeRecovery(long globalCheckpoint, long trimAboveSeqNo, ActionListener<Void> listener) {}
 
         @Override
-        public void forceSegmentFileSync(ActionListener<Void> listener) {}
+        public void forceSegmentFileSync() {}
 
         @Override
         public void handoffPrimaryContext(ReplicationTracker.PrimaryContext primaryContext) {}
