@@ -310,7 +310,7 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
             .cluster()
             .prepareHealth()
             .setLocal(true)
-            .setEnsureLocalNodeCommissioned(true)
+            .setEnsureNodeCommissioned(true)
             .execute()
             .actionGet();
         assertFalse(activeNodeLocalHealth.isTimedOut());
@@ -329,7 +329,7 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
                 .cluster()
                 .prepareHealth()
                 .setLocal(true)
-                .setEnsureLocalNodeCommissioned(true)
+                .setEnsureNodeCommissioned(true)
                 .execute()
                 .actionGet()
         );

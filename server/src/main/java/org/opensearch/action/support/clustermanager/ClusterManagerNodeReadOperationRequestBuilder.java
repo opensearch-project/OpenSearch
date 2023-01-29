@@ -59,13 +59,4 @@ public abstract class ClusterManagerNodeReadOperationRequestBuilder<
         request.local(local);
         return (RequestBuilder) this;
     }
-
-    /**
-     * Specifies if the local request should ensure that the local node is commissioned
-     */
-    @SuppressWarnings("unchecked")
-    public final RequestBuilder setEnsureLocalNodeCommissioned(boolean ensureLocalNodeCommissioned) {
-        request.ensureLocalNodeCommissioned(ensureLocalNodeCommissioned);
-        return (RequestBuilder) this;
-    }
 }

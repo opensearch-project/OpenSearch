@@ -140,7 +140,7 @@ public class TransportClusterHealthAction extends TransportClusterManagerNodeRea
         final ClusterState unusedState,
         final ActionListener<ClusterHealthResponse> listener
     ) {
-        if (request.ensureLocalNodeCommissioned()
+        if (request.ensureNodeCommissioned()
             && discovery instanceof Coordinator
             && ((Coordinator) discovery).localNodeCommissioned() == false) {
             listener.onFailure(new NodeDecommissionedException("local node is decommissioned"));
