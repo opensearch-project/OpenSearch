@@ -77,6 +77,7 @@ import static java.util.Collections.emptyMap;
 public class IndexShardRoutingTable implements Iterable<ShardRouting> {
 
     final ShardShuffler shuffler;
+    // Shuffler for weighted round-robin shard routing. This uses rotation to permute shards.
     final ShardShuffler shufflerForWeightedRouting;
     final ShardId shardId;
 
