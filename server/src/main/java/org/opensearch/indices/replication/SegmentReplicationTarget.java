@@ -64,11 +64,14 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         this.checkpoint = checkpoint;
         this.source = source;
         indexShard.setSegmentReplicationState(
-            new SegmentReplicationState(indexShard.routingEntry(), stateIndex,
+            new SegmentReplicationState(
+                indexShard.routingEntry(),
+                stateIndex,
                 getId(),
                 indexShard.recoveryState().getSourceNode(),
                 indexShard.recoveryState().getTargetNode()
-            ));
+            )
+        );
         this.state = indexShard.getSegmentReplicationState();
         this.multiFileWriter = new MultiFileWriter(indexShard.store(), stateIndex, getPrefix(), logger, this::ensureRefCount);
     }

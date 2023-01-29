@@ -136,7 +136,13 @@ public class SegmentReplicationState implements ReplicationState, ToXContentFrag
 
     private long totalNumberOfSegRepEvents;
 
-    public SegmentReplicationState(ShardRouting shardRouting, ReplicationLuceneIndex index, long replicationId, DiscoveryNode sourceNode, DiscoveryNode targetNode) {
+    public SegmentReplicationState(
+        ShardRouting shardRouting,
+        ReplicationLuceneIndex index,
+        long replicationId,
+        DiscoveryNode sourceNode,
+        DiscoveryNode targetNode
+    ) {
         this.index = index;
         this.shardRouting = shardRouting;
         this.replicationId = replicationId;
