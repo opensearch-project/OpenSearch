@@ -63,8 +63,10 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         super("replication_target", indexShard, new ReplicationLuceneIndex(), listener);
         this.checkpoint = checkpoint;
         this.source = source;
-        if(indexShard.getSegmentReplicationState() == null){
-            indexShard.setSegmentReplicationState(new SegmentReplicationState(indexShard.routingEntry(), indexShard.recoveryState().getSourceNode()));
+        if (indexShard.getSegmentReplicationState() == null) {
+            indexShard.setSegmentReplicationState(
+                new SegmentReplicationState(indexShard.routingEntry(), indexShard.recoveryState().getSourceNode())
+            );
         }
         this.state = indexShard.getSegmentReplicationState()
             .onNewSegmentReplicationEvent(

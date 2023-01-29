@@ -50,28 +50,23 @@ public class ClientTimeoutIT extends OpenSearchIntegTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singletonList(MockTransportService.TestPlugin.class);
     }
+
     private static String featureFlagSetting = "NONE";
 
     @Override
     protected Settings featureFlagSettings() {
-        if(!featureFlagSetting.equals("NONE")){
-            return Settings.builder()
-                .put(super.featureFlagSettings())
-                .put(featureFlagSetting, "true")
-                .build();
-        }
-        else{
-            return Settings.builder()
-                .put(super.featureFlagSettings())
-                .build();
+        if (!featureFlagSetting.equals("NONE")) {
+            return Settings.builder().put(super.featureFlagSettings()).put(featureFlagSetting, "true").build();
+        } else {
+            return Settings.builder().put(super.featureFlagSettings()).build();
         }
     }
 
-    private void enableFeatureFlag(String featureFlagSetting){
+    private void enableFeatureFlag(String featureFlagSetting) {
         this.featureFlagSetting = featureFlagSetting;
     }
 
-    private void disableFeatureFlag(){
+    private void disableFeatureFlag() {
         this.featureFlagSetting = "NONE";
     }
 
@@ -217,8 +212,6 @@ public class ClientTimeoutIT extends OpenSearchIntegTestCase {
         assertThat(segmentReplicationResponse.getShardFailures()[0].reason(), containsString("ReceiveTimeoutTransportException"));
         disableFeatureFlag();
     }
-
-
 
     public void testStatsWithTimeout() {
         internalCluster().startClusterManagerOnlyNode();
