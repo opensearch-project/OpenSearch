@@ -72,9 +72,6 @@ public class SearchBackpressureService extends AbstractLifecycleComponent
     private final List<NodeDuressTracker> nodeDuressTrackers;
     private final Map<Class<? extends SearchBackpressureTask>, List<TaskResourceUsageTracker>> taskTrackers;
 
-    private final Map<Class<? extends SearchBackpressureTask>, AtomicReference<TokenBucket>> rateLimiters;
-    private final Map<Class<? extends SearchBackpressureTask>, AtomicReference<TokenBucket>> ratioLimiters;
-
     private final Map<Class<? extends SearchBackpressureTask>, SearchBackpressureState> searchBackpressureStates;
 
     public SearchBackpressureService(
@@ -140,58 +137,20 @@ public class SearchBackpressureService extends AbstractLifecycleComponent
 
         this.searchBackpressureStates = Map.of(
             SearchTask.class,
-            new SearchBackpressureState(),
+            new SearchBackpressureState(
+                timeNanosSupplier,
+                getSettings().getSearchTaskSettings().getCancellationRateNanos(),
+                getSettings().getSearchTaskSettings().getCancellationBurst(),
+                getSettings().getSearchTaskSettings().getCancellationRatio()),
             SearchShardTask.class,
-            new SearchBackpressureState()
+            new SearchBackpressureState(
+                timeNanosSupplier,
+                getSettings().getSearchShardTaskSettings().getCancellationRateNanos(),
+                getSettings().getSearchShardTaskSettings().getCancellationBurst(),
+                getSettings().getSearchShardTaskSettings().getCancellationRatio())
         );
 
         this.taskTrackers = Map.of(SearchTask.class, searchTaskTrackers, SearchShardTask.class, searchShardTaskTrackers);
-
-        this.rateLimiters = Map.of(
-            SearchTask.class,
-            new AtomicReference<>(
-                new TokenBucket(
-                    timeNanosSupplier,
-                    getSettings().getSearchTaskSettings().getCancellationRateNanos(),
-                    getSettings().getSearchTaskSettings().getCancellationBurst()
-                )
-            ),
-            SearchShardTask.class,
-            new AtomicReference<>(
-                new TokenBucket(
-                    timeNanosSupplier,
-                    getSettings().getSearchShardTaskSettings().getCancellationRateNanos(),
-                    getSettings().getSearchShardTaskSettings().getCancellationBurst()
-                )
-            )
-        );
-
-        this.ratioLimiters = Map.of(
-            SearchTask.class,
-            new AtomicReference<>(
-                new TokenBucket(
-                    this::getSearchTaskCompletionCount,
-                    getSettings().getSearchTaskSettings().getCancellationRatio(),
-                    getSettings().getSearchTaskSettings().getCancellationBurst()
-                )
-            ),
-            SearchShardTask.class,
-            new AtomicReference<>(
-                new TokenBucket(
-                    this::getSearchShardTaskCompletionCount,
-                    getSettings().getSearchShardTaskSettings().getCancellationRatio(),
-                    getSettings().getSearchShardTaskSettings().getCancellationBurst()
-                )
-            )
-        );
-    }
-
-    private long getSearchTaskCompletionCount() {
-        return searchBackpressureStates.get(SearchTask.class).getCompletionCount();
-    }
-
-    private long getSearchShardTaskCompletionCount() {
-        return searchBackpressureStates.get(SearchShardTask.class).getCompletionCount();
     }
 
     void doRun() {
@@ -242,16 +201,14 @@ public class SearchBackpressureService extends AbstractLifecycleComponent
             Class<? extends SearchBackpressureTask> taskType = getTaskType(taskCancellation.getTask());
 
             // Independently remove tokens from both token buckets.
-            boolean rateLimitReached = rateLimiters.get(taskType).get().request() == false;
-            boolean ratioLimitReached = ratioLimiters.get(taskType).get().request() == false;
+            SearchBackpressureState searchBackpressureState = searchBackpressureStates.get(taskType);
+            boolean rateLimitReached = searchBackpressureState.getRateLimiter().get().request() == false;
+            boolean ratioLimitReached = searchBackpressureState.getRatioLimiter().get().request() == false;
 
             // Stop cancelling tasks if there are no tokens in either of the two token buckets.
             if (rateLimitReached && ratioLimitReached) {
                 logger.debug("task cancellation limit reached");
-                SearchBackpressureState searchBackpressureState = searchBackpressureStates.get(taskType);
-                if (searchBackpressureState != null) {
-                    searchBackpressureState.incrementLimitReachedCount();
-                }
+                searchBackpressureState.incrementLimitReachedCount();
                 break;
             }
 
@@ -268,7 +225,7 @@ public class SearchBackpressureService extends AbstractLifecycleComponent
         } else if (task instanceof SearchShardTask) {
             return SearchShardTask.class;
         } else {
-            throw new IllegalArgumentException("");
+            throw new IllegalArgumentException("task must be instance of either SearchTask or SearchShardTask");
         }
     }
 
@@ -330,11 +287,7 @@ public class SearchBackpressureService extends AbstractLifecycleComponent
                 reasons.add(reason.get());
             }
         }
-
-        SearchBackpressureState searchBackpressureState = searchBackpressureStates.get(taskType);
-        if (searchBackpressureState != null) {
-            callbacks.add(searchBackpressureState::incrementCancellationCount);
-        }
+        callbacks.add(searchBackpressureStates.get(taskType)::incrementCancellationCount);
 
         return new TaskCancellation(task, reasons, callbacks);
     }
@@ -343,19 +296,18 @@ public class SearchBackpressureService extends AbstractLifecycleComponent
      * Returns a list of TaskCancellations sorted by descending order of their cancellation scores.
      */
     List<TaskCancellation> getTaskCancellations(List<? extends CancellableTask> tasks) {
-        List<TaskCancellation> t = tasks.stream()
+        return tasks.stream()
             .map(this::getTaskCancellation)
             .filter(TaskCancellation::isEligibleForCancellation)
             .sorted(Comparator.reverseOrder())
             .collect(Collectors.toUnmodifiableList());
-        return t;
     }
 
     SearchBackpressureSettings getSettings() {
         return settings;
     }
 
-    SearchBackpressureState getSearchBackpressureTaskStats(Class<? extends SearchBackpressureTask> taskType) {
+    SearchBackpressureState getSearchBackpressureStats(Class<? extends SearchBackpressureTask> taskType) {
         return searchBackpressureStates.get(taskType);
     }
 
@@ -372,10 +324,7 @@ public class SearchBackpressureService extends AbstractLifecycleComponent
         CancellableTask cancellableTask = (CancellableTask) task;
         Class<? extends SearchBackpressureTask> taskType = getTaskType(task);
         if (cancellableTask.isCancelled() == false) {
-            SearchBackpressureState searchBackpressureState = searchBackpressureStates.get(taskType);
-            if (searchBackpressureState != null) {
-                searchBackpressureState.incrementCompletionCount();
-            }
+            searchBackpressureStates.get(taskType).incrementCompletionCount();
         }
 
         List<Exception> exceptions = new ArrayList<>();
@@ -393,62 +342,38 @@ public class SearchBackpressureService extends AbstractLifecycleComponent
 
     @Override
     public void onCancellationRatioSearchTaskChanged() {
-        ratioLimiters.get(SearchTask.class)
-            .set(
-                new TokenBucket(
-                    this::getSearchTaskCompletionCount,
-                    getSettings().getSearchTaskSettings().getCancellationRatio(),
-                    getSettings().getSearchTaskSettings().getCancellationBurst()
-                )
-            );
+        searchBackpressureStates.get(SearchTask.class)
+            .onCancellationRatioChanged(getSettings().getSearchTaskSettings().getCancellationRatio());
     }
 
     @Override
     public void onCancellationRateSearchTaskChanged() {
-        rateLimiters.get(SearchTask.class)
-            .set(
-                new TokenBucket(
-                    timeNanosSupplier,
-                    getSettings().getSearchTaskSettings().getCancellationRateNanos(),
-                    getSettings().getSearchTaskSettings().getCancellationBurst()
-                )
-            );
+        searchBackpressureStates.get(SearchTask.class)
+            .onCancellationRateChanged(getSettings().getSearchTaskSettings().getCancellationRate());
     }
 
     @Override
     public void onCancellationBurstSearchTaskChanged() {
-        onCancellationRatioSearchTaskChanged();
-        onCancellationRateSearchTaskChanged();
+        searchBackpressureStates.get(SearchTask.class)
+            .onCancellationBurstChanged(getSettings().getSearchTaskSettings().getCancellationBurst());
     }
 
     @Override
     public void onCancellationRatioSearchShardTaskChanged() {
-        ratioLimiters.get(SearchShardTask.class)
-            .set(
-                new TokenBucket(
-                    this::getSearchShardTaskCompletionCount,
-                    getSettings().getSearchShardTaskSettings().getCancellationRatio(),
-                    getSettings().getSearchShardTaskSettings().getCancellationBurst()
-                )
-            );
+        searchBackpressureStates.get(SearchShardTask.class)
+            .onCancellationRatioChanged(getSettings().getSearchShardTaskSettings().getCancellationRatio());
     }
 
     @Override
     public void onCancellationRateSearchShardTaskChanged() {
-        rateLimiters.get(SearchShardTask.class)
-            .set(
-                new TokenBucket(
-                    timeNanosSupplier,
-                    getSettings().getSearchShardTaskSettings().getCancellationRateNanos(),
-                    getSettings().getSearchShardTaskSettings().getCancellationBurst()
-                )
-            );
+        searchBackpressureStates.get(SearchShardTask.class)
+            .onCancellationRateChanged(getSettings().getSearchShardTaskSettings().getCancellationRate());
     }
 
     @Override
     public void onCancellationBurstSearchShardTaskChanged() {
-        onCancellationRatioSearchShardTaskChanged();
-        onCancellationRateSearchShardTaskChanged();
+        searchBackpressureStates.get(SearchShardTask.class)
+            .onCancellationBurstChanged(getSettings().getSearchShardTaskSettings().getCancellationBurst());
     }
 
     @Override

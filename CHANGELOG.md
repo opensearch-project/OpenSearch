@@ -12,14 +12,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Add support for ppc64le architecture ([#5459](https://github.com/opensearch-project/OpenSearch/pull/5459))
 - Cancellation of in-flight SearchTasks based on resource consumption ([#5606](https://github.com/opensearch-project/OpenSearch/pull/5605))
 
-- Support versioning for Weighted routing apis([#5255](https://github.com/opensearch-project/OpenSearch/pull/5255))
-- Added @gbbafna as an OpenSearch maintainer ([#5668](https://github.com/opensearch-project/OpenSearch/pull/5668))
-- Add support for discovered cluster manager and remove local weights ([#5680](https://github.com/opensearch-project/OpenSearch/pull/5680))
-- Added support for feature flags in opensearch.yml ([#4959](https://github.com/opensearch-project/OpenSearch/pull/4959))
-- Add query for initialized extensions ([#5658](https://github.com/opensearch-project/OpenSearch/pull/5658))
-- Revert 'Added jackson dependency to server' and change extension reading ([#5768](https://github.com/opensearch-project/OpenSearch/pull/5768))
-- Add support to disallow search request with preference parameter with strict weighted shard routing([#5874](https://github.com/opensearch-project/OpenSearch/pull/5874))
-
 ### Dependencies
 - Bumps `log4j-core` from 2.18.0 to 2.19.0
 - Bumps `reactor-netty-http` from 1.0.18 to 1.0.23
