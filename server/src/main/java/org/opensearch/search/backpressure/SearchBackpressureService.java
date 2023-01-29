@@ -14,7 +14,6 @@ import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchTask;
 import org.opensearch.common.component.AbstractLifecycleComponent;
-import org.opensearch.common.util.TokenBucket;
 import org.opensearch.monitor.jvm.JvmStats;
 import org.opensearch.monitor.process.ProcessProbe;
 import org.opensearch.search.backpressure.settings.SearchBackpressureMode;
@@ -45,7 +44,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
@@ -141,13 +139,15 @@ public class SearchBackpressureService extends AbstractLifecycleComponent
                 timeNanosSupplier,
                 getSettings().getSearchTaskSettings().getCancellationRateNanos(),
                 getSettings().getSearchTaskSettings().getCancellationBurst(),
-                getSettings().getSearchTaskSettings().getCancellationRatio()),
+                getSettings().getSearchTaskSettings().getCancellationRatio()
+            ),
             SearchShardTask.class,
             new SearchBackpressureState(
                 timeNanosSupplier,
                 getSettings().getSearchShardTaskSettings().getCancellationRateNanos(),
                 getSettings().getSearchShardTaskSettings().getCancellationBurst(),
-                getSettings().getSearchShardTaskSettings().getCancellationRatio())
+                getSettings().getSearchShardTaskSettings().getCancellationRatio()
+            )
         );
 
         this.taskTrackers = Map.of(SearchTask.class, searchTaskTrackers, SearchShardTask.class, searchShardTaskTrackers);

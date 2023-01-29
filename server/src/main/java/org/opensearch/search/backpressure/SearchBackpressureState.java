@@ -40,7 +40,8 @@ public class SearchBackpressureState {
         LongSupplier timeNanosSupplier,
         double cancellationRateNanos,
         double cancellationBurst,
-        double cancellationRatio) {
+        double cancellationRatio
+    ) {
         rateLimiter = new AtomicReference<>(new TokenBucket(timeNanosSupplier, cancellationRateNanos, cancellationBurst));
         ratioLimiter = new AtomicReference<>(new TokenBucket(this::getCompletionCount, cancellationRatio, cancellationBurst));
         this.timeNanosSupplier = timeNanosSupplier;

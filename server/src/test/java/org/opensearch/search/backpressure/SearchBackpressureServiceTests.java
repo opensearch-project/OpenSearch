@@ -300,7 +300,7 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
         service.doRun();
         assertEquals(15, service.getSearchBackpressureStats(SearchShardTask.class).getCancellationCount());
         assertEquals(3, service.getSearchBackpressureStats(SearchShardTask.class).getLimitReachedCount());  // no more tasks to cancel;
-                                                                                                                // limit not reached
+                                                                                                            // limit not reached
 
         // Verify search backpressure stats.
         SearchBackpressureStats expectedStats = new SearchBackpressureStats(
