@@ -111,6 +111,10 @@
       "awareness_attribute":{
         "type":"string",
         "description":"The awareness attribute for which the health is required"
+      },
+      "ensure_node_commissioned":{
+        "type":"boolean",
+        "description": "Checks whether local node is commissioned or not. If set to true on a local call it will throw exception if node is decommissioned (default: false)"
       }
     }
   }
