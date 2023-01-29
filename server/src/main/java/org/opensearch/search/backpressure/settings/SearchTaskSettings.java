@@ -12,12 +12,13 @@ import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.monitor.jvm.JvmStats;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+
+import static org.opensearch.search.backpressure.trackers.HeapUsageTracker.HEAP_SIZE_BYTES;
 
 /**
  * Defines the settings related to the cancellation of SearchTasks.
@@ -26,11 +27,9 @@ import java.util.function.Consumer;
  */
 
 public class SearchTaskSettings {
-    private static final long HEAP_SIZE_BYTES = JvmStats.jvmStats().getMem().getHeapMax().getBytes();
     private final List<Listener> listeners = new ArrayList<>();
 
     private static class Defaults {
-        // TODO: decide on default settings for SearchTask
         private static final double CANCELLATION_RATIO = 0.1;
         private static final double CANCELLATION_RATE = 0.003;
         private static final double CANCELLATION_BURST = 5.0;

@@ -23,18 +23,18 @@ import java.util.Objects;
  * Stats related to search backpressure.
  */
 public class SearchBackpressureStats implements ToXContentFragment, Writeable {
-    private final SearchTaskStats searchTaskStats;
     private final SearchShardTaskStats searchShardTaskStats;
     private final SearchBackpressureMode mode;
+    private final SearchTaskStats searchTaskStats;
 
     public SearchBackpressureStats(
         SearchTaskStats searchTaskStats,
         SearchShardTaskStats searchShardTaskStats,
         SearchBackpressureMode mode
     ) {
-        this.searchTaskStats = searchTaskStats;
         this.searchShardTaskStats = searchShardTaskStats;
         this.mode = mode;
+        this.searchTaskStats = searchTaskStats;
     }
 
     public SearchBackpressureStats(StreamInput in) throws IOException {
@@ -49,11 +49,13 @@ public class SearchBackpressureStats implements ToXContentFragment, Writeable {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject("search_backpressure")
-            .field("search_task", searchTaskStats)
-            .field("search_shard_task", searchShardTaskStats)
-            .field("mode", mode.getName())
-            .endObject();
+        builder.startObject("search_backpressure");
+        if (searchTaskStats != null) {
+            builder.field("search_task", searchTaskStats);
+        }
+        builder.field("search_shard_task", searchShardTaskStats);
+        builder.field("mode", mode.getName());
+        return builder.endObject();
     }
 
     @Override

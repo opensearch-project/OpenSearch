@@ -15,6 +15,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.util.MovingAverage;
 import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.monitor.jvm.JvmStats;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskCancellation;
 
@@ -35,6 +36,7 @@ import static org.opensearch.search.backpressure.trackers.TaskResourceUsageTrack
  * @opensearch.internal
  */
 public class HeapUsageTracker extends TaskResourceUsageTracker {
+    public static final long HEAP_SIZE_BYTES = JvmStats.jvmStats().getMem().getHeapMax().getBytes();
     private final DoubleSupplier heapVarianceSupplier;
     private final LongSupplier heapBytesThresholdSupplier;
     private final AtomicReference<MovingAverage> movingAverageReference;
@@ -77,7 +79,7 @@ public class HeapUsageTracker extends TaskResourceUsageTracker {
         double allowedUsage = averageUsage * variance;
         double threshold = heapBytesThresholdSupplier.getAsLong();
 
-        if (currentUsage < threshold || currentUsage < allowedUsage) {
+        if (currentUsage < threshold || currentUsage < allowedUsage || HEAP_SIZE_BYTES == 0) {
             return Optional.empty();
         }
 
