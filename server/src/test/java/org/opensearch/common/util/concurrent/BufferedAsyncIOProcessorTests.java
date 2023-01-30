@@ -66,7 +66,7 @@ public class BufferedAsyncIOProcessorTests extends OpenSearchTestCase {
             }
 
             @Override
-            protected String getBufferRefreshThreadPoolName() {
+            protected String getBufferProcessThreadPoolName() {
                 return ThreadPool.Names.TRANSLOG_SYNC;
             }
         };
@@ -108,7 +108,7 @@ public class BufferedAsyncIOProcessorTests extends OpenSearchTestCase {
             }
 
             @Override
-            protected String getBufferRefreshThreadPoolName() {
+            protected String getBufferProcessThreadPoolName() {
                 return ThreadPool.Names.TRANSLOG_SYNC;
             }
         };
@@ -164,7 +164,7 @@ public class BufferedAsyncIOProcessorTests extends OpenSearchTestCase {
             }
 
             @Override
-            protected String getBufferRefreshThreadPoolName() {
+            protected String getBufferProcessThreadPoolName() {
                 return ThreadPool.Names.TRANSLOG_SYNC;
             }
         };
@@ -229,7 +229,7 @@ public class BufferedAsyncIOProcessorTests extends OpenSearchTestCase {
             }
 
             @Override
-            protected String getBufferRefreshThreadPoolName() {
+            protected String getBufferProcessThreadPoolName() {
                 return ThreadPool.Names.TRANSLOG_SYNC;
             }
         };
