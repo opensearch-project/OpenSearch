@@ -18,6 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bumps `reactor-netty` from 1.1.1 to 1.1.2 ([#5878](https://github.com/opensearch-project/OpenSearch/pull/5878))
 - OpenJDK Update (January 2023 Patch releases) ([#6075](https://github.com/opensearch-project/OpenSearch/pull/6075))
 - Bumps `Mockito` from 4.7.0 to 5.1.0, `ByteBuddy` from 1.12.18 to 1.12.22 ([#6088](https://github.com/opensearch-project/OpenSearch/pull/6088))
+- Bumps `joda` from 2.10.13 to 2.12.2 ([#6095](https://github.com/opensearch-project/OpenSearch/pull/6095))
 
 ### Changed
 - Use ReplicationFailedException instead of OpensearchException in ReplicationTarget ([#4725](https://github.com/opensearch-project/OpenSearch/pull/4725))
