@@ -124,7 +124,7 @@ public class WriteableSetting implements Writeable {
     /**
      * Gets the wrapped setting. Use {@link #getType()} to determine its generic type.
      *
-     * @return The wrapped 
+     * @return The wrapped setting.
      */
     public Setting<?> getSetting() {
         return this.setting;
