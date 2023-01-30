@@ -79,7 +79,7 @@ public class HeapUsageTracker extends TaskResourceUsageTracker {
         double allowedUsage = averageUsage * variance;
         double threshold = heapBytesThresholdSupplier.getAsLong();
 
-        if (currentUsage < threshold || currentUsage < allowedUsage || HEAP_SIZE_BYTES == 0) {
+        if (currentUsage < threshold || currentUsage < allowedUsage) {
             return Optional.empty();
         }
 

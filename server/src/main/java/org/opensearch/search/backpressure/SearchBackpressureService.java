@@ -23,9 +23,6 @@ import org.opensearch.search.backpressure.settings.SearchTaskSettings;
 import org.opensearch.search.backpressure.stats.SearchBackpressureStats;
 import org.opensearch.search.backpressure.stats.SearchShardTaskStats;
 import org.opensearch.search.backpressure.stats.SearchTaskStats;
-import org.opensearch.search.backpressure.trackers.CpuUsageTracker;
-import org.opensearch.search.backpressure.trackers.ElapsedTimeTracker;
-import org.opensearch.search.backpressure.trackers.HeapUsageTracker;
 import org.opensearch.search.backpressure.trackers.NodeDuressTracker;
 import org.opensearch.search.backpressure.trackers.TaskResourceUsageTracker;
 import org.opensearch.search.backpressure.trackers.TaskResourceUsageTrackerType;
@@ -93,28 +90,8 @@ public class SearchBackpressureService extends AbstractLifecycleComponent
                     () -> JvmStats.jvmStats().getMem().getHeapUsedPercent() / 100.0 >= settings.getNodeDuressSettings().getHeapThreshold()
                 )
             ),
-            List.of(
-                new CpuUsageTracker(settings.getSearchTaskSettings()::getCpuTimeNanosThreshold),
-                new HeapUsageTracker(
-                    settings.getSearchTaskSettings()::getHeapVarianceThreshold,
-                    settings.getSearchTaskSettings()::getHeapBytesThreshold,
-                    settings.getSearchTaskSettings().getHeapMovingAverageWindowSize(),
-                    settings.getClusterSettings(),
-                    SearchTaskSettings.SETTING_HEAP_MOVING_AVERAGE_WINDOW_SIZE
-                ),
-                new ElapsedTimeTracker(settings.getSearchTaskSettings()::getElapsedTimeNanosThreshold, System::nanoTime)
-            ),
-            List.of(
-                new CpuUsageTracker(settings.getSearchShardTaskSettings()::getCpuTimeNanosThreshold),
-                new HeapUsageTracker(
-                    settings.getSearchShardTaskSettings()::getHeapVarianceThreshold,
-                    settings.getSearchShardTaskSettings()::getHeapBytesThreshold,
-                    settings.getSearchShardTaskSettings().getHeapMovingAverageWindowSize(),
-                    settings.getClusterSettings(),
-                    SearchShardTaskSettings.SETTING_HEAP_MOVING_AVERAGE_WINDOW_SIZE
-                ),
-                new ElapsedTimeTracker(settings.getSearchShardTaskSettings()::getElapsedTimeNanosThreshold, System::nanoTime)
-            ),
+            settings.getSearchTaskSettings().getTrackers(),
+            settings.getSearchShardTaskSettings().getTrackers(),
             taskManager
         );
     }

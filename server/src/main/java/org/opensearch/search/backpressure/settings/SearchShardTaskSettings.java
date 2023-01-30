@@ -12,8 +12,13 @@ import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.search.backpressure.trackers.CpuUsageTracker;
+import org.opensearch.search.backpressure.trackers.ElapsedTimeTracker;
+import org.opensearch.search.backpressure.trackers.HeapUsageTracker;
+import org.opensearch.search.backpressure.trackers.TaskResourceUsageTracker;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -27,6 +32,7 @@ import static org.opensearch.search.backpressure.trackers.HeapUsageTracker.HEAP_
  */
 public class SearchShardTaskSettings {
     private final List<Listener> listeners = new ArrayList<>();
+    private final ClusterSettings clusterSettings;
 
     private static class Defaults {
         private static final double CANCELLATION_RATIO = 0.1;
@@ -165,6 +171,7 @@ public class SearchShardTaskSettings {
         this.cancellationRatio = SETTING_CANCELLATION_RATIO.get(settings);
         this.cancellationRate = SETTING_CANCELLATION_RATE.get(settings);
         this.cancellationBurst = SETTING_CANCELLATION_BURST.get(settings);
+        this.clusterSettings = clusterSettings;
 
         clusterSettings.addSettingsUpdateConsumer(SETTING_TOTAL_HEAP_PERCENT_THRESHOLD, this::setTotalHeapPercentThreshold);
         clusterSettings.addSettingsUpdateConsumer(SETTING_CPU_TIME_MILLIS_THRESHOLD, this::setCpuTimeMillisThreshold);
@@ -269,6 +276,24 @@ public class SearchShardTaskSettings {
     private void setCancellationBurst(double cancellationBurst) {
         this.cancellationBurst = cancellationBurst;
         notifyListeners(Listener::onCancellationBurstSearchShardTaskChanged);
+    }
+
+    public List<TaskResourceUsageTracker> getTrackers() {
+        List<TaskResourceUsageTracker> trackers = new ArrayList<>();
+        trackers.add(new CpuUsageTracker(this::getCpuTimeNanosThreshold));
+        if (HEAP_SIZE_BYTES > 0) {
+            trackers.add(
+                new HeapUsageTracker(
+                    this::getHeapVarianceThreshold,
+                    this::getHeapBytesThreshold,
+                    this.getHeapMovingAverageWindowSize(),
+                    clusterSettings,
+                    SETTING_HEAP_MOVING_AVERAGE_WINDOW_SIZE
+                )
+            );
+        }
+        trackers.add(new ElapsedTimeTracker(this::getElapsedTimeNanosThreshold, System::nanoTime));
+        return Collections.unmodifiableList(trackers);
     }
 
     public void addListener(Listener listener) {
