@@ -12,6 +12,7 @@ import org.opensearch.action.admin.cluster.snapshots.delete.DeleteSnapshotReques
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequestBuilder;
 import org.opensearch.action.index.IndexRequestBuilder;
+import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterState;
@@ -27,12 +28,16 @@ import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexNotFoundException;
+import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.monitor.fs.FsInfo;
 import org.opensearch.repositories.fs.FsRepository;
 
+import java.io.File;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -41,6 +46,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.FS;
 import static org.opensearch.common.util.CollectionUtils.iterableAsArrayList;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
 public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
 
@@ -407,6 +413,68 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
                     .resolve(Integer.toString(shardRouting.getId()))
                     .resolve("index");
                 MatcherAssert.assertThat("Expect file not to exist: " + file, Files.exists(file), is(false));
+            }
+        }
+    }
+
+    public void testCacheFilesAreClosedAfterUse() throws Exception {
+        final int numReplicasIndex = randomIntBetween(1, 4);
+        final String indexName = "test-idx";
+        final String restoredIndexName = indexName + "-copy";
+        final String repoName = "test-repo";
+        final String snapshotName = "test-snap";
+        final String id = randomAlphaOfLength(5);
+        final Client client = client();
+
+        internalCluster().ensureAtLeastNumSearchAndDataNodes(numReplicasIndex + 1);
+
+        createIndex(indexName);
+        client().prepareIndex(indexName).setId(id).setSource("field", "test").get();
+        ensureGreen();
+        createRepositoryWithSettings(null, repoName);
+        takeSnapshot(client, snapshotName, repoName, indexName);
+
+        restoreSnapshotAndEnsureGreen(client, snapshotName, repoName);
+
+        // Search document to make the index fetch data from the remote snapshot to local storage
+        SearchResponse searchResponse = client().prepareSearch(restoredIndexName).setQuery(QueryBuilders.termQuery("field", "test")).get();
+        assertHitCount(searchResponse, 1);
+
+        // Get the primary shards for the given index
+        final ClusterState state = client().admin().cluster().prepareState().get().getState();
+        final Index index = state.metadata().index(restoredIndexName).getIndex();
+        final GroupShardsIterator<ShardIterator> shardIterators = state.getRoutingTable()
+            .activePrimaryShardsGrouped(new String[] { restoredIndexName }, false);
+
+        // The local cache files should be closed by deleting the restored index
+        deleteIndicesAndEnsureGreen(client, restoredIndexName);
+
+        logger.info("--> validate all the cache files are closed");
+        // Iterate all the primary shards to get all the possible path that contains local cache file
+        for (ShardIterator shardIterator : shardIterators) {
+            for (ShardRouting shardRouting : shardIterator) {
+                final String nodeId = shardRouting.currentNodeId();
+                final NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats(nodeId).addMetric(FS.metricName()).get();
+                for (FsInfo.Path info : nodeStats.getNodes().get(0).getFs()) {
+                    // Build the expected root path for the index shard data
+                    final Path shardRootPath = PathUtils.get(info.getPath())
+                        .resolve("indices")
+                        .resolve(index.getUUID())
+                        .resolve(Integer.toString(shardRouting.getId()));
+                    logger.debug("--> the root path for the shard is: {}", shardRootPath);
+
+                    // Find all the files in the path
+                    try (Stream<Path> paths = Files.walk(shardRootPath)) {
+                        paths.filter(Files::isRegularFile).forEach(path -> {
+                            File file = path.toFile();
+                            // Testing renaming the file to check the file is closed or not.
+                            boolean fileIsClosed = file.renameTo(file);
+                            assertThat(fileIsClosed, is(true));
+                        });
+                    } catch (NoSuchFileException e) {
+                        logger.debug("--> the root path for the restored index data doesn't exist.");
+                    }
+                }
             }
         }
     }
