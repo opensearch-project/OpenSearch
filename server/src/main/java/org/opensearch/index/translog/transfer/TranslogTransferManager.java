@@ -195,7 +195,7 @@ public class TranslogTransferManager {
         );
     }
 
-    public void deleteTranslog(long primaryTerm, long generation) throws IOException {
+    public void deleteTranslogAsync(long primaryTerm, long generation) throws IOException {
         String ckpFileName = Translog.getCommitCheckpointFileName(generation);
         String translogFilename = Translog.getFilename(generation);
         // ToDo - Take care of metadata file cleanup
@@ -203,6 +203,36 @@ public class TranslogTransferManager {
         List<String> files = List.of(ckpFileName, translogFilename);
         fileTransferTracker.delete(files);
         transferService.deleteBlobs(remoteBaseTransferPath.add(String.valueOf(primaryTerm)), files);
+    }
+
+    /**
+     * This method handles deletion of multiple generations for a single primary term.
+     *  TODO: Take care of metadata file cleanup. <a href="https://github.com/opensearch-project/OpenSearch/issues/5677">Github Issue #5677</a>
+     *
+     * @param primaryTerm primary term
+     * @param generations set of generation
+     */
+    public void deleteTranslogAsync(long primaryTerm, Set<Long> generations) throws IOException {
+        if (generations.isEmpty()) {
+            return;
+        }
+        List<String> files = new ArrayList<>();
+        generations.forEach(generation -> {
+            String ckpFileName = Translog.getCommitCheckpointFileName(generation);
+            String translogFilename = Translog.getFilename(generation);
+            files.addAll(List.of(ckpFileName, translogFilename));
+        });
+        transferService.deleteBlobsAsync(remoteBaseTransferPath.add(String.valueOf(primaryTerm)), files, new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {
+                fileTransferTracker.delete(files);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.info("Exception occurred while deleting translog for primary_term={} generations={}", primaryTerm, generations, e);
+            }
+        });
     }
 
     public void cleanTranslogAsync(long primaryTerm, ActionListener<Void> listener) {
