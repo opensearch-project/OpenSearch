@@ -89,7 +89,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
     public void afterRefresh(boolean didRefresh) {
         synchronized (this) {
             try {
-                if (indexShard.shardRouting.primary()) {
+                if (indexShard.getReplicationTracker().isPrimaryMode()) {
                     if (this.primaryTerm != indexShard.getOperationPrimaryTerm()) {
                         this.primaryTerm = indexShard.getOperationPrimaryTerm();
                         this.remoteDirectory.init();
