@@ -28,6 +28,7 @@ import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -336,11 +337,11 @@ public class RemoteFsTranslog extends Translog {
         this.minSeqNoToKeep = seqNo;
     }
 
-    void deleteRemoteGeneration(long generation) {
+    private void deleteRemoteGeneration(Set<Long> generationsToDelete) {
         try {
-            translogTransferManager.deleteTranslog(primaryTermSupplier.getAsLong(), generation);
-        } catch (IOException ignored) {
-            logger.error("Exception {} while deleting generation {}", ignored, generation);
+            translogTransferManager.deleteTranslogAsync(primaryTermSupplier.getAsLong(), generationsToDelete);
+        } catch (IOException e) {
+            logger.error("Exception occurred while deleting generation {}", generationsToDelete, e);
         }
     }
 
@@ -348,23 +349,26 @@ public class RemoteFsTranslog extends Translog {
         // clean up local translog files and updates readers
         super.trimUnreferencedReaders();
 
-        // cleans up remote translog files not referenced in latest uploaded metadata
-        // This enables us to restore translog from that metadata
+        // cleans up remote translog files not referenced in latest uploaded metadata.
+        // This enables us to restore translog from the metadata in case of failover or relocation.
+        Set<Long> generationsToDelete = new HashSet<>();
         for (long generation = minRemoteGenReferenced - 1; generation >= 0; generation--) {
-            String translogFilename = Translog.getFilename(generation);
-            if (fileTransferTracker.uploaded(translogFilename)) {
-                logger.trace("delete remote translog generation file [{}], not referenced by metadata anymore", generation);
-                // ToDo : Make it async.
-                deleteRemoteGeneration(generation);
-                // Safe to delete
-                if (olderPrimaryCleaned.get() == null) {
-                    // clean up translog uploaded by previous primaries if any
-                    cleanupOlderPrimariesTranslog();
-                    olderPrimaryCleaned.set(true);
-                }
-            } else {
+            if (fileTransferTracker.uploaded(Translog.getFilename(generation)) == false) {
                 break;
             }
+            generationsToDelete.add(generation);
+        }
+        deleteRemoteGeneration(generationsToDelete);
+        deleteOlderPrimaryTranslogFilesFromRemoteStore();
+    }
+
+    private void deleteOlderPrimaryTranslogFilesFromRemoteStore() {
+        // The deletion of older translog files in remote store is on best-effort basis, there is a possibility that there
+        // are older files that are no longer needed and should be cleaned up. In here, we delete all files that are part
+        // of older primary term.
+        if (olderPrimaryCleaned.get() == null) {
+            // clean up translog uploaded by previous primaries if any
+            cleanupOlderPrimariesTranslog();
         }
     }
 
@@ -374,17 +378,18 @@ public class RemoteFsTranslog extends Translog {
      */
     public void cleanupOlderPrimariesTranslog() {
         logger.info("Cleaning up translog uploaded by previous primaries");
-        // ToDo : Move deletions to another threadpool so as not to block indexing
+        // TODO: Move deletions to another threadpool so as not to block indexing
         for (long oldPrimaryTerm = current.getPrimaryTerm() - 1; oldPrimaryTerm >= 0; oldPrimaryTerm--) {
             long finalOldPrimaryTerm = oldPrimaryTerm;
-            translogTransferManager.cleanTranslogAsync(oldPrimaryTerm,  new ActionListener<>() {
+            translogTransferManager.cleanTranslogAsync(oldPrimaryTerm, new ActionListener<>() {
                 @Override
                 public void onResponse(Void response) {
+                    olderPrimaryCleaned.set(true);
                 }
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.info("Exception {} while deleting older primary translog files", e, finalOldPrimaryTerm);
+                    logger.info("Exception occurred while deleting older translog files for primary_term={}", finalOldPrimaryTerm, e);
                 }
             });
         }

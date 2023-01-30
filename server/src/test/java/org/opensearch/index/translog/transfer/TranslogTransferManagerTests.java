@@ -311,7 +311,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         assertEquals(2, tracker.allUploaded().size());
 
         List<String> files = List.of(checkpointFile, translogFile);
-        translogTransferManager.deleteTranslog(primaryTerm, 19);
+        translogTransferManager.deleteTranslogAsync(primaryTerm, 19);
         assertEquals(0, tracker.allUploaded().size());
         verify(transferService).deleteBlobs(any(BlobPath.class), eq(files));
     }

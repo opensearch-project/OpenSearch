@@ -63,7 +63,7 @@ public class FileTransferTracker implements FileTransferListener {
     }
 
     public boolean uploaded(String file) {
-        return (fileTransferTracker.get(file) == TransferState.SUCCESS);
+        return fileTransferTracker.get(file) == TransferState.SUCCESS;
     }
 
     public Set<TransferFileSnapshot> exclusionFilter(Set<TransferFileSnapshot> original) {
