@@ -35,6 +35,7 @@ package org.opensearch.action;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.transport.TransportRequest;
+import org.apache.shiro.authz.AuthorizationInfo;
 
 import java.io.IOException;
 
@@ -51,6 +52,8 @@ public abstract class ActionRequest extends TransportRequest {
         // since most times, we actually want it to not be threaded...
         // this.listenerThreaded = request.listenerThreaded();
     }
+
+    public abstract AuthorizationInfo getAuthorizationParams();
 
     public ActionRequest(StreamInput in) throws IOException {
         super(in);

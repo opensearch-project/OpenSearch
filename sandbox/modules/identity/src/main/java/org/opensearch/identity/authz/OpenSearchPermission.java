@@ -10,27 +10,29 @@ package org.opensearch.identity.authz;
 
 import org.apache.shiro.authz.Permission;
 import org.apache.shiro.authz.permission.WildcardPermission;
+import org.opensearch.ResourceNotFoundException;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.common.Glob;
+import org.opensearch.common.regex.Regex;
 import org.opensearch.identity.IdentityPlugin;
 
-import java.lang.reflect.Array;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class OpenSearchPermission implements Permission {
 
-    public List<String> resourcePatterns;
-    public final String PERMISSION_DELIMITER = "\\.";
+    private List<String> resourcePatterns;
+    private final String PERMISSION_DELIMITER = "\\.";
 
     public final String ACTION_DELIMITER = "/";
 
-    public String permissionString;
-    public String[] permissionSegments;
+    private String permissionString;
+    private String[] permissionSegments;
 
-    public String action;
-    public String permissionType;
+    private String action;
+    private String permissionType;
 
     public OpenSearchPermission(String permission) {
 
@@ -55,6 +57,23 @@ public class OpenSearchPermission implements Permission {
         }
     }
 
+
+    public String getPermissionType() {
+        return this.permissionType;
+    }
+
+    public String getAction() {
+        return this.action;
+    }
+
+    public List<String> getResource() {
+        return this.resourcePatterns;
+    }
+
+    public String getPermissionString() {
+        return this.permissionString;
+    }
+
     /**
      * Compare the current permission's permission type to another permission's permission type
      */
@@ -64,6 +83,91 @@ public class OpenSearchPermission implements Permission {
             return true;
         }
         return false;
+    }
+
+    /**
+     * Resolves complex resource patterns with '-' signs to the corresponding resource patterns
+     *
+     * @param availableResources list of all resources
+     * @param selectedResources  provided resource patterns
+     * @return resolved resource patterns
+     */
+    public static List<String> resolveResourceNegation(List<String> availableResources, List<String> selectedResources) {
+
+        // Move the exclusions to end of list to ensure they are processed
+        // after explicitly selected indices are chosen.
+        final List<String> excludesAtEndSelectedResources = Stream.concat(
+            selectedResources.stream().filter(s -> s.isEmpty() || s.charAt(0) != '-'),
+            selectedResources.stream().filter(s -> !s.isEmpty() && s.charAt(0) == '-')
+        ).collect(Collectors.toUnmodifiableList());
+
+        Set<String> result = null;
+        for (int i = 0; i < excludesAtEndSelectedResources.size(); i++) {
+            String resourceOrPattern = excludesAtEndSelectedResources.get(i);
+            boolean add = true;
+            if (!resourceOrPattern.isEmpty()) {
+                if (availableResources.contains(resourceOrPattern)) {
+                    if (result == null) {
+                        result = new HashSet<>();
+                    }
+                    result.add(resourceOrPattern);
+                    continue;
+                }
+                if (resourceOrPattern.charAt(0) == '+') {
+                    add = true;
+                    resourceOrPattern = resourceOrPattern.substring(1);
+                    // if its the first, add empty set
+                    if (i == 0) {
+                        result = new HashSet<>();
+                    }
+                } else if (resourceOrPattern.charAt(0) == '-') {
+                    // If the first resource pattern is an exclusion, then all patterns are exclusions due to the
+                    // reordering logic above. In this case, the request is interpreted as "include all resources except
+                    // those matching the exclusions" so we add all resources here and then remove the ones that match the exclusion patterns.
+                    if (i == 0) {
+                        result = new HashSet<>(availableResources);
+                    }
+                    add = false;
+                    resourceOrPattern = resourceOrPattern.substring(1);
+                }
+            }
+            if (resourceOrPattern.isEmpty() || !Regex.isSimpleMatchPattern(resourceOrPattern)) {
+                if (!availableResources.contains(resourceOrPattern)) {
+                    throw new ResourceNotFoundException(resourceOrPattern);
+                } else {
+                    if (result != null) {
+                        if (add) {
+                            result.add(resourceOrPattern);
+                        } else {
+                            result.remove(resourceOrPattern);
+                        }
+                    }
+                }
+                continue;
+            }
+            if (result == null) {
+                // add all the previous ones...
+                result = new HashSet<>(availableResources.subList(0, i));
+            }
+            boolean found = false;
+            for (String resource : availableResources) {
+                if (Regex.simpleMatch(resourceOrPattern, resource)) {
+                    found = true;
+                    if (add) {
+                        result.add(resource);
+                    } else {
+                        result.remove(resource);
+                    }
+                }
+            }
+            if (!found) {
+                throw new ResourceNotFoundException(resourceOrPattern);
+            }
+        }
+        if (result == null) {
+            return Collections.unmodifiableList((selectedResources));
+        }
+        return Collections.unmodifiableList(new ArrayList<>(result));
     }
 
     @Override
@@ -95,6 +199,17 @@ public class OpenSearchPermission implements Permission {
             } else {
                 return true;
             }
+        }
+
+        // Resolve negated resources
+        if (this.resourcePatterns.contains("-")) {
+            IndexNameExpressionResolver iner = IndexNameExpressionResolverHolder.getInstance();
+            ClusterState cs = IdentityPlugin.GuiceHolder.getClusterService().state();
+            // Get all index names that could be associated with a permission
+            // TODO: Add plugin and extension names
+            Set<String> allPermissionIndexNames = iner.resolveExpressions(cs, "*");
+            List<String> allResources = new ArrayList<>(allPermissionIndexNames);
+            this.resourcePatterns = resolveResourceNegation(allResources, this.resourcePatterns);
         }
 
 

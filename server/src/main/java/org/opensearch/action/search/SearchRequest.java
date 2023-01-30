@@ -32,6 +32,7 @@
 
 package org.opensearch.action.search;
 
+import org.apache.shiro.authz.AuthorizationInfo;
 import org.opensearch.Version;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
@@ -115,10 +116,26 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     private TimeValue cancelAfterTimeInterval;
 
+    // Each request type should be able to provide its authorization requirements
+    private AuthorizationInfo authorizationInfo;
+
     public SearchRequest() {
         this.localClusterAlias = null;
         this.absoluteStartMillis = DEFAULT_ABSOLUTE_START_MILLIS;
         this.finalReduce = true;
+        this.authorizationInfo = lookupAuthorizationRequirements(SearchRequest);
+    }
+
+    @Override
+    public AuthorizationInfo getAuthorizationParams() {
+
+        AuthorizationInfo authorizationInfo = {
+           "required": [ParamType.INDEX_PATTERN],
+           "optional": [] // empty
+           "values": {
+             "index-pattern": ["my-index*, other-index*"]
+           }
+        }
     }
 
     /**
