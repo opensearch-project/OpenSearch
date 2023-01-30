@@ -69,6 +69,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Bump reactor-netty-http to 1.0.24 in repository-azure ([#4880](https://github.com/opensearch-project/OpenSearch/pull/4880))
 - Upgrade jetty-http, kotlin-stdlib and snakeyaml ([#4981](https://github.com/opensearch-project/OpenSearch/pull/4981))
 - OpenJDK Update (January 2023 Patch releases) ([#6090](https://github.com/opensearch-project/OpenSearch/pull/6090))
+- Bumps `joda` from 2.10.13 to 2.12.2 ([#6107](https://github.com/opensearch-project/OpenSearch/pull/6107))
 
 ### Changed
 - Dependency updates (httpcore, mockito, slf4j, httpasyncclient, commons-codec) ([#4308](https://github.com/opensearch-project/OpenSearch/pull/4308))
