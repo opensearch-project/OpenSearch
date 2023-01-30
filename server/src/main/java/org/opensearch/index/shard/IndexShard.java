@@ -3855,7 +3855,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 }
 
                 @Override
-                protected String getBufferRefreshThreadPoolName() {
+                protected String getBufferProcessThreadPoolName() {
                     return ThreadPool.Names.TRANSLOG_SYNC;
                 }
             };
