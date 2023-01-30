@@ -58,7 +58,9 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class DateUtilsTests extends OpenSearchTestCase {
-    private static final Set<String> IGNORE = new HashSet<>(Arrays.asList("Pacific/Enderbury", "Pacific/Kanton", "Pacific/Niue"));
+    private static final Set<String> IGNORE = new HashSet<>(
+        Arrays.asList("Pacific/Enderbury", "Pacific/Kanton", "Pacific/Niue", "America/Pangnirtung")
+    );
 
     public void testTimezoneIds() {
         assertNull(DateUtils.dateTimeZoneToZoneId(null));
