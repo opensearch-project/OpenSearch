@@ -15,8 +15,10 @@ import org.opensearch.cluster.routing.RoutingNodes;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.index.IndexModule;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.InternalTestCluster;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.Formatter;
@@ -29,16 +31,34 @@ import java.util.concurrent.TimeUnit;
 import static org.opensearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
-public class SegmentReplicationAllocationIT extends SegmentReplicationIT {
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
+public class SegmentReplicationAllocationIT extends SegmentReplicationBaseIT {
+
+    private void createIndex(String idxName, int shardCount, int replicaCount, boolean isSegRep) {
+        Settings.Builder builder = Settings.builder()
+            .put("index.number_of_shards", shardCount)
+            .put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), false)
+            .put("index.number_of_replicas", replicaCount);
+        if (isSegRep) {
+            builder = builder.put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT);
+        } else {
+            builder = builder.put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT);
+        }
+        prepareCreate(idxName, builder).get();
+    }
 
     /**
      * This test verifies primary shard allocation is balanced.
      */
     public void testShardAllocation() throws Exception {
-        final int nodeCount = randomIntBetween(1, 20);
-        final int numberOfIndices = randomIntBetween(5, 20);
+        internalCluster().startClusterManagerOnlyNode();
+        final int maxReplicaCount = 2;
+        final int maxShardCount = 5;
+        final int nodeCount = randomIntBetween(maxReplicaCount + 1, 10);
+        final int numberOfIndices = randomIntBetween(5, 10);
 
         final List<String> nodeNames = new ArrayList<>();
+        logger.info("--> Creating {} nodes", nodeCount);
         for (int i = 0; i < nodeCount; i++) {
             nodeNames.add(internalCluster().startNode());
         }
@@ -55,11 +75,12 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationIT {
         ShardAllocations shardAllocations = new ShardAllocations();
         ClusterState state;
         for (int i = 0; i < numberOfIndices; i++) {
-            shardCount = randomIntBetween(1, 5);
+            shardCount = randomIntBetween(1, maxShardCount);
             totalShardCount += shardCount;
-            replicaCount = randomIntBetween(0, 2);
+            replicaCount = randomIntBetween(0, maxReplicaCount);
             totalReplicaCount += replicaCount;
             createIndex("test" + i, shardCount, replicaCount, i % 2 == 0);
+            logger.info("--> Creating index {} with primary shards {} and replica {}", "test" + i, shardCount, replicaCount);
             assertBusy(() -> ensureGreen(), 60, TimeUnit.SECONDS);
             if (logger.isTraceEnabled()) {
                 state = client().admin().cluster().prepareState().execute().actionGet().getState();
@@ -83,9 +104,13 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationIT {
      * allocation balanced.
      */
     public void testAllocationWithDisruption() throws Exception {
-        final int nodeCount = randomIntBetween(1, 5);
+        internalCluster().startClusterManagerOnlyNode();
+        final int maxReplicaCount = 2;
+        final int maxShardCount = 5;
+        final int nodeCount = randomIntBetween(maxReplicaCount + 1, 10);
         final int numberOfIndices = randomIntBetween(1, 10);
 
+        logger.info("--> Creating {} nodes", nodeCount);
         final List<String> nodeNames = new ArrayList<>();
         for (int i = 0; i < nodeCount; i++) {
             nodeNames.add(internalCluster().startNode());
@@ -107,13 +132,13 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationIT {
         ShardAllocations shardAllocations = new ShardAllocations();
         ClusterState state;
         for (int i = 0; i < numberOfIndices; i++) {
-            logger.info("--> Creating {} index", i);
-            shardCount = randomIntBetween(1, 5);
+            shardCount = randomIntBetween(1, maxShardCount);
             totalShardCount += shardCount;
-            replicaCount = randomIntBetween(1, 2);
+            replicaCount = randomIntBetween(1, maxReplicaCount);
             totalReplicaCount += replicaCount;
+            logger.info("--> Creating index test{} with primary {} and replica {}", i, shardCount, replicaCount);
             createIndex("test" + i, shardCount, replicaCount, i % 2 == 0);
-            assertBusy(() -> ensureGreen(), 120, TimeUnit.SECONDS);
+            assertBusy(() -> ensureGreen(), 60, TimeUnit.SECONDS);
             if (logger.isTraceEnabled()) {
                 state = client().admin().cluster().prepareState().execute().actionGet().getState();
                 shardAllocations.printShardDistribution(state);
@@ -129,8 +154,9 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationIT {
             assertTrue(node.primaryShardsWithState(STARTED).size() <= maxAvgNumberOfShards);
         }
 
-        logger.info("--> Add nodes");
         final int additionalNodeCount = randomIntBetween(1, 5);
+        logger.info("--> Adding {} nodes", additionalNodeCount);
+
         internalCluster().startNodes(additionalNodeCount);
         assertBusy(() -> ensureGreen(), 60, TimeUnit.SECONDS);
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
@@ -148,8 +174,9 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationIT {
         logger.info("--> Stop one third nodes");
         for (int i = 1; i < nodeCount; i += 3) {
             internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeNames.get(i)));
+            // give replica a chance to promote as primary before terminating node containing the replica
+            assertBusy(() -> ensureGreen(), 60, TimeUnit.SECONDS);
         }
-        assertBusy(() -> ensureGreen(), 60, TimeUnit.SECONDS);
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
         avgNumShards = (float) (totalShardCount) / (float) (state.getRoutingNodes().size());
         minAvgNumberOfShards = Math.round(Math.round(Math.floor(avgNumShards - 1.0f)));
@@ -278,7 +305,7 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationIT {
 
         public void printShardDistribution(ClusterState state) {
             this.setState(state);
-            logger.info("{}", this);
+            logger.info("--> Shard distribution {}", this);
         }
     }
 
