@@ -1,6 +1,6 @@
 ---
-title: Gradle Check Failure.
-labels: >test-failure bug
+title: [AUTOCUT] Gradle Check Failure.
+labels: >test-failure, bug
 ---
 
 A gradle check workflow has failed after merge.
