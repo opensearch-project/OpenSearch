@@ -110,7 +110,7 @@ dependencies {
   api 'com.netflix.nebula:gradle-info-plugin:12.0.0'
   api 'org.apache.rat:apache-rat:0.15'
   api 'commons-io:commons-io:2.7'
-  api "net.java.dev.jna:jna:5.11.0"
+  api "net.java.dev.jna:jna:5.13.0"
   api 'gradle.plugin.com.github.johnrengelman:shadow:7.1.2'
   api 'org.jdom:jdom2:2.0.6.1'
   api "org.jetbrains.kotlin:kotlin-stdlib-jdk8:${props.getProperty('kotlin')}"
