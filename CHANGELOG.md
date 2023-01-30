@@ -37,6 +37,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bumps `wiremock-jre8-standalone` from 2.33.2 to 2.35.0
 - Bumps `gson` from 2.10 to 2.10.1
 - Bumps `json-schema-validator` from 1.0.73 to 1.0.76
+- Bumps `jna` from 5.11.0 to 5.13.0
 
 ### Changed
 - [CCR] Add getHistoryOperationsFromTranslog method to fetch the history snapshot from translogs ([#3948](https://github.com/opensearch-project/OpenSearch/pull/3948))
