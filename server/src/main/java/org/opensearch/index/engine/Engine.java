@@ -308,7 +308,7 @@ public abstract class Engine implements Closeable {
         if (docs.length == 0) {
             return SequenceNumbers.NO_OPS_PERFORMED;
         }
-        org.apache.lucene.document.Document document = searcher.storedFields().document(docs[0].doc);
+        org.apache.lucene.document.Document document = searcher.doc(docs[0].doc);
         Term uidTerm = new Term(IdFieldMapper.NAME, document.getField(IdFieldMapper.NAME).binaryValue());
         VersionsAndSeqNoResolver.DocIdAndVersion docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(
             searcher.getIndexReader(),
