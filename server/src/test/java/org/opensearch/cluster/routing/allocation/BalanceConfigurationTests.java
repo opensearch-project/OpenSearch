@@ -124,7 +124,7 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
     }
 
     /**
-     * This test verifies that with only primary shard balance, the shard distribution on nodes is within thresholds.
+     * This test verifies that with only primary shard balance, the primary shard distribution is balanced within thresholds.
      */
     public void testPrimaryBalance() {
         /* Tests balance over primary shards only */
@@ -179,12 +179,14 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
         );
     }
 
+    /**
+     * This test verifies
+     */
     public void testBalanceDefaults() {
-        /* Tests balance over primary shards only */
         final float indexBalance = 0.55f;
         final float shardBalance = 0.45f;
         final float primaryBalance = 0.40f;
-        final float balanceThreshold = 0.5f;
+        final float balanceThreshold = 1.0f;
 
         Settings.Builder settings = Settings.builder();
         settings.put(

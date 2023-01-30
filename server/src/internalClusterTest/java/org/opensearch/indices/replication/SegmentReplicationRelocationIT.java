@@ -54,22 +54,6 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
         ).get();
     }
 
-    private void createIndex(String idxName, int shardCount, int replicaCount, boolean isSegRep) {
-        Settings.Builder builder = Settings.builder()
-            .put("index.number_of_shards", shardCount)
-            .put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), false)
-            .put("index.number_of_replicas", replicaCount);
-        if (isSegRep) {
-            builder = builder.put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT);
-        } else {
-            builder = builder.put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT);
-        }
-        prepareCreate(
-            idxName,
-            builder
-        ).get();
-    }
-
     /**
      * This test verifies happy path when primary shard is relocated newly added node (target) in the cluster. Before
      * relocation and after relocation documents are indexed and documents are verified
