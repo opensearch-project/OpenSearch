@@ -33,6 +33,7 @@ import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.SearchBackpressureTask;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskCancellation;
+import org.opensearch.tasks.TaskManager;
 import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.tasks.TaskResourceTrackingService.TaskCompletionListener;
 import org.opensearch.threadpool.Scheduler;
@@ -71,11 +72,13 @@ public class SearchBackpressureService extends AbstractLifecycleComponent
     private final Map<Class<? extends SearchBackpressureTask>, List<TaskResourceUsageTracker>> taskTrackers;
 
     private final Map<Class<? extends SearchBackpressureTask>, SearchBackpressureState> searchBackpressureStates;
+    private final TaskManager taskManager;
 
     public SearchBackpressureService(
         SearchBackpressureSettings settings,
         TaskResourceTrackingService taskResourceTrackingService,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        TaskManager taskManager
     ) {
         this(
             settings,
@@ -111,7 +114,8 @@ public class SearchBackpressureService extends AbstractLifecycleComponent
                     SearchShardTaskSettings.SETTING_HEAP_MOVING_AVERAGE_WINDOW_SIZE
                 ),
                 new ElapsedTimeTracker(settings.getSearchShardTaskSettings()::getElapsedTimeNanosThreshold, System::nanoTime)
-            )
+            ),
+            taskManager
         );
     }
 
@@ -122,7 +126,8 @@ public class SearchBackpressureService extends AbstractLifecycleComponent
         LongSupplier timeNanosSupplier,
         List<NodeDuressTracker> nodeDuressTrackers,
         List<TaskResourceUsageTracker> searchTaskTrackers,
-        List<TaskResourceUsageTracker> searchShardTaskTrackers
+        List<TaskResourceUsageTracker> searchShardTaskTrackers,
+        TaskManager taskManager
     ) {
         this.settings = settings;
         this.settings.getSearchTaskSettings().addListener(this);
@@ -132,6 +137,7 @@ public class SearchBackpressureService extends AbstractLifecycleComponent
         this.threadPool = threadPool;
         this.timeNanosSupplier = timeNanosSupplier;
         this.nodeDuressTrackers = nodeDuressTrackers;
+        this.taskManager = taskManager;
 
         this.searchBackpressureStates = Map.of(
             SearchTask.class,
@@ -212,7 +218,7 @@ public class SearchBackpressureService extends AbstractLifecycleComponent
                 break;
             }
 
-            taskCancellation.cancel();
+            taskCancellation.cancelTaskAndDescendants(taskManager);
         }
     }
 

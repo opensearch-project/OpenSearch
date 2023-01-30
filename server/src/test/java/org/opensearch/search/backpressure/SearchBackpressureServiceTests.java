@@ -9,6 +9,9 @@
 package org.opensearch.search.backpressure;
 
 import org.apache.logging.log4j.LogManager;
+import org.junit.After;
+import org.junit.Before;
+import org.opensearch.Version;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchTask;
 import org.opensearch.common.io.stream.StreamInput;
@@ -29,8 +32,12 @@ import org.opensearch.search.backpressure.trackers.TaskResourceUsageTrackerType;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskCancellation;
+import org.opensearch.tasks.TaskCancellationService;
+import org.opensearch.tasks.TaskManager;
 import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.transport.MockTransportService;
+import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -55,10 +62,28 @@ import static org.mockito.Mockito.when;
 import static org.opensearch.search.backpressure.SearchBackpressureTestHelpers.createMockTaskWithResourceStats;
 
 public class SearchBackpressureServiceTests extends OpenSearchTestCase {
+    MockTransportService transportService;
+    TaskManager taskManager;
+    ThreadPool threadPool;
+
+    @Before
+    public void setup() {
+        threadPool = new TestThreadPool(getClass().getName());
+        transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool);
+        transportService.start();
+        transportService.acceptIncomingRequests();
+        taskManager = transportService.getTaskManager();
+        taskManager.setTaskCancellationService(new TaskCancellationService(transportService));
+    }
+
+    @After
+    public void cleanup() {
+        transportService.close();
+        ThreadPool.terminate(threadPool, 5, TimeUnit.SECONDS);
+    }
 
     public void testIsNodeInDuress() {
         TaskResourceTrackingService mockTaskResourceTrackingService = mock(TaskResourceTrackingService.class);
-        ThreadPool mockThreadPool = mock(ThreadPool.class);
 
         AtomicReference<Double> cpuUsage = new AtomicReference<>();
         AtomicReference<Double> heapUsage = new AtomicReference<>();
@@ -73,11 +98,12 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
         SearchBackpressureService service = new SearchBackpressureService(
             settings,
             mockTaskResourceTrackingService,
-            mockThreadPool,
+            threadPool,
             System::nanoTime,
             List.of(cpuUsageTracker, heapUsageTracker),
             Collections.emptyList(),
-            Collections.emptyList()
+            Collections.emptyList(),
+            taskManager
         );
 
         // Node not in duress.
@@ -102,7 +128,6 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
 
     public void testTrackerStateUpdateOnSearchTaskCompletion() {
         TaskResourceTrackingService mockTaskResourceTrackingService = mock(TaskResourceTrackingService.class);
-        ThreadPool mockThreadPool = mock(ThreadPool.class);
         LongSupplier mockTimeNanosSupplier = () -> TimeUnit.SECONDS.toNanos(1234);
         TaskResourceUsageTracker mockTaskResourceUsageTracker = mock(TaskResourceUsageTracker.class);
 
@@ -114,11 +139,12 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
         SearchBackpressureService service = new SearchBackpressureService(
             settings,
             mockTaskResourceTrackingService,
-            mockThreadPool,
+            threadPool,
             mockTimeNanosSupplier,
             Collections.emptyList(),
             List.of(mockTaskResourceUsageTracker),
-            Collections.emptyList()
+            Collections.emptyList(),
+            taskManager
         );
 
         for (int i = 0; i < 100; i++) {
@@ -131,7 +157,6 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
 
     public void testTrackerStateUpdateOnSearchShardTaskCompletion() {
         TaskResourceTrackingService mockTaskResourceTrackingService = mock(TaskResourceTrackingService.class);
-        ThreadPool mockThreadPool = mock(ThreadPool.class);
         LongSupplier mockTimeNanosSupplier = () -> TimeUnit.SECONDS.toNanos(1234);
         TaskResourceUsageTracker mockTaskResourceUsageTracker = mock(TaskResourceUsageTracker.class);
 
@@ -143,11 +168,12 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
         SearchBackpressureService service = new SearchBackpressureService(
             settings,
             mockTaskResourceTrackingService,
-            mockThreadPool,
+            threadPool,
             mockTimeNanosSupplier,
             Collections.emptyList(),
             Collections.emptyList(),
-            List.of(mockTaskResourceUsageTracker)
+            List.of(mockTaskResourceUsageTracker),
+            taskManager
         );
 
         // Record task completions to update the tracker state. Tasks other than SearchTask & SearchShardTask are ignored.
@@ -161,7 +187,6 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
 
     public void testSearchTaskInFlightCancellation() {
         TaskResourceTrackingService mockTaskResourceTrackingService = mock(TaskResourceTrackingService.class);
-        ThreadPool mockThreadPool = mock(ThreadPool.class);
         AtomicLong mockTime = new AtomicLong(0);
         LongSupplier mockTimeNanosSupplier = mockTime::get;
         NodeDuressTracker mockNodeDuressTracker = new NodeDuressTracker(() -> true);
@@ -174,11 +199,12 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
         SearchBackpressureService service = new SearchBackpressureService(
             settings,
             mockTaskResourceTrackingService,
-            mockThreadPool,
+            threadPool,
             mockTimeNanosSupplier,
             List.of(mockNodeDuressTracker),
             List.of(mockTaskResourceUsageTracker),
-            Collections.emptyList()
+            Collections.emptyList(),
+            taskManager
         );
 
         // Run two iterations so that node is marked 'in duress' from the third iteration onwards.
@@ -234,7 +260,6 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
 
     public void testSearchShardTaskInFlightCancellation() {
         TaskResourceTrackingService mockTaskResourceTrackingService = mock(TaskResourceTrackingService.class);
-        ThreadPool mockThreadPool = mock(ThreadPool.class);
         AtomicLong mockTime = new AtomicLong(0);
         LongSupplier mockTimeNanosSupplier = mockTime::get;
         NodeDuressTracker mockNodeDuressTracker = new NodeDuressTracker(() -> true);
@@ -247,11 +272,12 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
         SearchBackpressureService service = new SearchBackpressureService(
             settings,
             mockTaskResourceTrackingService,
-            mockThreadPool,
+            threadPool,
             mockTimeNanosSupplier,
             List.of(mockNodeDuressTracker),
             Collections.emptyList(),
-            List.of(mockTaskResourceUsageTracker)
+            List.of(mockTaskResourceUsageTracker),
+            taskManager
         );
 
         // Run two iterations so that node is marked 'in duress' from the third iteration onwards.
