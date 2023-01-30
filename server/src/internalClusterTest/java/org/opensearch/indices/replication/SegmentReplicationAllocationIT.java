@@ -46,7 +46,9 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationIT {
             client().admin()
                 .cluster()
                 .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().put(BalancedShardsAllocator.PRIMARY_BALANCE_FACTOR_SETTING.getKey(), "1.0f"))
+                .setPersistentSettings(
+                    Settings.builder().put(BalancedShardsAllocator.PRIMARY_SHARD_BALANCE_FACTOR_SETTING.getKey(), "1.0f")
+                )
         );
 
         int shardCount, replicaCount, totalShardCount = 0, totalReplicaCount = 0;
@@ -94,7 +96,7 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationIT {
                 .prepareUpdateSettings()
                 .setPersistentSettings(
                     Settings.builder()
-                        .put(BalancedShardsAllocator.PRIMARY_BALANCE_FACTOR_SETTING.getKey(), "1.0f")
+                        .put(BalancedShardsAllocator.PRIMARY_SHARD_BALANCE_FACTOR_SETTING.getKey(), "1.0f")
                         .put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), "0.0f")
                         .put(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.getKey(), "0.0f")
                         .build()

@@ -107,7 +107,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         Property.NodeScope
     );
 
-    public static final Setting<Float> PRIMARY_BALANCE_FACTOR_SETTING = Setting.floatSetting(
+    public static final Setting<Float> PRIMARY_SHARD_BALANCE_FACTOR_SETTING = Setting.floatSetting(
         "cluster.routing.allocation.balance.primary",
         0.0f,
         0.0f,
@@ -128,14 +128,14 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         setWeightFunction(
             INDEX_BALANCE_FACTOR_SETTING.get(settings),
             SHARD_BALANCE_FACTOR_SETTING.get(settings),
-            PRIMARY_BALANCE_FACTOR_SETTING.get(settings)
+            PRIMARY_SHARD_BALANCE_FACTOR_SETTING.get(settings)
         );
         setThreshold(THRESHOLD_SETTING.get(settings));
         clusterSettings.addSettingsUpdateConsumer(SHARD_MOVE_PRIMARY_FIRST_SETTING, this::setMovePrimaryFirst);
         clusterSettings.addSettingsUpdateConsumer(
             INDEX_BALANCE_FACTOR_SETTING,
             SHARD_BALANCE_FACTOR_SETTING,
-            PRIMARY_BALANCE_FACTOR_SETTING,
+            PRIMARY_SHARD_BALANCE_FACTOR_SETTING,
             this::setWeightFunction
         );
         clusterSettings.addSettingsUpdateConsumer(THRESHOLD_SETTING, this::setThreshold);
