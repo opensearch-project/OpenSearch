@@ -25,6 +25,8 @@ public class SegmentReplicationRequest extends BroadcastRequest<SegmentReplicati
     private boolean detailed = false;       // Provides extra details in the response
     private boolean activeOnly = false;     // Only reports on active segment replication events
 
+    private String[] shards = new String[0];
+
     /**
      * Constructs a request for segment replication information for all shards
      */
@@ -83,6 +85,25 @@ public class SegmentReplicationRequest extends BroadcastRequest<SegmentReplicati
      */
     public void activeOnly(boolean activeOnly) {
         this.activeOnly = activeOnly;
+    }
+
+    /**
+     * Contains list of shard id's if shards are passed, empty otherwise. Array is empty by default.
+     *
+     * @return  list of shard id's if shards are passed, empty otherwise
+     */
+    public String[] shards() {
+        return shards;
+    }
+
+    /**
+     * Set value of the shards. If shard id's are passed, this request will only respond with
+     * given specific shard's segment replication event information, instead of all shards.
+     *
+     * @param shards    contains list of shard id's.
+     */
+    public void shards(String[] shards) {
+        this.shards = shards;
     }
 
     @Override

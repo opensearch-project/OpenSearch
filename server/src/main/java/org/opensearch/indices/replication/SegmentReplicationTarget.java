@@ -63,16 +63,22 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         super("replication_target", indexShard, new ReplicationLuceneIndex(), listener);
         this.checkpoint = checkpoint;
         this.source = source;
-        indexShard.setSegmentReplicationState(
-            new SegmentReplicationState(
-                indexShard.routingEntry(),
+        if (indexShard.getSegmentReplicationState() == null) {
+            indexShard.setSegmentReplicationState(
+                new SegmentReplicationState(
+                    indexShard.routingEntry(),
+                    indexShard.recoveryState().getSourceNode(),
+                    indexShard.recoveryState().getTargetNode()
+                )
+            );
+        }
+        this.state = indexShard.getSegmentReplicationState()
+            .onNewSegmentReplicationEvent(
                 stateIndex,
                 getId(),
                 indexShard.recoveryState().getSourceNode(),
                 indexShard.recoveryState().getTargetNode()
-            )
-        );
-        this.state = indexShard.getSegmentReplicationState();
+            );
         this.multiFileWriter = new MultiFileWriter(indexShard.store(), stateIndex, getPrefix(), logger, this::ensureRefCount);
     }
 

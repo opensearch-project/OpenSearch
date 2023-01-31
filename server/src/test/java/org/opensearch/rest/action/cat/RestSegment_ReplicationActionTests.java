@@ -94,7 +94,6 @@ public class RestSegment_ReplicationActionTests extends OpenSearchTestCase {
         final List<String> expectedHeaders = Arrays.asList(
             "index",
             "shardId",
-            "replication_id",
             "start_time",
             "start_time_millis",
             "stop_time",
@@ -105,14 +104,10 @@ public class RestSegment_ReplicationActionTests extends OpenSearchTestCase {
             "source_node",
             "target_host",
             "target_node",
-            "files",
             "files_fetched",
             "files_percent",
-            "files_total",
-            "bytes",
             "bytes_fetched",
-            "bytes_percent",
-            "bytes_total"
+            "bytes_percent"
         );
 
         for (int i = 0; i < expectedHeaders.size(); i++) {
@@ -126,7 +121,6 @@ public class RestSegment_ReplicationActionTests extends OpenSearchTestCase {
             final List<Object> expectedValues = Arrays.asList(
                 "index",
                 i,
-                state.getReplicationId(),
                 XContentOpenSearchExtension.DEFAULT_DATE_PRINTER.print(state.getTimer().startTime()),
                 state.getTimer().startTime(),
                 XContentOpenSearchExtension.DEFAULT_DATE_PRINTER.print(state.getTimer().stopTime()),
@@ -137,14 +131,10 @@ public class RestSegment_ReplicationActionTests extends OpenSearchTestCase {
                 state.getSourceNode().getName(),
                 state.getTargetNode().getHostName(),
                 state.getTargetNode().getName(),
-                state.getIndex().totalRecoverFiles(),
                 state.getIndex().recoveredFileCount(),
                 percent(state.getIndex().recoveredFilesPercent()),
-                state.getIndex().totalFileCount(),
-                state.getIndex().totalRecoverBytes(),
                 state.getIndex().recoveredBytes(),
-                percent(state.getIndex().recoveredBytesPercent()),
-                state.getIndex().totalBytes()
+                percent(state.getIndex().recoveredBytesPercent())
             );
 
             final List<Table.Cell> cells = table.getRows().get(i);

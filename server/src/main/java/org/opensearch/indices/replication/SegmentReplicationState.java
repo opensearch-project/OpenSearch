@@ -130,12 +130,6 @@ public class SegmentReplicationState implements ReplicationState, ToXContentFrag
 
     private DiscoveryNode targetNode;
 
-    public long getTotalNumberOfSegRepEvents() {
-        return totalNumberOfSegRepEvents;
-    }
-
-    private long totalNumberOfSegRepEvents;
-
     public SegmentReplicationState(
         ShardRouting shardRouting,
         ReplicationLuceneIndex index,
@@ -155,8 +149,24 @@ public class SegmentReplicationState implements ReplicationState, ToXContentFrag
         fileDiff = new FileDiff();
         getFile = new GetFile();
         finalizeReplication = new FinalizeReplication();
+    }
+
+    public SegmentReplicationState(ShardRouting shardRouting, DiscoveryNode sourceNode, DiscoveryNode targetNode) {
+        this(shardRouting, new ReplicationLuceneIndex(), -1, sourceNode, targetNode);
+    }
+
+    public SegmentReplicationState onNewSegmentReplicationEvent(
+        ReplicationLuceneIndex index,
+        long replicationId,
+        DiscoveryNode sourceNode,
+        DiscoveryNode targetNode
+    ) {
+        this.index = index;
+        this.replicationId = replicationId;
+        this.sourceNode = sourceNode;
+        this.targetNode = targetNode;
         setStage(Stage.INIT);
-        totalNumberOfSegRepEvents++;
+        return this;
     }
 
     public SegmentReplicationState(StreamInput in) throws IOException {
@@ -172,7 +182,6 @@ public class SegmentReplicationState implements ReplicationState, ToXContentFrag
         finalizeReplication = new FinalizeReplication(in);
         sourceNode = new DiscoveryNode(in);
         targetNode = new DiscoveryNode(in);
-        totalNumberOfSegRepEvents = in.readLong();
     }
 
     @Override
@@ -182,7 +191,6 @@ public class SegmentReplicationState implements ReplicationState, ToXContentFrag
         out.writeEnum(stage);
         out.writeLong(replicationId);
         overallTimer.writeTo(out);
-        // stageTimer.writeTo(out);
         replicating.writeTo(out);
         getCheckpointInfo.writeTo(out);
         fileDiff.writeTo(out);
@@ -190,8 +198,6 @@ public class SegmentReplicationState implements ReplicationState, ToXContentFrag
         finalizeReplication.writeTo(out);
         sourceNode.writeTo(out);
         targetNode.writeTo(out);
-        out.writeLong(totalNumberOfSegRepEvents);
-
     }
 
     @Override
@@ -283,7 +289,6 @@ public class SegmentReplicationState implements ReplicationState, ToXContentFrag
         builder.field(Fields.ID, shardRouting.shardId().id());
         builder.field(Fields.STAGE, getStage());
         builder.field(Fields.REPLICATION_ID, getReplicationId());
-        builder.field(Fields.NUMBER_OF_SEGMENT_REPLICATION_EVENTS, getTotalNumberOfSegRepEvents());
         builder.timeField(Fields.START_TIME_IN_MILLIS, Fields.START_TIME, getTimer().startTime());
         if (getTimer().stopTime() > 0) {
             builder.timeField(Fields.STOP_TIME_IN_MILLIS, Fields.STOP_TIME, getTimer().stopTime());
@@ -351,8 +356,6 @@ public class SegmentReplicationState implements ReplicationState, ToXContentFrag
         static final String INIT_STAGE = "init_stage";
 
         static final String SIZE_OF_FILES_IN_BYTES = "size_of_files_in_bytes";
-
-        static final String NUMBER_OF_SEGMENT_REPLICATION_EVENTS = "number_of_segment_replication_events";
 
         static final String INDEX = "index";
         static final String TOTAL_GET_FILES_STAGE_TIME_IN_MILLIS = "total_get_files_stage_in_millis";

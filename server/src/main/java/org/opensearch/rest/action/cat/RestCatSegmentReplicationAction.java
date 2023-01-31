@@ -27,6 +27,8 @@ import org.opensearch.rest.action.RestResponseListener;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
+import java.util.HashSet;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
@@ -65,6 +67,7 @@ public class RestCatSegmentReplicationAction extends AbstractCatAction {
         );
         segmentReplicationRequest.timeout(request.param("timeout"));
         segmentReplicationRequest.detailed(request.paramAsBoolean("detailed", false));
+        segmentReplicationRequest.shards(Strings.splitStringByCommaToArray(request.param("shards")));
         segmentReplicationRequest.activeOnly(request.paramAsBoolean("active_only", false));
         segmentReplicationRequest.indicesOptions(IndicesOptions.fromRequest(request, segmentReplicationRequest.indicesOptions()));
 
@@ -90,7 +93,6 @@ public class RestCatSegmentReplicationAction extends AbstractCatAction {
         t.startHeaders()
             .addCell("index", "alias:i,idx;desc:index name")
             .addCell("shardId", "desc: shard Id")
-            .addCell("replication_id", "desc: replication Id")
             .addCell("start_time", "default:false;alias:start;desc:segment replication start time")
             .addCell("start_time_millis", "default:false;alias:start_millis;desc:segment replication start time in epoch milliseconds")
             .addCell("stop_time", "default:false;alias:stop;desc:segment replication stop time")
@@ -101,22 +103,32 @@ public class RestCatSegmentReplicationAction extends AbstractCatAction {
             .addCell("source_node", "alias:snode;desc:source node name")
             .addCell("target_host", "alias:thost;desc:target host")
             .addCell("target_node", "alias:tnode;desc:target node name")
-            .addCell("files", "alias:f;desc:number of files to fetch")
             .addCell("files_fetched", "alias:ff;desc:files fetched")
             .addCell("files_percent", "alias:fp;desc:percent of files fetched")
-            .addCell("files_total", "alias:tf;desc:total number of files")
-            .addCell("bytes", "alias:b;desc:number of bytes to fetch")
             .addCell("bytes_fetched", "alias:bf;desc:bytes fetched")
-            .addCell("bytes_percent", "alias:bp;desc:percent of bytes fetched")
-            .addCell("bytes_total", "alias:tb;desc:total number of bytes");
+            .addCell("bytes_percent", "alias:bp;desc:percent of bytes fetched");
         if (detailed) {
-            t.addCell("replicating_stage_time_taken", "alias:rstt;desc:time taken in replicating stage")
+            t.addCell("files", "alias:f;desc:number of files to fetch")
+                .addCell("files_total", "alias:tf;desc:total number of files")
+                .addCell("bytes", "alias:b;desc:number of bytes to fetch")
+                .addCell("bytes_total", "alias:tb;desc:total number of bytes")
+                .addCell("replication_id", "desc: replication Id")
+                .addCell("replicating_stage_time_taken", "alias:rstt;desc:time taken in replicating stage")
                 .addCell("get_checkpoint_info_stage_time_taken", "alias:gcistt;desc:time taken in get checkpoint info stage")
                 .addCell("file_diff_stage_time_taken", "alias:fdstt;desc:time taken in file diff stage")
                 .addCell("get_files_stage_time_taken", "alias:gfstt;desc:time taken in get files stage")
                 .addCell("finalize_replication_stage_time_taken", "alias:frstt;desc:time taken in finalize replication stage");
         }
         t.endHeaders();
+        return t;
+    }
+
+    protected Table buildCustomResponseTable(String reason) {
+        Table t = new Table();
+        t.startHeaders().addCell("Reason", "desc: Reason for API response").endHeaders();
+        t.startRow();
+        t.addCell(reason);
+        t.endRow();
         return t;
     }
 
@@ -129,19 +141,28 @@ public class RestCatSegmentReplicationAction extends AbstractCatAction {
      * @return A table containing index, shardId, node, target size, recovered size and percentage for each fetching replica
      */
     public Table buildSegmentReplicationTable(RestRequest request, SegmentReplicationResponse response) {
-        String indexname = "";
+        String[] indexNames = new String[0];
         boolean detailed = false;
+        String[] shards = new String[0];
+        Set<String> set = new HashSet<>();
         if (request != null) {
-            indexname = request.param("index");
+            indexNames = Strings.splitStringByCommaToArray(request.param("index"));
             detailed = Boolean.parseBoolean(request.param("detailed"));
+            shards = Strings.splitStringByCommaToArray(request.param("shards"));
         }
-        if (request != null && indexname != null && !response.shardSegmentReplicationStates().containsKey(indexname)) {
-            Table t = new Table();
-            t.startHeaders().addCell("Reason", "desc: Reason for API response").endHeaders();
-            t.startRow();
-            t.addCell("{ Segment Replication is not enabled on index: " + indexname + " }");
-            t.endRow();
-            return t;
+        if (request != null && indexNames.length > 0) {
+            for (String index : indexNames) {
+                if (!response.shardSegmentReplicationStates().containsKey(index)) {
+                    String reason = "error:" + "{Segment Replication is not enabled on index: " + index + " }";
+                    return buildCustomResponseTable(reason);
+                }
+            }
+
+        }
+        if (shards.length > 0) {
+            for (String shard : shards) {
+                set.add(shard);
+            }
         }
         Table t = getTableWithHeader(request);
 
@@ -169,10 +190,13 @@ public class RestCatSegmentReplicationAction extends AbstractCatAction {
             });
 
             for (SegmentReplicationState state : shardSegmentReplicationStates) {
+                int shardId = state.getShardRouting().shardId().id();
+                if (shards.length > 0 && !set.contains(Integer.toString(shardId))) {
+                    continue;
+                }
                 t.startRow();
                 t.addCell(index);
                 t.addCell(state.getShardRouting().shardId().id());
-                t.addCell(state.getReplicationId());
                 t.addCell(XContentOpenSearchExtension.DEFAULT_DATE_PRINTER.print(state.getTimer().startTime()));
                 t.addCell(state.getTimer().startTime());
                 t.addCell(XContentOpenSearchExtension.DEFAULT_DATE_PRINTER.print(state.getTimer().stopTime()));
@@ -183,15 +207,16 @@ public class RestCatSegmentReplicationAction extends AbstractCatAction {
                 t.addCell(state.getSourceNode().getName());
                 t.addCell(state.getTargetNode().getHostName());
                 t.addCell(state.getTargetNode().getName());
-                t.addCell(state.getIndex().totalRecoverFiles());
                 t.addCell(state.getIndex().recoveredFileCount());
                 t.addCell(String.format(Locale.ROOT, "%1.1f%%", state.getIndex().recoveredFilesPercent()));
-                t.addCell(state.getIndex().totalFileCount());
-                t.addCell(state.getIndex().totalRecoverBytes());
                 t.addCell(state.getIndex().recoveredBytes());
                 t.addCell(String.format(Locale.ROOT, "%1.1f%%", state.getIndex().recoveredBytesPercent()));
-                t.addCell(state.getIndex().totalBytes());
                 if (detailed) {
+                    t.addCell(state.getIndex().totalRecoverFiles());
+                    t.addCell(state.getIndex().totalFileCount());
+                    t.addCell(state.getIndex().totalRecoverBytes());
+                    t.addCell(state.getIndex().totalBytes());
+                    t.addCell(state.getReplicationId());
                     t.addCell(new TimeValue(state.getReplicating().time()));
                     t.addCell(new TimeValue(state.getGetCheckpointInfo().time()));
                     t.addCell(new TimeValue(state.getFileDiff().time()));

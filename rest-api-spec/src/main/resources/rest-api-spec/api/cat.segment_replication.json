@@ -59,6 +59,10 @@
         "description":"If `true`, the response includes detailed information about segment replications",
         "default":false
       },
+      "shards":{
+        "type":"list",
+        "description":"Comma-separated list of shards to display"
+      },
       "h":{
         "type":"list",
         "description":"Comma-separated list of column names to display"
