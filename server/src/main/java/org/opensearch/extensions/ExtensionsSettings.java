@@ -135,18 +135,18 @@ public class ExtensionsSettings {
 
         @Override
         public String toString() {
-            return "Extension [hostAddress="
-                + hostAddress
-                + ", name="
+            return "Extension [name="
                 + name
-                + ", opensearchVersion="
-                + opensearchVersion
-                + ", port="
-                + port
                 + ", uniqueId="
                 + uniqueId
+                + ", hostAddress="
+                + hostAddress
+                + ", port="
+                + port
                 + ", version="
                 + version
+                + ", opensearchVersion="
+                + opensearchVersion
                 + ", minimumCompatibleVersion="
                 + minimumCompatibleVersion
                 + "]";
