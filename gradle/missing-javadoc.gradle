@@ -108,7 +108,6 @@ configure([
   project(":example-plugins:rest-handler"),
   project(":example-plugins:script-expert-scoring"),
   project(":libs:opensearch-cli"),
-  project(":libs:opensearch-core"),
   project(":libs:opensearch-dissect"),
   project(":libs:opensearch-geo"),
   project(":libs:opensearch-grok"),
@@ -176,7 +175,11 @@ configure([
   }
 }
 
-configure(project(":server")) {
+configure([
+  project(":libs:opensearch-common"),
+  project(":libs:opensearch-core"),
+  project(":server")
+]) {
   project.tasks.withType(MissingJavadocTask) {
     // TODO: bump to variable missing level after increasing javadoc coverage
     javadocMissingLevel = "class"

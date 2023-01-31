@@ -4,9 +4,6 @@
  * The OpenSearch Contributors require contributions made to
  * this file be licensed under the Apache-2.0 license or a
  * compatible open source license.
- *
- * Modifications Copyright OpenSearch Contributors. See
- * GitHub history for details.
  */
 
 /*
@@ -18,7 +15,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -27,20 +24,22 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'opensearch.build'
-apply plugin: 'com.netflix.nebula.optional-base'
-apply plugin: 'opensearch.publish'
 
-dependencies {
-  api 'net.sf.jopt-simple:jopt-simple:5.0.4'
-  api project(':libs:opensearch-common')
-  api project(':libs:opensearch-core')
-}
+/*
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
 
-test.enabled = false
-// Since CLI does not depend on :server, it cannot run the jarHell task
-jarHell.enabled = false
+package org.opensearch.common;
 
-tasks.named('forbiddenApisMain').configure {
-  replaceSignatureFiles 'jdk-signatures'
+import java.util.function.Consumer;
+
+/**
+ * A {@link Consumer}-like interface which allows throwing checked exceptions.
+ *
+ * @opensearch.api
+ */
+@FunctionalInterface
+public interface CheckedConsumer<T, E extends Exception> {
+    void accept(T t) throws E;
 }
