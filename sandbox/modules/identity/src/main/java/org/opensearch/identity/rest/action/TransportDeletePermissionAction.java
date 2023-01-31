@@ -14,17 +14,17 @@ import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.identity.authz.Permission;
 import org.opensearch.identity.rest.request.DeletePermissionRequest;
 import org.opensearch.identity.rest.response.DeletePermissionResponse;
-import org.opensearch.identity.rest.service.UserService;
+import org.opensearch.identity.rest.service.PermissionService;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
 
 public class TransportDeletePermissionAction extends HandledTransportAction<DeletePermissionRequest, DeletePermissionResponse> {
 
-    private final UserService userService;
+    private final PermissionService permissionService;
 
-    public TransportDeletePermissionAction(TransportService transportService, ActionFilters actionFilters, UserService userService) {
+    public TransportDeletePermissionAction(TransportService transportService, ActionFilters actionFilters, PermissionService permissionService) {
         super(AddPermissionAction.NAME, transportService, actionFilters, DeletePermissionRequest::new);
-        this.userService = userService;
+        this.permissionService = permissionService;
     }
 
     protected void doExecute(Task task, DeletePermissionRequest request, ActionListener<DeletePermissionResponse> listener) {

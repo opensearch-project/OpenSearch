@@ -36,6 +36,10 @@ import org.opensearch.identity.configuration.ConfigurationRepository;
 import org.opensearch.identity.configuration.DynamicConfigFactory;
 import org.opensearch.identity.rest.action.RestAddPermissionAction;
 import org.opensearch.identity.rest.action.RestCheckPermissionAction;
+import org.opensearch.identity.rest.action.TransportCheckPermissionAction;
+import org.opensearch.identity.rest.action.TransportDeletePermissionAction;
+import org.opensearch.identity.rest.action.CheckPermissionAction;
+import org.opensearch.identity.rest.action.DeletePermissionAction;
 import org.opensearch.identity.rest.action.RestDeletePermissionAction;
 import org.opensearch.identity.rest.action.TransportAddPermissionAction;
 import org.opensearch.identity.rest.action.AddPermissionAction;
@@ -126,7 +130,7 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
     // register actions in this plugin
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return Arrays.asList(new ActionHandler<>(AddPermissionAction.INSTANCE, TransportAddPermissionAction.class));
+        return Arrays.asList(new ActionHandler<>(AddPermissionAction.INSTANCE, TransportAddPermissionAction.class), new ActionHandler<>(CheckPermissionAction.INSTANCE, TransportCheckPermissionAction.class), new ActionHandler<>(DeletePermissionAction.INSTANCE, TransportDeletePermissionAction.class));
     }
 
     @Override
