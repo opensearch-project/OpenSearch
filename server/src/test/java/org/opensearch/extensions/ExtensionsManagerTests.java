@@ -237,7 +237,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             assertEquals(extension.getVersion(), initializedExtension.getVersion());
             assertEquals(extension.getMinimumCompatibleVersion(), initializedExtension.getMinimumCompatibleVersion());
             // TODO: Will fail due to bug : https://github.com/opensearch-project/OpenSearch/issues/6115
-            //assertEquals(extension.getDependencies(), initializedExtension.getDependencies());
+            // assertEquals(extension.getDependencies(), initializedExtension.getDependencies());
         }
     }
 
@@ -275,7 +275,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         }
         assertTrue(expectedExtensions.containsAll(emptyList()));
         // TODO: Will fail due to bug : https://github.com/opensearch-project/OpenSearch/issues/6115
-        //assertEquals(extension.getDependencies(), initializedExtension.getDependencies());
+        // assertEquals(extension.getDependencies(), initializedExtension.getDependencies());
     }
 
     public void testDiscoveryExtension() throws Exception {
