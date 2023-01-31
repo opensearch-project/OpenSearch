@@ -24,7 +24,7 @@ import static org.opensearch.identity.utils.RoutesHelper.addRoutesPrefix;
 import static org.opensearch.rest.RestRequest.Method.PUT;
 
 /**
- * Rest action for creating a user
+ * Rest action for adding a permission to the permission store
  */
 public class RestAddPermissionAction extends BaseRestHandler {
 

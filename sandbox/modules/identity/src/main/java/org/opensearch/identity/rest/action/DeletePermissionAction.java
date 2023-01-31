@@ -11,14 +11,17 @@ package org.opensearch.identity.rest.action;
 import org.opensearch.action.ActionType;
 import org.opensearch.identity.rest.response.DeletePermissionResponse;
 
+/**
+ * This class defines the DeletePermissionAction ActionType which corresponds to an action that deletes a specific permission from the permission store while using Identity.
+ */
 public class DeletePermissionAction extends ActionType<DeletePermissionResponse> {
 
     public static final DeletePermissionAction INSTANCE = new DeletePermissionAction();
 
     // TODO : revisit this action type
-    public static final String TYPE = "cluster:permission";
+    public static final String NAME = "cluster:permission";
 
     DeletePermissionAction() {
-        super(TYPE, DeletePermissionResponse::new);
+        super(NAME, DeletePermissionResponse::new);
     }
 }

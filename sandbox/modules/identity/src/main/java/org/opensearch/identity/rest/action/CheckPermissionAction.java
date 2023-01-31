@@ -11,14 +11,19 @@ package org.opensearch.identity.rest.action;
 import org.opensearch.action.ActionType;
 import org.opensearch.identity.rest.response.CheckPermissionResponse;
 
+/**
+ * This class defines the CheckPermissionAction ActionType which corresponds to an action that checks if a subject has a specific permission while using Identity.
+ */
 public class CheckPermissionAction extends ActionType<CheckPermissionResponse> {
 
     public static final CheckPermissionAction INSTANCE = new CheckPermissionAction();
 
     // TODO : revisit this action type
-    public static final String TYPE = "cluster:permission";
+
+    // The action name
+    public static final String NAME = "cluster:permission/check";
 
     CheckPermissionAction() {
-        super(TYPE, CheckPermissionResponse::new);
+        super(NAME, CheckPermissionResponse::new);
     }
 }
