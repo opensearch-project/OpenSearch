@@ -8,6 +8,7 @@
 
 package org.opensearch.identity;
 
+import joptsimple.internal.Strings;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchException;
@@ -15,8 +16,11 @@ import org.opensearch.OpenSearchSecurityException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionResponse;
+import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.ActionFilter;
 import org.opensearch.action.support.ActionFilterChain;
+import org.opensearch.authn.Identity;
+import org.opensearch.authn.Subject;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
@@ -27,6 +31,7 @@ import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.Locale;
+import java.util.Optional;
 
 public class SecurityFilter implements ActionFilter {
 
@@ -67,6 +72,26 @@ public class SecurityFilter implements ActionFilter {
         ActionListener<Response> listener,
         ActionFilterChain<Request, Response> chain
     ) {
+        // TODO The section below shows permission check working for index create and index search, but needs
+        // to be expanded to work for all actions
+        Subject currentSubject = Identity.getAuthManager().getSubject();
+        // can be multiple index patterns
+        Optional<String[]> resources = Optional.empty();
+        if (request instanceof IndicesRequest) {
+            String[] indices = ((IndicesRequest) request).indices();
+            if (indices != null) {
+                resources = Optional.of(((IndicesRequest) request).indices());
+            }
+        }
+        String permission = action;
+        if (resources.isPresent()) {
+            permission += "|" + Strings.join(resources.get(), ",");
+        }
+
+        if (log.isDebugEnabled()) {
+            log.debug("Current Subject: {}", currentSubject);
+            log.debug("Current Subject is permitted to perform {}: {}", permission, currentSubject.isPermitted(permission));
+        }
         try {
             // TODO Get jwt here and verify
             // TODO Move this logic to right after successful login

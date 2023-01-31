@@ -22,4 +22,4 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - [Identity] Move implementations of AuthenticationManager into Identity Module and keep interfaces in authn lib ([#5857](https://github.com/opensearch-project/OpenSearch/pull/5857))
 - [Identity] Define permission structure and basic handling ([#5909](https://github.com/opensearch-project/OpenSearch/pull/5909))
 - [Identity] Connect Identity Index to InternalRealm ([#5975](https://github.com/opensearch-project/OpenSearch/pull/5975))
-
+- [Identity] Basic permissions check ([#6029](https://github.com/opensearch-project/OpenSearch/pull/6029))
