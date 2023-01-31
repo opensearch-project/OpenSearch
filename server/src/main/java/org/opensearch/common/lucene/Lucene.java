@@ -41,6 +41,7 @@ import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInfo;
@@ -49,6 +50,7 @@ import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.FilterCodecReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexFormatTooNewException;
@@ -69,8 +71,9 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.index.StoredFieldVisitor;
+import org.apache.lucene.index.StoredFields;
+import org.apache.lucene.index.TermVectors;
 import org.apache.lucene.index.Terms;
-import org.apache.lucene.index.VectorValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.FieldDoc;
@@ -126,7 +129,7 @@ import java.util.Map;
  * @opensearch.internal
  */
 public class Lucene {
-    public static final String LATEST_CODEC = "Lucene94";
+    public static final String LATEST_CODEC = "Lucene95";
 
     public static final String SOFT_DELETES_FIELD = "__soft_deletes";
 
@@ -1113,6 +1116,11 @@ public class Lucene {
                 return null;
             }
 
+            @Override
+            public TermVectors termVectors() throws IOException {
+                return null;
+            }
+
             public int numDocs() {
                 return 0;
             }
@@ -1122,6 +1130,11 @@ public class Lucene {
             }
 
             public void document(int docID, StoredFieldVisitor visitor) {}
+
+            @Override
+            public StoredFields storedFields() throws IOException {
+                return null;
+            }
 
             protected void doClose() {}
 
@@ -1138,7 +1151,17 @@ public class Lucene {
             }
 
             @Override
-            public VectorValues getVectorValues(String field) throws IOException {
+            public FloatVectorValues getFloatVectorValues(String field) throws IOException {
+                return null;
+            }
+
+            @Override
+            public ByteVectorValues getByteVectorValues(String field) throws IOException {
+                return null;
+            }
+
+            @Override
+            public TopDocs searchNearestVectors(String field, byte[] target, int k, Bits acceptDocs, int visitedLimit) throws IOException {
                 return null;
             }
 
