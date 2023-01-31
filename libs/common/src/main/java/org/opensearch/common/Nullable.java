@@ -4,9 +4,6 @@
  * The OpenSearch Contributors require contributions made to
  * this file be licensed under the Apache-2.0 license or a
  * compatible open source license.
- *
- * Modifications Copyright OpenSearch Contributors. See
- * GitHub history for details.
  */
 
 /*
@@ -28,37 +25,32 @@
  * under the License.
  */
 
-import org.opensearch.gradle.info.BuildParams
+/*
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
 
-apply plugin: "opensearch.publish"
+package org.opensearch.common;
 
-dependencies {
-  api project(':libs:opensearch-common')
-  api project(':libs:opensearch-core')
+import javax.annotation.CheckForNull;
+import javax.annotation.meta.TypeQualifierNickname;
+import java.lang.annotation.Documented;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
-  testImplementation(project(":test:framework")) {
-    exclude group: 'org.opensearch', module: 'opensearch-ssl-config'
-  }
-
-  testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
-  testImplementation "junit:junit:${versions.junit}"
-  testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
-}
-
-
-tasks.named('forbiddenApisMain').configure {
-  replaceSignatureFiles 'jdk-signatures'
-}
-
-forbiddenPatterns {
-  exclude '**/*.key'
-  exclude '**/*.pem'
-  exclude '**/*.p12'
-  exclude '**/*.jks'
-}
-
-tasks.test {
-    if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
-        jvmArgs += ["--add-opens", "java.base/java.security.cert=ALL-UNNAMED"]
-    }
+/**
+ * The presence of this annotation on a method parameter indicates that
+ * {@code null} is an acceptable value for that parameter.  It should not be
+ * used for parameters of primitive types.
+ *
+ * @opensearch.api
+ */
+@Documented
+@TypeQualifierNickname
+@CheckForNull
+@Retention(RetentionPolicy.RUNTIME)
+@Target({ ElementType.PARAMETER, ElementType.FIELD, ElementType.METHOD })
+public @interface Nullable {
 }
