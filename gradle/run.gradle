@@ -31,7 +31,7 @@ import org.opensearch.gradle.testclusters.RunTask
 
 apply plugin: 'opensearch.testclusters'
 
-def numNodes = findProperty('numNodes') as Integer ?: 3
+def numNodes = findProperty('numNodes') as Integer ?: 1
 def numZones = findProperty('numZones') as Integer ?: 1
 
 testClusters {

@@ -75,12 +75,11 @@ public class FeatureFlags {
      * and false otherwise.
      */
     public static boolean isEnabled(String featureFlagName) {
-        // if ("true".equalsIgnoreCase(System.getProperty(featureFlagName))) {
-        // // TODO: Remove the if condition once FeatureFlags are only supported via opensearch.yml
-        // return true;
-        // }
-        // return settings != null && settings.getAsBoolean(featureFlagName, false);
-        return true;
+         if ("true".equalsIgnoreCase(System.getProperty(featureFlagName))) {
+         // TODO: Remove the if condition once FeatureFlags are only supported via opensearch.yml
+         return true;
+         }
+         return settings != null && settings.getAsBoolean(featureFlagName, false);
     }
 
     public static final Setting<Boolean> REPLICATION_TYPE_SETTING = Setting.boolSetting(REPLICATION_TYPE, false, Property.NodeScope);
