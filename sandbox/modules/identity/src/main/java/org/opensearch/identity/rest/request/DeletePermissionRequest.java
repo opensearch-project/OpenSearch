@@ -23,7 +23,6 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 
 public class DeletePermissionRequest extends ActionRequest implements ToXContentObject {
 
-
     private String permissionString;
 
     public DeletePermissionRequest(StreamInput in) throws IOException {
@@ -41,6 +40,9 @@ public class DeletePermissionRequest extends ActionRequest implements ToXContent
         return permissionString;
     }
 
+    public void setPermissionString(String permissionString) {
+        this.permissionString = permissionString;
+    }
 
     @Override
     public ActionRequestValidationException validate() {

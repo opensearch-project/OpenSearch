@@ -20,7 +20,11 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.common.settings.*;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.IndexScopedSettings;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
@@ -29,7 +33,11 @@ import org.opensearch.identity.authmanager.internal.InternalAuthenticationManage
 import org.opensearch.identity.configuration.ClusterInfoHolder;
 import org.opensearch.identity.configuration.ConfigurationRepository;
 import org.opensearch.identity.configuration.DynamicConfigFactory;
-import org.opensearch.identity.rest.action.*;
+import org.opensearch.identity.rest.action.RestAddPermissionAction;
+import org.opensearch.identity.rest.action.RestCheckPermissionAction;
+import org.opensearch.identity.rest.action.RestDeletePermissionAction;
+import org.opensearch.identity.rest.action.TransportAddPermissionAction;
+import org.opensearch.identity.rest.action.AddPermissionAction;
 import org.opensearch.indices.SystemIndexDescriptor;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.ClusterPlugin;
@@ -46,7 +54,12 @@ import org.opensearch.watcher.ResourceWatcherService;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Objects;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
@@ -91,7 +104,6 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
         return settings.getAsBoolean(ConfigConstants.IDENTITY_ENABLED, false);
     }
 
-
     @Override
     public List<RestHandler> getRestHandlers(
         Settings settings,
@@ -104,6 +116,8 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
     ) {
         final List<RestHandler> handlers = new ArrayList<>(1);
         handlers.add(new RestAddPermissionAction());
+        handlers.add(new RestCheckPermissionAction());
+        handlers.add(new RestDeletePermissionAction());
         // Add more handlers for future actions
         return handlers;
     }

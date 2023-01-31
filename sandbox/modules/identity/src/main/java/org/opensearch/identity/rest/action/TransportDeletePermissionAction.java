@@ -22,8 +22,7 @@ public class TransportDeletePermissionAction extends HandledTransportAction<Dele
 
     private final UserService userService;
 
-    public TransportDeletePermissionAction(TransportService transportService, ActionFilters actionFilters,
-                                           UserService userService) {
+    public TransportDeletePermissionAction(TransportService transportService, ActionFilters actionFilters, UserService userService) {
         super(AddPermissionAction.TYPE, transportService, actionFilters, DeletePermissionRequest::new);
         this.userService = userService;
     }

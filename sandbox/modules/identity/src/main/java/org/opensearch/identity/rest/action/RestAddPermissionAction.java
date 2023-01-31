@@ -61,7 +61,7 @@ public class RestAddPermissionAction extends BaseRestHandler {
                 try {
                     addPermissionRequest.fromXContent(xContentParser);
                 } catch (IOException e) {
-                    throw new IllegalArgumentException("Failed to parse create user request body", e);
+                    throw new IllegalArgumentException("Failed to parse add permission request body", e);
                 }
             }
         }));

@@ -32,18 +32,18 @@ import static org.hamcrest.Matchers.equalTo;
  * Tests to verify the behavior of rest create user action
  */
 public class RestPermissionTests extends OpenSearchTestCase {
-    public void testParseCreateUserRequestWithInvalidJsonThrowsException() {
-        AddPermissionAction action = new AddPermissionAction();
+    public void testParseAddPermissionRequestWithInvalidJsonThrowsException() {
+        RestAddPermissionAction action = new RestAddPermissionAction();
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(
             new BytesArray("{invalid_json}"),
             XContentType.JSON
         ).build();
         Exception e = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, null));
-        assertThat(e.getMessage(), equalTo("Failed to parse create user request body"));
+        assertThat(e.getMessage(), equalTo("Failed to parse add permission request body"));
     }
 
-    public void testCreateUserWithValidJson() throws Exception {
-        SetOnce<Boolean> createUserCalled = new SetOnce<>();
+    public void testParseAddPermissionWithValidJson() throws Exception {
+        SetOnce<Boolean> addPermissionCalled = new SetOnce<>();
         try (NodeClient nodeClient = new NoOpNodeClient(this.getTestName()) {
             @Override
             public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
@@ -52,19 +52,82 @@ public class RestPermissionTests extends OpenSearchTestCase {
                 ActionListener<Response> listener
             ) {
                 AddPermissionRequest req = (AddPermissionRequest) request;
-                createUserCalled.set(true);
-                assertThat(req.getPermission(), equalTo("test"));
+                addPermissionCalled.set(true);
+                assertThat(req.getPermissionString(), equalTo("test"));
             }
         }) {
             RestAddPermissionAction action = new RestAddPermissionAction();
-            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(Map.of("name", "test"))
-                .withContent(new BytesArray("{ \"password\" : \"test\" }\n"), XContentType.JSON)
-                .build();
+            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(Map.of("permissionString", "test")).build();
             FakeRestChannel channel = new FakeRestChannel(request, false, 0);
             action.handleRequest(request, channel, nodeClient);
 
-            assertThat(createUserCalled.get(), equalTo(true));
+            assertThat(addPermissionCalled.get(), equalTo(true));
         }
     }
 
+    public void testParseCheckPermissionRequestWithInvalidJsonThrowsException() {
+        RestCheckPermissionAction action = new RestCheckPermissionAction();
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(
+            new BytesArray("{invalid_json}"),
+            XContentType.JSON
+        ).build();
+        Exception e = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, null));
+        assertThat(e.getMessage(), equalTo("Failed to parse check permission request body"));
+    }
+
+    public void testParseCheckPermissionWithValidJson() throws Exception {
+        SetOnce<Boolean> checkPermissionCalled = new SetOnce<>();
+        try (NodeClient nodeClient = new NoOpNodeClient(this.getTestName()) {
+            @Override
+            public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
+                CheckPermissionRequest req = (CheckPermissionRequest) request;
+                checkPermissionCalled.set(true);
+                assertThat(req.getPermissionString(), equalTo("test"));
+            }
+        }) {
+            RestAddPermissionAction action = new RestAddPermissionAction();
+            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(Map.of("permissionString", "test")).build();
+            FakeRestChannel channel = new FakeRestChannel(request, false, 0);
+            action.handleRequest(request, channel, nodeClient);
+
+            assertThat(checkPermissionCalled.get(), equalTo(true));
+        }
+    }
+
+    public void testParseDeletePermissionRequestWithInvalidJsonThrowsException() {
+        RestDeletePermissionAction action = new RestDeletePermissionAction();
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(
+            new BytesArray("{invalid_json}"),
+            XContentType.JSON
+        ).build();
+        Exception e = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, null));
+        assertThat(e.getMessage(), equalTo("Failed to parse delete permission request body"));
+    }
+
+    public void testParseDeletePermissionWithValidJson() throws Exception {
+        SetOnce<Boolean> deletePermissionCalled = new SetOnce<>();
+        try (NodeClient nodeClient = new NoOpNodeClient(this.getTestName()) {
+            @Override
+            public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
+                DeletePermissionRequest req = (DeletePermissionRequest) request;
+                deletePermissionCalled.set(true);
+                assertThat(req.getPermissionString(), equalTo("test"));
+            }
+        }) {
+            RestDeletePermissionAction action = new RestDeletePermissionAction();
+            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(Map.of("permissionString", "test")).build();
+            FakeRestChannel channel = new FakeRestChannel(request, false, 0);
+            action.handleRequest(request, channel, nodeClient);
+
+            assertThat(deletePermissionCalled.get(), equalTo(true));
+        }
+    }
 }

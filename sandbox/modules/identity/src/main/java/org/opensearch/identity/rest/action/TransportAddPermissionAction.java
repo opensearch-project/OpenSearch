@@ -11,9 +11,7 @@ package org.opensearch.identity.rest.action;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.identity.authz.Permission;
-import org.opensearch.identity.authz.PermissionFactory;
 import org.opensearch.identity.rest.request.AddPermissionRequest;
 import org.opensearch.identity.rest.response.AddPermissionResponse;
 import org.opensearch.identity.rest.service.UserService;
@@ -24,13 +22,12 @@ public class TransportAddPermissionAction extends HandledTransportAction<AddPerm
 
     private final UserService userService;
 
-    public TransportAddPermissionAction(TransportService transportService, ActionFilters actionFilters,
-                                        UserService userService) {
+    public TransportAddPermissionAction(TransportService transportService, ActionFilters actionFilters, UserService userService) {
         super(AddPermissionAction.TYPE, transportService, actionFilters, AddPermissionRequest::new);
         this.userService = userService;
     }
 
-    protected void doExecute (Task task, AddPermissionRequest request, ActionListener<AddPermissionResponse> listener) {
-        Permission permissionToAdd  = new Permission(request.getPermissionString());
+    protected void doExecute(Task task, AddPermissionRequest request, ActionListener<AddPermissionResponse> listener) {
+        Permission permissionToAdd = new Permission(request.getPermissionString());
     }
 }

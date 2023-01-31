@@ -23,7 +23,6 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 
 public class AddPermissionRequest extends ActionRequest implements ToXContentObject {
 
-
     private String permissionString;
 
     public AddPermissionRequest(StreamInput in) throws IOException {
@@ -99,4 +98,3 @@ public class AddPermissionRequest extends ActionRequest implements ToXContentObj
         }
     }
 }
-

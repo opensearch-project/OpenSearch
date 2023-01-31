@@ -27,7 +27,6 @@ import static org.opensearch.common.xcontent.ConstructingObjectParser.constructo
 import static org.opensearch.rest.RestStatus.NOT_FOUND;
 import static org.opensearch.rest.RestStatus.OK;
 
-
 public class DeletePermissionResponse extends ActionResponse implements StatusToXContentObject {
 
     // TODO: revisit this class
@@ -98,5 +97,3 @@ public class DeletePermissionResponse extends ActionResponse implements StatusTo
     }
 
 }
-
-

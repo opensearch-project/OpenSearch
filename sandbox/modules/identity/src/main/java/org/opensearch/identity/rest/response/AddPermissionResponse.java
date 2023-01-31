@@ -27,7 +27,6 @@ import static org.opensearch.common.xcontent.ConstructingObjectParser.constructo
 import static org.opensearch.rest.RestStatus.NOT_FOUND;
 import static org.opensearch.rest.RestStatus.OK;
 
-
 public class AddPermissionResponse extends ActionResponse implements StatusToXContentObject {
 
     // TODO: revisit this class
@@ -97,5 +96,3 @@ public class AddPermissionResponse extends ActionResponse implements StatusToXCo
         return PARSER.parse(parser, null);
     }
 }
-
-

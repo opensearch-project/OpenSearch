@@ -13,7 +13,6 @@ import org.opensearch.identity.rest.response.AddPermissionResponse;
 
 public class AddPermissionAction extends ActionType<AddPermissionResponse> {
 
-
     public static final AddPermissionAction INSTANCE = new AddPermissionAction();
 
     // TODO : revisit this action type
@@ -23,4 +22,3 @@ public class AddPermissionAction extends ActionType<AddPermissionResponse> {
         super(TYPE, AddPermissionResponse::new);
     }
 }
-

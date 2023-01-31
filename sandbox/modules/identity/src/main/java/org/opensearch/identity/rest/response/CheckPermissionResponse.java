@@ -27,7 +27,6 @@ import static org.opensearch.common.xcontent.ConstructingObjectParser.constructo
 import static org.opensearch.rest.RestStatus.NOT_FOUND;
 import static org.opensearch.rest.RestStatus.OK;
 
-
 public class CheckPermissionResponse extends ActionResponse implements StatusToXContentObject {
 
     // TODO: revisit this class
@@ -96,5 +95,3 @@ public class CheckPermissionResponse extends ActionResponse implements StatusToX
         return PARSER.parse(parser, null);
     }
 }
-
-

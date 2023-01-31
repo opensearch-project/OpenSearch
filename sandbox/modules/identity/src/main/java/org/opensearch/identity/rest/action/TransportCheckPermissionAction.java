@@ -12,9 +12,7 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.identity.authz.Permission;
-import org.opensearch.identity.rest.request.AddPermissionRequest;
 import org.opensearch.identity.rest.request.CheckPermissionRequest;
-import org.opensearch.identity.rest.response.AddPermissionResponse;
 import org.opensearch.identity.rest.response.CheckPermissionResponse;
 import org.opensearch.identity.rest.service.UserService;
 import org.opensearch.tasks.Task;
@@ -24,13 +22,12 @@ public class TransportCheckPermissionAction extends HandledTransportAction<Check
 
     private final UserService userService;
 
-    public TransportCheckPermissionAction(TransportService transportService, ActionFilters actionFilters,
-                                        UserService userService) {
+    public TransportCheckPermissionAction(TransportService transportService, ActionFilters actionFilters, UserService userService) {
         super(AddPermissionAction.TYPE, transportService, actionFilters, CheckPermissionRequest::new);
         this.userService = userService;
     }
 
-    protected void doExecute (Task task, CheckPermissionRequest request, ActionListener<CheckPermissionResponse> listener) {
-        Permission permissionToAdd  = new Permission(request.getPermissionString());
+    protected void doExecute(Task task, CheckPermissionRequest request, ActionListener<CheckPermissionResponse> listener) {
+        Permission permissionToAdd = new Permission(request.getPermissionString());
     }
 }
