@@ -20,25 +20,25 @@ import org.opensearch.identity.rest.response.DeletePermissionResponse;
 import org.opensearch.transport.TransportService;
 
 /**
- * Service class for User related functions
+ * Service class for Permission related functions
  */
-public class UserService {
+public class PermissionService {
 
-    private static final Logger logger = LogManager.getLogger(UserService.class);
+    private static final Logger logger = LogManager.getLogger(PermissionService.class);
 
     private final ClusterService clusterService;
     private final TransportService transportService;
     private final NodeClient nodeClient;
 
     @Inject
-    public UserService(ClusterService clusterService, TransportService transportService, NodeClient nodeClient) {
+    public PermissionService(ClusterService clusterService, TransportService transportService, NodeClient nodeClient) {
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.nodeClient = nodeClient;
     }
 
     public void addPermission(String username, ActionListener<AddPermissionResponse> listener) {
-        // TODO: Implement this
+       // TODO: Implement this
     }
 
     public void deletePermission(String username, ActionListener<DeletePermissionResponse> listener) {
