@@ -24,6 +24,7 @@ import org.opensearch.cluster.routing.PreferenceBasedSearchNotAllowedException;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.WeightedRouting;
+import org.opensearch.cluster.routing.WeightedRoutingStats;
 import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.settings.Settings;
@@ -978,6 +979,7 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
         Map<String, NodeStats> stats = nodeStats.getNodesMap();
         NodeStats nodeStatsC = stats.get(nodeIDMap.get(nodeMap.get("c").get(0)));
         assertEquals(failOpenShardCount, nodeStatsC.getWeightedRoutingStats().getFailOpenCount());
+        WeightedRoutingStats.getInstance().resetFailOpenCount();
     }
 
 }

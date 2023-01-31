@@ -77,4 +77,8 @@ public class WeightedRoutingStats implements ToXContentFragment, Writeable {
     public int hashCode() {
         return Objects.hash(failOpenCount);
     }
+
+    public void resetFailOpenCount() {
+        failOpenCount.set(0);
+    }
 }
