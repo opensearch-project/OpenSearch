@@ -16,6 +16,7 @@ import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.action.ActionType;
+import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchTask;
 import org.opensearch.action.support.ActionFilters;
@@ -87,6 +88,16 @@ public class SearchBackpressureIT extends OpenSearchIntegTestCase {
                 .setPersistentSettings(Settings.builder().putNull("*"))
                 .setTransientSettings(Settings.builder().putNull("*"))
         );
+    }
+
+    public void testCancellationSettingsChanged() {
+        Settings request = Settings.builder().put(SearchTaskSettings.SETTING_CANCELLATION_RATE.getKey(), "0.05").build();
+        ClusterUpdateSettingsResponse response = client().admin().cluster().prepareUpdateSettings().setPersistentSettings(request).get();
+        assertEquals(response.getPersistentSettings().get(SearchTaskSettings.SETTING_CANCELLATION_RATE.getKey()), "0.05");
+
+        request = Settings.builder().put(SearchShardTaskSettings.SETTING_CANCELLATION_RATIO.getKey(), "0.7").build();
+        response = client().admin().cluster().prepareUpdateSettings().setPersistentSettings(request).get();
+        assertEquals(response.getPersistentSettings().get(SearchShardTaskSettings.SETTING_CANCELLATION_RATIO.getKey()), "0.7");
     }
 
     public void testSearchTaskCancellationWithHighElapsedTime() throws InterruptedException {
