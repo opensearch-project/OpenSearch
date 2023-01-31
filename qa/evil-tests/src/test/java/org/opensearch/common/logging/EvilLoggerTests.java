@@ -41,6 +41,7 @@ import org.apache.logging.log4j.core.appender.ConsoleAppender;
 import org.apache.logging.log4j.core.appender.CountingNoOpAppender;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.util.Constants;
 import org.opensearch.cli.UserException;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.common.Randomness;
@@ -69,6 +70,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.opensearch.common.logging.DeprecationLogger.DEPRECATION;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.lessThan;
