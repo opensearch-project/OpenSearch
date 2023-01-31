@@ -10,6 +10,8 @@ package org.opensearch.identity;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import org.opensearch.authn.StringPrincipal;
+import org.opensearch.identity.authz.OpenSearchPermission;
+import org.opensearch.identity.authz.PermissionStorage;
 
 import java.util.Collections;
 import java.util.List;
@@ -35,7 +37,7 @@ public class User {
      * @param attributes A map of custom attributes
      * @throws IllegalArgumentException if username or bcryptHash is null or empty
      */
-    public User(final String username, final String bcryptHash, Map<String, String> attributes, List<String> permissions) {
+    public User(final String username, final String bcryptHash, Map<String, String> attributes, List<OpenSearchPermission> permissions) {
         Objects.requireNonNull(username);
         Objects.requireNonNull(bcryptHash);
         this.username = new StringPrincipal(username);
@@ -54,7 +56,7 @@ public class User {
     private Map<String, String> attributes = Collections.emptyMap();
 
     @JsonProperty(value = "permissions")
-    private List<String> permissions = Collections.emptyList();
+    private List<OpenSearchPermission> permissions = this.permissions;
 
     @JsonProperty(value = "username")
     public StringPrincipal getUsername() {
@@ -77,12 +79,12 @@ public class User {
     }
 
     @JsonProperty(value = "permissions")
-    public List<String> getPermissions() {
-        return permissions;
+    public List<OpenSearchPermission> getPermissions() {
+        return PermissionStorage.get(this.username);
     }
 
     @JsonProperty(value = "permissions")
-    public void setPermissions(List<String> permissions) {
+    public void setPermissions(List<OpenSearchPermission> permissions) {
         this.permissions = permissions;
     }
 

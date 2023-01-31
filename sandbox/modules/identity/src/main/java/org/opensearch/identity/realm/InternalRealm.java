@@ -153,7 +153,6 @@ public class InternalRealm extends AuthorizingRealm {
         User userRecord = getInternalUser(username);
         Set<Permission> permissions = userRecord.getPermissions()
             .stream()
-            .map(p -> new OpenSearchPermission(p))
             .collect(Collectors.toSet());
         authorizations.setObjectPermissions(permissions);
         return authorizations;
