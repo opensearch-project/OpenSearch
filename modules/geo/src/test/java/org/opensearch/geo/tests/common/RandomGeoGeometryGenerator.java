@@ -200,6 +200,26 @@ public class RandomGeoGeometryGenerator {
     }
 
     /**
+     * Generates a {@link Rectangle} of a specific radius. The generated rectangle can cross the international date line.
+     *
+     * @param r {@link Random}
+     * @param radius double
+     * @return {@link Rectangle}
+     */
+    public static Rectangle randomRectangle(final Random r, double radius) {
+        final double[] centre = new double[2];
+        RandomGeoGenerator.randomPointIn(r, -180, -(90 - radius), 180, 90 - radius, centre);
+        final double centreX = centre[0];
+        final double centreY = centre[1];
+        return new Rectangle(
+            RandomGeoGenerator.normalizeLongitude(centreX - radius),
+            RandomGeoGenerator.normalizeLongitude(centreX + radius),
+            centreY + radius,
+            centreY - radius
+        );
+    }
+
+    /**
      * Returns a double array where pt[0] : longitude and pt[1] : latitude
      *
      * @param r {@link Random}

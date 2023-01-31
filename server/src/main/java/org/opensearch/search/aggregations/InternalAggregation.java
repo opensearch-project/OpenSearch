@@ -37,6 +37,7 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.rest.action.search.RestSearchAction;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
@@ -368,7 +369,7 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toString(XContentType.JSON, this);
     }
 
     /**

@@ -22,7 +22,6 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.StepListener;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.index.shard.IndexShard;
@@ -38,8 +37,6 @@ import org.opensearch.indices.replication.common.ReplicationTarget;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.Map;
 
 /**
  * Represents the target of a replication event.
@@ -173,8 +170,8 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         throws IOException {
         cancellableThreads.checkForCancel();
         state.setStage(SegmentReplicationState.Stage.FILE_DIFF);
-        final Store.RecoveryDiff diff = Store.segmentReplicationDiff(checkpointInfo.getMetadataMap(), getMetadataMap());
-        logger.trace("Replication diff {}", diff);
+        final Store.RecoveryDiff diff = Store.segmentReplicationDiff(checkpointInfo.getMetadataMap(), indexShard.getSegmentMetadataMap());
+        logger.trace("Replication diff for checkpoint {} {}", checkpointInfo.getCheckpoint(), diff);
         /*
          * Segments are immutable. So if the replica has any segments with the same name that differ from the one in the incoming
          * snapshot from source that means the local copy of the segment has been corrupted/changed in some way and we throw an
@@ -183,8 +180,11 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         if (diff.different.isEmpty() == false) {
             getFilesListener.onFailure(
                 new IllegalStateException(
-                    new ParameterizedMessage("Shard {} has local copies of segments that differ from the primary", indexShard.shardId())
-                        .getFormattedMessage()
+                    new ParameterizedMessage(
+                        "Shard {} has local copies of segments that differ from the primary {}",
+                        indexShard.shardId(),
+                        diff.different
+                    ).getFormattedMessage()
                 )
             );
         }
@@ -262,15 +262,6 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         return new BufferedChecksumIndexInput(
             new ByteBuffersIndexInput(new ByteBuffersDataInput(Arrays.asList(ByteBuffer.wrap(input))), "SegmentInfos")
         );
-    }
-
-    Map<String, StoreFileMetadata> getMetadataMap() throws IOException {
-        if (indexShard.getSegmentInfosSnapshot() == null) {
-            return Collections.emptyMap();
-        }
-        try (final GatedCloseable<SegmentInfos> snapshot = indexShard.getSegmentInfosSnapshot()) {
-            return store.getSegmentMetadataMap(snapshot.get());
-        }
     }
 
     @Override

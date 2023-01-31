@@ -49,7 +49,7 @@ jobs:
           commit_options: '--signoff'
 
       - name: Update the changelog
-        uses: dangoslen/dependabot-changelog-helper@v1
+        uses: dangoslen/dependabot-changelog-helper@v2
         with:
           version: 'Unreleased 3.0'
 

@@ -111,7 +111,7 @@ public class SearchPhaseExecutionExceptionTests extends OpenSearchTestCase {
                 + "  ]"
                 + "}"
         );
-        assertEquals(expectedJson, Strings.toString(exception));
+        assertEquals(expectedJson, Strings.toString(XContentType.JSON, exception));
     }
 
     public void testToAndFromXContent() throws IOException {

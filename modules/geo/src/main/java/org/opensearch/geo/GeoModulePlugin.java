@@ -39,7 +39,6 @@ import org.opensearch.geo.search.aggregations.bucket.geogrid.GeoHashGrid;
 import org.opensearch.geo.search.aggregations.bucket.geogrid.GeoTileGrid;
 import org.opensearch.geo.search.aggregations.metrics.GeoBounds;
 import org.opensearch.geo.search.aggregations.metrics.GeoBoundsAggregationBuilder;
-import org.opensearch.geo.search.aggregations.metrics.GeoBoundsGeoShapeAggregator;
 import org.opensearch.geo.search.aggregations.metrics.InternalGeoBounds;
 import org.opensearch.index.mapper.GeoShapeFieldMapper;
 import org.opensearch.index.mapper.Mapper;
@@ -47,13 +46,10 @@ import org.opensearch.plugins.MapperPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SearchPlugin;
 import org.opensearch.search.aggregations.bucket.composite.CompositeAggregation;
-import org.opensearch.search.aggregations.support.CoreValuesSourceType;
-import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
 
 public class GeoModulePlugin extends Plugin implements MapperPlugin, SearchPlugin {
 
@@ -63,7 +59,8 @@ public class GeoModulePlugin extends Plugin implements MapperPlugin, SearchPlugi
     }
 
     /**
-     * Registering {@link GeoBounds} aggregation on GeoPoint field.
+     * Registering {@link GeoBounds}, {@link GeoHashGrid}, {@link GeoTileGrid} aggregation on GeoPoint and GeoShape
+     * fields.
      */
     @Override
     public List<AggregationSpec> getAggregations() {
@@ -105,23 +102,4 @@ public class GeoModulePlugin extends Plugin implements MapperPlugin, SearchPlugi
             )
         );
     }
-
-    /**
-     * Registering the GeoBounds Aggregation on the GeoShape Field. This function allows plugins to register new
-     * aggregations using aggregation names that are already defined in Core, as long as the new aggregations target
-     * different ValuesSourceTypes.
-     *
-     * @return A list of the new registrar functions
-     */
-    @Override
-    public List<Consumer<ValuesSourceRegistry.Builder>> getAggregationExtentions() {
-        final Consumer<ValuesSourceRegistry.Builder> geoShapeConsumer = builder -> builder.register(
-            GeoBoundsAggregationBuilder.REGISTRY_KEY,
-            CoreValuesSourceType.GEO_SHAPE,
-            GeoBoundsGeoShapeAggregator::new,
-            true
-        );
-        return Collections.singletonList(geoShapeConsumer);
-    }
-
 }
