@@ -32,6 +32,7 @@
 
 package org.opensearch.action.admin.cluster.health;
 
+import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.common.Priority;
@@ -68,6 +69,23 @@ public class ClusterHealthRequestTests extends OpenSearchTestCase {
     public void testRequestReturnsHiddenIndicesByDefault() {
         final ClusterHealthRequest defaultRequest = new ClusterHealthRequest();
         assertTrue(defaultRequest.indicesOptions().expandWildcardsHidden());
+    }
+
+    public void testValidation() {
+        ClusterHealthRequest clusterHealthRequest = randomRequest();
+        {
+            clusterHealthRequest.local(false);
+            clusterHealthRequest.ensureNodeCommissioned(true);
+            ActionRequestValidationException e = clusterHealthRequest.validate();
+            assertNotNull(e);
+            assertTrue(e.getMessage().contains("not a local request to ensure local node commissioned"));
+        }
+        {
+            clusterHealthRequest.local(true);
+            clusterHealthRequest.ensureNodeCommissioned(false);
+            ActionRequestValidationException e = clusterHealthRequest.validate();
+            assertNull(e);
+        }
     }
 
     private ClusterHealthRequest randomRequest() {
