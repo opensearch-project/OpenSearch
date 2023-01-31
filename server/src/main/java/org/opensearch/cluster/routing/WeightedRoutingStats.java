@@ -28,7 +28,13 @@ public class WeightedRoutingStats implements ToXContentFragment, Writeable {
     // number of times fail open has to be executed for search requests
     private AtomicInteger failOpenCount;
 
-    public WeightedRoutingStats() {
+    private static final WeightedRoutingStats INSTANCE = new WeightedRoutingStats();
+
+    public static WeightedRoutingStats getInstance() {
+        return INSTANCE;
+    }
+
+    private WeightedRoutingStats() {
         failOpenCount = new AtomicInteger(0);
     }
 

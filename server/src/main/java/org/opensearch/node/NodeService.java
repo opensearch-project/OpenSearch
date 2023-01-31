@@ -32,7 +32,7 @@
 
 package org.opensearch.node;
 
-import org.opensearch.cluster.routing.FailAwareWeightedRouting;
+import org.opensearch.cluster.routing.WeightedRoutingStats;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.Build;
 import org.opensearch.Version;
@@ -204,7 +204,7 @@ public class NodeService implements Closeable {
             shardIndexingPressure ? this.indexingPressureService.shardStats(indices) : null,
             searchBackpressure ? this.searchBackpressureService.nodeStats() : null,
             clusterManagerThrottling ? this.clusterService.getClusterManagerService().getThrottlingStats() : null,
-            weightedRoutingStats ? FailAwareWeightedRouting.getInstance().getStats() : null
+            weightedRoutingStats ? WeightedRoutingStats.getInstance() : null
         );
     }
 

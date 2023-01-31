@@ -723,7 +723,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
         ScriptCacheStats scriptCacheStats = scriptStats != null ? scriptStats.toScriptCacheStats() : null;
 
         WeightedRoutingStats weightedRoutingStats = null;
-        weightedRoutingStats = new WeightedRoutingStats();
+        weightedRoutingStats = WeightedRoutingStats.getInstance();
         weightedRoutingStats.updateFailOpenCount();
 
         // TODO NodeIndicesStats are not tested here, way too complicated to create, also they need to be migrated to Writeable yet
