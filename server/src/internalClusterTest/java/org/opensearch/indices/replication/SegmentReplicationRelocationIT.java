@@ -55,6 +55,7 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
      * This test verifies happy path when primary shard is relocated newly added node (target) in the cluster. Before
      * relocation and after relocation documents are indexed and documents are verified
      */
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/5669")
     public void testPrimaryRelocation() throws Exception {
         final String oldPrimary = internalCluster().startNode();
         createIndex(1);
@@ -131,6 +132,7 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
      * failure, more documents are ingested and verified on replica; which confirms older primary still refreshing the
      * replicas.
      */
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/5669")
     public void testPrimaryRelocationWithSegRepFailure() throws Exception {
         final String oldPrimary = internalCluster().startNode();
         createIndex(1);
@@ -215,6 +217,7 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
      * This test verifies primary recovery behavior with continuous ingestion
      *
      */
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/5669")
     public void testRelocateWhileContinuouslyIndexingAndWaitingForRefresh() throws Exception {
         final String primary = internalCluster().startNode();
         createIndex(1);
@@ -291,6 +294,7 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
      * operations during handoff. The test verifies all docs ingested are searchable on new primary.
      *
      */
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/5669")
     public void testRelocateWithQueuedOperationsDuringHandoff() throws Exception {
         final String primary = internalCluster().startNode();
         createIndex(1);

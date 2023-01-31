@@ -586,6 +586,7 @@ public final class IndexSettings {
     private final ReplicationType replicationType;
     private final boolean isRemoteStoreEnabled;
     private final boolean isRemoteTranslogStoreEnabled;
+    private final TimeValue remoteTranslogUploadBufferInterval;
     private final String remoteStoreTranslogRepository;
     private final String remoteStoreRepository;
     private final boolean isRemoteSnapshot;
@@ -753,6 +754,10 @@ public final class IndexSettings {
         isRemoteStoreEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false);
         isRemoteTranslogStoreEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, false);
         remoteStoreTranslogRepository = settings.get(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY);
+        remoteTranslogUploadBufferInterval = settings.getAsTime(
+            IndexMetadata.SETTING_REMOTE_TRANSLOG_BUFFER_INTERVAL,
+            TimeValue.timeValueMillis(100)
+        );
         remoteStoreRepository = settings.get(IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY);
         isRemoteSnapshot = IndexModule.Type.REMOTE_SNAPSHOT.match(this.settings);
 
@@ -1133,6 +1138,15 @@ public final class IndexSettings {
 
     public void setTranslogSyncInterval(TimeValue translogSyncInterval) {
         this.syncInterval = translogSyncInterval;
+    }
+
+    /**
+     * Returns the translog sync/upload buffer interval when remote translog store is enabled and index setting
+     * {@code index.translog.durability} is set as {@code request}.
+     * @return the buffer interval.
+     */
+    public TimeValue getRemoteTranslogUploadBufferInterval() {
+        return remoteTranslogUploadBufferInterval;
     }
 
     /**
