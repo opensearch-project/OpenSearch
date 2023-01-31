@@ -233,12 +233,30 @@ public class TranslogTransferManager {
     }
 
     /**
-     * Handles deletion on translog files for a particular primary term.
+     * Handles deletion of translog files for a particular primary term.
      *
      * @param primaryTerm primary term
      * @param listener    listener for response and failure
      */
     public void deleteTranslogAsync(long primaryTerm, ActionListener<Void> listener) {
         transferService.deleteAsync(remoteBaseTransferPath.add(String.valueOf(primaryTerm)), listener);
+    }
+
+    /**
+     * Lists all primary terms existing on remote store.
+     *
+     * @return the list of primary terms.
+     * @throws IOException is thrown if it can read the data.
+     */
+    public Set<Long> listPrimaryTerms() throws IOException {
+        return transferService.listFolders(remoteBaseTransferPath).stream().filter(s -> {
+            try {
+                Long.parseLong(s);
+                return true;
+            } catch (Exception ignored) {
+                // NO-OP
+            }
+            return false;
+        }).map(Long::parseLong).collect(Collectors.toSet());
     }
 }

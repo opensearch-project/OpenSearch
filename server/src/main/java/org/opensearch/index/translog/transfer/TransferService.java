@@ -58,6 +58,14 @@ public interface TransferService {
     Set<String> listAll(Iterable<String> path) throws IOException;
 
     /**
+     * Lists the folders inside the path.
+     * @param path : the path
+     * @return list of folders inside the path
+     * @throws IOException the exception while listing folders inside the path
+     */
+    Set<String> listFolders(Iterable<String> path) throws IOException;
+
+    /**
      *
      * @param path  the remote path from where download should be made
      * @param fileName the name of the file

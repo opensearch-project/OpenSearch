@@ -109,4 +109,9 @@ public class BlobStoreTransferService implements TransferService {
     public Set<String> listAll(Iterable<String> path) throws IOException {
         return blobStore.blobContainer((BlobPath) path).listBlobs().keySet();
     }
+
+    @Override
+    public Set<String> listFolders(Iterable<String> path) throws IOException {
+        return blobStore.blobContainer((BlobPath) path).children().keySet();
+    }
 }
