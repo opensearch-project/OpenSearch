@@ -429,10 +429,8 @@ public class Node implements Closeable {
             );
 
             if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
-                logger.info("Sarat: Extensions enabled");
                 this.extensionsManager = new ExtensionsManager(tmpSettings, initialEnvironment.extensionDir());
             } else {
-                logger.info("Sarat: Extensions not initialized");
                 this.extensionsManager = new NoopExtensionsManager();
             }
 
