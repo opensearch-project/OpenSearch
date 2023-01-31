@@ -4,9 +4,6 @@
  * The OpenSearch Contributors require contributions made to
  * this file be licensed under the Apache-2.0 license or a
  * compatible open source license.
- *
- * Modifications Copyright OpenSearch Contributors. See
- * GitHub history for details.
  */
 
 /*
@@ -28,37 +25,27 @@
  * under the License.
  */
 
-import org.opensearch.gradle.info.BuildParams
+/*
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
 
-apply plugin: "opensearch.publish"
+package org.opensearch.common.util;
 
-dependencies {
-  api project(':libs:opensearch-common')
-  api project(':libs:opensearch-core')
+/**
+ * Similar to Lucene's SloppyMath, but for additional math functions.
+ *
+ * @opensearch.api
+ */
+public class OpenSearchSloppyMath {
 
-  testImplementation(project(":test:framework")) {
-    exclude group: 'org.opensearch', module: 'opensearch-ssl-config'
-  }
+    private OpenSearchSloppyMath() {}
 
-  testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
-  testImplementation "junit:junit:${versions.junit}"
-  testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
-}
+    public static double sinh(double value) {
+        return FastMath.sinh(value);
+    }
 
-
-tasks.named('forbiddenApisMain').configure {
-  replaceSignatureFiles 'jdk-signatures'
-}
-
-forbiddenPatterns {
-  exclude '**/*.key'
-  exclude '**/*.pem'
-  exclude '**/*.p12'
-  exclude '**/*.jks'
-}
-
-tasks.test {
-    if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
-        jvmArgs += ["--add-opens", "java.base/java.security.cert=ALL-UNNAMED"]
+    public static double atan(double value) {
+        return FastMath.atan(value);
     }
 }
