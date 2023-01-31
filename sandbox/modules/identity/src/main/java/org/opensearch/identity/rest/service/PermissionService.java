@@ -16,7 +16,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.identity.rest.response.AddPermissionResponse;
 import org.opensearch.identity.rest.response.CheckPermissionResponse;
-import org.opensearch.identity.rest.response.DeletePermissionReponse;
+import org.opensearch.identity.rest.response.DeletePermissionResponse;
 import org.opensearch.transport.TransportService;
 
 /**
@@ -41,7 +41,7 @@ public class PermissionService {
         // TODO: Implement this
     }
 
-    public void deletePermission(String username, String password, ActionListener<DeletePermissionReponse> listener) {
+    public void deletePermission(String username, String password, ActionListener<DeletePermissionResponse> listener) {
         // TODO: Implement this
     }
 
