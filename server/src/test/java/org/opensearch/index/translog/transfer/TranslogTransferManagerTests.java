@@ -12,7 +12,10 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Constants;
 import org.mockito.Mockito;
 import org.opensearch.action.ActionListener;
+import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.blobstore.BlobStore;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.translog.Translog;
@@ -27,6 +30,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -298,6 +302,54 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         // Since the tracker already holds the files with success state, adding them with success state is allowed
         tracker.add(translogFile, true);
         tracker.add(checkpointFile, true);
+    }
 
+    public void testDeleteTranslogSuccess() throws Exception {
+        FileTransferTracker tracker = new FileTransferTracker(new ShardId("index", "indexUuid", 0));
+        BlobStore blobStore = mock(BlobStore.class);
+        BlobContainer blobContainer = mock(BlobContainer.class);
+        when(blobStore.blobContainer(any(BlobPath.class))).thenReturn(blobContainer);
+        BlobStoreTransferService blobStoreTransferService = new BlobStoreTransferService(
+            blobStore,
+            OpenSearchExecutors.newDirectExecutorService()
+        );
+        TranslogTransferManager translogTransferManager = new TranslogTransferManager(
+            blobStoreTransferService,
+            remoteBaseTransferPath,
+            tracker
+        );
+        String translogFile = "translog-19.tlog", checkpointFile = "translog-19.ckp";
+        tracker.add(translogFile, true);
+        tracker.add(checkpointFile, true);
+        assertEquals(2, tracker.allUploaded().size());
+
+        List<String> files = List.of(checkpointFile, translogFile);
+        translogTransferManager.deleteTranslogAsync(primaryTerm, Set.of(19L));
+        assertBusy(() -> assertEquals(0, tracker.allUploaded().size()));
+        verify(blobContainer).deleteBlobsIgnoringIfNotExists(eq(files));
+    }
+
+    public void testDeleteTranslogFailure() throws Exception {
+        FileTransferTracker tracker = new FileTransferTracker(new ShardId("index", "indexUuid", 0));
+        BlobStore blobStore = mock(BlobStore.class);
+        BlobContainer blobContainer = mock(BlobContainer.class);
+        doAnswer(invocation -> { throw new IOException("test exception"); }).when(blobStore).blobContainer(any(BlobPath.class));
+        // when(blobStore.blobContainer(any(BlobPath.class))).thenReturn(blobContainer);
+        BlobStoreTransferService blobStoreTransferService = new BlobStoreTransferService(
+            blobStore,
+            OpenSearchExecutors.newDirectExecutorService()
+        );
+        TranslogTransferManager translogTransferManager = new TranslogTransferManager(
+            blobStoreTransferService,
+            remoteBaseTransferPath,
+            tracker
+        );
+        String translogFile = "translog-19.tlog", checkpointFile = "translog-19.ckp";
+        tracker.add(translogFile, true);
+        tracker.add(checkpointFile, true);
+        assertEquals(2, tracker.allUploaded().size());
+
+        translogTransferManager.deleteTranslogAsync(primaryTerm, Set.of(19L));
+        assertEquals(2, tracker.allUploaded().size());
     }
 }
