@@ -338,11 +338,11 @@ public class RemoteFsTranslog extends Translog {
         this.minSeqNoToKeep = seqNo;
     }
 
-    private void deleteRemoteGeneration(Set<Long> generationsToDelete) {
+    private void deleteRemoteGeneration(Set<Long> generations) {
         try {
-            translogTransferManager.deleteTranslogAsync(primaryTermSupplier.getAsLong(), generationsToDelete);
+            translogTransferManager.deleteTranslogAsync(primaryTermSupplier.getAsLong(), generations);
         } catch (IOException e) {
-            logger.error(() -> new ParameterizedMessage("Exception occurred while deleting generation {}", generationsToDelete), e);
+            logger.error(() -> new ParameterizedMessage("Exception occurred while deleting generation {}", generations), e);
         }
     }
 
