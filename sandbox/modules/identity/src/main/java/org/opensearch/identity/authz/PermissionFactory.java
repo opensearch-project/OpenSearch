@@ -57,6 +57,7 @@ public class PermissionFactory {
     public OpenSearchPermission createPermission(String permissionString) {
 
         OpenSearchPermission newPermission = new OpenSearchPermission(permissionString);
+
         permissionIsValidFormat(newPermission);
         return newPermission;
     }
