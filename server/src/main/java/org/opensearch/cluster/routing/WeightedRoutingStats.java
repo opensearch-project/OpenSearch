@@ -16,6 +16,7 @@ import org.opensearch.common.xcontent.ToXContentFragment;
 import org.opensearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -56,5 +57,18 @@ public class WeightedRoutingStats implements ToXContentFragment, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeInt(failOpenCount.get());
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        WeightedRoutingStats that = (WeightedRoutingStats) o;
+        return failOpenCount.equals(that.failOpenCount);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(failOpenCount);
     }
 }

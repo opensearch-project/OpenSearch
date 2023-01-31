@@ -435,6 +435,15 @@ public class NodeStatsTests extends OpenSearchTestCase {
                         deserializedClusterManagerThrottlingStats.getThrottlingCount("test-task")
                     );
                 }
+
+                WeightedRoutingStats weightedRoutingStats = nodeStats.getWeightedRoutingStats();
+                WeightedRoutingStats deserializedWeightedRoutingStats = deserializedNodeStats.getWeightedRoutingStats();
+                if (weightedRoutingStats == null) {
+                    assertNull(deserializedWeightedRoutingStats);
+                } else {
+                    assertEquals(weightedRoutingStats.getFailOpenCount(), deserializedWeightedRoutingStats.getFailOpenCount());
+
+                }
             }
         }
     }
