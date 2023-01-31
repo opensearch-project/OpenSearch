@@ -30,6 +30,7 @@ import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.identity.authmanager.internal.InternalAuthenticationManager;
+import org.opensearch.identity.authz.IndexNameExpressionResolverHolder;
 import org.opensearch.identity.configuration.ClusterInfoHolder;
 import org.opensearch.identity.configuration.ConfigurationRepository;
 import org.opensearch.identity.configuration.DynamicConfigFactory;
@@ -198,6 +199,7 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
         // Can the constructor be substituted by taking these from environment?
         this.configPath = environment.configDir();
         this.settings = environment.settings();
+        IndexNameExpressionResolverHolder.setIndexNameExpressionResolver(indexNameExpressionResolver);
 
         // TODO: revisit this
         final String authManagerClassName = this.settings.get(

@@ -48,7 +48,8 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
                 translogUUID,
                 TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER,
                 () -> {},
-                new InternalTranslogFactory()
+                new InternalTranslogFactory(),
+                () -> Boolean.TRUE
             );
             final int docs = randomIntBetween(1, 100);
             for (int i = 0; i < docs; i++) {
@@ -87,7 +88,8 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
                     }
                 },
                 () -> {},
-                new InternalTranslogFactory()
+                new InternalTranslogFactory(),
+                () -> Boolean.TRUE
             );
             AtomicInteger opsRecovered = new AtomicInteger();
             int opsRecoveredFromTranslog = translogManager.recoverFromTranslog((snapshot) -> {
@@ -125,7 +127,8 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
                 translogUUID,
                 TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER,
                 () -> {},
-                new InternalTranslogFactory()
+                new InternalTranslogFactory(),
+                () -> Boolean.TRUE
             );
             final int docs = randomIntBetween(1, 100);
             for (int i = 0; i < docs; i++) {
@@ -154,7 +157,8 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
                 translogUUID,
                 TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER,
                 () -> {},
-                new InternalTranslogFactory()
+                new InternalTranslogFactory(),
+                () -> Boolean.TRUE
             );
             AtomicInteger opsRecovered = new AtomicInteger();
             int opsRecoveredFromTranslog = translogManager.recoverFromTranslog((snapshot) -> {
@@ -188,7 +192,8 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
                 translogUUID,
                 TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER,
                 () -> {},
-                new InternalTranslogFactory()
+                new InternalTranslogFactory(),
+                () -> Boolean.TRUE
             );
             final int docs = randomIntBetween(1, 100);
             for (int i = 0; i < docs; i++) {
@@ -219,7 +224,8 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
                 translogUUID,
                 TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER,
                 () -> {},
-                new InternalTranslogFactory()
+                new InternalTranslogFactory(),
+                () -> Boolean.TRUE
             );
             AtomicInteger opsRecovered = new AtomicInteger();
             int opsRecoveredFromTranslog = translogManager.recoverFromTranslog((snapshot) -> {
@@ -267,7 +273,8 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
                     }
                 },
                 () -> {},
-                new InternalTranslogFactory()
+                new InternalTranslogFactory(),
+                () -> Boolean.TRUE
             );
             translogManagerAtomicReference.set(translogManager);
             Engine.Index index = indexForDoc(doc);

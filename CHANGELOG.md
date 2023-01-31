@@ -1,11 +1,4 @@
-
 # CHANGELOG
-## [Unreleased]
-### Dependencies
-- Bumps `azure-core-http-netty` from 1.12.7 to 1.12.8
-- Bumps `reactor-netty` from 1.1.1 to 1.1.2
-
-
 All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). See the [CONTRIBUTING guide](./CONTRIBUTING.md#Changelog) for instructions on how to add changelog entries.
@@ -29,5 +22,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - [Identity] Move implementations of AuthenticationManager into Identity Module and keep interfaces in authn lib ([#5857](https://github.com/opensearch-project/OpenSearch/pull/5857))
 - [Identity] Define permission structure and basic handling ([#5909](https://github.com/opensearch-project/OpenSearch/pull/5909))
 - [Identity] Connect Identity Index to InternalRealm ([#5975](https://github.com/opensearch-project/OpenSearch/pull/5975))
+- [Identity] Basic permissions check ([#6029](https://github.com/opensearch-project/OpenSearch/pull/6029))
 - [Identity] Add Permission REST APIs for add, check, and delete ([#6117](https://github.com/opensearch-project/OpenSearch/pull/6117))
 

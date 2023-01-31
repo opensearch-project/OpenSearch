@@ -24,8 +24,8 @@ dependencies {
   implementation "org.slf4j:slf4j-api:${versions.slf4j}"
 
   implementation 'commons-beanutils:commons-beanutils:1.9.4'
-  implementation 'commons-logging:commons-logging:1.2'
   implementation 'commons-lang:commons-lang:2.6'
+  implementation 'commons-logging:commons-logging:1.2'
 
   implementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
   implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.jackson}"

@@ -36,4 +36,9 @@ public class SecurityPluginSubject implements Subject {
         // Security Plugin authentication is performed on the REST-layer using getRestHandlerWrapper extension point
         return;
     }
+
+    @Override
+    public boolean isPermitted(String permission) {
+        return false;
+    }
 }
