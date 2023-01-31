@@ -12,7 +12,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Replace latches with CompletableFutures for extensions ([#5646](https://github.com/opensearch-project/OpenSearch/pull/5646))
 - Add support to disallow search request with preference parameter with strict weighted shard routing([#5874](https://github.com/opensearch-project/OpenSearch/pull/5874))
 - Added support to apply index create block ([#4603](https://github.com/opensearch-project/OpenSearch/issues/4603))
-- Changing ExtensionActionRequest streaminput constructor to be public ([#6101](https://github.com/opensearch-project/OpenSearch/pull/6101))
 
 ### Dependencies
 - Update nebula-publishing-plugin to 19.2.0 ([#5704](https://github.com/opensearch-project/OpenSearch/pull/5704))
