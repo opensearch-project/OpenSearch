@@ -321,7 +321,6 @@ public class ExtensionsManager {
             logger.info("Duplicate uniqueId " + extension.getUniqueId() + ". Did not load extension: " + extension);
         } else {
             try {
-                logger.info(extension);
                 DiscoveryExtensionNode discoveryExtensionNode = new DiscoveryExtensionNode(
                     extension.getName(),
                     extension.getUniqueId(),
