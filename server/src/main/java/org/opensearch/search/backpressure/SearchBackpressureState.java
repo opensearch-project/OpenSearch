@@ -19,8 +19,9 @@ import java.util.function.LongSupplier;
  *
  * @opensearch.internal
  */
-public class SearchBackpressureState {
-    private final AtomicReference<TokenBucket> rateLimiter, ratioLimiter;
+public class SearchBackpressureState implements CancellationListener {
+    private final AtomicReference<TokenBucket> rateLimiter;
+    private final AtomicReference<TokenBucket> ratioLimiter;
     private final LongSupplier timeNanosSupplier;
     /**
      * The number of successful task completions.
@@ -34,7 +35,9 @@ public class SearchBackpressureState {
      * The number of times task cancellation limit was reached.
      */
     private final AtomicLong limitReachedCount = new AtomicLong();
-    private double cancellationBurst, cancellationRate, cancellationRatio;
+    private double cancellationBurst;
+    private double cancellationRate;
+    private double cancellationRatio;
 
     SearchBackpressureState(
         LongSupplier timeNanosSupplier,
@@ -80,19 +83,22 @@ public class SearchBackpressureState {
         return ratioLimiter;
     }
 
-    void onCancellationBurstChanged(double cancellationBurst) {
-        this.cancellationBurst = cancellationBurst;
-        onCancellationRateChanged(cancellationRate);
-        onCancellationRatioChanged(cancellationRatio);
+    @Override
+    public void onRatioChanged(double ratio) {
+        this.cancellationRatio = ratio;
+        ratioLimiter.set(new TokenBucket(this::getCompletionCount, cancellationRatio, cancellationBurst));
     }
 
-    void onCancellationRateChanged(double cancellationRate) {
-        this.cancellationRate = cancellationRate;
+    @Override
+    public void onRateChanged(double rate) {
+        this.cancellationRate = rate;
         rateLimiter.set(new TokenBucket(timeNanosSupplier, cancellationRate, cancellationBurst));
     }
 
-    void onCancellationRatioChanged(double cancellationRatio) {
-        this.cancellationRatio = cancellationRatio;
-        ratioLimiter.set(new TokenBucket(this::getCompletionCount, cancellationRatio, cancellationBurst));
+    @Override
+    public void onBurstChanged(double burst) {
+        this.cancellationBurst = burst;
+        onRateChanged(cancellationRate);
+        onRatioChanged(cancellationRatio);
     }
 }

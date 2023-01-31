@@ -12,6 +12,7 @@ import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.search.backpressure.CancellationListener;
 import org.opensearch.search.backpressure.trackers.CpuUsageTracker;
 import org.opensearch.search.backpressure.trackers.ElapsedTimeTracker;
 import org.opensearch.search.backpressure.trackers.HeapUsageTracker;
@@ -31,7 +32,7 @@ import static org.opensearch.search.backpressure.trackers.HeapUsageTracker.HEAP_
  * @opensearch.internal
  */
 public class SearchShardTaskSettings {
-    private final List<Listener> listeners = new ArrayList<>();
+    private final List<CancellationListener> listeners = new ArrayList<>();
     private final ClusterSettings clusterSettings;
 
     private static class Defaults {
@@ -184,17 +185,6 @@ public class SearchShardTaskSettings {
         clusterSettings.addSettingsUpdateConsumer(SETTING_CANCELLATION_BURST, this::setCancellationBurst);
     }
 
-    /**
-     * Callback listeners.
-     */
-    public interface Listener {
-        void onCancellationRatioSearchShardTaskChanged();
-
-        void onCancellationRateSearchShardTaskChanged();
-
-        void onCancellationBurstSearchShardTaskChanged();
-    }
-
     public double getTotalHeapPercentThreshold() {
         return totalHeapPercentThreshold;
     }
@@ -253,7 +243,7 @@ public class SearchShardTaskSettings {
 
     private void setCancellationRatio(double cancellationRatio) {
         this.cancellationRatio = cancellationRatio;
-        notifyListeners(Listener::onCancellationRatioSearchShardTaskChanged);
+        notifyListeners(listener -> listener.onRatioChanged(cancellationRatio));
     }
 
     public double getCancellationRate() {
@@ -266,7 +256,7 @@ public class SearchShardTaskSettings {
 
     private void setCancellationRate(double cancellationRate) {
         this.cancellationRate = cancellationRate;
-        notifyListeners(Listener::onCancellationRateSearchShardTaskChanged);
+        notifyListeners(listener -> listener.onRateChanged(cancellationRate));
     }
 
     public double getCancellationBurst() {
@@ -275,7 +265,7 @@ public class SearchShardTaskSettings {
 
     private void setCancellationBurst(double cancellationBurst) {
         this.cancellationBurst = cancellationBurst;
-        notifyListeners(Listener::onCancellationBurstSearchShardTaskChanged);
+        notifyListeners(listener -> listener.onBurstChanged(cancellationBurst));
     }
 
     public List<TaskResourceUsageTracker> getTrackers() {
@@ -296,14 +286,14 @@ public class SearchShardTaskSettings {
         return Collections.unmodifiableList(trackers);
     }
 
-    public void addListener(Listener listener) {
+    public void addListener(CancellationListener listener) {
         listeners.add(listener);
     }
 
-    private void notifyListeners(Consumer<Listener> consumer) {
+    private void notifyListeners(Consumer<CancellationListener> consumer) {
         List<Exception> exceptions = new ArrayList<>();
 
-        for (Listener listener : listeners) {
+        for (CancellationListener listener : listeners) {
             try {
                 consumer.accept(listener);
             } catch (Exception e) {

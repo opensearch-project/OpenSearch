@@ -18,8 +18,6 @@ import org.opensearch.monitor.jvm.JvmStats;
 import org.opensearch.monitor.process.ProcessProbe;
 import org.opensearch.search.backpressure.settings.SearchBackpressureMode;
 import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
-import org.opensearch.search.backpressure.settings.SearchShardTaskSettings;
-import org.opensearch.search.backpressure.settings.SearchTaskSettings;
 import org.opensearch.search.backpressure.stats.SearchBackpressureStats;
 import org.opensearch.search.backpressure.stats.SearchShardTaskStats;
 import org.opensearch.search.backpressure.stats.SearchTaskStats;
@@ -51,11 +49,7 @@ import java.util.stream.Collectors;
  *
  * @opensearch.internal
  */
-public class SearchBackpressureService extends AbstractLifecycleComponent
-    implements
-        TaskCompletionListener,
-        SearchTaskSettings.Listener,
-        SearchShardTaskSettings.Listener {
+public class SearchBackpressureService extends AbstractLifecycleComponent implements TaskCompletionListener {
     private static final Logger logger = LogManager.getLogger(SearchBackpressureService.class);
 
     private volatile Scheduler.Cancellable scheduledFuture;
@@ -107,8 +101,6 @@ public class SearchBackpressureService extends AbstractLifecycleComponent
         TaskManager taskManager
     ) {
         this.settings = settings;
-        this.settings.getSearchTaskSettings().addListener(this);
-        this.settings.getSearchShardTaskSettings().addListener(this);
         this.taskResourceTrackingService = taskResourceTrackingService;
         this.taskResourceTrackingService.addTaskCompletionListener(this);
         this.threadPool = threadPool;
@@ -132,6 +124,8 @@ public class SearchBackpressureService extends AbstractLifecycleComponent
                 getSettings().getSearchShardTaskSettings().getCancellationRatio()
             )
         );
+        this.settings.getSearchTaskSettings().addListener(searchBackpressureStates.get(SearchTask.class));
+        this.settings.getSearchShardTaskSettings().addListener(searchBackpressureStates.get(SearchShardTask.class));
 
         this.taskTrackers = Map.of(SearchTask.class, searchTaskTrackers, SearchShardTask.class, searchShardTaskTrackers);
     }
@@ -321,42 +315,6 @@ public class SearchBackpressureService extends AbstractLifecycleComponent
         }
 
         ExceptionsHelper.maybeThrowRuntimeAndSuppress(exceptions);
-    }
-
-    @Override
-    public void onCancellationRatioSearchTaskChanged() {
-        searchBackpressureStates.get(SearchTask.class)
-            .onCancellationRatioChanged(getSettings().getSearchTaskSettings().getCancellationRatio());
-    }
-
-    @Override
-    public void onCancellationRateSearchTaskChanged() {
-        searchBackpressureStates.get(SearchTask.class)
-            .onCancellationRateChanged(getSettings().getSearchTaskSettings().getCancellationRate());
-    }
-
-    @Override
-    public void onCancellationBurstSearchTaskChanged() {
-        searchBackpressureStates.get(SearchTask.class)
-            .onCancellationBurstChanged(getSettings().getSearchTaskSettings().getCancellationBurst());
-    }
-
-    @Override
-    public void onCancellationRatioSearchShardTaskChanged() {
-        searchBackpressureStates.get(SearchShardTask.class)
-            .onCancellationRatioChanged(getSettings().getSearchShardTaskSettings().getCancellationRatio());
-    }
-
-    @Override
-    public void onCancellationRateSearchShardTaskChanged() {
-        searchBackpressureStates.get(SearchShardTask.class)
-            .onCancellationRateChanged(getSettings().getSearchShardTaskSettings().getCancellationRate());
-    }
-
-    @Override
-    public void onCancellationBurstSearchShardTaskChanged() {
-        searchBackpressureStates.get(SearchShardTask.class)
-            .onCancellationBurstChanged(getSettings().getSearchShardTaskSettings().getCancellationBurst());
     }
 
     @Override
