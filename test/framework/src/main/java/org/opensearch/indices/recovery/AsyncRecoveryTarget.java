@@ -46,7 +46,7 @@ import org.opensearch.indices.replication.SegmentReplicationTarget;
 
 import java.util.List;
 import java.util.concurrent.Executor;
-import java.util.function.BiFunction;
+import java.util.function.Function;
 
 /**
  * Wraps a {@link RecoveryTarget} to make all remote calls to be executed asynchronously using the provided {@code executor}.
@@ -59,14 +59,14 @@ public class AsyncRecoveryTarget implements RecoveryTargetHandler {
 
     private final IndexShard replica;
 
-    private final BiFunction<List<IndexShard>, ActionListener<Void>, List<SegmentReplicationTarget>> replicatePrimaryFunction;
+    private final Function<List<IndexShard>, List<SegmentReplicationTarget>> replicatePrimaryFunction;
 
     public AsyncRecoveryTarget(RecoveryTargetHandler target, Executor executor) {
         this.executor = executor;
         this.target = target;
         this.primary = null;
         this.replica = null;
-        this.replicatePrimaryFunction = (a, b) -> null;
+        this.replicatePrimaryFunction = (a) -> null;
     }
 
     public AsyncRecoveryTarget(
@@ -74,7 +74,7 @@ public class AsyncRecoveryTarget implements RecoveryTargetHandler {
         Executor executor,
         IndexShard primary,
         IndexShard replica,
-        BiFunction<List<IndexShard>, ActionListener<Void>, List<SegmentReplicationTarget>> replicatePrimaryFunction
+        Function<List<IndexShard>, List<SegmentReplicationTarget>> replicatePrimaryFunction
     ) {
         this.executor = executor;
         this.target = target;
@@ -89,8 +89,8 @@ public class AsyncRecoveryTarget implements RecoveryTargetHandler {
     }
 
     @Override
-    public void forceSegmentFileSync(ActionListener<Void> listener) {
-        executor.execute(() -> this.replicatePrimaryFunction.apply(List.of(primary, replica), listener));
+    public void forceSegmentFileSync() {
+        this.replicatePrimaryFunction.apply(List.of(primary, replica));
     }
 
     @Override

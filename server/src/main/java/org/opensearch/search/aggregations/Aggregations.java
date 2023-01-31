@@ -31,8 +31,8 @@
 
 package org.opensearch.search.aggregations;
 
-import org.apache.lucene.util.SetOnce;
 import org.opensearch.common.ParsingException;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.xcontent.ToXContentFragment;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;

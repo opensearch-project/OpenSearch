@@ -45,6 +45,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.ingest.IngestService;
@@ -59,11 +60,13 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
+import static org.opensearch.common.util.FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING;
+import static org.opensearch.index.store.remote.directory.RemoteSnapshotDirectory.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION;
 
 /**
  * This class encapsulates all index level settings and handles settings updates.
@@ -583,8 +586,12 @@ public final class IndexSettings {
     private final ReplicationType replicationType;
     private final boolean isRemoteStoreEnabled;
     private final boolean isRemoteTranslogStoreEnabled;
+    private final TimeValue remoteTranslogUploadBufferInterval;
     private final String remoteStoreTranslogRepository;
     private final String remoteStoreRepository;
+    private final boolean isRemoteSnapshot;
+    private Version extendedCompatibilitySnapshotVersion;
+
     // volatile fields are updated via #updateIndexMetadata(IndexMetadata) under lock
     private volatile Settings settings;
     private volatile IndexMetadata indexMetadata;
@@ -747,7 +754,19 @@ public final class IndexSettings {
         isRemoteStoreEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false);
         isRemoteTranslogStoreEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, false);
         remoteStoreTranslogRepository = settings.get(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY);
+        remoteTranslogUploadBufferInterval = settings.getAsTime(
+            IndexMetadata.SETTING_REMOTE_TRANSLOG_BUFFER_INTERVAL,
+            TimeValue.timeValueMillis(100)
+        );
         remoteStoreRepository = settings.get(IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY);
+        isRemoteSnapshot = IndexModule.Type.REMOTE_SNAPSHOT.match(this.settings);
+
+        if (isRemoteSnapshot && FeatureFlags.isEnabled(SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY)) {
+            extendedCompatibilitySnapshotVersion = SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION;
+        } else {
+            extendedCompatibilitySnapshotVersion = Version.CURRENT.minimumIndexCompatibilityVersion();
+        }
+
         this.searchThrottled = INDEX_SEARCH_THROTTLED.get(settings);
         this.queryStringLenient = QUERY_STRING_LENIENT_SETTING.get(settings);
         this.queryStringAnalyzeWildcard = QUERY_STRING_ANALYZE_WILDCARD.get(nodeSettings);
@@ -1018,6 +1037,23 @@ public final class IndexSettings {
     }
 
     /**
+     * Returns true if this is remote/searchable snapshot
+     */
+    public boolean isRemoteSnapshot() {
+        return isRemoteSnapshot;
+    }
+
+    /**
+     * If this is a remote snapshot and the extended compatibility
+     * feature flag is enabled, this returns the minimum {@link Version}
+     * supported. In all other cases, the return value is the
+     * {@link Version#minimumIndexCompatibilityVersion()} of {@link Version#CURRENT}.
+     */
+    public Version getExtendedCompatibilitySnapshotVersion() {
+        return extendedCompatibilitySnapshotVersion;
+    }
+
+    /**
      * Returns the node settings. The settings returned from {@link #getSettings()} are a merged version of the
      * index settings and the node settings where node settings are overwritten by index settings.
      */
@@ -1102,6 +1138,15 @@ public final class IndexSettings {
 
     public void setTranslogSyncInterval(TimeValue translogSyncInterval) {
         this.syncInterval = translogSyncInterval;
+    }
+
+    /**
+     * Returns the translog sync/upload buffer interval when remote translog store is enabled and index setting
+     * {@code index.translog.durability} is set as {@code request}.
+     * @return the buffer interval.
+     */
+    public TimeValue getRemoteTranslogUploadBufferInterval() {
+        return remoteTranslogUploadBufferInterval;
     }
 
     /**

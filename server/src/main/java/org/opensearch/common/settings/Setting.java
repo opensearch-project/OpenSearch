@@ -594,7 +594,7 @@ public class Setting<T> implements ToXContentObject {
 
     @Override
     public String toString() {
-        return Strings.toString(this, true, true);
+        return Strings.toString(XContentType.JSON, this, true, true);
     }
 
     /**
@@ -2171,6 +2171,23 @@ public class Setting<T> implements ToXContentObject {
 
     public static Setting<TimeValue> timeSetting(String key, Setting<TimeValue> fallbackSetting, Property... properties) {
         return new Setting<>(key, fallbackSetting, (s) -> TimeValue.parseTimeValue(s, key), properties);
+    }
+
+    public static Setting<TimeValue> timeSetting(
+        String key,
+        TimeValue defaultValue,
+        TimeValue minValue,
+        Validator<TimeValue> validator,
+        Property... properties
+    ) {
+        final SimpleKey simpleKey = new SimpleKey(key);
+        return new Setting<>(
+            simpleKey,
+            s -> defaultValue.getStringRep(),
+            minTimeValueParser(key, minValue, isFiltered(properties)),
+            validator,
+            properties
+        );
     }
 
     public static Setting<TimeValue> timeSetting(

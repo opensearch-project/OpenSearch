@@ -138,7 +138,7 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
      */
     public void testToString() throws IOException {
         AB testAgg = createTestAggregatorBuilder();
-        String toString = randomBoolean() ? Strings.toString(testAgg) : testAgg.toString();
+        String toString = randomBoolean() ? Strings.toString(XContentType.JSON, testAgg) : testAgg.toString();
         XContentParser parser = createParser(XContentType.JSON.xContent(), toString);
         AggregationBuilder newAgg = parse(parser);
         assertNotSame(newAgg, testAgg);

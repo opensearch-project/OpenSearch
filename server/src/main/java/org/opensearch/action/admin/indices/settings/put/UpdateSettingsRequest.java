@@ -221,7 +221,7 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
 
     @Override
     public String toString() {
-        return "indices : " + Arrays.toString(indices) + "," + Strings.toString(this);
+        return "indices : " + Arrays.toString(indices) + "," + Strings.toString(XContentType.JSON, this);
     }
 
     @Override

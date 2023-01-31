@@ -113,7 +113,7 @@ public class PutMappingRequestTests extends OpenSearchTestCase {
         mapping.endObject();
         request.source(mapping);
 
-        String actualRequestBody = Strings.toString(request);
+        String actualRequestBody = Strings.toString(XContentType.JSON, request);
         String expectedRequestBody = "{\"properties\":{\"email\":{\"type\":\"text\"}}}";
         assertEquals(expectedRequestBody, actualRequestBody);
     }
@@ -121,7 +121,7 @@ public class PutMappingRequestTests extends OpenSearchTestCase {
     public void testToXContentWithEmptySource() throws IOException {
         PutMappingRequest request = new PutMappingRequest("foo");
 
-        String actualRequestBody = Strings.toString(request);
+        String actualRequestBody = Strings.toString(XContentType.JSON, request);
         String expectedRequestBody = "{}";
         assertEquals(expectedRequestBody, actualRequestBody);
     }

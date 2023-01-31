@@ -37,6 +37,7 @@ import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.opensearch.Assertions;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.admin.indices.rollover.RolloverInfo;
 import org.opensearch.action.support.ActiveShardCount;
@@ -58,6 +59,7 @@ import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.ToXContentFragment;
 import org.opensearch.common.xcontent.XContentBuilder;
@@ -300,6 +302,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public static final String SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY = "index.remote_store.translog.repository";
 
+    public static final String SETTING_REMOTE_TRANSLOG_BUFFER_INTERVAL = "index.remote_store.translog.buffer_interval";
+
     /**
      * Used to specify if the index data should be persisted in the remote store.
      */
@@ -429,6 +433,45 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                                 + INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey()
                                 + " can only be set/enabled when "
                                 + INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING.getKey()
+                                + " is set to true"
+                        );
+                    }
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                final List<Setting<?>> settings = Collections.singletonList(INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING);
+                return settings.iterator();
+            }
+        },
+        Property.IndexScope,
+        Property.Final
+    );
+
+    public static final Setting<TimeValue> INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING = Setting.timeSetting(
+        SETTING_REMOTE_TRANSLOG_BUFFER_INTERVAL,
+        TimeValue.timeValueMillis(100),
+        TimeValue.timeValueMillis(50),
+        new Setting.Validator<>() {
+
+            @Override
+            public void validate(final TimeValue value) {}
+
+            @Override
+            public void validate(final TimeValue value, final Map<Setting<?>, Object> settings) {
+                if (value == null) {
+                    throw new IllegalArgumentException(
+                        "Setting " + SETTING_REMOTE_TRANSLOG_BUFFER_INTERVAL + " should be provided with a valid time value"
+                    );
+                } else {
+                    final Boolean isRemoteTranslogStoreEnabled = (Boolean) settings.get(INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING);
+                    if (isRemoteTranslogStoreEnabled == null || isRemoteTranslogStoreEnabled == false) {
+                        throw new IllegalArgumentException(
+                            "Setting "
+                                + SETTING_REMOTE_TRANSLOG_BUFFER_INTERVAL
+                                + " can only be set when "
+                                + SETTING_REMOTE_TRANSLOG_STORE_ENABLED
                                 + " is set to true"
                         );
                     }
@@ -1840,13 +1883,17 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     throw new IllegalArgumentException("Unexpected token " + token);
                 }
             }
-            if (Assertions.ENABLED) {
+
+            final Version indexCreatedVersion = Version.indexCreated(builder.settings);
+            // Reference:
+            // https://github.com/opensearch-project/OpenSearch/blob/4dde0f2a3b445b2fc61dab29c5a2178967f4a3e3/server/src/main/java/org/opensearch/cluster/metadata/IndexMetadata.java#L1620-L1628
+            if (Assertions.ENABLED && indexCreatedVersion.onOrAfter(LegacyESVersion.V_6_5_0)) {
                 assert mappingVersion : "mapping version should be present for indices";
-            }
-            if (Assertions.ENABLED) {
                 assert settingsVersion : "settings version should be present for indices";
             }
-            if (Assertions.ENABLED) {
+            // Reference:
+            // https://github.com/opensearch-project/OpenSearch/blob/2e4b27b243d8bd2c515f66cf86c6d1d6a601307f/server/src/main/java/org/opensearch/cluster/metadata/IndexMetadata.java#L1824
+            if (Assertions.ENABLED && indexCreatedVersion.onOrAfter(LegacyESVersion.V_7_2_0)) {
                 assert aliasesVersion : "aliases version should be present for indices";
             }
             return builder.build();
