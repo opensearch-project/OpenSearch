@@ -321,13 +321,10 @@ public class ExtensionsManager {
             logger.info("Duplicate uniqueId " + extension.getUniqueId() + ". Did not load extension: " + extension);
         } else {
             try {
+                logger.info(extension);
                 DiscoveryExtensionNode discoveryExtensionNode = new DiscoveryExtensionNode(
                     extension.getName(),
                     extension.getUniqueId(),
-                    // placeholder for ephemeral id, will change with POC discovery
-                    extension.getUniqueId(),
-                    extension.getHostAddress(),
-                    extension.getHostAddress(),
                     new TransportAddress(InetAddress.getByName(extension.getHostAddress()), Integer.parseInt(extension.getPort())),
                     new HashMap<String, String>(),
                     Version.fromString(extension.getOpensearchVersion()),

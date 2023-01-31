@@ -38,16 +38,13 @@ public class DiscoveryExtensionNode extends DiscoveryNode implements Writeable, 
     public DiscoveryExtensionNode(
         String name,
         String id,
-        String ephemeralId,
-        String hostName,
-        String hostAddress,
         TransportAddress address,
         Map<String, String> attributes,
         Version version,
         Version minimumCompatibleVersion,
         List<ExtensionDependency> dependencies
     ) {
-        super(name, id, ephemeralId, hostName, hostAddress, address, attributes, DiscoveryNodeRole.BUILT_IN_ROLES, version);
+        super(name, id, address, attributes, DiscoveryNodeRole.BUILT_IN_ROLES, version);
         this.minimumCompatibleVersion = minimumCompatibleVersion;
         this.dependencies = dependencies;
         validate();

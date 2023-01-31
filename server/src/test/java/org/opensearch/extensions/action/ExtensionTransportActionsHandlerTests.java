@@ -83,9 +83,6 @@ public class ExtensionTransportActionsHandlerTests extends OpenSearchTestCase {
         discoveryExtensionNode = new DiscoveryExtensionNode(
             "firstExtension",
             "uniqueid1",
-            "uniqueid1",
-            "myIndependentPluginHost1",
-            "127.0.0.0",
             new TransportAddress(InetAddress.getByName("127.0.0.0"), 9300),
             new HashMap<String, String>(),
             Version.fromString("3.0.0"),
