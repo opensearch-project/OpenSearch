@@ -10,15 +10,17 @@ package org.opensearch.identity;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.action.ActionRequest;
+import org.opensearch.action.ActionResponse;
 import org.opensearch.action.support.ActionFilter;
 import org.opensearch.authn.AuthenticationManager;
 import org.opensearch.authn.Identity;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.common.settings.Setting;
-import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.*;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
@@ -27,6 +29,7 @@ import org.opensearch.identity.authmanager.internal.InternalAuthenticationManage
 import org.opensearch.identity.configuration.ClusterInfoHolder;
 import org.opensearch.identity.configuration.ConfigurationRepository;
 import org.opensearch.identity.configuration.DynamicConfigFactory;
+import org.opensearch.identity.rest.action.*;
 import org.opensearch.indices.SystemIndexDescriptor;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.ClusterPlugin;
@@ -35,6 +38,7 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SystemIndexPlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.rest.RestHandler;
+import org.opensearch.rest.RestController;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.watcher.ResourceWatcherService;
@@ -42,11 +46,7 @@ import org.opensearch.watcher.ResourceWatcherService;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
@@ -89,6 +89,29 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
 
     private static boolean isEnabled(final Settings settings) {
         return settings.getAsBoolean(ConfigConstants.IDENTITY_ENABLED, false);
+    }
+
+
+    @Override
+    public List<RestHandler> getRestHandlers(
+        Settings settings,
+        RestController restController,
+        ClusterSettings clusterSettings,
+        IndexScopedSettings indexScopedSettings,
+        SettingsFilter settingsFilter,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<DiscoveryNodes> nodesInCluster
+    ) {
+        final List<RestHandler> handlers = new ArrayList<>(1);
+        handlers.add(new RestAddPermissionAction());
+        // Add more handlers for future actions
+        return handlers;
+    }
+
+    // register actions in this plugin
+    @Override
+    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+        return Arrays.asList(new ActionHandler<>(AddPermissionAction.INSTANCE, TransportAddPermissionAction.class));
     }
 
     @Override
