@@ -149,11 +149,11 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
      * Metadata of a segment that is uploaded to remote segment store.
      */
     public static class UploadedSegmentMetadata {
-        private static final int CURRENT_VERSION = 1;
-        private static final String METADATA_CODEC = "segment_md";
-
         // Visible for testing
+        static final int CURRENT_VERSION = 1;
+        static final String METADATA_CODEC = "segment_md";
         static final String SEPARATOR = "::";
+
         private final String originalFilename;
         private final String uploadedFilename;
         private final String checksum;
