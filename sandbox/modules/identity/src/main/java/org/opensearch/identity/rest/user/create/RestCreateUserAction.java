@@ -6,11 +6,10 @@
  * compatible open source license.
  */
 
-package org.opensearch.identity.rest.action;
+package org.opensearch.identity.rest.user.create;
 
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.identity.ConfigConstants;
-import org.opensearch.identity.rest.request.CreateUserRequest;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestRequest;

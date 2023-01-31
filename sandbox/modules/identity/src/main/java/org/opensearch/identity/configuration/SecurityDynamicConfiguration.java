@@ -203,4 +203,9 @@ public class SecurityDynamicConfiguration<T> implements ToXContent {
             throw ExceptionsHelper.convertToOpenSearchException(e);
         }
     }
+
+    @JsonIgnore
+    public void remove(String key) {
+        centries.remove(key);
+    }
 }

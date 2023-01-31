@@ -6,16 +6,15 @@
  * compatible open source license.
  */
 
-package org.opensearch.identity.rest.action;
+package org.opensearch.identity.rest.user.create;
 
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.identity.rest.request.CreateUserRequest;
-import org.opensearch.identity.rest.response.CreateUserResponse;
-import org.opensearch.identity.rest.service.UserService;
+import org.opensearch.identity.configuration.ConfigurationRepository;
+import org.opensearch.identity.rest.user.UserService;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
 

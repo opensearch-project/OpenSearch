@@ -48,7 +48,7 @@ public class User {
     private StringPrincipal username;
 
     @JsonProperty(value = "hash")
-    private String bcryptHash;
+    private String hash;
 
     @JsonProperty(value = "attributes")
     private Map<String, String> attributes = Collections.emptyMap();
@@ -67,13 +67,13 @@ public class User {
     }
 
     @JsonProperty(value = "hash")
-    public String getBcryptHash() {
-        return bcryptHash;
+    public String getHash() {
+        return hash;
     }
 
     @JsonProperty(value = "hash")
-    public void setBcryptHash(String bcryptHash) {
-        this.bcryptHash = bcryptHash;
+    public void setHash(String hash) {
+        this.hash = hash;
     }
 
     @JsonProperty(value = "permissions")
@@ -98,6 +98,6 @@ public class User {
 
     @Override
     public String toString() {
-        return "User [username=" + username + ", bcryptHash=" + bcryptHash + ", attributes=" + attributes + "]";
+        return "User [username=" + username + ", bcryptHash=" + hash + ", attributes=" + attributes + "]";
     }
 }

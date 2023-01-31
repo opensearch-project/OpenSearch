@@ -6,10 +6,9 @@
  * compatible open source license.
  */
 
-package org.opensearch.identity.rest.action;
+package org.opensearch.identity.rest.user.create;
 
 import org.opensearch.action.ActionType;
-import org.opensearch.identity.rest.response.CreateUserResponse;
 
 /**
  * Action type for creating a user

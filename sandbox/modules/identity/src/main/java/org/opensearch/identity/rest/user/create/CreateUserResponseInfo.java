@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.identity.rest.response;
+package org.opensearch.identity.rest.user.create;
 
 import org.opensearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
