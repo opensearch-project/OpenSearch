@@ -130,7 +130,7 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        primaryTerm.set(randomLongBetween(1, Integer.MAX_VALUE));
+        primaryTerm.set(randomLongBetween(1, 8));
         // if a previous test failed we clean up things here
         translogDir = createTempDir();
         translog = create(translogDir);
@@ -465,7 +465,7 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
         }
     }
 
-    public void testSimpleOperationsUpload() throws IOException {
+    public void testSimpleOperationsUpload() throws Exception {
         ArrayList<Translog.Operation> ops = new ArrayList<>();
         try (Translog.Snapshot snapshot = translog.newSnapshot()) {
             assertThat(snapshot, SnapshotMatchers.size(0));
@@ -532,16 +532,18 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
         // This should not trim anything from local
         translog.trimUnreferencedReaders();
         assertEquals(2, translog.readers.size());
-        assertEquals(4, translog.allUploaded().size());
-        assertEquals(
-            4,
-            blobStoreTransferService.listAll(
-                repository.basePath()
-                    .add(shardId.getIndex().getUUID())
-                    .add(String.valueOf(shardId.id()))
-                    .add(String.valueOf(primaryTerm.get()))
-            ).size()
-        );
+        assertBusy(() -> {
+            assertEquals(4, translog.allUploaded().size());
+            assertEquals(
+                4,
+                blobStoreTransferService.listAll(
+                    repository.basePath()
+                        .add(shardId.getIndex().getUUID())
+                        .add(String.valueOf(shardId.id()))
+                        .add(String.valueOf(primaryTerm.get()))
+                ).size()
+            );
+        });
 
         // This should trim tlog-2 from local
         // This should not trim tlog-2.* files from remote as we not uploading any more translog to remote
@@ -549,16 +551,18 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
         translog.deletionPolicy.setLocalCheckpointOfSafeCommit(1);
         translog.trimUnreferencedReaders();
         assertEquals(1, translog.readers.size());
-        assertEquals(4, translog.allUploaded().size());
-        assertEquals(
-            4,
-            blobStoreTransferService.listAll(
-                repository.basePath()
-                    .add(shardId.getIndex().getUUID())
-                    .add(String.valueOf(shardId.id()))
-                    .add(String.valueOf(primaryTerm.get()))
-            ).size()
-        );
+        assertBusy(() -> {
+            assertEquals(4, translog.allUploaded().size());
+            assertEquals(
+                4,
+                blobStoreTransferService.listAll(
+                    repository.basePath()
+                        .add(shardId.getIndex().getUUID())
+                        .add(String.valueOf(shardId.id()))
+                        .add(String.valueOf(primaryTerm.get()))
+                ).size()
+            );
+        });
 
         // this should now trim as tlog-2 files from remote, but not tlog-3 and tlog-4
         addToTranslogAndListAndUpload(translog, ops, new Translog.Index("2", 2, primaryTerm.get(), new byte[] { 1 }));
@@ -566,7 +570,7 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
         translog.setMinSeqNoToKeep(2);
         translog.trimUnreferencedReaders();
         assertEquals(1, translog.readers.size());
-        assertEquals(4, translog.allUploaded().size());
+        assertBusy(() -> assertEquals(4, translog.allUploaded().size()));
     }
 
     private Long populateTranslogOps(boolean withMissingOps) throws IOException {

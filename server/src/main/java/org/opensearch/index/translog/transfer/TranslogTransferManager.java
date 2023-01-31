@@ -195,16 +195,6 @@ public class TranslogTransferManager {
         );
     }
 
-    public void deleteTranslogAsync(long primaryTerm, long generation) throws IOException {
-        String ckpFileName = Translog.getCommitCheckpointFileName(generation);
-        String translogFilename = Translog.getFilename(generation);
-        // ToDo - Take care of metadata file cleanup
-        // https://github.com/opensearch-project/OpenSearch/issues/5677
-        List<String> files = List.of(ckpFileName, translogFilename);
-        fileTransferTracker.delete(files);
-        transferService.deleteBlobs(remoteBaseTransferPath.add(String.valueOf(primaryTerm)), files);
-    }
-
     /**
      * This method handles deletion of multiple generations for a single primary term.
      *  TODO: Take care of metadata file cleanup. <a href="https://github.com/opensearch-project/OpenSearch/issues/5677">Github Issue #5677</a>
@@ -230,12 +220,25 @@ public class TranslogTransferManager {
 
             @Override
             public void onFailure(Exception e) {
-                logger.info("Exception occurred while deleting translog for primary_term={} generations={}", primaryTerm, generations, e);
+                logger.error(
+                    () -> new ParameterizedMessage(
+                        "Exception occurred while deleting translog for primary_term={} generations={}",
+                        primaryTerm,
+                        generations
+                    ),
+                    e
+                );
             }
         });
     }
 
-    public void cleanTranslogAsync(long primaryTerm, ActionListener<Void> listener) {
+    /**
+     * Handles deletion on translog files for a particular primary term.
+     *
+     * @param primaryTerm primary term
+     * @param listener    listener for response and failure
+     */
+    public void deleteTranslogAsync(long primaryTerm, ActionListener<Void> listener) {
         transferService.deleteAsync(remoteBaseTransferPath.add(String.valueOf(primaryTerm)), listener);
     }
 }

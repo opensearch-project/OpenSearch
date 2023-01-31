@@ -27,7 +27,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -300,19 +299,5 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         tracker.add(translogFile, true);
         tracker.add(checkpointFile, true);
 
-    }
-
-    public void testDeleteTranslog() throws IOException {
-        FileTransferTracker tracker = new FileTransferTracker(new ShardId("index", "indexUuid", 0));
-        TranslogTransferManager translogTransferManager = new TranslogTransferManager(transferService, remoteBaseTransferPath, tracker);
-        String translogFile = "translog-19.tlog", checkpointFile = "translog-19.ckp";
-        tracker.add(translogFile, true);
-        tracker.add(checkpointFile, true);
-        assertEquals(2, tracker.allUploaded().size());
-
-        List<String> files = List.of(checkpointFile, translogFile);
-        translogTransferManager.deleteTranslogAsync(primaryTerm, 19);
-        assertEquals(0, tracker.allUploaded().size());
-        verify(transferService).deleteBlobs(any(BlobPath.class), eq(files));
     }
 }
