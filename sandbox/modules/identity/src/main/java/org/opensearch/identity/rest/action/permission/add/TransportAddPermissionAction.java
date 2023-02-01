@@ -19,7 +19,11 @@ public class TransportAddPermissionAction extends HandledTransportAction<AddPerm
 
     private final PermissionService permissionService;
 
-    public TransportAddPermissionAction(TransportService transportService, ActionFilters actionFilters, PermissionService permissionService) {
+    public TransportAddPermissionAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        PermissionService permissionService
+    ) {
         super(AddPermissionAction.NAME, transportService, actionFilters, AddPermissionRequest::new);
         this.permissionService = permissionService;
     }

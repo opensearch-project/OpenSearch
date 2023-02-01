@@ -47,7 +47,9 @@ public class DeletePermissionResponseInfo extends TransportResponse implements W
         return this.permissionString;
     }
 
-    public String getPrincipalString() {return this.principalString;}
+    public String getPrincipalString() {
+        return this.principalString;
+    }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
@@ -71,6 +73,7 @@ public class DeletePermissionResponseInfo extends TransportResponse implements W
     private static final ParseField SUCCESSFUL = new ParseField("successful");
     private static final ParseField PERMISSION_STRING = new ParseField("permissionString");
     private static final ParseField PRINCIPAL_STRING = new ParseField("principalString");
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();

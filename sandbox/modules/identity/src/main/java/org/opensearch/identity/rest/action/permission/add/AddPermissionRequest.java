@@ -67,7 +67,6 @@ public class AddPermissionRequest extends ActionRequest implements ToXContentObj
         return validationException;
     }
 
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -103,8 +102,7 @@ public class AddPermissionRequest extends ActionRequest implements ToXContentObj
                     // add any validation checks here
 
                     permissionString = parser.text();
-                }
-                else if ("principalString".equals(currentFieldName)) {
+                } else if ("principalString".equals(currentFieldName)) {
 
                     if (token.isValue() == false) {
                         throw new IllegalArgumentException(); // TODO: check the message to be returned

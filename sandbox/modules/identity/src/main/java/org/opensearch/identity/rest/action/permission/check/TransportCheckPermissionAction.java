@@ -19,7 +19,11 @@ public class TransportCheckPermissionAction extends HandledTransportAction<Check
 
     private final PermissionService permissionService;
 
-    public TransportCheckPermissionAction(TransportService transportService, ActionFilters actionFilters, PermissionService permissionService) {
+    public TransportCheckPermissionAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        PermissionService permissionService
+    ) {
         super(CheckPermissionAction.NAME, transportService, actionFilters, CheckPermissionRequest::new);
         this.permissionService = permissionService;
     }

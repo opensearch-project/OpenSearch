@@ -40,7 +40,6 @@ public class RestCheckPermissionAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         String principalString = request.param("principalString");
 
-
         // Parsing request body using DefaultObjectMapper
         // JsonNode contentAsNode = DefaultObjectMapper.readTree(request.content().utf8ToString());
         // String permissionString = contentAsNode.get("permissionString").asText();

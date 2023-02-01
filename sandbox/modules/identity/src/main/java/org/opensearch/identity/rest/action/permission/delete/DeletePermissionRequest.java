@@ -67,7 +67,6 @@ public class DeletePermissionRequest extends ActionRequest implements ToXContent
         return validationException;
     }
 
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);

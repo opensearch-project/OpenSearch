@@ -19,8 +19,7 @@ public class AddPermissionAction extends ActionType<AddPermissionResponse> {
 
     // TODO : revisit this action type
 
-
-     // The action name
+    // The action name
     public static final String NAME = "cluster:permissions/add";
 
     AddPermissionAction() {

@@ -15,7 +15,6 @@ import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.xcontent.ConstructingObjectParser;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.identity.authz.OpenSearchPermission;
 import org.opensearch.transport.TransportResponse;
 
 import java.io.IOException;

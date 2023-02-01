@@ -26,7 +26,6 @@ public class AddPermissionResponseInfo extends TransportResponse implements Writ
     private final String permissionString;
     private final String principalString;
 
-
     public AddPermissionResponseInfo(boolean successful, String permissionString, String principalString) {
         this.successful = successful;
         this.permissionString = permissionString;

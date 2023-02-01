@@ -8,7 +8,6 @@
 
 package org.opensearch.identity.rest.action.permission.delete;
 
-import org.opensearch.authn.StringPrincipal;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.identity.rest.RestConfigConstants;
 import org.opensearch.rest.BaseRestHandler;

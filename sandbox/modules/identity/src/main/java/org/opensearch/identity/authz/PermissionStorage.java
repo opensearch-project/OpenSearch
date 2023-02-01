@@ -8,7 +8,10 @@
 
 package org.opensearch.identity.authz;
 
+import org.opensearch.authn.StringPrincipal;
+
 import java.security.Principal;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
@@ -26,33 +29,57 @@ import java.util.List;
  */
 public class PermissionStorage {
 
-    public HashMap<Principal, List<Permission>> permissionStore = new HashMap<>();
+    public static HashMap<Principal, List<OpenSearchPermission>> permissionStore = new HashMap<>();
 
     /**
      * This function adds a set of permissions to the permission store. The principal is a unique identifier for some subject.
      * The List is a list of all permissions that are being granted.
      */
-    public void put(Principal principal, List<Permission> permissions) {
+    public static void put(Principal principal, List<OpenSearchPermission> permissions) {
 
-        permissionStore.put(principal, permissions);
+        for (OpenSearchPermission permission : permissions) {
+            permissionStore.computeIfAbsent(principal, permissionsList -> new ArrayList<>()).add(permission);
+        }
+    }
+
+    public static void put(String principal, List<OpenSearchPermission> permissions) {
+
+        StringPrincipal principalFromString = new StringPrincipal(principal);
+        for (OpenSearchPermission permission : permissions) {
+            permissionStore.computeIfAbsent(principalFromString, permissionsList -> new ArrayList<>()).add(permission);
+        }
     }
 
     /**
      * This function returns the List of permissions associated with the provided principal.
      * If permissions are modified during storage they must be reverted back to their original state during get().
      */
-    public List<Permission> get(Principal principal) {
+    public static List<OpenSearchPermission> get(Principal principal) {
 
         return permissionStore.get(principal);
+    }
+
+    public static List<OpenSearchPermission> get(String principal) {
+
+        StringPrincipal principalFromString = new StringPrincipal(principal);
+        return permissionStore.get(principalFromString);
     }
 
     /**
      * This function in-place deletes all targeted permissions associated with a given principal.
      */
-    public void delete(Principal principal, List<Permission> permissions) {
+    public static void delete(Principal principal, List<OpenSearchPermission> permissions) {
 
-        for (Permission permission : permissions) {
+        for (OpenSearchPermission permission : permissions) {
             permissionStore.remove(principal, permission);
+        }
+    }
+
+    public static void delete(String principal, List<OpenSearchPermission> permissions) {
+
+        StringPrincipal principalFromString = new StringPrincipal(principal);
+        for (OpenSearchPermission permission : permissions) {
+            permissionStore.remove(principalFromString, permission);
         }
     }
 }

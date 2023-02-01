@@ -17,10 +17,14 @@ import org.opensearch.common.Glob;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.identity.IdentityPlugin;
 
-import java.util.*;
+import java.util.Arrays;
+import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.Collections;
+import java.util.ArrayList;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
 
 public class OpenSearchPermission implements Permission {
 
@@ -57,7 +61,6 @@ public class OpenSearchPermission implements Permission {
 
         }
     }
-
 
     public String getPermissionType() {
         return this.permissionType;
@@ -124,7 +127,8 @@ public class OpenSearchPermission implements Permission {
                 } else if (resourceOrPattern.charAt(0) == '-') {
                     // If the first resource pattern is an exclusion, then all patterns are exclusions due to the
                     // reordering logic above. In this case, the request is interpreted as "include all resources except
-                    // those matching the exclusions" so we add all resources here and then remove the ones that match the exclusion patterns.
+                    // those matching the exclusions" so we add all resources here and then remove the ones that match the exclusion
+                    // patterns.
                     if (i == 0) {
                         result = new HashSet<>(availableResources);
                     }
@@ -212,7 +216,6 @@ public class OpenSearchPermission implements Permission {
             List<String> allResources = new ArrayList<>(allPermissionIndexNames);
             this.resourcePatterns = resolveResourceNegation(allResources, this.resourcePatterns);
         }
-
 
         IndexNameExpressionResolver iner = IndexNameExpressionResolverHolder.getInstance();
         ClusterState cs = IdentityPlugin.GuiceHolder.getClusterService().state();
