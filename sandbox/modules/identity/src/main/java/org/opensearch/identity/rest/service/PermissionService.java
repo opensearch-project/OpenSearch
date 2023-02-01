@@ -71,7 +71,9 @@ public class PermissionService {
         }
 
         OpenSearchPermission newPermission = PermissionFactory.createPermission(permissionString);
-        List<OpenSearchPermission> permissionList = new ArrayList<OpenSearchPermission>((Collection<? extends OpenSearchPermission>) newPermission);
+        List<OpenSearchPermission> permissionList = new ArrayList<OpenSearchPermission>(
+            (Collection<? extends OpenSearchPermission>) newPermission
+        );
         PermissionStorage.put(principal, permissionList);
         AddPermissionResponseInfo responseInfo = new AddPermissionResponseInfo(true, permissionString, principal);
         AddPermissionResponse response = new AddPermissionResponse(unmodifiableList(asList(responseInfo)));
@@ -100,7 +102,9 @@ public class PermissionService {
         }
 
         OpenSearchPermission newPermission = PermissionFactory.createPermission(permissionString);
-        List<OpenSearchPermission> permissionList = new ArrayList<OpenSearchPermission>((Collection<? extends OpenSearchPermission>) newPermission);
+        List<OpenSearchPermission> permissionList = new ArrayList<OpenSearchPermission>(
+            (Collection<? extends OpenSearchPermission>) newPermission
+        );
         PermissionStorage.delete(principal, permissionList);
         DeletePermissionResponseInfo responseInfo = new DeletePermissionResponseInfo(true, permissionString, principal);
         DeletePermissionResponse response = new DeletePermissionResponse(unmodifiableList(asList(responseInfo)));

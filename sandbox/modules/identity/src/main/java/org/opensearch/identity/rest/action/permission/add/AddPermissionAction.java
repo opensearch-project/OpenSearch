@@ -20,7 +20,7 @@ public class AddPermissionAction extends ActionType<AddPermissionResponse> {
     // TODO : revisit this action type
 
     // The action name
-    public static final String NAME = "cluster:permissions/add";
+    public static final String NAME = "cluster:admin/permissions/add";
 
     AddPermissionAction() {
         super(NAME, AddPermissionResponse::new);

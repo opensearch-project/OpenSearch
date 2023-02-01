@@ -27,7 +27,7 @@ public class RestDeletePermissionAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return RestConfigConstants.IDENTITY_READ_PERMISSION_ACTION;
+        return RestConfigConstants.IDENTITY_DELETE_PERMISSION_ACTION;
     }
 
     /**
