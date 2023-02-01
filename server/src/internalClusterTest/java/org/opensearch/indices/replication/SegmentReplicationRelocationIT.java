@@ -407,8 +407,8 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
      * replication checkpoint upto the primary's by performing a round of segment replication.
      */
     @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/5669")
-    public void testNewlyAddedReplicaIsUpdated() {
-        internalCluster().startNode(featureFlagSettings());
+    public void testNewlyAddedReplicaIsUpdated() throws Exception {
+        final String primary = internalCluster().startNode();
         prepareCreate(
             INDEX_NAME,
             Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
@@ -426,9 +426,9 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
         assertEquals(client().prepareSearch(INDEX_NAME).setSize(0).execute().actionGet().getHits().getTotalHits().value, 20L);
 
         logger.info("--> start empty node to add replica shard");
-        final String replicaNode = internalCluster().startNode(featureFlagSettings());
+        final String replica = internalCluster().startNode();
         ensureGreen(INDEX_NAME);
-        // Update replica count settings to 1 so that peer recovery triggers and recover replicaNode
+        // Update replica count settings to 1 so that peer recovery triggers and recover replica
         assertAcked(
             client().admin()
                 .indices()
@@ -436,7 +436,6 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
                 .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
         );
 
-        // Verify that cluster state is not green and replica shard failed during a round of segment replication is not added to the cluster
         ClusterHealthResponse clusterHealthResponse = client().admin()
             .cluster()
             .prepareHealth()
@@ -447,10 +446,10 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
             .execute()
             .actionGet();
         assertFalse(clusterHealthResponse.isTimedOut());
-        ensureYellow(INDEX_NAME);
-        IndicesService indicesService = internalCluster().getInstance(IndicesService.class, replicaNode);
-        assertTrue(indicesService.hasIndex(resolveIndex(INDEX_NAME)));
-        assertEquals(client().prepareSearch(INDEX_NAME).setSize(0).execute().actionGet().getHits().getTotalHits().value, 20L);
+        ensureGreen(INDEX_NAME);
+        flushAndRefresh(INDEX_NAME);
+        waitForSearchableDocs(20, primary, replica);
+        verifyStoreContent();
     }
 
     /**
@@ -485,17 +484,19 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
         assertEquals(client().prepareSearch(INDEX_NAME).setSize(0).execute().actionGet().getHits().getTotalHits().value, 20L);
 
         logger.info("--> start empty node to add replica shard");
-        final String replicaNode = internalCluster().startNode();
+        final String replica = internalCluster().startNode();
 
+        final CountDownLatch waitForRecovery = new CountDownLatch(1);
         // Mock transport service to add behaviour of throwing corruption exception during segment replication process.
         MockTransportService mockTransportService = ((MockTransportService) internalCluster().getInstance(
             TransportService.class,
             primaryNode
         ));
         mockTransportService.addSendBehavior(
-            internalCluster().getInstance(TransportService.class, replicaNode),
+            internalCluster().getInstance(TransportService.class, replica),
             (connection, requestId, action, request, options) -> {
                 if (action.equals(SegmentReplicationTargetService.Actions.FILE_CHUNK)) {
+                    waitForRecovery.countDown();
                     throw new OpenSearchCorruptionException("expected");
                 }
                 connection.sendRequest(requestId, action, request, options);
@@ -509,6 +510,9 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
                 .prepareUpdateSettings(INDEX_NAME)
                 .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
         );
+        IndicesService indicesService = internalCluster().getInstance(IndicesService.class, replica);
+        waitForRecovery.await();
+        assertBusy(() -> assertTrue(indicesService.hasIndex(resolveIndex(INDEX_NAME))));
 
         // Verify that cluster state is not green and replica shard failed during a round of segment replication is not added to the cluster
         ClusterHealthResponse clusterHealthResponse = client().admin()
@@ -522,8 +526,5 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
             .actionGet();
         assertTrue(clusterHealthResponse.isTimedOut());
         ensureYellow(INDEX_NAME);
-        IndicesService indicesService = internalCluster().getInstance(IndicesService.class, replicaNode);
-        assertFalse(indicesService.hasIndex(resolveIndex(INDEX_NAME)));
     }
-
 }
