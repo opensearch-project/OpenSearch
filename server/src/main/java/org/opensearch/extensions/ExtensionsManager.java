@@ -565,6 +565,15 @@ public class ExtensionsManager {
             List<HashMap<String, ?>> unreadExtensions = new ArrayList<>((Collection<HashMap<String, ?>>) obj.get("extensions"));
             List<Extension> readExtensions = new ArrayList<Extension>();
             for (HashMap<String, ?> extensionMap : unreadExtensions) {
+                // Parse extension dependencies
+                List<ExtensionDependency> extensionDependencyList = new ArrayList<ExtensionDependency>();
+                if(extensionMap.get("dependencies") != null) {
+                    List<HashMap<String, ?>> extensionDependencies = new ArrayList<>((Collection<HashMap<String, ?>>) extensionMap.get("dependencies"));
+                    for (HashMap<String, ?> dependency : extensionDependencies) {
+                        extensionDependencyList.add(new ExtensionDependency(dependency.get("uniqueId").toString(), Version.fromString(dependency.get("version").toString())));
+                    }
+                }
+                // Create extension read from yml config
                 readExtensions.add(
                     new Extension(
                         extensionMap.get("name").toString(),
@@ -573,7 +582,8 @@ public class ExtensionsManager {
                         extensionMap.get("port").toString(),
                         extensionMap.get("version").toString(),
                         extensionMap.get("opensearchVersion").toString(),
-                        extensionMap.get("minimumCompatibleVersion").toString()
+                        extensionMap.get("minimumCompatibleVersion").toString(),
+                        extensionDependencyList
                     )
                 );
             }
